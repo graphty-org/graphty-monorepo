@@ -1,7 +1,8 @@
 # Timeline
 
 Show a graph as it was over time: pick the column that holds each element's time, then move a window
-along it. Only what falls inside the window is drawn.
+along it. Style layers decide how what falls outside the window is drawn: hidden, faint, or as
+everything else.
 
 Everything on this page needs the `timeline` experiment. Switch it on with `features="timeline"` on
 the element, or see [Experiments](./experiments) for the other ways. The JavaScript snippets below
@@ -208,8 +209,8 @@ history step, so `time.committed` follows every step.
 
 A move of the window redraws only what entered and left it. The exception is an edge drawn through a
 support point (`edge.supportModel`): support points settle together, so a move that reveals, hides or
-repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
-ghost or back.
+repaints one visits every edge. Repainting includes `outside: "ghost"` drawing such an edge or
+hiding it again.
 
 ## Settings
 
@@ -228,10 +229,58 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
   them again over each new window, a play waiting for them at every step.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
-- `outside`: `"hide"` (the default) or `"ghost"`, which keeps elements outside the window drawn in the
-  `"ghosted"` element state (`{ match: "state", state: "ghosted" }` in a style layer), never counted
-  as visible.
+- `outside`: `"hide"` or `"ghost"`, read from and written to the style layers. See [What lies outside the window](#what-lies-outside-the-window).
 - `timeZone` and `ageFade`: see [Time zones](#time-zones) and [Fading older edges](#fading-older-edges).
+
+## What lies outside the window
+
+The window only changes how the graph is drawn. It never takes anything out of the graph: what lies
+outside it stays visible, so `visibility.summary`, the selection, an export of what is shown,
+algorithm runs and the layout are the same with or without a window. An element outside the window
+is in the `"outsideWindow"` element state, and style layers that select that state decide how it
+looks, as they decide how a selected or a pinned node looks. With no such layer, the window draws
+nothing differently. `time.inside` counts what every filter keeps inside the window, by kind
+(`{ nodes, edges }`, or `null` with no window), and each `time:step` event carries the same counts as
+`visible`.
+
+With the project setting `startingRows` on, the element adds one such row for you, Timeline Hidden,
+directly below Selected. The project setting `timelineHiddenLook` picks how it starts:
+
+- `"hidden"` (the default): `visible: false`, so what lies outside the window is not drawn at all;
+- `"ghost"`: `visible: true`, grey at low opacity, so it stays on screen as context.
+
+```js
+await g.session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+```
+
+Timeline Hidden is an ordinary row: edit it, hide it or delete it like any other. It is added only
+while the `timeline` experiment is on and no layer already selects `"outsideWindow"`, so it never
+comes twice, and a project file brings back exactly the rows it saved. Changing
+`timelineHiddenLook` later never rewrites a row that is already there. You can also write the row
+yourself:
+
+```js
+await g.session.styles.add({
+    name: "Outside the window",
+    target: "node",
+    selector: { match: "state", state: "outsideWindow" },
+    set: { "node.color": "#9E9E9E", "node.opacity": 0.2 },
+});
+```
+
+`time.setSettings({ outside: "hide" })` sets `visible: false` on every layer that selects the state,
+adding one for nodes and one for edges when no layer selects it, and `outside: "ghost"` sets
+`visible: true` on them the same way. `time.settings.outside` reads the layers: it
+says `"ghost"` only while layers selecting the state draw both nodes and edges outside the window,
+and `"hide"` otherwise.
+
+A project saved before what lies outside the window had a state of its own opens the way it
+looked then: its layers reading `"ghosted"` read `"outsideWindow"`, and what lies outside is hidden
+unless its timeline settings said `"ghost"`. A project saved since opens with its layers exactly
+as saved, including a layer of yours that reads `"ghosted"`.
+
+A play, a step or a jump moves no node and no camera, even with `layout.visibleOnly`, which lays
+out only what the filter keeps. A hidden element's halo, label and support point go with it.
 
 ## Fading older edges
 

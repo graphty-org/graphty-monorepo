@@ -18,12 +18,16 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { featureOff } from "../../features/resolve";
+import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { CompiledLayer } from "../styles/Layer";
+import type { Selector } from "../styles/selector";
+import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
 import type { HistoryStepId, SessionEventMap } from "../types";
 import type {
     FilterResult,
@@ -266,7 +270,7 @@ export interface TimeIds {
 }
 
 /**
- * What entered and left the visible graph on the last move.
+ * What entered and left the window on the last move.
  * @experimental timeline
  * @beta
  */
@@ -295,6 +299,7 @@ export interface TimeStepEvent {
     readonly index: number;
     readonly from: number;
     readonly to: number;
+    /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
     readonly entered: TimeCountPair;
     readonly left: TimeCountPair;
@@ -374,7 +379,14 @@ export interface TimeSettings {
     readonly step: TimeStep | "auto";
     /** Whether an element with no usable time is kept in every window. */
     readonly missing: "inside" | "outside";
-    /** Whether elements outside the window are hidden or drawn as ghosts; see {@link TimePlayback.outside}. */
+    /**
+     * Whether elements outside the window are hidden or drawn as ghosts. Read from the style
+     * layers selecting `{ match: "state", state: "outsideWindow" }`, and written to them:
+     * `"ghost"` sets `visible: true` and `"hide"` sets `visible: false` on every layer of the stack
+     * that selects the state (adding one for each kind when none does). It reads `"ghost"` only
+     * while such layers draw both kinds; with none, nothing hides them and it reads `"hide"`.
+     * Never a layout input: what lies outside the window keeps its place.
+     */
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
     readonly timeZone: string;
@@ -510,6 +522,12 @@ export interface TimeApi {
      * the experiment off throws `E_FEATURE_OFF`.
      */
     readonly committed: TimeWindow | null;
+    /**
+     * What every filter keeps inside the window in force, by kind: what is drawn as in it, never a
+     * visibility count (the window narrows no `visibility.summary`). Null with no window.
+     * @since 3.40.0
+     */
+    readonly inside: TimeCountPair | null;
     /** Whether the window is the first one: a step back would leave the data. False with no window. */
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
@@ -764,6 +782,16 @@ const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     timeZone: UTC_ZONE,
     ageFade: 1,
 });
+
+/**
+ * Whether a layer selects what lies outside the time window.
+ * @param layer - The layer.
+ * @param layer.selector - What it selects.
+ * @returns True for `{ match: "state", state: "outsideWindow" }`.
+ */
+function selectsOutside(layer: { readonly selector: Selector }): boolean {
+    return layer.selector.match === "state" && layer.selector.state === "outsideWindow";
+}
 
 // ---------------------------------------------------------------------------------------------
 // Reading the index
@@ -1665,10 +1693,73 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const settingsNow = (): TimeSettings => {
         const saved: TimePlayback | null | undefined = dispatcher.state.visibility.playback;
+        const outside = outsideNow();
+        if (saved === null || saved === undefined) {
+            return outside === DEFAULT_TIME_SETTINGS.outside
+                ? DEFAULT_TIME_SETTINGS
+                : Object.freeze({ ...DEFAULT_TIME_SETTINGS, outside });
+        }
 
-        return saved === null || saved === undefined
-            ? DEFAULT_TIME_SETTINGS
-            : Object.freeze({ ...DEFAULT_TIME_SETTINGS, ...saved });
+        return Object.freeze({ ...DEFAULT_TIME_SETTINGS, ...saved, outside });
+    };
+
+    /**
+     * The layers of one kind selecting what lies outside the window that paint now: enabled, and
+     * not in a hidden row.
+     * @param target - Nodes or edges.
+     * @returns Them, bottom first, the element's own included.
+     */
+    const outsideLayers = (target: "node" | "edge"): CompiledLayer[] =>
+        paintedStack(dispatcher.state.styles).filter(
+            ({ layer }) => layer.enabled && layer.target === target && selectsOutside(layer),
+        );
+
+    /**
+     * How an element outside the window draws, read from the layers selecting that state.
+     * @returns `"ghost"` when nodes and edges alike are drawn.
+     */
+    const outsideNow = (): "hide" | "ghost" => (drawsOutsideWindow(dispatcher.state.styles) ? "ghost" : "hide");
+
+    /**
+     * The style writes that make what lies outside the window draw one way: for nodes and for
+     * edges, `visible` on every painting layer a reader or a template put in the stack selecting
+     * that state, or a new layer when none does.
+     * @param outside - How it draws.
+     * @returns The commands.
+     */
+    const outsideWrites = (outside: "hide" | "ghost"): StylePatchCommand[] => {
+        const drawn = outside === "ghost";
+        const painted = paintedStack(dispatcher.state.styles);
+        return (["node", "edge"] as const).flatMap((target): StylePatchCommand[] => {
+            const own = outsideLayers(target);
+            if (own.length === 0) {
+                // A kind already drawn the way asked needs no layer of its own.
+                return !drawn || !drawsOutsideWindowOf(painted, target)
+                    ? [
+                          {
+                              op: "style.patch",
+                              action: "add",
+                              spec: {
+                                  name: "Outside the time window",
+                                  target,
+                                  selector: { match: "state", state: "outsideWindow" },
+                                  set: { [`${target}.visible`]: drawn },
+                              },
+                          },
+                      ]
+                    : [];
+            }
+
+            // A layer already set the way asked is left alone, so asking again writes nothing.
+            return own
+                .filter(({ layer }) => layer.set?.[`${target}.visible`] !== drawn)
+                .map(({ layer }) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id: layer.id,
+                    patch: { set: { ...layer.set, [`${target}.visible`]: drawn } },
+                }));
+        });
     };
 
     /**
@@ -2013,12 +2104,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const extent = extentNow();
         const untimedOf = (kind: TimeCounts | undefined): number =>
             kind === undefined ? 0 : kind.untimed + kind.unparsed;
-        const { summary } = visibility;
+        const inside = visibility.windowCounts();
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
             from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window, "from"),
             to: window === null ? Number.POSITIVE_INFINITY : boundOf(window, "to"),
-            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
+            visible: Object.freeze({ nodes: inside.nodes, edges: inside.edges }),
             entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
             left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
             untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
@@ -2037,10 +2128,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * The masks as they stand, for a move that does not go through a slide.
      * @returns Both masks.
      */
-    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => ({
-        nodes: visibility.nodeMask(),
-        edges: visibility.edgeMask(),
-    });
+    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => visibility.windowMasks();
 
     /**
      * Publish a move that did not go through a slide, from the masks before it.
@@ -2788,6 +2876,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return visibility.window;
         },
 
+        get inside() {
+            if ((cursor ?? visibility.window) === null) {
+                return null;
+            }
+            const { nodes, edges } = visibility.windowCounts();
+            return Object.freeze({ nodes, edges });
+        },
+
         get atStart() {
             const current = cursor ?? visibility.window;
             return current !== null && isFirst(current);
@@ -2819,21 +2915,30 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 zoneOf(patch.timeZone);
             }
 
+            if (patch.outside !== undefined && patch.outside !== "hide" && patch.outside !== "ghost") {
+                throw badCommand('outside is "hide" or "ghost".', { field: "outside", value: patch.outside });
+            }
+
             const current = visibility.window;
-            // Fading by age changes only how the window is drawn, so it leaves the window where it is.
-            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade");
+            // Fading by age and how what lies outside draws change only the drawing, so they leave the window where it is.
+            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade" || key === "outside");
             const moved =
                 current !== null && extentNow() !== null && !drawingOnly
                     ? windowUnder(current, next, patch.timeZone)
                     : null;
             const before = masksNow();
+            // How what lies outside draws lives in the style layers, never in the playback.
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
                     Object.entries(next).filter(
-                        ([key, value]) => DEFAULT_TIME_SETTINGS[key as keyof TimeSettings] !== value,
+                        ([key, value]) =>
+                            key !== "outside" && DEFAULT_TIME_SETTINGS[key as keyof TimeSettings] !== value,
                     ),
                 ),
             );
+            // Written whatever `outside` reads now: it reads "ghost" only while both kinds are drawn,
+            // so a layer drawing one kind alone still reads "hide" and is set back by asking for it.
+            const styleWrites = patch.outside === undefined ? [] : outsideWrites(patch.outside);
             await dispatcher.transaction(
                 "time.settings",
                 async (tx) => {
@@ -2841,6 +2946,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                         op: "visibility.playback",
                         playback: Object.keys(playback).length === 0 ? null : playback,
                     });
+                    for (const write of styleWrites) {
+                        await tx.dispatch(write);
+                    }
+
                     if (moved !== null) {
                         await tx.dispatch({ op: "visibility.window", window: moved });
                     }

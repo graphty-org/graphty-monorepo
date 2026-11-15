@@ -166,9 +166,10 @@ export function Overview(): React.JSX.Element | null {
         void session.selection.apply({ scope }, "replace", { cause: "user" });
     };
     const weight = session.data.loadedWeight();
-    // A time window limits what is showing exactly as a filter card does.
+    // A timeline window changes only the drawing; a saved one limits what is showing while the timeline is off.
     const filtered =
-        session.visibility.conditions.some((c) => c.on && c.effect !== "select") || session.visibility.window !== null;
+        session.visibility.conditions.some((c) => c.on && c.effect !== "select") ||
+        (!timelineOn(session) && session.visibility.window !== null);
     const showing = session.visibility.summary;
 
     const whole = (

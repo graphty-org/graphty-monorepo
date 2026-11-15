@@ -419,7 +419,8 @@ function MemberValues({
 const STATE_NAMES = {
     selected: "Is selected",
     hovered: "Is hovered",
-    ghosted: "Is outside the time window",
+    ghosted: "Is held out by the condition being edited",
+    outsideWindow: "Is outside the time window",
     pinned: "Is pinned",
 } as const;
 
@@ -629,7 +630,7 @@ export function LayerValues({
                 </ControlSection>
             )}
             {[...new Set(states)].map((state) =>
-                state === "ghosted" || state === "pinned" ? null : (
+                state === "ghosted" || state === "outsideWindow" || state === "pinned" ? null : (
                     <StateValues key={state} session={session} state={state} />
                 ),
             )}

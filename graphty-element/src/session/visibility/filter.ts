@@ -193,10 +193,10 @@ export interface TimePlayback {
     /** Whether an element with no usable time is kept in every window; default `"inside"`. */
     readonly missing?: "inside" | "outside";
     /**
-     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
-     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
-     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
-     * export includes them.
+     * Read on load and never stored: how elements outside the window draw lives in the style
+     * layers selecting `{ match: "state", state: "outsideWindow" }` (see
+     * `session.time.settings.outside`). Either way they are not visible: no count, run or export
+     * includes them, and they keep their place in every layout.
      */
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */

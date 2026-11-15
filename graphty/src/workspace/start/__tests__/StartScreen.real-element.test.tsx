@@ -50,14 +50,14 @@ function addedLayers(session: GraphSession): string[] {
 }
 
 /**
- * What the app starts every project it opens with: the four starting rows, the Ghost row too when the
+ * What the app starts every project it opens with: the four starting rows, the Timeline Hidden row too when the
  * timeline experiment is on, and nothing else.
  * @param session - The session the project opened in.
  * @returns The starting rows' names.
  */
 function startingRows(session: GraphSession): string[] {
     const rows = ["Everything", "Selected", "Pinned", "Hovered"];
-    return session.features.has("timeline") ? [...rows, "Ghost"] : rows;
+    return session.features.has("timeline") ? [...rows, "Timeline Hidden"] : rows;
 }
 
 afterEach(() => {

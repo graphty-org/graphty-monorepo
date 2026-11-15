@@ -417,6 +417,13 @@ describe("the element's switch", () => {
         const scene = element.graph.getScene();
         await element.session.time.setField({ edges: { start: "t" } });
         await element.session.time.ready;
+        // A window hides by style: a layer selecting what lies outside it hides it.
+        await element.session.styles.add({
+            name: "Outside the window",
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        });
         await drawn(element);
         const { on } = batchUploadFrames.rangedUploads(scene);
         assert.isFalse(on, "no window yet");
@@ -566,6 +573,13 @@ describe("a context lost while a window is in force", () => {
         });
         await element.session.time.setField({ edges: { start: "t" } });
         await element.session.time.ready;
+        // A window hides by style: a layer selecting what lies outside it hides it.
+        await element.session.styles.add({
+            name: "Outside the window",
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        });
         await element.session.time.window({ from: 0, to: 20, step: 5, nodes: "ends" });
         await element.session.time.seek(20, { commit: false });
         await drawn(element);

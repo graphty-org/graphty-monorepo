@@ -1,8 +1,8 @@
 /**
  * A reload reopens this tab's kept work into a fresh session that already took the app's starting
  * rows (graphty's Workspace sets `startingRows` before the restore). The work must come back with
- * exactly the rows it was saved with: none added twice. A time field read from the work adds the
- * Ghost row by itself, which once brought every starting row back beside the saved ones (issue
+ * exactly the rows it was saved with: none added twice. A time field read from the work once added
+ * the timeline's row by itself, which brought every starting row back beside the saved ones (issue
  * #7843).
  */
 

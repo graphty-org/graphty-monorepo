@@ -597,7 +597,12 @@ describe("the time window and the working graph", () => {
             await session.time.window({ from: 0, to: 5 });
             await graph.waitForSettled();
             // The time window is not part of the working graph (owner rule 2026-11-12).
-            assert.isTrue(session.visibility.ghosting, "the nodes outside the window are drawn as ghosts");
+            const outside = session.visibility.outsideWindowBytes()?.node ?? new Uint8Array();
+            assert.isAbove(
+                outside.reduce((sum, byte) => sum + byte, 0),
+                0,
+                "the nodes outside the window are in the state the ghost layer draws",
+            );
             assert.deepEqual(positionsOf(graph), before, "no node moved for the window");
         } finally {
             graph.dispose();

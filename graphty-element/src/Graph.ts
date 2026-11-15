@@ -1710,8 +1710,8 @@ export class Graph implements GraphContext {
             },
             // Off while the working graph is on: nothing outside the view is drawn.
             showContext: () => this.session.visibility.drawsContext,
-            // What is drawn: the visible elements, plus the ghosts outside the time window when
-            // the timeline draws them. Visible stays the data scope everything else reads.
+            // What is drawn: the visible elements, plus what lies outside a time window, which the
+            // style layers hide or ghost. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
             timeline: () => this.session.features.enabled.includes("timeline"),
@@ -1781,10 +1781,11 @@ export class Graph implements GraphContext {
                 this.layoutManager.releaseDetachedScope();
             }
         });
-        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
-        // layouts run over what is shown, the running layout follows it once
-        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it. A
-        // restore or a rollback brings back an arrangement of its own.
+        // WHAT IS SHOWN CHANGED: a filter, or an undo or redo of one (a time window hides by style
+        // and changes nothing shown, so it moves no node). While layouts run over what is shown,
+        // the running layout follows it once (design/working-graph/design.md, section 7); queued,
+        // so `waitForSettled` waits for it. A restore or a rollback brings back an arrangement of
+        // its own.
         this.session.on("visibility:changed", ({ cause }) => {
             if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
                 this.followShown(cause === "undo" || cause === "redo");

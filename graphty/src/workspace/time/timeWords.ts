@@ -138,12 +138,6 @@ export const UNIT_CHOICES: readonly { readonly value: TimeUnit; readonly label: 
     { value: "ordinal", label: "Number" },
 ];
 
-/** The Outside choices: whether elements outside the window are hidden or drawn as ghosts. */
-export const OUTSIDE_CHOICES = [
-    { value: "hide", label: "Hide" },
-    { value: "ghost", label: "Ghost" },
-] as const;
-
 const UTC = "UTC";
 
 /**

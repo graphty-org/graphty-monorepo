@@ -51,6 +51,17 @@ export const OPEN_PROJECT_URLS = {
     fallback: "ask",
 } as const;
 
+/**
+ * Default timeline style (Settings > General, with the timeline experiment on): the look the
+ * Timeline Hidden row starts with when a new project gets it, as graphty-element's
+ * `timelineHiddenLook`. It never rewrites a row a project already has.
+ */
+export const TIMELINE_STYLE = {
+    key: "graphty.timelineStyle.v1",
+    values: ["hidden", "ghost"],
+    fallback: "hidden",
+} as const;
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;

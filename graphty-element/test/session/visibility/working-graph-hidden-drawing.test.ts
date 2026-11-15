@@ -262,7 +262,12 @@ describe("time ghosts and the working graph", () => {
         "draws the nodes outside the window as ghosts with the option %s, and keeps them in the view",
         async (workingGraph) => {
             const session = await ghostTrace(workingGraph);
-            assert.isTrue(session.visibility.ghosting);
+            // Outside the window is a state the style layers draw, never a ghost of a held condition.
+            const outside = session.visibility.outsideWindowBytes();
+            assert.strictEqual(
+                outside?.node.reduce((sum, byte) => sum + byte, 0),
+                7,
+            );
             assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
             assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
             // The window is not part of the working graph: every node stays in the view.

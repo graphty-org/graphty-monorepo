@@ -10,6 +10,8 @@ import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
+import type { ElementSession } from "../../src/session/types";
+import { windowNodeIds } from "../helpers/time-window";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -38,19 +40,21 @@ afterEach(() => {
 });
 
 /**
- * Assert every node and edge is drawn as the session's visibility says.
+ * Assert every node and edge is drawn as the session's visibility and the hidden window say.
  * @param element - The element.
  * @param when - What just happened, for the message.
  */
 function assertDrawnAsVisible(element: Graphty, when: string): void {
-    const { visibility } = element.session;
+    const { visibility } = element.session as ElementSession;
     const dm = element.graph.getDataManager();
     for (const node of dm.nodes.values()) {
-        assert.strictEqual(node.mesh.isEnabled(), visibility.isVisible(node.id), `${when}: node ${String(node.id)}`);
+        const shown = visibility.isVisible(node.id) && !visibility.outsideWindow("node", node.index);
+        assert.strictEqual(node.mesh.isEnabled(), shown, `${when}: node ${String(node.id)}`);
     }
 
     for (const edge of dm.edges.values()) {
-        assert.strictEqual(edge.isRenderVisible(), visibility.isVisible(edge.id), `${when}: edge ${edge.id}`);
+        const shown = visibility.isVisible(edge.id) && !visibility.outsideWindow("edge", edge.index);
+        assert.strictEqual(edge.isRenderVisible(), shown, `${when}: edge ${edge.id}`);
     }
 }
 
@@ -75,6 +79,8 @@ async function emailElement(): Promise<Graphty> {
     element.dataSourceConfig = { data: EMAILS };
     await element.waitForSettled();
     await element.session.time.ready;
+    // What lies outside the window is hidden by a layer selecting it.
+    await element.session.time.setSettings({ outside: "hide" });
     return element;
 }
 
@@ -85,10 +91,8 @@ describe("session.time playback on the element", () => {
         await time.window({ from: T0, to: T0 + DAY, step: "day" });
 
         const frames: TimeStepEvent[] = [];
-        const shown: number[] = [];
         element.session.on("time:step", (step) => {
             frames.push(step);
-            shown.push(element.session.visibility.summary.visibleNodes);
         });
         // A day every two seconds: a frame moves the window a sliver of a day.
         time.play({ interval: 2000 });
@@ -219,18 +223,19 @@ describe("session.time playback on the element", () => {
         await time.ready;
         assert.deepStrictEqual(time.field, { edges: { start: "sent" } });
         assert.strictEqual(time.extent()?.from, T0 + 9 * 3_600_000);
+        await time.setSettings({ outside: "hide" });
 
         await time.window({ from: T0, to: T0 + DAY, step: "day" });
         await element.waitForSettled();
         await element.waitForStableFrame();
-        assert.deepStrictEqual([...element.session.visibility.nodes].map(String).sort(), ["a", "b"]);
+        assert.deepStrictEqual(windowNodeIds(element.session).sort(), ["a", "b"]);
         assertDrawnAsVisible(element, "the first day");
 
         const steps: TimeStepEvent[] = [];
         const drawnAfterStep: string[][] = [];
         element.session.on("time:step", (step) => {
             steps.push(step);
-            drawnAfterStep.push([...element.session.visibility.nodes].map(String).sort());
+            drawnAfterStep.push(windowNodeIds(element.session).sort());
         });
         await new Promise<void>((resolve) => {
             const off = element.session.on("time:end", () => {

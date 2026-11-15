@@ -13,7 +13,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { dragAcross, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
+import { dragAcross, hoverOver, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -494,14 +494,109 @@ describe("the timeline dock on the real element", () => {
         assert.deepEqual(session.time.current, before);
     });
 
+    it("keeps Timeline settings at the bar's right end, whatever buttons come and go", async () => {
+        const { session, dock } = await openDock();
+        const atEnd = (): DOMRect => {
+            const gear = within(dock).getByRole("button", { name: "Timeline settings" });
+            const bar = gear.closest(".tl-bar");
+            assert.isNotNull(bar);
+            assert.isTrue(bar.lastElementChild?.contains(gear));
+            const box = gear.getBoundingClientRect();
+            assert.closeTo(box.right, bar.getBoundingClientRect().right, 1);
+            return box;
+        };
+        atEnd();
+
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        await within(dock).findByRole("button", { name: "Jump to selection" });
+        atEnd();
+
+        const whole = brushOf(dock);
+        await windowOn(session, whole.min, whole.min + (whole.max - whole.min) / 2);
+        const all = await within(dock).findByRole("button", { name: "Show all time" });
+        // Show all time sits just before it, never over it.
+        assert.isAtMost(all.getBoundingClientRect().right, atEnd().left);
+
+        // Squeezed until the bar wraps, the gear still ends the last line with Show all time beside
+        // it, and Show all time covers no other button.
+        const bar = all.closest(".tl-bar");
+        assert.isNotNull(bar);
+        const oneLine = bar.getBoundingClientRect().height;
+        dock.style.width = "360px";
+        await waitFor(() => {
+            assert.isAbove(bar.getBoundingClientRect().height, oneLine * 1.5);
+        });
+        const gear = atEnd();
+        const shown = all.getBoundingClientRect();
+        assert.isAtMost(shown.right, gear.left);
+        assert.closeTo(shown.top, gear.top, 1);
+        for (const other of within(bar as HTMLElement).getAllByRole("button")) {
+            if (other === all) {
+                continue;
+            }
+            const box = other.getBoundingClientRect();
+            const overlaps =
+                box.left < shown.right && shown.left < box.right && box.top < shown.bottom && shown.top < box.bottom;
+            assert.isFalse(overlaps, `Show all time covers ${other.getAttribute("aria-label") ?? other.textContent}`);
+        }
+    });
+
+    it("names the selection's line in a legend while it is drawn", async () => {
+        const { session, dock } = await openDock();
+        assert.isNull(within(dock).queryByText("Selection"));
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        await within(dock).findByTestId("histogram-overlay");
+        within(dock).getByText("Selection");
+
+        act(() => {
+            session.selection.clear();
+        });
+        await waitFor(() => {
+            assert.isNull(within(dock).queryByTestId("histogram-overlay"));
+        });
+        assert.isNull(within(dock).queryByText("Selection"));
+    });
+
+    it("tells a hovered bar's count and the selection's in it", async () => {
+        const { session, dock } = await openDock();
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        // A bar's words are part of its key, so the bars are drawn anew once they count the selection.
+        const bars = await waitFor(() => {
+            const drawn = within(dock).getAllByTestId("histogram-bar");
+            assert.isTrue(drawn.every((bar) => bar.getAttribute("title")?.endsWith(" selected")));
+            return drawn;
+        });
+        const bins = session.time.bins({ maxCount: bars.length }) ?? [];
+        const mine = session.time.bins({ maxCount: bars.length, of: { nodes: ["p01"], incident: true } }) ?? [];
+        assert.equal(bins.length, bars.length);
+        const at = mine.findIndex((bin) => bin.edges > 0);
+        const bin = bins[at];
+        assert.isDefined(bin);
+
+        await hoverOver(bars[at]);
+
+        const when = rangeWords(bin.start, bin.end, "ms", bin.step);
+        const words = `${when}: ${countWords(bin.edges, "edge")}, ${formatCount(mine[at]?.edges ?? 0)} selected`;
+        // The brush covers the bar, so the chart's own tooltip names it.
+        await waitFor(() => {
+            assert.isTrue(screen.getAllByText(words).some((shown) => shown.closest("table") === null));
+        });
+        // A bar the brush leaves uncovered names itself in the same words.
+        assert.equal(bars[at].getAttribute("title"), words);
+        // The same words for a screen reader, in the chart's table of values.
+        within(within(dock).getByTestId("histogram-values")).getByRole("rowheader", { name: words });
+    });
+
     it("reads in the reader's zone: day bars, typed dates and the zone's name", async () => {
         await inBrowserZone(NEW_YORK, async () => {
-            const { session, store, dock } = await openDock();
-            act(() => {
-                store.set({ place: "data" });
-            });
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
+            const { session, dock } = await openDock();
+            await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
             const zone = await screen.findByRole("radiogroup", { name: "Zone" });
             assert.equal(session.time.settings.timeZone, "UTC");
 
@@ -510,6 +605,7 @@ describe("the timeline dock on the real element", () => {
             await waitFor(() => {
                 assert.equal(session.time.settings.timeZone, NEW_YORK);
             });
+            await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
             // A day bar starts at midnight in New York, and the brush starts on a bar.
             await session.time.window(null);
             await waitFor(() => {

@@ -250,11 +250,6 @@ export interface WorkspaceState {
     readonly timelineOpen: boolean;
     /** Whether the phone's Time window sheet is up over its dock. */
     readonly timeSheetOpen: boolean;
-    /**
-     * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
-     * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
-     */
-    readonly timeWindowCard: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -416,7 +411,6 @@ const INITIAL: WorkspaceState = {
     dataTab: "loaded",
     timelineOpen: false,
     timeSheetOpen: false,
-    timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,

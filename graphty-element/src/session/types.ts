@@ -3491,10 +3491,11 @@ export interface ProjectConfig {
      * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
-     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a
-     * Ghost row (the elements outside the time window, grey at low opacity, when the timeline draws
-     * them: `session.time.setSettings({ outside: "ghost" })`). The rows are ordinary data: a reader
-     * may delete or change any of them, and no later setting adds, removes or rewrites one.
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the `timeline`
+     * experiment enabled, a Timeline Hidden row (the elements outside the time window, the state
+     * `"outsideWindow"`, hidden or ghosted as {@link ProjectConfig.timelineHiddenLook} says). The rows
+     * are ordinary data: a reader may delete or change any of them, and no later setting adds,
+     * removes or rewrites one.
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -3509,6 +3510,19 @@ export interface ProjectConfig {
      * @since 3.26.0
      */
     readonly editableBase: boolean;
+    /**
+     * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
+     * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
+     * opacity. Read only when the default rows are written, which is when
+     * {@link ProjectConfig.startingRows} turns on while the `timeline` experiment is enabled;
+     * changing it never rewrites a row already there.
+     *
+     * ```ts
+     * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+     * ```
+     * @since 3.40.0
+     */
+    readonly timelineHiddenLook: "hidden" | "ghost";
     /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
@@ -3616,6 +3630,8 @@ export interface ProjectConfigPatch {
     readonly startingRows?: boolean;
     /** See {@link ProjectConfig.editableBase}. */
     readonly editableBase?: boolean;
+    /** See {@link ProjectConfig.timelineHiddenLook}. */
+    readonly timelineHiddenLook?: "hidden" | "ghost";
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;

@@ -15,7 +15,6 @@ import { columnVerb, openColumnMenu } from "../../../test/column-header";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { openDataPage } from "../../data-page/request";
-import { openTimeCard } from "../../data-place/filterCards";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -28,7 +27,7 @@ const DATED_EDGES = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,202
 const FIRST_TWO_DAYS = { from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 0, 3) };
 
 /**
- * A project saved with the timeline on: a date column as its time field, its Ghost row, playback, a
+ * A project saved with the timeline on: a date column as its time field, its Timeline Hidden row, playback, a
  * zone that puts the first day on Dec 31, and a window.
  * @returns the file's text.
  */
@@ -105,11 +104,25 @@ async function savedDates(): Promise<string> {
         assert.match(table.textContent, /[A-Z][a-z]{2} \d+, 202\d/);
     });
     const words = table.textContent;
-    act(() => {
-        openTimeCard(store);
-    });
-    await screen.findByRole("region", { name: "Data place" });
+    // With the timeline on, its settings open from the dock's settings button.
+    if (session.features.has("timeline")) {
+        await openTimelineSettings();
+    }
     return words;
+}
+
+/**
+ * Opens the timeline dock from the toolbar's Timeline button, then its settings from the dock's
+ * settings button, as a reader does.
+ */
+async function openTimelineSettings(): Promise<void> {
+    const toggle = await screen.findByRole("button", { name: "Timeline" });
+    if (toggle.getAttribute("aria-pressed") !== "true") {
+        await userEvent.click(toggle);
+    }
+    const timeline = await screen.findByRole("region", { name: "Timeline" });
+    await userEvent.click(within(timeline).getByRole("button", { name: "Timeline settings" }));
+    await screen.findByTestId("time-card");
 }
 
 /**
@@ -265,7 +278,11 @@ describe("the timeline's switch in the app", () => {
         assert.deepEqual(session.time.field, { edges: { start: "sent" } });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findByRole("option", { name: "Time window" });
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Time window" }), "the window is no filter");
+        await userEvent.keyboard("{Escape}");
+        await openTimelineSettings();
+        await screen.findByRole("radiogroup", { name: "Mode" });
         await userEvent.keyboard("{Escape}");
 
         const commands = await timeCommands();
@@ -347,7 +364,6 @@ describe("the timeline's switch in the app", () => {
             assert.strictEqual(session.visibility.summary.visibleEdges, 2);
         });
 
-        assert.notInclude((await styleRows()).join(), "Ghost");
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "no dock");
         assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toolbar button");
         assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
@@ -377,12 +393,12 @@ describe("the timeline's switch in the app", () => {
         await screen.findByRole("radiogroup", { name: "Zone" });
     });
 
-    it("shows the same project's Ghost row with the experiment on", async () => {
+    it("shows the same project's Timeline Hidden row with the experiment on", async () => {
         await siteFeatures(["timeline"]);
         const session = await mount("graph");
         await session.project.open(await timedProject(), { discard: true });
         await waitFor(async () => {
-            assert.include((await styleRows()).join(), "Ghost");
+            assert.include((await styleRows()).join(), "Timeline Hidden");
         });
         await screen.findByRole("button", { name: "Timeline" });
     });
@@ -401,8 +417,10 @@ describe("the timeline's switch on a phone", () => {
         const store = createWorkspaceStore({ project: { name: "Phone", id: 1 }, place: "graph", timelineOpen: true });
         const session = await mount("graph", store);
         await session.project.open(await timedProject(), { discard: true });
+        // The saved window is back (with the timeline on it narrows only the drawing).
         await waitFor(() => {
-            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+            assert.strictEqual(session.data.statistics().edgeCount, 4);
+            assert.isNotNull(session.visibility.window);
         });
         return session;
     }

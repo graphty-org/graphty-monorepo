@@ -25,8 +25,10 @@ import {
     type NodeId,
     PROJECT_FILE,
     type ResultShape,
+    type RuleTree,
     type RunId,
     type Scope,
+    type Selector,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -73,7 +75,6 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
-import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
     GraphSession,
@@ -924,6 +925,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
+            // Written while the timeline is on: what lies outside the time window draws only as
+            // its style layers say, so an open never brings these layers "up to date" again
+            // (`outsideWindowLayers`). A file without it was saved before, or with the timeline off.
+            ...(dispatcher.services.timeline?.() === true ? { outsideByLayers: true } : {}),
             // Written only when a node is hidden from the drawing, so a project without saves as before.
             ...((dispatcher.state.visibility.hidden ?? []).length === 0
                 ? {}
@@ -1549,14 +1554,6 @@ async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
     }
-
-    // With the timeline off a Ghost row is in no tree, and it must not outlive its project either.
-    const ghosts = tx.styles
-        .list()
-        .filter(({ source }) => source.by === "template" && source.templateId === GHOST_ROW_ID);
-    for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
-        await tx.styles.deleteRow(row);
-    }
 }
 
 /**
@@ -2043,7 +2040,8 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
     await attempt(opening, "config", () =>
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
     );
-    // The settings just read write the default rows when they turn `startingRows` on. A file that
+    // The settings just read write the default rows when they turn `startingRows` on (Timeline Hidden
+    // among them while the timeline is on). A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {
@@ -2190,6 +2188,9 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+    await attempt(opening, "styles", () =>
+        outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
+    );
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2237,7 +2238,11 @@ async function restoreVisibilityOf(
     // Read on their own, so a filter that cannot be read never loses them.
     await attempt(opening, "visibility", async () => {
         if (typeof visibility.playback === "object" && visibility.playback !== null) {
-            await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+            // How what lies outside the window draws lives in the style layers now
+            // (`outsideWindowLayers`); with the timeline off the playback stays whole, as saved.
+            const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+            const kept = timelineOn(tx) ? playback : visibility.playback;
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(Object.keys(kept).length === 0 ? null : kept);
         }
 
         // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
@@ -2248,6 +2253,129 @@ async function restoreVisibilityOf(
             await tx.execute({ op: "visibility.context", show });
         }
     });
+}
+
+/**
+ * Whether the timeline experiment is on: with it off, every `session.time` member refuses.
+ * @param tx - The transaction.
+ * @returns True when it is on.
+ */
+function timelineOn(tx: TransactionScope): boolean {
+    return tx.features.enabled.includes("timeline");
+}
+
+/**
+ * A rule tree with every `"ghosted"` state leaf reading `"outsideWindow"`, however deep.
+ * @param rule - The rule.
+ * @returns The rule rewritten, or the same object when it reads no `"ghosted"` leaf.
+ */
+function ghostedLeavesOutside(rule: RuleTree): RuleTree {
+    switch (rule.kind) {
+        case "state":
+            return rule.state === "ghosted" ? { ...rule, state: "outsideWindow" } : rule;
+        case "all":
+        case "any": {
+            const of = rule.of.map(ghostedLeavesOutside);
+            return of.every((each, at) => each === rule.of[at]) ? rule : { ...rule, of };
+        }
+        case "not": {
+            const of = ghostedLeavesOutside(rule.of);
+            return of === rule.of ? rule : { ...rule, of };
+        }
+        case "union": {
+            let moved = false;
+            const branches = rule.branches.map((branch) => ({
+                ...branch,
+                steps: branch.steps.map((step) => {
+                    const next = ghostedLeavesOutside(step.rule);
+                    moved ||= next !== step.rule;
+                    return next === step.rule ? step : { ...step, rule: next };
+                }),
+            }));
+            return moved ? { ...rule, branches } : rule;
+        }
+        default:
+            return rule;
+    }
+}
+
+/**
+ * A layer's selector with what it read as `"ghosted"` reading `"outsideWindow"`.
+ * @param selector - The selector.
+ * @returns It rewritten, or the same object when it reads no `"ghosted"`.
+ */
+function outsideSelector(selector: Selector): Selector {
+    if (selector.match === "state" && selector.state === "ghosted") {
+        return { match: "state", state: "outsideWindow" };
+    }
+
+    if (selector.match === "rule") {
+        const where = ghostedLeavesOutside(selector.where);
+        return where === selector.where ? selector : { ...selector, where };
+    }
+
+    return selector;
+}
+
+/**
+ * Bring a timed project saved before what lies outside the time window had a state of its own up
+ * to date: called only for a file without the session member's `outsideByLayers` mark, which every
+ * save with the timeline on writes, so a layer a reader points at `"ghosted"` today is never
+ * rewritten. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant
+ * what lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
+ * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
+ * layers the way `time.setSettings` writes it, as the window hid them then.
+ * @param tx - The transaction.
+ * @param visibility - The session member's `visibility`.
+ */
+async function outsideWindowLayers(
+    tx: TransactionScope,
+    visibility: Readonly<Record<string, unknown>> | undefined,
+): Promise<void> {
+    // Saved since, or with the timeline off: its layers stay as saved.
+    if (visibility?.outsideByLayers === true || !timelineOn(tx) || tx.time.field === null) {
+        return;
+    }
+
+    const playback = visibility?.playback;
+
+    await ghostedLayersOutside(tx);
+    ghostedSetsOutside(tx);
+
+    // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
+    // playback said "ghost": the layers selecting it are written to draw it that way.
+    const saved =
+        typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
+    await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
+}
+
+/**
+ * Rewrite every layer reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ */
+async function ghostedLayersOutside(tx: TransactionScope): Promise<void> {
+    for (const layer of tx.styles.list()) {
+        const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
+        if (selector !== layer.selector) {
+            await tx.styles.update(layer.id, { selector });
+        }
+    }
+}
+
+/**
+ * Rewrite every rule set reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ */
+function ghostedSetsOutside(tx: TransactionScope): void {
+    for (const set of tx.sets.list()) {
+        const { definition } = set;
+        if (definition.kind === "rule" && typeof definition.where === "object") {
+            const where = ghostedLeavesOutside(definition.where);
+            if (where !== definition.where) {
+                tx.sets.redefine(set.id, { ...definition, where });
+            }
+        }
+    }
 }
 
 /**

@@ -1,6 +1,6 @@
 /**
- * The Time window's settings, opened in the inspector from the Filters section's Time window
- * card: the time field, its unit, and the step, mode, zone,
+ * The timeline's settings, in a popover from the timeline dock's settings button: the time
+ * field, its unit, and the step, mode, zone,
  * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
  * which keeps the settings with the field (`time.settings`), so turning the window off leaves
  * them as they are. The window itself moves in the timeline dock under the canvas.
@@ -18,7 +18,6 @@ import {
     autoLabel,
     CALENDAR_STEPS,
     ORDINAL_STEPS,
-    OUTSIDE_CHOICES,
     RESULTS_CHOICES,
     stepLabel,
     UNIT_CHOICES,
@@ -195,18 +194,6 @@ export function TimeCard(): React.JSX.Element | null {
                                     />
                                 </FieldRow>
                             )}
-                            <FieldRow>
-                                <SegmentedControl
-                                    label="Outside"
-                                    fullWidth
-                                    size="xs"
-                                    value={settings.outside}
-                                    data={OUTSIDE_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                    onChange={(picked) => {
-                                        retune(session, store, { outside: picked === "ghost" ? "ghost" : "hide" });
-                                    }}
-                                />
-                            </FieldRow>
                             {untimed > 0 ? (
                                 <FieldRow>
                                     <SegmentedControl

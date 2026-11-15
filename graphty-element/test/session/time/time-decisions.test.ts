@@ -10,6 +10,7 @@ import { GraphtyError } from "../../../src/errors";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
+import { windowCount } from "../../helpers/time-window";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -112,7 +113,7 @@ describe("runs over a moving window", () => {
         await run;
         await session.time.window({ from: T0, to: T0 + 4 * DAY, step: "day" });
         await session.time.window({ from: T0 - DAY, to: T0 + 5 * DAY, step: "day" });
-        assert.strictEqual(session.visibility.summary.visibleNodes, 6);
+        assert.strictEqual(windowCount(session.visibility).nodes, 6);
         assert.strictEqual(run.stale?.reason, "window-moved");
         session.dispose();
     });
@@ -165,7 +166,7 @@ describe("designating the time field", () => {
 
         await session.time.setField(null);
         assert.isNull(session.visibility.window);
-        assert.strictEqual(session.visibility.summary.visibleNodes, 4);
+        assert.strictEqual(windowCount(session.visibility).nodes, 4);
 
         // Designated again with no unit: the unit given before.
         await session.time.setField({ edges: { start: "year" } });
@@ -303,7 +304,7 @@ describe("the window, its step and playback", () => {
         const { session } = await open();
         await session.time.setSettings({ step: "week" });
         assert.isNull(session.time.current);
-        assert.strictEqual(session.visibility.summary.visibleEdges, 6);
+        assert.strictEqual(windowCount(session.visibility).edges, 6);
 
         await session.time.setSettings({ step: "day" });
         await session.time.window({ from: T0 + DAY + 3_600_000, to: T0 + 4 * DAY });
@@ -328,9 +329,9 @@ describe("the window, its step and playback", () => {
         const { session } = await open();
         await session.time.setSettings({ step: "day" });
         await session.time.stepBy(1);
-        const shown = session.visibility.summary.visibleEdges;
+        const shown = windowCount(session.visibility).edges;
         await session.time.setSettings({ missing: "outside" });
-        assert.strictEqual(session.visibility.summary.visibleEdges, shown - 1);
+        assert.strictEqual(windowCount(session.visibility).edges, shown - 1);
         session.dispose();
     });
 
@@ -356,11 +357,12 @@ describe("the window, its step and playback", () => {
         session.dispose();
     });
 
-    it("measures the visible graph when asked", async () => {
+    it("measures the visible graph when asked, which a time window does not narrow", async () => {
         const { session } = await open();
         await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
         const visible = session.data.statistics({ scope: "visible" });
-        assert.strictEqual(visible.edgeCount, session.visibility.summary.visibleEdges);
+        assert.isBelow(windowCount(session.visibility).edges, 6, "the window leaves edges out");
+        assert.strictEqual(visible.edgeCount, 6);
         assert.strictEqual(session.data.statistics().edgeCount, 6);
         session.dispose();
     });

@@ -857,7 +857,9 @@ function savedFingerprint(session: GraphSession): string {
  * @returns The record, without those keys (the record itself when there are none).
  */
 function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, keys: ReadonlySet<string>): T {
-    return keys.size === 0 ? record : (Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as T);
+    return keys.size === 0
+        ? record
+        : (Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as T);
 }
 
 /**

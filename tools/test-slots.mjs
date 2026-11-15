@@ -71,7 +71,7 @@
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism, constants, cpus, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,21 +81,38 @@ import { logWait } from "./wait-log.mjs";
 /** Set in the environment of everything a slot holder runs, so a nested run takes no second slot. */
 export const HELD = "GRAPHTY_TEST_SLOT_HELD";
 
+/** How long a written `.count` holds: 2 hours, four 30-minute rounds that did not rewrite it. */
+export const COUNT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 /**
- * How many runs may hold a slot at once.
- * @param env the environment (GRAPHTY_TEST_SLOTS)
+ * How many runs may hold a slot at once: GRAPHTY_TEST_SLOTS, else the whole number in the ticket
+ * directory's `.count` file (tmp/test-slots/.count, shared by every worktree, so writing it changes the
+ * limit for every run on the machine at once), else one per 8 cores (at least 2). A `.count` last written more
+ * than COUNT_MAX_AGE_MS ago is ignored: only the rounds' memory checks rewrite it, so a raised count whose
+ * writer stopped must not outlive the measurement behind it.
+ * @param env the environment (GRAPHTY_TEST_SLOTS, GRAPHTY_TEST_SLOTS_DIR)
  * @param cores the machine's cores: cpus(), not availableParallelism(), which follows this process's CPU
  *   affinity, and every process must count the same slots (#6001)
+ * @param now the time to judge the `.count` file's age against (milliseconds since the epoch)
  * @returns the slot count; 0 means no limit
  */
-export function slotCount(env = process.env, cores = cpus().length) {
-    const set = env.GRAPHTY_TEST_SLOTS;
+export function slotCount(env = process.env, cores = cpus().length, now = Date.now()) {
+    let set = env.GRAPHTY_TEST_SLOTS;
+    let from = "GRAPHTY_TEST_SLOTS";
     if (set === undefined || set === "") {
+        from = join(env.GRAPHTY_TEST_SLOTS_DIR || slotDir("test"), ".count");
+        try {
+            set = now - statSync(from).mtimeMs > COUNT_MAX_AGE_MS ? "" : readFileSync(from, "utf8").trim();
+        } catch {
+            set = "";
+        }
+    }
+    if (set === "") {
         return Math.max(2, Math.floor(cores / 8));
     }
     const n = Number(set);
     if (!Number.isInteger(n) || n < 0) {
-        throw new Error(`GRAPHTY_TEST_SLOTS must be a whole number (0 turns the limit off), not "${set}"`);
+        throw new Error(`${from} must be a whole number (0 turns the limit off), not "${set}"`);
     }
     return n;
 }

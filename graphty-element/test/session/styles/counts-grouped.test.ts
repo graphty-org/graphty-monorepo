@@ -124,7 +124,7 @@ describe("styles.counts kept between reads", () => {
         const drawn = (): number => session.visibility.summary.visibleNodes;
 
         const first = session.styles.counts(id);
-        const walks = countCounters.walks;
+        const { walks } = countCounters;
         assert.strictEqual(session.styles.counts(id), first, "a second read while nothing moved is the kept answer");
         assert.strictEqual(countCounters.walks, walks, "and walks nothing");
 
@@ -147,6 +147,10 @@ describe("styles.counts kept between reads", () => {
         await session.time.seek(45, { commit: false });
         assert.notStrictEqual(drawn(), hidden, "the step changed what is visible");
         assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a step moves it");
+
+        // With nothing ghosted, a filter changes no ghost: it moves it all the same.
+        await session.visibility.set({ kind: "member", of: { nodes: ["n40", "n41"] } });
+        assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a filter alone moves it");
         session.dispose();
     });
 });

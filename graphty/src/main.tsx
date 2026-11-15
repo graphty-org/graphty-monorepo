@@ -58,14 +58,14 @@ function logPageStart(): void {
 /** Logs every error and promise rejection nothing caught, with its stack, so the remote log shows what broke. */
 function logUncaught(): void {
     const log = GraphtyLogger.getLogger(["graphty", "workspace"]);
-    window.addEventListener("error", (event) => {
+    globalThis.addEventListener("error", (event) => {
         log.error("uncaught error", event.error instanceof Error ? event.error : new Error(event.message), {
             source: event.filename,
             line: event.lineno,
             column: event.colno,
         });
     });
-    window.addEventListener("unhandledrejection", (event) => {
+    globalThis.addEventListener("unhandledrejection", (event) => {
         const { reason } = event as PromiseRejectionEvent & { reason: unknown };
         log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
     });

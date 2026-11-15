@@ -2072,9 +2072,7 @@ async function readProject(
     // The collapses, made again once the runs they group by are back, inside the open's own step.
     await readGroups(opening, state.groups);
 
-    if (visibility !== undefined) {
-        await readPlayback(opening, visibility, filterBack ? undefined : restoreFilter);
-    }
+    await readPlayback(opening, visibility, filterBack, restoreFilter);
 
     await addStylesAndNotes(opening, doc.members, remap, name);
 
@@ -2165,16 +2163,22 @@ async function readFilter(
  * try failed, then the playback and context, read on their own so a filter that cannot be read
  * never loses them.
  * @param opening - The open.
- * @param visibility - The member's `visibility`.
- * @param retryFilter - Restores the filter, or undefined when it is already back.
+ * @param visibility - The member's `visibility`, or undefined for none.
+ * @param filterBack - Whether the filter is already back.
+ * @param retryFilter - Restores the filter.
  */
 async function readPlayback(
     opening: Opening,
-    visibility: Record<string, unknown>,
-    retryFilter: (() => Promise<void>) | undefined,
+    visibility: Record<string, unknown> | undefined,
+    filterBack: boolean,
+    retryFilter: () => Promise<void>,
 ): Promise<void> {
+    if (visibility === undefined) {
+        return;
+    }
+
     const { tx } = opening;
-    if (retryFilter === undefined) {
+    if (filterBack) {
         opening.restored.add("visibility");
     } else {
         await attempt(opening, "visibility", retryFilter);

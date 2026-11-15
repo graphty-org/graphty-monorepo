@@ -310,12 +310,12 @@ export async function importJsonRecords(
     }
 
     aggregateErrors(read.report, errors);
-    const { snapshot, report, nodes, edges, path } = read;
+    const { snapshot, report, nodes, edges } = read;
     return {
         imported: { snapshot, report, importer: jsonImporter, declared: builder.declared },
         nodes,
         edges,
-        path,
+        path: (kind, column) => read.path(kind, column),
     };
 }
 
@@ -808,7 +808,7 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * the importer read it with. A node the file placed carries `position: { x, y, z }`: its center, y up,
  * in the file's own unit, read by graph-io's `extractPositions` whatever the format's spelling.
  * @param imported - the import
- * @param mapping - the format's mapping from rows to record keys
+ * @param readerMapping - the format's mapping from rows to record keys
  * @param reader - the data source the records are for, which remembers the import (see {@link readerImport})
  * @param styles - the load's choice of styles: with `"file"` the columns that only say how an element
  *     looks (see {@link withoutStyleSlots}) are left off the records, for every format

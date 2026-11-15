@@ -22,7 +22,7 @@ type Ring = GpuLayoutSimulation<never, LayoutStatsBase> &
         >
     > & {
         readonly landedDrawn: GPUBuffer | null;
-        readonly landedDrawnRows: Float32Array | null;
+        readonly landedDrawnRows: F32 | null;
     };
 
 /**
@@ -146,7 +146,7 @@ describe("the drawn ring", () => {
 
     it("reads the landed slot back in the batch's readback only when asked", async (t) => {
         requireGpu(t);
-        const rowsOf = async (readBack: boolean): Promise<{ host: Float32Array | null; card: F32 }> => {
+        const rowsOf = async (readBack: boolean): Promise<{ host: F32 | null; card: F32 }> => {
             const simulation = ringed(ctx, 3);
             simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
             simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n).fill(1), readBack });

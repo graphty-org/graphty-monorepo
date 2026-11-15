@@ -480,6 +480,43 @@ describe("a city on the globe", () => {
         assert.isBelow(eyeRadius(element), radius * 1.001, "the camera still comes down to street level");
     });
 
+    // The graphty app's path: a sample opens on another layout, and the reader picks Map, which the
+    // app applies with mapScale 6 and flatNodeScale 2 (graphty/src/workspace/layout/methods.ts).
+    it("frames the city when the map replaces another layout, on the globe and on the flat map", async () => {
+        for (const mapDimension of ["3d", "2d"] as const) {
+            const element = document.createElement("graphty-element");
+            element.style.display = "block";
+            element.style.width = `${String(WIDTH)}px`;
+            element.style.height = `${String(HEIGHT)}px`;
+            document.body.appendChild(element);
+            cleanups.push(() => {
+                element.remove();
+            });
+            await element.updateComplete;
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.session.data.addNodes(CITY);
+            await element.setViewMode("3d");
+            await element.session.layout.set("circular", { options: { seed: 1 } });
+            await applied(element);
+            await element.session.layout.set("location-map", {
+                options: { mapDimension, mapScale: 6, flatNodeScale: 2, nodeScale: "screen" },
+            });
+            await applied(element);
+            await vi.waitFor(async () => {
+                await applied(element);
+                assert.strictEqual(element.mapFrame?.mapDimension, mapDimension);
+                const xs = CITY.map(({ id }) => at(element, id).x);
+                const ys = CITY.map(({ id }) => at(element, id).y);
+                for (const [i, { id }] of CITY.entries()) {
+                    assert.isTrue(xs[i] >= 0 && xs[i] <= WIDTH && ys[i] >= 0 && ys[i] <= HEIGHT, `${id} is in view`);
+                }
+                const across = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+                assert.isAbove(across, HEIGHT * 0.5, `${mapDimension}: the city fills much of the view`);
+            });
+            element.remove();
+        }
+    });
+
     // At the closest zoom (1.0001 radii) a finger's move turns the globe by millionths of a radian,
     // and the pivot's dead zone of 1e-4 radians (the floor's own height) dropped every one of them.
     it("turns under a finger at the closest zoom, the place grabbed staying under it", async () => {

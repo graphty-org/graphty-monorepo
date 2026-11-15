@@ -5417,6 +5417,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all nodes in the graph.
+     *
+     * On the `"batched"` render path a node's `Node` is built when its element of the array is
+     * first read: the call and `length` stay cheap at a million nodes, but walking the whole array
+     * builds every `Node`. Walk {@link getNodeIds} instead to enumerate a large graph.
      * @returns Array of all nodes
      * @since 1.5.0
      * @example
@@ -5427,6 +5431,23 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object: the way to enumerate the nodes of a
+     * large graph on the `"batched"` render path, where walking all of {@link getNodes} builds a
+     * `Node` for every row.
+     * @returns The ids, in the order `getNodes()` returns the nodes.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * for (const id of element.getNodeIds()) {
+     *     console.log(id);
+     * }
+     * ```
+     */
+    getNodeIds(): (string | number)[] {
+        return this.#graph.getNodeIds();
     }
 
     /**

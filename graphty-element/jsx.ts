@@ -41,6 +41,18 @@ export interface GraphtyElementJSXProps {
      */
     accessibleNodeList?: Graphty["accessibleNodeList"];
     /**
+     * Shows or hides the legend.
+     */
+    legend?: Graphty["legend"];
+    /**
+     * Moves the legend to another corner.
+     */
+    legendPosition?: Graphty["legendPosition"];
+    /**
+     * Sets the legend's accessible name.
+     */
+    legendLabel?: Graphty["legendLabel"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -306,6 +318,14 @@ export interface GraphtyElementJSXProps {
      * Adds or removes the node list.
      */
     "accessible-node-list"?: boolean;
+    /**
+     * Moves the legend to another corner.
+     */
+    "legend-position"?: string;
+    /**
+     * Sets the legend's accessible name.
+     */
+    "legend-label"?: string;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */

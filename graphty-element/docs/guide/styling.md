@@ -868,6 +868,28 @@ element.session.styles.counts(layerId); // how many elements one layer covers an
 
 See [Counting What a Layer Paints](./layer-counts) for `counts()`.
 
+### A legend on the graph
+
+The `legend` attribute draws `styles.legend()` over the graph: a color chip per value for a
+categorical encoding, a ramp between the domain's ends for a continuous one. It follows every
+change to the layers and the data, and hides while no layer binds a value. It is off by default.
+
+```html
+<graphty-element legend legend-position="bottom-left" legend-label="Key"></graphty-element>
+<style>
+    graphty-element::part(legend) {
+        font-size: 14px; /* sizes are in em, so this scales the whole key */
+        max-width: 240px;
+    }
+</style>
+```
+
+`legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
+`legend-label` is the name a screen reader announces (`"legend"` unless set). The overlay is HTML,
+so a screen reader reads each field's name and each value. Its words are the data's: the field's
+name, the values, and the names readers gave them. A screenshot draws the same key with
+`captureScreenshot({ legend: { position: element.legendPosition } })`.
+
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.
 

@@ -3116,10 +3116,8 @@ export function projectOf(
                     ? version2Of(text, options.migrate === true)
                     : undefined;
                 version2 = read !== undefined && "value" in read ? read : undefined;
-                doc =
-                    version2 === undefined
-                        ? graphtyDocumentOf(text, read !== undefined && "parsed" in read ? read.parsed : undefined)
-                        : undefined;
+                const parsed = read !== undefined && "parsed" in read ? read.parsed : undefined;
+                doc = version2 === undefined ? graphtyDocumentOf(text, parsed) : undefined;
             } catch (error) {
                 // An unreadable or refused file gives its place up, so nothing waits behind it.
                 turn.leave();

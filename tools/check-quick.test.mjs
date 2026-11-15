@@ -178,6 +178,8 @@ describe("tools/check-quick.sh", () => {
         });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.doesNotMatch(pnpm, /docs:build|format:check/);
+        // The sandbox has no docs inputs, so the run alone cannot see a docs step come back: read the script too.
+        assert.doesNotMatch(readFileSync(SCRIPT, "utf8"), /^\s*step\b.*\b(docs:build|format:check)\b/m);
         assert.match(pnpm, /^exec prettier --check --ignore-unknown /m, "the changed files are still formatted");
     });
 

@@ -691,6 +691,45 @@ function readerRecordOf(source: ModelSource, model: DataModel): { record: JsonOb
 }
 
 /**
+ * The merged graph's nodes (node-link JSON), each one some embedded source supplied, and each
+ * node's place among them.
+ * @param model - The model.
+ * @param embedded - The ids of the embedded sources.
+ * @param typesFor - A node's type names.
+ * @returns The nodes and their places by node id.
+ */
+function graphNodesOf(
+    model: DataModel,
+    embedded: ReadonlySet<string>,
+    typesFor: (node: Readonly<JsonObject>) => string[],
+): { handles: Map<NodeId, number>; graphNodes: JsonObject[] } {
+    const handles = new Map<NodeId, number>();
+    const graphNodes: JsonObject[] = [];
+    for (const node of model.nodes) {
+        const loads = model.nodeLoads.get(node.id) ?? [];
+        if (!loads.some((id) => embedded.has(id))) {
+            continue;
+        }
+
+        const ref = model.nodeRefs.get(node.id) as NodeRef;
+        const { id: _id, ...columns } = node;
+        handles.set(node.id, graphNodes.length);
+        graphNodes.push({
+            id: graphNodes.length,
+            "graphty.space": ref.space,
+            "graphty.key": ref.key,
+            "graphty.types": typesFor(node),
+            "_source.loads": loads.filter((id) => id !== READER),
+            ...(jsonSafe(
+                withoutNodeLink(columns, ["id", "graphty.space", "graphty.key", "graphty.types"]),
+            ) as JsonObject),
+        });
+    }
+
+    return { handles, graphNodes };
+}
+
+/**
  * The data section's body (spec 4.1), from today's model.
  * @param session - The session.
  * @param embed - Embedded or referenced, per source id; embedded when absent.
@@ -732,28 +771,7 @@ export function dataBodyOf(
         return kind !== undefined && typeNames.has(`${domain}:${kind}`) ? [kind] : [];
     };
 
-    const handles = new Map<NodeId, number>();
-    const graphNodes: JsonObject[] = [];
-    for (const node of model.nodes) {
-        const loads = model.nodeLoads.get(node.id) ?? [];
-        if (!loads.some((id) => embedded.has(id))) {
-            continue;
-        }
-
-        const ref = model.nodeRefs.get(node.id) as NodeRef;
-        const { id: _id, ...columns } = node;
-        handles.set(node.id, graphNodes.length);
-        graphNodes.push({
-            id: graphNodes.length,
-            "graphty.space": ref.space,
-            "graphty.key": ref.key,
-            "graphty.types": typesFor("node", node),
-            "_source.loads": loads.filter((id) => id !== READER),
-            ...(jsonSafe(
-                withoutNodeLink(columns, ["id", "graphty.space", "graphty.key", "graphty.types"]),
-            ) as JsonObject),
-        });
-    }
+    const { handles, graphNodes } = graphNodesOf(model, embedded, (node) => typesFor("node", node));
 
     const links: JsonObject[] = [];
     const pairs = new Map<string, number>();

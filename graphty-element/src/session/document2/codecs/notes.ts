@@ -330,6 +330,36 @@ function noteIn(note: unknown, at: string, context: ReadContext): unknown {
 }
 
 /**
+ * Report what the merge skipped (`E_BAD_DOCUMENT`) and the unknown members it found.
+ * @param report - The merge's report.
+ * @param report.skipped - What it skipped.
+ * @param report.notices - What it noticed.
+ * @param pointer - The section's pointer.
+ * @param problems - Where to report.
+ */
+function reportMerge(
+    report: {
+        readonly skipped: readonly { what: string }[];
+        readonly notices: readonly { code: string; what: string }[];
+    },
+    pointer: string,
+    problems: DocumentProblem[],
+): void {
+    for (const skipped of report.skipped) {
+        problems.push({ code: "E_BAD_DOCUMENT", params: { section: "notes", pointer: `${pointer}${skipped.what}` } });
+    }
+
+    for (const notice of report.notices) {
+        if (notice.code === "W_UNKNOWN_MEMBER") {
+            problems.push({
+                code: "W_UNKNOWN_MEMBER",
+                params: { section: "notes", pointer: `${pointer}${notice.what}` },
+            });
+        }
+    }
+}
+
+/**
  * Apply a notes section: every note added through the open's transaction.
  * @param section - The section.
  * @param context - The open.
@@ -370,21 +400,7 @@ function read(section: ReadSection, context: ReadContext): Promise<void> {
         return Promise.resolve();
     }
 
-    for (const skipped of report.skipped) {
-        problems.push({
-            code: "E_BAD_DOCUMENT",
-            params: { section: "notes", pointer: `${section.pointer}${skipped.what}` },
-        });
-    }
-
-    for (const notice of report.notices) {
-        if (notice.code === "W_UNKNOWN_MEMBER") {
-            problems.push({
-                code: "W_UNKNOWN_MEMBER",
-                params: { section: "notes", pointer: `${section.pointer}${notice.what}` },
-            });
-        }
-    }
+    reportMerge(report, section.pointer, problems);
 
     // The targets each written note was read with, for a save after its element goes.
     const read = new Map<string, readonly unknown[]>();

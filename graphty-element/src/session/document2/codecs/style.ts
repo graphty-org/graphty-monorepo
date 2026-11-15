@@ -8,7 +8,15 @@
  * a layer this release could not apply, a carried palette and the header the file had.
  */
 
-import type { LayerId, LayerSpec, PaletteDescriptor, StyleDocument, StyleDocumentRow } from "../../../catalog/types";
+import type {
+    EdgeId,
+    LayerId,
+    LayerSpec,
+    NodeId,
+    PaletteDescriptor,
+    StyleDocument,
+    StyleDocumentRow,
+} from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { assetsMember, restoreAssets, withAcceptedAssetIds } from "../../assets/projectMember";
 import { dispatcherOf } from "../../dispatchers";
@@ -26,6 +34,7 @@ import type {
     SectionWrite,
     WriteContext,
 } from "../types";
+import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { asName, columnSchema, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
 import { fileIdsOf, fileSetId } from "./viewParts";
@@ -74,9 +83,10 @@ const OWN_HEADER = [
     "origin",
 ] as const;
 
-/** The members of each selector kind this release applies (spec 4.2 rule 3); `type` and `ids` are not among them. */
+/** The members of each selector kind this release applies (spec 4.2 rule 3); `ids` is not among them. */
 const SELECTOR_MEMBERS: Readonly<Record<string, readonly string[]>> = {
     everything: [],
+    type: ["types"],
     has: ["path"],
     expression: ["where"],
     top: ["path", "n", "ties"],
@@ -130,7 +140,6 @@ const LAYER_MEMBERS = new Set([
     "userData",
     "fileStyle",
     "row",
-    "unmatched",
 ]);
 
 /** A shader parameter's address, `<target>.shaders.<id>.<param>`, which is a channel of its own. */
@@ -452,6 +461,15 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
     const layers: JsonObject[] = [];
     document.layers.forEach((spec, place) => {
         const id = ids[place];
+        const opened = memory.layers.get(id);
+        const rowId = spec.row === undefined ? undefined : writtenId(spec.row);
+        if (opened !== undefined && opened.baseline === baselineOf(writeLayer(spec, "", rowId, session))) {
+            // Unchanged since the open (a `type` selector applied by id included): as the file held it.
+            placeIds.push(writtenId(id));
+            layers.push(opened.original);
+            return;
+        }
+
         if (layerNamesElements(spec, session)) {
             placeIds.push(undefined);
             problems.push({
@@ -463,9 +481,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
 
         const own = writtenId(id);
         placeIds.push(own);
-        const layer = writeLayer(spec, own, spec.row === undefined ? undefined : writtenId(spec.row), session);
-        const opened = memory.layers.get(id);
-        layers.push(opened?.baseline === baselineOf(layer) ? opened.original : layer);
+        layers.push(writeLayer(spec, own, rowId, session));
     });
 
     // A layer this release could not apply goes back after the layer it followed in its file.
@@ -524,6 +540,8 @@ interface Reading {
     readonly rename: (run: string) => string | undefined;
     /** From a bare set id to the one open set it names, or undefined when none or several. */
     readonly set: (id: string) => string | undefined;
+    /** The open data's node and edge ids that have any of the named types. */
+    readonly typed: (names: readonly string[]) => { nodes: NodeId[]; edges: EdgeId[] };
 }
 
 /**
@@ -684,10 +702,7 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
     }
 
     const members = SELECTOR_MEMBERS[raw.selector.match];
-    if (
-        members === undefined ||
-        (raw.selector.match === "member" && isObject(raw.selector.of) && "types" in raw.selector.of)
-    ) {
+    if (members === undefined) {
         return { kept: "E_BAD_SELECTOR" };
     }
 
@@ -697,7 +712,11 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
         return { kept: "E_BAD_SELECTOR" };
     }
 
-    const { selector } = raw;
+    const selector = typedSelector(raw.selector, layer.target, reading);
+    if (selector === undefined) {
+        return { kept: "E_BAD_SELECTOR" };
+    }
+
     const set = isObject(layer.set) ? readChannels(layer.set, false, reading, `${at}/set`) : undefined;
     const encode = isObject(layer.encode) ? readChannels(layer.encode, true, reading, `${at}/encode`) : undefined;
     const written =
@@ -731,6 +750,30 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
         ...(source === undefined ? {} : { source }),
     };
     return { spec: spec as unknown as LayerSpec };
+}
+
+/**
+ * A selector with a `type` selector, or a `member` of `{ types }`, as the elements of those types
+ * (spec 4.2 rule 3): graphty-element has no type predicate, so it names them by id. Any other
+ * selector as it is.
+ * @param selector - The selector.
+ * @param target - The layer's target.
+ * @param reading - The read.
+ * @returns The selector, or undefined when its type names are not a list of strings.
+ */
+function typedSelector(selector: JsonObject, target: unknown, reading: Reading): JsonObject | undefined {
+    const of = selector.match === "member" && isObject(selector.of) ? selector.of : undefined;
+    if (selector.match !== "type" && (of === undefined || !("types" in of))) {
+        return selector;
+    }
+
+    const types: unknown = of === undefined ? selector.types : of.types;
+    if (!Array.isArray(types) || !types.every((type): type is string => typeof type === "string")) {
+        return undefined;
+    }
+
+    const { nodes, edges } = reading.typed(types);
+    return target === "edge" ? { match: "ids", edges } : { match: "ids", nodes };
 }
 
 /**
@@ -957,6 +1000,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         catalog: session.catalog.palettes(),
         rename: runIdsOf(context),
         set: setIdsOf(session),
+        typed: (names) => typedIds(session, names),
     };
     for (const [index, palette] of (Array.isArray(body.palettes) ? body.palettes : []).entries()) {
         if (isObject(palette) && typeof palette.id === "string") {

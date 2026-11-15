@@ -104,6 +104,8 @@ export interface LoadFacts {
     /** What a URL load read; its address is the listed load's `config.url`. */
     readonly url?: {
         readonly sha256?: string;
+        /** The body's size in bytes. */
+        readonly size?: number;
         readonly fetchedAt: string;
         readonly etag?: string;
         readonly lastModified?: string;

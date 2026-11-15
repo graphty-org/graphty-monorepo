@@ -10,7 +10,7 @@
  * Node-safe: `./catalog` reaches this module through `listGraphs`.
  */
 
-import { headBytes } from "@graphty/graph-io";
+import { headBytes, sha256Hex } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
 
@@ -95,6 +95,64 @@ export async function readOrRefuse<T>(read: Promise<T>, where: { file?: string; 
     }
 }
 
+/** The validators each fetched body's response carried, by the bytes {@link fetchBytes} returned. */
+const VALIDATORS = new WeakMap<Uint8Array, { readonly etag?: string; readonly lastModified?: string }>();
+
+/**
+ * The `ETag` and `Last-Modified` the response that gave these bytes carried.
+ * @param bytes - Bytes {@link fetchBytes} returned.
+ * @returns The validators it had, or undefined for bytes it did not fetch.
+ */
+export function validatorsOf(
+    bytes: Uint8Array,
+): { readonly etag?: string; readonly lastModified?: string } | undefined {
+    return VALIDATORS.get(bytes);
+}
+
+/** What a reader fetched for a URL: the body's digest, its size and its response's validators. */
+export interface FetchedFacts {
+    readonly sha256: Promise<string>;
+    readonly size: number;
+    readonly etag?: string;
+    readonly lastModified?: string;
+}
+
+/** What a reader fetched for each URL, until the load's facts take it. */
+const FETCHED = new Map<string, FetchedFacts>();
+
+/**
+ * Keep what a reader fetched for a URL, so the load that read it can record its digest, size and
+ * validators. ponytail: one entry per URL, the latest fetch winning; two loads of one URL at once
+ * share it. Key it by load if that matters.
+ * @param url - The URL.
+ * @param bytes - The body.
+ * @param response - The response, for its validators.
+ */
+export function keepFetched(url: string, bytes: Uint8Array, response: Response): void {
+    const etag = response.headers.get("ETag");
+    const lastModified = response.headers.get("Last-Modified");
+    const sha256 = sha256Hex(bytes);
+    // Settled here too, so a digest no load takes never rejects unhandled.
+    sha256.catch(() => undefined);
+    FETCHED.set(url, {
+        sha256,
+        size: bytes.byteLength,
+        ...(etag === null ? {} : { etag }),
+        ...(lastModified === null ? {} : { lastModified }),
+    });
+}
+
+/**
+ * What a reader fetched for a URL, removed once taken.
+ * @param url - The URL.
+ * @returns The body's digest, size and validators, or undefined.
+ */
+export function takeFetched(url: string): FetchedFacts | undefined {
+    const read = FETCHED.get(url);
+    FETCHED.delete(url);
+    return read;
+}
+
 /**
  * Read a URL's bytes, once.
  * @param url - The URL.
@@ -128,7 +186,14 @@ export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uin
         });
     }
 
-    return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url }));
+    const bytes = new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url }));
+    const etag = response.headers.get("ETag");
+    const lastModified = response.headers.get("Last-Modified");
+    VALIDATORS.set(bytes, {
+        ...(etag === null ? {} : { etag }),
+        ...(lastModified === null ? {} : { lastModified }),
+    });
+    return bytes;
 }
 
 /**

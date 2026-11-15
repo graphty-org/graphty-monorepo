@@ -241,11 +241,10 @@ describe("the style codec round-trips", () => {
         const example = readJson("examples/card-fraud.graphty-style.json");
         const session = createGraphSession(ON);
         const problems = await open(session, example);
-        // The `type` selector waits on the data store's types, and the element does not yet read a
-        // bare number in an expression (style.md, "Expressions" rule 1): both layers are kept, not
-        // applied.
-        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/1", "/layers/2"]);
-        assert.notInclude(
+        // The element does not yet read a bare number in an expression (style.md, "Expressions"
+        // rule 1): that layer is kept, not applied. The `type` layer applies, to no node here.
+        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/2"]);
+        assert.include(
             session.styles.list().map((layer) => layer.name),
             "Merchants",
         );

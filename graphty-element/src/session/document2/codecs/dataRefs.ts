@@ -425,8 +425,13 @@ interface Copy {
     readonly columns: JsonObject;
     readonly digest: string;
     readonly copy: string;
-    /** Whether it holds rows the reader edited, removed or merged, so no bytes match it. */
-    readonly edited: boolean;
+    /**
+     * Whether no bytes stand for it, so it is always embedded: it holds rows the reader edited,
+     * removed or merged, or it was generated, or its bytes were never digested.
+     */
+    readonly embedOnly: boolean;
+    /** The edge rows whose edge id an earlier row of the source already gave: written keyless. */
+    readonly repeated: ReadonlySet<number>;
 }
 
 /** The reader source: its operations and copy id. */
@@ -623,6 +628,7 @@ function kindOfSource(source: ModelSource, memory: DataMemory): string {
  * @param memory - The memory.
  * @param facts - What its load read.
  * @param folded - Whether the session holds the reader's edits, removes or merges.
+ * @param edgeIdColumn - The edge-id column, if any.
  * @returns The copy.
  */
 function copyOf(
@@ -631,7 +637,9 @@ function copyOf(
     memory: DataMemory,
     facts: LoadFacts | undefined,
     folded: boolean,
+    edgeIdColumn: string | undefined,
 ): Copy {
+    const repeated = repeatedEdgeRows(source, edgeIdColumn);
     const nodes =
         source.nodes.length > 0
             ? tableOf(
@@ -642,8 +650,9 @@ function copyOf(
     const edges =
         source.edges.length > 0
             ? tableOf(
-                  source.edges.map(({ id: _id, ...edge }) => ({
+                  source.edges.map(({ id: _id, ...edge }, row) => ({
                       ...edge,
+                      ...(repeated.has(row) && edgeIdColumn !== undefined ? { [edgeIdColumn]: undefined } : {}),
                       source: keyCellOf(refs.get(edge.source), edge.source),
                       target: keyCellOf(refs.get(edge.target), edge.target),
                   })),
@@ -664,44 +673,69 @@ function copyOf(
     }
 
     const digest = digestOf(tables);
-    const { copy, edited } = copyIdOf(source, memory, { digest, facts, folded });
+    const { copy, embedOnly } = copyIdOf(source, memory, { digest, facts, folded });
     memory.copies.set(source.id, { digest, copy });
-    return { tables, columns, digest, copy, edited };
+    return { tables, columns, digest, copy, embedOnly, repeated };
 }
 
 /**
- * A copy's id (spec 4.1.2 rule 1), and whether it holds the reader's edits.
+ * A copy's id (spec 4.1.2 rule 1), and whether no bytes stand for it.
  * @param source - The source.
  * @param memory - The memory.
  * @param copy - The copy.
  * @param copy.digest - The digest of its tables.
  * @param copy.facts - What its load read.
  * @param copy.folded - Whether the session holds the reader's edits, removes or merges.
- * @returns The copy id, and whether a hashed source holds edits no bytes match.
+ * @returns The copy id, and whether a hashed source has no bytes to stand for it.
  */
 function copyIdOf(
     source: ModelSource,
     memory: DataMemory,
     { digest, facts, folded }: { digest: string; facts: LoadFacts | undefined; folded: boolean },
-): { copy: string; edited: boolean } {
+): { copy: string; embedOnly: boolean } {
     const remembered = memory.copies.get(source.id);
     if (!HASHED_KINDS.has(kindOfSource(source, memory))) {
-        return { copy: stableId(remembered, digest, mintUlid).copy, edited: false };
-    }
-
-    // A copy saved edited keeps its ULID: it still holds the edits that no bytes match.
-    const minted = remembered !== undefined && ULID.test(remembered.copy) ? remembered : undefined;
-    if (folded || minted !== undefined) {
-        // ponytail: until the session keeps a log of the reader's edits, removes and merges, any of
-        // them marks every hashed source edited: its rows are no longer the bytes it hashed, so it
-        // gets a ULID and is always embedded. Keep the log to mark only the sources it touched.
-        return { copy: stableId(minted, digest, mintUlid).copy, edited: true };
+        return { copy: stableId(remembered, digest, mintUlid).copy, embedOnly: false };
     }
 
     // The digest of the bytes as read, whatever the reader changed since: the load's own, else the
-    // one the file it was opened from stamped. ponytail: a generated sample, or a load whose bytes
-    // the session never digested, has no bytes to hash, so its copy as written stands in for them.
-    return { copy: bytesCopyId(facts) ?? remembered?.copy ?? digest, edited: false };
+    // one the file it was opened from stamped. A copy saved with a ULID keeps it.
+    const minted = remembered !== undefined && ULID.test(remembered.copy) ? remembered : undefined;
+    const bytes = bytesCopyId(facts) ?? (minted === undefined ? remembered?.copy : undefined);
+    if (folded || bytes === undefined) {
+        // A generated sample, or a load whose bytes the session never digested, has no bytes, and
+        // a source the reader changed is no longer its bytes: a ULID, and always embedded.
+        // ponytail: until the session keeps a log of the reader's edits, removes and merges, any of
+        // them marks every hashed source so. Keep the log to mark only the sources it touched.
+        return { copy: stableId(minted, digest, mintUlid).copy, embedOnly: true };
+    }
+
+    return { copy: bytes, embedOnly: false };
+}
+
+/**
+ * The rows of a source's edges whose edge id an earlier row already gave. Unless the source merges
+ * repeats, each is written keyless (`<copy id>#<row>`), so no two edges share a key (spec 6.1).
+ * @param source - The source.
+ * @param edgeIdColumn - The edge-id column, if any.
+ * @returns The rows.
+ */
+function repeatedEdgeRows(source: ModelSource, edgeIdColumn: string | undefined): Set<number> {
+    const rows = new Set<number>();
+    if (edgeIdColumn === undefined || source.load.choices?.duplicateIds === "merge") {
+        return rows;
+    }
+
+    const seen = new Set<string>();
+    source.edges.forEach((edge, row) => {
+        const key = keyText(edge[edgeIdColumn]);
+        if (key !== undefined && seen.has(key)) {
+            rows.add(row);
+        } else if (key !== undefined) {
+            seen.add(key);
+        }
+    });
+    return rows;
 }
 
 /**
@@ -747,6 +781,44 @@ function nameNode(
 
     const key = known !== undefined && ULID.test(known.key) ? known.key : readerKeyOf(memory, `n:${id}`);
     return { loads: [READER], ref: { space: known?.space ?? `source:${READER}`, key }, reader: true };
+}
+
+/**
+ * Name each node a source supplied with no key (an empty id) as its keyless row:
+ * `<copy id>#<row>` in the space `source:<source id>` (spec 6.1), so its key holds across saves;
+ * the edge rows that name it name that key.
+ * @param sources - The sources, in join order.
+ * @param copies - Their copies.
+ * @param nodeRefs - Each node's reference, named here for the keyless ones.
+ * @param memory - The memory: a node already named by the file it was read from keeps that name.
+ */
+function nameKeyless(
+    sources: readonly ModelSource[],
+    copies: ReadonlyMap<string, Copy>,
+    nodeRefs: Map<NodeId, NodeRef>,
+    memory: DataMemory,
+): void {
+    const keyless = new Set<NodeId>();
+    for (const source of sources) {
+        const copy = copies.get(source.id) as Copy;
+        source.nodes.forEach((node, row) => {
+            if (keyText(node.id) === undefined && !memory.nodeRefs.has(node.id) && !keyless.has(node.id)) {
+                keyless.add(node.id);
+                nodeRefs.set(node.id, { space: `source:${source.id}`, key: `${copy.copy}#${String(row)}` });
+            }
+        });
+    }
+
+    for (const source of sources) {
+        const edges = (copies.get(source.id) as Copy).tables.edges as Record<string, unknown[]> | undefined;
+        source.edges.forEach((edge, row) => {
+            for (const end of ["source", "target"] as const) {
+                if (edges !== undefined && keyless.has(edge[end])) {
+                    edges[end][row] = nodeRefs.get(edge[end])?.key;
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -811,18 +883,20 @@ function dataModelOf(session: GraphSession): DataModel {
     }
 
     const folded = foldedOperations(session).size > 0;
+    const edgeIdColumn = edgeIdColumnOf(session);
     const copies = new Map(
         sources.map((source) => [
             source.id,
-            copyOf(source, nodeRefs, memory, factsOf(session, source.load.key), folded),
+            copyOf(source, nodeRefs, memory, factsOf(session, source.load.key), folded, edgeIdColumn),
         ]),
     );
-    const edgeIdColumn = edgeIdColumnOf(session);
+    nameKeyless(sources, copies, nodeRefs, memory);
     const edgeRefs = new Map<EdgeId, EdgeRef>();
     for (const source of sources) {
         const copy = copies.get(source.id) as Copy;
         source.edges.forEach((edge, row) => {
-            const key = edgeIdColumn === undefined ? undefined : keyText(edge[edgeIdColumn]);
+            const id = edgeIdColumn === undefined || copy.repeated.has(row) ? undefined : edge[edgeIdColumn];
+            const key = keyText(id);
             edgeRefs.set(edge.id, { load: source.id, key: key ?? `${copy.copy}#${String(row)}` });
         });
     }
@@ -851,6 +925,26 @@ function dataModelOf(session: GraphSession): DataModel {
 }
 
 /**
+ * A reader `add`'s `columns` and the `dtypes` they are declared with (spec 4.1.4), each cell
+ * written as a copy's is, so a non-finite number reads back as a number.
+ * @param values - The element's columns.
+ * @returns `columns` and `dtypes`.
+ */
+function addedColumns(values: Readonly<JsonObject>): { columns: JsonObject; dtypes: JsonObject } {
+    const columns: JsonObject = {};
+    const dtypes: JsonObject = {};
+    for (const [name, value] of Object.entries(values)) {
+        if (value !== undefined) {
+            const { decl, cells } = columnOf(name, [value]);
+            columns[name] = cells[0];
+            dtypes[name] = decl.dtype;
+        }
+    }
+
+    return { columns, dtypes };
+}
+
+/**
  * The reader source's operations: today, only the elements no load supplied, each an `add`.
  * @param nodes - The nodes no load supplied.
  * @param edges - The edges no load supplied.
@@ -875,13 +969,13 @@ function readerCopyOf(
 
     const { nodeRefs, edgeRefs, memory } = named;
     const operations: JsonObject[] = [
-        ...nodes.map(({ id, ...columns }) => ({ op: "add", node: nodeRefs.get(id), columns: jsonSafe(columns) })),
+        ...nodes.map(({ id, ...columns }) => ({ op: "add", node: nodeRefs.get(id), ...addedColumns(columns) })),
         ...edges.map(({ id, source, target, ...columns }) => ({
             op: "add",
             edge: edgeRefs.get(id),
             from: nodeRefs.get(source),
             to: nodeRefs.get(target),
-            columns: jsonSafe(columns),
+            ...addedColumns(columns),
         })),
     ];
     const digest = digestOf(operations);
@@ -984,12 +1078,15 @@ function originOf(source: ModelSource, model: DataModel, kind: string, copy: str
         ...(load.url === undefined ? {} : { url: load.url }),
         ...(load.size === undefined ? {} : { size: load.size }),
         ...(jsonSafe({
-            size: facts?.file?.size,
+            size: facts?.file?.size ?? facts?.url?.size,
             mediaType: facts?.file?.mediaType,
             etag: facts?.url?.etag,
             lastModified: facts?.url?.lastModified,
             dataset: typeof sample?.dataset === "string" ? sample.dataset : undefined,
             version: typeof sample?.version === "string" ? sample.version : undefined,
+            // A generated sample's call: what a refresh runs again, never its copy id.
+            generator: typeof sample?.generator === "string" ? sample.generator : undefined,
+            params: typeof sample?.generator === "string" ? sample.params : undefined,
         }) as JsonObject),
     };
     // A derived source holds only its copy id; the details belong to the kinds that read bytes.
@@ -1170,6 +1267,23 @@ function elementTypesOf(
     }
 
     return { nodes, edges };
+}
+
+/**
+ * The open data's elements that have any of the named types (spec 4.1.5), as the registry the last
+ * data section read assigns them: what a `type` selector or a `{ types }` scope names.
+ * ponytail: the ids as the data stands now; a style or run reading them does not follow later
+ * changes to the data. Give the session a type predicate to keep them live.
+ * @param session - The session.
+ * @param names - The type names.
+ * @returns The node and edge ids, in data order.
+ */
+export function typedIds(session: GraphSession, names: readonly string[]): { nodes: NodeId[]; edges: EdgeId[] } {
+    const wanted = new Set(names);
+    const { nodes, edges } = elementTypesOf(dataModelOf(session), memoryOf(session).types);
+    const pick = <T>(typed: Map<T, string[]>): T[] =>
+        [...typed].filter(([, types]) => types.some((type) => wanted.has(type))).map(([id]) => id);
+    return { nodes: pick(nodes), edges: pick(edges) };
 }
 
 /**
@@ -1367,7 +1481,7 @@ function storageOf(
         return "embedded";
     }
 
-    return kind === "derived" || (model.copies.get(source.id) as Copy).edited ? "embedded" : asked;
+    return kind === "derived" || (model.copies.get(source.id) as Copy).embedOnly ? "embedded" : asked;
 }
 
 /**
@@ -1455,6 +1569,19 @@ function foldedOperations(session: GraphSession): Set<string> {
 function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
     for (const column of model.reserved) {
         problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", field: column } });
+    }
+
+    // An edge id an earlier row of its source gave is left out of the later row, which is keyless.
+    for (const source of model.sources) {
+        for (const row of (model.copies.get(source.id) as Copy).repeated) {
+            problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: {
+                    section: "data",
+                    pointer: `/sources/${source.id}/copy/edges/${String(model.edgeIdColumn)}/${String(row)}`,
+                },
+            });
+        }
     }
 
     // ponytail: the session keeps no log of the reader's edits, removes and merges, only their

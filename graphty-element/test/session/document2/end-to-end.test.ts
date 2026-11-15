@@ -101,6 +101,27 @@ describe("save files version 2, end to end", () => {
         assert.strictEqual(JSON.stringify(written), JSON.stringify(example));
     });
 
+    it("applies the example's type selector and replays its run over a type scope", async () => {
+        const { session, problems } = await exampleSession();
+        const merchants = session.styles.list().find((layer) => layer.name === "Merchants");
+        assert.isDefined(merchants, "the type layer applies");
+        const merchantIds = session.data
+            .nodes()
+            .filter((node) => node.kind === "merchant")
+            .map((node) => node.id);
+        assert.isAbove(merchantIds.length, 0);
+        assert.deepEqual(merchants?.selector, { match: "ids", nodes: merchantIds });
+        const notRun = problems.flatMap((problem) =>
+            problem.code === "W_RUN_NOT_RUN" ? [(problem as { params?: JsonObject }).params?.run] : [],
+        );
+        assert.notInclude(notRun, "card_testing__communities");
+        assert.include(
+            session.runs.list().map((run) => run.id),
+            "card_testing__communities",
+        );
+        session.dispose();
+    });
+
     it("writes a section the reader changed from the session, and the rest as read", async () => {
         const example = readJson("examples/card-fraud.graphty.json");
         const { session } = await exampleSession();

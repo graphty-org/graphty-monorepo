@@ -29,6 +29,7 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
+import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
@@ -85,7 +86,7 @@ const RUN_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 /** The scope strings a reader replays. */
 const SCOPE_STRINGS = new Set(["graph", "largest-component"]);
 
-/** The scope object forms a reader replays (`types` is spelled but graphty-element has no such scope). */
+/** The scope object forms a reader replays as they are; `{ types }` is replayed as its nodes. */
 const SCOPE_FORMS = new Set(["set", "where", "nodes", "define"]);
 
 /** What writing the body reads. */
@@ -868,6 +869,14 @@ function scopeIn(r: Reader, scope: unknown, pointer: string): ScopeInput | undef
     }
 
     const keys = isObject(scope) ? Object.keys(scope) : [];
+    if (keys.length === 1 && keys[0] === "types") {
+        // graphty-element has no type scope: the nodes of those types, as the data stands now.
+        const { types } = scope as JsonObject;
+        return Array.isArray(types) && types.every((type): type is string => typeof type === "string")
+            ? { nodes: typedIds(r.context.session, types).nodes }
+            : undefined;
+    }
+
     if (keys.length !== 1 || !SCOPE_FORMS.has(keys[0])) {
         return undefined;
     }

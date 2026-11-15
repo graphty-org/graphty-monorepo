@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
@@ -181,6 +181,23 @@ function stateOf(session: GraphSession): unknown {
     return { nodes: sorted(nodes), edges: sorted(edges), loads, directed: session.status.directed };
 }
 
+/**
+ * The record keys a data body's graph gives its nodes and edges, in order.
+ * @param body - The body.
+ * @returns `[space or load, key]` per element.
+ */
+function keysOf(body: JsonObject): unknown[] {
+    const graph = body.graph as { nodes: JsonObject[]; links: JsonObject[] };
+    return [
+        ...graph.nodes.map((node) => [node["graphty.space"], node["graphty.key"]]),
+        ...graph.links.map((link) => [link["graphty.load"], link["graphty.key"]]),
+    ];
+}
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
 describe("data section version 2", () => {
     it("round-trips a session: state to section to state, and section to state to section byte for byte", async () => {
         const session = await sampleSession();
@@ -339,6 +356,146 @@ describe("data section version 2", () => {
         session.dispose();
         opened.dispose();
         reopened.dispose();
+    });
+
+    it("writes two edges sharing an edge id under two keys, reports it, and keeps both through a reopen", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [{ id: "a" }, { id: "b" }],
+                    edges: [
+                        { source: "a", target: "b", eid: "e1", n: 1 },
+                        { source: "b", target: "a", eid: "e1", n: 2 },
+                    ],
+                }),
+            },
+            name: "calls.json",
+        });
+        await session.config.set({ data: { knownFields: { edgeIdPath: "eid" } } });
+        assert.strictEqual(session.data.edges().length, 2);
+        const { body, problems } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const links = (body.graph as JsonObject).links as JsonObject[];
+        const keys = links.map((link) => link["graphty.key"]);
+        assert.strictEqual(new Set(keys).size, 2, `two keys: ${JSON.stringify(keys)}`);
+        assert.strictEqual(keys[0], "e1");
+        const id = String((body.sources as JsonObject[]).find((source) => source.kind === "file")?.id);
+        assert.deepInclude(problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { section: "data", pointer: `/sources/${id}/copy/edges/eid/1` },
+        });
+
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        assert.sameMembers(
+            reopened.data.edges().map((edge) => edge.n),
+            [1, 2],
+        );
+        // The edge id the later row repeated was left out, as reported; every key holds.
+        assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(body));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("keys a node whose id is empty as its keyless row, the same key on every save", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [{ id: "a" }, { id: "", label: "Blank" }],
+                    edges: [{ source: "", target: "a" }],
+                }),
+            },
+            name: "blank.json",
+        });
+        assert.include(
+            session.data.nodes().map((node) => node.id),
+            "",
+        );
+        const first = (await writeBody(session)).body;
+        assert.deepStrictEqual(invalid(asSection(first)), []);
+        const graph = first.graph as { nodes: JsonObject[]; links: JsonObject[] };
+        const blank = graph.nodes.find((node) => node.label === "Blank");
+        const source = (first.sources as JsonObject[]).find((each) => each.kind === "file") as JsonObject;
+        const copy = String((source.origin as JsonObject).copy);
+        assert.deepStrictEqual(
+            [blank?.["graphty.space"], blank?.["graphty.key"]],
+            [`source:${String(source.id)}`, `${copy}#1`],
+        );
+
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, first), []);
+        assert.strictEqual(reopened.data.edges().length, 1, "the edge naming it keeps its end");
+        assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(first));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("declares a reader add's column types, so a non-finite number reopens as a number", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([{ id: "Z", score: Number.POSITIVE_INFINITY, tag: "t" }]);
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const [add] = ((body.sources as JsonObject[])[0].copy as JsonObject).operations as JsonObject[];
+        assert.deepStrictEqual(add.dtypes, { score: "f64", tag: "string" });
+
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.strictEqual(reopened.data.nodes()[0].score, Number.POSITIVE_INFINITY);
+
+        // An add without its declarations holds the section.
+        const { dtypes: _dtypes, ...bare } = add;
+        const without = structuredClone(body);
+        ((without.sources as JsonObject[])[0].copy as JsonObject).operations = [bare];
+        const held = createGraphSession(ON);
+        assert.include(
+            (await readBody(held, without)).map((problem) => problem.code),
+            "W_SECTION_KEPT",
+        );
+        session.dispose();
+        reopened.dispose();
+        held.dispose();
+    });
+
+    it("gives a generated sample a minted copy id and always embeds it", async () => {
+        const session = createGraphSession(ON);
+        await session.data.generate("path", { n: 3 });
+        const sourceId = String(
+            ((await writeBody(session)).body.sources as JsonObject[]).find((each) => each.kind === "sample")?.id,
+        );
+        const { body, problems } = await writeBody(session, { [sourceId]: "referenced" });
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        assert.deepStrictEqual(problems, []);
+        const sample = (body.sources as JsonObject[]).find((each) => each.id === sourceId) as JsonObject;
+        assert.match(String((sample.origin as JsonObject).copy), ULID);
+        assert.strictEqual((sample.origin as JsonObject).generator, "path");
+        assert.property(sample, "copy", "no bytes stand for it, so it is embedded");
+        session.dispose();
+    });
+
+    it("writes a URL source's copy id, size and validators from the body it fetched", async () => {
+        const text = "source,target\nAva,Ben\n";
+        vi.stubGlobal("fetch", () =>
+            Promise.resolve(
+                new Response(text, { headers: { ETag: '"v1"', "Last-Modified": "Tue, 01 Sep 2026 00:00:00 GMT" } }),
+            ),
+        );
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { url: "https://example.org/people.csv" } });
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const origin = ((body.sources as JsonObject[]).find((each) => each.kind === "url") as JsonObject)
+            .origin as JsonObject;
+        const bytes = new TextEncoder().encode(text);
+        const hex = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
+        assert.strictEqual(origin.copy, `sha256:${hex}`);
+        assert.strictEqual(origin.size, bytes.byteLength);
+        assert.strictEqual(origin.etag, '"v1"');
+        assert.strictEqual(origin.lastModified, "Tue, 01 Sep 2026 00:00:00 GMT");
+        session.dispose();
     });
 
     it("reads the worked example and writes it back with its build stamp, copy ids, keys and types", async () => {
@@ -770,7 +927,7 @@ describe("data section version 2", () => {
         reopened.dispose();
     });
 
-    it("writes an edge built from several rows with the first row's values and type", async () => {
+    it("builds a node or an edge from several rows with the first row's values and type", async () => {
         const id = `src_${"D".repeat(26)}`;
         const body: JsonObject = {
             build: "0".repeat(26),
@@ -793,7 +950,7 @@ describe("data section version 2", () => {
                     },
                     settings: { duplicateIds: "merge" },
                     copy: {
-                        nodes: { id: ["a", "b"] },
+                        nodes: { id: ["a", "b", "a"], role: ["x", null, "y"], team: [null, null, "blue"] },
                         edges: {
                             call: ["c1", "c1"],
                             from: ["a", "a"],
@@ -803,7 +960,11 @@ describe("data section version 2", () => {
                         },
                     },
                     columns: {
-                        nodes: { id: { name: "id", dtype: "string" } },
+                        nodes: {
+                            id: { name: "id", dtype: "string" },
+                            role: { name: "role", dtype: "string", nullable: true },
+                            team: { name: "team", dtype: "string", nullable: true },
+                        },
                         edges: {
                             call: { name: "call", dtype: "string" },
                             from: { name: "from", dtype: "string" },
@@ -824,6 +985,9 @@ describe("data section version 2", () => {
         assert.strictEqual(session.data.edges().length, 1);
         assert.strictEqual(edge.kind, "phone", "the first row's value");
         assert.strictEqual(edge.note, "later", "a later row fills only what the first left unset");
+        const a = session.data.nodes().find((node) => node.id === "people:a");
+        assert.strictEqual(a?.role, "x", "a node keeps its first row's value too");
+        assert.strictEqual(a?.team, "blue", "and a later row fills only what the first left unset");
         session.dispose();
     });
 

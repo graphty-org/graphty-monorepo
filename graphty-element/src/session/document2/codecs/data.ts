@@ -142,7 +142,7 @@ const READER_MEMBERS = new Set(["id", "label", "kind", "origin", "copy", "loaded
 const OPERATION_MEMBERS: Readonly<Record<string, ReadonlySet<string>>> = {
     merge: new Set(["op", "into", "from"]),
     remove: new Set(["op", "node", "edge"]),
-    add: new Set(["op", "node", "edge", "from", "to", "columns"]),
+    add: new Set(["op", "node", "edge", "from", "to", "columns", "dtypes"]),
     edit: new Set(["op", "node", "edge", "column", "value", "was"]),
 };
 const NUMERIC = new Set(["f32", "f64", "i32", "u32", "u8"]);
@@ -286,6 +286,23 @@ function rowOf(table: Table, row: number): JsonObject {
     return values;
 }
 
+/**
+ * The columns a reader `add` gives, read through its declared dtypes as a copy's cells are.
+ * @param operation - The checked `add`.
+ * @returns The values; unset cells left out.
+ */
+function addedColumns(operation: JsonObject): JsonObject {
+    const given = (operation.columns ?? {}) as JsonObject;
+    const dtypes = operation.dtypes as JsonObject;
+    const table: Table = {
+        cells: Object.fromEntries(Object.entries(given).map(([name, value]) => [name, [value]])),
+        decls: Object.fromEntries(Object.keys(given).map((name) => [name, { dtype: dtypes[name] }])),
+        length: 1,
+        unset: new Map(),
+    };
+    return rowOf(table, 0);
+}
+
 /** A source record read, checked. */
 interface ReadSource {
     readonly record: JsonObject;
@@ -338,6 +355,12 @@ function checkOperation(operation: unknown, pointer: string): void {
         need(edge === undefined || (edge.load === READER && ULID.test(edge.key)), `${pointer}/edge`);
         need((node === undefined) !== (edge === undefined), pointer);
         need(operation.columns === undefined || isPlainObject(operation.columns), `${pointer}/columns`);
+        // Every column the add gives declares its dtype, so a number's string form reads back as one.
+        const { dtypes } = operation;
+        need(isPlainObject(dtypes), `${pointer}/dtypes`);
+        for (const name of Object.keys(operation.columns ?? {})) {
+            need(typeof dtypes[name] === "string", `${pointer}/dtypes/${name}`);
+        }
     }
 }
 
@@ -599,7 +622,10 @@ function takeColumns(
     row: { readonly repeated: boolean; readonly merge: boolean },
 ): void {
     for (const [name, value] of Object.entries(values)) {
-        if ((row.repeated && row.merge) || !(name in node.columns)) {
+        if (row.repeated && row.merge) {
+            // The first row's values stand, as an edge's do; a later row only fills an unset column.
+            node.columns[name] ??= value;
+        } else if (!(name in node.columns)) {
             node.columns[name] = value;
         } else if (!row.repeated && canonicalJson(node.columns[name]) !== canonicalJson(value)) {
             node.columns[`${name} (${source})`] = value;
@@ -897,7 +923,7 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
                 return;
             }
             case "add": {
-                const columns = { ...(operation.columns as JsonObject | undefined) };
+                const columns = addedColumns(operation);
                 const node = nodeRefOf(operation.node);
                 if (node !== undefined) {
                     const added = nodeAt(into, node, node.key);

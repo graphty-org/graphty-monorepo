@@ -197,9 +197,17 @@
                                                         },
                                                         "columns": {
                                                             "type": "object"
+                                                        },
+                                                        "dtypes": {
+                                                            "type": "object",
+                                                            "description": "The graph-format dtype each column in columns is declared with, read as a copy's cells are, so a number written as its string form reads back as a number.",
+                                                            "additionalProperties": {
+                                                                "type": "string",
+                                                                "minLength": 1
+                                                            }
                                                         }
                                                     },
-                                                    "required": ["op"],
+                                                    "required": ["op", "dtypes"],
                                                     "oneOf": [
                                                         {
                                                             "required": ["node"],

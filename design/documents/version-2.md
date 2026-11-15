@@ -343,8 +343,12 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
     ```
 
 - **Keys.** `key` is always a JSON string. An edge's key is its `edgeId` value; repeated ids within
-  one source follow `duplicateIds`. A keyless row's key, node or edge, is `"<copy id>#<row from
-0>"`; an edge row whose edge-id cell is null or empty is keyless, so the form applies per row.
+  one source follow `duplicateIds`: under `merge` the rows become one edge, the first row's values
+  standing and a later row filling only what it left unset, as for nodes. Otherwise, when the session
+  holds two edges with one edge id in one source, the writer leaves the later row's edge-id cell out
+  and reports it, so that row is keyless and both edges reopen. A keyless row's key, node or edge,
+  is `"<copy id>#<row from 0>"`; a row whose node-key or edge-id cell is null or empty is keyless,
+  so the form applies per row, and a node whose id is empty is written that way.
   `load` names the source that made the edge; `key` is the record key, never NetworkX's multigraph
   key. An edge built from several rows, including an edge two sources both supply, takes the key
   of the first row read, in join step order. The member is `load`, not `source`, because every
@@ -427,8 +431,12 @@ header:
   `mapping`, `settings`, `annotations`, `metadata`, `license`, `citation`, `copy`, `columns` and
   `loaded`. A referenced or refreshed source is parsed again with exactly its `format` and
   `options`, never a guessed one.
-    - `origin.copy` is the copy id: for file, url and sample sources `sha256:<hex>` of the bytes;
-      for network, derived and reader sources a ULID minted whenever that copy changes. `origin` also
+    - `origin.copy` is the copy id: for file, url and downloaded dataset sources `sha256:<hex>` of
+      the bytes as fetched or read, recorded when the load reads them; for network, derived and
+      reader sources a ULID minted whenever that copy changes. A generated sample has no bytes: its
+      copy id is a ULID and it is always embedded; its generator and parameters stay in `origin`
+      only as what a refresh runs again. A url source's `origin` writes `size`, `etag` and
+      `lastModified` when the response had them. `origin` also
       holds the file name, size, media type and HTTP validators where they apply; a member the
       session does not record is left out, never invented.
     - Until graphty-element keeps a log of the reader's edits, removes and merges, a source whose
@@ -527,7 +535,8 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   `[]`, and keeps its key when the file is saved again: it is not a reader addition. `reader` is
   listed only on an element the reader added; an edit does not add it, and a merge keeps the union
   of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
-  operations.
+  operations. An `add` declares the graph-format dtype of each column it gives (`dtypes`), and its
+  cells are written and read as a copy's are, so a non-finite number reopens as a number.
 
 The join history and the recipe's join steps share one spelling with two jobs: the history is how
 this data was built, so a data section file rebuilds alone; the recipe's steps apply to new data,

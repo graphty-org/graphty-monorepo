@@ -21,7 +21,22 @@ type ChosenFile =
 declare module "vitest/browser" {
     interface BrowserCommands {
         chooseNextFiles: (files: ChosenFile[]) => Promise<void>;
+        lastFileChooser: () => Promise<{ accept: string | null; multiple: boolean } | null>;
     }
+}
+
+/**
+ * Files from the package's folder, read as the test server has them, for a drop.
+ * @param paths - each file's path from the package's folder.
+ * @returns the files.
+ */
+export async function filesAt(paths: readonly string[]): Promise<File[]> {
+    return Promise.all(
+        paths.map(async (at) => {
+            const bytes = Uint8Array.from(atob(await commands.readFile(at, "base64")), (c) => c.codePointAt(0) ?? 0);
+            return new File([bytes], at.slice(at.lastIndexOf("/") + 1));
+        }),
+    );
 }
 
 const NODES = [
@@ -194,7 +209,7 @@ async function base64(file: File): Promise<string> {
  * reader choosing them: each a File, or a path from the package's folder. A path to a folder, with
  * the button that opens the folder picker, chooses that folder.
  * @param scope - where the button is.
- * @param name - the button's accessible name, "Choose files".
+ * @param name - the button's accessible name, "Choose file".
  * @param files - the files.
  */
 export async function choose(

@@ -362,6 +362,9 @@ export interface AnimationResult {
 }
 
 // @public
+export type Antialias = boolean | "at-rest";
+
+// @public
 export type AssetStorage = "embed" | "url";
 
 // @public
@@ -2798,7 +2801,7 @@ export interface GlobeLook {
 // @public
 export class Graph implements GraphContext {
     constructor(element: Element | string, useMockInput?: boolean, options?: {
-        readonly antialias?: boolean;
+        readonly antialias?: Antialias;
     });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
@@ -2815,7 +2818,7 @@ export class Graph implements GraphContext {
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     aiTalk(down: boolean, options?: AiTalkOptions): void;
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    readonly antialias: boolean;
+    get antialias(): Antialias;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3066,6 +3069,7 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
+    setAntialias(value: Antialias): boolean;
     setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
@@ -3377,8 +3381,8 @@ export class Graphty extends LitElement {
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    get antialias(): boolean;
-    set antialias(value: boolean);
+    get antialias(): Antialias;
+    set antialias(value: Antialias);
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -7565,6 +7569,8 @@ export class RenderManager implements Manager {
     // (undocumented)
     graphRoot: TransformNode;
     holdFrames(): () => void;
+    // @internal
+    holdSmooth(): () => void;
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
@@ -7585,6 +7591,7 @@ export class RenderManager implements Manager {
         drawn: number;
         rested: number;
         gpuBehind: number;
+        smooth: number;
     };
 }
 

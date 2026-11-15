@@ -309,8 +309,8 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
-     * Sets whether the canvas multisamples. Once the engine is built a different value changes
-     * nothing and raises `W_ANTIALIAS_LATE`.
+     * Sets how the canvas multisamples. Once the engine is built, a change it cannot make raises
+     * `W_ANTIALIAS_LATE` and changes nothing.
      */
     antialias?: Graphty["antialias"];
     /**

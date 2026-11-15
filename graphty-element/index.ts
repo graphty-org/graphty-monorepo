@@ -459,6 +459,7 @@ export type {
     RendererStatus,
 } from "./src/managers/RenderManager";
 export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
+export type { Antialias } from "./src/meshes/PulledLineBatch";
 
 // =============================================================================
 // Acceleration

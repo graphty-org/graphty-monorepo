@@ -1899,6 +1899,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdgeIdTarget: READ,
             renderPath: READ,
             antialias: READ,
+            setAntialias: MACHINE,
             setRenderPath: MACHINE,
             limits: READ,
             setLimits: MACHINE,

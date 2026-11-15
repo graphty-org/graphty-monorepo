@@ -154,7 +154,9 @@ graph.on("error", ({ error, context }) => {
 
 ## DOM Events
 
-Listen via standard `addEventListener` on the Web Component:
+Listen via standard `addEventListener` on the Web Component. These events bubble and are composed,
+except `error`, which fires only on the element itself so that `window.onerror` and error reporters
+never mistake it for an uncaught exception:
 
 ```javascript
 const element = document.querySelector("graphty-element");

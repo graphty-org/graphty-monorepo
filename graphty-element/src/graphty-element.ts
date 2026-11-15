@@ -1005,11 +1005,15 @@ export class Graphty extends LitElement {
                 return;
             }
 
+            // `error` does not bubble: a bubbling `error` reaches `window`, where every page-wide
+            // error handler (window.onerror, error reporters, test runners) takes it for an uncaught
+            // exception -- a refusal the caller already caught would be reported as a crash (#8231).
+            const bubbles = event.type !== "error";
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
-                    bubbles: true,
-                    composed: true,
+                    bubbles,
+                    composed: bubbles,
                 }),
             );
             this.#announceSkybox(event);
@@ -4447,7 +4451,8 @@ export class Graphty extends LitElement {
      *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected model or one waiting for parts, its first problem's code and params.
+     *     rejected model or one waiting for parts, its first problem's code and params (with
+     *     `standInMissing`, a model waiting only for pictures or materials is drawn without them).
      * @example
      * ```typescript
      * const asset = await element.session.assets.add(input.files);

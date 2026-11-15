@@ -181,6 +181,23 @@ describe("Event Forwarding Regression Tests", () => {
 
             cleanup(graphtyElement);
         });
+
+        test("error event stops at the element and never reaches the window (#8231)", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const onElement = vi.fn();
+            const onWindow = vi.fn();
+            graphtyElement.addEventListener("error", onElement);
+            // Where window.onerror, error reporters and test runners listen.
+            window.addEventListener("error", onWindow);
+
+            graphtyElement.graph.eventManager.emitGraphError(graphtyElement.graph, new Error("refused"), "layout");
+
+            window.removeEventListener("error", onWindow);
+            assert.equal(onElement.mock.calls.length, 1);
+            assert.equal(onWindow.mock.calls.length, 0);
+
+            cleanup(graphtyElement);
+        });
     });
 
     describe("layout-initialized event", () => {

@@ -5435,6 +5435,7 @@ export interface MarkSuggestion {
 // @public
 export interface ModelThumbnailOptions {
     readonly size?: number;
+    readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
@@ -5561,6 +5562,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
+    // @internal
+    holdOffBatch(): void;
     // (undocumented)
     readonly id: NodeIdType;
     // @internal

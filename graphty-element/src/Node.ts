@@ -504,14 +504,7 @@ export class Node implements ModelUser {
     get mesh(): AbstractMesh {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
-            const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
-            if (batches) {
-                // A batch hides its whole source, so a held node sharing it took every row of its look
-                // off the batch: one read of one mesh emptied a single-look graph's batch (#8038).
-                batches.leave(this);
-                this.drawFromOwnSource();
-                batches.sync(this);
-            }
+            this.holdOffBatch();
         }
 
         if (this.#mesh === null) {
@@ -2764,6 +2757,23 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
+     * when the graph switches to batched drawing after that read. A batch hides its whole source, so
+     * a held node sharing it took every row of its look off the batch (#8038, #8073).
+     * @internal
+     */
+    holdOffBatch(): void {
+        const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
+        if (!this.#meshHeld || !batches) {
+            return;
+        }
+
+        batches.leave(this);
+        this.drawFromOwnSource();
+        batches.sync(this);
+    }
+
+    /**
      * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
      */
     private drawFromOwnSource(): void {
@@ -2781,6 +2791,8 @@ export class Node implements ModelUser {
         if (source !== mesh.sourceMesh) {
             moveInstance(mesh, source);
             this.#source = source;
+            // A new source has no color buffer until a paint registers one: paint the instance again.
+            this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
         }
     }
 

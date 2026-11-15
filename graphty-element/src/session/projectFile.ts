@@ -24,6 +24,7 @@ import {
     type NodeId,
     PROJECT_FILE,
     type RunId,
+    type Scope,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -1738,6 +1739,8 @@ interface Opening {
     readonly services: Dispatcher["services"];
     /** Marks a restored run as one whose id the element minted. */
     readonly restoreDerived: (id: RunId) => void;
+    /** How many elements a run over a scope (absent: the default run scope) would hold now. */
+    readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
 }
 
 /**
@@ -2077,7 +2080,21 @@ async function readProject(
         }
     });
 
-    // The filter and window before the runs, for a run saved without its live scope. Each run
+    // A run from a file that saved its element count (ranOn) but not its live scope is reopened
+    // as that file was: one whose scope held as many elements as it holds with no filter ran
+    // before the filter, so it is computed before the filter is back and comes back out of date.
+    const results = first("graphty-results");
+    const runs = (results.runs ?? []) as SavedRun[];
+    const ranBefore = (run: SavedRun): boolean =>
+        run.live === undefined &&
+        run.ranOn !== undefined &&
+        sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
+    const before = new Set(runs.filter(ranBefore));
+    for (const run of before) {
+        await attempt(opening, "runs", () => readRun(opening, run, remap, () => Promise.resolve()), run.id);
+    }
+
+    // The filter and window before the other runs, for a run saved without its live scope. Each run
     // saved with one is computed under the filter or selection it ran under, and the project's own
     // are restored after them all, where a failure is reported.
     const visibility = state.visibility as Record<string, unknown> | undefined;
@@ -2103,8 +2120,7 @@ async function readProject(
         }
     };
 
-    const results = first("graphty-results");
-    for (const run of (results.runs ?? []) as SavedRun[]) {
+    for (const run of runs.filter((saved) => !before.has(saved))) {
         await attempt(opening, "runs", () => readRun(opening, run, remap, underLive), run.id);
     }
 
@@ -2512,6 +2528,22 @@ async function readRun(
     }
 }
 
+/** How many nodes and edges a scope holds. */
+interface ElementCount {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * Whether two counts are the same.
+ * @param a - One.
+ * @param b - The other, or null for a scope that does not resolve.
+ * @returns True when both sides agree.
+ */
+function sameCount(a: ElementCount, b: ElementCount | null): boolean {
+    return b !== null && a.nodes === b.nodes && a.edges === b.edges;
+}
+
 /** One finished run as a results member keeps it: the command that started it. */
 interface SavedRun {
     readonly id: RunId;
@@ -2523,6 +2555,11 @@ interface SavedRun {
     readonly seed?: number;
     readonly sample?: number;
     readonly exact?: boolean;
+    /**
+     * How many elements its scope held when it ran: written by files from #6201 until runs saved
+     * their live scope, and read only for a run with no `live`.
+     */
+    readonly ranOn?: ElementCount;
     /** The reader's own name for the run (`runs.rename`); absent in older files and unnamed runs. */
     readonly name?: string;
     /** What its live keywords stood for when it ran; absent in older files and other scopes. */
@@ -2609,6 +2646,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
+ * @param hooks.scopeCountOf - How many elements a run over a scope would hold now.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2621,11 +2659,12 @@ export function projectOf(
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
         readonly restoreDerived: (id: RunId) => void;
+        readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2793,6 +2832,7 @@ export function projectOf(
                             playback: dispatcher.state.visibility.playback,
                             services: dispatcher.services,
                             restoreDerived,
+                            scopeCountOf,
                         },
                         doc,
                         graph,
@@ -2843,6 +2883,7 @@ export function projectOf(
                     restored,
                     services: dispatcher.services,
                     restoreDerived,
+                    scopeCountOf,
                 };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);

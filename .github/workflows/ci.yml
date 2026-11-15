@@ -1235,6 +1235,7 @@ jobs:
         # issues and pull requests: read, for the style fidelity known failures' tracking issues below
         permissions:
             contents: read
+            checks: write
             issues: read
             pull-requests: read
         steps:
@@ -1396,10 +1397,11 @@ jobs:
 
             # Every style fidelity known failure (graphty-element/test/fidelity/oracle-known-failures.json and
             # baseline-scores.json) names an open issue: a reason citing none, or only closed issues, fails (#7015).
-            # One GraphQL query. Every full run checks it, and a pull request that changes the lists or the harness;
-            # other pull requests skip it, so closing an issue does not fail every open pull request at once.
+            # One GraphQL query. The full run checks it, and a pull request that changes the lists or the harness;
+            # other pull requests and the master push build (the light run) skip it, so closing an issue fails
+            # neither every open pull request nor the next master build, only the next full run.
             - name: Style fidelity known failures tracked
-              if: steps.scope.outputs.fidelity == 'true'
+              if: steps.scope.outputs.fidelity == 'true' && needs.packages.outputs.light != 'true'
               env:
                   GH_TOKEN: ${{ github.token }}
               run: pnpm --filter @graphty/graphty-element run fidelity:issues

@@ -1040,8 +1040,7 @@ describe("data section version 2", () => {
         it(`loads a node row whose id is ${what} as a keyless node keyed <copy id>#<row>`, async () => {
             const session = createGraphSession(ON);
             const source = { type, config: { data }, name: `blank.${type}` };
-            // A CSV node table is read through a load draft, which takes its rows as they are.
-            await (type === "csv" ? (await session.data.prepare(source)).load() : session.data.import(source));
+            await session.data.import(source);
             assert.strictEqual(session.data.nodes().length, 2);
             assert.strictEqual(session.data.lastImport()?.counts.rejected, 0);
             const { body } = await writeBody(session);

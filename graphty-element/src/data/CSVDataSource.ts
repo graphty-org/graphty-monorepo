@@ -132,6 +132,12 @@ function typeCells(imported: ImportedRecords): ImportedRecords {
     return imported;
 }
 
+/**
+ * The id graph-io gives a node row whose id cell is blank, before its row number. A NUL starts it,
+ * so no id a file writes can collide with it; the row's id is put back to "" after reading.
+ */
+const BLANK_ID_PREFIX = "\u0000blank#";
+
 /** How much of a CSV file's text the parser is handed at a time while its rows are read. */
 const ROWS_SLICE = 1 << 20;
 
@@ -499,16 +505,22 @@ export class CSVDataSource extends DataSource {
                       typeColumn: null,
                       ...(idColumn === undefined ? {} : { idColumn }),
                   };
-        return typeCells(
+        const imported = typeCells(
             await importRecords(csvImporter, content, {
                 ids: "string",
                 errorLimit: this.config.errorLimit,
+                blankIdPrefix: BLANK_ID_PREFIX,
                 ...columns,
                 ...table,
                 ...(delimiter === undefined ? {} : { delimiter }),
                 ...(nodes === undefined ? {} : { nodes }),
             }),
         );
+        // A node row with a blank id comes back empty, so the element keeps it as a keyless node.
+        const keyed = imported.nodes.map((node) =>
+            typeof node.id === "string" && node.id.startsWith(BLANK_ID_PREFIX) ? { ...node, id: "" } : node,
+        );
+        return { ...imported, nodes: keyed };
     }
 
     /**

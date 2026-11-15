@@ -34,6 +34,11 @@ const ALLOWED: readonly (readonly [file: string, line: string, reason: string])[
         "dispatcher.services.data = {",
         "assigns the dispatcher's data service, not a record's attributes, as above",
     ],
+    [
+        join("session", "document2", "migration.ts"),
+        "sections.data = data.section;",
+        "fills the data section of a version 2 save file being migrated, not a record's attributes",
+    ],
 ];
 
 /** `Object.assign(<x>.data` and `<x>.data =` (not `==`). */

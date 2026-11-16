@@ -30769,7 +30769,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.992,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -30809,7 +30809,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.992,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -56429,6 +56429,20 @@
                 "date": "2026-11-01"
             }
         },
+        "json-vis-siblings": {
+            "edge.arrowShape": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
+            }
+        },
         "json-vis-siblings@matched": {
             "edge.route": {
                 "floor": 0.972,
@@ -56441,6 +56455,18 @@
                 "to": 0.979,
                 "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.arrowShape": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
             }
         },
         "xgmml-syn-mappings": {

@@ -1195,6 +1195,17 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Let go of {@link LayoutEngine.publishScratch}'s arrays, which a layout that publishes once
+     * and then holds its answer would otherwise keep for the life of the graph (42 MiB at a
+     * million nodes). The next publish allocates them again.
+     * @internal
+     */
+    protected releasePublishScratch(): void {
+        this.scratchRows = new Float64Array(0);
+        this.scratchCoords = new Float64Array(0);
+    }
+
+    /**
      * Publish a whole column: {@link LayoutEngine.writeNodePosition}'s guards in one loop over typed
      * arrays, with the array resolved once instead of per node.
      * @param n - any node of the column, or the element's array itself, which resolves the array;
@@ -1870,6 +1881,8 @@ export const simpleLayoutInternals = {
     positions(engine: StaticLayoutEngine): RowPositions | null;
     /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
     held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
+    /** The doubles the engine's publish scratch holds, and whether it still holds the answer as computed. */
+    publishHeld(engine: StaticLayoutEngine): { readonly scratch: number; readonly result: boolean };
     /**
      * Hand the engine the element's graph, so that while `byRow` answers true it lays out and
      * publishes every row of the element's snapshot, a row it was handed no `Node` for included.
@@ -1919,6 +1932,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         simpleLayoutInternals.kept = (engine) => engine.#keptRows(engine.#loaded ?? engine.#load());
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
+        simpleLayoutInternals.publishHeld = (engine) => {
+            const { rows, coords } = engine.publishScratch(0);
+            return { scratch: rows.length + coords.length, result: engine.result !== null };
+        };
         simpleLayoutInternals.attachRows = (engine, source, byRow, graph) => {
             engine.#rows = { source, byRow, graph };
         };
@@ -2494,6 +2511,9 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
         this.#dropKept(loaded);
         this.publishComputed();
+        // Published, and `#column` keeps the answer in scene units: the answer as computed is read
+        // only by the next refresh, so a layout that has finished holds one copy of its coordinates.
+        this.result = null;
     }
 
     /**
@@ -2634,6 +2654,17 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
+        // A static layout publishes once per run, or when the element asks it to again: the scratch
+        // it publishes through is let go after each, not kept for the life of the graph.
+        try {
+            this.#publishComputed();
+        } finally {
+            this.releasePublishScratch();
+        }
+    }
+
+    /** {@link StaticLayoutEngine.publishComputed}, through the publish scratch. */
+    #publishComputed(): void {
         if (this.#publishRows()) {
             return;
         }

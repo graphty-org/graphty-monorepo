@@ -209,27 +209,47 @@ function rewritten(
     if (next.every((value, i) => value === values[i])) {
         return rule;
     }
-    let key = `${rule.id}.${property}`;
-    let k = 2;
-    while (work.columns[rule.target].has(key)) {
-        key = `${rule.id}.${property}.${String(k)}`;
-        k++;
-    }
+    const key = freeColumnKey(work.columns[rule.target], `${rule.id}.${property}`);
     work.columns[rule.target].set(key, next);
     const map: Partial<Record<StyleProperty, Mapping>> = {
         ...rule.map,
         [p]: { kind: "passthrough", by: { style: key } },
     };
-    const out: StyleRule = { ...rule, map };
-    if (set !== undefined) {
-        const rest = withEntry(rule.set, p, null);
-        if (Object.keys(rest).length === 0) {
-            const { set: _set, ...bare } = out;
-            return bare;
-        }
-        return { ...out, set: rest };
+    return withoutSet({ ...rule, map }, p);
+}
+
+/**
+ * A column key not yet taken: the key, else the key with `.2`, `.3` and so on.
+ * @param columns - the columns
+ * @param key - the key wanted
+ * @returns the key
+ */
+function freeColumnKey(columns: ReadonlyMap<string, StyleColumn>, key: string): string {
+    let free = key;
+    let k = 2;
+    while (columns.has(free)) {
+        free = `${key}.${String(k)}`;
+        k++;
     }
-    return out;
+    return free;
+}
+
+/**
+ * A rule without one property's constant, and without its `set` once that is empty.
+ * @param rule - the rule
+ * @param property - the property
+ * @returns the rule
+ */
+function withoutSet(rule: StyleRule, property: StyleProperty): StyleRule {
+    if (rule.set?.[property] === undefined) {
+        return rule;
+    }
+    const rest = withEntry(rule.set, property, null);
+    if (Object.keys(rest).length === 0) {
+        const { set: _set, ...bare } = rule;
+        return bare;
+    }
+    return { ...rule, set: rest };
 }
 
 /**

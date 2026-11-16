@@ -1237,9 +1237,12 @@ function readNodeStyle(
         put("fillOpacity", 0);
     }
     putPaint(fill, "fill", "fillOpacity", put, at);
-    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`)
+    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`), nor does an open
+    // one with no tab, whatever its stroke: yEd Live paints its panel alone (`tab-position-none`)
     const stroke = prop(style, "stroke");
-    putStroke(stroke === undefined && style.tag === "GroupNodeStyle" ? NULL : strokeOf(refs, stroke), put, at);
+    const group = style.tag === "GroupNodeStyle";
+    const untabbed = group && !collapsed && treeAttr(style.e, "tabPosition") === "NONE";
+    putStroke((stroke === undefined && group) || untabbed ? NULL : strokeOf(refs, stroke), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     putIntrinsicSize(refs, style, shape, size, put);

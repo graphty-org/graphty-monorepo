@@ -78,7 +78,10 @@ The monorepo uses shared configuration files in the root directory:
 ESLint runs SonarQube's rules ("Sonar way" minus the rules this repository turned off) through eslint-plugin-sonarjs,
 eslint-plugin-unicorn, typescript-eslint, eslint-plugin-react and eslint-plugin-jsx-a11y; the list, where each rule
 applies (main code or tests, as SonarQube split them) and what is left out are in `tools/eslint-rules/sonar-way.mjs`.
-`sonarjs/cognitive-complexity` is at 15.
+`sonarjs/cognitive-complexity` is at 15. The Sonar rules that need type information (`sonarjs/slow-regex` among them)
+do not run on JavaScript files, scripts, configs, benchmarks or stories outside a tsconfig, and `.storybook`, the
+packages' `examples` and `docs` directories are not linted at all; SonarQube checked both. tools/, benchmarks/ and the
+root's script files belong to no package and are linted by `tools/lint-root-scripts.mjs` (`pnpm run lint:eslint-root`).
 
 A disable comment names its rules and gives its reason after `--`, and one that suppresses nothing is an error:
 
@@ -88,10 +91,11 @@ const c = text.charCodeAt(i); // eslint-disable-line unicorn/prefer-code-point -
 
 **Existing findings are suppressed, new ones fail.** The findings the code had when these rules were turned on are
 counted, per file and rule, in `eslint-suppressions.json` in each package (beside its `package.json`: Nx runs each
-package's lint from there, and ESLint reads the file from its working directory). A file whose count for a rule
-grows reports every finding of that rule in the file. Every lint script passes `--pass-on-unpruned-suppressions`,
-so fixing a finding never requires editing the shared file, and the only way a suppression is added is on purpose.
-Commands, run in the package directory:
+package's lint from there, and ESLint reads the file from its working directory), and at the repository root for
+tools/, benchmarks/ and the root scripts. A file whose count for a rule grows reports every finding of that rule in
+the file. Every lint script passes `--pass-on-unpruned-suppressions`, so fixing a finding never requires editing the
+shared file, and the only way a suppression is added is on purpose. Commands, run in the package directory (the
+repository root for tools/, benchmarks/ and the root scripts):
 
 ```bash
 npx eslint --suppress-rule <rule> <file>      # hold a finding you cannot fix now (say why in the PR); prefer a disable comment

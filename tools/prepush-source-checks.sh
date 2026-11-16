@@ -200,7 +200,8 @@ else
 
     # Every package that has its own eslint.config.js is linted with that file alone, so it must spread
     # the root config; a stale copy silently drops every rule the root gained since. Run for every push,
-    # not per affected package: the check is about the configs, and it takes about a second.
+    # not per affected package: the check is about the configs. It also lints tools/, benchmarks/ and the
+    # root scripts, which no package lints (tools/lint-root-scripts.mjs), about 15 s in all.
     run_step "ESLint root config" "pnpm run lint:eslint-root"
 
     # Every tool a package's scripts run or its *.config.* files import is declared by that package,

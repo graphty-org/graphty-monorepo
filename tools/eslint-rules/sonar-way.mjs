@@ -11,10 +11,21 @@
  * tests only. A test is what the retired sonar-project.properties called one (SONAR_TESTS below). A rule the root
  * config already turns on for the same files is not repeated here, so its options stay as they are.
  *
- * Existing findings are held in each package's eslint-suppressions.json, so only a new one fails lint
- * (tools/README.md, "Lint").
+ * Existing findings are held in each package's eslint-suppressions.json (and the repository root's, for
+ * tools/, benchmarks/ and the root scripts, linted by tools/lint-root-scripts.mjs), so only a new one fails
+ * lint (tools/README.md, "Lint").
  *
  * Left out:
+ * - The rules that need type information (sonarWayTypedOff below, S5852 sonarjs/slow-regex among them) on
+ *   every file ESLint lints without it: all .js, .mjs and .cjs files, configs, scripts and benchmarks
+ *   (eslint.config.js "CONFIGS, SCRIPTS AND BENCHMARKS"), the stories outside their package's tsconfig and
+ *   compact-mantine/tests. SonarQube ran them there with types. Giving those files type information (an
+ *   allowJs tsconfig, or the project service's allowDefaultProject) would bring the rules back.
+ * - Directories the root config ignores, which SonarQube analyzed: .storybook (graphty and compact-mantine
+ *   keep it out of every tsconfig, and the others have unfixed findings), each package's examples
+ *   (demonstration code), each package's docs (VitePress sites, graph-io/docs/examples among them, so the
+ *   per-file exceptions SonarQube had for two of those files are gone too) and webgpu-graph-algorithms/demo
+ *   (in no tsconfig on purpose). eslint.config.js gives each one's reason beside its ignore.
  * - The CSS and HTML rules: ESLint lints neither. stylelint is the tool if CSS checks are wanted.
  * - The @angular-eslint rules: there is no Angular code.
  * - S1874 sonarjs/deprecation: off for TypeScript (Deprecated API used), and on JavaScript it needs type

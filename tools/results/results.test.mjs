@@ -1315,20 +1315,23 @@ describe("the pull request rules", () => {
         assert.match(create[create.indexOf("--body") + 1], /pull request #42.*\n.*abc1234/s);
     });
 
-    it("a closed flaky issue: left closed when the base predates its closing, reopened when the base is newer", () => {
+    it("a closed flaky issue: left closed when the base lacks its fix, reopened otherwise", () => {
         const closed = {
             number: 8102,
             title: "Flaky test: x/a.test.ts > d > one",
             body: "",
             state: "CLOSED",
-            closedAt: "2026-11-14T12:00:00Z",
+            stateReason: "COMPLETED",
         };
-        const run = (baseDate, issues = [closed]) => {
+        // fix: the commit that closed the issue ("" when closed by hand); status: compare fix...base; null throws
+        const run = ({ issues = [closed], fix = "f1x", status = "ahead" } = {}) => {
             const calls = [];
             const gh = (args) => {
                 calls.push(args);
                 if (args[1] === "list") return JSON.stringify(issues);
-                if (args[0] === "api") return `${baseDate}\n`;
+                if (args[0] === "api" && args[1].includes("/events")) return `${fix}\n`;
+                if (args[0] === "api" && status === null) throw new Error("HTTP 404");
+                if (args[0] === "api") return `${status}\n`;
                 if (args[1] === "create") return "https://github.com/o/r/issues/9\n";
                 return "";
             };
@@ -1336,26 +1339,48 @@ describe("the pull request rules", () => {
                 { file: "x/a.test.ts", variant: "f|flags=off|selected", base: "abc1234", names: ["d > one"] },
                 gh,
             );
-            return { out, calls };
+            const did = (verb, n) => calls.some((a) => a[1] === verb && (n === undefined || a[2] === String(n)));
+            return { out, calls, did };
         };
 
-        const older = run("2026-11-13T12:00:00Z");
-        assert.deepEqual(older.out, [{ name: "d > one", number: 8102 }]);
-        assert.ok(!older.calls.some((a) => a[1] === "create" || a[1] === "reopen"));
-        assert.ok(older.calls.some((a) => a[0] === "api" && a[1] === "repos/{owner}/{repo}/commits/abc1234"));
+        for (const status of ["behind", "diverged"]) {
+            const older = run({ status });
+            assert.deepEqual(older.out, [{ name: "d > one", number: 8102 }]);
+            assert.ok(!older.did("create") && !older.did("reopen"), status);
+            assert.ok(older.calls.some((a) => a[1] === "repos/{owner}/{repo}/compare/f1x...abc1234"));
+        }
 
-        const newer = run("2026-11-15T12:00:00Z");
+        const newer = run();
         assert.deepEqual(newer.out, [{ name: "d > one", number: 8102 }]);
-        assert.ok(newer.calls.some((a) => a[1] === "reopen" && a[2] === "8102"));
+        assert.ok(newer.did("reopen", 8102));
         const comment = newer.calls.find((a) => a[1] === "comment");
         assert.match(comment[comment.indexOf("--body") + 1], /^Flaky again after this issue closed/);
-        assert.ok(!newer.calls.some((a) => a[1] === "create"));
+        assert.ok(!newer.did("create"));
 
-        const none = run("2026-11-15T12:00:00Z", []);
+        // closed by hand, or GitHub cannot compare: keep filing, by reopening
+        assert.ok(run({ fix: "" }).did("reopen", 8102));
+        assert.ok(run({ status: null }).did("reopen", 8102));
+
+        // closed as not planned or a duplicate: never reopened, a new issue instead
+        for (const stateReason of ["NOT_PLANNED", "DUPLICATE"]) {
+            const settled = run({ issues: [{ ...closed, stateReason }] });
+            assert.deepEqual(settled.out, [{ name: "d > one", number: 9 }], stateReason);
+            assert.ok(!settled.did("reopen"), stateReason);
+        }
+
+        // an open and a closed issue for the same test: the open one wins, whichever comes first
+        const open = { ...closed, number: 8200, state: "OPEN", stateReason: null };
+        const both = run({ issues: [closed, open] });
+        assert.deepEqual(both.out, [{ name: "d > one", number: 8200 }]);
+        assert.ok(both.did("comment", 8200) && !both.did("reopen"));
+
+        const none = run({ issues: [] });
         assert.deepEqual(none.out, [{ name: "d > one", number: 9 }]);
         const create = none.calls.find((a) => a[1] === "create");
         assert.ok(create.includes("priority:critical"));
-        assert.equal(none.calls.find((a) => a[1] === "list")[none.calls[0].indexOf("--state") + 1], "all");
+        const list = none.calls.find((a) => a[1] === "list");
+        assert.equal(list[list.indexOf("--state") + 1], "all");
+        assert.ok(list[list.indexOf("--json") + 1].split(",").includes("stateReason"));
     });
 
     it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {

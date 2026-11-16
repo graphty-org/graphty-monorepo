@@ -557,4 +557,34 @@ describe("trend", () => {
         closed[0].closed_at = closedAt(8);
         assert.equal((await syncIssues(fakeGh([], closed).gh, trend(lint(500), FILE)))[0].action, "file");
     });
+
+    it("files a new alarm instead of reopening one closed as not planned or duplicate", async () => {
+        const closed = [
+            { number: 56, title: "CI budget: job:ci.yml:Lint (master) a", closed_at: new Date().toISOString() },
+        ];
+        for (const reason of ["not_planned", "duplicate"]) {
+            closed[0].state_reason = reason;
+            const { gh, calls } = fakeGh([], closed);
+            assert.equal((await syncIssues(gh, trend(lint(500), FILE)))[0].action, "file", reason);
+            assert.ok(!calls.some(([m]) => m === "PATCH"), reason);
+        }
+    });
+
+    it("folds a job and its run into the step's issue opened in an earlier run", async () => {
+        const slow = (key) =>
+            rows([100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 300, 300, 300, 300, 300], key, "full");
+        const history = [...slow("run:ci.yml:full"), ...slow("job:ci.yml:Lint"), ...slow("step:ci.yml:Lint:Lint all")];
+        const step = { number: 61, title: "CI budget: step:ci.yml:Lint:Lint all (full) 1m40s -> 5m00s" };
+        const { gh, posts } = fakeGh([step]);
+        const done = await syncIssues(gh, trend(history, { budgets: {} }));
+        assert.equal(posts().length, 0);
+        assert.deepEqual(
+            done.map((a) => [a.action, a.key, a.number]),
+            [
+                ["comment", "step:ci.yml:Lint:Lint all", 61],
+                ["fold", "run:ci.yml:full", 61],
+                ["fold", "job:ci.yml:Lint", 61],
+            ],
+        );
+    });
 });

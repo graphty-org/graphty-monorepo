@@ -455,6 +455,7 @@ function issueBody(v) {
 }
 
 const REOPEN_DAYS = 7;
+const SETTLED = new Set(["not_planned", "duplicate"]);
 
 // The alarming step: verdict under a job: or run: key, in the same run kind: one slowdown, filed once, on the step.
 function alarmingStep(v, verdicts) {
@@ -466,8 +467,8 @@ function alarmingStep(v, verdicts) {
 
 /**
  * File, comment on, reopen or close one issue per key and run kind. An alarm opens at trend()'s line and closes only
- * under the lower closing line (`clear`); in between the issue is left as it is. A key whose issue closed in the
- * last 7 days reopens it instead of filing a new one, and a job or run whose step alarms too comments on the step's
+ * under the lower closing line (`clear`); in between the issue is left as it is. A key whose issue closed as completed in
+ * the last 7 days reopens it instead of filing a new one, and a job or run whose step alarms too comments on the step's
  * issue instead of filing its own.
  * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
  * @param verdicts trend()'s answer
@@ -483,7 +484,11 @@ export async function syncIssues(gh, verdicts, owner = "pipeline") {
     const raiseAlarm = async (v) => {
         closed ??= await gh(`/issues?state=closed&labels=ci-budget&per_page=100`);
         const since = Date.now() - REOPEN_DAYS * 86_400_000;
-        const old = closed.find((i) => i.title.startsWith(issuePrefix(v)) && Date.parse(i.closed_at) >= since);
+        // an issue closed as not planned (the owner accepted the slowdown) or as a duplicate stays closed
+        const old = closed.find(
+            (i) =>
+                i.title.startsWith(issuePrefix(v)) && Date.parse(i.closed_at) >= since && !SETTLED.has(i.state_reason),
+        );
         if (old) {
             await gh(`/issues/${old.number}`, { method: "PATCH", body: JSON.stringify({ state: "open" }) });
             await comment(old.number, issueBody(v));

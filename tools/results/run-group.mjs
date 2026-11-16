@@ -506,6 +506,8 @@ export function namesFlakyTest(issue, t) {
     return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1)));
 }
 
+const SETTLED = new Set(["NOT_PLANNED", "DUPLICATE"]);
+
 // raises an issue to priority:critical; a refusal is logged, the comment already landed
 function raise(gh, number) {
     try {
@@ -520,8 +522,8 @@ function raise(gh, number) {
  * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
  * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
  * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
- * A closed one is reopened when the base commit is newer than its closing, and left closed, with nothing filed, when
- * the base is older: that flake ran on code from before the fix.
+ * A closed one is left closed, with nothing filed, when the base does not contain the commit that closed it: that
+ * flake ran on code from before the fix. Otherwise it is reopened, unless it closed as not planned or a duplicate.
  * Nothing is quarantined: master never reproduced it. base-check.yml runs this after a passing 5-repeat check.
  * @param o the check
  * @param o.file the test file
@@ -546,33 +548,41 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
                 "--search",
                 search,
                 "--json",
-                "number,title,body,state,closedAt",
+                "number,title,body,state,stateReason",
                 "--limit",
-                "100",
+                "1000",
             ]),
         );
     } catch (e) {
         console.log(`run-group: could not search the flaky issues of ${file} (${e.message.split("\n")[0]})`);
     }
-    let baseAt;
-    const baseDate = () => {
-        // ponytail: the commit date only approximates whether base contains the fix; if it misfires, ask
-        // git merge-base --is-ancestor <closing commit> <base> instead
+    // whether base contains the commit that closed the issue: undefined when no commit closed it (closed by hand)
+    // or GitHub cannot say. Asked of GitHub's compare API, since base-check.yml's checkout is too shallow for
+    // git merge-base --is-ancestor.
+    const baseHasFix = (number) => {
         try {
-            baseAt ??= Date.parse(
-                gh(["api", `repos/{owner}/{repo}/commits/${base}`, "--jq", ".commit.committer.date"]).trim(),
-            );
+            const fix = gh([
+                "api",
+                `repos/{owner}/{repo}/issues/${number}/events?per_page=100`,
+                "--jq",
+                '[.[] | select(.event == "closed")] | last | .commit_id // ""',
+            ]).trim();
+            if (!fix) return undefined;
+            const status = gh(["api", `repos/{owner}/{repo}/compare/${fix}...${base}`, "--jq", ".status"]).trim();
+            return status === "ahead" || status === "identical";
         } catch (e) {
-            console.log(`run-group: could not read the date of ${base} (${e.message.split("\n")[0]})`);
-            baseAt = Number.NaN;
+            console.log(
+                `run-group: could not tell whether ${base} has the fix of #${number} (${e.message.split("\n")[0]})`,
+            );
+            return undefined;
         }
-        return baseAt;
     };
     return names.map((name) => {
         const t = { file, name };
         const matches = found.filter((i) => namesFlakyTest(i, t));
         const had = matches.find((i) => i.state !== "CLOSED")?.number;
-        const closed = had ? undefined : matches[0];
+        // an issue closed as not planned or as a duplicate is never reopened: the flake gets its own
+        const closed = had ? undefined : matches.find((i) => !SETTLED.has(i.stateReason));
         const seen = pr ? `pull request #${pr}` : "a pull request";
         const run = runUrl ? ` (${runUrl})` : "";
         const body = [
@@ -588,7 +598,7 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
                 return { name, number: had };
             }
             if (closed) {
-                if (baseDate() < Date.parse(closed.closedAt)) {
+                if (baseHasFix(closed.number) === false) {
                     console.log(
                         `run-group: ${idOf(t)} flaked on ${base}, older than the fix that closed #${closed.number}`,
                     );

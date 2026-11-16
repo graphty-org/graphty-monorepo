@@ -153,13 +153,12 @@ function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): s
 }
 
 /**
- * The closed Details line, with its chips.
+ * The Details line, with its chips.
  * @param dialog - the dialog.
  * @returns the line.
  */
 function detailsLine(dialog: HTMLElement): HTMLElement {
-    const advanced = within(dialog).getByRole("button", { name: "Details" });
-    return advanced.parentElement ?? dialog;
+    return within(dialog).getByTestId("model-details-line");
 }
 
 /**

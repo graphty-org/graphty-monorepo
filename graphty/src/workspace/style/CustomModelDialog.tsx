@@ -31,7 +31,7 @@ import {
     Tooltip,
     UnstyledButton,
 } from "@mantine/core";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
@@ -242,7 +242,7 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
  * @param props.draw - whether graphty-element drew it, or why it could not
  * @param props.busy - a source is loading
  * @param props.onHost - takes the element graphty-element draws in
- * @returns The preview box
+ * @returns The preview box, with Reset view in its top-right corner once the model is drawn
  */
 function Preview({
     held,
@@ -257,6 +257,7 @@ function Preview({
     busy: boolean;
     onHost: (host: HTMLDivElement | null) => void;
 }>): React.JSX.Element {
+    const showReset = held !== null && !busy && draw.drawn;
     const accepted = held?.record.state === "accepted";
     const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
     let over: React.ReactNode;
@@ -298,6 +299,20 @@ function Preview({
                 <div ref={onHost} className="ws-model-live" aria-busy={draw.drawing || undefined} />
             )}
             {over === null ? null : <div className="ws-model-preview-over">{over}</div>}
+            {showReset ? (
+                // Over the live canvas, in the box's top-right corner.
+                <Tooltip label={CUSTOM_MODEL.resetView}>
+                    <ActionIcon
+                        className="ws-model-reset"
+                        variant="subtle"
+                        size="sm"
+                        aria-label={CUSTOM_MODEL.resetView}
+                        onClick={draw.resetView}
+                    >
+                        <GLYPHS.resetView size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            ) : null}
         </div>
     );
 }
@@ -514,19 +529,6 @@ function RotateButtons({
 }
 
 /**
- * How many of a model's parts are in each state that needs nothing from the reader.
- * @param parts - the parts.
- * @returns the counts.
- */
-function quietCounts(parts: readonly ModelPart[]): { substituted: number; skipped: number; unused: number } {
-    return {
-        substituted: parts.filter((p) => p.state === "substituted" && partChip(p) !== undefined).length,
-        skipped: parts.filter((p) => p.state === "skipped").length,
-        unused: parts.filter((p) => p.state === "unused").length,
-    };
-}
-
-/**
  * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
  * own file (its parts are asked for after, in Files), its folder, a .zip or a drop of any files
  * anywhere on the dialog; while it loads, graphty-element's
@@ -560,16 +562,15 @@ export function CustomModelDialog({
     const [held, setHeld] = useState<Held | null>(null);
     const [name, setName] = useState("");
     const [draft, setDraft] = useState<ModelDraft>({});
-    const [filesOpen, setFilesOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
     const [pictureOpen, setPictureOpen] = useState(false);
-    const [detailsOpen, setDetailsOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
     const nameField = useRef<HTMLInputElement | null>(null);
     // The Modal mounts its body after this renders: the drop target is the element itself.
     const [body, setBody] = useState<HTMLDivElement | null>(null);
     const start = useStillOpen(true);
+    const uid = useId();
     const busy = loading !== null;
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
@@ -643,8 +644,6 @@ export function CustomModelDialog({
     const hold = (next: Held): void => {
         setHeld(next);
         setName(next.record.plainName ?? modelName(session, next.url ?? next.record.id));
-        // Files opens by itself only when a part needs an answer before Add can work.
-        setFilesOpen(next.record.problems.some((p) => PART_CODES.has(p.code)));
     };
     // Waiting for parts: files that are not a model go to it, matched by graphty-element.
     const offer = async (waiting: Held, files: readonly File[], live: () => boolean): Promise<void> => {
@@ -800,7 +799,8 @@ export function CustomModelDialog({
     const facts = new Map(waitingFor.map((fact) => [String(fact.params.name ?? ""), fact]));
     // One self-contained file says nothing the preview and Name do not: no Files line.
     const showFiles = held !== null && (parts.length > 1 || waits);
-    const filesNote = CUSTOM_MODEL.filesNote(quietCounts(parts));
+    // The parts that need an answer come first, so the list's scroll never hides them.
+    const listed = [...parts.filter((p) => facts.has(p.name)), ...parts.filter((p) => !facts.has(p.name))];
     const summary = accepted === null ? undefined : session.assets.inspect(accepted.record.id);
     const clips = summary?.animations ?? [];
     // One chip per word: a model over the budget and heavy for its nodes is "Heavy" once.
@@ -844,9 +844,7 @@ export function CustomModelDialog({
         setTried(null);
         setPicture(null);
         setAddress("");
-        setFilesOpen(false);
         setMoreOpen(false);
-        setDetailsOpen(false);
         say(CUSTOM_MODEL.removed(heldFile));
     };
 
@@ -863,6 +861,7 @@ export function CustomModelDialog({
             url
             accept={MODEL_MAIN_EXTENSIONS.join(",")}
             chooseGlyph="fileUpload"
+            folderGlyph="folderUpload"
             dropping={over}
             dropLabel={CUSTOM_MODEL.dropToLoad}
             loaded={held === null ? undefined : { name: heldFile, kind: held.url === undefined ? "file" : "url" }}
@@ -924,36 +923,9 @@ export function CustomModelDialog({
                     ) : null}
                 </Group>
             )}
-            {held === null || busy ? null : (
+            {accepted === null || !forLayer || busy ? null : (
                 <Stack gap={4} className="ws-model-settings">
-                    <div className="ws-row">
-                        <div className="ws-field" data-named="">
-                            <span className="ws-field-label">
-                                <span className="ws-field-name" aria-hidden>
-                                    {CUSTOM_MODEL.name}
-                                </span>
-                            </span>
-                            <div className="ws-field-control">
-                                <TextInput
-                                    ref={nameField}
-                                    size="xs"
-                                    aria-label={CUSTOM_MODEL.name}
-                                    value={name}
-                                    onChange={(event) => {
-                                        setName(event.currentTarget.value);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter" && blocked === null) {
-                                            event.preventDefault();
-                                            add();
-                                        }
-                                    }}
-                                />
-                            </div>
-                            <span className="ws-slot" />
-                        </div>
-                    </div>
-                    {forLayer && accepted !== null ? (
+                    {forLayer ? (
                         <SettingRows
                             channels={SHOWN_CHANNELS}
                             values={draft}
@@ -1014,23 +986,32 @@ export function CustomModelDialog({
                 </>
             )}
             {held === null || !showFiles || busy ? null : (
-                <>
-                    <Disclosure
-                        word={CUSTOM_MODEL.files}
-                        open={filesOpen}
-                        onToggle={() => {
-                            setFilesOpen(!filesOpen);
-                        }}
+                <Stack gap={4}>
+                    <Text size="sm" id={`${uid}-files`}>
+                        {CUSTOM_MODEL.files}
+                    </Text>
+                    <section
+                        className="ws-model-files ws-model-scroll"
+                        data-testid="model-files"
+                        aria-labelledby={`${uid}-files`}
+                        // A scrolled list takes focus, so the keyboard scrolls it too.
+                        tabIndex={0}
                     >
-                        {filesOpen || filesNote === "" ? null : (
-                            <Text size="sm" c="dimmed" span>
-                                {filesNote}
-                            </Text>
-                        )}
-                    </Disclosure>
-                    <Collapse in={filesOpen} transitionDuration={0}>
-                        <Stack gap={6} className="ws-model-files" data-testid="model-files">
-                            {parts.map((part) => {
+                        <Stack gap={6}>
+                            {waitingFor
+                                .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
+                                .map((fact) => (
+                                    <PartRow
+                                        key="main"
+                                        part={fact}
+                                        first={false}
+                                        supply={supply}
+                                        onDiscard={() => {
+                                            say("Address discarded");
+                                        }}
+                                    />
+                                ))}
+                            {listed.map((part) => {
                                 const fact = facts.get(part.name);
                                 return fact === undefined ? (
                                     <PartLine key={part.name} part={part} />
@@ -1047,19 +1028,6 @@ export function CustomModelDialog({
                                     />
                                 );
                             })}
-                            {waitingFor
-                                .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
-                                .map((fact) => (
-                                    <PartRow
-                                        key="main"
-                                        part={fact}
-                                        first={false}
-                                        supply={supply}
-                                        onDiscard={() => {
-                                            say("Address discarded");
-                                        }}
-                                    />
-                                ))}
                             {held.record.problems
                                 .filter(
                                     (p) =>
@@ -1070,8 +1038,8 @@ export function CustomModelDialog({
                                     <FactChip key={String(fact.params.fileName)} fact={fact} />
                                 ))}
                         </Stack>
-                    </Collapse>
-                </>
+                    </section>
+                </Stack>
             )}
         </Stack>
     );
@@ -1079,51 +1047,65 @@ export function CustomModelDialog({
     const side = (
         <Stack gap={8} className="ws-model-side">
             <Preview held={held} name={name} draw={draw} busy={busy} onHost={setPreviewHost} />
+            {held === null || busy ? null : (
+                // Under the model it names: each model of a set will carry its own.
+                <div className="ws-row ws-model-name">
+                    <div className="ws-field" data-named="">
+                        <span className="ws-field-label">
+                            <span className="ws-field-name" aria-hidden>
+                                {CUSTOM_MODEL.name}
+                            </span>
+                        </span>
+                        <div className="ws-field-control">
+                            <TextInput
+                                ref={nameField}
+                                size="xs"
+                                aria-label={CUSTOM_MODEL.name}
+                                value={name}
+                                onChange={(event) => {
+                                    setName(event.currentTarget.value);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && blocked === null) {
+                                        event.preventDefault();
+                                        add();
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
             {summary === undefined || busy ? null : (
                 <Text size="xs" c="dimmed" ta="center" data-testid="model-variant">
                     {CUSTOM_MODEL.variantLine(summary)}
                 </Text>
             )}
-            {held === null || busy ? null : (
-                <Group gap={4} justify="center" wrap="nowrap">
-                    {forLayer && accepted !== null ? (
-                        <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
-                    ) : null}
-                    {draw.drawn ? (
-                        <Tooltip label={CUSTOM_MODEL.resetView}>
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                aria-label={CUSTOM_MODEL.resetView}
-                                onClick={draw.resetView}
-                            >
-                                <GLYPHS.resetView size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    ) : null}
-                </Group>
-            )}
+            {forLayer && accepted !== null && !busy ? (
+                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+            ) : null}
             {summary === undefined || accepted === null || busy ? null : (
-                <>
-                    <Disclosure
-                        word={CUSTOM_MODEL.details}
-                        open={detailsOpen}
-                        onToggle={() => {
-                            setDetailsOpen(!detailsOpen);
-                        }}
-                    >
+                <Stack gap={4} className="ws-model-details-box">
+                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
+                        <Text size="sm" id={`${uid}-details`}>
+                            {CUSTOM_MODEL.details}
+                        </Text>
                         {detailChips.map((chip) => (
                             <ModelChip key={chip.word} chip={chip} tone="warning" />
                         ))}
-                    </Disclosure>
-                    <Collapse in={detailsOpen} transitionDuration={0}>
-                        <div data-testid="model-details" className="ws-model-details">
-                            {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
-                                <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
-                            ))}
-                        </div>
-                    </Collapse>
-                </>
+                    </Group>
+                    <section
+                        data-testid="model-details"
+                        className="ws-model-details ws-model-scroll"
+                        aria-labelledby={`${uid}-details`}
+                        // A scrolled table takes focus, so the keyboard scrolls it too.
+                        tabIndex={0}
+                    >
+                        {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
+                            <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
+                        ))}
+                    </section>
+                </Stack>
             )}
         </Stack>
     );

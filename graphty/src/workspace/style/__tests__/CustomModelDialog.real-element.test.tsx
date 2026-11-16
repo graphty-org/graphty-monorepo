@@ -4,7 +4,7 @@
  * model to the project) or from the Models pop-over's Add custom model... (Add names it on the layer,
  * with the dialog's settings, in one undo step); a folder, a file or an address loads one model
  * whose preview graphty-element draws; a missing picture is answered from the row or with another
- * file of the set; Cancel lets go of what it loaded; More options and Details start closed; a load
+ * file of the set; Cancel lets go of what it loaded; More options starts closed while Details and Files are plain lists; a load
  * shows its progress and Cancel load stops it; once loaded the preview sits right of the name and
  * its rotate buttons write Up and Turn. Every assertion reads
  * what the element reports: its layers, its assets and its pictures.
@@ -142,11 +142,9 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Name", "focus moves to Name");
         });
-        assert.equal(
-            within(dialog).getByRole("button", { name: "Files" }).getAttribute("aria-expanded"),
-            "false",
-            "a set whose files were all found keeps Files closed",
-        );
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        assert.isNotNull(within(files).getByText("police.glb"), "the set's files are listed, with nothing to open");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Files" }), "Files is no disclosure");
         await addModel(dialog, "Add to project");
         assert.include(models(session), "police.glb");
         assert.isUndefined(written(session, "node.model"), "no layer names it");
@@ -183,11 +181,15 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
         const files = await within(dialog).findByTestId("model-files");
-        await waitFor(() => {
-            assert.equal(within(dialog).getByRole("button", { name: "Files" }).getAttribute("aria-expanded"), "true");
-        });
         const row = within(files).getByRole("group", { name: "colormap.png" });
         assert.isNotNull(within(row).getByText("Texture"));
+        assert.equal(files.tagName, "SECTION", "a plain list, no disclosure");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Files" }));
+        assert.equal(getComputedStyle(files).overflowY, "auto", "it scrolls past its height");
+        assert.isTrue(
+            row.contains(files.querySelector("[data-part], .ws-part-row")),
+            "the part that needs an answer is listed first",
+        );
         await waitFor(() => {
             assert.isTrue(row.contains(document.activeElement), "focus moves to the part that needs an answer");
         });
@@ -524,7 +526,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
         // Hovered, the column draws its scrollbar when it overflows: the x stays clear of where the
         // thumb takes clicks (checked with a short window in a browser; this test's window is tall).
-        await userEvent.hover(within(dialog).getByRole("textbox", { name: "Name" }));
+        await userEvent.hover(within(dialog).getByRole("button", { name: "More options" }));
         const x = within(dialog).getByRole("button", { name: "Remove quad.glb" });
         const box = x.getBoundingClientRect();
         const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -533,29 +535,35 @@ describe("the Load custom model dialog, on the real element", () => {
         await within(dialog).findByRole("button", { name: "Choose file" });
     });
 
-    it("shows the model's Details as table rows, closed until asked", async () => {
+    it("shows the model's Details as table rows at once, in a list that scrolls on its own", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        const details = within(dialog).getByRole("button", { name: "Details" });
-        assert.equal(details.getAttribute("aria-expanded"), "false");
-        await userEvent.click(details);
-        const table = within(dialog).getByTestId("model-details");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Details" }), "Details is no disclosure");
+        const table = within(dialog).getByRole("region", { name: "Details" });
+        assert.equal(getComputedStyle(table).overflowY, "auto", "it scrolls past its height");
+        assert.notEqual(getComputedStyle(table).maxHeight, "none", "it has a height to scroll past");
+        assert.equal(table.tabIndex, 0, "the keyboard scrolls it too");
         assert.include(within(table).getByRole("group", { name: "Format" }).textContent, "GLB");
         assert.include(within(table).getByRole("group", { name: "Triangles" }).textContent, "4");
         assert.isNull(within(table).queryByRole("group", { name: "Animations" }), "only what the file has");
     });
 
-    it("draws the preview right of the name once loaded, and its rotate buttons write Up and Turn", async () => {
+    it("draws the preview right of the file once loaded, Name under it, and its rotate buttons write Up and Turn", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
-        const preview = await previewOf(dialog, "quad");
+        await previewOf(dialog, "quad");
+        const box = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+        const file = within(dialog).getByRole("button", { name: "Remove quad.glb" }).getBoundingClientRect();
+        assert.isAtMost(file.right, box.left, "the preview is in the right column");
+        assert.isBelow(Math.abs(box.top - file.top), 48, "both columns start at the top");
         const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
-        const box = preview.getBoundingClientRect();
-        assert.isAtMost(name.right, box.left, "the preview is in the right column");
-        assert.isBelow(Math.abs(box.top - name.top), 48, "both columns start at the top");
+        assert.isAtLeast(name.top, box.bottom, "Name is below the preview");
+        assert.isBelow(name.top - box.bottom, 24, "directly below it");
+        assert.isAtLeast(name.left, box.left, "in the preview's column");
+        assert.isAtMost(name.right, box.right + 1);
         // No empty band across the dialog: the taller column fills most of the body above the footer.
         const body = within(dialog).getByTestId("custom-model").getBoundingClientRect();
         const footer = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
@@ -656,8 +664,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [await fixture(pointsPlyUrl, "points.ply")]);
         await previewOf(dialog, "points");
         assert.equal(within(dialog).getByTestId("model-variant").textContent, "PLY, binary, point cloud");
-        const details = within(dialog).getByRole("button", { name: "Details" });
-        assert.isNotNull(within(details.parentElement ?? dialog).getByText("Approximated"));
+        assert.isNotNull(within(within(dialog).getByTestId("model-details-line")).getByText("Approximated"));
         await addModel(dialog);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
@@ -758,7 +765,16 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.notEqual(previewPicture(dialog, "cube"), start, "the drag turns the model");
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Reset view" }));
+        // Reset view sits over the live preview, in its top-right corner, and takes the click.
+        const reset = within(dialog).getByRole("button", { name: "Reset view" });
+        const box = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+        const at = reset.getBoundingClientRect();
+        assert.isTrue(within(dialog).getByTestId("model-preview").contains(reset), "inside the preview box");
+        assert.isBelow(box.right - at.right, 12, "at its right edge");
+        assert.isBelow(at.top - box.top, 12, "at its top edge");
+        const hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+        assert.isTrue(reset.contains(hit), "above the canvas");
+        await userEvent.click(reset);
         await waitFor(() => {
             assert.equal(previewPicture(dialog, "cube"), start, "back to the first view");
         });

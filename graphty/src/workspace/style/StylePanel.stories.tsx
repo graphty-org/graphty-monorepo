@@ -680,7 +680,7 @@ export const CustomModelEmpty: Story = nodeModelsStory(
     "Custom model, empty",
 );
 
-/** The dialog with police.glb and its picture loaded: Name and Color left, the live preview graphty-element draws right (drag to turn it) with its rotate buttons, Reset view and Details. */
+/** The dialog with police.glb and its picture loaded: Color and Files left, the live preview graphty-element draws right (drag to turn it) with Reset view in its corner, Name under it, its rotate buttons and Details. */
 export const CustomModelLoaded: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
@@ -691,8 +691,8 @@ export const CustomModelLoaded: Story = nodeModelsStory(
 );
 
 /**
- * The dialog with police.glb whose picture is named paint.png: Files open on the missing part and
- * Use file, and the preview draws police with a plain stand-in for the picture.
+ * The dialog with police.glb whose picture is named paint.png: Files lists the missing part first
+ * with Use file, and the preview draws police with a plain stand-in for the picture.
  */
 export const CustomModelMissingParts: Story = nodeModelsStory(
     sceneStory(async () => {
@@ -735,13 +735,12 @@ export const CustomModelMoreOptions: Story = nodeModelsStory(
     "Custom model, more options",
 );
 
-/** The dialog with police loaded and Details open: the model's facts as a table under the preview. */
+/** The dialog with police loaded: the model's facts as a table under the preview, in a list that scrolls on its own. */
 export const CustomModelDetails: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
         await within(dialog).findByRole("img", { name: /^police preview/ });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Details" }));
         await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
     }),
     "Custom model, details",

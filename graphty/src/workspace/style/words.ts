@@ -2185,22 +2185,6 @@ export const CUSTOM_MODEL = {
         return rows;
     },
     /**
-     * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
-     * @param counts - how many parts are in each state.
-     * @param counts.substituted - found under another name.
-     * @param counts.skipped - left out.
-     * @param counts.unused - files nothing names.
-     * @returns the words, or "" for none.
-     */
-    filesNote: (counts: { readonly substituted: number; readonly skipped: number; readonly unused: number }): string =>
-        [
-            counts.substituted > 0 ? `${String(counts.substituted)} substituted` : "",
-            counts.skipped > 0 ? `${String(counts.skipped)} skipped` : "",
-            counts.unused > 0 ? `${String(counts.unused)} not used` : "",
-        ]
-            .filter((w) => w !== "")
-            .join(", "),
-    /**
      * A part row's address field: its placeholder and its name.
      * @param part - the part's file name.
      * @returns the words.

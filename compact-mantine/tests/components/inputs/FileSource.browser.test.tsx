@@ -351,6 +351,28 @@ describe("FileSource's row options", () => {
         assert.deepEqual(glyphs, ["upload", "fileUpload"]);
     });
 
+    it("draws the folder glyph on the folder button unless given another", async () => {
+        const { container } = await renderThemed(
+            <>
+                <FileSource variant="row" folder onFiles={() => undefined} onUrl={() => undefined} />
+                <FileSource
+                    variant="row"
+                    folder
+                    folderGlyph="folderUpload"
+                    onFiles={() => undefined}
+                    onUrl={() => undefined}
+                />
+                <FileSource variant="button" folder folderGlyph="folderUpload" onFiles={() => undefined} />
+            </>,
+        );
+        const glyphs = [...container.querySelectorAll("button[aria-label='Choose folder'] svg")].map((svg) =>
+            svg.getAttribute("data-glyph"),
+        );
+        assert.deepEqual(glyphs, ["folder", "folderUpload"]);
+        const button = [...container.querySelectorAll("button")].find((b) => b.textContent === "Choose folder");
+        assert.equal(button?.querySelector("svg")?.getAttribute("data-glyph"), "folderUpload");
+    });
+
     it("names the URL field by urlLabel while its placeholder says more", async () => {
         await renderThemed(
             <FileSource

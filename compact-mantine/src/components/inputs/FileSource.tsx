@@ -92,6 +92,8 @@ export interface FileSourceProps {
     autoFocus?: boolean;
     /** The glyph on the row's choose-file button (`row`). @default "upload" */
     chooseGlyph?: UiGlyphName;
+    /** The glyph on the folder button (with `folder`), as `chooseGlyph` is on the file button. @default "folder" */
+    folderGlyph?: UiGlyphName;
     /** The URL field's accessible name, when the placeholder says more than the name. Defaults to `placeholder`. */
     urlLabel?: string;
     /**
@@ -246,6 +248,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         fill = false,
         autoFocus = false,
         chooseGlyph = "upload",
+        folderGlyph = "folder",
         urlLabel,
         dropping = false,
         dropLabel,
@@ -383,7 +386,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             <Button
                 variant="default"
                 disabled={disabled}
-                leftSection={withGlyph ? <UiGlyph name="folder" size={16} /> : undefined}
+                leftSection={withGlyph ? <UiGlyph name={folderGlyph} size={16} /> : undefined}
                 onClick={() => {
                     choose(true);
                 }}
@@ -453,7 +456,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                         choose(true);
                     }}
                 >
-                    <UiGlyph name="folder" size={16} />
+                    <UiGlyph name={folderGlyph} size={16} />
                 </ActionIcon>
             </Group>
         ) : (

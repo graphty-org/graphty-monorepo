@@ -1749,6 +1749,23 @@ function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
 }
 
 /**
+ * The line style of a vis.js edge layer that sets `dashes`, with its dash and gap lengths when it is dashed.
+ * @param layer - the layer
+ * @param put - the row's setter
+ */
+function visEdgeLineStyle(layer: VisLayer, put: PutRow): void {
+    // vis-network's default dashes are [5, 5]
+    const width = typeof layer.width === "number" ? layer.width : 1;
+    const dashes = layer.dashes === true ? [5, 5] : layer.dashes;
+    // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
+    const style = layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true);
+    put("lineStyle", style);
+    if (style !== "solid") {
+        visDashLengths(dashes, width, put);
+    }
+}
+
+/**
  * The edge values of a vis.js layer besides its color.
  * @param layer - the layer
  * @param put - the row's setter
@@ -1765,15 +1782,7 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         put("width", canonNumber(layer.width, site("width")));
     }
     if (layer.dashes !== undefined) {
-        // vis-network's default dashes are [5, 5]
-        const width = typeof layer.width === "number" ? layer.width : 1;
-        const dashes = layer.dashes === true ? [5, 5] : layer.dashes;
-        // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
-        const style = layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true);
-        put("lineStyle", style);
-        if (style !== "solid") {
-            visDashLengths(dashes, width, put);
-        }
+        visEdgeLineStyle(layer, put);
     }
     if (layer.arrows !== undefined) {
         const [to, from, middle] = visArrows(layer.arrows, site);

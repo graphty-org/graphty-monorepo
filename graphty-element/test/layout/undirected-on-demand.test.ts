@@ -10,9 +10,8 @@ import "../../src/layout";
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
-import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * Lay out a directed three-node path whose nodes carry data positions, as an element's graph.
@@ -37,20 +36,15 @@ function layOut(type: string): { undirectedCalls: number; positions: number[][] 
         },
     };
     const parentGraph = { getDataManager: () => source };
-    const nodes = ["a", "b", "c"].map(
-        (id, index) =>
-            ({
-                id,
-                index,
-                parentGraph,
-                data: { position: { x: index * 10, y: 5, z: 0 } },
-                setMeshPosition: () => undefined,
-            }) as unknown as Node,
+    const nodes = ["a", "b", "c"].map((id, index) =>
+        fakeNode(id, {
+            index,
+            parentGraph,
+            data: { position: { x: index * 10, y: 5, z: 0 } },
+            setMeshPosition: () => undefined,
+        }),
     );
-    const edges = [
-        { srcId: "a", dstId: "b", srcNode: nodes[0], dstNode: nodes[1] },
-        { srcId: "b", dstId: "c", srcNode: nodes[1], dstNode: nodes[2] },
-    ] as unknown as Edge[];
+    const edges = [fakeEdge(nodes[0], nodes[1]), fakeEdge(nodes[1], nodes[2])];
 
     const engine = LayoutEngine.get(type, { dim: 2 });
     assert.isNotNull(engine, `"${type}" is registered`);

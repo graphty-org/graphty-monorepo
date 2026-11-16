@@ -34,6 +34,7 @@ import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * A node as a layout engine sees one: an id, and the row it owns in the position array.
@@ -42,7 +43,7 @@ import type { Node } from "../../src/Node";
  * @returns the stand-in
  */
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 /**
@@ -53,7 +54,7 @@ function node(id: string, index: number): Node {
  */
 function edge(src: Node, dst: Node): Edge {
     // both ends drawn by their Nodes, as every end is on "objects" (`Edge.columnEnd`)
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst, columnEnd: () => undefined } as unknown as Edge;
+    return fakeEdge(src, dst, { columnEnd: () => undefined });
 }
 
 /** A layout whose answer is written by the test, including coordinates that cannot be stored. */

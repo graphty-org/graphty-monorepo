@@ -11,6 +11,7 @@ import { layoutDescriptor } from "../../src/catalog/layouts";
 import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * A node as a layout engine sees one.
@@ -18,7 +19,7 @@ import type { Node } from "../../src/Node";
  * @returns the stand-in
  */
 function node(id: string): Node {
-    return { id } as unknown as Node;
+    return fakeNode(id);
 }
 
 /**
@@ -28,7 +29,7 @@ function node(id: string): Node {
  * @returns the stand-in
  */
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst);
 }
 
 /**

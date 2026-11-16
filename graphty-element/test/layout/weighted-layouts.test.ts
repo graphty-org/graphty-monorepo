@@ -48,6 +48,7 @@ import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
 import { layoutEngineInternals, type SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /** One edge of a test graph: two node ids and the weight the store will hold for it. */
 type WeightedEdge = readonly [source: string, target: string, weight: number];
@@ -93,7 +94,7 @@ function graphOf(edges: readonly WeightedEdge[]): TestGraph {
 
     const nodes: Node[] = [];
     for (let index = 0; index < snapshot.nodeCount; index++) {
-        nodes.push({ id: String(snapshot.ids.idOf(index)), index, parentGraph } as unknown as Node);
+        nodes.push(fakeNode(String(snapshot.ids.idOf(index)), { index, parentGraph }));
     }
 
     const list = snapshot.edgeList();
@@ -101,14 +102,7 @@ function graphOf(edges: readonly WeightedEdge[]): TestGraph {
     for (let index = 0; index < snapshot.edgeCount; index++) {
         const srcNode = nodes[list.src[index]];
         const dstNode = nodes[list.dst[index]];
-        built.push({
-            srcId: srcNode.id,
-            dstId: dstNode.id,
-            srcNode,
-            dstNode,
-            index,
-            parentGraph,
-        } as unknown as Edge);
+        built.push(fakeEdge(srcNode, dstNode, { index, parentGraph }));
     }
 
     return { nodes, edges: built, positions, snapshot };

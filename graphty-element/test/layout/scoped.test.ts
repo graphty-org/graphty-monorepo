@@ -32,6 +32,7 @@ import { StatsManager } from "../../src/managers/StatsManager";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import type { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /** An engine that exposes the one guarded write, so the guard can be driven directly. */
 class Probe extends LayoutEngine {
@@ -87,7 +88,7 @@ class Probe extends LayoutEngine {
  * @returns The node.
  */
 function node(id: string, index: number, positions: ElementPositions): Node {
-    return { id, index, isPinned: () => positions.isPinned(index) } as unknown as Node;
+    return fakeNode(id, { index, isPinned: () => positions.isPinned(index) });
 }
 
 /**
@@ -97,7 +98,7 @@ function node(id: string, index: number, positions: ElementPositions): Node {
  * @returns The edge.
  */
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst);
 }
 
 /**

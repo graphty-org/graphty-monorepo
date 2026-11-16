@@ -14,16 +14,17 @@ import type { Edge } from "../../src/Edge";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /** The engine's own step budget: at this many steps it stops whether or not it came to rest. */
 const STEP_BUDGET = 1000;
 
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst);
 }
 
 /**

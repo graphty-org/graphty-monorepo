@@ -6,9 +6,8 @@ import "../../src/layout";
 
 import { assert, describe, it } from "vitest";
 
-import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
-import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * Run bipartite on the path "1"-"2"-"3"-"4", node ids held as text, and read every coordinate.
@@ -26,10 +25,8 @@ function bipartite(
         return [];
     }
 
-    const nodes = held.map((id) => ({ id }) as unknown as Node);
-    const edges = nodes
-        .slice(1)
-        .map((dst, i) => ({ srcId: nodes[i].id, dstId: dst.id, srcNode: nodes[i], dstNode: dst }) as unknown as Edge);
+    const nodes = held.map((id) => fakeNode(id));
+    const edges = nodes.slice(1).map((dst, i) => fakeEdge(nodes[i], dst));
     layoutEngineInternals.addNodes(engine, nodes);
     layoutEngineInternals.addEdges(engine, edges);
     engine.step();

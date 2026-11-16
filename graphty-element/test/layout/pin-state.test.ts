@@ -33,7 +33,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
 import type { NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
-import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
@@ -44,6 +43,7 @@ import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 const NODE_STYLE: NodeStyleConfig = {
     shape: { type: "icosphere", size: 1 },
@@ -234,15 +234,8 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         const other = harness.add("b");
         harness.add("c");
-        const link = {
-            id: "a-b",
-            index: INVALID_INDEX,
-            srcId: pinned.id,
-            dstId: other.id,
-            srcNode: pinned,
-            dstNode: other,
-        };
-        dataManagerInternals.adoptEdge(harness.dataManager, link as unknown as Edge);
+        const link = fakeEdge(pinned, other, { id: "a-b", index: INVALID_INDEX });
+        dataManagerInternals.adoptEdge(harness.dataManager, link);
 
         await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const held = harness.coordsOf(pinned);
@@ -258,7 +251,7 @@ describe("a pin outlives the engine that was told about it", () => {
         assert.closeTo(after.y, held.y, 1e-3);
         assert.closeTo(after.z, held.z, 1e-3);
 
-        const drawn = harness.layoutManager.layoutEngine?.getEdgePosition(link as unknown as Edge);
+        const drawn = harness.layoutManager.layoutEngine?.getEdgePosition(link);
         assert.isDefined(drawn);
         assert.closeTo(drawn.src.x, held.x, 1e-3, "and the line to it ends where the node is drawn");
         assert.closeTo(drawn.src.y, held.y, 1e-3);
@@ -602,7 +595,7 @@ describe("a pin survives the freeze that renumbers every node", () => {
         dm.getSnapshot();
 
         const stubs = ["a", "b", "c"].map((id, index) => {
-            const stub = { id, index, dispose: () => undefined } as unknown as Node;
+            const stub = fakeNode(id, { index, dispose: () => undefined });
             dataManagerInternals.adoptNode(dm, stub);
             dm.nodeCache.set(id, stub);
             return stub;

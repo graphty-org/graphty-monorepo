@@ -26,11 +26,11 @@ import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
 import { graphvizAttributes, graphvizError, layoutStructure } from "../../src/layout/GraphvizLayoutEngine";
 import type { SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
-import type { Node } from "../../src/Node";
 import { recommendLayout } from "../../src/session";
 import { FILE_GRAPH_VALUE } from "../../src/session/commands/data";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphStatistics } from "../../src/session/types";
+import { fakeNode } from "../helpers/layout-fakes";
 import { makeSession } from "../session/helpers";
 
 /**
@@ -848,10 +848,7 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
     it("is what a layout's nodeSize: label hands over, and drawn sizes stay the default", () => {
         const snapshot = graph(true, [["a", "b"]]);
         const input = { stored: snapshot } as unknown as SnapshotLayoutInput;
-        const nodes = [
-            { id: "a", data: { shape: "box" } },
-            { id: "b", data: {} },
-        ] as unknown as Node[];
+        const nodes = [fakeNode("a", { data: { shape: "box" } }), fakeNode("b", { data: {} })];
 
         const sized = layoutStructure(input, nodes, [], new Map(), false, true);
         assert.isTrue(sized.labelSized);

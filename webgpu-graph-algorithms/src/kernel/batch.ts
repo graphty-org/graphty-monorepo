@@ -68,7 +68,7 @@ function messageOf(error: unknown): string {
 export type GpuTrace = (event: string, facts: Readonly<Record<string, unknown>>) => void;
 
 /** How long a traced wait runs before it is reported as waiting, in milliseconds. */
-export const SLOW_WAIT_MS = 1000;
+const SLOW_WAIT_MS = 1000;
 
 /**
  * Awaits `pending`, telling `trace` when the wait passes {@link SLOW_WAIT_MS} and again when it ends; silent for a

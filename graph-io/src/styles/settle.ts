@@ -164,36 +164,42 @@ interface ArrowRunPart {
     readonly shape: StyleArrowShape;
     readonly along: number;
     readonly across?: number;
+    /** Whether its width is the cap's own proportions, which a row may leave out. */
+    readonly own?: true;
 }
 
 /** yEd's bar, 16 across its line. */
 const BAR: ArrowRunPart = { shape: "tee", along: 1, across: 16 };
 /**
  * yEd's circle, 10 across: its white disc hides the line, which the stem ahead of it and the line behind it leave out.
- * Its width is stated though it is the cap's own: that tells it, on an export, from Graphviz's `crowodot`.
+ * Its width is the cap's own, so a row may leave it out; on an export, its length against the end cap's tells it from
+ * Graphviz's `crowodot`.
  */
-const RING: ArrowRunPart = { shape: "circle-open", along: 10, across: 10 };
+const RING: ArrowRunPart = { shape: "circle-open", along: 10, across: 10, own: true };
 
 /**
  * yEd's arrows of several pieces (yed-graphml-specimen-arrows at line width 1, on its standard head's 12 pixels; every
  * length grows with the line as that head does): `lead` is how long the end cap, a stem, reaches back from the line's
- * end, where the line runs on through the row to its end, and `parts` what is drawn behind the end cap, nearest first.
+ * end, where the line runs on through the row to its end, `head` how long an end cap that is no stem is drawn (12,
+ * the standard head's, when not given), and `parts` what is drawn behind the end cap, nearest first.
  */
-export const ARROW_RUNS: ReadonlyMap<string, { readonly lead?: number; readonly parts: readonly ArrowRunPart[] }> =
-    new Map([
-        ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
-        ["other:skewed-dash", { lead: 4, parts: [{ shape: "slash", along: 8 }] }],
-        ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
-        ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { shape: "stem", along: 8 }, BAR] }],
-        ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { shape: "stem", along: 3 }, RING] }],
-        ["other:crows_foot_optional", { lead: 10, parts: [RING] }],
-        ["other:crows_foot_many_mandatory", { parts: [{ shape: "stem", along: 3 }, BAR] }],
-        ["other:crows_foot_many_optional", { parts: [RING] }],
-        ["other:white_delta_bar", { parts: [{ shape: "stem", along: 5 }, BAR] }],
-    ]);
+export const ARROW_RUNS: ReadonlyMap<
+    string,
+    { readonly lead?: number; readonly head?: number; readonly parts: readonly ArrowRunPart[] }
+> = new Map([
+    ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
+    ["other:skewed-dash", { lead: 4, parts: [{ shape: "slash", along: 8 }] }],
+    ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
+    ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { shape: "stem", along: 8 }, BAR] }],
+    ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { shape: "stem", along: 3 }, RING] }],
+    ["other:crows_foot_optional", { lead: 10, parts: [RING] }],
+    ["other:crows_foot_many_mandatory", { parts: [{ shape: "stem", along: 3 }, BAR] }],
+    ["other:crows_foot_many_optional", { parts: [RING] }],
+    ["other:white_delta_bar", { head: 16, parts: [{ shape: "stem", along: 5 }, BAR] }],
+]);
 
 /** How long yEd draws its standard head at line width 1, the pixels `ARROW_RUNS` measures in. */
-const YED_HEAD_LENGTH = 12;
+export const YED_HEAD_LENGTH = 12;
 
 /**
  * The arrows drawn in their cap's own proportions rather than the program's stated width: the stem that ends an arrow

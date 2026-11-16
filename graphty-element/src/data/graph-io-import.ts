@@ -842,6 +842,18 @@ export function toRecords(
         ids.indexOf(record.id as NodeId),
     );
 
+    return { nodes: nodes as AdHocData[], edges: edgeRecordsOf(snapshot, mapping) as AdHocData[] };
+}
+
+/**
+ * One record per logical edge of a snapshot, the mirror half of an expanded edge skipped, with its weight where the
+ * file gave one.
+ * @param snapshot - the imported graph
+ * @param mapping - the reader's mapping
+ * @returns the records, in row order
+ */
+function edgeRecordsOf(snapshot: GraphSnapshot, mapping: RecordMapping): Record<string, unknown>[] {
+    const { ids } = snapshot;
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");
     const arcWeights = snapshot.flags.weighted ? snapshot.edgeList().weights : null;
@@ -867,7 +879,7 @@ export function toRecords(
         edges.push(record);
     }
 
-    return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
+    return edges;
 }
 
 /**

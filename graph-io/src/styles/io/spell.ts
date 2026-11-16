@@ -11,7 +11,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { resolveRule, resolveStyles } from "../plan/resolve.js";
-import { ARROW_RUNS, ARROWS, BASIC_ARROWS, SHAPES, STROKES, TOOL_ARROWS } from "../settle.js";
+import { ARROW_RUNS, ARROWS, BASIC_ARROWS, SHAPES, STROKES, TOOL_ARROWS, YED_HEAD_LENGTH } from "../settle.js";
 import type { ExtractedStyles, Mapping, StyleColumn, StyleProperty, StyleRule, StyleValue } from "../types.js";
 
 /**
@@ -106,13 +106,46 @@ function piecesOf(value: StyleValue | null): Piece[] | null {
  */
 const near = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-3 * Math.max(1, Math.abs(a), Math.abs(b));
 
+/** One piece of a yEd arrow's row, as `ARROW_RUNS` gives it. */
+type RunPart = NonNullable<ReturnType<typeof ARROW_RUNS.get>>["parts"][number];
+
 /**
- * The yEd arrow an end cap and the row behind it draw: the same pieces in the same proportions, at any line width.
+ * Whether a piece of a row is a piece of a yEd arrow's row, at a scale.
+ * @param piece - the piece
+ * @param part - the yEd arrow's piece
+ * @param unit - the row's length per yEd pixel, null for a row with no lengths
+ * @returns true when it is
+ */
+function pieceFits(piece: Piece, part: RunPart, unit: number | null): boolean {
+    if (piece.shape !== part.shape || piece.side !== "") {
+        return false;
+    }
+    if (unit === null) {
+        return piece.along === null && (piece.across === null) === (part.across === undefined);
+    }
+    if (piece.along === null || !near(piece.along, part.along * unit)) {
+        return false;
+    }
+    if (part.across === undefined || piece.across === null) {
+        // a width left out is the cap's own proportions
+        return piece.across === null && (part.across === undefined || part.own === true);
+    }
+    return near(piece.across, part.across * unit);
+}
+
+/**
+ * The yEd arrow an end cap and the row behind it draw: the same pieces in the same proportions, at any line width,
+ * and, where the end cap's own length is given, in the same proportion to it.
  * @param cap - the end cap
  * @param parts - the row
+ * @param extent - how long the end cap is drawn, in the row's lengths, or null when not known
  * @returns the yEd arrow's `other:` name, or undefined
  */
-export function yedRowOf(cap: StyleValue | null, parts: StyleValue | null): string | undefined {
+export function yedRowOf(
+    cap: StyleValue | null,
+    parts: StyleValue | null,
+    extent: StyleValue | null = null,
+): string | undefined {
     const pieces = piecesOf(parts);
     if (typeof cap !== "string" || pieces === null) {
         return undefined;
@@ -124,25 +157,11 @@ export function yedRowOf(cap: StyleValue | null, parts: StyleValue | null): stri
         }
         const lead = pieces[0].along;
         const unit = lead === null ? null : lead / run.parts[0].along;
-        const same = run.parts.every((part, k) => {
-            const piece = pieces[k];
-            if (
-                piece.shape !== part.shape ||
-                piece.side !== "" ||
-                (piece.across === null) !== (part.across === undefined)
-            ) {
-                return false;
-            }
-            if (unit === null) {
-                return piece.along === null;
-            }
-            return (
-                piece.along !== null &&
-                near(piece.along, part.along * unit) &&
-                (part.across === undefined || near(piece.across ?? 0, part.across * unit))
-            );
-        });
-        if (same) {
+        const head = run.lead ?? run.head ?? YED_HEAD_LENGTH;
+        if (unit !== null && typeof extent === "number" && !near(extent, head * unit)) {
+            continue;
+        }
+        if (run.parts.every((part, k) => pieceFits(pieces[k], part, unit))) {
             return name;
         }
     }
@@ -326,7 +345,8 @@ export function spellForFormat(extracted: ExtractedStyles, snapshot: GraphSnapsh
         for (const end of ["target", "source"] as const) {
             const caps = resolveStyles(current, "edge", `${end}Arrow`, snapshot);
             const parts = resolveStyles(current, "edge", `${end}ArrowParts`, snapshot);
-            const rows = caps.map((cap, i) => yedRowOf(cap, parts[i] ?? null));
+            const extents = resolveStyles(current, "edge", `${end}ArrowExtent`, snapshot);
+            const rows = caps.map((cap, i) => yedRowOf(cap, parts[i] ?? null, extents[i] ?? null));
             if (rows.every((row) => row === undefined)) {
                 continue;
             }

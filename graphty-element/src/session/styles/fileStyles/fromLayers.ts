@@ -45,6 +45,7 @@ import { parseArrowStack } from "../../../meshes/arrowStack";
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
+import type { ResolvedStyle } from "../repaint";
 import type { ExportFlattenReason } from "./codes";
 import { computedOf } from "./path";
 import { ARROW_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES } from "./shapes";
@@ -216,6 +217,17 @@ const ARROW_NAME_CHANNELS: ReadonlyMap<
 ]);
 
 /**
+ * The end cap a stack is drawn behind, by the stack's channel: its shape's and size's channels, and the neutral
+ * property its length along the line is written as. A row's pieces are measured against it, so a writer tells two
+ * programs' arrows apart whose rows differ only in proportion to their end cap.
+ */
+const STACK_CAPS: ReadonlyMap<string, { readonly shape: Channel; readonly size: Channel; readonly property: string }> =
+    new Map([
+        ["edge.arrowHeadStack", { shape: "edge.arrowHead", size: "edge.arrowHeadSize", property: "targetArrowExtent" }],
+        ["edge.arrowTailStack", { shape: "edge.arrowTail", size: "edge.arrowTailSize", property: "sourceArrowExtent" }],
+    ]);
+
+/**
  * The neutral property of each channel that has one, so that a load reads it back to the same
  * channel and value. Every other channel is carried as `graphty:<channel>`, which only graphty
  * reads.
@@ -378,6 +390,8 @@ class KindExport {
     readonly #n: number;
     /** Per layer id, per channel, what the layer painted each element. */
     readonly #painted = new Map<string, Map<string, unknown[]>>();
+    /** Per row, what the element is painted in the end, every layer merged. */
+    readonly #merged: ResolvedStyle[] = [];
     readonly #columns = new Map<string, StyleColumn>();
     readonly #rules: StyleRule[] = [];
     readonly #ruleIds = new Set<string>();
@@ -398,7 +412,8 @@ class KindExport {
         this.#n = ids.length;
         ids.forEach((id, row) => {
             const target: ExplainTarget = kind === "node" ? { node: id } : { edge: id as EdgeId };
-            const { contributions } = input.explain(target);
+            const { contributions, merged } = input.explain(target);
+            this.#merged[row] = merged;
             for (const contribution of contributions) {
                 let channels = this.#painted.get(contribution.layerId);
                 if (channels === undefined) {
@@ -606,19 +621,40 @@ class KindExport {
     }
 
     /**
-     * What a channel adds to an arrow beyond its end cap: the stack of caps behind it, or the cap's side.
+     * What a channel adds to an arrow beyond its end cap: the stack of caps behind it, with the end cap's own length
+     * that its pieces are measured against, or the cap's side.
      * @param channel - The channel.
      * @param drawn - What it painted.
-     * @returns The neutral property and its values by row, or null when the channel adds nothing.
+     * @returns The neutral properties and their values by row, none when the channel adds nothing.
      */
-    #arrowName(channel: string, drawn: readonly unknown[]): { property: string; values: StyleColumn } | null {
+    #arrowName(channel: string, drawn: readonly unknown[]): { property: string; values: StyleColumn }[] {
         const end = ARROW_NAME_CHANNELS.get(channel);
         if (end === undefined) {
-            return null;
+            return [];
         }
 
         const values = drawn.map((value) => (value === null ? null : end.toNeutral(value)));
-        return values.some((value) => value !== null) ? { property: end.property, values } : null;
+        if (values.every((value) => value === null)) {
+            return [];
+        }
+
+        const cap = STACK_CAPS.get(channel);
+        if (cap === undefined) {
+            return [{ property: end.property, values }];
+        }
+
+        const lengths = values.map((value, row) => {
+            const merged: Readonly<Record<string, unknown>> = this.#merged[row] ?? {};
+            const shape = ARROW_OF.get(String(merged[cap.shape]));
+            const size = merged[cap.size] ?? 1;
+            return value === null || shape === undefined || typeof size !== "number"
+                ? null
+                : capLengthOf(shape, size, undefined).along;
+        });
+        return [
+            { property: end.property, values },
+            { property: cap.property, values: lengths },
+        ];
     }
 
     /**
@@ -646,8 +682,7 @@ class KindExport {
                 this.#channel({ entry, at, where, channel: channel as Channel }, written, body);
             }
 
-            const name = this.#arrowName(channel, drawn);
-            if (name !== null) {
+            for (const name of this.#arrowName(channel, drawn)) {
                 const key = this.#keep(`layer.${String(at)}.${name.property}`, name.values);
                 body.map[name.property] = { kind: "passthrough", by: { style: key } };
             }

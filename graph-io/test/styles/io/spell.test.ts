@@ -23,4 +23,13 @@ describe("yedRowOf", () => {
         expect(yedRowOf("stem", "tee*1x12")).toBeUndefined();
         expect(yedRowOf("triangle", null)).toBeUndefined();
     });
+
+    it("measures a row against its end cap's own length, where that is given", () => {
+        // yEd's ring is 10 behind a head 12 long; Graphviz's crowodot draws its ring 0.8 of its crow
+        expect(yedRowOf("crow", "circle-open*10", 12)).toBe("other:crows_foot_many_optional");
+        expect(yedRowOf("crow", "circle-open*25", 30)).toBe("other:crows_foot_many_optional");
+        expect(yedRowOf("crow", "circle-open*8", 10)).toBeUndefined();
+        expect(yedRowOf("stem", "tee*1x16", 10)).toBe("other:crows_foot_one");
+        expect(yedRowOf("stem", "tee*1x16", 12)).toBeUndefined();
+    });
 });

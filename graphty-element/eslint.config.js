@@ -49,9 +49,6 @@ export default tseslint.config(
         ignores: [
             "index.d.ts",
             "index.js",
-            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: fix their
-            // findings to remove this line.
-            "test/helpers/scripts/**/*.js",
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
             "test/fast-check-experiment/**",

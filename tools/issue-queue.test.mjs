@@ -1,6 +1,9 @@
 // Tests of tools/issue-queue.mjs on GraphQL answers shaped like GitHub's (the fields its queries ask for).
 // Run: node tools/issue-queue.test.mjs
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { main } from "./issue-queue.mjs";
@@ -162,10 +165,28 @@ describe("list", () => {
     it("pages through every open issue and honors --limit", () => {
         const pages = [[issue(1, "a", ["priority:high"])], [issue(2, "b", ["priority:low"])]];
         const { run, calls } = runner({ pages });
-        const out = main(["list", "--limit", "1"], run, NOW).out.split("\n");
+        const out = main(["list", "--limit", "1"], run, NOW, undefined, "/no/such/clusters.json").out.split("\n");
         assert.equal(calls.length, 2);
-        assert.equal(out.length, 2);
-        assert.match(out[0], /^#1 high other effort:none 32d a$/);
+        assert.equal(out.length, 3);
+        assert.match(out[1], /^#1 high other effort:none 32d a$/);
+    });
+
+    it("#8363: says first whether the cluster file is stale: missing, over a day old, or missing a top issue", () => {
+        const dir = mkdtempSync(join(tmpdir(), "clusters-"));
+        const file = join(dir, "clusters.json");
+        const pages = [[issue(1, "a", ["priority:critical"]), issue(2, "b", ["priority:high"])]];
+        const first = () => main(["list"], runner({ pages }).run, NOW, undefined, file).out.split("\n")[0];
+        assert.match(first(), /^clusters: stale \(no cluster file\) -- start the clustering pass/);
+        const write = (builtAt, issues) => writeFileSync(file, JSON.stringify({ builtAt, clusters: [{ issues }] }));
+        write("2026-11-02T00:00:00Z", [1, 2]);
+        assert.equal(first(), "clusters: current (built 2026-11-02T00:00:00Z)");
+        write("2026-11-02T00:00:00Z", [2]);
+        assert.match(first(), /^clusters: stale \(top issues #1 in no cluster\)/);
+        write("2026-10-30T00:00:00Z", [1, 2]);
+        assert.match(first(), /^clusters: stale \(built 2026-10-30T00:00:00Z, over a day old\)/);
+        const json = JSON.parse(main(["list", "--json"], runner({ pages }).run, NOW, undefined, file).out);
+        assert.equal(json.clusters.stale, true);
+        rmSync(dir, { recursive: true, force: true });
     });
 });
 

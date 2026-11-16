@@ -4,8 +4,9 @@
 //
 //   node tools/results/dispatch-base-checks.mjs <dir>
 //
-// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat, name }` per
-// `[FLAKY-UNRELATED]` (repeat 5) or `[UNRELATED]` (repeat 1) test into <dir>/<shard>.jsonl. ci.yml's base-checks job
+// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat, name, touched }` per
+// `[FLAKY-UNRELATED]` (repeat 5) or `[UNRELATED]` (repeat 1) test, and per `[NEW-FLAKY]` or `[FAIL]` test whose
+// file the pull request did not change (only its imports: `touched`), into <dir>/<shard>.jsonl. ci.yml's base-checks job
 // downloads them all and runs this, so base-check.yml runs on master's code at the pull request's base: its
 // records are the master evidence that quarantines a flaky test and files its one issue (run-group.mjs
 // fileIssues), or files `Failing on master`. The lines come from a job that ran the pull request's code, so each
@@ -21,6 +22,9 @@ import { call, config } from "./client.mjs";
 
 // ponytail: a cap, so one broken pull request cannot start a storm of base checks; raise it if real runs hit it
 const MAX_CHECKS = 10;
+// Of them, checks of tests the pull request touched (only their imports changed, #8363): one confirms a master break
+// before the next full run, while a pull request that broke its own tests asks for many, so few are worth a runner
+const MAX_TOUCHED = 2;
 
 const SHA = /^[0-9a-f]{7,40}$/;
 const FILE = /^[\w@./-]+\.(test|spec|stories)\.[cm]?[jt]sx?$/;
@@ -53,6 +57,7 @@ function merged(had, c) {
         !had || had.repeat < c.repeat ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat } : had;
     const names = [...(had?.names ?? []), ...(c.repeat === 5 && NAME.test(c.name ?? "") ? [c.name] : [])];
     if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
+    check.touched = (had?.touched ?? true) && c.touched === true;
     return check;
 }
 
@@ -76,7 +81,9 @@ export function readChecks(dir) {
             const key = `${c.base} ${c.file} ${c.variant}`;
             out.set(key, merged(out.get(key), c));
         }
-    return [...out.values()].slice(0, MAX_CHECKS);
+    const checks = [...out.values()];
+    const touched = checks.filter((c) => c.touched).slice(0, MAX_TOUCHED);
+    return [...checks.filter((c) => !c.touched), ...touched].slice(0, MAX_CHECKS);
 }
 
 /**
@@ -90,9 +97,10 @@ export function readChecks(dir) {
  * @param [o.release] `async (check) => void`: gives back the claim of a check gh could not dispatch (#7265), so a later
  *   pull request dispatches it
  * @param [o.pr] the pull request number, passed on so a base check that passes on master comments there
+ * @param [o.run] the run that asked, passed on so a base check that fails on master re-runs its failed jobs
  * @returns how many were dispatched
  */
-export async function dispatchChecks(checks, gh, { claim, release, pr } = {}) {
+export async function dispatchChecks(checks, gh, { claim, release, pr, run } = {}) {
     let n = 0;
     for (const c of checks) {
         if (claim && (await claim(c)) === false) {
@@ -102,6 +110,9 @@ export async function dispatchChecks(checks, gh, { claim, release, pr } = {}) {
         const args = ["workflow", "run", "base-check.yml", "--ref", "master"];
         const fields = { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat };
         if (/^\d+$/.test(String(pr ?? ""))) fields.pr = pr;
+        // the run that asked: a base check that finds master failing too re-runs its failed jobs, which then read
+        // the base check's evidence as [KNOWN] (#8363)
+        if (/^\d+$/.test(String(run ?? ""))) fields.run = run;
         if (c.names?.length) fields.tests = JSON.stringify(c.names);
         for (const [k, v] of Object.entries(fields)) args.push("-f", `${k}=${v}`);
         try {
@@ -130,6 +141,6 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         const r = await call(cfg, "DELETE", "/v1/base-checks", c);
         if (!r.ok) console.log(`::warning::results store: base check claim not released (${r.why}): ${c.file}`);
     };
-    const n = await dispatchChecks(checks, gh, { claim, release, pr: process.env.PR });
+    const n = await dispatchChecks(checks, gh, { claim, release, pr: process.env.PR, run: process.env.GITHUB_RUN_ID });
     console.log(`${n} of ${checks.length} base checks dispatched`);
 }

@@ -3,14 +3,15 @@
 // an agent that reads that text while holding graphty-agent's push rights can be steered by it. This tool passes on
 // only text written (and last edited) by a trusted account.
 //
-//   node tools/issue-queue.mjs list [--limit N] [--json]   open issues an issue round may take, in its order
+//   node tools/issue-queue.mjs list [--limit N] [--json]   open issues an issue round may take, in its order; the
+//                                                          first line says whether the round's cluster file is stale
 //   node tools/issue-queue.mjs show <n>                    one trusted issue, untrusted comments withheld
 //   gh api graphql ... | node tools/issue-queue.mjs filter  any GraphQL answer with untrusted titles and bodies withheld
 //
 // It reads GitHub through `gh api graphql` (as whoever gh is logged in as; agents are graphty-agent).
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO = { owner: "graphty-org", name: "graphty-monorepo" };
 
@@ -184,6 +185,44 @@ export function listLines(result, limit) {
     return lines;
 }
 
+// the issue round's cluster file (.claude/skills/issue-round/SKILL.md step 2), in the checkout this tool is in
+const CLUSTERS = fileURLToPath(new URL("../tmp/issue-round/clusters.json", import.meta.url));
+const DAY_MS = 86_400_000;
+
+/**
+ * Whether the issue round's cluster file is current, as the `list` output's first line: missing, over a day old, or
+ * missing one of the queue's first 10 issues, it is stale, and the round starts the clustering pass and groups the top
+ * issue itself (step 3). Printed by the command every round already runs, so grouping cannot lapse unnoticed: the
+ * file went three days stale and every job was a single issue (#8363).
+ * @param q the queue, sorted
+ * @param now ms
+ * @param [file] the cluster file
+ * @returns `{ stale, line, unclustered }`
+ */
+export function clusterState(q, now, file = CLUSTERS) {
+    let c;
+    try {
+        c = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+        c = null;
+    }
+    const built = Date.parse(c?.builtAt ?? "");
+    const inCluster = new Set((c?.clusters ?? []).flatMap((x) => x.issues ?? []));
+    const unclustered = q
+        .slice(0, 10)
+        .map((i) => i.number)
+        .filter((n) => !inCluster.has(n));
+    const why = [];
+    if (!c || Number.isNaN(built)) why.push("no cluster file");
+    else if (now - built > DAY_MS) why.push(`built ${c.builtAt}, over a day old`);
+    if (c && unclustered.length > 0) why.push(`top issues ${unclustered.map((n) => `#${n}`).join(" ")} in no cluster`);
+    const stale = why.length > 0;
+    const line = stale
+        ? `clusters: stale (${why.join("; ")}) -- start the clustering pass, and group the top issue yourself (issue-round steps 2 and 3)`
+        : `clusters: current (built ${c.builtAt})`;
+    return { stale, line, unclustered };
+}
+
 /**
  * The `show` output, or null when the issue itself is untrusted.
  * @param issue a GraphQL Issue with comments
@@ -280,18 +319,21 @@ export function fetchOpen(run = gh) {
  * @param run the GraphQL runner
  * @param now ms
  * @param stdin reads standard input, for `filter`
+ * @param [clustersFile] the issue round's cluster file
  * @returns `{ code, out }`
  */
-export function main(argv, run = gh, now = Date.now(), stdin = () => readFileSync(0, "utf8")) {
+export function main(argv, run = gh, now = Date.now(), stdin = () => readFileSync(0, "utf8"), clustersFile = CLUSTERS) {
     const [cmd, ...rest] = argv;
     if (cmd === "list") {
         const i = rest.indexOf("--limit");
         const limit = i >= 0 ? Number(rest[i + 1]) : Infinity;
         const result = queue(fetchOpen(run), now);
+        const clusters = clusterState(result.queue, now, clustersFile);
         if (rest.includes("--json")) {
-            return { code: 0, out: JSON.stringify({ ...result, queue: result.queue.slice(0, limit) }, null, 2) };
+            const json = { ...result, queue: result.queue.slice(0, limit), clusters };
+            return { code: 0, out: JSON.stringify(json, null, 2) };
         }
-        return { code: 0, out: listLines(result, limit).join("\n") };
+        return { code: 0, out: [clusters.line, ...listLines(result, limit)].join("\n") };
     }
     if (cmd === "show" && /^\d+$/.test(rest[0] ?? "")) {
         const issue = run(SHOW_QUERY, { ...REPO, number: Number(rest[0]) }).repository.issue;

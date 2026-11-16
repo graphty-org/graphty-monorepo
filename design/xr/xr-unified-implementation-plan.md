@@ -1,5 +1,11 @@
 # Unified XR (VR/AR) Implementation Plan
 
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 ## Overview
 
 This unified plan combines the comprehensive XR camera architecture with the critical unified drag system, delivering a complete, production-ready XR experience for graph visualization.

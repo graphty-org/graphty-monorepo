@@ -8,8 +8,8 @@ style"; edge-case rulings are rows of [conformance.md](conformance.md).
 
 A style is a stack of style layers: how nodes and edges are drawn, stated as rules over the data's
 columns and the runs' results, never as values stored on particular elements. It is meant to be
-applied to new data: the same fold-change colouring on the next gene list, the same team colours
-on next quarter's organisation chart.
+applied to new data: the same fold-change coloring on the next gene list, the same team colors
+on next quarter's organization chart.
 
 ## Compatible with graphty-element 2.x
 
@@ -141,7 +141,7 @@ path       := name ( "." name )*
 ### Result fields
 
 `results.<run id>.<field>` names a field a run publishes. Each algorithm's fields are its
-`AlgorithmDescriptor.fields` in graphty-element's catalogue (the `./catalog` entry point); the plan
+`AlgorithmDescriptor.fields` in graphty-element's catalog (the `./catalog` entry point); the plan
 of a recipe lists them per command. The most used:
 
 <!-- prettier-ignore -->
@@ -151,7 +151,7 @@ of a recipe lists them per command. The most used:
 | `louvain`, `leiden`, `label-propagation`, `girvan-newman`, `components` | `group` (an integer per community or piece), `groupSize` |
 
 `data.<column>` reads a column the data file has; `results.<run>.<field>` reads what a run
-computed: to colour by communities a file records, read `data.community`; by those a Louvain run
+computed: to color by communities a file records, read `data.community`; by those a Louvain run
 named `groups` found, `results.groups.group`. A field the run does not publish leaves the layer
 switched off, like a missing column. A node outside a run's scope has no value for its fields. In a
 file that also carries the recipe, a path names the run by the recipe's plain `as`
@@ -160,7 +160,7 @@ path, never `everything`, which 2.x refuses:
 
 ```jsonc
 {
-    "name": "Colour by community",
+    "name": "Color by community",
     "selector": { "match": "has", "path": "results.groups.group" },
     "encode": { "node.color": { "by": "results.groups.group", "scale": "ordinal", "overflow": "other" } },
 }
@@ -195,7 +195,7 @@ The member names of `set` and `encode` are channel names, the list graphty-eleme
 <!-- prettier-ignore -->
 | Channels | Value |
 | --- | --- |
-| colours: `node.color`, `node.outline`, `node.glow`, `edge.color`, `edge.arrowHeadColor`, `edge.arrowTailColor` | a CSS colour string (hex RECOMMENDED) or `{ r, g, b, a }`, r, g, b in 0..255, a in 0..1 |
+| colors: `node.color`, `node.outline`, `node.glow`, `edge.color`, `edge.arrowHeadColor`, `edge.arrowTailColor` | a CSS color string (hex RECOMMENDED) or `{ r, g, b, a }`, r, g, b in 0..255, a in 0..1 |
 | `node.size`, `edge.width`, `edge.arrowHeadSize`, `edge.arrowTailSize` | 0 to 1,000,000 scene units; 1 is the default node size |
 | opacities | 0..1 |
 | `node.shape`, `edge.style`, `edge.arrowHead`, `edge.arrowTail` | one of the names the schema lists |
@@ -208,7 +208,7 @@ The member names of `set` and `encode` are channel names, the list graphty-eleme
 These limits hold for every value a layer produces: a value an encoding produces (from `range`,
 `map`, `missing`, `other` or a `passthrough` of the data) is checked when it is painted, a number
 clamped to the channel's range, text cut to 1,024 characters, each counted in the report; a value
-that is not a finite number is missing. The applier parses every colour into RGBA; a colour that
+that is not a finite number is missing. The applier parses every color into RGBA; a color that
 does not parse fails its layer with `E_BAD_LAYER`. Every count a style sets has a maximum --
 `edge.patternCount` 1,000, `bins` 256, a `map` 1,000 entries -- and a value above one fails its
 layer with `E_OPTION_RANGE`. A patterned edge's pieces are spaced by the larger of its width and
@@ -219,7 +219,7 @@ state `failing` with `E_CAP_EXCEEDED`. `node.marker` is reserved for graphty-ele
 
 A binding is a literal `{ value }` or a mapping `{ by, scale?, palette?, ... }` from the value at a
 path to a channel value. `scale` is one of `linear`, `log`, `neglog10`, `sqrt`, `pow`, `bins`,
-`quantile`, `ordinal` and `passthrough`; absent, a colour or number channel uses `linear` and any
+`quantile`, `ordinal` and `passthrough`; absent, a color or number channel uses `linear` and any
 other `passthrough`. For the numeric scales:
 
 1. `domain` `[low, high]`, or `"auto"` (the default) for the extent of the values present, is the
@@ -227,10 +227,10 @@ other `passthrough`. For the numeric scales:
    to 1; a value below `low` is placed at 0 and one above `high` at 1. An explicit domain assumes a
    scale of the data; prefer `"auto"` or `clamp` for a column whose scale varies by source.
 2. `midpoint` places that value at 0.5, each half linear after the transform, so a skewed domain
-   keeps its midpoint at the centre of a diverging palette.
+   keeps its midpoint at the center of a diverging palette.
 3. `clamp` `[p, q]` narrows the domain to the values at those percentiles. `clamp` and an explicit
    `domain` MUST NOT both be given.
-4. `range` `[a, b]` maps position 0 to `a` and 1 to `b` for a number channel; a colour channel reads
+4. `range` `[a, b]` maps position 0 to `a` and 1 to `b` for a number channel; a color channel reads
    its palette. `reverse: true` swaps the ends.
 5. `missing` decides an element with no value: `"skip"` (the default) paints nothing; `{ value }`
    paints that value.
@@ -243,20 +243,20 @@ other `passthrough`. For the numeric scales:
 
 For `ordinal`, which maps categories:
 
-8. Categories take the palette's colours in order of size, largest group first; a tie is broken by
+8. Categories take the palette's colors in order of size, largest group first; a tie is broken by
    the category text, numbers ascending when both read as numbers, else by code point, never by
    locale. A category is the value as text: a number by its shortest decimal form, `true` and
-   `false` as those words; a list is missing. The default palette is `okabe-ito` (8 colours).
+   `false` as those words; a list is missing. The default palette is `okabe-ito` (8 colors).
 9. `map` pins a category to a value (`{ "sales": "#0b5fff" }`), keys matched against the category
-   text. On a colour channel an unmapped category takes the next palette colour no `map` entry
-   uses, so it never shares a pinned colour; on any other channel (a shape) an unmapped category
+   text. On a color channel an unmapped category takes the next palette color no `map` entry
+   uses, so it never shares a pinned color; on any other channel (a shape) an unmapped category
    is missing. The report names every `map` key that matched no value.
 10. `other: { threshold, value }` paints every category carried by fewer than `threshold` elements
     with `value`.
-11. `overflow` says what happens with more categories than the palette has colours: `"other"` keeps
-    the palette's colours for the largest groups and paints the rest dark grey (#505050); `"shape"`
-    (nodes only) reuses the colours with a new shape per round; `"extend"` gives every group its own
-    colour, not guaranteed distinct. Without it, too many categories fail the layer with
+11. `overflow` says what happens with more categories than the palette has colors: `"other"` keeps
+    the palette's colors for the largest groups and paints the rest dark gray (#505050); `"shape"`
+    (nodes only) reuses the colors with a new shape per round; `"extend"` gives every group its own
+    color, not guaranteed distinct. Without it, too many categories fail the layer with
     `E_CAP_EXCEEDED`, in the state `failing`, retried at every repaint. A style meant for data it
     has not seen gives `overflow`.
 
@@ -281,16 +281,16 @@ ship. Built-in ids are reserved: a descriptor under one is ignored and reported.
 are `viridis`, `ylorbr` (the default for a measurement), `plasma`, `inferno`, `blues`, `greens`,
 `oranges`; `okabe-ito` (the default for categories), `tol-vibrant`, `tol-muted`, `pastel`, `carbon`;
 the diverging `purple-green`, `blue-white-red`, `blue-orange`, `red-blue`; and `blue-highlight`,
-`green-highlight`, `orange-highlight`. Their colours are graphty-element's exported
+`green-highlight`, `orange-highlight`. Their colors are graphty-element's exported
 `PALETTE_DESCRIPTORS`. `blue-white-red` (blue low, white middle, red high) is the diverging palette
 for a signed measure; `blue-orange` is the same palette under the name 2.x published.
 
 A carried descriptor has `id`, `plainName`, `kind` (`sequential`, `diverging` or `categorical`),
 `colors` (at most 256), `capacity` (how many categories it keeps apart; `null` for a continuous
 palette) and `colorblindSafe` (`[]` means untested, not unsafe), all required, as in 2.x's
-`PaletteDescriptor`. A sequential or diverging palette's colours are spaced evenly from 0 to 1. A
+`PaletteDescriptor`. A sequential or diverging palette's colors are spaced evenly from 0 to 1. A
 page that wants its brand palette everywhere registers it once; a carried palette is for a style
-travelling to pages that do not have it:
+traveling to pages that do not have it:
 
 ```js
 import { registerPalette } from "@graphty/graphty-element/extend";
@@ -300,12 +300,12 @@ registerPalette({
     plainName: "Acme brand",
     kind: "categorical",
     colors: ["#0b5fff", "#ff8800", "#00a86b"],
-    capacity: 3, // the number of colours, for a categorical palette
+    capacity: 3, // the number of colors, for a categorical palette
     colorblindSafe: [], // untested
 });
 ```
 
-The same palette carried in a style, with `sales` pinned so it keeps its colour across datasets:
+The same palette carried in a style, with `sales` pinned so it keeps its color across datasets:
 
 ```json
 {
@@ -313,7 +313,7 @@ The same palette carried in a style, with `sales` pinned so it keeps its colour 
     "version": 1,
     "layers": [
         {
-            "name": "Colour by team",
+            "name": "Color by team",
             "selector": { "match": "has", "path": "data.team" },
             "encode": {
                 "node.color": {
@@ -349,7 +349,7 @@ The same palette carried in a style, with `sales` pinned so it keeps its colour 
    would name another run in another session. When the file also carries the recipe that records
    the run, the writer writes the name the recipe gives it (recipe.md, "Recording" rule 4);
    otherwise `saveDocument` leaves the layer out and lists it with `E_UNSTABLE_RUN_ID`.
-5. It SHOULD write colours as hex (`#rrggbb`, or `#rrggbbaa` when alpha is below 1).
+5. It SHOULD write colors as hex (`#rrggbb`, or `#rrggbbaa` when alpha is below 1).
 6. It writes each layer's authored `enabled`, never `false` for a layer the applier switched off
    only because a path had no answer, so that state is decided again at every opening.
 7. A layer the applier refused ("Reading and applying" rule 1) is written back as it was read.
@@ -384,7 +384,7 @@ The same palette carried in a style, with `sales` pinned so it keeps its colour 
    `passthrough` binding gives up to three sample values it would draw.
 4. **Carried palettes.** A carried palette whose id is not registered is registered for this session
    only, never in the page-wide registry, and reported. One whose id is already registered never
-   replaces it; a difference in colours is reported. A layer naming a palette neither registered
+   replaces it; a difference in colors is reported. A layer naming a palette neither registered
    nor carried is switched off with `E_UNKNOWN_PALETTE`.
 5. Layers are added above every layer already present, in document order; replacing the whole stack
    is the caller's explicit choice. A layer that will paint a channel one of the reader's enabled
@@ -467,8 +467,8 @@ before. Its new `columns` option is additive and may come earlier.
 
 ## Worked example
 
-A lab's expression overlay: red for genes up, blue for down, grey for not measured, significant
-genes outlined, and each node labelled by its gene symbol. It needs `logFC` and `padj` as node
+A lab's expression overlay: red for genes up, blue for down, gray for not measured, significant
+genes outlined, and each node labeled by its gene symbol. It needs `logFC` and `padj` as node
 columns.
 
 ```json
@@ -532,7 +532,7 @@ columns.
 
 Applied to a network whose nodes have `logFC` and `padj`, the layers paint. The tools that make
 these tables spell the columns differently: DESeq2 writes `log2FoldChange` and `padj`, limma `logFC`
-and `adj.P.Val`, edgeR `logFC` and `FDR`. On a DESeq2 table the colour layer is added switched off,
+and `adj.P.Val`, edgeR `logFC` and `FDR`. On a DESeq2 table the color layer is added switched off,
 naming `data.logFC` and suggesting `log2FoldChange`; on an edgeR table the outline layer names
 `data.padj` with no suggestion, because the names share nothing. Either way the caller opens the
 file again with the rename and replaces the first opening:

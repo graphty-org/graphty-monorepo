@@ -32,6 +32,7 @@ type CyjsValueType =
     | "signedSize"
     | "nodeSize"
     | "positive"
+    | "percent"
     | "text"
     | "fontFamily"
     | "fontWeight"
@@ -943,6 +944,12 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Flat
             const ok = spec.type === "zeroOne" ? x >= 0 && x <= 1 : x > 0;
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
+        case "percent": {
+            // Cytoscape.js's `percent`: 0 to 100, its `%` implicit (a pie slice's or a stripe's size)
+            const m = /^(\d+(?:\.\d+)?|\.\d+)%?$/.exec(String(value));
+            const x = m === null ? Number.NaN : Number(m[1]);
+            return x <= 100 ? { kind: "number", value: x, units: null, str: String(x) } : null;
+        }
         case "size":
         case "signedSize":
         case "nodeSize":
@@ -1124,6 +1131,7 @@ function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode
     const numeric =
         spec.type === "zeroOne" ||
         spec.type === "positive" ||
+        spec.type === "percent" ||
         spec.type === "size" ||
         spec.type === "signedSize" ||
         spec.type === "nodeSize";

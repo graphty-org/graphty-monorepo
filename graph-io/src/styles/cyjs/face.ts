@@ -1,9 +1,10 @@
 /**
- * What Cytoscape.js draws over a node's face: its background image (`background-image`, `-fit`, `-width`,
+ * What Cytoscape.js draws over and under a node's face: its background image (`background-image`, `-fit`, `-width`,
  * `-height`, `-width-relative-to`, `-height-relative-to`, `-position-x`/`-y`, `-offset-x`/`-y`, `-repeat`, `-clip`, `background-image-smoothing`,
  * `background-image-opacity`), its pie (`pie-size`, `pie-hole`, `pie-start-angle`, `pie-N-background-*`) and its
- * stripes (`stripe-size`, `stripe-direction`, `stripe-N-background-*`), read as parts and combined per element into
- * the neutral `image*`, `pie*` and `stripe*` properties (https://js.cytoscape.org/#style/background-image,
+ * stripes (`stripe-size`, `stripe-direction`, `stripe-N-background-*`), and its ghost (`ghost`, `ghost-offset-x`/`-y`,
+ * `ghost-opacity`, drawn as the neutral shadow), read as parts and combined per element into
+ * the neutral `image*`, `pie*`, `stripe*` and `shadow*` properties (https://js.cytoscape.org/#style/background-image,
  * #style/pie-chart-background, #style/stripe-chart-background).
  */
 
@@ -15,6 +16,8 @@ const PIECES = 16;
 
 const text = (property: string): CyjsPropertySpec => ({ property, type: "text" });
 const color = (property: string): CyjsPropertySpec => ({ property, type: "color" });
+// a slice's or a band's size, which a `mapData()` sets too (cytoscape.js 3.34.3 `pie-N-background-size`: `percent`)
+const percent = (property: string): CyjsPropertySpec => ({ property, type: "percent" });
 
 /** The parts, by Cytoscape.js property name. */
 export const CYJS_FACE_PROPERTIES: readonly [string, CyjsPropertySpec][] = [
@@ -32,6 +35,11 @@ export const CYJS_FACE_PROPERTIES: readonly [string, CyjsPropertySpec][] = [
     ["background-clip", text("_bgClip")],
     ["background-image-smoothing", text("_bgSmooth")],
     ["background-image-opacity", text("_bgOpacity")],
+    // a copy of the node drawn beneath it, moved and faded (`faceGhost`)
+    ["ghost", { property: "_ghost", type: "enum", enums: ["yes", "no"] }],
+    ["ghost-offset-x", { property: "_ghostX", type: "signedSize" }],
+    ["ghost-offset-y", { property: "_ghostY", type: "signedSize" }],
+    ["ghost-opacity", { property: "_ghostOpacity", type: "zeroOne" }],
     ["pie-size", text("_pieSize")],
     ["pie-hole", text("_pieHole")],
     ["pie-start-angle", text("_pieStart")],
@@ -39,10 +47,10 @@ export const CYJS_FACE_PROPERTIES: readonly [string, CyjsPropertySpec][] = [
     ["stripe-direction", text("_stripeDir")],
     ...Array.from({ length: PIECES }, (_, k): [string, CyjsPropertySpec][] => [
         [`pie-${String(k + 1)}-background-color`, color(`_pieC${String(k + 1)}`)],
-        [`pie-${String(k + 1)}-background-size`, text(`_pieS${String(k + 1)}`)],
+        [`pie-${String(k + 1)}-background-size`, percent(`_pieS${String(k + 1)}`)],
         [`pie-${String(k + 1)}-background-opacity`, text(`_pieO${String(k + 1)}`)],
         [`stripe-${String(k + 1)}-background-color`, color(`_stripeC${String(k + 1)}`)],
-        [`stripe-${String(k + 1)}-background-size`, text(`_stripeS${String(k + 1)}`)],
+        [`stripe-${String(k + 1)}-background-size`, percent(`_stripeS${String(k + 1)}`)],
         [`stripe-${String(k + 1)}-background-opacity`, text(`_stripeO${String(k + 1)}`)],
     ]).flat(),
 ];
@@ -215,6 +223,7 @@ export function combineFace(
             h: num("height", i) ?? 30,
         };
         faceImage(el);
+        faceGhost(el, values.fill?.[i] ?? null, num("fillOpacity", i));
         const pie = pieces(words, "_pie", i);
         if (pie !== null) {
             facePie(el, pie);
@@ -224,6 +233,27 @@ export function combineFace(
             faceStripes(el, stripe);
         }
     }
+}
+
+/**
+ * A node's ghost as the shadow beneath it: Cytoscape.js draws the node's shape again before it, moved by
+ * `ghost-offset-x` and `-y`, in its fill at `ghost-opacity` times the fill's opacity (cytoscape.js 3.34.3 `drawNode`),
+ * a hard copy, which is the neutral shadow with no blur.
+ * ponytail: the ghost's border, picture and pie are drawn too, the shadow is the shape's fill only
+ * @param el - the element
+ * @param fill - its fill, or null for Cytoscape.js's default
+ * @param fillOpacity - its fill's opacity, or null for 1
+ */
+function faceGhost(el: FaceElement, fill: StyleValue | null, fillOpacity: number | null): void {
+    const opacity = r6(Number(el.word("_ghostOpacity") ?? 0) * (fillOpacity ?? 1));
+    if (el.word("_ghost") !== "yes" || !(opacity > 0)) {
+        return;
+    }
+    el.put("shadowColor", typeof fill === "string" ? fill : "#999999");
+    el.put("shadowOpacity", opacity);
+    el.put("shadowBlur", 0);
+    el.put("shadowOffsetX", Number(el.word("_ghostX") ?? 0));
+    el.put("shadowOffsetY", Number(el.word("_ghostY") ?? 0));
 }
 
 /**

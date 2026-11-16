@@ -308,11 +308,17 @@ starts: issue-round counts the pull request's files again from then on.
   always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
 
 **Unarmed agent pull requests**, every round. One GraphQL query lists the open graphty-agent pull requests with
-`autoMergeRequest` and `files{path}`. Each with auto-merge off whose files match nothing in `GUARD_PATHS`
-(`tools/pr-open.sh`) and whose commits carry no `!` gets auto-merge on as graphty-agent
-(`gh pr merge <n> --auto --merge`). One that matches `GUARD_PATHS` stays with the owner: never arm it. A green pull
-request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master` (same as a red
-one above). The round's last line names every pull request armed and every conflicted one sent to a fix, by number.
+`autoMergeRequest` and `timelineItems(itemTypes:[AUTO_MERGE_DISABLED_EVENT]){totalCount}`. This rule is only for a
+pull request whose `pr-open.sh` died before it armed auto-merge: one with auto-merge off and a `totalCount` of 0
+(auto-merge was never on). Auto-merge turned off on purpose is a hold (an owner wording approval, an owner budget
+review, an owner decision): any pull request with a non-zero `totalCount`, or with any recorded hold (a comment
+saying auto-merge stays off, or that it needs the owner), is never armed by this rule. For one that qualifies, do
+not copy pr-open.sh's hold rules: re-run `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` from the
+branch's worktree; it finds the open pull request and arms it only when none of its own checks (`GUARD_PATHS`,
+breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. A
+green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
+(same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
+fix, by number.
 
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
@@ -322,9 +328,11 @@ wait for the owner. A red one is classified like an agent pull request.
 
 A branch on GitHub with commits master lacks, no open pull request, and an issue with a `ready <branch> <sha>`
 marker and no later `opened <branch> ...` marker for that branch (a subagent whose `pr-open.sh` failed, or a job that
-stopped at its `ready` marker while master was red). Neither a later marker of another kind nor a tip that moved past
-the `ready` sha (a merge of master, a later commit) excuses it: open it anyway, and when the tip moved, cite both shas
-in the Proof. Open them oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
+stopped at its `ready` marker while master was red), and the issue still open. Later markers of these kinds do not
+excuse it: `fix attempt`, `inherited`, `reran`, `diagnosis`, `asked session`. A later `stranded branch <b> not
+opened`, `released`, `restarted` or newer `taken` marker does: skip the branch. A tip that moved past the `ready` sha
+is opened only when every commit after that sha is a merge of master, or when the session that owns the issue fails
+the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. Open them oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
 before any other (the `pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red,
 checked again after each one). `CI_PR_RUN_CAP` already limits how many
 pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);

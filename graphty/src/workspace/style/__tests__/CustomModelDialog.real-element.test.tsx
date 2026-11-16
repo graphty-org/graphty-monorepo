@@ -365,6 +365,22 @@ describe("the Load custom model dialog, on the real element", () => {
         await screen.findByRole("tooltip", { name: /^zz-damaged: / });
     });
 
+    it("lets Add take a set dropped again after the x took it out", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const files = (): File[] => [quadFile(), new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" })];
+        dropOn(within(dialog).getByTestId("custom-model"), files());
+        await previewOf(dialog, "quad");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Remove 2 models" }));
+        dropOn(within(dialog).getByTestId("custom-model"), files());
+        await previewOf(dialog, "quad");
+        const add = within(dialog).getByRole("button", { name: "Add 2 models" });
+        // The same files take the same ids: the model not on screen is drawn off screen again.
+        await waitFor(() => {
+            assert.notEqual(add.getAttribute("aria-disabled"), "true");
+        });
+    });
+
     it("says which models of a drop were refused", async () => {
         const { store, tab } = await openShapes();
         const dialog = await openCustom(tab);

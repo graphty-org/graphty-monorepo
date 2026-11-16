@@ -453,6 +453,10 @@ export function QuickActions({
                                     <span className="cm-qa-row-label" data-truncate={truncate} data-tone={action.tone}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>
+                                    {/* A space between the name and the description, so their words
+                                        do not run together in the row's text. Flex layout draws no
+                                        whitespace between items. */}
+                                    {action.description ? " " : null}
                                     {action.description ? (
                                         <span
                                             className="cm-qa-row-description"

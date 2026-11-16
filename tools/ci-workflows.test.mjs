@@ -941,30 +941,38 @@ describe("ci.yml", () => {
     });
 
     it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
-        assert.match(job(ci, "performance"), /continue-on-error: true/);
-        assert.doesNotMatch(job(ci, "performance"), /needs: .*test/);
-        assert.doesNotMatch(job(ci, "all-checks"), /needs: .*performance/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /continue-on-error: true/, name);
+            assert.doesNotMatch(job(ci, name), /needs: .*test/, name);
+            assert.doesNotMatch(job(ci, "all-checks"), new RegExp(`needs: .*${name}`));
+        }
     });
 
     // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
     // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
     it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
-        const perf = parseYaml(ci).jobs.performance;
-        const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
-        assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
-        const benches = perf.steps.filter((s) =>
-            /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
-        );
-        assert.equal(benches.length, 4);
-        for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
-        const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
-        for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
-        const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
-        // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
-        assert.ok(
-            deadline + tailMinutes + 1 <= perf["timeout-minutes"],
-            `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
-        );
+        // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
+        for (const [name, count] of [
+            ["algorithms-benchmarks", 1],
+            ["performance", 3],
+        ]) {
+            const perf = parseYaml(ci).jobs[name];
+            const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
+            assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
+            const benches = perf.steps.filter((s) =>
+                /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
+            );
+            assert.equal(benches.length, count, name);
+            for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
+            const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
+            for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
+            const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
+            // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
+            assert.ok(
+                deadline + tailMinutes + 1 <= perf["timeout-minutes"],
+                `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
+            );
+        }
 
         const underDeadline = (deadlineAt, ...cmd) =>
             spawnSync("bash", [join("tools", "before-deadline.sh"), ...cmd], {
@@ -1314,8 +1322,10 @@ describe("ci.yml", () => {
             );
         }
         // the benchmarks need only the build, and a light run (master) skips them
-        assert.match(job(ci, "performance"), /needs: packages\n/);
-        assert.match(job(ci, "performance"), /&& needs.packages.outputs.light != 'true'\n/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /needs: packages\n/, name);
+            assert.match(job(ci, name), /&& needs.packages.outputs.light != 'true'\n/, name);
+        }
         assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(
@@ -1354,11 +1364,22 @@ describe("ci.yml", () => {
         assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
-        for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
+        for (const name of [
+            "test",
+            "links",
+            "cost-accuracy",
+            "algorithms-benchmarks",
+            "performance",
+            "lint",
+            "checks",
+            "docs",
+        ]) {
             const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1544,7 +1565,9 @@ describe("verification runs of ci.yml", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {

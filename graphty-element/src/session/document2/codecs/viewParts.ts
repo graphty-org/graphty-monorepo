@@ -9,10 +9,9 @@
 
 import type { CameraState } from "../../../camera/types";
 import type { EdgeId, EdgeMember } from "../../../catalog/types";
+import { dispatcherOf } from "../../dispatchers";
 import { mintNoteId } from "../../notes/ids";
-import { edgeRowsOf } from "../../notes/status";
-import { edgeSpaceOf } from "../../scope/spaces";
-import type { TransactionScope } from "../../types";
+import type { GraphSession } from "../../types";
 import { projectMemory } from "../memory";
 import type { ElementRefs, JsonObject, ReadContext } from "../types";
 
@@ -397,10 +396,8 @@ export function mapRefs(value: unknown, mapper: RefMapper, pointer: string): unk
  * @param member - The member.
  * @returns The edge id, or undefined when it binds no single edge.
  */
-function edgeOfMember(session: TransactionScope, member: EdgeMember): EdgeId | undefined {
-    const snapshot = session.data.snapshot();
-    const row = edgeRowsOf(snapshot, [member])[0];
-    return row === undefined || row < 0 ? undefined : edgeSpaceOf(snapshot).idOf(row);
+function edgeOfMember(session: GraphSession, member: EdgeMember): EdgeId | undefined {
+    return dispatcherOf(session).services.edgeIdentity?.idsOf([member])[0];
 }
 
 /**
@@ -409,7 +406,7 @@ function edgeOfMember(session: TransactionScope, member: EdgeMember): EdgeId | u
  * @param refs - The element references.
  * @returns The mapper.
  */
-export function writeMapper(session: TransactionScope, refs: ElementRefs): RefMapper {
+export function writeMapper(session: GraphSession, refs: ElementRefs): RefMapper {
     return {
         node: (value) => (typeof value === "string" || typeof value === "number" ? refs.nodeRef(value) : undefined),
         edge: (value) => {

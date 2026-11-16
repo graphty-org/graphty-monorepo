@@ -12,13 +12,10 @@
  * it was read (`originals`).
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
-
 import type { EdgeId, EdgeMember } from "../../../catalog/types";
-import { EDGE_ID_COLUMN, edgeIdOf, edgeRowOf, stableEdgeMember } from "../../../data/edgeIdentity";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { dispatcherOf } from "../../dispatchers";
 import { supportedCite, supportedTarget } from "../../notes/document";
-import { edgeRowsOf, savedForms } from "../../notes/status";
 import type { Note, NoteTarget } from "../../notes/types";
 import { unknownFields } from "../../notes/validate";
 import { canonicalize } from "../../runs/runId";
@@ -67,23 +64,6 @@ const unbound = (pointer: string, ref: unknown): DocumentProblem => ({
     code: "W_REFERENCE_UNBOUND",
     params: { section: "notes", pointer, ref: canonicalize(ref) },
 });
-
-/**
- * The session edge ids of stable edge members, in one pass over the graph.
- * @param snapshot - The snapshot.
- * @param members - The members.
- * @returns One id per member, or undefined where it binds no edge.
- */
-function edgeIdsOf(snapshot: GraphSnapshot, members: readonly EdgeMember[]): (EdgeId | undefined)[] {
-    if (members.length === 0) {
-        return [];
-    }
-
-    const counters = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
-    return Array.from(edgeRowsOf(snapshot, members), (row) =>
-        row < 0 || counters === null ? undefined : edgeIdOf(counters.data[row]),
-    );
-}
 
 /**
  * A target the session kept as read (a version 2 reference that did not bind then, or a kind this
@@ -243,7 +223,7 @@ function write(context: WriteContext): Promise<{ header: SectionHeaderInput; bod
             }
         });
     });
-    const ids = edgeIdsOf(session.data.snapshot(), members);
+    const ids = members.length === 0 ? [] : (dispatcherOf(session).services.edgeIdentity?.idsOf(members) ?? []);
     const edgeIds = notes.map(() => new Map<number, EdgeId | undefined>());
     at.forEach((place, k) => edgeIds[place.note].set(place.target, ids[k]));
 
@@ -292,14 +272,13 @@ function targetIn(target: unknown, pointer: string, context: ReadContext): unkno
 
     if (isObject(target.edge)) {
         const id = refs.edge(target.edge);
-        const snapshot = context.session.data.snapshot();
-        const row = id === undefined ? -1 : edgeRowOf(snapshot, id);
-        if (row < 0) {
+        const member = id === undefined ? undefined : dispatcherOf(context.session).services.edgeIdentity?.member(id);
+        if (member === undefined) {
             context.problems.push(unbound(pointer, target.edge));
             return target;
         }
 
-        return { edge: stableEdgeMember(snapshot, row) };
+        return { edge: member };
     }
 
     return target;
@@ -377,7 +356,7 @@ function read(section: ReadSection, context: ReadContext): Promise<void> {
     const translated = notes.map((note: unknown, n) => noteIn(note, `${base}/${String(n)}`, context));
     // An edge bound by position or by a made-up id is written by its place among its pair, as a
     // load of this graph counts it, so the merge binds it.
-    const notesOf = savedForms(translated as Note[], session.data.snapshot());
+    const notesOf = dispatcherOf(session).services.notes?.saved(translated as Note[]) ?? (translated as Note[]);
 
     let report;
     try {

@@ -401,10 +401,19 @@ function readsOf(specs: readonly LayerSpec[]): (path: Path) => boolean {
 
         return value;
     });
+    // A spelling read whole: not the start of a longer name (`data.a` in `data.ab`).
+    const readsWhole = (text: string, spelling: string): boolean => {
+        for (let at = text.indexOf(spelling); at !== -1; at = text.indexOf(spelling, at + 1)) {
+            if (!/\w/.test(text.charAt(at + spelling.length))) {
+                return true;
+            }
+        }
+
+        return false;
+    };
     return (path) => {
-        const spellings = [path, quotePath(path)].map((p) => p.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
-        const pattern = new RegExp(`(?:${spellings.join("|")})(?![\\w])`);
-        return texts.some((text) => pattern.test(text));
+        const spellings = [path, quotePath(path)];
+        return texts.some((text) => spellings.some((spelling) => readsWhole(text, spelling)));
     };
 }
 

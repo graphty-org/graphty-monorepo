@@ -172,7 +172,8 @@ function stackParts(value: unknown): string | null {
 
             // the row's proportions, which name a program's arrow of several pieces (yEd's crow's feet)
             const { along, across } = capLengthOf(shape, size, width);
-            return [`${word}*${String(along)}${across === null ? "" : `x${String(across)}`}`];
+            const breadth = across === null ? "" : `x${String(across)}`;
+            return [`${word}*${String(along)}${breadth}`];
         },
     );
     return words.length === 0 ? null : words.join(" ");

@@ -91,8 +91,7 @@ describe("the framing setting", () => {
         await framed(element);
         // The spot list holds a Vector3 per node (97 MiB at a million nodes); the box kept after the
         // fit is read only for its corners, to tell whether a repaint moved the extent.
-        const { fittedBox } = (element.graph as unknown as { updateManager: { fittedBox: object | undefined } })
-            .updateManager;
+        const { fittedBox } = element.graph.getUpdateManager() as unknown as { fittedBox: object | undefined };
         assert.isDefined(fittedBox, "the fit kept its box");
         assert.sameMembers(Object.keys(fittedBox), ["min", "max"]);
     });

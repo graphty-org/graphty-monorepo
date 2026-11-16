@@ -72,6 +72,19 @@ describe("removing a plain load", () => {
         session.dispose();
     });
 
+    it("still keeps them after a project save and open (issue #8083)", async () => {
+        const { session, key } = await loaded();
+        const { text } = await session.project.save();
+        const reopened = createGraphSession();
+        await reopened.project.open(text, { discard: true });
+        assert.deepEqual(ids(reopened), ["a", "b", "c"]);
+
+        await reopened.data.removeSource(key);
+        assert.deepEqual(ids(reopened), ["a", "b"]);
+        session.dispose();
+        reopened.dispose();
+    });
+
     it("takes a node another load supplied once that load is gone", async () => {
         const session = createGraphSession();
         await session.data.import({ type: "csv", config: { data: "id\na\n" }, name: "people.csv" });

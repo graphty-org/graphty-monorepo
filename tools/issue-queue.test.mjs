@@ -264,3 +264,109 @@ describe("filter", () => {
         assert.equal(two.title, "[title by github-actions withheld: untrusted author]");
     });
 });
+
+describe("jobs", () => {
+    const BUILT = "2026-11-02T11:00:00Z";
+    const q = [
+        issue(1, "crit", ["bug", "priority:critical"]),
+        issue(2, "med a", ["bug", "priority:medium"]),
+        issue(3, "med b", ["bug", "priority:medium"]),
+        issue(4, "fam a", ["bug", "priority:low", "family:fidelity"]),
+        issue(5, "fam b", ["bug", "priority:low", "family:fidelity"]),
+        issue(6, "blocked", ["bug", "priority:low"]),
+    ];
+    const run = (cache, argv = ["jobs", "--json"]) =>
+        main(argv, runner({ pages: [q] }).run, NOW, undefined, { freeQueue: () => cache });
+    const cache = (jobList, extra = {}) => ({
+        builtAt: BUILT,
+        jobs: jobList,
+        blocked: [{ issue: 6, prs: [9] }],
+        ...extra,
+    });
+
+    it("exits stale when the free queue is missing, has no jobs list, or is over 2 hours old", () => {
+        for (const c of [
+            null,
+            { builtAt: BUILT, free: [1, 2] },
+            cache([{ issues: [1] }], { builtAt: "2026-11-02T09:59:00Z" }),
+        ]) {
+            const r = run(c);
+            assert.equal(r.code, 3);
+            assert.match(r.out, /^stale: rebuild the free queue/);
+        }
+    });
+
+    it("exits stale when a top-10 issue is in no job and not blocked, but not for a blocked one", () => {
+        const r = run(cache([{ issues: [1] }, { issues: [2] }, { issues: [3] }, { issues: [4] }]));
+        assert.equal(r.code, 3);
+        assert.match(r.out, /top of the queue in no job: #5\)$/);
+        assert.equal(run(cache([{ issues: [1, 2, 3, 4, 5] }])).code, 0);
+    });
+
+    it("merges jobs that share a file or a family, leader first in queue order, at most four issues", () => {
+        const r = JSON.parse(
+            run(
+                cache([
+                    { issues: [3, 99], files: ["a.ts", "pnpm-lock.yaml"], why: "x" },
+                    { issues: [1], files: ["a.ts"], why: "y" },
+                    { issues: [2], files: ["pnpm-lock.yaml", "b.ts"] },
+                    { issues: [4], files: ["c.ts"] },
+                    { issues: [5, 1], files: ["d.ts"] },
+                ]),
+            ).out,
+        );
+        assert.deepEqual(
+            r.jobs.map((j) => [j.lead, j.priority, j.issues]),
+            [
+                [1, "critical", [1, 3]],
+                [2, "medium", [2]],
+                [4, "low", [4, 5]],
+            ],
+        );
+        assert.equal(r.jobs[0].why, "y; x");
+    });
+
+    it("prints one line per job and the grouping count", () => {
+        const out = run(
+            cache([{ issues: [1, 2], files: ["a.ts"], why: "same file" }, { issues: [3] }, { issues: [4, 5] }]),
+            ["jobs"],
+        ).out;
+        assert.deepEqual(out.split("\n"), [
+            "job #1 #2 critical -- same file; files a.ts",
+            "job #3 medium -- no reason given; files none named",
+            "job #4 #5 low -- no reason given; files none named",
+            "3 jobs, 5 issues, 2 grouped",
+        ]);
+    });
+});
+
+describe("taken", () => {
+    const calls = [];
+    const take = (argv, env = { CLAUDE_CODE_SESSION_ID: "s1" }) =>
+        main(["taken", ...argv], runner().run, NOW, undefined, { cli: (a) => calls.push(a), env });
+
+    it("labels and marks every issue of a group with its files", () => {
+        calls.length = 0;
+        const r = take(["fix/7-x", ".worktrees/x", "7", "8", "--files", "a.ts", "b.ts", "--why", "shares a.ts"]);
+        assert.equal(r.code, 0);
+        const body =
+            "pipeline-round: taken by session s1, branch fix/7-x, worktree .worktrees/x, group #7 #8 -- shares a.ts; files a.ts b.ts";
+        assert.equal(r.out, body);
+        assert.deepEqual(calls, [
+            ["issue", "edit", "7", "-R", "graphty-org/graphty-monorepo", "--add-label", "in-progress"],
+            ["issue", "comment", "7", "-R", "graphty-org/graphty-monorepo", "--body", body],
+            ["issue", "edit", "8", "-R", "graphty-org/graphty-monorepo", "--add-label", "in-progress"],
+            ["issue", "comment", "8", "-R", "graphty-org/graphty-monorepo", "--body", body],
+        ]);
+        assert.doesNotMatch(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts", "--why", "w"]).out, /group/);
+    });
+
+    it("refuses with no files, no reason, no session or no issue, and writes nothing", () => {
+        calls.length = 0;
+        assert.match(take(["fix/7-x", ".worktrees/x", "7", "--why", "w"]).out, /--files is required/);
+        assert.match(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts"]).out, /--why is required/);
+        assert.match(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts", "--why", "w"], {}).out, /SESSION_ID/);
+        assert.equal(take(["fix/7-x", ".worktrees/x", "--files", "a.ts", "--why", "w"]).code, 2);
+        assert.deepEqual(calls, []);
+    });
+});

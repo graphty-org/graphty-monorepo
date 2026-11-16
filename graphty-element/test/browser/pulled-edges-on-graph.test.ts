@@ -65,6 +65,20 @@ function edgeId(element: Graphty, source: number, target: number): unknown {
  * @param path.antialias - The element's `antialias`.
  * @returns The element.
  */
+/**
+ * Build every row's `Node`, so a moving frame takes the full walk of every edge the engine holds
+ * (the frame walks only the rows with a `Node`), and wait for the frame that draws them.
+ */
+async function everyNodeBuilt(element: Graphty): Promise<void> {
+    assert.lengthOf([...element.graph.getNodes()], NODES.length);
+    assert.strictEqual(
+        dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
+        NODES.length,
+        "every row has its Node",
+    );
+    await element.waitForStableFrame();
+}
+
 async function loaded(
     renderer: "webgl" | "webgpu",
     pulled: boolean,
@@ -273,11 +287,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     it("are not asked about by the frame's full walk while a layout moves every node", async () => {
         const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
-        assert.strictEqual(
-            dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
-            NODES.length,
-            "the view switch built every row's Node",
-        );
+        await everyNodeBuilt(element);
         const visits = countVisits();
         const asked = { pulled: 0 };
         const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
@@ -304,6 +314,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     it("are not asked for a support point by the frame's full walk while a layout moves every node", async () => {
         const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        await everyNodeBuilt(element);
         const visits = countVisits();
         const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
         assert.isDefined(followsRows);

@@ -570,6 +570,26 @@ describe("edge label checks", () => {
         // turned along graphty's line, it is drawn as the program drew it, upright either way
         assert.isUndefined(report(text("x", 100, 200, { rotation: 90 }))["label.rotation"]);
         assert.isUndefined(report(text("x", 100, 200, { rotation: -90 }))["label.rotation"]);
+        // a program that keeps its labels level on a sloped line (vis-network's default) is matched by a level label
+        // on whatever line graphty draws, and not by one turned along it (json-vis-nodelegend, #8197)
+        const sloped = scene("oracle", {
+            edges: [
+                {
+                    ...edge(text("x", 200, 200)),
+                    points: [
+                        [120, 120],
+                        [280, 280],
+                    ],
+                },
+            ],
+        });
+        const slopedOracle: PScene = {
+            ...sloped,
+            nodes: sloped.nodes.map((n) => (n.id === "b" ? { ...n, cx: 300, cy: 300 } : n)),
+        };
+        const level = (g: PText): Record<string, string[]> => compareOracle("t", slopedOracle, unrelated(g)).failures;
+        assert.isUndefined(level(text("x", 100, 200))["label.rotation"]);
+        assert.deepEqual(level(text("x", 100, 200, { rotation: 90 }))["label.rotation"], ["edge:e1"]);
         assert.strictEqual(
             lineAngleAt(
                 [

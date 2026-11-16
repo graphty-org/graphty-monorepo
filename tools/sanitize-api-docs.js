@@ -17,6 +17,9 @@ const API_DIRS =
               "./docs/layout/api/generated",
               "./docs/cytoscape-extensions/api/generated",
               "./docs/graph-io/api/generated",
+              "./docs/graph-format/api/generated",
+              "./docs/graph-samples/api/generated",
+              "./docs/remote-logger/api/generated",
           ];
 
 async function processFile(filePath) {

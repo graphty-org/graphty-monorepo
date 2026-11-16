@@ -9,7 +9,6 @@ import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { selectionWorkspaceOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
@@ -23,7 +22,6 @@ import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -135,7 +133,7 @@ export function Workspace({
         session.scope.setOptions({
             liveMs: 50,
             askAboveMs: 1000,
-            ...(selectionWorkspaceOn(session) ? { branchPalette: cardPalette(session.catalog.palettes()) } : {}),
+            branchPalette: cardPalette(session.catalog.palettes()),
         });
         const defaults =
             project?.id === startProjectId ||
@@ -425,7 +423,6 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
-            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

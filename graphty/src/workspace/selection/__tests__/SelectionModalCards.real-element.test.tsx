@@ -28,8 +28,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The full-screen selection workspace is the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /** A graph to load: Les Miserables unless a test names another. */
 interface Sample {

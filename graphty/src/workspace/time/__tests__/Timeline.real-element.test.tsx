@@ -99,6 +99,8 @@ async function timeCard(): Promise<ReturnType<typeof within>> {
         if (item === null) {
             const wasOff = document.querySelector("graphty-element")?.session?.time.current === null;
             await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+            // The new card opens in the selection workspace: its Value list holds the Time window.
+            await userEvent.click(await screen.findByRole("button", { name: "Value" }));
             await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
             const box = await dataPlace().findByRole("checkbox", { name: "Apply Time window" });
             await waitFor(() => {
@@ -740,6 +742,8 @@ describe("the Overview and the import of time", () => {
         });
         assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no card until asked");
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the Time window.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
 
         await waitFor(() => {
@@ -763,6 +767,8 @@ describe("the Overview and the import of time", () => {
         // Off, the card stays, and "+" does not offer a second one.
         await dataPlace().findByRole("group", { name: /^Time window/ });
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the Time window.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("option", { name: "Largest component" });
         assert.isNull(screen.queryByRole("option", { name: "Time window" }));
         await userEvent.keyboard("{Escape}");

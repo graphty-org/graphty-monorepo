@@ -635,7 +635,7 @@ function RotateButtons({
     const up = (values["node.modelSourceUp"] ?? "detected") as ModelOrientation["up"];
     const turn = typeof values["node.modelTurn"] === "number" ? values["node.modelTurn"] : 0;
     return (
-        // NOSONAR(S6819): an ARIA group naming four buttons; a fieldset would draw its own border and legend
+        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming four buttons; a fieldset would draw its own border and legend
         <Group gap={4} justify="center" role="group" aria-label={CUSTOM_MODEL.rotate}>
             {TURN_STEPS.map((step) => {
                 const word = CUSTOM_MODEL.turns[step];

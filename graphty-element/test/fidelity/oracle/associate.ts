@@ -215,7 +215,32 @@ function curvedShapeOf(p: Prim): PShape | null {
     ).length;
     // a rounded rectangle rounds every corner: one drawn square is a shape with a curved side (yEd's delay, document
     // and stored data), which also fills most of its box
-    return fills > 0.86 && onSide >= 0.3 * p.points.length && p.squareCorner !== true ? "roundrect" : "other";
+    if (p.squareCorner === true || onSide < 0.3 * p.points.length) {
+        return "other";
+    }
+    // a short pill (corners rounded by half its shorter side) fills less than 0.86: one whose every point lies on the
+    // pill its box holds is one (vis-network clamps a box's borderRadius 12 to 11 on a box 22 tall, #8197)
+    return fills > 0.86 || onPill(p.points, mx, my, a, c) ? "roundrect" : "other";
+}
+
+/**
+ * Whether every point lies on the pill a box holds: a rectangle rounded by half its shorter side, within 5% of that
+ * radius (the rounded rectangle's signed distance).
+ * @param points - the outline's sampled points
+ * @param mx - the box's middle, x
+ * @param my - its middle, y
+ * @param a - its half width
+ * @param c - its half height
+ * @returns true on the pill
+ */
+function onPill(points: readonly Pt[], mx: number, my: number, a: number, c: number): boolean {
+    const r = Math.min(a, c);
+    return points.every(([x, y]) => {
+        const qx = Math.abs(x - mx) - (a - r);
+        const qy = Math.abs(y - my) - (c - r);
+        const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+        return Math.abs(sd) <= 0.05 * r;
+    });
 }
 
 /**
@@ -1859,7 +1884,12 @@ const PAST_NODE_SLACK = 1;
  * @param n - the node at that end
  * @returns true for a shape through the node
  */
-function runsThroughNode(shape: readonly Pt[], e: PEdge, end: "source" | "target", n: PNode | undefined): boolean {
+export function runsThroughNode(
+    shape: readonly Pt[],
+    e: PEdge,
+    end: "source" | "target",
+    n: PNode | undefined,
+): boolean {
     const q = endOf(e, end);
     const r = end === "source" ? (e.points[1] ?? q) : (e.points.at(-2) ?? q);
     const len = Math.hypot(r[0] - q[0], r[1] - q[1]);
@@ -1873,7 +1903,13 @@ function runsThroughNode(shape: readonly Pt[], e: PEdge, end: "source" | "target
     // (cx-radiation-bibliography 164->169), whose heads cross over: only a line leaving its node is judged
     const center = depth([n.cx, n.cy]);
     const farSide = center + (Math.abs(ux) * n.w + Math.abs(uy) * n.h) / 2;
-    return center > 0 && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
+    // a head centered on its node sits on it, not through it: yEd centers a head on a node smaller than the head
+    // (graphml-stm32-func n70->n10: a 2.7 px circle on a 0.6 px junction node reaches past its far side)
+    const box = boxOfPoints(shape);
+    const onNode =
+        Math.abs((box.x0 + box.x1) / 2 - n.cx) <= n.w / 2 + PAST_NODE_SLACK &&
+        Math.abs((box.y0 + box.y1) / 2 - n.cy) <= n.h / 2 + PAST_NODE_SLACK;
+    return center > 0 && !onNode && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
 }
 
 /**

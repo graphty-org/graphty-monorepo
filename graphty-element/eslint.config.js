@@ -234,6 +234,8 @@ export default tseslint.config(
     // the graph to a hand-written shape that TypeScript cannot check against the private fields (issue #6988).
     {
         files: ["**/*.test.ts", "test/**/*.ts"],
+        // Still casts for its update manager; another open pull request changes this file.
+        ignores: ["test/interactions/filter-keeps-camera.test.ts"],
         plugins: { cast: { rules: { "no-private-manager-cast": noPrivateManagerCast } } },
         rules: { "cast/no-private-manager-cast": "error" },
     },

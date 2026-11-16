@@ -1,5 +1,7 @@
 # @graphty/visual-review
 
+<!-- #region overview -->
+
 Visual regression review for Storybook, hosted by nobody. GitHub Actions screenshots every story
 on every pull request and compares each screenshot with an approved baseline PNG kept in your
 repository (in Git LFS). You open a review page on your own machine, see every difference side by
@@ -10,6 +12,11 @@ holds a difference nobody accepted.
 There is no service, account or per-snapshot bill: the captures live in GitHub Actions artifacts
 for 30 days, the baselines live in git, and the review page reads both through the `gh` CLI with
 your login.
+
+<!-- #endregion overview -->
+
+The documentation is also published at **https://graphty.app/docs/visual-review/**, one page
+per task.
 
 - [How it works](#how-it-works)
 - [Requirements](#requirements)
@@ -26,6 +33,8 @@ your login.
 - [Reorganizing stories: renames](#reorganizing-stories-renames)
 - [What the gate does and does not guarantee](#what-the-gate-does-and-does-not-guarantee)
 - [Troubleshooting](#troubleshooting)
+
+<!-- #region how-it-works -->
 
 ## How it works
 
@@ -51,6 +60,10 @@ your login.
 Every story needs a baseline you approved before a pull request can merge. A story with no
 baseline blocks every pull request until you accept it, either on a pull request or by seeding it
 from the default branch, so seed a project's baselines before its stories start blocking work.
+
+<!-- #endregion how-it-works -->
+
+<!-- #region setup -->
 
 ## Requirements
 
@@ -191,6 +204,10 @@ fonts. Each results.json records the SHA-256 of the directory as `environment.fo
 snapshot the fonts and `/etc/fonts/conf.d` your CI runner has today; switching to a different set
 changes every capture with text, which is one re-baseline.
 
+<!-- #endregion setup -->
+
+<!-- #region workflows -->
+
 ## The GitHub Actions workflows
 
 **`visual-review.yml`** runs on every pull request and every push to the default branch:
@@ -227,6 +244,10 @@ See [Seeding](#seeding-one-story-at-a-time).
 Both need nothing but the default `GITHUB_TOKEN`: the capture job reads Actions artifacts
 (`actions: read`); nothing in CI writes to the repository.
 
+<!-- #endregion workflows -->
+
+<!-- #region first-review -->
+
 ## Your first review: seeding baselines
 
 A project has no baselines until you accept some, and the gate fails closed until it has them:
@@ -242,6 +263,10 @@ the capture:
    issue listing the rejects.
 4. Merge the seed pull request once its own run shows its accepted items `unchanged`. From then
    on, every pull request that changes how a seeded story looks is blocked until you accept it.
+
+<!-- #endregion first-review -->
+
+<!-- #region review -->
 
 ## Opening the review page
 
@@ -829,6 +854,10 @@ message:
 - **The comment with the accept notes was not posted**: the accepts are done; the message names
   the notes, which are not kept.
 
+<!-- #endregion review -->
+
+<!-- #region passkey -->
+
 ## Approving with a passkey
 
 A passkey (Face ID or Touch ID, kept in iCloud Keychain or another passkey manager) proves that
@@ -923,6 +952,10 @@ administrator past the failing check. Removing every key is refused the same way
 `visual-review/passkeys.json` sits at that path in every repository that uses this tool. It
 holds public keys only: `{ "version": 1, "keys": [{ "id", "publicKey", "rpId", "label",
 "registeredAt" }] }`, with the public key as base64url SubjectPublicKeyInfo (P-256).
+
+<!-- #endregion passkey -->
+
+<!-- #region baselines -->
 
 ## Updating from the default branch
 
@@ -1085,6 +1118,10 @@ from its own artifact, and nothing else:
 - **One approval at a time.** Finish is refused while a candidate is offered (review it instead) or
   while another approval pull request (`visual/approve-*`) is open. Otherwise two approvals could
   merge together and leave the default branch with a baselines tree you never signed.
+
+<!-- #endregion baselines -->
+
+<!-- #region capture -->
 
 ## Iterating on a story before a pull request exists
 
@@ -1289,6 +1326,10 @@ with the light one; a mode the new story no longer has is still reported `remove
 `renames.json` is read from the pull request's own checkout, like the baselines. Only baseline
 PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the same pull request.
 
+<!-- #endregion capture -->
+
+<!-- #region gate -->
+
 ## What the gate does and does not guarantee
 
 - A pull request cannot pass the gate while its capture of a gated project holds anything but
@@ -1357,6 +1398,10 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   on that host (another dev server, a Storybook on another port) can call the passkey prompt with
   a challenge of its choosing; the prompt names only the host. Approve only from the review page,
   right after pressing Finish. A host that serves nothing but the review page closes this.
+
+<!-- #endregion gate -->
+
+<!-- #region troubleshooting -->
 
 ## Troubleshooting
 
@@ -1440,3 +1485,5 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   graphics stack differ from machine to machine unless the config's `fontconfig` pins the fonts.
   A local preview you accepted that CI draws differently comes back to you undecided on CI's
   capture: accept it there. See [local previews](https://github.com/graphty-org/graphty-monorepo/blob/master/design/visual-testing/local-previews.md).
+
+<!-- #endregion troubleshooting -->

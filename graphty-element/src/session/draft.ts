@@ -10,7 +10,7 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, setReaderSignal } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
@@ -415,6 +415,10 @@ export async function readSource(
     const reader = DataSource.get(type, config);
     if (reader === null) {
         throw unknownFormat(type);
+    }
+
+    if (signal !== undefined) {
+        setReaderSignal(reader, signal);
     }
 
     const named = source.name ?? type;

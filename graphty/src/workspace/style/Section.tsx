@@ -331,7 +331,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                         <AddButton
                             kind={ctx.side}
                             title={spec.title}
-                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
+                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap((d) => optionsFor(d))}
                             disabledReason={notAvailable(ctx, spec) ?? undefined}
                             onAdd={(key) => {
                                 if (key.startsWith(ITEM_KEY)) {
@@ -575,7 +575,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         store.set({ announcement: `${name} added` });
     };
     return (
-        <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"
@@ -822,7 +822,7 @@ export function AddButton({
                             <Menu.Sub.Target>
                                 <Menu.Sub.Item>{option.label}</Menu.Sub.Item>
                             </Menu.Sub.Target>
-                            <Menu.Sub.Dropdown>{option.choices.map(item)}</Menu.Sub.Dropdown>
+                            <Menu.Sub.Dropdown>{option.choices.map((each) => item(each))}</Menu.Sub.Dropdown>
                         </Menu.Sub>
                     );
                 })}

@@ -9,7 +9,7 @@ import { type CodedFact, type CodedFactParam, GraphtyError } from "@graphty/grap
 import { formatNumber } from "../inspector/words";
 
 /** The app's names for sources whose catalog name is not the reader's word, by catalog id. */
-const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API" };
+const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API", url: "Load from URL" };
 
 /**
  * A source's name in the app: the catalog's, or the app's own where the catalog's is jargon
@@ -21,7 +21,7 @@ export function kindName(entry: SourceCatalogEntry): string {
     return KIND_NAMES[entry.id] ?? entry.descriptor.plainName;
 }
 
-/** A short label per source code (graph-io's `SOURCE_ISSUE`); the code itself for any other. */
+/** A short label per source code (graph-io's `SOURCE_ISSUE`, and the file issues a url load reports); the code itself for any other. */
 const CODE_WORDS: Readonly<Record<string, string>> = {
     E_FETCH: "unreachable",
     E_FETCH_FAILED: "unreachable",
@@ -42,11 +42,15 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     E_SOURCE_LIMIT: "over the limit",
     E_SOURCE_UNSUPPORTED: "not supported",
     E_TOO_LARGE: "too large to draw",
+    E_PARSE_FAILED: "unreadable file",
+    E_EMPTY_LOAD: "empty file",
     W_SOURCE_LIMIT: "capped",
     W_SOURCE_AUTH: "sign-in needed for more",
     W_SOURCE_RETRIED: "retried",
     W_SOURCE_VALUE: "unread value",
     W_STYLES_NOT_IMPORTED: "styles not read",
+    W_DUPLICATE_NODE: "repeated node ids merged",
+    W_CSV_NO_UNIQUE_ID: "no unique id column: nodes numbered by row",
 };
 
 /** What each of graph-io's caps counts. */
@@ -67,6 +71,10 @@ export function codeWords(fact: CodedFact): string {
     }
     if (typeof name === "string") {
         return `${words}: ${name}`;
+    }
+    if (fact.code === "E_PARSE_FAILED" && typeof fact.params.format === "string") {
+        const line = typeof fact.params.line === "number" ? `, line ${String(fact.params.line)}` : "";
+        return `${words}: ${fact.params.format.toUpperCase()}${line}`;
     }
     const host = typeof origin === "string" && URL.canParse(origin) ? new URL(origin).host : null;
     return host === null ? words : `${words}: ${host}`;

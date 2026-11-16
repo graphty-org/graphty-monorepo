@@ -203,7 +203,7 @@ export type ExportLossCode =
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
  * `registerFormatWriter` reports its own codes.
  */
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // NOSONAR(S4335): the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
 
 /** What `exportGraph` returns. */
 export interface ExportResult {

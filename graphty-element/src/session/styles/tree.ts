@@ -32,7 +32,7 @@ import type { LayerId, StyleDocumentRow } from "../../catalog/types";
 import type { CompiledLayer } from "./Layer";
 
 /** A row's id: its layer's id for a layer row, an element-minted `folder:` id for a folder. */
-export type StyleRowId = string; // NOSONAR(S6564): public API name in api/session.api.md, removing it is breaking
+export type StyleRowId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- public API name in api/session.api.md, removing it is breaking
 
 /** Where a row is pinned among its siblings. */
 export type StyleRowPin = "top" | "bottom" | "none";
@@ -606,6 +606,18 @@ export function drawsOutsideWindow(stack: readonly CompiledLayer[]): boolean {
  * @returns True when that kind is drawn.
  */
 export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: "node" | "edge"): boolean {
+    const visible = outsideWindowVisible(painted, target);
+    return visible !== undefined && visible !== false;
+}
+
+/**
+ * The `visible` the topmost painting layer selecting `{ match: "state", state: "outsideWindow" }`
+ * sets for one kind, or undefined when no such layer sets it.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns The value it sets.
+ */
+function outsideWindowVisible(painted: readonly CompiledLayer[], target: "node" | "edge"): unknown {
     for (let at = painted.length - 1; at >= 0; at--) {
         const { layer } = painted[at];
         const visible = layer.set?.[`${target}.visible`];
@@ -616,11 +628,11 @@ export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: 
             layer.selector.state === "outsideWindow" &&
             visible !== undefined
         ) {
-            return visible !== false;
+            return visible;
         }
     }
 
-    return false;
+    return undefined;
 }
 
 /**
@@ -631,21 +643,5 @@ export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: 
  */
 export function hidesOutsideWindow(stack: readonly CompiledLayer[]): boolean {
     const painted = paintedStack(stack);
-    return (["node", "edge"] as const).some((target) => {
-        for (let at = painted.length - 1; at >= 0; at--) {
-            const { layer } = painted[at];
-            const visible = layer.set?.[`${target}.visible`];
-            if (
-                layer.enabled &&
-                layer.target === target &&
-                layer.selector.match === "state" &&
-                layer.selector.state === "outsideWindow" &&
-                visible !== undefined
-            ) {
-                return visible === false;
-            }
-        }
-
-        return false;
-    });
+    return (["node", "edge"] as const).some((target) => outsideWindowVisible(painted, target) === false);
 }

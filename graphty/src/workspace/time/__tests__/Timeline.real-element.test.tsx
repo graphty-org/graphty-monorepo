@@ -795,6 +795,8 @@ describe("the Overview and the import of time", () => {
 
         assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no Filters card");
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the filterable values.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("option", { name: "Largest component" });
         assert.isNull(screen.queryByRole("option", { name: "Time window" }));
         await userEvent.keyboard("{Escape}");

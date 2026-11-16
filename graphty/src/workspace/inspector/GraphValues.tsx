@@ -290,7 +290,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
                     value={
                         <Tooltip label={gloss} multiline w={220}>
                             <span
-                                tabIndex={0} // NOSONAR(S6845): focusable so a keyboard reader can open the tooltip that explains the measurement
+                                tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- focusable so a keyboard reader can open the tooltip that explains the measurement
                             >
                                 {measurement}
                             </span>

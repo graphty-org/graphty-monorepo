@@ -1237,9 +1237,12 @@ function readNodeStyle(
         put("fillOpacity", 0);
     }
     putPaint(fill, "fill", "fillOpacity", put, at);
-    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`)
+    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`), nor does an open
+    // one with no tab, whatever its stroke: yEd Live paints its panel alone (`tab-position-none`)
     const stroke = prop(style, "stroke");
-    putStroke(stroke === undefined && style.tag === "GroupNodeStyle" ? NULL : strokeOf(refs, stroke), put, at);
+    const group = style.tag === "GroupNodeStyle";
+    const untabbed = group && !collapsed && treeAttr(style.e, "tabPosition") === "NONE";
+    putStroke((stroke === undefined && group) || untabbed ? NULL : strokeOf(refs, stroke), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     putIntrinsicSize(refs, style, shape, size, put);
@@ -2488,7 +2491,7 @@ function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
         }
     };
     // each alternative is one negated character class, so a token is matched once per character, over a capped text
-    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // NOSONAR(typescript:S5852): linear, no nested or overlapping quantifier
+    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // linear, no nested or overlapping quantifier
     for (const [token] of tokens) {
         const tag = markupTag(token);
         if (tag === null) {

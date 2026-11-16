@@ -1,5 +1,7 @@
 # SonarQube for the pre-push gate: what the server can do, and what a scan costs
 
+> Retired 2026-11-16: replaced by ESLint rules and jscpd (issue #8365).
+
 Research for running SonarQube as a local pre-push gate on graphty-monorepo. Measured on
 2026-10-02 against the owner's server and the `feat/sonarqube-prepush` worktree (master at
 f3786c38a).

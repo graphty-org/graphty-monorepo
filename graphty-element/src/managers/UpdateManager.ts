@@ -14,7 +14,6 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
-import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -27,11 +26,13 @@ import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import { DEFAULT_NODE_SCREEN_REFERENCE, type SizeView, viewSizeScale } from "../render/nodeSizeSpace";
 import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
+import { inXR } from "../xr/inXR";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -42,7 +43,7 @@ import type { LayoutManager } from "./LayoutManager";
 import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
-import { type NodePaint, plainEdgePaint, plainNodePaint, type StylePainter } from "./StylePainter";
+import { type NodePaint, type NodeSizeSpace, plainEdgePaint, plainNodePaint, type StylePainter } from "./StylePainter";
 
 /** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
 const GLOBE_FRAMING = 1.1;
@@ -169,13 +170,7 @@ function* columnBoxes(
             continue;
         }
 
-        // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
-        // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
-        const local = table.centerOf(row);
-        if (!table.isHeld(row) && !table.laneOf(row, local)) {
-            local.copyFrom(table.centerOf(row));
-        }
-
+        const local = columnCenter(table, row);
         const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
             yield { min: center, max: center.clone() };
@@ -191,6 +186,23 @@ function* columnBoxes(
 
         yield { min: center.subtract(size), max: center.add(size) };
     }
+}
+
+/**
+ * Where a row drawn with no `Node` is drawn now, inside the transform the batches draw in.
+ * @param table - The row table.
+ * @param row - The row.
+ * @returns A new vector.
+ */
+export function columnCenter(table: RowTable, row: number): Vector3 {
+    // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
+    // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
+    const local = table.centerOf(row);
+    if (!table.isHeld(row) && !table.laneOf(row, local)) {
+        local.copyFrom(table.centerOf(row));
+    }
+
+    return local;
 }
 
 /**
@@ -1955,6 +1967,8 @@ export class UpdateManager implements Manager {
      * @internal
      */
     dataCleared(): void {
+        this.viewSized.clear();
+        this.unsized.clear();
         this.reportedPlain.nodes = 0;
         this.reportedPlain.edges = 0;
     }
@@ -2405,6 +2419,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the last pass left a finished state that no drawn frame has shown yet: the frame
+     * about to be drawn is the one that would be called final. Tests aim a race at that frame.
+     * @returns True between a pass that finished the state and the first frame drawn from it.
+     * @internal
+     */
+    get finalFrameIsNext(): boolean {
+        return this.stateIsFinished && !this.drawnFrameIsFinished;
+    }
+
+    /**
      * Say that meshes were built outside a pass that moves anything, so the finished picture has
      * to be earned again.
      *
@@ -2582,15 +2606,9 @@ export class UpdateManager implements Manager {
             "the camera has not finished framing the graph",
             () => this.fitIsStale() || (this.willZoomToFit() && !this.framingHasNothingToFrame),
         );
-        // The depth-independent size switched on or off and not yet applied to the meshes, or the
-        // screen size on a map changed with the camera since the meshes were scaled.
-        work.watch(
-            "sizing",
-            "node sizes have not been fitted to the view yet",
-            () =>
-                (this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled ||
-                this.screenSizingScale() !== this.screenScaled,
-        );
+        // A node's size space or the graph-wide one changed and not yet applied to the meshes, or
+        // the view moved since view-sized nodes were last scaled, or the last pass still scaled one.
+        work.watch("sizing", "node sizes have not been fitted to the view yet", () => this.sizingPending());
         // An edge on screen not yet cut back to the nodes at the scale the zoom stopped at.
         work.watch(
             "sizing",
@@ -2804,9 +2822,13 @@ export class UpdateManager implements Manager {
         transitions?.endPass();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
-        const scaled = this.sizeNodesForDepth();
-        if (this.screenScaled !== null && this.depthSizingPivot() === null) {
-            this.retrimForScreenScale(this.screenScaled, scaled);
+        const scaled = this.sizeNodesForView();
+        // A node drawn at a new scale is a new picture: its label's texture is fitted to its size on screen again.
+        if (scaled) {
+            this.pending.changed();
+        }
+        if (this.viewScaled) {
+            this.retrimForNodeScales(scaled);
         } else {
             this.trimmedAt = new WeakMap();
             this.retrimPending = false;
@@ -4015,11 +4037,8 @@ export class UpdateManager implements Manager {
         }
     }
 
-    /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
-    private screenScaled: number | null = null;
-
-    /** The screen scale each edge was last cut back to its nodes' surfaces at. */
-    private trimmedAt = new WeakMap<Edge, number>();
+    /** The scales of its two ends each edge was last cut back to its nodes' surfaces at. */
+    private trimmedAt = new WeakMap<Edge, readonly [number, number]>();
 
     /**
      * The counter (`StatsManager`, when profiling) of edges cut back to their nodes' surfaces
@@ -4028,7 +4047,7 @@ export class UpdateManager implements Manager {
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
 
     /**
-     * How far the nodes' screen scale may drift, as a ratio, while a zoom is under way before an
+     * How far a node's view scale may drift, as a ratio, while a zoom is under way before an
      * edge is cut back to its nodes' new surfaces. Between, an edge ends up to this share of a
      * node's radius short of it or inside it, about a pixel at the sizes nodes are drawn on a map;
      * once the zoom stops each edge on screen is cut exactly.
@@ -4048,20 +4067,19 @@ export class UpdateManager implements Manager {
     private readonly lastView = new Float32Array(16);
 
     /**
-     * Cut edges back to their nodes' surfaces after `nodeScale: "screen"` scaled the nodes. Every
-     * zoom step scales every node, and cutting all 36,906 routes of the OpenFlights sample (each
+     * Cut edges back to their nodes' surfaces after `node.sizeSpace` scaled the nodes. Every
+     * zoom step scales every view-sized node, and cutting all 36,906 routes of the OpenFlights sample (each
      * a raised arc) on every one took about 300 ms a step, so zooming was slow and choppy while
      * turning, which keeps the scale, stayed smooth. Only an edge with an end on screen is cut (an
      * end off screen shows no gap), and while the zoom is under way only once the scale has
-     * drifted past {@link RETRIM_BAND} from the one it was cut at; once the view holds still,
+     * drifted past {@link RETRIM_BAND} from the ones it was cut at; once the view holds still,
      * exactly. An edge left uncut off screen is cut when the view brings an end of it on screen.
      *
-     * ponytail: O(nodes + edges) a frame while the option is on, a test per node and a look-up per
-     * edge; an index of edges by node would make it O(edges of the nodes on screen).
-     * @param scale - The nodes' screen scale now.
-     * @param scaled - Whether the scale changed this pass.
+     * ponytail: O(nodes + edges) a frame while a node is view-sized, a test per node and a look-up
+     * per edge; an index of edges by node would make it O(edges of the nodes on screen).
+     * @param scaled - Whether a node's scale changed this pass.
      */
-    private retrimForScreenScale(scale: number, scaled: boolean): void {
+    private retrimForNodeScales(scaled: boolean): void {
         const camera = this.graphContext.getScene().activeCamera;
         if (camera === null) {
             return;
@@ -4086,7 +4104,9 @@ export class UpdateManager implements Manager {
             }
 
             const at = this.trimmedAt.get(edge);
-            const drift = at === undefined ? Infinity : Math.abs(scale / at - 1);
+            const ends = [edge.srcNode.drawnScale, edge.dstNode.drawnScale] as const;
+            const drift =
+                at === undefined ? Infinity : Math.max(Math.abs(ends[0] / at[0] - 1), Math.abs(ends[1] / at[1] - 1));
             if (drift <= tolerance) {
                 // Within the band while moving: cut exactly once the view holds still.
                 this.retrimPending ||= drift > 0;
@@ -4094,7 +4114,7 @@ export class UpdateManager implements Manager {
             }
 
             edge.invalidatePositionCache();
-            this.trimmedAt.set(edge, scale);
+            this.trimmedAt.set(edge, ends);
             cut++;
         }
 
@@ -4138,6 +4158,87 @@ export class UpdateManager implements Manager {
         return onScreen;
     }
 
+    /** The map frame the camera last turned to face, so a new map is faced once. */
+    private facedFrame: LocationMapFrame | null = null;
+
+    /** The nodes whose own style sets a size space other than "scene" (see {@link markViewSized}). */
+    private readonly viewSized = new Set<Node>();
+
+    /** Nodes that left {@link viewSized} since the last sizing pass, sized once more (back to 1). */
+    private unsized = new Set<Node>();
+
+    /** Whether a node joined or left {@link viewSized} since the last sizing pass. */
+    private sizingDirty = false;
+
+    /** The graph-wide size space the last sizing pass used. */
+    private sizedDefault: NodeSizeSpace = "scene";
+
+    /** Whether the last sizing pass changed a node's scale. */
+    private sizingChanged = false;
+
+    /** Whether node meshes may carry a view scale, so the next pass with none to size puts them back to 1. */
+    private viewScaled = false;
+
+    /** The view matrix the last sizing pass sized at. */
+    private readonly sizedView = new Float32Array(16);
+
+    /**
+     * Say whether a node's own style sets a size space that follows the view (`node.sizeSpace`
+     * other than "scene"), so the frame loop sizes it without visiting every node.
+     * @param node - The node.
+     * @param on - Whether it does.
+     * @internal
+     */
+    markViewSized(node: Node, on: boolean): void {
+        if (on) {
+            if (!this.viewSized.has(node)) {
+                this.viewSized.add(node);
+                this.unsized.delete(node);
+                this.sizingDirty = true;
+            }
+        } else if (this.viewSized.delete(node)) {
+            this.unsized.add(node);
+            this.sizingDirty = true;
+        }
+    }
+
+    /**
+     * Forget a disposed node, so no sizing pass touches it.
+     * @param node - The node.
+     * @internal
+     */
+    viewSizedNodeDisposed(node: Node): void {
+        this.viewSized.delete(node);
+        this.unsized.delete(node);
+    }
+
+    /**
+     * The graph-wide size space: `layoutBehavior.node.sizeSpace`, "scene" when unset.
+     * @returns The size space.
+     */
+    private defaultSizeSpace(): NodeSizeSpace {
+        return this.graphContext.getStyles().config.behavior.node.sizeSpace ?? "scene";
+    }
+
+    /**
+     * Whether the node sizes are not yet fitted to the view: a node's size space or the graph-wide
+     * one changed since the last sizing pass, or a node is view-sized and the view moved since, or
+     * that pass still changed a scale.
+     * @returns True while a sizing pass is owed.
+     */
+    private sizingPending(): boolean {
+        if (this.sizingDirty || this.defaultSizeSpace() !== this.sizedDefault) {
+            return true;
+        }
+
+        if (!this.viewScaled) {
+            return false;
+        }
+
+        const view = this.graphContext.getScene().activeCamera?.getViewMatrix().m;
+        return this.sizingChanged || (view !== undefined && this.sizedView.some((v, i) => v !== Math.fround(view[i])));
+    }
+
     /**
      * Put every node mesh back to scale 1.
      * @returns Whether any node's scale changed.
@@ -4154,132 +4255,89 @@ export class UpdateManager implements Manager {
         return changed;
     }
 
-    /** The map frame the camera last turned to face, so a new map is faced once. */
-    private facedFrame: LocationMapFrame | null = null;
-
-    /** Whether a node mesh currently carries a depth-independent scale. */
-    private depthScaled = false;
-
     /**
-     * The point whose depth every node is drawn at, when depth-independent size applies: the
-     * option is on and the active camera is the perspective orbit camera.
-     * @returns The orbit's pivot, or null when sizes follow the perspective.
+     * What a sizing pass reads off the camera, and the view it was read at kept for `sizingPending`.
+     * @param camera - The active camera.
+     * @returns A point's view depth, the view's size, and the orbit pivot's depth (null when none).
      */
-    private depthSizingPivot(): TransformNode | null {
-        const camera = this.graphContext.getScene().activeCamera;
-        const orbit = this.camera.getActiveController();
-        return this.graphContext.getStyles().config.behavior.node.depthIndependentSize === true &&
-            camera?.mode === Camera.PERSPECTIVE_CAMERA &&
-            orbit instanceof OrbitCameraController
-            ? orbit.pivot
-            : null;
-    }
-
-    /**
-     * The scale that holds every node at one size on screen while the location map layout runs
-     * with `nodeScale: "screen"`: a node of size 1 is drawn as one scene unit is when the map's
-     * extent fills the view's height, whatever the zoom, on a flat map and on a globe alike. Null when the layout does not ask for it.
-     * @returns The scale, or null.
-     */
-    private screenSizingScale(): number | null {
-        const engine = this.layoutManager.layoutEngine as
-            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string; flatNodeScale?: number } } | undefined;
-        const frame = engine?.geoFrame;
-        const camera = this.graphContext.getScene().activeCamera;
-        if (frame === undefined || frame === null || engine?.config?.nodeScale !== "screen" || camera === null) {
-            return null;
-        }
-
-        // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
-        // A flat map is framed whole, so `mapScale` shows only if its nodes stay the same size
-        // against the drawn map: dividing the scale back out left them touching at any scale.
-        // ponytail: a globe still divides it out, so `mapScale` does not thin its nodes; dropping
-        // the division there too makes them six times smaller at the app's scale.
-        const extent =
-            frame.surface === "flat" ? frame.size / (engine?.config?.flatNodeScale ?? 1) : frame.size / frame.mapScale;
+    private sizingFrame(camera: Camera): {
+        depthOf: (p: Vector3) => number;
+        sizeView: SizeView;
+        zPivot: number | null;
+    } {
+        const view = camera.getViewMatrix().m;
+        this.sizedView.set(view);
+        const depthOf = (p: Vector3): number => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14];
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
+            return {
+                depthOf,
+                sizeView: { orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) },
+                zPivot: null,
+            };
         }
 
-        // Nodes stand on the map's surface: the flat map at the point the camera turns about, the
-        // globe's face under the camera, its height above the globe.
         const orbit = this.camera.getActiveController();
-        const globe = frame.surface === "globe";
-        const target =
-            orbit instanceof OrbitCameraController && !globe ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
-        const eye = Vector3.Distance(camera.globalPosition, target);
-        return screenNodeScale({ fov: camera.fov, depth: mapDepth(eye, globe ? frame.radius : 0) }, extent);
+        const zPivot = orbit instanceof OrbitCameraController ? depthOf(orbit.pivot.getAbsolutePosition()) : null;
+        return { depthOf, sizeView: { fov: camera.fov }, zPivot };
     }
 
     /**
-     * Draw every node at the size it would have at the orbit's pivot depth when
-     * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
-     * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
-     * divides by the depth, so the drawn size is world size over the pivot depth for every node.
-     * On a map with `nodeScale: "screen"` every node is scaled too, so it keeps its size on screen
-     * as the camera zooms. Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     * Scale each node mesh for its size space (`node.sizeSpace`, else
+     * `layoutBehavior.node.sizeSpace`): "pivot" by its view depth over the orbit pivot's, "screen"
+     * by the view's height at its depth over the layout's `nodeScreenReference`. Only the nodes
+     * whose style sets a size space are visited, or every node when the graph-wide one follows the
+     * view. With none to size, and in XR, every node goes back to scale 1.
      *
-     * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
-     * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
+     * ponytail: O(view-sized nodes) every frame while any is.
      * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
      */
-    private sizeNodesForDepth(): boolean {
-        const camera = this.graphContext.getScene().activeCamera;
-        const pivot = this.depthSizingPivot();
-        const screen = this.screenSizingScale();
-        this.screenScaled = screen;
-        const on = pivot !== null || screen !== null;
+    private sizeNodesForView(): boolean {
+        const scene = this.graphContext.getScene();
+        const camera = scene.activeCamera;
+        const fallback = this.defaultSizeSpace();
+        const all = fallback !== "scene";
+        // The graph-wide space just went back to "scene": every node it sized returns to 1.
+        const leftAll = !all && this.sizedDefault !== "scene";
+        const { unsized } = this;
+        this.unsized = new Set();
+        this.sizingDirty = false;
+        this.sizedDefault = fallback;
+        this.sizingChanged = false;
 
-        if (!on && !this.depthScaled) {
-            return false;
-        }
-
-        if (!on) {
-            const changed = this.resetNodeScales();
-            this.depthScaled = false;
-
+        if (camera === null || inXR(scene) || (!all && this.viewSized.size === 0)) {
+            const changed = this.viewScaled && this.resetNodeScales();
+            this.viewScaled = false;
             return changed;
         }
 
-        const view = camera?.getViewMatrix().m;
-        const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
-        this.depthScaled = true;
-        const reference = pivot === null ? 1 : depthOf(pivot.getAbsolutePosition());
-        if (Number.isNaN(reference) || reference <= 0) {
-            return false;
-        }
+        const { depthOf, sizeView, zPivot } = this.sizingFrame(camera);
+        const reference = this.layoutManager.layoutEngine?.nodeScreenReference ?? DEFAULT_NODE_SCREEN_REFERENCE;
 
-        return this.scaleNodesByDepth(screen, pivot, depthOf, reference);
-    }
-
-    /**
-     * Scale every node mesh by its view depth over the pivot's, times the screen scale.
-     * @param screen - The location map's screen scale, or null.
-     * @param pivot - The orbit's pivot, or null when sizes do not follow depth.
-     * @param depthOf - A point's depth in the view.
-     * @param reference - The pivot's depth (1 without a pivot).
-     * @returns Whether any node's scale changed.
-     */
-    private scaleNodesByDepth(
-        screen: number | null,
-        pivot: TransformNode | null,
-        depthOf: (p: Vector3) => number,
-        reference: number,
-    ): boolean {
         let changed = false;
-        for (const node of this.layoutManager.nodes) {
-            let scale = screen ?? 1;
-            if (pivot !== null) {
-                const depth = depthOf(node.drawnWorldPosition);
-                scale *= depth > 0 ? depth / reference : 1;
-            }
-
+        const size = (node: Node): void => {
+            const space = node.sizeSpace ?? fallback;
+            const scale = viewSizeScale(space, sizeView, depthOf(node.drawnWorldPosition), zPivot, reference);
             if (Math.abs(node.drawnScale - scale) > 1e-4) {
                 node.drawnScale = scale;
                 changed = true;
             }
+        };
+        for (const node of all ? this.layoutManager.nodes : this.viewSized) {
+            size(node);
         }
 
+        // A node whose style stopped following the view goes back to the graph-wide space's size,
+        // and so does every node when the graph-wide space stopped following it.
+        if (!all) {
+            for (const node of leftAll ? this.layoutManager.nodes : unsized) {
+                if (!this.viewSized.has(node)) {
+                    size(node);
+                }
+            }
+        }
+
+        this.viewScaled = true;
+        this.sizingChanged = changed;
         return changed;
     }
 
@@ -4289,14 +4347,6 @@ export class UpdateManager implements Manager {
      */
     meshesShownOrHidden(): void {
         this.sceneChanged = true;
-    }
-
-    /**
-     * Whether a node's size follows the view, which a batched row carries in its matrix.
-     * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
-     */
-    get nodesScaledByView(): boolean {
-        return this.depthSizingPivot() !== null || this.screenScaled !== null;
     }
 
     /**

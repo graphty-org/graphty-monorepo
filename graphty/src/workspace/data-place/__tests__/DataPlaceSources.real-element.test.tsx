@@ -21,8 +21,8 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { sourceName } from "../words";
 
-// The Sources tab belongs to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * College football, then Les Miserables added to it, in the workspace on the Data place.

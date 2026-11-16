@@ -1291,7 +1291,7 @@ export function kindBounds(kind: KindIndex): readonly [number, number] | null {
         return null;
     }
 
-    return kind.spans?.bounds ?? [kind.sorted[0], kind.sorted[kind.sorted.length - 1]]; // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
+    return kind.spans?.bounds ?? [kind.sorted[0], kind.sorted[kind.sorted.length - 1]]; // eslint-disable-line unicorn/prefer-at -- noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
 }
 
 /**

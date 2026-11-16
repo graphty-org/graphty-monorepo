@@ -840,7 +840,7 @@ export function TimeDock(): React.JSX.Element | null {
     );
 
     return (
-        <section // NOSONAR(S6847): Space plays and pauses as it bubbles from the dock's own controls
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- Space plays and pauses as it bubbles from the dock's own controls
             className={phone ? "tl-dock tl-phone" : "tl-dock"}
             aria-label="Timeline"
             ref={ref}

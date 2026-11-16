@@ -37,7 +37,14 @@ import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import {
+    batchableOf,
+    type BatchView,
+    bootstrapNodePaint,
+    type NodePaint,
+    type NodeSizeSpace,
+    shaderPartOf,
+} from "./managers/StylePainter";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
@@ -488,7 +495,7 @@ export class Node implements ModelUser {
     #modelMarked = false;
     /** The animation this node's model instances play from, to forget it when the model changes. */
     #playing: TemplateAnimation | null = null;
-    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
@@ -610,7 +617,43 @@ export class Node implements ModelUser {
     private fittedExtent: { width: number; height: number } | null = null;
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
-    private drawnStyle: NodeStyleConfig | null = null;
+    #drawnStyle: NodeStyleConfig | null = null;
+
+    /**
+     * The style the current mesh was built from.
+     * @returns The style, or null before the first.
+     */
+    private get drawnStyle(): NodeStyleConfig | null {
+        return this.#drawnStyle;
+    }
+
+    /**
+     * Take the style the mesh is now drawn with, and tell the frame loop whether its size follows
+     * the view (`node.sizeSpace`), so only such nodes are visited each frame.
+     * @param style - The style.
+     */
+    private set drawnStyle(style: NodeStyleConfig | null) {
+        this.#drawnStyle = style;
+        this.context.getUpdateManager?.().markViewSized(this, (style?.shape?.sizeSpace ?? "scene") !== "scene");
+    }
+
+    /**
+     * How this node's drawn size follows the camera, as its style sets it (`node.sizeSpace`);
+     * undefined when the style sets none, and `layoutBehavior.node.sizeSpace` applies.
+     * @returns The size space, or undefined.
+     * @internal
+     */
+    get sizeSpace(): NodeSizeSpace | undefined {
+        return this.#drawnStyle?.shape?.sizeSpace;
+    }
+
+    /** The last answer of {@link Node.compareDrawn}, and the two styles it compared. */
+    private comparedDrawn: {
+        style: NodeStyleConfig;
+        drawn: NodeStyleConfig | null;
+        equal: boolean;
+        equalButFill: boolean;
+    } | null = null;
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
     /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
@@ -913,8 +956,8 @@ export class Node implements ModelUser {
             return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
-        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
-        // camera turns, and its edges must stop at the surface it is drawn with.
+        // The scale too: `node.sizeSpace` rescales a node mesh as the camera moves, and its edges
+        // must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.#anchor && this.roundRadiusScale === this.#anchor.scaling.x) {
             return this.roundRadiusValue;
         }
@@ -2575,7 +2618,7 @@ export class Node implements ModelUser {
         // impostor's pick proxy must never share one, since the proxy's source is not drawn.
         const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
-            meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (samePath && this.compareDrawn(o).equal && isEqual(color, this.drawnColor));
         const model = this.modelFor(o);
         return (
             sameGeometry &&
@@ -2831,6 +2874,30 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How a style compares with the one the mesh was drawn from: deep-equal, and deep-equal but for
+     * its fill. One deep comparison answers both (the fill is one small subtree), and the answer is
+     * kept for the same two objects: a repaint asks `nodeRebuildsFor` about a paint and then draws
+     * it, and each asked `keepsMeshFor` and then `movesFor`, so a filter that ghosts every node
+     * compared every node's whole style four times, most of a repaint at 50,000 nodes (#7966). A
+     * paint's style is built fresh and never written after (as `reachOutline` relies on too),
+     * so the identity of the pair stands for what they hold.
+     * @param o - The resolved style.
+     * @returns Both answers; both false when nothing is drawn yet.
+     */
+    private compareDrawn(o: NodeStyleConfig): { equal: boolean; equalButFill: boolean } {
+        const drawn = this.drawnStyle;
+        const kept = this.comparedDrawn;
+        if (kept?.style === o && kept.drawn === drawn) {
+            return kept;
+        }
+
+        const equalButFill = drawn !== null && isEqual(withoutFill(o), withoutFill(drawn));
+        const equal = equalButFill && isEqual(o.texture, drawn?.texture);
+        this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        return this.comparedDrawn;
+    }
+
+    /**
      * Whether a paint that does not keep this node's mesh can move the mesh onto its source instead
      * of building another (`moveInstance`): a paint that differs from the drawn one only in its
      * fill's color and opacity, which are in the source's material and `visibility` alone, so the
@@ -2850,7 +2917,7 @@ export class Node implements ModelUser {
             drawn !== null &&
             this.drawnModel === null &&
             shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
-            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            this.compareDrawn(o).equalButFill &&
             !this.fitIsStale(o) &&
             this.modelFor(o) === null &&
             this.imageFor(o) === this.drawnImage
@@ -3255,6 +3322,7 @@ export class Node implements ModelUser {
         this.#playing = null;
         this.rowTable?.drop(this.row);
         this.context.getNodeBatches?.()?.leave(this);
+        this.context.getUpdateManager?.().viewSizedNodeDisposed(this);
 
         this.pointerHandler?.dispose();
         this.pointerHandler = undefined;

@@ -234,6 +234,8 @@ describe("the timeline in the app", () => {
         assert.deepEqual(session.time.field, { edges: { start: "sent" } });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the filterable values.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Time window" }), "the window is no filter");
         await userEvent.keyboard("{Escape}");

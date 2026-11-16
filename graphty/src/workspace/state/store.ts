@@ -25,6 +25,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
+import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference } from "../settings/preferences";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -297,6 +298,11 @@ export interface WorkspaceState {
      * true or false is the reader's own choice.
      */
     readonly sameSizeAtAnyDepth: boolean | null;
+    /**
+     * Settings, General: while the map layout is drawn, every node keeps one size on screen. On by
+     * default; kept in this browser.
+     */
+    readonly mapDepthIndependentSize: boolean;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
@@ -427,6 +433,7 @@ export const ON_RELOAD = {
     serverKind: "fresh: set when the server form opens",
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
+    mapDepthIndependentSize: "fresh: read from this browser's settings at start",
     notice: "fresh: a notice",
     noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
     announcement: "fresh: a status line already spoken",
@@ -526,6 +533,7 @@ const INITIAL: WorkspaceState = {
     labelsAvoid: true,
     layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
+    mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
     exportOn: "image",
@@ -626,7 +634,11 @@ export function newProjectId(state: WorkspaceState): number {
  * @returns the store.
  */
 export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): WorkspaceStore {
-    let state: WorkspaceState = { ...INITIAL, ...initial };
+    let state: WorkspaceState = {
+        ...INITIAL,
+        mapDepthIndependentSize: readPreference(MAP_DEPTH_INDEPENDENT_SIZE) === "on",
+        ...initial,
+    };
     const listeners = new Set<() => void>();
     return {
         get: () => state,

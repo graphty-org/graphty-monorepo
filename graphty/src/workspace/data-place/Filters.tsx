@@ -30,7 +30,6 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { FilterSelection } from "../selection/FilterSelection";
@@ -123,8 +122,8 @@ function newFilterSelection(session: GraphSession, side: Side, field?: CardField
 const hides = (condition: FilterCondition): boolean => condition.effect !== "select";
 
 /**
- * The Filters section: one card per condition, in the element's order, the new cards while they
- * have no value, then the time window's row. "+" adds a card. One card is open at a time; the rest
+ * The Filters section: one card per condition, the new cards while they have no value first, then
+ * the conditions newest first, then the time window's row. "+" adds a card. One card is open at a time; the rest
  * rest as their summary. A load's section lists that load's filters, and "+" there makes one for
  * that load (graphty-element's `FilterCondition.source`): it judges only that load's nodes and
  * edges, and counts "N of that load's". The primary section takes the Filters command and
@@ -281,12 +280,9 @@ export function FiltersSection({
         );
     const written = conditions.map((condition) => ({ id: condition.id, condition, draft: undefined }));
     const fresh = waiting.map((each) => ({ id: each.id, condition: undefined, draft: each }));
-    // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
-    // layers; it stays there once written.
-    const cards =
-        session !== null && selectionWorkspaceOn(session)
-            ? [...fresh, ...written.toReversed()]
-            : [...written, ...fresh];
+    // The newest filter is on top, a new one's row first, as Figma lists layers; it stays there once
+    // written.
+    const cards = [...fresh, ...written.toReversed()];
     const empty = cards.length === 0;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     // A load's section says what its filters leave of that load.
@@ -319,13 +315,7 @@ export function FiltersSection({
             empty={empty}
         >
             {empty || session === null ? null : (
-                <Stack
-                    component="ul"
-                    role="list"
-                    aria-label="Filters"
-                    gap={selectionWorkspaceOn(session) ? 2 : 6}
-                    className="dp-filters"
-                >
+                <Stack component="ul" role="list" aria-label="Filters" gap={2} className="dp-filters">
                     {cards.map((each) => (
                         // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
                         <FilterCard
@@ -532,18 +522,15 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.removeCondition(id));
     };
     // Drawn: the values the card reads; said: the card's rule in words, as the filter chip says it.
-    // In the selection workspace a card is named by what the reader typed, else by all its cards'
-    // summary ("Louvain: Group 3 + Degree 8 to 36"), never only its first value.
-    const cards = selectionWorkspaceOn(session);
+    // A card is named by what the reader typed, else by all its cards' summary ("Louvain: Group 3 +
+    // Degree 8 to 36"), never only its first value.
     const [draftName, setDraftName] = useState<string | undefined>(undefined);
     const given = condition === undefined ? draftName : condition.name;
     const summary =
         selection === null || selection.branches.every((branch) => branch.steps.length === 0)
             ? undefined
             : cardsWords(session, selection, reading);
-    const title = cards
-        ? (given ?? summary ?? cardName(session, condition, selection, side, fresh?.field?.name))
-        : cardName(session, condition, selection, side, fresh?.field?.name);
+    const title = given ?? summary ?? cardName(session, condition, selection, side, fresh?.field?.name);
     const rename = (next: string | undefined): void => {
         if (condition === undefined) {
             setDraftName(next);
@@ -553,7 +540,7 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.updateCondition(id, { name: next }));
     };
     const [renaming, setRenaming] = useState(false);
-    const renameProps = cards ? { name: draftName, onRename: rename } : {};
+    const renameProps = { name: draftName, onRename: rename };
     // A selection is said as its title says it; a rule no editor reads, in its own words.
     const name = title;
     // The box says what the element holds: a saved Select card that is on still selects, so it
@@ -571,9 +558,8 @@ function FilterCard({
     };
     // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
     // own: Space on the title row switches it, and the title row says when it is off. On a resting
-    // row in the selection workspace the row's group says the filter once, so its controls go by
-    // short names (Use, Edit, More).
-    const short = cards && !open;
+    // row the row's group says the filter once, so its controls go by short names (Use, Edit, More).
+    const short = !open;
     const onBox = (inEditor: boolean): React.ReactNode =>
         draft ? null : (
             <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
@@ -637,7 +623,7 @@ function FilterCard({
 
     return (
         <li>
-            <div // NOSONAR(S6819): a condition card, drawn like every Filters card; a fieldset brings its own border and legend
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a condition card, drawn like every Filters card; a fieldset brings its own border and legend
                 ref={box}
                 role="group"
                 data-id={id}
@@ -699,7 +685,7 @@ function FilterCard({
                         // and nothing said, so the arrows go on switching (WCAG 3.2.2, ws-polish 3).
                         openPicker={draft && stepless && !switched}
                         // A saved filter opened from its row or its Edit opens the workspace on it at once.
-                        openTitle={(draft && switched) || switchIn.current || (cards && !draft)}
+                        openTitle={(draft && switched) || switchIn.current || !draft}
                         switchedSide={draft && switched}
                         onDraft={setDraftRule}
                         onEmptyCancel={
@@ -733,7 +719,7 @@ function FilterCard({
                 ) : (
                     <div className="sel-row dp-filter-row">
                         {onBox(false)}
-                        {cards && renaming && (
+                        {renaming && (
                             <InlineRename
                                 value={title}
                                 label={`Rename ${title}`}
@@ -750,7 +736,7 @@ function FilterCard({
                             />
                         )}
                         {/* The whole row opens the card, as Figma's collapsed layer rows do; the on box stays its own. */}
-                        {!(cards && renaming) && (
+                        {!renaming && (
                             <UnstyledButton
                                 className="dp-filter-name"
                                 aria-label={
@@ -771,14 +757,7 @@ function FilterCard({
                             >
                                 {/* A long description wraps to two lines, then is cut short; its tooltip says it whole. */}
                                 <Tooltip label={title} openDelay={500} multiline maw={280}>
-                                    <Text
-                                        size="sm"
-                                        fw={cards ? undefined : 600}
-                                        truncate={cards ? undefined : true}
-                                        lineClamp={cards ? 2 : undefined}
-                                        span
-                                        className="dp-filter-title"
-                                    >
+                                    <Text size="sm" lineClamp={2} span className="dp-filter-title">
                                         {title}
                                     </Text>
                                 </Tooltip>
@@ -793,7 +772,7 @@ function FilterCard({
                                 )}
                             </UnstyledButton>
                         )}
-                        {cards && !renaming && (
+                        {!renaming && (
                             // The card's commands, Rename first (Figma's layer row menu).
                             <Menu position="bottom-end" withinPortal>
                                 <Menu.Target>

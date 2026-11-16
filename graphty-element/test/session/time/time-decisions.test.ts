@@ -358,6 +358,12 @@ describe("the window, its step and playback", () => {
         assert.isBelow(windowCount(session.visibility).edges, 6, "the window leaves edges out");
         assert.strictEqual(visible.edgeCount, 6);
         assert.strictEqual(session.data.statistics().edgeCount, 6);
+        // Measured once per visible set, however often it is read (#7966).
+        assert.strictEqual(session.data.statistics({ scope: "visible" }), visible);
+        await session.time.window({ from: T0, to: T0 + 3 * DAY, step: "day" });
+        const wider = session.data.statistics({ scope: "visible" });
+        assert.notStrictEqual(wider, visible);
+        assert.strictEqual(wider.edgeCount, session.visibility.summary.visibleEdges);
         session.dispose();
     });
 });

@@ -27,6 +27,7 @@ import { setNumberFormat, useNumberFormats } from "./numberFormat";
 import {
     ACCELERATION,
     fileStylesChoice,
+    MAP_DEPTH_INDEPENDENT_SIZE,
     NUMBER_FORMAT,
     readPreference,
     SINGLE_KEY_SHORTCUTS,
@@ -45,8 +46,8 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
 
 /**
- * General: Theme (the app's chrome only), Number format, Default timeline style and Import styles
- * from files.
+ * General: Theme (the app's chrome only), Number format, Default timeline style, Import styles
+ * from files and the map layout's node size rule.
  * @returns The section
  */
 function General(): React.JSX.Element {
@@ -55,9 +56,10 @@ function General(): React.JSX.Element {
     const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
     // The switch belongs to the element's file styles experiment; the stored preference is kept. The
     // start screen has no session yet, so there the site's feature list decides, as the element will.
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const styled = session ? fileStylesOn(session) : siteFileStyles();
     const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
+    const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
     return (
         <Stack gap="md">
             <Input.Wrapper label="Theme" description="The app's panels and menus.">
@@ -120,6 +122,16 @@ function General(): React.JSX.Element {
                     }}
                 />
             ) : null}
+            <Switch
+                label="Map layout automatically enables depth-independent size"
+                description="While the map layout is drawn, nodes keep their size on screen at any depth and zoom."
+                checked={mapAuto}
+                onChange={(event) => {
+                    const next = event.currentTarget.checked;
+                    store.set({ mapDepthIndependentSize: next });
+                    writePreference(MAP_DEPTH_INDEPENDENT_SIZE, next ? "on" : "off");
+                }}
+            />
         </Stack>
     );
 }

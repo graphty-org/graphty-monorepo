@@ -802,7 +802,7 @@ export function dataMember(
             links: edges.map(({ id: _id, ...edge }) => edge),
         },
         ...(source === null ? {} : { source: withoutSecrets(source) }),
-        ...(sources.length === 0 ? {} : { sources: sources.map(withoutSecrets) }),
+        ...(sources.length === 0 ? {} : { sources: sources.map((each) => withoutSecrets(each)) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
     };
 }
@@ -1689,6 +1689,7 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
                             .map((at) => (typeof at === "number" ? edgeIds[at] : undefined))
                             .filter((id): id is EdgeId => id !== undefined),
                     ),
+                    ...(Array.isArray(supplied.held) ? { held: Object.freeze([...supplied.held]) } : {}),
                 }),
             ]),
         ),
@@ -2238,7 +2239,7 @@ function ghostedLeavesOutside(rule: RuleTree): RuleTree {
             return rule.state === "ghosted" ? { ...rule, state: "outsideWindow" } : rule;
         case "all":
         case "any": {
-            const of = rule.of.map(ghostedLeavesOutside);
+            const of = rule.of.map((each) => ghostedLeavesOutside(each));
             return of.every((each, at) => each === rule.of[at]) ? rule : { ...rule, of };
         }
         case "not": {

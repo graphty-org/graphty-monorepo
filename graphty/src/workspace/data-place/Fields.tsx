@@ -946,18 +946,14 @@ function SourceFields({
  * @param props - Component props
  * @param props.sources - `data.sources()`
  * @param props.selected - the selected load
- * @param props.filters - draw each load as a section of its own, holding its Filters (the
- * `selection-workspace` experiment's Sources tab)
  * @returns the section, or nothing before the element has come up
  */
 export function Fields({
     sources,
     selected,
-    filters = false,
 }: Readonly<{
     sources: readonly LoadedSource[];
     selected: LoadedSource | undefined;
-    filters?: boolean;
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
@@ -979,12 +975,12 @@ export function Fields({
     useEffect(() => {
         // Not on the first drawing: only a new pick scrolls the panel.
         if (drawn.current) {
-            // The picked load's group: first under Attributes, at its own place as a section.
-            const at = filters ? sourcesRef.current.findIndex((each) => each.key === selected?.key) : 0;
+            // The picked load's section, at its own place.
+            const at = sourcesRef.current.findIndex((each) => each.key === selected?.key);
             groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
         }
         drawn.current = true;
-    }, [selected?.key, filters]);
+    }, [selected?.key]);
     if (session === null) {
         return null;
     }
@@ -998,29 +994,22 @@ export function Fields({
             </ControlSection>
         );
     }
-    // As their own sections, the loads keep the Data sources list's order; as groups under
-    // Attributes, the selected one comes first.
-    const ordered =
-        filters || selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
-    const list = (
-        <div ref={groups} className={filters ? "dp-source-sections" : "dp-field-groups"}>
-            {ordered.map((source) => (
+    // Each load is a section of its own, holding its Filters, in the Data sources list's order.
+    return (
+        <div ref={groups} className="dp-source-sections">
+            {sources.map((source) => (
                 <ControlSection
                     key={source.key}
                     label={sourceName(source)}
-                    // With its filters, a load's group is a section of its own.
-                    headingLevel={filters ? undefined : 3}
-                    empty={!filters && empty(source)}
                     opened={opened[source.key] ?? source === selected}
                     onOpenChange={(open) => {
                         setOpened((was) => ({ ...was, [source.key]: open }));
                     }}
                 >
                     <SourceFields session={session} source={source} />
-                    {filters && <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />}
+                    <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />
                 </ControlSection>
             ))}
         </div>
     );
-    return filters ? list : <ControlSection label="Attributes">{list}</ControlSection>;
 }

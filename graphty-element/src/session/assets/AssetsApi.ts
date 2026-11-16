@@ -1429,6 +1429,42 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     };
 
     /**
+     * Take each model of a set as its own record, in order. Stopped partway, it keeps nothing it
+     * took: the models already in, and the one still being read once it settles, are let go unless
+     * the session held them before.
+     * @param models - Each model's main file and the files it uses.
+     * @param files - The set's files, by path.
+     * @param options - A signal and a progress listener.
+     * @returns The settled records.
+     */
+    const intakeEach = async (
+        models: readonly { readonly main: string; readonly files: readonly string[] }[],
+        files: ReadonlyMap<string, Uint8Array>,
+        options: AddAssetOptions,
+    ): Promise<AssetRecord[]> => {
+        const records: AssetRecord[] = [];
+        const heldBefore = new Set([...api.list(), ...api.waiting()].map((r) => r.id));
+        const letGo = (r: AssetRecord): void => {
+            if (!heldBefore.has(r.id)) {
+                api.remove(r.id);
+            }
+        };
+        for (const model of models) {
+            const own = new Map(model.files.map((path) => [path, files.get(path) as Uint8Array]));
+            const work = intake(own, options, model.main);
+            try {
+                records.push(await waitFor(work, options, undefined));
+            } catch (error) {
+                records.forEach(letGo);
+                work.then(letGo, () => undefined);
+                throw error;
+            }
+        }
+
+        return records;
+    };
+
+    /**
      * What a fetch does when its answer came from another host (design 2.6): the page's own code
      * and an unasked fetch go on; a fetch whose host the reader or the project allowed asks again
      * for the host it was sent to, as the same kind of request.
@@ -2029,28 +2065,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             // A friendly id names one model, so each of several takes its digest.
             const { name: _name, ...each } = options;
-            const records: AssetRecord[] = [];
-            // Stopped partway, the call keeps nothing it took: the models already in, and the one
-            // still being read once it settles, are let go unless the session held them before.
-            const heldBefore = new Set([...api.list(), ...api.waiting()].map((r) => r.id));
-            const letGo = (r: AssetRecord): void => {
-                if (!heldBefore.has(r.id)) {
-                    api.remove(r.id);
-                }
-            };
-            for (const model of models) {
-                const own = new Map(model.files.map((path) => [path, files.get(path) as Uint8Array]));
-                const work = intake(own, each, model.main);
-                try {
-                    records.push(await waitFor(work, each, undefined));
-                } catch (error) {
-                    records.forEach(letGo);
-                    work.then(letGo, () => undefined);
-                    throw error;
-                }
-            }
-
-            return records;
+            return intakeEach(models, files, each);
         },
 
         ready(ref, options = {}) {

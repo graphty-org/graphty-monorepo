@@ -14,7 +14,6 @@ import {
     engineOf,
     isDrawn,
     LAYOUT_SEED,
-    layoutDescription,
     layoutName,
     MAP_LAYOUT,
     randomSeed,

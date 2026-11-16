@@ -1408,7 +1408,7 @@ export class RenderManager implements Manager {
     /**
      * Draw the next frames fast or multisampled, for `"at-rest"`. Fast is the scene drawn into
      * {@link fastPass}'s target, which has no multisampling, and copied to the canvas, with every
-     * straight 3D line batch on the lean program: the frame `antialias: false` draws, plus the
+     * straight line batch on the lean program: the frame `antialias: false` draws, plus the
      * copy. Multisampled is the scene drawn straight to the canvas, which is the frame `true` draws.
      * A camera that draws into a target of its own or through rig cameras (a headset's) is always
      * drawn multisampled.

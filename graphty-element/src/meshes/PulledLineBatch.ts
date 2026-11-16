@@ -85,7 +85,7 @@ const LEAN_DEFINE = "#define EDGE_PULLED_LEAN";
 const SWITCHING = new WeakMap<Scene, Set<PulledLineBatch>>();
 
 /**
- * Draw every straight 3D line batch of a scene with the lean program (`EDGE_PULLED_LEAN`) or with
+ * Draw every straight line batch of a scene with the lean program (`EDGE_PULLED_LEAN`) or with
  * the join template, from the next frame on: `antialias: "at-rest"` draws its moving frames lean
  * and the frame it rests on joined, the picture `antialias: true` draws. Neither moves a piece or
  * sends a table again; the first use of each program compiles it.
@@ -231,7 +231,7 @@ export class PulledLineBatch {
      * @param template.indices - Its corners: the vertex each draws, which its shader holds too.
      * @param template.vertices - Its vertices.
      * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
-     *     3D batch drawing the join template.
+     *     batch drawing the join template, 2D or 3D.
      */
     constructor(
         mesh: Mesh,

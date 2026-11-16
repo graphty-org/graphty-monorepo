@@ -40,9 +40,9 @@ on:
                 type: string
                 required: false
                 default: ""
-        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # The caller's needs.<job>.result is canceled when any job here ended canceled, an advisory
         # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
-        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        # judges a canceled call by this instead (#4556): All Checks Pass needs every job that gates.
         outputs:
             checks:
                 description: "All Checks Pass's result: success when every job that gates passed"
@@ -66,14 +66,14 @@ on:
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # Master push runs share one group but never cancel a running build (design/ci/channels-pipeline.md section
 # 7.1, #3938): a running master build always finishes, and a newer push replaces only the waiting one, so
-# master always finishes building its newest commit however often merges land. Cancelling the running build
+# master always finishes building its newest commit however often merges land. Canceling the running build
 # starved master of any finished build while merges came faster than one build (2026-10-26). A replaced
 # waiting build only means the newest one is built instead. tools/master-guard.mjs reads such a run as
 # superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
-# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# build, so a canceled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
 # (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
-# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
-# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
+# commit's own group, so it never cancels a newer build and is never canceled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever canceled.
 concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -85,7 +85,7 @@ concurrency:
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
-# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# Mesa software rasterizer (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
 # (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
@@ -132,7 +132,7 @@ jobs:
     # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
     # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
-    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is cancelled and that
+    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
     # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
     # skip the wait. Change the limits with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and
     # `gh variable set CI_PR_RUN_CAP --body <n|off>`.
@@ -316,7 +316,7 @@ jobs:
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
-            # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
+            # about 30 jobs against an organization limit of about 60 concurrent jobs, so two open pull
             # requests queued each other; a pull request confined to graph-io now runs one test shard, not
             # twenty-one. A manual dispatch and the release train's call pass every project as "affected", so
             # they run every shard; the release train runs it on the exact commit it publishes. A push to
@@ -662,7 +662,7 @@ jobs:
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
             # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
             # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
-            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # canceled six master builds in a row, so no site was deployed). Every call is bounded, a
             # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
@@ -1386,6 +1386,14 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
 
+            # American spelling in the prose and comments of the files a pull request changes (tools/check-spelling.mjs,
+            # #671; .husky/pre-push runs it too). `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+            - name: American spelling (changed files)
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r node tools/check-spelling.mjs
+
             - name: Bundle size (graphty-element)
               if: steps.scope.outputs.bundle == 'true'
               run: pnpm run check:bundle-size
@@ -1942,7 +1950,7 @@ jobs:
                   path: ~/.cache/lavapipe-debs
                   key: ${{ steps.lavapipe-key.outputs.key }}
 
-            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # The software rasterizer this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
             # Print the image, the C library and the installed Mesa version so a lane's environment is readable
             # from its own log instead of inferred from the runner label. Never fails the step.
@@ -2278,8 +2286,8 @@ jobs:
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
-    # cancelled one, and a job that reaches its timeout-minutes is cancelled, which makes the whole run conclude
-    # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # canceled one, and a job that reaches its timeout-minutes is canceled, which makes the whole run conclude
+    # canceled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
     # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
     # timeout-minutes, all inside the job's 50.
     # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
@@ -3491,7 +3499,7 @@ jobs:
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job for an unaffected
-    # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
+    # package) is "skipped", and skipped counts as passing; failure and canceled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
     # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job

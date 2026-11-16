@@ -37,6 +37,7 @@ tools/check-quick.test.mjs
 tools/load-time.test.mjs
 tools/check-saved-format-allowlist.test.mjs
 tools/check-site.test.mjs
+tools/check-spelling.test.mjs
 tools/check-test-integrity.test.mjs
 tools/chromium-env.test.mjs
 tools/ci-budgets.test.mjs

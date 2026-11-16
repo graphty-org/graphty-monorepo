@@ -29,3 +29,7 @@ PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base "$PUSH_B
 
 # No pile of images added outside the folders that hold them (tools/check-committed-images.mjs).
 node "$GATE_DIR/tools/check-committed-images.mjs" || exit 1
+
+# American spelling in the prose and comments of the files this push changes (tools/check-spelling.mjs, #671); CI's
+# lint job runs the same check. `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+git diff --name-only --diff-filter=d -z "$(git merge-base "$PUSH_BASE_REF" HEAD)" HEAD | xargs -0 -r node "$GATE_DIR/tools/check-spelling.mjs" || exit 1

@@ -477,51 +477,54 @@ function alarmingStep(v, verdicts) {
 export async function syncIssues(gh, verdicts, owner = "pipeline") {
     const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
     let closed;
-    const recentlyClosed = async (v) => {
-        closed ??= await gh(`/issues?state=closed&labels=ci-budget&per_page=100`);
-        const since = Date.now() - REOPEN_DAYS * 86_400_000;
-        return closed.find((i) => i.title.startsWith(issuePrefix(v)) && Date.parse(i.closed_at) >= since);
-    };
     const comment = (number, body) =>
         gh(`/issues/${number}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+    // a new alarm: reopen the key's issue if it closed in the last 7 days, else file one
+    const raiseAlarm = async (v) => {
+        closed ??= await gh(`/issues?state=closed&labels=ci-budget&per_page=100`);
+        const since = Date.now() - REOPEN_DAYS * 86_400_000;
+        const old = closed.find((i) => i.title.startsWith(issuePrefix(v)) && Date.parse(i.closed_at) >= since);
+        if (old) {
+            await gh(`/issues/${old.number}`, { method: "PATCH", body: JSON.stringify({ state: "open" }) });
+            await comment(old.number, issueBody(v));
+            return { action: "reopen", number: old.number };
+        }
+        const title = `${issuePrefix(v)}${fmt(v.earlier)} -> ${fmt(v.recent)}`;
+        const labels = [...ISSUE_LABELS, ...(owner === "pipeline" ? [] : [owner])];
+        const made = await gh(`/issues`, {
+            method: "POST",
+            body: JSON.stringify({ title, body: issueBody(v), labels }),
+        });
+        return { action: "file", number: made?.number };
+    };
     const issueOf = new Map();
+    const act = async (v) => {
+        const issue = open.find((i) => i.title.startsWith(issuePrefix(v)));
+        if (issue && v.alarm) {
+            await comment(issue.number, issueBody(v));
+            return { action: "comment", number: issue.number };
+        }
+        if (issue) {
+            if (!v.clear) return null;
+            await comment(issue.number, `Back under both lines: last 5 runs ${fmt(v.recent)}.`);
+            await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
+            return { action: "close", number: issue.number };
+        }
+        if (!v.alarm) return null;
+        const step = alarmingStep(v, verdicts);
+        const stepIssue = step && issueOf.get(issuePrefix(step));
+        if (!stepIssue) return raiseAlarm(v);
+        await comment(stepIssue, `Also over the line, same slowdown:\n\n${issueBody(v)}`);
+        return { action: "fold", number: stepIssue };
+    };
     const done = [];
     // steps first, so a job or run that folds into its step finds the step's issue
     const ordered = [...verdicts].sort((a, b) => b.key.startsWith("step:") - a.key.startsWith("step:"));
     for (const v of ordered) {
-        const issue = open.find((i) => i.title.startsWith(issuePrefix(v)));
-        const step = v.alarm && !issue ? alarmingStep(v, verdicts) : undefined;
-        const stepIssue = step && issueOf.get(issuePrefix(step));
-        let number = issue?.number;
-        if (v.alarm && issue) {
-            await comment(issue.number, issueBody(v));
-            done.push({ action: "comment", key: v.key, kind: v.kind, number });
-        } else if (stepIssue) {
-            await comment(stepIssue, `Also over the line, same slowdown:\n\n${issueBody(v)}`);
-            done.push({ action: "fold", key: v.key, kind: v.kind, number: stepIssue });
-        } else if (v.alarm) {
-            const old = await recentlyClosed(v);
-            if (old) {
-                number = old.number;
-                await gh(`/issues/${number}`, { method: "PATCH", body: JSON.stringify({ state: "open" }) });
-                await comment(number, issueBody(v));
-                done.push({ action: "reopen", key: v.key, kind: v.kind, number });
-            } else {
-                const title = `${issuePrefix(v)}${fmt(v.earlier)} -> ${fmt(v.recent)}`;
-                const labels = [...ISSUE_LABELS, ...(owner === "pipeline" ? [] : [owner])];
-                const made = await gh(`/issues`, {
-                    method: "POST",
-                    body: JSON.stringify({ title, body: issueBody(v), labels }),
-                });
-                number = made?.number;
-                done.push({ action: "file", key: v.key, kind: v.kind, number });
-            }
-        } else if (issue && v.clear) {
-            await comment(issue.number, `Back under both lines: last 5 runs ${fmt(v.recent)}.`);
-            await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
-            done.push({ action: "close", key: v.key, kind: v.kind, number });
-        }
-        if (v.alarm && number) issueOf.set(issuePrefix(v), number);
+        const r = await act(v);
+        if (!r) continue;
+        done.push({ action: r.action, key: v.key, kind: v.kind, number: r.number });
+        if (v.alarm && r.number) issueOf.set(issuePrefix(v), r.number);
     }
     return done;
 }

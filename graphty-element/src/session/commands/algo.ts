@@ -41,6 +41,7 @@ import type {
 import { deepFreeze, type Draft } from "../project/draft";
 import type { ProjectState } from "../project/state";
 import type { RowUpdate } from "../types";
+import { refreshDerivedAfter } from "./derive";
 
 /** `algo.remove`: take a finished run, and every layer bound to it, out of the project. */
 export interface AlgoRemoveCommand {
@@ -160,7 +161,11 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     // `valueLabels`: a re-run carries the names given to its groups to the groups they became.
     keys: () => ["runs", "styles", "valueLabels", "shaders"],
     lane: { kind: "queued", category: "algorithm-run" },
-    execute: (command, ctx) => required(ctx.services.runs).run(command, ctx),
+    execute: async (command, ctx) => {
+        const out = await required(ctx.services.runs).run(command, ctx);
+        refreshDerivedAfter(ctx);
+        return out;
+    },
 };
 
 const algoLegacy: UndoableDefinition<AlgoLegacyCommand> = {
@@ -206,7 +211,10 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     draws: true,
     keys: () => ["runs", "styles", "shaders"],
     lane: { kind: "immediate" },
-    execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
+    execute: (command, ctx) => {
+        refreshDerivedAfter(ctx);
+        return required(ctx.services.runs).remove(command, ctx.draft);
+    },
 };
 
 /**

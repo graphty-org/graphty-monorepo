@@ -13,6 +13,8 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import { drawnText } from "../config/RichTextStyle";
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
@@ -44,6 +46,11 @@ export interface NodePaint {
     readonly style: NodeStyleConfig;
     /** The colour to write into this node's instance, or null when no layer painted one. */
     readonly color: Rgba | null;
+    /**
+     * Set on a plain paint ({@link plainNodePaint}) whose row's own paint draws a label: label sampling
+     * may still pick the row, and then builds it a `Node` for the label.
+     */
+    readonly labelled?: boolean;
 }
 
 /**
@@ -132,7 +139,26 @@ export function plainNodePaint(paint: NodePaint): NodePaint {
         texture: only(style.texture, PLAIN_TEXTURE_KEYS),
         effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
     };
-    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+    const labelled = drawnText(style.label) !== undefined;
+    return {
+        meshKey: `${PLAIN_PREFIX}${paint.meshKey}`,
+        style: plain,
+        color: paint.color,
+        ...(labelled ? { labelled } : {}),
+    };
+}
+
+/** What a plain paint's mesh key starts with ({@link plainNodePaint}, {@link plainEdgePaint}). */
+const PLAIN_PREFIX = "plain|";
+
+/**
+ * Whether a paint is a plain one, drawn for a row past an object budget.
+ * @param paint - The paint.
+ * @param paint.meshKey - Its mesh key: a plain paint's starts with {@link PLAIN_PREFIX}.
+ * @returns True for {@link plainNodePaint}'s and {@link plainEdgePaint}'s.
+ */
+export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
+    return paint.meshKey.startsWith(PLAIN_PREFIX);
 }
 
 /** The line keys a plain line keeps. */
@@ -151,7 +177,7 @@ export function plainEdgePaint(paint: EdgePaint): EdgePaint {
         ...(style.visible === undefined ? {} : { visible: style.visible }),
         line,
     } as EdgeStyleConfig;
-    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+    return { meshKey: `${PLAIN_PREFIX}${paint.meshKey}`, style: plain };
 }
 
 /** The texture a plain body keeps: its color, never a picture. */
@@ -706,6 +732,64 @@ function resolveRelativeExtents(style: NodeStyleConfig): NodeStyleConfig {
     return { ...style, shape };
 }
 
+/** The smallest node size and edge width drawn: the project setting `minMarkSize`. */
+export interface MarkMinimums {
+    /** In `node.size` units; absent or 0, nodes are drawn as painted. */
+    readonly node?: number;
+    /** In `edge.width` units; absent or 0, edges are drawn as painted. */
+    readonly edge?: number;
+}
+
+/** The node size drawn when no layer paints one. */
+const NODE_SIZE = NODE_BASE.shape?.size ?? 1;
+
+/** The edge width drawn when no layer paints one. */
+const EDGE_WIDTH = EDGE_BASE.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+
+/** Marks a resolved style {@link floored} raised, so its paint is keyed apart from the unraised one. */
+const FLOORED = new WeakSet<ResolvedStyle>();
+
+/**
+ * A resolved style with its size raised to the minimum, or the same style when it is drawn at
+ * least that large (always, with no minimum). The style is the paint's, never the stack's: what
+ * the layers wrote, and every reading of it, is untouched.
+ * @param resolved - Everything the stack painted the element.
+ * @param channel - The size channel: `node.size` or `edge.width`.
+ * @param minimum - The smallest size drawn, 0 for none.
+ * @param fallback - The size drawn when no layer paints one.
+ * @returns The style to paint from.
+ */
+function floored(resolved: ResolvedStyle, channel: Channel, minimum: number, fallback: number): ResolvedStyle {
+    if (minimum <= 0) {
+        return resolved;
+    }
+
+    const value = resolved[channel];
+    if ((typeof value === "number" ? value : fallback) >= minimum) {
+        return resolved;
+    }
+
+    const raised: ResolvedStyle = { ...resolved, [channel]: minimum };
+    FLOORED.add(raised);
+    return raised;
+}
+
+/**
+ * A paint whose size was raised, keyed apart from one drawn at the same mesh key unraised: the
+ * interned key follows what the layers wrote, and the renderer caches a source mesh by this key.
+ * @param paint - The paint.
+ * @param resolved - The style it was built from.
+ * @param minimum - The size it was raised to, when it was.
+ * @returns The paint, or a copy with the raised size in its key.
+ */
+function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: ResolvedStyle, minimum: number): T {
+    if (!FLOORED.has(resolved)) {
+        return paint;
+    }
+
+    return { ...paint, meshKey: `${paint.meshKey}|min${String(minimum)}` };
+}
+
 /**
  * Build one edge's paint from the channels the pass resolved for it.
  * @param resolved - Everything the stack painted this edge.
@@ -1171,10 +1255,19 @@ export function bootstrapEdgePaint(directed = true): EdgePaint {
 export class StylePainter {
     /**
      * Make a painter.
-     * @param directed - Whether the graph is directed now. Asked once per edge painted, so it
-     *     must be cheap; a painter with no graph behind it draws edges as directed.
+     * @param directed - Whether the edge on a snapshot row is directed now: the graph's direction,
+     *     or the edge's own in a graph that mixes both. Asked once per edge painted, so it must be
+     *     cheap; a painter with no graph behind it draws edges as directed.
+     * @param minimums - The smallest node size and edge width drawn (the project setting
+     *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      */
-    constructor(private readonly directed: () => boolean = () => true) {}
+    constructor(
+        private readonly directed: (row: number) => boolean = () => true,
+        private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+    ) {}
+
+    /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
+    private floorSeen = "";
 
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
@@ -1429,6 +1522,27 @@ export class StylePainter {
     }
 
     /**
+     * The smallest size one kind of mark is drawn at, now. A change of the setting drops every
+     * cached paint, which was built at the old minimum under the same mesh key.
+     * @param target - Nodes or edges.
+     * @returns The minimum, 0 for none.
+     */
+    private floorOf(target: SelectorTarget): number {
+        const minimums = this.minimums();
+        const node = minimums?.node ?? 0;
+        const edge = minimums?.edge ?? 0;
+        const seen = `${String(node)}|${String(edge)}`;
+        if (seen !== this.floorSeen) {
+            this.floorSeen = seen;
+            this.edgePaints.clear();
+            this.lastEdgePaint = null;
+            this.nodeLooks.clear();
+        }
+
+        return target === "node" ? node : edge;
+    }
+
+    /**
      * What one node is painted.
      * @param index - Its dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
@@ -1440,8 +1554,12 @@ export class StylePainter {
             return null;
         }
 
-        return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index), (channel) =>
-            paint.plainText("node", index, channel),
+        const floor = this.floorOf("node");
+        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
+        return keyedByFloor(
+            nodePaintOf(resolved, paint.meshKeyOf("node", index), (channel) => paint.plainText("node", index, channel)),
+            resolved,
+            floor,
         );
     }
 
@@ -1462,10 +1580,15 @@ export class StylePainter {
             return null;
         }
 
-        const resolved = paint.styleOf("node", index);
+        const floor = this.floorOf("node");
+        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
         const meshKey = paint.meshKeyOf("node", index);
         const make = (): NodePaint =>
-            nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel));
+            keyedByFloor(
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
+                resolved,
+                floor,
+            );
         const identity = nodeIdentity(resolved, meshKey);
         if (identity === null) {
             return make();
@@ -1506,9 +1629,10 @@ export class StylePainter {
             return null;
         }
 
-        const resolved = paint.styleOf("edge", index);
+        const floor = this.floorOf("edge");
+        const resolved = floored(paint.styleOf("edge", index), "edge.width", floor, EDGE_WIDTH);
         const meshKey = paint.meshKeyOf("edge", index);
-        const directed = this.directed();
+        const directed = this.directed(index);
         const last = this.lastEdgePaint;
         if (
             last !== null &&
@@ -1521,7 +1645,11 @@ export class StylePainter {
         }
 
         const make = (): EdgePaint =>
-            edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed);
+            keyedByFloor(
+                edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed),
+                resolved,
+                floor,
+            );
 
         if (!paintedByKeyAlone(resolved)) {
             return make();

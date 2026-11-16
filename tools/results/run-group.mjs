@@ -95,9 +95,9 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
 /**
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
- * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
- * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else passes
- * loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * `[FLAKY-UNRELATED]`. A test that failed every time passes as `[KNOWN]` when master's own runs failed it the
+ * same way (`failingOnBase`, same family, flags and key) and the pull request did not change its file (`changed`,
+ * or not touched at all); else it fails when touched and, untouched, passes loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
  * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
@@ -120,11 +120,21 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         (b) => b.variant.split("|")[0] === family && flagsOf(b.variant) === flagsOf(variant),
     );
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
+    // #8051: the same failure (same key) master already has is not this pull request's, even when the pull request
+    // changed the test's imports; never when it changed the test file itself, and never without the plan's
+    // `changed` list to tell the two apart (a screenshot plan, where every test counts as touched)
+    const changed = plan?.changed ? new Set(plan.changed) : null;
+    const gpu = /^webgpu-graph-algorithms/.test(family); // never excused (CLAUDE.md, WebGPU)
+    const excusable = (f) => !gpu && (!touched(f) || (changed !== null && !changed.has(f.file)));
     const list = storeList(plan);
     const check = (f, repeat) => {
         if (out) {
             mkdirSync(out, { recursive: true });
-            appendFileSync(join(out, `${shard}.jsonl`), `${JSON.stringify({ base, file: f.file, variant, repeat })}\n`);
+            // the test's name too: a flaky one's base check that passes files its issue (#8317)
+            appendFileSync(
+                join(out, `${shard}.jsonl`),
+                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name })}\n`,
+            );
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     };
@@ -156,7 +166,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
         const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
-            const k = !touched(f) && known(f);
+            const k = excusable(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {
@@ -472,6 +482,113 @@ export async function fileIssues(
     for (const n of closedIssues(tracked, gh) ?? [])
         await call(cfg, "POST", "/v1/issues", { number: n, state: "closed" });
     return out;
+}
+
+// Lowercase words only, so "find-no-match", "Find No Match" and "`Find No Match`" all read "find no match"
+const words = (s) =>
+    ` ${s
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, " ")
+        .trim()} `;
+
+/**
+ * Whether an issue is a flaky issue naming a test: it says "flaky" and names the test's file (by its file name) and
+ * the test, by the last part of "describe > test", anywhere in its title or body, so a title that does not name the
+ * test exactly still counts. The health dashboard's namesTest() (tools/pipeline-health/src/collector/flaky.ts) reads
+ * issues the same way, so a test this finds an issue for is one the dashboard counts as filed.
+ * @param issue `{ title, body }`
+ * @param t `{ file, name }`
+ * @returns whether it names the test
+ */
+export function namesFlakyTest(issue, t) {
+    const text = words(`${issue.title}\n${issue.body ?? ""}`);
+    if (!text.includes(" flaky ") || !text.includes(words(t.file.split("/").at(-1)))) return false;
+    return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1)));
+}
+
+// raises an issue to priority:critical; a refusal is logged, the comment already landed
+function raise(gh, number) {
+    try {
+        const lower = ["priority:high", "priority:medium", "priority:low"].flatMap((l) => ["--remove-label", l]);
+        gh(["issue", "edit", String(number), "--add-label", "priority:critical", ...lower]);
+    } catch (e) {
+        console.log(`run-group: could not raise #${number} to priority:critical (${e.message.split("\n")[0]})`);
+    }
+}
+
+/**
+ * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
+ * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
+ * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
+ * Nothing is quarantined: master never reproduced it. base-check.yml runs this after a passing 5-repeat check.
+ * @param o the check
+ * @param o.file the test file
+ * @param o.variant the pull request job's variant
+ * @param o.base the base commit
+ * @param o.names the tests
+ * @param [o.pr] the pull request that saw them flake
+ * @param [o.runUrl] the base check's run
+ * @param [gh] `(args) => stdout`
+ * @returns `{ name, number }` for each test; number 0 when GitHub refused
+ */
+export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, gh = ghCli) {
+    let open = [];
+    try {
+        const search = `"${file.split("/").at(-1)}" flaky in:title,body`;
+        open = JSON.parse(
+            gh([
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--search",
+                search,
+                "--json",
+                "number,title,body",
+                "--limit",
+                "100",
+            ]),
+        );
+    } catch (e) {
+        console.log(`run-group: could not search the flaky issues of ${file} (${e.message.split("\n")[0]})`);
+    }
+    return names.map((name) => {
+        const t = { file, name };
+        const had = open.find((i) => namesFlakyTest(i, t))?.number;
+        const seen = pr ? `pull request #${pr}` : "a pull request";
+        const run = runUrl ? ` (${runUrl})` : "";
+        const body = [
+            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not touch it.`,
+            `Its base check then passed 5 times on master at ${base}${run}, so it is a rare`,
+            "flake: not quarantined, since master did not reproduce it.",
+            "Find the mechanism: timing or load is not an accepted cause without one.",
+        ].join("\n");
+        try {
+            if (had) {
+                gh(["issue", "comment", String(had), "--body", `Flaky again.\n\n${body}`]);
+                raise(gh, had);
+                return { name, number: had };
+            }
+            const url = gh([
+                "issue",
+                "create",
+                "--title",
+                `Flaky test: ${idOf(t)}`.slice(0, 200),
+                "--label",
+                "bug",
+                "--label",
+                "priority:critical",
+                "--label",
+                "effort:medium",
+                "--body",
+                body,
+            ]);
+            return { name, number: Number(/\/issues\/(\d+)/.exec(url)?.[1]) || 0 };
+        } catch (e) {
+            console.log(`run-group: could not file the issue for ${idOf(t)} (${e.message.split("\n")[0]})`);
+            return { name, number: 0 };
+        }
+    });
 }
 
 /**

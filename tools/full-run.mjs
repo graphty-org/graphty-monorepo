@@ -502,6 +502,14 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
 }
 
 /**
+ * bisect.yml's run name (its run-name), which carries the lane and the range's green commit.
+ * @param lane the bisect.yml lane
+ * @param good the last green full-run commit
+ * @returns the run name
+ */
+export const bisectRunName = (lane, good) => `Bisect (${lane} lane) from ${good}`;
+
+/**
  * The bisect.yml dispatch for a red run, or why there is none.
  * @param o the facts
  * @param o.red the lanes that did not pass (LANES keys)
@@ -509,12 +517,19 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
  * @param o.good the last green full-run commit, or empty
  * @param o.run the run id
  * @param o.failures `GET /v1/failures`'s answer, or null
+ * @param [o.bisected] the run names of recent bisect.yml runs ("Bisect (llm lane) from <good>")
  * @returns `{ inputs }` for bisect.yml, or `{ why }`
  */
-export function bisectPlan({ red, sha, good, run, failures }) {
+export function bisectPlan({ red, sha, good, run, failures, bisected = [] }) {
     const lane = red.find((l) => LANES[l].bisect);
     if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
     if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
+    // every point of an llm bisect is paid: a later red from the same green commit (no green run between) re-ran
+    // the same points of the same range for about $10 on 2026-11-14 (#8314), so the earlier bisect answers it
+    if (lane === "llm" && bisected.includes(bisectRunName("llm", good)))
+        return {
+            why: `the LLM lane's range from ${short(good)} is already bisected (a paid lane); the pipeline round looks`,
+        };
     // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
     // broken setup fails a thousand tests that all bisect to the same merge
     const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
@@ -1190,7 +1205,25 @@ export function fileFlakies(env, lanes, stories, run = sh) {
 async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [] }) {
     const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
     const coded = red.filter((l) => !refused.includes(l));
-    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures }));
+    // a listing GitHub fails leaves the bisect to dispatch: a missed duplicate costs one bisect, a missed red more
+    const bisected = bestEffort(
+        () =>
+            sh("gh", [
+                "run",
+                "list",
+                "--workflow",
+                "bisect.yml",
+                "--limit",
+                "100",
+                "--json",
+                "displayTitle",
+                "--jq",
+                ".[].displayTitle",
+            ]).split("\n"),
+        "listing the recent bisects",
+        () => [],
+    );
+    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures, bisected }));
     const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
     const issue = bestEffort(
         () => fileRed(body),

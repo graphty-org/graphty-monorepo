@@ -159,7 +159,7 @@ selection never disagree about which elements are the top `n`.
 
 An expression is a declared **subset of JMESPath**, compiled once when the layer is added and
 then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), `&&`,
-`||`, `!` and parentheses.
+`||`, `!`, arithmetic (`+`, `-`, `*`, `/` and a leading minus) and parentheses.
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
@@ -179,6 +179,19 @@ Two spelling rules catch everyone once:
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
 `data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
 matches every edge.
+
+**Arithmetic** is the one addition to JMESPath. It binds tighter than the comparisons, `*` and `/`
+tighter than `+` and `-`, each left to right, so `` data.in / data.out >= `2` `` compares the
+ratio, and parentheses group as usual. A leading minus takes the whole path after it:
+`-data.change` is minus `data.change`.
+
+- It works on **numbers only**, with no conversion: if either side is not a number (a string such
+  as `'3'`, `true`, a list, or no value at all), the answer is `null`.
+- **Dividing by zero gives `null`**, as does any answer that is not a finite number. `null` is no
+  value: a selector does not match the element, and a computed column leaves it without one.
+- A `-` written between two names with no space (`results.min-cut.x`) is refused with
+  `reason: "minus-needs-spaces"` rather than read as a subtraction: quote a hyphenated name
+  (`results."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
 
 The same expression works outside a style layer, and matches the same elements there:
 `session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
@@ -295,9 +308,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (gold)                                                                                            |
+| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
-| `node.haloOpacity`            | 0 to 1 (0.4)                                                                                                                                     |
+| `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
@@ -472,6 +485,17 @@ every node without one; a node without one is drawn as before. Loading a file wi
 `styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
 as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
+
+The numbers behind the default look -- the default edge width
+(`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
+proportions (`SHAPE_CONSTANTS`) -- are exported from `@graphty/graphty-element/schema`, which loads
+no 3D engine, so a settings panel, a test or a Node script can read them:
+
+```typescript
+import { EDGE_CONSTANTS } from "@graphty/graphty-element/schema";
+
+const defaultEdgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+```
 
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
@@ -717,7 +741,9 @@ legend's swatch shows the same middle colour the canvas paints.
 
 ### A table of values, and what it leaves alone
 
-`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+`map` gives a value per key. A binding with a `map` and no `scale` reads through `"passthrough"`
+on every channel, and its legend block is categorical: one row per value it paints. With
+`scale: "passthrough"`, a key the table does not hold goes on
 through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
 an element whose key the table does not hold is left exactly as the layers beneath paint it:
 
@@ -865,6 +891,29 @@ element.session.styles.counts(layerId); // how many elements one layer covers an
 ```
 
 See [Counting What a Layer Paints](./layer-counts) for `counts()`.
+
+### A legend on the graph
+
+The `legend` attribute draws `styles.legend()` over the graph: a color chip per value for a
+categorical encoding, a ramp between the domain's ends for a continuous one. It follows every
+change to the layers and the data, and hides while no layer binds a value. It is off by default.
+
+```html
+<graphty-element legend legend-position="bottom-left" legend-label="Leyenda"></graphty-element>
+<style>
+    graphty-element::part(legend) {
+        font-size: 14px; /* sizes are in em, so this scales the whole key */
+        max-width: 240px;
+    }
+</style>
+```
+
+`legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
+`legend-label` is the name a screen reader announces, in your page's language; unset, the
+legend has no name of its own and each field in it is named by the field's name. The overlay is HTML,
+so a screen reader reads each field's name and each value. Its words are the data's: the field's
+name, the values, and the names readers gave them. A screenshot draws the same key with
+`captureScreenshot({ legend: { position: element.legendPosition } })`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.

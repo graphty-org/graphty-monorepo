@@ -40,6 +40,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_DIGEST_MISMATCH",
     // a node picture that cannot be loaded (issue #4515)
     "E_IMAGE_LOAD",
+    // a picture the browser cannot decode (issue #6818)
+    "E_IMAGE_DECODE",
     // a screenshot or video that could not be made (issue #6826)
     "E_CAPTURE_FAILED",
     "E_NOT_SETTLED",
@@ -97,6 +99,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNSAVED_CHANGES",
     "E_AUTOSAVE_ENTRY_TAKEN",
     "E_AUTOSAVE_UNKNOWN_ENTRY",
+    "E_AUTOSAVE_STALLED",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -196,6 +199,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSAVED_CHANGES":
         case "E_AUTOSAVE_ENTRY_TAKEN":
         case "E_AUTOSAVE_UNKNOWN_ENTRY":
+        case "E_AUTOSAVE_STALLED":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -261,6 +265,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_UNKNOWN_ASSET":
         case "E_MODEL_DIGEST_MISMATCH":
         case "E_IMAGE_LOAD":
+        case "E_IMAGE_DECODE":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":

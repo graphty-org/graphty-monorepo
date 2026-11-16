@@ -20,7 +20,10 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
     ModelPart,
     ModelPartRole,
@@ -30,11 +33,14 @@ export type {
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./groups";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits, LimitsOption } from "./limits";
@@ -66,6 +72,7 @@ export type {
 } from "./styles/fileStyles/origin";
 export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
 export type { FileStyleKind } from "./styles/fileStyles/path";
+export { fileStyleWords } from "./styles/fileStyles/path";
 export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
 export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
 export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
@@ -81,6 +88,8 @@ export type {
     DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
@@ -122,6 +131,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
@@ -196,6 +206,7 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,

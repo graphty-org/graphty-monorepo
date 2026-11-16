@@ -74,11 +74,17 @@ async function openStyle(): Promise<HTMLElement> {
  * @returns the option names.
  */
 async function shapeChoices(tab: HTMLElement): Promise<string[]> {
-    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
+    // With the experiment on, the panel by part picks a shape from a searchable list.
+    const combobox = within(tab).queryByRole("combobox", { name: /^Node shape/ });
+    await userEvent.click(combobox ?? (await within(tab).findByRole("button", { name: /^Node shape, / })));
     const list = await screen.findByRole("listbox");
     const names = within(list)
         .getAllByRole("option")
-        .map((option) => option.getAttribute("aria-label") ?? option.textContent);
+        .map((option) =>
+            combobox === null
+                ? (option.textContent ?? "").replace(/\d+ nodes?$/, "")
+                : (option.getAttribute("aria-label") ?? option.textContent),
+        );
     await userEvent.keyboard("{Escape}");
     return names;
 }

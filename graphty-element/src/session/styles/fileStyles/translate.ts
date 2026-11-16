@@ -945,6 +945,8 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
+        // a ratio of two widths: no unit to convert
+        ["taper", [id("edge.taper")]],
         ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
         ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],

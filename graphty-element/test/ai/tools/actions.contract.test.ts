@@ -20,6 +20,14 @@ import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 import { ReachRecorder } from "./reach-recorder";
 
+// A generated background is decoded and scaled by the browser, which this project has not got:
+// here it passes through unchanged (test/browser/ai/generate-background.test.ts decodes it).
+vi.mock("../../../src/session/backgroundImage", async (original) => ({
+    ...(await original<typeof import("../../../src/session/backgroundImage")>()),
+    prepareBackgroundImage: () =>
+        Promise.resolve({ ok: true, data: "data:image/png;base64,iVBORw0KGgo=", width: 1, height: 1, scaled: false }),
+}));
+
 // Every action runs, so the experiments that gate some of them are on: network sources
 // (network-data) and a file's own styles (file-styles).
 setDefaultFeatures(["network-data", "file-styles"]);
@@ -62,6 +70,8 @@ interface Row {
     readonly gate?: false;
     /** State the call acts on, made before the message. */
     readonly setup?: (session: GraphSession) => unknown;
+    /** The provider makes pictures: its image model answers with a picture. */
+    readonly image?: true;
     /** Calls the assistant makes in a message of its own first: a step of its own to undo. */
     readonly prior?: readonly { readonly tool: string; readonly args: Record<string, unknown> }[];
 }
@@ -343,6 +353,8 @@ const ROWS: Record<string, Row> = {
     "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
+    "hidden.hide": { args: { action: "hide", ids: ["a"] } },
+    "hidden.show": { args: { action: "show", ids: ["a"] }, setup: (s) => s.hidden.add(["a"]) },
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
@@ -444,10 +456,19 @@ const ROWS: Record<string, Row> = {
     "columns.group_table": {
         args: { action: "group_table", column: "team", summaries: { "data.load": ["mean"] } },
     },
+    "columns.collapse_group": { args: { action: "collapse_group", column: "team", group: "red" } },
+    "columns.expand_group": {
+        args: { action: "expand_group", column: "team", group: "red" },
+        setup: async (s) => {
+            await s.groups.collapse({ groupBy: "data.team", group: "red" });
+        },
+    },
+    "columns.collapsed_groups": { args: { action: "collapsed_groups" } },
     "columns.preview_type": { args: { action: "preview_type", column: "load", type: "text" } },
     "columns.rename": { args: { action: "rename", column: "team", name: "squad" } },
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
     "columns.set_role": { args: { action: "set_role", column: "team", role: "label" } },
+    "columns.compute": { args: { action: "compute", column: "heavy", expression: "data.load > `0.5`" } },
     "columns.hide": { args: { action: "hide", columns: ["team"] } },
     "columns.label_value": { args: { action: "label_value", column: "team", value: "red", label: "Reds" } },
     "sources.list": { args: { action: "list" }, setup: withLoad },
@@ -496,6 +517,11 @@ const ROWS: Record<string, Row> = {
     "import_data.last_import": { args: { action: "last_import" } },
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
+    "project.generate_background": {
+        args: { action: "generate_background", prompt: "a starry night" },
+        image: true,
+        gate: false,
+    },
     "project.rename": { args: { action: "rename", name: "Network" } },
     "project.rename_run": { args: { action: "rename_run", run: "degree", runName: "Hubs" }, setup: withRun },
     "project.declare": { args: { action: "declare", column: "load", measurement: "quantitative" } },
@@ -562,6 +588,10 @@ describe("every generated action", () => {
                 ...(row.gate === false ? { gate: false } : {}),
                 ...(row.graph === undefined ? {} : { graph: row.graph }),
             });
+            if (row.image === true) {
+                assistant.engine.scriptImage(new Blob(["png"], { type: "image/png" }));
+            }
+
             const before = await digest(session);
             const steps = session.history.position;
             const { result } = await assistant.say(`do ${key}`, [{ tool, args }]);
@@ -741,6 +771,33 @@ describe("every generated action", () => {
         const [refused] = assistant.lastResults();
         assert.strictEqual(refused.code, "AI_ARG_INVALID");
         assert.strictEqual(refused.params.path, "kind");
+    });
+
+    it("describes several entries of different kinds in one call, a missing one as its own row (#7412)", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("describe several", [
+            {
+                tool: "catalog",
+                args: { action: "describe", name: "louvain, node.shape,node.color,no-such-entry" },
+            },
+        ]);
+        const [read] = assistant.lastResults();
+        assert.strictEqual(read.code, "AI_OK", JSON.stringify(read));
+        const rows = read.data as { name: string; code?: string; results?: unknown; byData?: unknown }[];
+        assert.deepEqual(
+            rows.map((row) => row.name),
+            ["louvain", "node.shape", "node.color", "no-such-entry"],
+        );
+        assert.isDefined(rows[0].results, "the algorithm's result fields");
+        assert.deepEqual(rows[1].byData, {
+            action: "encode",
+            encode: { channel: "node.shape", attribute: "<attribute>" },
+        });
+        assert.strictEqual(rows[3].code, "AI_ARG_INVALID");
+        const nine = Array.from({ length: 9 }, () => "pagerank").map((name, at) => `${name}${String(at)}`);
+        await assistant.say("too many", [{ tool: "catalog", args: { action: "describe", name: nine.join(",") } }]);
+        assert.strictEqual(assistant.lastResults()[0].code, "AI_ARG_INVALID");
     });
     it("takes a call that names no action as the only action its fields fit", async () => {
         const session = await assistantSession();
@@ -926,6 +983,7 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "layout.unpin": [{ args: { action: "unpin", where: "all" }, setup: (s) => s.positions.pin(["a"]) }],
+    "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
     // The layout the session already has, so it is run again; a session with no renderer has no
     // layout to run.
     "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],

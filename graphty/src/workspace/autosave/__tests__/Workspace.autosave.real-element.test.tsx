@@ -12,7 +12,8 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
+import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -89,6 +90,87 @@ function forgetAutosave(): Promise<void> {
         };
         request.onerror = () => {
             reject(request.error ?? new Error("the autosave database was not deleted"));
+        };
+    });
+}
+
+/**
+ * Records what the workspace decided about kept work (its `decision` log line and the loading
+ * screen's line), and what graphty-element's listing found, so a test of a decision says which one
+ * was made when it fails.
+ * @returns the lines, and a function that stops recording.
+ */
+async function recordDecisions(): Promise<{ readonly lines: string[]; readonly stop: () => Promise<void> }> {
+    const lines: string[] = [];
+    const boot = (event: Event): void => {
+        lines.push(`boot ${JSON.stringify((event as CustomEvent<unknown>).detail)}`);
+    };
+    document.addEventListener("graphty-boot", boot);
+    await GraphtyLogger.configure({
+        enabled: true,
+        level: LogLevel.INFO,
+        modules: "*",
+        sinks: [
+            {
+                name: "decisions",
+                write: (record) => {
+                    if (record.category[1] === "workspace" || record.message.startsWith("kept work")) {
+                        lines.push(
+                            `${record.category.join(".")} ${record.message} ${JSON.stringify(record.data ?? {})}`,
+                        );
+                    }
+                },
+            },
+        ],
+    });
+    GraphtyLogger.removeSink("console");
+    return {
+        lines,
+        stop: async () => {
+            document.removeEventListener("graphty-boot", boot);
+            GraphtyLogger.removeSink("decisions");
+            await GraphtyLogger.configure({ enabled: false });
+        },
+    };
+}
+
+/**
+ * Waits for the workspace's decision about kept work.
+ * @param lines - the recorded lines.
+ * @returns the decision line.
+ */
+function decision(lines: readonly string[]): Promise<string> {
+    return waitFor(() => {
+        const line = lines.find((each) => each.startsWith("graphty.workspace decision "));
+        assert.isDefined(line, `no decision yet:\n${lines.join("\n")}`);
+        return line ?? "";
+    });
+}
+
+/**
+ * Holds autosave's database as a suspended tab does: a read-write transaction that never finishes.
+ * @returns a function that lets it go.
+ */
+function holdDatabase(): Promise<() => void> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DATABASE);
+        request.onerror = () => {
+            reject(request.error ?? new Error("the autosave database did not open"));
+        };
+        request.onsuccess = () => {
+            const db = request.result;
+            const store = db.transaction([...db.objectStoreNames], "readwrite").objectStore(db.objectStoreNames[0]);
+            let held = true;
+            const spin = (): void => {
+                if (held) {
+                    store.count().onsuccess = spin;
+                }
+            };
+            spin();
+            resolve(() => {
+                held = false;
+                db.close();
+            });
         };
     });
 }
@@ -334,6 +416,48 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
+    it("ends a reopen the browser's storage never answers in a reported failure, and reopens once it does (#8207)", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
+
+        // Another tab holds the entries' parts in a write it never finishes: the listing (entries
+        // only) answers, so the reload reopens this tab's work, and the reopen cannot read it.
+        const release = await holdParts(DATABASE, "parts");
+        const boot: { line?: string; done?: boolean }[] = [];
+        const hear = (event: Event): void => {
+            boot.push((event as CustomEvent<{ line?: string; done?: boolean }>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        const second = mountWorkspace();
+        const error = await openBy(second.store, () => Promise.resolve()).then(
+            () => null,
+            (failure: unknown) => failure,
+        );
+        assert.isTrue(isGraphtyError(error) && error.code === "E_AUTOSAVE_STALLED", String(error));
+        await screen.findByText(
+            `${FLORENTINE.name} could not be opened: the browser's storage did not answer; close other graphty tabs, then reload.`,
+            { selector: ".cm-toast-message" },
+        );
+        // The loading screen is told the open is over, and never that the project opened.
+        await waitFor(() => {
+            assert.isTrue(
+                boot.some((detail) => detail.done === true),
+                "the loading screen was not ended",
+            );
+        });
+        assert.isFalse(boot.some((detail) => detail.line === "project opened"));
+        document.removeEventListener("graphty-boot", hear);
+
+        // The other tab lets go: the next reload reopens the same work.
+        release();
+        second.view.unmount();
+        const third = mountWorkspace();
+        await openBy(third.store, () => Promise.resolve());
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        third.view.unmount();
+    });
+
     it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
         resetSiteConfig();
         await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
@@ -533,55 +657,75 @@ describe("Workspace autosave with the real graphty-element", () => {
         }
     });
 
-    it("never reopens the work another tab is writing: a duplicated tab starts on the start screen", async () => {
-        const first = mountWorkspace();
-        await openBy(first.store, () => pickSample(LES_MIS.name));
-        const { element } = openedElement();
-        await waitFor(() => {
-            assert.isNotNull(element.autosaver.status.savedAt);
-        });
-        const { entry } = element.autosaver.status;
-        if (entry === null) {
-            throw new Error("autosave wrote no entry");
-        }
-        first.view.unmount();
-
-        // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
-        // the element's last write lets it go. A duplicated tab has a copy of the original's
-        // session storage, which names the same entry. A live tab answers when a page asks who
-        // holds the lock (graphty-element's lock channel), so the duplicate knows not to wait for it.
-        const lock = `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`;
-        const original = new BroadcastChannel("graphty-autosave-locks");
-        original.onmessage = (event: MessageEvent<{ ask?: string }>) => {
-            if (event.data.ask === lock) {
-                original.postMessage({ held: lock });
+    for (const [title, stalled] of [
+        ["never reopens the work another tab is writing: a duplicated tab starts on the start screen", false],
+        [
+            "never reopens the work another tab is writing when the kept work cannot be listed: a duplicated tab, the database held, starts on the start screen",
+            true,
+        ],
+    ] as const) {
+        it(title, async () => {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(LES_MIS.name));
+            const { element } = openedElement();
+            // Saved, and the app heard it: the chip is drawn from the same status event that notes
+            // the entry in this tab's session storage, which a duplicated tab copies.
+            await waitFor(() => {
+                assert.strictEqual(element.autosaver.status.state, "saved");
+                assert.strictEqual(screen.getByTestId("autosave-chip").textContent, "Autosave: saved");
+            });
+            const { entry } = element.autosaver.status;
+            if (entry === null) {
+                throw new Error("autosave wrote no entry");
             }
-        };
-        let release = (): void => undefined;
-        await new Promise<void>((resolve) => {
-            void navigator.locks.request(
-                lock,
-                () =>
-                    new Promise<void>((done) => {
-                        release = done;
-                        resolve();
-                    }),
-            );
+            first.view.unmount();
+
+            // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
+            // the element's last write lets it go. A duplicated tab has a copy of the original's
+            // session storage, which names the same entry. A live tab answers when a page asks who
+            // holds the lock (graphty-element's lock channel), so the duplicate knows not to wait for it.
+            const lock = `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`;
+            const original = new BroadcastChannel("graphty-autosave-locks");
+            original.onmessage = (event: MessageEvent<{ ask?: string }>) => {
+                if (event.data.ask === lock) {
+                    original.postMessage({ held: lock });
+                }
+            };
+            let release = (): void => undefined;
+            await new Promise<void>((resolve) => {
+                void navigator.locks.request(
+                    lock,
+                    () =>
+                        new Promise<void>((done) => {
+                            release = done;
+                            resolve();
+                        }),
+                );
+            });
+            // Another tab, suspended in the middle of a write, holds the database: the kept work
+            // cannot be listed, which says nothing about whether the original's entry exists.
+            const letGo = stalled ? await holdDatabase() : (): void => undefined;
+            const log = await recordDecisions();
+            try {
+                const second = mountWorkspace();
+                const decided = await decision(log.lines);
+                assert.include(decided, '"decision":"landing"', log.lines.join("\n"));
+                await screen.findByRole("button", { name: sampleTile(LES_MIS.name) });
+                assert.isNull(second.store.get().project);
+                assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
+                letGo();
+                const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+                assert.isTrue(listed?.live);
+                assert.notStrictEqual(listed?.own, true);
+                second.view.unmount();
+            } finally {
+                letGo();
+                await log.stop();
+                release();
+                original.close();
+            }
         });
-        try {
-            const second = mountWorkspace();
-            await screen.findByRole("button", { name: sampleTile(LES_MIS.name) });
-            assert.isNull(second.store.get().project);
-            assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
-            const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
-            assert.isTrue(listed?.live);
-            assert.notStrictEqual(listed?.own, true);
-            second.view.unmount();
-        } finally {
-            release();
-            original.close();
-        }
-    });
+    }
 
     it("offers another tab's work with the project's name, and Restore opens it again", async () => {
         const first = mountWorkspace();
@@ -653,7 +797,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         const { element, session } = openedElement();
         const inspector = (): ReturnType<typeof within> =>
             within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
+        await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const layers = JSON.stringify(session.styles.list());
         await fromAnotherTab(await leave(element, first.view));
@@ -663,7 +808,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         await waitFor(() => {
-            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
         });
         second.view.unmount();
     });

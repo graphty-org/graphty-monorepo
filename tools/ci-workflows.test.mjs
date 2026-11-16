@@ -4278,8 +4278,9 @@ describe("release.yml", () => {
         assert.match(land, /\n {8}environment: release # the deploy key\n/);
         assert.match(publish, /\n {8}environment: release # /);
         assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
-        // pick reads Pushover for its dead-man check and a settled publish hold; held for a failed promotion
-        assert.match(pick, /\n {8}environment: release # Pushover\n/);
+        // pick installs dependencies holding id-token: write, so it never enters `release` (npm trusted publishing);
+        // held reads Pushover for a failed promotion
+        assert.doesNotMatch(pick, /\n {8}environment: /);
         assert.match(held, /\n {8}environment: \$\{\{ inputs.mode != 'shadow' && 'release' \|\| '' \}\}\n/);
         // the full run's verdict announces a red run or an owner item
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
@@ -4292,9 +4293,11 @@ describe("release.yml", () => {
         assert.match(job(release, "candidate_branch"), /\n {8}environment: release # the deploy key\n/);
         // and so does the fix forward's merge into it
         assert.match(job(release, "candidate_fix"), /\n {8}environment: release # the deploy key\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 9);
-        // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
+        assert.equal(release.match(/\n {8}environment: /g).length, 8);
+        // no job reads a secret without an environment, except GITHUB_TOKEN, the reusable-workflow calls and pick
+        // (above: its Pushover reads use the repository secrets)
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
+            if (name === "pick") continue;
             const body = job(release, name);
             if (/secrets\.(?!GITHUB_TOKEN\b)\w+/.test(body) && !/secrets: inherit/.test(body)) {
                 assert.match(body, /\n {8}environment: /, `${name} reads a secret, so it declares its environment`);

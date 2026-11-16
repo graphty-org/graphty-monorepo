@@ -346,8 +346,9 @@ jobs:
         if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/channel/full-run') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
-        # Pushover for the dead-man check and a settled publish hold's announcement, like the verdict job's
-        environment: release # Pushover
+        # No environment: this job installs dependencies with id-token: write, so it must stay out of `release`, which
+        # npm trusted publishing trusts. Its Pushover reads (the dead-man check, a settled publish hold) use the
+        # repository secrets.
         permissions:
             contents: write # delete the branch of a release pull request left from the old design
             actions: read # find an earlier shadow run on the same commit

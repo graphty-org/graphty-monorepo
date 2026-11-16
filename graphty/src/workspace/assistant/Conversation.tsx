@@ -642,6 +642,9 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
         const box = log.current;
         if (box !== null) {
             box.scrollTop = box.scrollHeight;
+            // A scroll up in the same frame sends one scroll event with no top at the foot before it,
+            // so the foot is recorded here: otherwise that scroll up compares 0 with 0 and keeps following.
+            lastTop.current = box.scrollTop;
         }
         following.current = true;
         setBehind(false);

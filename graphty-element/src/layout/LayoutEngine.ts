@@ -1877,6 +1877,10 @@ export const simpleLayoutInternals = {
     byRow(engine: StaticLayoutEngine): boolean;
     /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
     adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
+    /** Tell a static engine whether the consumer has paused the layout: while it has, a re-run that would move existing rows waits. Any other engine is left alone. */
+    whilePaused(engine: LayoutEngine | null, paused: () => boolean): void;
+    /** Mark the re-run a pause held back as due; true when there was one. */
+    resume(engine: StaticLayoutEngine): boolean;
 };
 
 /**
@@ -1921,6 +1925,21 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
             engine.#edges.push(e);
         };
+        simpleLayoutInternals.whilePaused = (engine, paused) => {
+            if (engine instanceof StaticLayoutEngine) {
+                engine.#paused = paused;
+            }
+        };
+        simpleLayoutInternals.resume = (engine) => {
+            if (!engine.#deferred) {
+                return false;
+            }
+
+            engine.#deferred = false;
+            engine.#keep = null;
+            engine.stale = true;
+            return true;
+        };
     }
 
     static type: string;
@@ -1958,6 +1977,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     } | null = null;
     /** For an engine driven without an element: the graph last built, and from what. */
     #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
+    /** Whether the consumer has paused the layout; see `simpleLayoutInternals.whilePaused`. */
+    #paused: (() => boolean) | null = null;
+    /** Whether a re-run was held back while paused, to be applied on resume. */
+    #deferred = false;
 
     /**
      * Create a simple layout engine
@@ -2154,8 +2177,33 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             // run keeps are kept still, and the nodes it would have placed are placed with this one's.
             this.#keep = carryRows(this.#keep, change);
         } else {
-            this.#keep = null;
+            this.#keep = loading ? null : this.#keptWhilePaused(change, grown);
         }
+    }
+
+    /**
+     * PAUSED, A CHANGE THAT WOULD MOVE EXISTING NODES WAITS FOR THE RESUME. A removal (or any
+     * change that is not only an add) re-runs the whole arrangement; while the consumer has paused
+     * the layout every node that was already there keeps its row instead, and a node the change
+     * brought is placed among them, as after an add. The re-run is applied on resume.
+     * @param change - the freeze
+     * @param grown - the existing rows when the freeze only added, else null
+     * @returns the rows the next run keeps, or null when it re-runs everything
+     */
+    #keptWhilePaused(change: SnapshotReplacement, grown: NodeMask | null): NodeMask | null {
+        const { previous } = change;
+        if (this.#paused?.() !== true || previous === null || this.#laidOut === null) {
+            return null;
+        }
+
+        // A run not yet read keeps what the last freeze kept; otherwise every row of the arrangement.
+        const base = this.#laidOut === previous ? makeMask(previous.nodeCount, true) : this.#keep;
+        if (base === null) {
+            return null;
+        }
+
+        this.#deferred ||= grown === null;
+        return carryRows(base, change);
     }
 
     /**
@@ -2333,6 +2381,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         this.stale = false;
+        this.#deferred = false;
         super.loadArrangement();
     }
 

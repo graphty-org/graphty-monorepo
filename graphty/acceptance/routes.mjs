@@ -229,6 +229,9 @@ async function everythingColor(u, color) {
 
 const STARTING_NODE_COLOR = "#6366F1";
 const STARTING_EDGE_COLOR = "#A9A9A9";
+// graphty-element's default edge width (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, in world units since #125). Pinned,
+// not imported: the constant is exported only from graphty-element's main entry, which loads Babylon.js.
+const STARTING_EDGE_WIDTH = 4.5;
 const yes = (v) => v === true || v === "yes" || v === "true";
 const missing = (v) => v === null || v === undefined || v === "";
 
@@ -280,7 +283,7 @@ async function onlyTheseEdges(g, test, look, count) {
     assert.equal(want.size, count, `the data holds ${count} such edges`);
     const drawn = { width: await g.edgeLook("edge.width"), color: await g.edgeLook("edge.color") };
     for (const e of edges) {
-        const expect = want.has(e.id) ? look : { width: 8, color: STARTING_EDGE_COLOR };
+        const expect = want.has(e.id) ? look : { width: STARTING_EDGE_WIDTH, color: STARTING_EDGE_COLOR };
         assert.deepEqual({ width: drawn.width[e.id], color: drawn.color[e.id] }, expect, `edge ${e.id}`);
     }
 }

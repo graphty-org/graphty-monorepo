@@ -232,6 +232,48 @@
                     },
                     "pinned": {
                         "const": true
+                    },
+                    "edges": {
+                        "type": "array",
+                        "description": "The edges the reader added to a node standing in for a group, added again right after this collapse is made (spec 4.7 rule 8).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "edge": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                        },
+                                        {
+                                            "properties": {
+                                                "load": {
+                                                    "const": "reader"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                "from": {
+                                    "$ref": "#/$defs/groupEdgeEnd"
+                                },
+                                "to": {
+                                    "$ref": "#/$defs/groupEdgeEnd"
+                                },
+                                "columns": {
+                                    "type": "object"
+                                },
+                                "dtypes": {
+                                    "type": "object",
+                                    "description": "The graph-format dtype each column in columns is declared with, as a reader add declares it.",
+                                    "additionalProperties": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                }
+                            },
+                            "required": ["edge", "from", "to", "dtypes"],
+                            "unevaluatedProperties": false
+                        }
                     }
                 },
                 "required": ["groupBy", "group"],
@@ -970,5 +1012,29 @@
         },
         "xr": false,
         "placed": false
+    },
+    "$defs": {
+        "groupEdgeEnd": {
+            "description": "An end of an edge added to a collapse: a node, or the collapse of a group whose node it is.",
+            "oneOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "groupBy": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "group": {
+                            "type": ["string", "number", "boolean"]
+                        }
+                    },
+                    "required": ["groupBy", "group"],
+                    "unevaluatedProperties": false
+                }
+            ]
+        }
     }
 }

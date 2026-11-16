@@ -38,6 +38,7 @@
  */
 
 import { ENGINE_VERSIONS } from "../runs/engine";
+import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
 import { asName } from "./codecs/recipeCommands";
 import { cameraJson } from "./codecs/viewParts";
 import {
@@ -1103,19 +1104,53 @@ function hiddenColumnsOf(session: JsonObject | undefined): JsonObject[] {
 }
 
 /**
+ * Version 1's edges added to a collapsed node, each on the collapse its ends stand in for, the
+ * latest of them: an end standing in for a group (version 1's `group:<groupBy>=<group>` node) is
+ * named by its collapse, the other by its node reference, and the edge is reader-added under a
+ * ULID derived from it. One whose ends stand in for no collapse is reported.
+ * @param added - Version 1's `added`.
+ * @param collapses - The collapses, in order.
+ * @param context - The file.
+ * @returns The edges, by collapse index.
+ */
+function groupEdgesOf(added: unknown, collapses: readonly JsonObject[], context: Context): JsonObject[][] {
+    const edges = collapses.map((): JsonObject[] => []);
+    const standIns = new Map(
+        collapses.map((collapse, at) => [`group:${String(collapse.groupBy)}=${String(collapse.group)}`, at]),
+    );
+    for (const [n, record] of objectsOf(added).entries()) {
+        const { source, target, ...columns } = record;
+        const ends = [source, target].map((id) => standIns.get(String(id)));
+        const at = Math.max(...ends.map((each) => each ?? -1));
+        const end = (id: unknown, held: number | undefined): unknown =>
+            held === undefined
+                ? context.data?.nodeRef(id)
+                : { groupBy: collapses[held].groupBy, group: collapses[held].group };
+        const from = end(source, ends[0]);
+        const to = end(target, ends[1]);
+        if (at < 0 || from === undefined || to === undefined) {
+            context.problems.push(leftOut("graphty-session", `/groups/added/${String(n)}`));
+            continue;
+        }
+
+        const key = ulidOf(`groups-added\u0000${String(n)}\u0000${canonicalJson(record)}`);
+        edges[at].push({ edge: { load: READER, key }, from, to, ...addedColumns(columns) });
+    }
+
+    return edges;
+}
+
+/**
  * Version 1's collapsed groups (the session member's `groups`, version 1) as view's `groups`: the
- * data member already holds the graph expanded. Edges added to a collapsed node are reported.
+ * data member already holds the graph expanded. Edges added to a collapsed node go on the
+ * collapse their ends stand in for.
  * @param session - The session member, if any.
  * @param context - The file.
  * @returns The collapses, in order.
  */
 function groupsOf(session: JsonObject | undefined, context: Context): JsonObject[] {
     const groups = isObject(session?.groups) && session.groups.version === 1 ? session.groups : undefined;
-    if (Array.isArray(groups?.added) && groups.added.length > 0) {
-        context.problems.push(leftOut("graphty-session", "/groups/added"));
-    }
-
-    return objectsOf(groups?.collapsed).flatMap(({ groupBy, group, position, pinned }) =>
+    const collapses = objectsOf(groups?.collapsed).flatMap(({ groupBy, group, position, pinned }) =>
         typeof groupBy === "string" && ["string", "number", "boolean"].includes(typeof group)
             ? [
                   {
@@ -1127,6 +1162,8 @@ function groupsOf(session: JsonObject | undefined, context: Context): JsonObject
               ]
             : [],
     );
+    const edges = groupEdgesOf(groups?.added, collapses, context);
+    return collapses.map((collapse, at) => (edges[at].length === 0 ? collapse : { ...collapse, edges: edges[at] }));
 }
 
 /**

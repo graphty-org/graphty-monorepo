@@ -539,7 +539,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
 | `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
 | `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
-| `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned" }` (rule 8)                |
+| `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)       |
 | `sets`          | every set: `{ "id", "name", "definition" }`                                                                                         |
 | `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                                  |
 | `timeline`      | `{ "at" }`, the timeline's playhead, as version 1 spells it                                                                         |
@@ -602,10 +602,16 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    grouped by, `data.<column>` or `results.<run id>.<field>`), `group` (their value at it, a string,
    number or boolean), `position` (where the node standing in stood, when placed) and
    `"pinned": true` (when it was pinned). A collapse of collapsed groups comes after the groups it
-   holds. A reader collapses each again in order, once the sets and runs are back, places the node
-   standing in at `position` and pins it; one it cannot make is reported as `E_BAD_DOCUMENT` and the
-   rest go on. An edge the reader added to a node standing in names no element of the data: the
-   save leaves it out and reports `W_MEMBER_LEFT_OUT` with field `groups.added`.
+   holds, and after every group an end of an edge it holds stands in for. A reader collapses each
+   again in order, once the sets and runs are back, places the node standing in at `position` and
+   pins it; one it cannot make is reported as `E_BAD_DOCUMENT` and the rest go on. An edge the reader added to a node standing in is a reader-added element (6.1: load
+   `reader`, keyed as any reader-added edge) that no data row can hold. Its collapse entry lists it
+   in `edges`, each as `{ edge, from, to, columns, dtypes }` exactly as a reader `add` (4.1.4),
+   except that an end standing in for a group is written `{ groupBy, group }` naming its collapse.
+   Each edge goes on the latest collapse among the ones its ends stand in for, and a collapse that
+   hid an end comes later. A reader adds the entry's edges right after making that collapse. An end
+   naming a collapse not yet made, or a node not in the graph, is reported `E_BAD_DOCUMENT` and the
+   rest go on.
 
 ## 5. Placement
 
@@ -856,7 +862,9 @@ kind) is opened through a migration into the sections above:
   view run record and its outputs results; pinned nodes become `pinned`, other coordinates the
   layout's results;
 - the session's `groups` (version 1) go into view's `groups`, the data member already holding the
-  graph expanded; its `added` edges are dropped, reported;
+  graph expanded; its `added` edges go into the `edges` of the latest collapse their ends stand in
+  for, each keyed by a ULID derived from it under load `reader`; one whose ends stand in for no
+  collapse is dropped, reported;
 - `styleVersion` and `recipeVersion` are dropped, reported; notes version 1 targets become element
   references; base64 positions and results become plain numbers.
 

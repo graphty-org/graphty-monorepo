@@ -771,6 +771,16 @@ function readerKeyOf(memory: DataMemory, slot: string): string {
 }
 
 /**
+ * Remember the key a reader-added edge was read with, so the next save writes the same one.
+ * @param session - The session.
+ * @param id - The edge.
+ * @param key - Its key.
+ */
+export function rememberReaderEdge(session: GraphSession, id: EdgeId, key: string): void {
+    memoryOf(session).readerKeys.set(`e:${id}`, key);
+}
+
+/**
  * A node's source ids and record key: the sources that supplied it; else, for a node only an edge
  * named, none and the key an open read (spec 4.1.9); else the reader's, keyed by its id.
  * @param id - The node.
@@ -981,19 +991,21 @@ function dataModelOf(session: GraphSession): DataModel {
     }
 
     // A reader edge is keyed by its edge-id cell, as a source row is, when no other reader edge
-    // repeats it; else by a ULID minted once.
-    const readerEdgeIds = readerEdges.map((edge) =>
-        edgeIdColumn === undefined ? undefined : keyText(edge[edgeIdColumn]),
+    // repeats it; else by a ULID minted once. An edge added to a node standing in for a group is
+    // a reader edge too, written by view with its collapse (spec 4.7 rule 8), not in this copy.
+    const allReader = [...readerEdges.map((edge) => ({ id: edge.id, record: edge })), ...(expanded?.added ?? [])];
+    const readerEdgeIds = allReader.map(({ record }) =>
+        edgeIdColumn === undefined ? undefined : keyText(record[edgeIdColumn]),
     );
     const counts = new Map<string | undefined, number>();
     for (const own of readerEdgeIds) {
         counts.set(own, (counts.get(own) ?? 0) + 1);
     }
 
-    readerEdges.forEach((edge, at) => {
+    allReader.forEach(({ id }, at) => {
         const own = readerEdgeIds[at];
         const unique = own !== undefined && counts.get(own) === 1;
-        edgeRefs.set(edge.id, { load: READER, key: unique ? own : readerKeyOf(memory, `e:${edge.id}`) });
+        edgeRefs.set(id, { load: READER, key: unique ? own : readerKeyOf(memory, `e:${id}`) });
     });
 
     const reader = readerCopyOf(readerNodes, readerEdges, { nodeRefs, edgeRefs, memory });
@@ -1023,7 +1035,7 @@ function dataModelOf(session: GraphSession): DataModel {
  * @param values - The element's columns.
  * @returns `columns` and `dtypes`.
  */
-function addedColumns(values: Readonly<JsonObject>): { columns: JsonObject; dtypes: JsonObject } {
+export function addedColumns(values: Readonly<JsonObject>): { columns: JsonObject; dtypes: JsonObject } {
     const columns: JsonObject = {};
     const dtypes: JsonObject = {};
     for (const [name, value] of Object.entries(values)) {

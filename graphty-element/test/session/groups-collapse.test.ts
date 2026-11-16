@@ -419,6 +419,29 @@ describe("collapsing a group", () => {
         opened.dispose();
     });
 
+    it("refuses to expand a collapsed node whose added edge another collapse holds", async () => {
+        const session = await graph();
+        const node = await session.groups.collapse(X);
+        await session.data.addEdges([{ source: node, target: "d" }]);
+        await session.groups.collapse(Y);
+        const added = session.data.edges({ scope: "graph" }).length;
+        const before = picture(session);
+        let refusal: { code: string; edges: unknown } | undefined;
+        try {
+            await session.groups.expand(X);
+        } catch (error) {
+            refusal = isGraphtyError(error)
+                ? { code: error.code, edges: (error.details as { edges?: unknown }).edges }
+                : undefined;
+        }
+
+        assert.strictEqual(refusal?.code, "E_BAD_COMMAND");
+        assert.lengthOf(refusal?.edges as unknown[], 1);
+        assert.deepEqual(picture(session), before);
+        assert.strictEqual(session.data.edges({ scope: "graph" }).length, added);
+        session.dispose();
+    });
+
     it("holds two groups at once, expanded in either order", async () => {
         for (const order of [
             [X, Y],

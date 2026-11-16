@@ -31,7 +31,17 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
-import { type LoadedLooks, loadedLooksAsColumns, typedIds } from "./dataRefs";
+import { addedValues } from "./data";
+import {
+    addedColumns,
+    edgeRefOf,
+    elementRefsOf,
+    type LoadedLooks,
+    loadedLooksAsColumns,
+    READER,
+    rememberReaderEdge,
+    typedIds,
+} from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
@@ -445,8 +455,10 @@ function pinnedJson(w: Writer): JsonObject[] {
 }
 
 /**
- * The `groups` member (rule 8): the collapses, in the order an open makes them again. An edge added
- * to a node standing in for a group names no element of the data and is left out and reported.
+ * The `groups` member (rule 8): the collapses, in the order an open makes them again, each with
+ * the edges added to a node standing in for a group that are added again right after it. An end
+ * standing in for a group is named by its collapse; an edge whose other end names no element of
+ * the data is left out and reported.
  * @param w - The writer.
  * @returns The collapses.
  */
@@ -456,11 +468,28 @@ function groupsJson(w: Writer): JsonObject[] {
         return [];
     }
 
-    if (expanded.added.length > 0) {
-        w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, field: "groups.added" } });
+    const { collapsed, standIns } = expanded;
+    const end = (id: NodeId): unknown => {
+        const at = standIns.get(id);
+        return at === undefined ? w.refs.nodeRef(id) : { groupBy: collapsed[at].groupBy, group: collapsed[at].group };
+    };
+    const edges = collapsed.map((): JsonObject[] => []);
+    for (const { id, record, after } of expanded.added) {
+        const { source, target, ...columns } = record;
+        const from = end(source as NodeId);
+        const to = end(target as NodeId);
+        if (from === undefined || to === undefined) {
+            w.problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: SECTION, pointer: `/groups/${String(after)}/edges` },
+            });
+            continue;
+        }
+
+        edges[after].push({ edge: w.refs.edgeRef(id), from, to, ...addedColumns(columns) });
     }
 
-    return expanded.collapsed.map((collapse) => ({ ...collapse }));
+    return collapsed.map((collapse, at) => ({ ...collapse, ...(edges[at].length === 0 ? {} : { edges: edges[at] }) }));
 }
 
 /**
@@ -608,7 +637,9 @@ interface Reader {
     readonly memory: ViewMemory;
     /** File set id to session set id. */
     readonly sets: Map<string, string>;
-    readonly mapper: RefMapper;
+    /** The element references, built again once the edges a collapse lists are added. */
+    refs: ElementRefs;
+    mapper: RefMapper;
     /** The runs restored as minted by graphty-element. */
     readonly derived: Set<string>;
 }
@@ -649,10 +680,10 @@ async function attempt(r: Reader, member: string, part: () => Promise<unknown>):
  * nowhere.
  * @param context - The read context.
  * @param sets - File set id to session set id.
+ * @param refs - The element references.
  * @returns The mapper.
  */
-function readMapper(context: ReadContext, sets: ReadonlyMap<string, string>): RefMapper {
-    const refs = context.refs();
+function readMapper(context: ReadContext, sets: ReadonlyMap<string, string>, refs: ElementRefs): RefMapper {
     const unbound = (ref: unknown, pointer: string): void => {
         context.problems.push({
             code: "W_REFERENCE_UNBOUND",
@@ -716,20 +747,28 @@ function createSets(r: Reader, sets: readonly (readonly [JsonObject, number])[])
 }
 
 /**
- * Apply the selection and the pinned nodes.
+ * Apply the selection, once the groups are collapsed again so an edge added to one is selected.
  * @param r - The reader.
  * @param body - The body.
  */
-async function readElements(r: Reader, body: Readonly<JsonObject>): Promise<void> {
-    const { tx } = r.context;
-    const at = r.section.pointer;
+async function readSelection(r: Reader, body: Readonly<JsonObject>): Promise<void> {
     if (isObject(body.selection)) {
-        const selection = mapRefs(body.selection, r.mapper, `${at}/selection`) as { nodes?: never[]; edges?: never[] };
+        const pointer = `${r.section.pointer}/selection`;
+        const selection = mapRefs(body.selection, r.mapper, pointer) as { nodes?: never[]; edges?: never[] };
         await attempt(r, "selection", () =>
-            tx.selection.apply({ nodes: selection.nodes ?? [], edges: selection.edges ?? [] }),
+            r.context.tx.selection.apply({ nodes: selection.nodes ?? [], edges: selection.edges ?? [] }),
         );
     }
+}
 
+/**
+ * Apply the pinned nodes, before the groups are collapsed again, which keep their members' pins.
+ * @param r - The reader.
+ * @param body - The body.
+ */
+async function readPinned(r: Reader, body: Readonly<JsonObject>): Promise<void> {
+    const { tx } = r.context;
+    const at = r.section.pointer;
     if (Array.isArray(body.pinned)) {
         const entries = body.pinned.flatMap((entry: unknown, n) => {
             const id = isObject(entry) ? r.mapper.node(entry.node, `${at}/pinned/${n}/node`) : undefined;
@@ -1001,25 +1040,119 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
 }
 
 /**
+ * One end of an edge added to a collapse, as the session id: a group's end names a collapse made
+ * already, a node's end a node in the graph. Reports why when it names neither.
+ * @param r - The reader.
+ * @param made - The node standing in for each collapse made, by its canonical `{ groupBy, group }`.
+ * @param entry - The edge as the file holds it.
+ * @param role - `from` or `to`.
+ * @param pointer - The edge's pointer.
+ * @returns The id, or undefined.
+ */
+function groupEdgeEnd(
+    r: Reader,
+    made: ReadonlyMap<string, NodeId>,
+    entry: Readonly<JsonObject>,
+    role: "from" | "to",
+    pointer: string,
+): NodeId | undefined {
+    const value = entry[role];
+    const isGroup = isObject(value) && "groupBy" in value;
+    const id = isGroup
+        ? made.get(canonical({ groupBy: value.groupBy, group: value.group }))
+        : (r.mapper.node(value, `${pointer}/${role}`) as NodeId | undefined);
+    // A group's end names a collapse made already; a node's end, one an earlier collapse left in
+    // the graph (one bound nowhere is reported unbound by the mapper).
+    const bad = isGroup ? id === undefined : id !== undefined && r.context.tx.data.node(id) === undefined;
+    if (bad) {
+        r.context.problems.push({ code: "E_BAD_DOCUMENT", params: { section: SECTION, pointer } });
+        return undefined;
+    }
+
+    return id;
+}
+
+/**
+ * Add again the edges a collapse lists, right after it is made, each under the key it was saved
+ * with so the next save writes the same one.
+ * @param r - The reader.
+ * @param made - The node standing in for each collapse made, by its canonical `{ groupBy, group }`.
+ * @param edges - The collapse's `edges`.
+ * @param at - The collapse's pointer.
+ * @returns Whether any edge was added.
+ */
+async function readGroupEdges(
+    r: Reader,
+    made: ReadonlyMap<string, NodeId>,
+    edges: readonly unknown[],
+    at: string,
+): Promise<boolean> {
+    const { tx, session } = r.context;
+    const keys: string[] = [];
+    const records: JsonObject[] = [];
+    for (const [n, entry] of edges.entries()) {
+        const pointer = `${at}/edges/${String(n)}`;
+        const ref = isObject(entry) ? edgeRefOf(entry.edge) : undefined;
+        const dtypes = isObject(entry) && isObject(entry.dtypes) ? entry.dtypes : {};
+        const columns = isObject(entry) && entry.columns !== undefined ? entry.columns : {};
+        if (
+            !isObject(entry) ||
+            ref?.load !== READER ||
+            !isObject(columns) ||
+            Object.keys(columns).some((name) => typeof dtypes[name] !== "string")
+        ) {
+            r.context.problems.push({ code: "E_BAD_DOCUMENT", params: { section: SECTION, pointer } });
+            continue;
+        }
+
+        const source = groupEdgeEnd(r, made, entry, "from", pointer);
+        const target = groupEdgeEnd(r, made, entry, "to", pointer);
+        if (source !== undefined && target !== undefined) {
+            keys.push(ref.key);
+            records.push({ ...addedValues({ columns, dtypes }), source, target });
+        }
+    }
+
+    if (records.length === 0) {
+        return false;
+    }
+
+    const before = tx.data.edges({ scope: "graph" }).length;
+    await tx.execute({
+        op: "data.apply",
+        mutation: { kind: "add-edges", records, source: "source", target: "target" },
+    });
+    tx.data
+        .edges({ scope: "graph" })
+        .slice(before)
+        .forEach((edge, n) => {
+            rememberReaderEdge(session, edge.id, keys[n]);
+        });
+    return true;
+}
+
+/**
  * Collapse the saved groups again, in order, once the runs they may group by are back, putting
- * each node standing in for one where it stood, with its pin (rule 8).
+ * each node standing in for one where it stood, with its pin, and adding again the edges added to
+ * it (rule 8).
  * @param r - The reader.
  * @param groups - The member.
  */
 async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> {
     const { tx } = r.context;
+    const made = new Map<string, NodeId>();
+    let added = false;
     for (const [at, entry] of groups.entries()) {
         const { groupBy, group, position, pinned } = (isObject(entry) ? entry : {}) as Partial<SavedCollapse>;
+        const pointer = `${r.section.pointer}/groups/${at}`;
         if (typeof groupBy !== "string" || !["string", "number", "boolean"].includes(typeof group)) {
-            r.context.problems.push({
-                code: "E_BAD_DOCUMENT",
-                params: { section: SECTION, pointer: `${r.section.pointer}/groups/${at}` },
-            });
+            r.context.problems.push({ code: "E_BAD_DOCUMENT", params: { section: SECTION, pointer } });
             continue;
         }
 
         await attempt(r, `groups/${at}`, async () => {
             const node = await tx.groups.collapse({ groupBy, group: group as GroupValue });
+            made.set(canonical({ groupBy, group }), node);
             if (isObject(position)) {
                 await tx.positions.set([{ id: node, x: position.x, y: position.y, z: position.z }]);
             }
@@ -1028,6 +1161,17 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
                 await tx.positions.pin([node]);
             }
         });
+
+        const edges = isObject(entry) && Array.isArray(entry.edges) ? entry.edges : [];
+        if (edges.length > 0) {
+            added = (await readGroupEdges(r, made, edges, pointer)) || added;
+        }
+    }
+
+    // The edges added again are named only now: what reads after this binds them.
+    if (added) {
+        r.refs = elementRefsOf(r.context.session);
+        r.mapper = readMapper(r.context, r.sets, r.refs);
     }
 }
 
@@ -1137,7 +1281,7 @@ function heldValue(name: string, value: unknown): unknown {
  */
 function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
     const { context, memory } = r;
-    const fresh = freshBody(writerOf(context.session, context.refs(), [], (id) => r.derived.has(id)));
+    const fresh = freshBody(writerOf(context.session, r.refs, [], (id) => r.derived.has(id)));
     for (const name of MEMBERS) {
         if (body[name] === undefined) {
             continue;
@@ -1161,13 +1305,22 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
 async function readView(section: ReadSection, context: ReadContext): Promise<void> {
     const memory = resetMemory(context.session);
     const sets = new Map<string, string>();
-    const r: Reader = { section, context, memory, sets, mapper: readMapper(context, sets), derived: new Set() };
+    const refs = context.refs();
+    const r: Reader = {
+        section,
+        context,
+        memory,
+        sets,
+        refs,
+        mapper: readMapper(context, sets, refs),
+        derived: new Set(),
+    };
     const { body } = section;
     const savedSets = (Array.isArray(body.sets) ? body.sets : []).flatMap((set: unknown, at) =>
         isObject(set) ? [[set, at] as const] : [],
     );
     const waiting = createSets(r, savedSets);
-    await readElements(r, body);
+    await readPinned(r, body);
     if (isObject(body.visibility)) {
         await readVisibility(r, body.visibility);
     }
@@ -1191,6 +1344,8 @@ async function readView(section: ReadSection, context: ReadContext): Promise<voi
     if (Array.isArray(body.groups)) {
         await readGroups(r, body.groups);
     }
+
+    await readSelection(r, body);
 
     const own = Array.isArray(body.layers) ? await readLayers(r, body.layers) : [];
     if (Array.isArray(body.order)) {

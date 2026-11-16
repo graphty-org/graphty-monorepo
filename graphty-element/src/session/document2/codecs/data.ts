@@ -293,7 +293,7 @@ function rowOf(table: Table, row: number): JsonObject {
  * @param operation - The checked `add`.
  * @returns The values; unset cells left out.
  */
-function addedColumns(operation: JsonObject): JsonObject {
+export function addedValues(operation: JsonObject): JsonObject {
     const given = (operation.columns ?? {}) as JsonObject;
     const dtypes = operation.dtypes as JsonObject;
     const table: Table = {
@@ -924,7 +924,7 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
                 return;
             }
             case "add": {
-                const columns = addedColumns(operation);
+                const columns = addedValues(operation);
                 const node = nodeRefOf(operation.node);
                 if (node !== undefined) {
                     const added = nodeAt(into, node, columns.id ?? node.key);

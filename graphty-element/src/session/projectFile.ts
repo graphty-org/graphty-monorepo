@@ -919,7 +919,7 @@ function groupsOf(session: GraphSession): { groups?: Record<string, unknown> } {
               groups: {
                   version: GROUPS_VERSION,
                   collapsed: expanded.collapsed,
-                  ...(expanded.added.length === 0 ? {} : { added: expanded.added }),
+                  ...(expanded.added.length === 0 ? {} : { added: expanded.added.map((each) => each.record) }),
               },
           };
 }

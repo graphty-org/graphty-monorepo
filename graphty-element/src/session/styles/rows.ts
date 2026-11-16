@@ -262,7 +262,7 @@ export interface StartingRow {
 }
 
 /** The template id the timeline's default row, Timeline Hidden, carries. */
-export const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
+const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
 
 /**
  * The template id the same row carried while it was called Ghost. A project saved then still

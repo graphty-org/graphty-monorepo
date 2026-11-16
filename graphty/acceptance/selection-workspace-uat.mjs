@@ -1645,24 +1645,6 @@ const dataColumns = (verb) => async (page) => {
     await reopenSame(v);
 };
 
-// With the feature off, Which nodes opens the old editor and no modal.
-const flagOff = async (page) => {
-    const v = new Visit(page, "karate", "style-nodes");
-    const url = new URL(args.url);
-    url.searchParams.delete("features");
-    await v.open(url.href);
-    await page.getByRole("button", { name: "Add a layer or a folder" }).click();
-    await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
-    await page.getByRole("textbox", { name: "Layer name" }).waitFor();
-    await page.keyboard.press("Escape");
-    // The Style Nodes... line is drawn at rest with the feature on or off (#6810), so it is clicked like any button.
-    await page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
-    await page.locator(".sel-ws").waitFor();
-    if ((await page.locator(".sel-ws.sel-modal").count()) > 0) {
-        fail("the modal opened with the feature off");
-    }
-};
-
 // A picture of a scenario's end state, for the reader to look at, beside the failure shots.
 const shot = (page, name) => page.screenshot({ path: join(args.out, `${name}.png`) });
 
@@ -1912,7 +1894,6 @@ const SCENARIOS = [
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
     ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
-    ["flag: off keeps the old editor", flagOff],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],

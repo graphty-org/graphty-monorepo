@@ -31,7 +31,7 @@ import { elementSort, groupName, type RecordKind, type TableColumnChoice } from 
 const WINDOW_PAD = 50;
 
 /** How long a new sort runs before the notice shows its progress and its Cancel, in ms. */
-export const SORT_NOTICE_MS = 300;
+const SORT_NOTICE_MS = 300;
 
 /** One drawn row: the record, and its position in the page's result columns. */
 interface Row {

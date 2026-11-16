@@ -132,6 +132,7 @@ export {
 export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    FIGSHARE_SOURCE_ID,
     GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,

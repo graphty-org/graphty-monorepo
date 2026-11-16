@@ -112,6 +112,11 @@
             "import": "./dist/sources-s3.js",
             "default": "./dist/sources-s3.js"
         },
+        "./sources/figshare": {
+            "types": "./dist/sources-figshare.d.ts",
+            "import": "./dist/sources-figshare.js",
+            "default": "./dist/sources-figshare.js"
+        },
         "./sources/zenodo": {
             "types": "./dist/sources-zenodo.d.ts",
             "import": "./dist/sources-zenodo.js",

@@ -175,6 +175,12 @@ export async function signRequest(
     }
     const method = request.method.toUpperCase();
     const body = method === "GET" || method === "HEAD" ? new Uint8Array(0) : await request.clone().arrayBuffer();
+    const bodyHash = await sha256(body);
+    // S3 wants the payload's hash as a header, and its path encoded only once
+    const s3 = service === "s3";
+    if (s3) {
+        headers.set("x-amz-content-sha256", bodyHash);
+    }
 
     const signed = new Map<string, string>([["host", url.host]]);
     headers.forEach((value, name) => {
@@ -188,12 +194,15 @@ export async function signRequest(
     const canonical = [
         method,
         // non-S3 services encode the already-encoded path once more
-        url.pathname.split("/").map(encode).join("/"),
+        url.pathname
+            .split("/")
+            .map((part) => encode(s3 ? decodeURIComponent(part) : part))
+            .join("/"),
         canonicalQuery(url),
         ...names.map((n) => `${n}:${signed.get(n) ?? ""}`),
         "",
         signedHeaders,
-        await sha256(body),
+        bodyHash,
     ].join("\n");
 
     const day = stamp.slice(0, 8);

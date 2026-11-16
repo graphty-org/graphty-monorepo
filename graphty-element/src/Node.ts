@@ -646,6 +646,14 @@ export class Node implements ModelUser {
     get sizeSpace(): NodeSizeSpace | undefined {
         return this.#drawnStyle?.shape?.sizeSpace;
     }
+
+    /** The last answer of {@link Node.compareDrawn}, and the two styles it compared. */
+    private comparedDrawn: {
+        style: NodeStyleConfig;
+        drawn: NodeStyleConfig | null;
+        equal: boolean;
+        equalButFill: boolean;
+    } | null = null;
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
     /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
@@ -2610,7 +2618,7 @@ export class Node implements ModelUser {
         // impostor's pick proxy must never share one, since the proxy's source is not drawn.
         const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
-            meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (samePath && this.compareDrawn(o).equal && isEqual(color, this.drawnColor));
         const model = this.modelFor(o);
         return (
             sameGeometry &&
@@ -2866,6 +2874,30 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How a style compares with the one the mesh was drawn from: deep-equal, and deep-equal but for
+     * its fill. One deep comparison answers both (the fill is one small subtree), and the answer is
+     * kept for the same two objects: a repaint asks `nodeRebuildsFor` about a paint and then draws
+     * it, and each asked `keepsMeshFor` and then `movesFor`, so a filter that ghosts every node
+     * compared every node's whole style four times, most of a repaint at 50,000 nodes (#7966). A
+     * paint's style is built fresh and never written after (as `reachOutline` relies on too),
+     * so the identity of the pair stands for what they hold.
+     * @param o - The resolved style.
+     * @returns Both answers; both false when nothing is drawn yet.
+     */
+    private compareDrawn(o: NodeStyleConfig): { equal: boolean; equalButFill: boolean } {
+        const drawn = this.drawnStyle;
+        const kept = this.comparedDrawn;
+        if (kept?.style === o && kept.drawn === drawn) {
+            return kept;
+        }
+
+        const equalButFill = drawn !== null && isEqual(withoutFill(o), withoutFill(drawn));
+        const equal = equalButFill && isEqual(o.texture, drawn?.texture);
+        this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        return this.comparedDrawn;
+    }
+
+    /**
      * Whether a paint that does not keep this node's mesh can move the mesh onto its source instead
      * of building another (`moveInstance`): a paint that differs from the drawn one only in its
      * fill's color and opacity, which are in the source's material and `visibility` alone, so the
@@ -2885,7 +2917,7 @@ export class Node implements ModelUser {
             drawn !== null &&
             this.drawnModel === null &&
             shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
-            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            this.compareDrawn(o).equalButFill &&
             !this.fitIsStale(o) &&
             this.modelFor(o) === null &&
             this.imageFor(o) === this.drawnImage

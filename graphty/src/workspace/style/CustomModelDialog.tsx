@@ -696,7 +696,17 @@ function addBlock(
             ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
             : CUSTOM_MODEL.addFirst;
     }
-    // Every model taken that graphty-element could not draw blocks Add, not only the one shown.
+    return drawBlock(taking, current, failure);
+}
+
+/**
+ * Every model taken that graphty-element could not draw blocks Add, not only the one shown.
+ * @param taking - the models Add takes
+ * @param current - the model shown
+ * @param failure - why graphty-element could not draw the model shown, if it could not
+ * @returns Add's tooltip while blocked, or null
+ */
+function drawBlock(taking: readonly Member[], current: Member | undefined, failure: CodedFact | undefined): string | null {
     for (const member of taking) {
         if (member !== current && member.checked !== true) {
             return CUSTOM_MODEL.loading(member.name);
@@ -890,6 +900,8 @@ export function CustomModelDialog({
                 letGo(refOf(member.held));
             }
         }
+        // A set loaded again takes the same ids: its new members are drawn off screen again.
+        asked.current.clear();
         setMembers(next.map(memberOf));
         setIndex(0);
     };
@@ -1115,6 +1127,7 @@ export function CustomModelDialog({
             letGo(each);
         }
         setLoading(null);
+        asked.current.clear();
         setMembers([]);
         setIndex(0);
         setDraft({});

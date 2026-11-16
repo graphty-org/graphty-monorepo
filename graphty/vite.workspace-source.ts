@@ -82,7 +82,7 @@ function builtFile(exports: Record<string, ExportTarget>, subpath: string): stri
             continue;
         }
         const target = typeof value === "string" ? value : (value?.import ?? value?.default);
-        return typeof target === "string" ? target.replace("*", match) : undefined;
+        return typeof target === "string" ? target.replaceAll("*", match) : undefined;
     }
     return undefined;
 }

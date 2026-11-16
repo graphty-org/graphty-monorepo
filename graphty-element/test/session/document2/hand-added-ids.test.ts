@@ -153,6 +153,36 @@ describe("hand-added nodes and edges in version 2 save files", () => {
         opened.dispose();
     });
 
+    it('keeps two hand-added nodes whose ids print alike (1 and "1") apart across a save and a reopen', async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([{ id: 1, label: "num" }, { id: "1", label: "str" }, { id: "k" }]);
+        await session.data.addEdges([{ source: "1", target: "k" }]);
+        const graph = (each: GraphSession): unknown => ({
+            nodes: each.data
+                .nodes()
+                .map((node) => `${typeof node.id}:${String(node.id)}:${String(node.label)}`)
+                .sort(),
+            edges: each.data
+                .edges()
+                .map((edge) => `${typeof edge.source}:${String(edge.source)}>${String(edge.target)}`),
+        });
+        const before = graph(session);
+        const first = await save(session);
+        session.dispose();
+        assert.deepEqual(first.leftOut, []);
+
+        const keys = readerOperations(first.text).flatMap((op) =>
+            op.node === undefined ? [] : [(op.node as JsonObject).key],
+        );
+        assert.lengthOf(new Set(keys), 3);
+        assert.include(keys, "1");
+
+        const opened = await open(first.text);
+        assert.deepEqual(graph(opened), before);
+        assert.deepEqual(sections((await save(opened)).text), sections(first.text));
+        opened.dispose();
+    });
+
     it("opens an older file whose reader add is keyed by a ULID under that ULID, and keeps it", async () => {
         const session = await handAdded();
         const { text } = await save(session);

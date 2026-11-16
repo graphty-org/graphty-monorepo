@@ -726,13 +726,42 @@ function createSet(r: Reader, set: JsonObject, at: number): void {
 }
 
 /**
- * Create the saved sets; a set that cannot be made yet (it reads a run or a later set) waits.
+ * Whether every node and edge a saved set names is in the graph now; an edge added to a collapse
+ * is not until the collapse is made again.
+ * @param r - The reader.
+ * @param set - The set as the file holds it.
+ * @returns True when all bind.
+ */
+function bindsNow(r: Reader, set: JsonObject): boolean {
+    let all = true;
+    const check =
+        (find: (ref: unknown) => unknown) =>
+        (value: unknown): unknown => {
+            const id = find(value);
+            all &&= id !== undefined;
+            return id;
+        };
+    mapRefs(
+        set.definition,
+        { node: check((ref) => r.refs.node(ref)), edge: check((ref) => r.refs.edge(ref)), set: (id) => id },
+        "",
+    );
+    return all;
+}
+
+/**
+ * Create the saved sets; a set that cannot be made yet (it reads a run or a later set, or names
+ * an element not in the graph yet) waits.
  * @param r - The reader.
  * @param sets - The sets, with their index.
  * @returns The ones that wait.
  */
 function createSets(r: Reader, sets: readonly (readonly [JsonObject, number])[]): (readonly [JsonObject, number])[] {
     return sets.filter(([set, at]) => {
+        if (!bindsNow(r, set)) {
+            return true;
+        }
+
         try {
             createSet(r, set, at);
             return false;
@@ -1079,6 +1108,7 @@ function groupEdgeEnd(
  * @param made - The node standing in for each collapse made, by its canonical `{ groupBy, group }`.
  * @param edges - The collapse's `edges`.
  * @param at - The collapse's pointer.
+ * @param seen - The keys of the edges the collapses read so far list.
  * @returns Whether any edge was added.
  */
 async function readGroupEdges(
@@ -1086,6 +1116,7 @@ async function readGroupEdges(
     made: ReadonlyMap<string, NodeId>,
     edges: readonly unknown[],
     at: string,
+    seen: Set<string>,
 ): Promise<boolean> {
     const { tx, session } = r.context;
     const keys: string[] = [];
@@ -1099,7 +1130,10 @@ async function readGroupEdges(
             !isObject(entry) ||
             ref?.load !== READER ||
             !isObject(columns) ||
-            Object.keys(columns).some((name) => typeof dtypes[name] !== "string")
+            Object.keys(columns).some((name) => typeof dtypes[name] !== "string") ||
+            // Its key names no other reader edge, in the data or in any collapse.
+            seen.has(ref.key) ||
+            r.refs.edge(entry.edge) !== undefined
         ) {
             r.context.problems.push({ code: "E_BAD_DOCUMENT", params: { section: SECTION, pointer } });
             continue;
@@ -1107,6 +1141,7 @@ async function readGroupEdges(
 
         const source = groupEdgeEnd(r, made, entry, "from", pointer);
         const target = groupEdgeEnd(r, made, entry, "to", pointer);
+        seen.add(ref.key);
         if (source !== undefined && target !== undefined) {
             keys.push(ref.key);
             records.push({ ...addedValues({ columns, dtypes }), source, target });
@@ -1141,6 +1176,7 @@ async function readGroupEdges(
 async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> {
     const { tx } = r.context;
     const made = new Map<string, NodeId>();
+    const seen = new Set<string>();
     let added = false;
     for (const [at, entry] of groups.entries()) {
         const { groupBy, group, position, pinned } = (isObject(entry) ? entry : {}) as Partial<SavedCollapse>;
@@ -1164,7 +1200,7 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
 
         const edges = isObject(entry) && Array.isArray(entry.edges) ? entry.edges : [];
         if (edges.length > 0) {
-            added = (await readGroupEdges(r, made, edges, pointer)) || added;
+            added = (await readGroupEdges(r, made, edges, pointer, seen)) || added;
         }
     }
 
@@ -1334,15 +1370,17 @@ async function readView(section: ReadSection, context: ReadContext): Promise<voi
         await readRun(r, record, at);
     }
 
-    for (const [set, at] of waiting) {
+    // A set naming an edge added to a collapse waits for the collapse to be made again.
+    const late = createSets(r, waiting);
+    if (Array.isArray(body.groups)) {
+        await readGroups(r, body.groups);
+    }
+
+    for (const [set, at] of late) {
         await attempt(r, `sets/${at}`, () => {
             createSet(r, set, at);
             return Promise.resolve();
         });
-    }
-
-    if (Array.isArray(body.groups)) {
-        await readGroups(r, body.groups);
     }
 
     await readSelection(r, body);

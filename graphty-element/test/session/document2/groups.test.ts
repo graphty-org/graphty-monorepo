@@ -455,6 +455,55 @@ describe("collapsed groups in version 2 save files", () => {
         opened.dispose();
     });
 
+    it("keeps a set naming an edge added to a node standing in for a group", async () => {
+        const session = await graph();
+        const node = await session.groups.collapse(X);
+        await session.data.addEdges([{ source: node, target: "e", weight: 2 }]);
+        const edge = addedEdge(session, node);
+        session.sets.create({ kind: "fixed", nodes: [], edges: [edge], reading: "induced" } as never, { name: "E" });
+        const { text } = await save(session);
+        session.dispose();
+
+        const opened = await open(text);
+        const [set] = opened.sets.list();
+        const named = (set.definition as { edges?: { source: NodeId; target: NodeId }[] }).edges ?? [];
+        assert.deepEqual(
+            named.map((each) => `${String(each.source)}>${String(each.target)}`),
+            [`${String(node)}>e`],
+        );
+        opened.dispose();
+    });
+
+    it("reports an added edge whose key another reader edge has, in the data or in a collapse", async () => {
+        const session = await graph();
+        const node = await session.groups.collapse(X);
+        await session.data.addEdges([{ source: node, target: "e", weight: 2 }]);
+        await session.data.addNodes([{ id: "z" }]);
+        await session.data.addEdges([{ source: "z", target: "e" }]);
+        const { text } = await save(session);
+        session.dispose();
+
+        const file = JSON.parse(text) as JsonObject;
+        const { data, view } = file.sections as Record<string, JsonObject>;
+        const reader = (data.sources as JsonObject[]).find((source) => source.id === "reader") as JsonObject;
+        const dataEdge = ((reader.copy as JsonObject).operations as JsonObject[]).find((op) => op.edge !== undefined);
+        const [entry] = (view.groups as JsonObject[])[0].edges as JsonObject[];
+        for (const [edges, pointer] of [
+            [[entry, entry], "/sections/view/groups/0/edges/1"],
+            [[{ ...entry, edge: dataEdge?.edge }], "/sections/view/groups/0/edges/0"],
+        ] as const) {
+            (view.groups as JsonObject[])[0] = { ...(view.groups as JsonObject[])[0], edges: [...edges] };
+            const opened = createGraphSession(ON);
+            const report = await opened.project.open(JSON.stringify(file), { rerun: false });
+            assert.deepInclude(report.problems, { code: "E_BAD_DOCUMENT", params: { section: "view", pointer } });
+            const onGroup = opened.data
+                .edges({ scope: "graph" })
+                .filter((each) => each.source === node && each["_group.count"] === undefined);
+            assert.lengthOf(onGroup, edges.length - 1);
+            opened.dispose();
+        }
+    });
+
     it("reports the collapses as left out of a save that writes the data without view", async () => {
         const session = await graph();
         await session.groups.collapse(X);

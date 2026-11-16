@@ -782,11 +782,13 @@ export function rememberReaderEdge(session: GraphSession, id: EdgeId, key: strin
 
 /**
  * A node's source ids and record key: the sources that supplied it; else, for a node only an edge
- * named, none and the key an open read (spec 4.1.9); else the reader's, keyed by its id.
+ * named, none and the key an open read (spec 4.1.9); else the reader's, keyed by its id unless
+ * another reader node's id prints the same (1 and "1"), then by a ULID minted once.
  * @param id - The node.
  * @param supplied - The sources that supplied it, in join order.
  * @param memory - The memory.
  * @param shared - The space today's loads share.
+ * @param taken - The reader keys named so far, this one added.
  * @returns Its source ids, its key, and whether the reader added it.
  */
 function nameNode(
@@ -794,6 +796,7 @@ function nameNode(
     supplied: readonly ModelSource[],
     memory: DataMemory,
     shared: string,
+    taken: Set<string>,
 ): { readonly loads: string[]; readonly ref: NodeRef; readonly reader: boolean } {
     const known = memory.nodeRefs.get(id);
     if (supplied.length > 0) {
@@ -806,7 +809,10 @@ function nameNode(
     }
 
     // Keyed by its own id, as a source row is, so the id is the same after a reopen.
-    const key = known?.key ?? keyText(id) ?? readerKeyOf(memory, `n:${String(id)}`);
+    const own = keyText(id);
+    const key =
+        known?.key ?? (own === undefined || taken.has(own) ? readerKeyOf(memory, `n:${typeof id}:${String(id)}`) : own);
+    taken.add(key);
     return { loads: [READER], ref: { space: known?.space ?? `source:${READER}`, key }, reader: true };
 }
 
@@ -940,13 +946,17 @@ function dataModelOf(session: GraphSession): DataModel {
     const nodeLoads = new Map<NodeId, string[]>();
     const nodeRefs = new Map<NodeId, NodeRef>();
     const readerNodes: NodeRecord[] = [];
+    // The keys an open read for reader nodes are theirs, whatever order the nodes come in.
+    const readerKeys = new Set(
+        [...memory.nodeRefs.values()].filter((ref) => ref.space === `source:${READER}`).map((ref) => ref.key),
+    );
     for (const node of nodes) {
         const supplied = loadsOf(sourcesOf(node.id, "node"));
         for (const source of supplied) {
             source.nodes.push(node);
         }
 
-        const named = nameNode(node.id, supplied, memory, shared);
+        const named = nameNode(node.id, supplied, memory, shared, readerKeys);
         nodeLoads.set(node.id, named.loads);
         nodeRefs.set(node.id, named.ref);
         if (named.reader) {

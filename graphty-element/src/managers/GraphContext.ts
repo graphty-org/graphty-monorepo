@@ -7,6 +7,7 @@ import type { NodeScreenPosition } from "../Graph";
 import type { EdgeRowLines } from "../meshes/EdgeRowLines";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { NodeBatches } from "../meshes/NodeBatch";
+import type { LeanLines } from "../meshes/PulledLineBatch";
 import type { DrawnTarget, RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
@@ -83,11 +84,12 @@ export interface GraphContext {
 
     /**
      * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
-     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
-     * @returns True when it does.
+     * `antialias` false and the `"batched"` path's batches open; `"smooth"` under `antialias`
+     * "shader" (`EDGE_LINE_AA`). Optional, as `getRowTable` is.
+     * @returns The program.
      * @internal
      */
-    leansLines?(): boolean;
+    leansLines?(): LeanLines;
 
     /**
      * The node batches, on the `"batched"` render path.

@@ -3,7 +3,9 @@
  * (`PulledLineBatch`) and draw the picture the placed lines draw: at rest, after a node is dragged (no
  * edge byte uploaded) and with an edge hidden. An edge with a cap stays an object edge. With
  * `antialias` false under renderPath "batched", straight pulled lines draw the lean program (each
- * piece's rectangle alone, design/rendering/cosmos-gap.md G12) and the same picture. The bar is
+ * piece's rectangle alone, design/rendering/cosmos-gap.md G12) and the same picture; with `antialias`
+ * "shader", the lean program with its edges smoothed in the fragment shader on a canvas with no
+ * multisampling (issue #8531). The bar is
  * section 7 of design/rendering/row-renderer.md.
  */
 
@@ -17,7 +19,7 @@ import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { poolGrowths } from "../../src/meshes/poolReserve";
-import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
+import { type Antialias, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -83,7 +85,7 @@ async function loaded(
     renderer: "webgl" | "webgpu",
     pulled: boolean,
     view: "2d" | "3d" = "3d",
-    { renderPath = "objects", antialias = true }: { renderPath?: "objects" | "batched"; antialias?: boolean } = {},
+    { renderPath = "objects", antialias = true }: { renderPath?: "objects" | "batched"; antialias?: Antialias } = {},
 ): Promise<Graphty> {
     pulledEdgesDefault.value = pulled;
     const element = document.createElement("graphty-element");
@@ -398,6 +400,39 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             joinedKeys.join(", "),
         );
     });
+
+    it.each(["2d", "3d"] as const)(
+        "draw the smoothed lean program under antialias shader on batched, in %s, with no multisampling",
+        async (view) => {
+            const lean = await loaded(renderer, false, view, { renderPath: "batched", antialias: false });
+            const leanRest = await readCanvas(lean.graph);
+            lean.remove();
+
+            const smooth = await loaded(renderer, false, view, { renderPath: "batched", antialias: "shader" });
+            assert.strictEqual(smooth.antialias, "shader");
+            assert.strictEqual(smooth.graph.leansLines(), "smooth");
+            assert.isFalse(smooth.graph.engine.getCreationOptions().antialias, "the canvas is not multisampled");
+            const batches = [...smooth.graph.getMeshCache().pulledBatchMap.entries()];
+            assert.isTrue(batches.length > 0, "the batched path pulls edges");
+            for (const [key, batch] of batches) {
+                assert.isTrue(key.endsWith(view === "2d" ? "|smooth|2d" : "|smooth"), key);
+                const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
+                assert.includeMembers(defines, ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"], key);
+                assert.strictEqual(
+                    batch.mesh.subMeshes[0]?.verticesCount,
+                    batch.drawnCount * 6,
+                    "six vertices a piece",
+                );
+            }
+
+            // The same lines, their edges smoothed: some pixels differ from the lean picture.
+            assert.isAbove(overBar(leanRest, await readCanvas(smooth.graph)), 0);
+            // It cannot switch to multisampling on an engine built without it.
+            smooth.antialias = true;
+            assert.strictEqual(smooth.antialias, "shader");
+            smooth.remove();
+        },
+    );
 
     it("pull the plain edges in 2D too, with their width in world units", async () => {
         const placed = await loaded(renderer, false, "2d");

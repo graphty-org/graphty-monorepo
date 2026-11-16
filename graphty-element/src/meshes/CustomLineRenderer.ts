@@ -127,8 +127,25 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
-    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
-    pulledLean?: boolean;
+    /**
+     * With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`);
+     * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
+     */
+    pulledLean?: boolean | "smooth";
+}
+
+/**
+ * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
+ * rectangle with shader-smoothed edges.
+ * @param lean - The look's `pulledLean`.
+ * @returns The defines.
+ */
+function leanDefines(lean: JoinedLineOptions["pulledLean"]): string[] {
+    if (lean === "smooth") {
+        return ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"];
+    }
+
+    return lean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -146,9 +163,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
-            ? ["#define EDGE_PULLED_LEAN"]
-            : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options.pulledLean) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }

@@ -39,7 +39,7 @@ import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
 import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
-import { LEAN_TEMPLATE, PulledLineBatch } from "./PulledLineBatch";
+import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
@@ -732,7 +732,8 @@ void main() {
      * @param edge.loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
      * @param edge.route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
      * @param edge.lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
-     *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12). A curve never does.
+     *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12); `"smooth"`, the
+     *     lean program with shader-smoothed edges (`antialias` "shader"). A curve never does.
      * @returns The batch.
      */
     static pulledBatch(
@@ -741,7 +742,7 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         rowPositions: () => BaseTexture,
-        edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: boolean } = {},
+        edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
@@ -756,15 +757,15 @@ void main() {
 
         // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
         const flat = this.drawsFlat(scene);
-        const leanLine = lean && !curve;
-        let kind: "curve" | "lean" | true = true;
+        const leanLine: LeanLines = curve ? false : lean;
+        let kind: "curve" | "lean" | "smooth" | true = true;
         let suffix = "";
         if (curve) {
             kind = "curve";
             suffix = "|curve";
-        } else if (leanLine) {
-            kind = "lean";
-            suffix = "|lean";
+        } else if (leanLine !== false) {
+            kind = leanLine === "smooth" ? "smooth" : "lean";
+            suffix = `|${kind}`;
         }
 
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
@@ -779,7 +780,7 @@ void main() {
                 scene,
                 rowPositions,
                 curve,
-                leanLine ? LEAN_TEMPLATE : undefined,
+                leanLine === false ? undefined : LEAN_TEMPLATE,
                 kind === true,
             );
         });
@@ -798,7 +799,7 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-        lean: boolean,
+        lean: LeanLines,
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
@@ -1152,7 +1153,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
-        pulled: boolean | "curve" | "lean" = false,
+        pulled: boolean | "curve" | "lean" | "smooth" = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -1170,7 +1171,7 @@ void main() {
                     opaque: this.drawsOpaque(style),
                     pulled: pulled !== false,
                     pulledCurve: pulled === "curve",
-                    pulledLean: pulled === "lean",
+                    pulledLean: pulled === "smooth" ? "smooth" : pulled === "lean",
                 },
                 scene,
             );

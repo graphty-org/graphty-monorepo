@@ -126,7 +126,8 @@ const ELEMENT_LAYOUT = "element-layout";
 
 /**
  * The `antialias` attribute's value: `"false"` turns multisampling off, `"at-rest"` multisamples
- * only the frame a still scene rests on, and any other value or no attribute leaves it on.
+ * only the frame a still scene rests on, `"shader"` turns it off and smooths lines in their shader,
+ * and any other value or no attribute leaves it on.
  * @param value - The attribute, or null when there is none.
  * @returns The setting.
  */
@@ -135,7 +136,11 @@ function antialiasFromAttribute(value: string | null): Antialias {
         return antialiasDefault.value;
     }
 
-    return value === "at-rest" ? "at-rest" : value !== "false";
+    if (value === "at-rest" || value === "shader") {
+        return value;
+    }
+
+    return value !== "false";
 }
 
 /**

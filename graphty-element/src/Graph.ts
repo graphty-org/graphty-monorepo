@@ -218,7 +218,7 @@ import {
     type NodeThumbnailOptions,
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { type Antialias, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
@@ -1077,7 +1077,7 @@ export class Graph implements GraphContext {
 
     /** See {@link Graph.antialias}. */
     #antialias: Antialias;
-    /** Whether the engine was built multisampling: `antialias` was not false. */
+    /** Whether the engine was built multisampling: `antialias` was neither false nor "shader". */
     readonly #multisampled: boolean;
 
     /**
@@ -1102,7 +1102,7 @@ export class Graph implements GraphContext {
             return true;
         }
 
-        if (value === false || !this.#multisampled) {
+        if (value === false || value === "shader" || !this.#multisampled) {
             return false;
         }
 
@@ -1122,8 +1122,9 @@ export class Graph implements GraphContext {
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
-     * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
-     *     frame a still scene rests on (`"at-rest"`). Left out, true.
+     * @param options.antialias - Whether the canvas multisamples (4x): always, never, only the
+     *     frame a still scene rests on (`"at-rest"`), or never while the line shader smooths the
+     *     lines' edges (`"shader"`). Left out, true.
      * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
      *     the page can read it between frames. Left out, true.
      */
@@ -1134,7 +1135,7 @@ export class Graph implements GraphContext {
     ) {
         this.useMockInput = useMockInput;
         this.#antialias = options.antialias ?? true;
-        this.#multisampled = this.#antialias !== false;
+        this.#multisampled = this.#antialias !== false && this.#antialias !== "shader";
         this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
@@ -5180,12 +5181,18 @@ export class Graph implements GraphContext {
 
     /**
      * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
-     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
-     * @returns True when it does.
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12); and
+     * `"smooth"`, the rectangle a pixel wider with its edges smoothed by the fragment shader, under
+     * `antialias` "shader" (issue #8531).
+     * @returns The program.
      * @internal
      */
-    leansLines(): boolean {
-        return this.#antialias === false && this.#nodeBatches !== null;
+    leansLines(): LeanLines {
+        if (this.#nodeBatches === null) {
+            return false;
+        }
+
+        return this.#antialias === "shader" ? "smooth" : this.#antialias === false;
     }
 
     /**

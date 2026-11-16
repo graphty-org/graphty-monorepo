@@ -22,7 +22,8 @@ import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
-import type { CompiledLayer } from "../Layer";
+import { channelDescriptor } from "../channels";
+import type { CompiledLayer, LayerProblem } from "../Layer";
 import { quotePath } from "../predicate";
 import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
@@ -263,6 +264,49 @@ export async function applyFileStyles(
 }
 
 /**
+ * A layer whose refusal comes only from constants it sets, with each such value repaired as the element would draw a
+ * single bad value read per element: a number outside its channel's range drawn at the nearest end of it, any other
+ * refused value left out. Each repair adds a note naming the channel and the file's value.
+ * @param spec - The refused layer.
+ * @param errors - Why the element refused it.
+ * @returns The repaired layer and its notes, or null when something other than a set value was refused.
+ */
+function repairSetValues(
+    spec: LayerSpec,
+    errors: readonly LayerProblem[],
+): { spec: LayerSpec; notes: FileStyleNote[] } | null {
+    const set = new Map<string, unknown>(Object.entries(spec.set ?? {}));
+    const notes: FileStyleNote[] = [];
+    for (const error of errors) {
+        const channel = [...set.keys()].find(
+            (key) => error.path === `set.${key}` || error.path?.startsWith(`set.${key}.`) === true,
+        );
+        if (channel === undefined) {
+            return null;
+        }
+
+        const value = set.get(channel);
+        const descriptor = channelDescriptor(channel);
+        const params = { property: channel, target: spec.target ?? null, count: 1, samples: [String(value)] };
+        if (error.code === "E_OPTION_RANGE" && typeof value === "number" && descriptor?.accepts === "number") {
+            set.set(
+                channel,
+                Math.min(
+                    descriptor.max ?? Number.POSITIVE_INFINITY,
+                    Math.max(descriptor.min ?? Number.NEGATIVE_INFINITY, value),
+                ),
+            );
+            notes.push({ code: FILE_STYLE_TRANSLATION_ISSUE.DRAWN_NEAREST, params });
+        } else {
+            set.delete(channel);
+            notes.push({ code: FILE_STYLE_TRANSLATION_ISSUE.NO_COUNTERPART, params });
+        }
+    }
+
+    return notes.length === 0 ? null : { spec: { ...spec, set: Object.fromEntries(set) }, notes };
+}
+
+/**
  * The layers the element accepts, each checked one by one, so a layer the element refuses is left out
  * and the rest apply. A refused layer, or one applied by its fallback, adds a note.
  * @param layers - The translated layers.
@@ -278,7 +322,16 @@ function acceptedLayers(
     const accepted: LayerSpec[] = [];
     for (const layer of layers) {
         const candidates = [[layer.spec], ...(layer.fallback === undefined ? [] : [layer.fallback])];
-        const usable = candidates.find((specs) => specs.every((spec) => service?.validate?.(spec).ok ?? true));
+        let usable = candidates.find((specs) => specs.every((spec) => service?.validate?.(spec).ok ?? true));
+        if (usable === undefined) {
+            // One bad constant must not take the rest of the layer with it (#8422): repair just that value.
+            const repaired = repairSetValues(layer.spec, service?.validate?.(layer.spec).errors ?? []);
+            if (repaired !== null && (service?.validate?.(repaired.spec).ok ?? true)) {
+                notes.push(...repaired.notes);
+                usable = [repaired.spec];
+            }
+        }
+
         if (usable === undefined) {
             notes.push({
                 code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_REFUSED,
@@ -287,7 +340,7 @@ function acceptedLayers(
             continue;
         }
 
-        if (usable !== candidates[0]) {
+        if (usable !== candidates[0] && candidates.includes(usable)) {
             notes.push({
                 code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED,
                 params: {

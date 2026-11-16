@@ -923,6 +923,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setStartingCameraDistance",
             "setAutoFrame",
             "setRenderPath",
+            "setAntialias",
             "startInputRecording",
             "stopInputRecording",
         ],

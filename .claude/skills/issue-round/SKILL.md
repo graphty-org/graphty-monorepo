@@ -308,6 +308,22 @@ origin/master before opening; on a conflict, settle it, or release with `pipelin
 conflicts with #<n>` and remove `in-progress`." Any other overlap defers the job. Either way the round goes on to the
 next job. The free-queue scan applies the same rule.
 
+**A finished branch with no pull request takes more work instead of blocking it.** While master is red, finished
+branches wait unopened (`ready`, see "While master is red" in the shared file), and an issue whose files one of them
+changes would otherwise wait for it to open and merge -- hours after master turns green. Such an issue joins that
+branch: its job continues on the same branch in the same worktree (merge `origin/master` there first), adds its own
+commit with its own `Fixes #N` line, and writes a new `ready` marker for the head, so the branch opens later as one
+pull request covering both. Its `taken` marker names the branch (`joins ready <branch>`). Only for a branch with no
+pull request and no job running on it, up to four issues a branch (step 2's group limit), and never for a branch whose
+issue is owner-only or labelled `needs-decision`. The free-queue scan writes such an issue as a job with the branch
+named in its `why` (`joins ready <branch>`), not as blocked. On 2026-11-16 thirty of thirty-one queued issues sat
+blocked, most of them on seven finished branches waiting behind a red master, and the rounds started nothing for
+hours.
+
+**A job that fixes the red is marked so.** When the job's issue is a cause of master's red (an issue the red-master or
+full-run alarm links, or one naming a check or test that failed in master's newest red build or full run), its prompt
+adds `This job fixes the red: open it while master is red.` (see "While master is red" in the shared file).
+
 ## 5. Mark and start
 
 Create the label if it is missing (see "Markers" in the shared file). Mark the job with

@@ -1838,21 +1838,7 @@ export class Dispatcher {
         options: DispatchOptions = {},
         origin: DeferredOrigin | null = null,
     ): unknown {
-        this.checkStrict();
-        const { state } = this.store;
-        const raw = typeof command === "function" ? command(state) : command;
-        const definition = this.definitions.get(raw.op);
-        const copied = deepFreezeArgs(raw, definition?.byReference);
-        const concrete = definition?.kept?.(copied) ?? copied;
-        this.events.dispatched?.(concrete);
-        if (definition === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `There is no command "${concrete.op}".`,
-                source: "history",
-                details: { op: concrete.op },
-            });
-        }
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -1968,18 +1954,17 @@ export class Dispatcher {
     }
 
     /**
-     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
-     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
-     * job that dispatched it does.
+     * A dispatched command made concrete against state now, copied and kept as its definition
+     * says, and announced; the start of both {@link Dispatcher.submit} and {@link Dispatcher.inline}.
      * @param command - The command, or a function from state to one.
-     * @param parent - The running job.
-     * @returns What an exempt command returned, or the command's promise.
+     * @returns The state it was resolved against, its definition and the command as kept.
+     * @throws `E_BAD_COMMAND` when no definition has its op.
      */
-    private inline(command: Dispatchable, parent: Job): unknown {
-        if (parent.status !== "running") {
-            throw cancelledError(parent.group.label, "cancel");
-        }
-
+    private resolve(command: Dispatchable): {
+        state: ProjectState;
+        definition: CommandDefinition<CommandLike>;
+        concrete: CommandLike;
+    } {
         this.checkStrict();
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
@@ -1995,6 +1980,24 @@ export class Dispatcher {
                 details: { op: concrete.op },
             });
         }
+
+        return { state, definition, concrete };
+    }
+
+    /**
+     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
+     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
+     * job that dispatched it does.
+     * @param command - The command, or a function from state to one.
+     * @param parent - The running job.
+     * @returns What an exempt command returned, or the command's promise.
+     */
+    private inline(command: Dispatchable, parent: Job): unknown {
+        if (parent.status !== "running") {
+            throw cancelledError(parent.group.label, "cancel");
+        }
+
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });

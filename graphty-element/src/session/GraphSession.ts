@@ -3212,7 +3212,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 const send = dispatcher.capturedDispatch();
                 return (mutation) => send({ op: "data.apply", mutation });
             },
-            importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
+            importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
             ceilings,
             slice,

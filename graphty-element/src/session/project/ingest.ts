@@ -16,13 +16,7 @@ import type { FileLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
-import {
-    DataSource,
-    type DataSourceChunk,
-    type DeclaredDirection,
-    READER_SIGNALS,
-    TIMELINE_READERS,
-} from "../../data/DataSource";
+import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READERS } from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
@@ -2332,9 +2326,6 @@ export class Ingest<K extends KnownEdge> {
             const source = held === undefined ? DataSource.get(type, opts) : null;
             if (source !== null && this.host.timeline?.() === true) {
                 TIMELINE_READERS.add(source);
-            }
-            if (source !== null && signal !== undefined) {
-                READER_SIGNALS.set(source, signal);
             }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {

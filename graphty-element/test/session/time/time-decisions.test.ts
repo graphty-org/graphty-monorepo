@@ -361,9 +361,14 @@ describe("the window, its step and playback", () => {
         // Measured once per visible set, however often it is read (#7966).
         assert.strictEqual(session.data.statistics({ scope: "visible" }), visible);
         await session.time.window({ from: T0, to: T0 + 3 * DAY, step: "day" });
-        const wider = session.data.statistics({ scope: "visible" });
-        assert.notStrictEqual(wider, visible);
-        assert.strictEqual(wider.edgeCount, session.visibility.summary.visibleEdges);
+        // Moving the window leaves the visible set as it was, so nothing is measured again.
+        assert.strictEqual(session.data.statistics({ scope: "visible" }), visible);
+        // A filter does change what is visible, and the graph is measured again.
+        await session.visibility.set({ kind: "categories", attribute: "data.team", values: ["red"] });
+        assert.isBelow(session.visibility.summary.visibleEdges, 6, "the filter leaves edges out");
+        const filtered = session.data.statistics({ scope: "visible" });
+        assert.notStrictEqual(filtered, visible);
+        assert.strictEqual(filtered.edgeCount, session.visibility.summary.visibleEdges);
         session.dispose();
     });
 });

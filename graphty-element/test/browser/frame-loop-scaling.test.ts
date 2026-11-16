@@ -22,6 +22,7 @@ import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
+import { laneStoreOf } from "../../src/managers/DataManager";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
@@ -152,75 +153,68 @@ function countPaints(): Counter {
 }
 
 /**
- * Count the nodes placed, each once: a `Node` by its update, or, on the `"batched"` path, a row
- * drawn with no `Node`, which is drawn where the row table puts it when the table is brought up to
- * the layout (`RowTable.flush`).
+ * Count the nodes placed: a `Node` by each update, or, on the `"batched"` path, a row drawn with no
+ * `Node` each time the row table copies it from the layout (`RowTable.repackRow`, which leaves a
+ * row a `Node` holds in its own place alone).
  * @param graph - The graph, whose batches hold the rows drawn with no `Node`.
  * @returns The live count and the function that takes the counters off.
  */
 function countPlacements(graph: Graph): Counter {
-    const placed = new Set<number>();
-    const restoreNodes = wrap(Node.prototype, "update", (self, _args, run) => {
-        placed.add((self as Node).index);
-        return run();
-    });
-    const restoreRows = wrap(RowTable.prototype, "flush", (_self, _args, run) => {
-        for (const row of graph.getNodeBatches()?.columnRowIndices() ?? []) {
-            placed.add(row);
-        }
+    const nodes = countCalls(Node.prototype, "update");
+    const count: CallCount = { calls: 0, changed: 0 };
+    const restoreRows = wrap(RowTable.prototype, "repackRow", (_self, args, run) => {
+        const [row] = args as [number];
+        count.calls += graph.getNodeBatches()?.columnRowOf(row) === undefined ? 0 : 1;
         return run();
     });
     return {
         count: {
             get calls() {
-                return placed.size;
+                return nodes.count.calls + count.calls;
             },
             changed: 0,
         },
         restore: () => {
-            restoreNodes();
+            nodes.restore();
             restoreRows();
         },
     };
 }
 
 /**
- * Count the nodes the view masks were written to, each once: a `Node`'s state, or, on the
- * `"batched"` path, the hidden flag of a row drawn with no `Node` (`RowTable.hide`, which a `Node`
- * also writes its own row through). `changed` counts the nodes shown or hidden.
+ * Count the view mask writes: to a `Node`'s state, or, on the `"batched"` path, to the hidden flag of
+ * a row drawn with no `Node` (`RowTable.hide`; the hide a `Node` writes its own row through is part
+ * of its state's write, and is not counted again). `changed` counts the writes that showed or hid one.
  * @returns The live count and the function that takes the counters off.
  */
 function countMaskWrites(): Counter {
-    const written = new Set<number>();
-    const changed = new Set<number>();
-    const restoreNodes = wrap(Node.prototype, "setRenderState", (self, _args, run) => {
-        const { index } = self as Node;
-        const result = run();
-        written.add(index);
-        if (result === true) {
-            changed.add(index);
+    const count: CallCount = { calls: 0, changed: 0 };
+    let inNode = false;
+    const restoreNodes = wrap(Node.prototype, "setRenderState", (_self, _args, run) => {
+        inNode = true;
+        try {
+            const result = run();
+            count.calls++;
+            count.changed += result === true ? 1 : 0;
+            return result;
+        } finally {
+            inNode = false;
         }
-        return result;
     });
     const restoreRows = wrap(RowTable.prototype, "hide", (self, args, run) => {
+        if (inNode) {
+            return run();
+        }
+
         const [row, hidden] = args as [number, boolean];
         const was = (self as RowTable).isHidden(row);
         const result = run();
-        written.add(row);
-        if (was !== hidden) {
-            changed.add(row);
-        }
+        count.calls++;
+        count.changed += was === hidden ? 0 : 1;
         return result;
     });
     return {
-        count: {
-            get calls() {
-                return written.size;
-            },
-            get changed() {
-                return changed.size;
-            },
-        },
+        count,
         restore: () => {
             restoreNodes();
             restoreRows();
@@ -404,6 +398,13 @@ const CASES: readonly Case[] = [
         methods: ["UpdateManager.redrawArrangement"],
         prepare: (element, size) => {
             const manager = element.graph.getUpdateManager();
+            // A restore writes the arrangement, then the redraw moves every node to it.
+            const { positions } = laneStoreOf(element.graph.getDataManager());
+            const at = { x: 0, y: 0, z: 0 };
+            for (let row = 0; row < size; row++) {
+                positions.read(row, at);
+                positions.write(row, at.x + 1, at.y, at.z);
+            }
             return Promise.resolve(
                 counting(
                     () => countPlacements(element.graph),

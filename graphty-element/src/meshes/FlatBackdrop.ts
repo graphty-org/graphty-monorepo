@@ -29,7 +29,7 @@ export const FLAT_BACKDROP_LAYER = "graphty-flat-backdrop";
  * @returns `[uScale, vScale, uOffset, vOffset]`.
  */
 export function coverFit(image: number, canvas: number): [number, number, number, number] {
-    if (!(image > 0) || !(canvas > 0)) {
+    if (!Number.isFinite(image) || !Number.isFinite(canvas) || image <= 0 || canvas <= 0) {
         return [1, 1, 0, 0];
     }
 
@@ -67,15 +67,7 @@ export class FlatBackdrop {
         const { layers } = scene;
         layers.splice(layers.indexOf(this.layer), 1);
         layers.unshift(this.layer);
-        // The picture is not final until the image has arrived, or failed to.
-        void trackOnScene(
-            scene,
-            "picture",
-            "a flat background picture is loading",
-            new Promise<void>((resolve) => {
-                this.settle = resolve;
-            }),
-        );
+        this.holdPicture(scene);
         this.texture = new Texture(url, scene, true, true, Texture.TRILINEAR_SAMPLINGMODE, null, (message) => {
             this.settle();
             this.onLoadErrorObservable.notifyObservers(message ?? url);
@@ -120,6 +112,22 @@ export class FlatBackdrop {
         this.onLoadErrorObservable.clear();
         this.layer.dispose();
         this.texture.dispose();
+    }
+
+    /**
+     * Hold the scene's picture as not final until the image has arrived, failed to, or this was
+     * disposed (each calls {@link settle}).
+     * @param scene - The scene.
+     */
+    private holdPicture(scene: Scene): void {
+        void trackOnScene(
+            scene,
+            "picture",
+            "a flat background picture is loading",
+            new Promise<void>((resolve) => {
+                this.settle = resolve;
+            }),
+        );
     }
 
     /** Crop the picture to the canvas's shape now. */

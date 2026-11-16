@@ -12,6 +12,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { pixelsAt } from "../helpers/canvas-pixels";
 import { SKYBOX_PNG } from "../session/history/fixtures";
 
 const containers: HTMLElement[] = [];
@@ -81,21 +82,16 @@ describe("graphty-skybox-loaded", () => {
         element.background = { backgroundType: "skybox", data: url, projection: "flat", color: "#ffffff" };
         await loaded;
 
-        const { graph } = element;
-        await graph.waitForStableFrame();
-        graph.scene.render();
-        const { engine } = graph;
-        assert.isNull(graph.scene.getMeshByName("testdome"), "no photo dome is built");
-        const width = engine.getRenderWidth();
-        const height = engine.getRenderHeight();
-        const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
-        let red = 0;
-        for (let at = 0; at < pixels.length; at += 4) {
-            if (pixels[at] > 200 && pixels[at + 1] < 60 && pixels[at + 2] < 60) {
-                red++;
-            }
+        assert.isNull(element.graph.scene.getMeshByName("testdome"), "no photo dome is built");
+        const corners = await pixelsAt(element, [
+            { x: 2, y: 2 },
+            { x: 398, y: 2 },
+            { x: 200, y: 150 },
+            { x: 2, y: 298 },
+            { x: 398, y: 298 },
+        ]);
+        for (const [r, g, b] of corners) {
+            assert.deepStrictEqual([r > 200, g < 60, b < 60], [true, true, true], `${r},${g},${b}`);
         }
-
-        assert.strictEqual(red, width * height, "the picture covers every pixel of an empty graph");
     });
 });

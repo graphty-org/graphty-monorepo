@@ -422,13 +422,18 @@ export class Graphty extends LitElement {
 
     /**
      * The network source a `data-source` value names, or null for a data source: `source:<id>`
-     * always names a source; a bare name is a source only when no data source has it.
+     * always names a source; a bare name is a source only when no data source has it. A bare
+     * `"url"` stays the element's URL pair (it finds the file's format itself and reads `blob:` and
+     * relative addresses), never graph-io's `url` network source, which `source:url` names.
      * @param type - The `data-source` value.
      * @returns The source id, or null.
      */
     static #sourceIdOf(type: string): string | null {
         if (type.startsWith(SOURCE_FORMAT_PREFIX)) {
             return type.slice(SOURCE_FORMAT_PREFIX.length);
+        }
+        if (type === "url") {
+            return null;
         }
         return !DataSource.getRegisteredTypes().includes(type) && sourceRegistry.hasSource(type) ? type : null;
     }
@@ -6174,16 +6179,16 @@ export class Graphty extends LitElement {
      */
     nodesInRect(rect: { x: number; y: number; width: number; height: number }): (string | number)[] {
         const inside: (string | number)[] = [];
-        for (const node of this.#graph.getNodes()) {
-            const at = this.#graph.nodeScreenPosition(node.id);
+        // Read off the row tables, so a row drawn with no `Node` gets none built for it (#8204).
+        for (const { id, at } of this.#graph.drawnNodeSpots()) {
             if (
-                at?.visible === true &&
+                at.visible &&
                 at.x + at.radius > rect.x &&
                 at.x - at.radius < rect.x + rect.width &&
                 at.y + at.radius > rect.y &&
                 at.y - at.radius < rect.y + rect.height
             ) {
-                inside.push(node.id);
+                inside.push(id);
             }
         }
 

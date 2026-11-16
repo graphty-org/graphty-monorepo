@@ -30,14 +30,14 @@
     },
     "license": "MIT",
     "devDependencies": {
-        "@types/node": "^20.19.9",
+        "@types/node": "^20.19.43",
         "@vitest/coverage-v8": "catalog:",
-        "eslint": "^9.29.0",
+        "eslint": "^9.39.5",
         "typescript": "^5.9.3",
         "vitest": "catalog:"
     },
     "dependencies": {
-        "@octokit/core": "^7.0.6",
+        "@octokit/core": "^7.0.8",
         "tar": "^7.5.22"
     },
     "repository": {

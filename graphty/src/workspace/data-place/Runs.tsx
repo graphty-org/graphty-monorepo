@@ -16,7 +16,7 @@ import React, { useState } from "react";
 import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
-import { staleWords } from "../inspector/words";
+import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
@@ -54,8 +54,8 @@ function SelectionChip({ name }: Readonly<{ name: string }>): React.JSX.Element 
 }
 
 /**
- * The quiet mark of a result in an unusual state: out of date, or run over something other than
- * what is showing. Nothing for a result run over what is showing and still current.
+ * The quiet mark of a result in an unusual state: failed, out of date, or run over something other
+ * than what is showing. Nothing for a result run over what is showing and still current.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.run - the result
@@ -64,7 +64,10 @@ function SelectionChip({ name }: Readonly<{ name: string }>): React.JSX.Element 
 function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
     let words: string;
     let Glyph = GLYPHS.outOfDate;
-    if (run.status === "succeeded" && run.stale !== null) {
+    if (run.status === "failed") {
+        words = runFailureWords(run.error?.code);
+        Glyph = GLYPHS.failed;
+    } else if (run.status === "succeeded" && run.stale !== null) {
         words = staleWords(run.stale, unitOf(session));
     } else if (run.scope.spec === "visible") {
         return null;

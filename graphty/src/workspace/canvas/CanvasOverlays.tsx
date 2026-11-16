@@ -8,7 +8,7 @@ import React, { useEffect, useState } from "react";
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { selectedNameWords } from "../inspector/words";
+import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -125,6 +125,12 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                             ? null
                             : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
                     store.set({ announcement: said ?? `${name} ${ended}` });
+                }
+                // A failed run says so where the reader is, whatever started it; its row marks it too.
+                if (change.run.status === "failed") {
+                    const code = session.runs.get(change.run.id)?.error?.code;
+                    store.set({ notice: { message: runFailureWords(code), error: true } });
+                    return;
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {

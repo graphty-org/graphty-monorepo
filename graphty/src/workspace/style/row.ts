@@ -328,7 +328,6 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
  *   layer the row does not name.
  * @param also - values for other channels written in the same step where the layer has none.
- * @param alsoReplaces - write `also` over the values the layer has (one edit of several channels).
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -339,8 +338,31 @@ export async function writeLine(
     write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
-    alsoReplaces = false,
 ): Promise<LayerId> {
+    return writeLineWith({ session, ids, target, channel, write, fresh, also, alsoReplaces: false });
+}
+
+/** One line to write, as {@link writeLine} takes it, and whether `also` replaces the layer's values. */
+interface LineWrite {
+    readonly session: TransactionScope;
+    readonly ids: readonly LayerId[];
+    readonly target: Target;
+    readonly channel: Channel;
+    readonly write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite;
+    readonly fresh: NewLayer | undefined;
+    readonly also: Readonly<Partial<Record<Channel, ChannelValue>>> | undefined;
+    /** Write `also` over the values the layer has (one edit of several channels). */
+    readonly alsoReplaces: boolean;
+}
+
+/**
+ * Writes one line of a row, as {@link writeLine} does, with `also` written over the layer's values
+ * when asked.
+ * @param line - the line to write.
+ * @returns the id of the layer written to.
+ */
+async function writeLineWith(line: LineWrite): Promise<LayerId> {
+    const { session, ids, target, channel, write, fresh, also, alsoReplaces } = line;
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
     const scope = everything && "binding" in write ? scopeFor(session, target, channel, write.binding) : undefined;
@@ -543,7 +565,16 @@ export function writeIn(
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
-        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also, alsoReplaces);
+        return writeLineWith({
+            session: ctx.session,
+            ids: ctx.row,
+            target: ctx.side,
+            channel,
+            write,
+            fresh: ctx.fresh,
+            also,
+            alsoReplaces,
+        });
     }
     // ponytail: several rows take the extra values as separate writes, one undo step each.
     return many.write(channel, write).then(() =>

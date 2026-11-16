@@ -35,6 +35,7 @@ import {
     type ShaderRegistration,
     type ShaderTarget,
     type ShaderText,
+    type ShaderTextResult,
     type ShaderUse,
 } from "../catalog/shaders";
 import {
@@ -708,6 +709,44 @@ function renamed(registration: LoadedRegistration, id: string): LoadedRegistrati
 }
 
 /**
+ * Read a text that parsed: rename it, choose the text the project stores, hash and describe it.
+ * @param text - The text.
+ * @param parsed - What parsing it with the options found.
+ * @param place - Where it is being added.
+ * @param id - An id to give it in place of its header's.
+ * @param namespaced - Whether its header's id must carry a namespace.
+ * @returns What it read into, or the problems.
+ */
+function readParsedText(
+    text: string,
+    parsed: Extract<ShaderTextResult, { ok: true }>,
+    place: ShaderTextOptions | undefined,
+    id: string | undefined,
+    namespaced: boolean,
+): ReadText | readonly ShaderProblem[] {
+    const registration = id === undefined ? parsed.registration : renamed(parsed.registration, id);
+    const headed = text.includes(SHADER_TEXT_MAGIC) && registration.descriptor.id === parsed.registration.descriptor.id;
+    // A place the options supplied is written into the stored text, so it reads back the same
+    // with no options: a saved project is opened with none.
+    const alone = place === undefined ? parsed : parseShaderText(text, { namespaced });
+    const keepsPlace = alone.ok && alone.registration.descriptor.place === registration.descriptor.place;
+    const stored = headed && keepsPlace ? text : formatShaderText(registration);
+    const hash = shaderContentHash(stored);
+    try {
+        return {
+            text: stored,
+            registration,
+            hash,
+            bodyLine: splitShaderText(text).bodyLine,
+            descriptor: describePastedShader(registration, hash, namespaced),
+        };
+    } catch (error) {
+        const details = (error as GraphtyError).details as { problems?: readonly ShaderProblem[] } | undefined;
+        return details?.problems ?? [{ code: "shader.id-invalid", params: { id: id ?? "" } }];
+    }
+}
+
+/**
  * Build the shaders of one session.
  * @param sources - What the shaders need from the session.
  * @returns The controller.
@@ -761,27 +800,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         const parsed = parseShaderText(text, { ...place, namespaced });
         let result: ReadText | readonly ShaderProblem[];
         if (parsed.ok) {
-            const registration = id === undefined ? parsed.registration : renamed(parsed.registration, id);
-            const headed =
-                text.includes(SHADER_TEXT_MAGIC) && registration.descriptor.id === parsed.registration.descriptor.id;
-            // A place the options supplied is written into the stored text, so it reads back the same
-            // with no options: a saved project is opened with none.
-            const alone = place === undefined ? parsed : parseShaderText(text, { namespaced });
-            const keepsPlace = alone.ok && alone.registration.descriptor.place === registration.descriptor.place;
-            const stored = headed && keepsPlace ? text : formatShaderText(registration);
-            const hash = shaderContentHash(stored);
-            try {
-                result = {
-                    text: stored,
-                    registration,
-                    hash,
-                    bodyLine: splitShaderText(text).bodyLine,
-                    descriptor: describePastedShader(registration, hash, namespaced),
-                };
-            } catch (error) {
-                const details = (error as GraphtyError).details as { problems?: readonly ShaderProblem[] } | undefined;
-                result = details?.problems ?? [{ code: "shader.id-invalid", params: { id: id ?? "" } }];
-            }
+            result = readParsedText(text, parsed, place, id, namespaced);
         } else {
             result = (namespaced ? bareCopy(text, place, id, parsed.problems) : undefined) ?? parsed.problems;
         }

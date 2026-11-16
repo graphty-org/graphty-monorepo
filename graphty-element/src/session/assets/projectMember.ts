@@ -390,6 +390,38 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
 }
 
 /**
+ * How a save keeps each URL a layer names.
+ * @param session - The session.
+ * @param storage - The save's choices by URL, or `"embed-all"`.
+ * @returns The save's own choice, else what the session remembers, else embed.
+ */
+function storageOf(
+    session: GraphSession,
+    storage: Readonly<Record<string, AssetStorage>> | "embed-all",
+): (ref: string) => AssetStorage {
+    if (storage === "embed-all") {
+        return () => "embed";
+    }
+
+    return (ref) => storage[ref] ?? rememberedOf(session, ref) ?? "embed";
+}
+
+/**
+ * Every other model the project holds, accepted: one added for later (a host's "add to the
+ * project") or no longer named by any layer stays in the project, embedded by its id.
+ * @param build - The member as it is built.
+ * @param named - The ids of the assets written so far, added to.
+ */
+function addUnnamedModels(build: MemberBuild, named: Set<string>): void {
+    for (const record of build.assets.list()) {
+        if (record.kind === "model" && record.state === "accepted" && !named.has(record.id)) {
+            named.add(record.id);
+            addRef(build, record.id, []);
+        }
+    }
+}
+
+/**
  * The `graphty-assets` member: every model and picture a layer names that the session holds,
  * and every other accepted model it holds (embedded by id), files as given; one a layer names by
  * URL is kept by its URL and digest alone when `storage` says `"url"` for it, or, with no entry
@@ -409,8 +441,7 @@ export function assetsMember(
     const assets = assetsOf(session);
     const build: MemberBuild = {
         assets,
-        storage:
-            storage === "embed-all" ? () => "embed" : (ref) => storage[ref] ?? rememberedOf(session, ref) ?? "embed",
+        storage: storageOf(session, storage),
         leftOut: [],
         entries: [],
         written: new Set<string>(),
@@ -426,14 +457,7 @@ export function assetsMember(
         }
     }
 
-    // Every other model the project holds, accepted: one added for later (a host's "add to the
-    // project") or no longer named by any layer stays in the project, embedded by its id.
-    for (const record of assets.list()) {
-        if (record.kind === "model" && record.state === "accepted" && !named.has(record.id)) {
-            named.add(record.id);
-            addRef(build, record.id, []);
-        }
-    }
+    addUnnamedModels(build, named);
 
     return {
         member: build.entries.length === 0 ? null : { kind: ASSETS_MEMBER, version: VERSION, assets: build.entries },

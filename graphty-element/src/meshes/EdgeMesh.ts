@@ -110,6 +110,40 @@ function clipTriangle(
 }
 
 /**
+ * Every triangle of an indexed mesh cut along the plane z = 0, keeping one side, as an unindexed
+ * triangle list.
+ * @param positions - The mesh's vertex positions, three numbers a vertex.
+ * @param indices - The mesh's triangle indices.
+ * @param keep - Whether a z lies on the side kept.
+ * @param capFill - The index at which a filled open cap's inside starts, if it has one.
+ * @returns The kept triangles' positions, and the vertex at which what is kept of the inside starts.
+ */
+function clipTriangles(
+    positions: ArrayLike<number>,
+    indices: ArrayLike<number>,
+    keep: (z: number) => boolean,
+    capFill: number | undefined,
+): { out: number[]; inside: number } {
+    const at = (a: readonly number[], b: readonly number[]): number[] => {
+        const t = a[2] / (a[2] - b[2]);
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), 0];
+    };
+    const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    const out: number[] = [];
+    let inside = 0;
+    for (let i = 0; i + 2 < indices.length; i += 3) {
+        if (i === capFill) {
+            inside = out.length / 3;
+        }
+        const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
+        for (let k = 1; k + 1 < kept.length; k++) {
+            out.push(...kept[0], ...kept[k], ...kept[k + 1]);
+        }
+    }
+    return { out, inside };
+}
+
+/**
  * An arrow cap's geometry cut along its line, keeping one side: Graphviz's `l` and `r` arrow
  * modifiers ("clip the shape, leaving only the part to the left of the edge"). Left is left looking
  * along the line toward the cap's tip, which is -z in every cap's geometry, as half-open's arm is.
@@ -130,24 +164,9 @@ function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
     }
 
     const keep = side === "left" ? (z: number): boolean => z <= 1e-9 : (z: number): boolean => z >= -1e-9;
-    const at = (a: readonly number[], b: readonly number[]): number[] => {
-        const t = a[2] / (a[2] - b[2]);
-        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), 0];
-    };
-    const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
-    const out: number[] = [];
     // a filled open cap's inside comes first (FilledArrowRenderer.createOpenOutline): what is kept of it, still first
     const meta = mesh.metadata as { capFill?: number } | null;
-    let inside = 0;
-    for (let i = 0; i + 2 < indices.length; i += 3) {
-        if (i === meta?.capFill) {
-            inside = out.length / 3;
-        }
-        const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
-        for (let k = 1; k + 1 < kept.length; k++) {
-            out.push(...kept[0], ...kept[k], ...kept[k + 1]);
-        }
-    }
+    const { out, inside } = clipTriangles(positions, indices, keep, meta?.capFill);
 
     const data = new VertexData();
     data.positions = out;

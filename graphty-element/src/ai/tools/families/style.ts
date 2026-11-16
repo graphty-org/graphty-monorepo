@@ -636,7 +636,7 @@ async function encodeLayer(tx: TransactionScope, spec: LayerSpec): Promise<Layer
 }
 
 /** The channels `values` lists by name and type; every other channel is still taken (catalog search). */
-const LISTED_CHANNELS: readonly Channel[] = ["node.color", "node.size", "edge.color", "edge.width"];
+const LISTED_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.color", "node.size", "edge.color", "edge.width"]);
 
 /**
  * The `values` field: channel to value, with the common channels listed by type, so a model sees
@@ -648,7 +648,7 @@ const LISTED_CHANNELS: readonly Channel[] = ["node.color", "node.size", "edge.co
 function valuesField(channels: readonly ChannelDescriptor[]): z.ZodType {
     const listed = Object.fromEntries(
         channels
-            .filter((descriptor) => LISTED_CHANNELS.includes(descriptor.channel))
+            .filter((descriptor) => LISTED_CHANNELS.has(descriptor.channel))
             .map((descriptor) => [
                 descriptor.channel,
                 (descriptor.accepts === "number" ? z.number() : z.string()).nullable().optional(),

@@ -172,6 +172,19 @@ const HEAVY = { triangles: 50_000, materials: 8, bytes: 8 * 1024 * 1024 };
 const TRANSPARENT_NODES = 100;
 
 /**
+ * Add each fact whose code `problems` does not hold yet.
+ * @param problems - The facts, added to.
+ * @param facts - The facts to add.
+ */
+function addOnce(problems: CodedFact[], facts: readonly CodedFact[]): void {
+    for (const fact of facts) {
+        if (!problems.some((each) => each.code === fact.code)) {
+            problems.push(fact);
+        }
+    }
+}
+
+/**
  * The geometry options a node's shape block asks for.
  * @param shape - The shape block.
  * @param upAxis - The model summary's up axis, which settles a "detected" one.
@@ -770,27 +783,7 @@ export class ModelCache {
         }
 
         const problems: CodedFact[] = (status.record?.problems ?? []).filter((fact) => fact.code.startsWith("W_"));
-        let nodes = 0;
-        let colorIgnored = false;
-        let transparent = false;
-        const unknown = new Set<string>();
-        for (const entry of entries) {
-            const drawn = this.drawing(entry);
-            nodes += drawn.nodes;
-            colorIgnored ||= drawn.colorIgnored;
-            transparent ||= entry.template?.transparent === true;
-            const animation = entry.template?.animation;
-            for (const clip of drawn.clips) {
-                if (animation !== undefined && !animation.clips.has(clip)) {
-                    unknown.add(clip);
-                }
-            }
-            for (const note of animation?.notes ?? []) {
-                if (!problems.some((fact) => fact.code === note.code)) {
-                    problems.push(note);
-                }
-            }
-        }
+        const { nodes, colorIgnored, transparent, unknown } = this.tally(entries, problems);
 
         // Only a model on screen is "drawn": a template kept for a moment after its layer went is not.
         if (nodes === 0) {
@@ -831,19 +824,64 @@ export class ModelCache {
         }
 
         if (status.record !== undefined) {
-            const clips = (() => {
-                try {
-                    return this.session.assets.inspect(status.record.id).animations.map((clip) => clip.name);
-                } catch {
-                    return [];
-                }
-            })();
-            if (clips.length > 0 && !problems.some((fact) => fact.code === "W_MODEL_HAS_ANIMATIONS")) {
-                problems.push({ code: "W_MODEL_HAS_ANIMATIONS", params: { clips } });
-            }
+            this.noteAnimations(status.record.id, problems);
         }
 
         this.settle(ref, "drawn", problems);
+    }
+
+    /**
+     * What a model's drawn templates add up to, with each template's animation notes added to
+     * `problems` once.
+     * @param entries - The model's templates.
+     * @param problems - What is worth saying, added to.
+     * @returns The nodes drawn, whether a color was ignored or a template is transparent, and the
+     *     clips asked for that the model does not have.
+     */
+    private tally(
+        entries: readonly Entry[],
+        problems: CodedFact[],
+    ): { nodes: number; colorIgnored: boolean; transparent: boolean; unknown: Set<string> } {
+        let nodes = 0;
+        let colorIgnored = false;
+        let transparent = false;
+        const unknown = new Set<string>();
+        for (const entry of entries) {
+            const drawn = this.drawing(entry);
+            nodes += drawn.nodes;
+            colorIgnored ||= drawn.colorIgnored;
+            transparent ||= entry.template?.transparent === true;
+            const animation = entry.template?.animation;
+            if (animation !== undefined) {
+                for (const clip of drawn.clips) {
+                    if (!animation.clips.has(clip)) {
+                        unknown.add(clip);
+                    }
+                }
+            }
+
+            addOnce(problems, animation?.notes ?? []);
+        }
+
+        return { nodes, colorIgnored, transparent, unknown };
+    }
+
+    /**
+     * Note the animations a stored model carries, once.
+     * @param id - The stored model's asset id.
+     * @param problems - What is worth saying, added to.
+     */
+    private noteAnimations(id: AssetRecord["id"], problems: CodedFact[]): void {
+        let clips: string[];
+        try {
+            clips = this.session.assets.inspect(id).animations.map((clip) => clip.name);
+        } catch {
+            clips = [];
+        }
+
+        if (clips.length > 0 && !problems.some((fact) => fact.code === "W_MODEL_HAS_ANIMATIONS")) {
+            problems.push({ code: "W_MODEL_HAS_ANIMATIONS", params: { clips } });
+        }
     }
 
     /**

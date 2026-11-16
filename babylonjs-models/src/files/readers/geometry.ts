@@ -114,6 +114,49 @@ function spacing(positions: Float32Array, count: number): number {
 }
 
 /**
+ * Write the corners and faces of octahedron `p`, centered on point `i` with radius `r`.
+ * @param out - The positions and indices to write into.
+ * @param out.positions - x, y, z per corner.
+ * @param out.indices - Three corner indices per face.
+ * @param p - The octahedron.
+ * @param positions - x, y, z per point.
+ * @param i - The point.
+ * @param r - The radius.
+ */
+function writeOctahedron(
+    out: { positions: Float32Array; indices: Uint32Array },
+    p: number,
+    positions: Float32Array,
+    i: number,
+    r: number,
+): void {
+    for (let c = 0; c < 6; c++) {
+        for (let k = 0; k < 3; k++) {
+            out.positions[(p * 6 + c) * 3 + k] = positions[i * 3 + k] + OCTA_CORNERS[c * 3 + k] * r;
+        }
+    }
+
+    for (let f = 0; f < 24; f++) {
+        out.indices[p * 24 + f] = p * 6 + OCTA_FACES[f];
+    }
+}
+
+/**
+ * Give each corner of octahedron `p` the color of point `i`.
+ * @param out - r, g, b, a per corner (0 to 1).
+ * @param p - The octahedron.
+ * @param colors - r, g, b, a per point (0 to 255).
+ * @param i - The point.
+ */
+function writeOctahedronColor(out: Float32Array, p: number, colors: Uint8Array | Uint8ClampedArray, i: number): void {
+    for (let c = 0; c < 6; c++) {
+        for (let k = 0; k < 4; k++) {
+            out[(p * 6 + c) * 4 + k] = colors[i * 4 + k] / 255;
+        }
+    }
+}
+
+/**
  * Draw points as small octahedra, each in its point's color, thinned by stride to
  * {@link MAX_POINTS_DRAWN}.
  * @param positions - x, y, z per point.
@@ -139,20 +182,9 @@ export function pointsToSolids(
     for (let p = 0; p < drawn; p++) {
         const i = Math.floor(p * stride);
         const r = sizes === undefined ? fallback : Math.min(Math.max(sizes[i], fallback * 0.25), fallback * 3);
-        for (let c = 0; c < 6; c++) {
-            for (let k = 0; k < 3; k++) {
-                out.positions[(p * 6 + c) * 3 + k] = positions[i * 3 + k] + OCTA_CORNERS[c * 3 + k] * r;
-            }
-
-            if (out.colors !== undefined && colors !== undefined) {
-                for (let k = 0; k < 4; k++) {
-                    out.colors[(p * 6 + c) * 4 + k] = colors[i * 4 + k] / 255;
-                }
-            }
-        }
-
-        for (let f = 0; f < 24; f++) {
-            out.indices[p * 24 + f] = p * 6 + OCTA_FACES[f];
+        writeOctahedron(out, p, positions, i, r);
+        if (out.colors !== undefined && colors !== undefined) {
+            writeOctahedronColor(out.colors, p, colors, i);
         }
     }
 

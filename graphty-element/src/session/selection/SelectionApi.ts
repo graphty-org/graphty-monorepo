@@ -1486,15 +1486,7 @@ class Selection implements SelectionOwner {
             }
         }
 
-        let min = Infinity;
-        let max = -Infinity;
-
-        for (let node = 0; node < nodes.count; node++) {
-            if (nodes.has(node)) {
-                min = Math.min(min, degrees[node]);
-                max = Math.max(max, degrees[node]);
-            }
-        }
+        const { min, max } = degreeRange(nodes, degrees);
 
         return Object.freeze({
             nodes: nodes.size,
@@ -1829,6 +1821,26 @@ function describeAttribute(
         graphMean: whole.mean,
         direction: directionOf(selected.mean, whole.mean),
     };
+}
+
+/**
+ * The smallest and largest degree among the nodes a mask holds.
+ * @param nodes - The nodes.
+ * @param degrees - Every node's degree, by dense index.
+ * @returns The range; Infinity and -Infinity when the mask holds no node.
+ */
+function degreeRange(nodes: ElementMask<NodeId>, degrees: ArrayLike<number>): { min: number; max: number } {
+    let min = Infinity;
+    let max = -Infinity;
+
+    for (let node = 0; node < nodes.count; node++) {
+        if (nodes.has(node)) {
+            min = Math.min(min, degrees[node]);
+            max = Math.max(max, degrees[node]);
+        }
+    }
+
+    return { min, max };
 }
 
 /**

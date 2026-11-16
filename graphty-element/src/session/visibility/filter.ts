@@ -693,6 +693,82 @@ function assertLoadKeys(sources: unknown): void {
 }
 
 /**
+ * Check a "range" filter's attribute, bounds, node choice and comparison.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when any of them is not one.
+ */
+function assertRangeFilter(filter: Extract<RuleTree, { kind: "range" }>): void {
+    assertPath(filter.attribute, filter.kind);
+    assertBounds(filter.min, filter.max, filter.kind);
+    assertNodesChoice(filter.nodes, filter.kind);
+
+    if (filter.as !== undefined && (filter.as as string) !== "time") {
+        throw malformed('A "range" filter\'s as is "time", or absent to compare numbers.', { as: filter.as });
+    }
+}
+
+/**
+ * Check a "categories" filter's attribute, node choice and values.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when any of them is not one.
+ */
+function assertCategoriesFilter(filter: Extract<RuleTree, { kind: "categories" }>): void {
+    assertPath(filter.attribute, filter.kind);
+    assertNodesChoice(filter.nodes, filter.kind);
+
+    if (!Array.isArray(filter.values)) {
+        throw malformed('A "categories" filter needs a list of values.', { values: filter.values });
+    }
+}
+
+/**
+ * Check a "member" filter names a scope other than the filter itself.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when it reads itself or names no scope.
+ */
+function assertMemberFilter(filter: Extract<RuleTree, { kind: "member" }>): void {
+    // The filter computes "visible", and "search" will read the filter: either one here is
+    // a filter reading itself.
+    if (filter.of === "visible" || (filter.of as unknown) === "search") {
+        throw readsItself([filter.of as ChainStep]);
+    }
+
+    parseScope(filter.of);
+}
+
+/**
+ * Refuse a rule inside a filter that reads what is visible: what is visible is what the filter
+ * computes.
+ * @param within - The rule's scope.
+ * @param subject - The opening of the refusal, naming the rule and what it reads.
+ * @throws A `GraphtyError` when the scope is "visible".
+ */
+function assertNotWithinVisible(within: unknown, subject: string): void {
+    if (within === "visible") {
+        throw malformed(`${subject} (within: "graph"): what is visible is what the filter computes.`, {
+            reason: "circular-scope",
+            within: "visible",
+        });
+    }
+}
+
+/**
+ * Check an "all" or "any" filter's members are each a filter.
+ * @param of - The members.
+ * @param kind - The combining filter's kind.
+ * @throws A `GraphtyError` when they are not a list of filters.
+ */
+function assertFilterList(of: unknown, kind: "all" | "any"): void {
+    if (!Array.isArray(of)) {
+        throw malformed(`An "${kind}" filter needs a list of filters.`, { of });
+    }
+
+    for (const member of of as RuleTree[]) {
+        assertFilter(member);
+    }
+}
+
+/**
  * Check one filter is a filter, all the way down, without touching the graph.
  *
  * Separate from compiling it so that a malformed filter is refused at the call that offered it
@@ -717,22 +793,11 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "range":
-            assertPath(filter.attribute, filter.kind);
-            assertBounds(filter.min, filter.max, filter.kind);
-            assertNodesChoice(filter.nodes, filter.kind);
-
-            if (filter.as !== undefined && (filter.as as string) !== "time") {
-                throw malformed('A "range" filter\'s as is "time", or absent to compare numbers.', { as: filter.as });
-            }
+            assertRangeFilter(filter);
 
             return;
         case "categories":
-            assertPath(filter.attribute, filter.kind);
-            assertNodesChoice(filter.nodes, filter.kind);
-
-            if (!Array.isArray(filter.values)) {
-                throw malformed('A "categories" filter needs a list of values.', { values: filter.values });
-            }
+            assertCategoriesFilter(filter);
 
             return;
         case "degree":
@@ -758,34 +823,16 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "member":
-            // The filter computes "visible", and "search" will read the filter: either one here is
-            // a filter reading itself.
-            if (filter.of === "visible" || (filter.of as unknown) === "search") {
-                throw readsItself([filter.of as ChainStep]);
-            }
-
-            parseScope(filter.of);
+            assertMemberFilter(filter);
 
             return;
         case "threshold":
-            if (filter.within === "visible") {
-                throw malformed(
-                    'A filter\'s "threshold" ranks the full graph (within: "graph"): what is visible is what the filter computes.',
-                    { reason: "circular-scope", within: "visible" },
-                );
-            }
-
+            assertNotWithinVisible(filter.within, 'A filter\'s "threshold" ranks the full graph');
             assertRuleTree(filter);
 
             return;
         case "union":
-            if ((filter as { within?: unknown }).within === "visible") {
-                throw malformed(
-                    'A filter\'s "union" reads the full graph (within: "graph"): what is visible is what the filter computes.',
-                    { reason: "circular-scope", within: "visible" },
-                );
-            }
-
+            assertNotWithinVisible((filter as { within?: unknown }).within, 'A filter\'s "union" reads the full graph');
             assertRuleTree(filter);
 
             return;
@@ -803,13 +850,7 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "all":
         case "any":
-            if (!Array.isArray(filter.of)) {
-                throw malformed(`An "${filter.kind}" filter needs a list of filters.`, { of: filter.of });
-            }
-
-            for (const member of filter.of) {
-                assertFilter(member);
-            }
+            assertFilterList(filter.of, filter.kind);
 
             return;
         case "not":

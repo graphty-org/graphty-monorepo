@@ -488,8 +488,8 @@ export default tseslint.config(
             "no-restricted-syntax": [
                 "error",
                 {
-                    selector: "Literal[raw=/[^\\x00-\\x7F]/], TemplateElement[value.raw=/[^\\x00-\\x7F]/]",
-                    message: "Write non-ASCII characters as \\uXXXX escapes (graph-io/CLAUDE.md: plain ASCII).",
+                    selector: String.raw`Literal[raw=/[^\x00-\x7F]/], TemplateElement[value.raw=/[^\x00-\x7F]/]`,
+                    message: String.raw`Write non-ASCII characters as \uXXXX escapes (graph-io/CLAUDE.md: plain ASCII).`,
                 },
             ],
         },

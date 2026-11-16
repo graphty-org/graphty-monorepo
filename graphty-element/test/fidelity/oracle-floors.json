@@ -608,7 +608,7 @@
             "edge.dash": 0.99,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 0.992,
             "edge.arrowShape": 0.995,
             "edge.arrowParts": 0.995,
             "edge.arrowPlace": 1,
@@ -13182,7 +13182,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 0.999,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -13241,7 +13241,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -56165,38 +56165,6 @@
                 "date": "2026-11-01"
             }
         },
-        "cx-radiation-bibliography@matched": {
-            "edge.arrow": {
-                "floor": 0.988,
-                "to": 0.986,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.926,
-                "to": 0.891,
-                "reason": "comparator, not the drawing (#8375): graphty hides the head of an edge between overlapping nodes (#7759), and the scorecard read the hidden head's place as the graph's origin, so the route ran on to the origin and the head measured nothing; branch fix/8193-pajek-fidelity-2 reads a hidden head as no end, and these pass there (the ratchet takes them off when it lands)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowLength": {
-                "floor": 0.995,
-                "to": 0.962,
-                "reason": "comparator, not the drawing (#8375): graphty hides the head of an edge between overlapping nodes (#7759), and the scorecard read the hidden head's place as the graph's origin, so the route ran on to the origin and the head measured nothing; branch fix/8193-pajek-fidelity-2 reads a hidden head as no end, and these pass there (the ratchet takes them off when it lands)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowWidth": {
-                "floor": 0.995,
-                "to": 0.962,
-                "reason": "comparator, not the drawing (#8375): graphty hides the head of an edge between overlapping nodes (#7759), and the scorecard read the hidden head's place as the graph's origin, so the route ran on to the origin and the head measured nothing; branch fix/8193-pajek-fidelity-2 reads a hidden head as no end, and these pass there (the ratchet takes them off when it lands)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowToSpacing": {
-                "floor": 0.995,
-                "to": 0.962,
-                "reason": "comparator, not the drawing (#8375): graphty hides the head of an edge between overlapping nodes (#7759), and the scorecard read the hidden head's place as the graph's origin, so the route ran on to the origin and the head measured nothing; branch fix/8193-pajek-fidelity-2 reads a hidden head as no end, and these pass there (the ratchet takes them off when it lands)",
-                "date": "2026-11-16"
-            }
-        },
         "cx-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56211,58 +56179,6 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml": {
-            "edge.route": {
-                "floor": 0.96,
-                "to": 0.95,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowLength": {
-                "floor": 0.997,
-                "to": 0.986,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowToSpacing": {
-                "floor": 0.997,
-                "to": 0.986,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            }
-        },
-        "cx2-signor-aml@matched": {
-            "edge.route": {
-                "floor": 0.96,
-                "to": 0.95,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowLength": {
-                "floor": 0.997,
-                "to": 0.986,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowToSpacing": {
-                "floor": 0.997,
-                "to": 0.986,
-                "reason": "#8375: 122->55 is graphty's deliberate difference (#7759, #7788): between overlapping nodes graphty draws no line and no head, where Cytoscape desktop draws both over the nodes; 57->67 and 64->5 are the comparator's, which read the hidden head's place as the graph's origin (fixed on branch fix/8193-pajek-fidelity-2, where they pass and the ratchet takes them off)",
-                "date": "2026-11-16"
             }
         },
         "cx2-syn-mappings": {

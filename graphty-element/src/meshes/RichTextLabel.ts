@@ -1246,6 +1246,9 @@ export class RichTextLabel {
             return false;
         }
 
+        // Its world matrix as of now: the node it hangs from may have been rescaled this frame
+        // (`node.sizeSpace`), after Babylon last computed the label's.
+        mesh.computeWorldMatrix(true);
         // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
         const onScreen = this.screenFontPx(camera);
         if (onScreen <= 0) {

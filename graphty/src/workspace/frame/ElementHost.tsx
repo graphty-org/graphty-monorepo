@@ -9,10 +9,11 @@ import { siteConfig } from "../../siteConfig";
 import { useElementDefined } from "../../useElementDefined";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { cosmographOn } from "../features";
-import { LAYOUT_SEED } from "../layout/methods";
+import { LAYOUT_SEED, MAP_LAYOUT } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
 import { bindShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspaceState } from "../state/WorkspaceContext";
+import { useLayoutId } from "./useLayoutId";
 import { useSizeBound } from "./useSizeBound";
 
 /**
@@ -83,13 +84,20 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
     // any depth follows the size binding until the reader sets it.
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
+    // Settings' "Map layout automatically enables depth-independent size": while the map is drawn,
+    // every node keeps one size on screen, so zooming to a region pulls apart the nodes a world
+    // view draws on top of one another. A layer that sets `node.sizeSpace` still wins for its nodes.
+    const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
+    const onMap = useLayoutId(hosted) === MAP_LAYOUT;
+    const pivot = sameSize ? "pivot" : undefined;
+    const sizeSpace = mapAuto && onMap ? "screen" : pivot;
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
-            node: { depthIndependentSize: sameSize },
+            node: { sizeSpace },
             rendering: { onDemand: true },
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
@@ -97,7 +105,7 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
             // framing again on a resize draws the same picture either way (#5097).
             camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sameSize, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly],
     );
     // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
     // as the earth from space (constants/globe.ts). View settings, written on the element; they

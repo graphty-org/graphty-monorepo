@@ -1911,30 +1911,11 @@
                     }
                 },
                 {
-                    "name": "nodeScale",
-                    "plainName": "Node Scale",
-                    "technicalName": "nodeScale",
-                    "type": "enum",
-                    "description": "How node sizes are read: in scene units, which grow as the camera zooms in, or on screen, where a node keeps its size at any zoom",
-                    "default": "scene",
-                    "values": [
-                        {
-                            "value": "scene",
-                            "label": "Scene"
-                        },
-                        {
-                            "value": "screen",
-                            "label": "Screen"
-                        }
-                    ],
-                    "advanced": true
-                },
-                {
                     "name": "flatNodeScale",
                     "plainName": "Flat Node Scale",
                     "technicalName": "flatNodeScale",
                     "type": "number",
-                    "description": "How many times larger a flat map's nodes are drawn with Node Scale on screen, so a map drawn large leaves them big enough to see; a globe's nodes keep their size",
+                    "description": "How many times larger a flat map's nodes are drawn when their size space is screen, so a map drawn large leaves them big enough to see; a globe's nodes keep their size",
                     "default": 1,
                     "min": 0,
                     "advanced": true

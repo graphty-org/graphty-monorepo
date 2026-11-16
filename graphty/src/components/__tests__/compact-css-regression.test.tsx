@@ -383,7 +383,7 @@ describe("Compact CSS Regression Tests", () => {
 
                 // The FIELD is 24. Its inner input is the 24 less the two 1px edges of
                 // the transparent border that reserves room for the focus ring (see the
-                // border assertions above), which is the library's own behaviour.
+                // border assertions above), which is the library's own behavior.
                 expect(field === null ? "" : window.getComputedStyle(field).height).toBe("24px");
                 expect(window.getComputedStyle(inner).height).toBe("24px");
             });

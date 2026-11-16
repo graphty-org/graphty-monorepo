@@ -13,7 +13,7 @@ On the version of the Microsoft Basic Render Driver that ships in the box with W
 compute shader that stores a value into groupshared memory and reads it back after `GroupMemoryBarrierWithGroupSync`
 returns wrong results. A two-block exclusive prefix sum of 257 ones -- as plain a workgroup-cooperative kernel as
 exists -- returns block totals of 1, or 256, or leaves a block's output entirely unwritten, depending on the run. The
-wrong answer varies between runs of the same compiled program, so this is a synchronisation failure and not a
+wrong answer varies between runs of the same compiled program, so this is a synchronization failure and not a
 miscompilation.
 
 Nothing reports an error. No validation message, no device-removed, no warning from the runtime. The API call
@@ -143,9 +143,9 @@ blockOffsets == [0, 256]
 | 1. Baseline, no toggles                                   | 255        | untouched + 256 | `[256, untouched]` | `[0, 256]`     |
 | 2. The same program again                                 | 255        | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
 | 3. The same program again, with the generated HLSL dumped | 255        | untouched + 256 | `[256, untouched]` | `[0, 256]`     |
-| 4. Compiled with debug symbols and optimisation skipped   | 1          | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
-| 5. Compiled with the FXC optimiser on                     | 255        | 256             | `[256, 1]`         | `[0, 256]`     |
-| 6. Groupshared zero-initialisation turned off             | 255        | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
+| 4. Compiled with debug symbols and optimization skipped   | 1          | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
+| 5. Compiled with the FXC optimizer on                     | 255        | 256             | `[256, 1]`         | `[0, 256]`     |
+| 6. Groupshared zero-initialization turned off             | 255        | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
 
 The raw words behind "untouched + 256" and "untouched + 1" are 3735928815 and 3735928560, the fill plus 256 and the
 fill plus 1.
@@ -217,7 +217,7 @@ not get lane 0's value, so its store either did not happen or landed outside the
 robustness. In the other two runs it returned the expected four words.
 
 This second shape and the prefix sum agree in five of the six runs. The one exception is the run compiled with
-debug symbols and optimisation skipped, where this shape was correct and the prefix sum was wrong in a new way, so
+debug symbols and optimization skipped, where this shape was correct and the prefix sum was wrong in a new way, so
 it is a second symptom of the same class rather than a complete account of the first.
 
 ---
@@ -323,7 +323,7 @@ void dawn_entry_point(scan_block_inputs inputs) {
 }
 ```
 
-Two barriers a round, in the right places. One guarded load of `sh[lid.x - s]`. No re-materialised load, no
+Two barriers a round, in the right places. One guarded load of `sh[lid.x - s]`. No re-materialized load, no
 duplicated read, nothing hoisted across a barrier. (The loop's own iteration counter, which Tint adds to bound every
 loop, is elided above for readability and is not involved.)
 
@@ -333,13 +333,13 @@ that uses DXC. See the corroboration section.
 Third, and decisively, a compiler produces the same program every time. This one does not produce the same answer
 every time.
 
-### Optimisation level and workgroup-memory initialisation
+### Optimization level and workgroup-memory initialization
 
-FXC runs at optimisation level zero here by default. Adding debug symbols and skip-optimisation on top gave a third,
-distinct wrong answer. Turning the FXC optimiser on instead gave a completely correct run. Turning off the runtime's
-injected zero-initialisation of groupshared memory changed nothing -- still wrong.
+FXC runs at optimization level zero here by default. Adding debug symbols and skip-optimization on top gave a third,
+distinct wrong answer. Turning the FXC optimizer on instead gave a completely correct run. Turning off the runtime's
+injected zero-initialization of groupshared memory changed nothing -- still wrong.
 
-A defect that a scheduling change makes and unmakes is a race. The correct run under the optimiser is not a fix and
+A defect that a scheduling change makes and unmakes is a race. The correct run under the optimizer is not a fix and
 should not be reported as one: given that the same binary returns different answers on different runs, one green run
 under any setting is not evidence of anything.
 

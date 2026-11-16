@@ -20,12 +20,12 @@ import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
- * Label a node's unlabelled neighbours along one arc direction and push them to walk next.
+ * Label a node's unlabeled neighbors along one arc direction and push them to walk next.
  * @param rowPtr - the CSR row pointers of the direction
  * @param colIdx - the CSR column indices of the direction
  * @param u - the node whose arcs are followed
- * @param labels - one component number per node index, -1 while unlabelled; written
- * @param component - the component being labelled
+ * @param labels - one component number per node index, -1 while unlabeled; written
+ * @param component - the component being labeled
  * @param stack - the nodes still to walk; written
  */
 function labelNeighbours(
@@ -140,7 +140,7 @@ function summariseComponents(snapshot: GraphSnapshot, labels: Int32Array, count:
  * Count the edges that are not the first between their pair of endpoints.
  *
  * The count is over arcs within a row, which is exact because a snapshot's `colIdx` is sorted
- * within each row: a repeat is a neighbour equal to the one before it. On an undirected snapshot
+ * within each row: a repeat is a neighbor equal to the one before it. On an undirected snapshot
  * every non-loop edge is stored as two arcs, so a repeated pair is seen from both ends and the
  * arc count is halved; a self-loop is stored once per row either way, so it is counted from the
  * one row it is in.
@@ -210,9 +210,9 @@ const WEDGE_SAMPLES = 4000;
 /**
  * Whether `to` is in `from`'s row. Rows are sorted, so a binary search.
  * @param rowPtr - the row offsets
- * @param colIdx - the sorted neighbours
+ * @param colIdx - the sorted neighbors
  * @param from - the row
- * @param to - the neighbour looked for
+ * @param to - the neighbor looked for
  * @returns true when the arc exists
  */
 function hasArc(rowPtr: U32, colIdx: U32, from: number, to: number): boolean {
@@ -233,8 +233,8 @@ function hasArc(rowPtr: U32, colIdx: U32, from: number, to: number): boolean {
 /**
  * The global clustering coefficient, direction ignored, from a fixed sample of wedges.
  *
- * A wedge is drawn uniformly: its centre with probability proportional to d(d - 1), then two
- * distinct arc slots of the centre. It is closed when either arc joins its two ends. A self-loop or
+ * A wedge is drawn uniformly: its center with probability proportional to d(d - 1), then two
+ * distinct arc slots of the center. It is closed when either arc joins its two ends. A self-loop or
  * a repeated edge makes a wedge whose ends coincide; it counts as open.
  * @param snapshot - the snapshot to measure
  * @returns the closed share of the sampled wedges; 0 when the graph has no wedge

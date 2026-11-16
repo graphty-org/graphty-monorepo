@@ -14,7 +14,7 @@ Next: click "Poster" on the left, that's the orange thing, to see which 3 and wh
 
 ## Step 3
 Command: --step --click "Poster"
-Saw: the right side changed to "Poster". Under "Which nodes" it says "name contains Mlle, 3 nodes". So that's why: their names have "Mlle" in them, the French "Miss". Colour FFA500, that's the orange. Now I still need the three names. Nothing on the picture has names.
+Saw: the right side changed to "Poster". Under "Which nodes" it says "name contains Mlle, 3 nodes". So that's why: their names have "Mlle" in them, the French "Miss". Color FFA500, that's the orange. Now I still need the three names. Nothing on the picture has names.
 Next: click the "name contains Mlle, 3 nodes" box and hope it lists them.
 
 ## Step 4
@@ -34,7 +34,7 @@ Stopping here: I have my answer.
 
 ## End (in character)
 
-Did I finish? Yes. The orange characters are Mlle Baptistine, Mlle Gillenormand and Mlle Vaubois. What they have in common: their names have "Mlle" in them (Mademoiselle, the unmarried women addressed as "Miss"). The project's "Poster" layer colours every character whose name contains "Mlle" orange; it says so in plain words, "name contains Mlle, 3 nodes".
+Did I finish? Yes. The orange characters are Mlle Baptistine, Mlle Gillenormand and Mlle Vaubois. What they have in common: their names have "Mlle" in them (Mademoiselle, the unmarried women addressed as "Miss"). The project's "Poster" layer colors every character whose name contains "Mlle" orange; it says so in plain words, "name contains Mlle, 3 nodes".
 
 How easy: 5 out of 7.
 

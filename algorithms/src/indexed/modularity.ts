@@ -4,7 +4,7 @@ import { checkNumber, checkWeights, withCode } from "../errors.js";
 
 /** Options of the index-based modularity. @public */
 export interface ModularityOptions {
-    /** Resolution gamma: above 1 favours smaller communities; default 1. */
+    /** Resolution gamma: above 1 favors smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
     readonly weights?: NumericVector | undefined;
@@ -85,7 +85,7 @@ function addRow(s: AdjacencyView, labels: U32, weights: NumericVector | null, u:
  *
  * On an undirected snapshot without self-loops this equals the legacy `calculateModularity`. On
  * a directed snapshot or one with self-loops the two differ, and this one is the NetworkX value:
- * the legacy degree counts a self-loop once and reads only out-neighbours on a directed graph, so
+ * the legacy degree counts a self-loop once and reads only out-neighbors on a directed graph, so
  * its degrees do not sum to 2m.
  *
  * It is NOT the legacy `calculateMCLModularity`, in two ways. That function subtracts the null-model

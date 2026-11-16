@@ -47,7 +47,7 @@
  * defaults, and `RingLayout` overrides each one.
  *
  * WHAT THE CATALOGUE HALF IS FOR. Being registered is not the same as being offerable. A layout
- * that reaches no catalogue cannot appear in a picker, cannot describe itself in a reader's
+ * that reaches no catalog cannot appear in a picker, cannot describe itself in a reader's
  * language, and cannot publish the options a settings form would render -- so it is reachable only
  * by a consumer who already knows its name, which is not what the element's own layouts get. The
  * `static descriptor` on each engine below is what closes that, and the tests read it back through
@@ -117,10 +117,10 @@ interface RingOptions {
 }
 
 /**
- * What `RingLayout` lets a consumer configure, in the plain-JSON form the catalogue publishes.
+ * What `RingLayout` lets a consumer configure, in the plain-JSON form the catalog publishes.
  *
  * Declared beside the engine rather than inside the class because the class body reads better
- * with its behaviour in it, and because this is the thing a picker consumes: name, plain name,
+ * with its behavior in it, and because this is the thing a picker consumes: name, plain name,
  * type, default and range are everything a form needs and everything validation needs.
  */
 const RING_OPTIONS: readonly OptionDescriptor[] = [
@@ -173,7 +173,7 @@ function approach(from: number, to: number, maxDelta: number): number {
  * A live layout engine written by a third party: a simulation that is stepped every frame.
  *
  * Nodes start at the origin and walk outwards to evenly spaced places on a ring of `radius`,
- * travelling at most `stride` units per step, so the arrangement a reader ends up looking at is
+ * traveling at most `stride` units per step, so the arrangement a reader ends up looking at is
  * exactly predictable: every node sits at distance `radius` from the vertical axis. In three
  * dimensions consecutive nodes are also separated vertically, which is how the tests below tell
  * a 3D run from a 2D one.
@@ -186,7 +186,7 @@ class RingLayout extends LayoutEngine {
      * What a picker reads about this layout, and the one place its options are declared.
      *
      * `id` is the same string as `static type` on purpose: a layout has ONE key, so the name a
-     * consumer types, the name a saved document records and the name the catalogue publishes
+     * consumer types, the name a saved document records and the name the catalog publishes
      * cannot drift apart. The options are plain JSON -- the same `OptionDescriptor` shape the
      * element's own layouts publish -- so a settings form renders this without knowing anything
      * about the class behind it, and the element checks a caller's values against the same list.
@@ -551,7 +551,7 @@ class GridLayout extends SimpleLayoutEngine {
 
 /**
  * A filled-in descriptor for an engine that exists only so that a registration can be tried.
- * @param id - the layout's one key: the name a consumer types and the name the catalogue publishes
+ * @param id - the layout's one key: the name a consumer types and the name the catalog publishes
  * @param plainName - what a picker would show a reader
  * @returns a descriptor a registration would otherwise accept
  */
@@ -1465,7 +1465,7 @@ describe("a third party's layout engine", () => {
 
 describe("what a layout registration refuses", () => {
     afterAll(() => {
-        // The catalogue half is global, so a later file asking what the element can offer must
+        // The catalog half is global, so a later file asking what the element can offer must
         // not be shown this file's plugins. The ENGINE half cannot be cleared: `LayoutEngine`
         // publishes no way to forget a class, and forgetting them all would take the element's
         // own nineteen with them, since those register once when their module is first evaluated.
@@ -1502,7 +1502,7 @@ describe("what a layout registration refuses", () => {
     it("a name one of the element's own engines already answers to", () => {
         // Every engine the element ships, not a sample: the exemption that lets the element's own
         // nineteen register without a descriptor is a list, and a list can drift away from the
-        // catalogue it was copied from without anything saying so.
+        // catalog it was copied from without anything saying so.
         const shipped = LAYOUT_CATALOG.flatMap((arrangement) =>
             arrangement.implementations.map((implementation) => implementation.engine),
         );
@@ -1528,7 +1528,7 @@ describe("what a layout registration refuses", () => {
     });
 });
 
-/** Scene units between two neighbours on the line. */
+/** Scene units between two neighbors on the line. */
 const LINE_GAP = 10;
 
 /**
@@ -1590,7 +1590,7 @@ const deferred: { resolve: ((positions: Float32Array<ArrayBuffer>) => void) | nu
  * answers with coordinates. The element's own single-pass layouts are built on the same contract.
  */
 describe("a single-pass layout registered on the snapshot contract", () => {
-    // Registered here rather than when the file loads: the suites above clear the catalogue when
+    // Registered here rather than when the file loads: the suites above clear the catalog when
     // they finish, which would take these layouts' descriptors with it.
     beforeAll(() => {
         registerSnapshotLayout({

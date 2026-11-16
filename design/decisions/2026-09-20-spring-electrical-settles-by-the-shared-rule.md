@@ -61,7 +61,7 @@ and the P5 row of 13 (line 4212) reads:
 > and settle rule, `SpringElectricalStats`)
 
 The argument gets one thing right: the preset's whole purpose (7.1 item 3) is to stand in for
-graphty-element's default engine at large n, and the closer its behaviour to ngraph's the less a
+graphty-element's default engine at large n, and the closer its behavior to ngraph's the less a
 reader notices the swap. Stopping at a different iteration than ngraph is a visible difference,
 and this record does not argue that away.
 

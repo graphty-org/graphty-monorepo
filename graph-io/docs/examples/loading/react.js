@@ -34,7 +34,7 @@ export function useGraph(url) {
 //     return <p>{snapshot ? `${snapshot.nodeCount} nodes` : "Loading..."}</p>;
 // }
 
-// What the effect does outside React: a load cancelled before it finishes reports nothing
+// What the effect does outside React: a load canceled before it finishes reports nothing
 const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
 stop();
 await new Promise((done) => {

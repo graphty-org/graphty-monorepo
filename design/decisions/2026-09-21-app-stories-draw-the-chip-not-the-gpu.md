@@ -24,7 +24,7 @@ the dev server, screenshotted through Playwright and questioned through an image
 ## Why
 
 A page can define a custom element name once. `graphty/src/stories/Graphty.stories.tsx` defines
-`graphty-element` at module scope as a grey placeholder box, and Storybook loads every story module
+`graphty-element` at module scope as a gray placeholder box, and Storybook loads every story module
 into one page -- so no story in the app's Storybook can mount the real element, whatever it is
 tagged. Putting a real-GPU story there would mean deleting the mock and with it the wrapper stories
 that depend on it.

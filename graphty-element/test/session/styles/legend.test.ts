@@ -161,7 +161,7 @@ function harness(specs: readonly LayerSpec[], rows: readonly Row[] = NODES, path
     };
 }
 
-/** A layer that colours by betweenness, scoped the way `encode()` scopes one. */
+/** A layer that colors by betweenness, scoped the way `encode()` scopes one. */
 function betweennessColor(extra: Partial<LayerSpec> = {}): LayerSpec {
     return {
         name: "Betweenness - Node Color",

@@ -58,7 +58,7 @@ Saw: left panel now shows "Sources: friends.csv 20 nodes, 41 edges", below it "N
 Think-aloud: "This is what I wanted. 41 rows in, 41 edges out. That's my 'nothing dropped' --
 though I had to work it out myself by comparing two numbers; it doesn't say 'all rows loaded' in
 words. And the weight column came along. The labels are cut off: 'Node ...', 'Edge t...'. On my
-laptop screen with these tiny grey letters I'd be squinting. Where did a 'node table' with 20 rows
+laptop screen with these tiny gray letters I'd be squinting. Where did a 'node table' with 20 rows
 come from? My file only has the links. I guess it made the people list up from the links."
 
 ### 5. Try to see the rows
@@ -68,7 +68,7 @@ Think-aloud: "I want to see the actual table -- that's where I check things."
 `--step $S --click-at 160,200` -> 05.png. The tool reported: treeitem "Edge table".
 
 Saw: the whole screen changed to "Add to friends -- Tables + -- Drop a file here, or choose a
-file... -- Direction: As the file says -- Cancel / Load (Load greyed, 'Choose a file first')".
+file... -- Direction: As the file says -- Cancel / Load (Load grayed, 'Choose a file first')".
 
 Think-aloud: "What? I clicked my table and it wants me to add another file. I wanted to look at my
 rows, not load more. That's confusing -- I almost thought I'd broken something. Cancel."
@@ -122,7 +122,7 @@ here, I have my numbers."
        It also decided the ties were "Directed" without saying why; for "who knows whom" that's
        wrong for me.
     2. "Nothing dropped" is something I had to work out by comparing "41 rows" with "41 edges" in
-       small grey text. One line like "41 of 41 rows loaded" would have answered it.
+       small gray text. One line like "41 of 41 rows loaded" would have answered it.
     3. Clicking my edge table opened an "Add to friends / drop a file" screen instead of showing me
        the rows. I could not find a table of my data anywhere.
     4. No names on the dots; I had to click one to learn it was "Ava".

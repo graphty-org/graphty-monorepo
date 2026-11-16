@@ -1,22 +1,22 @@
 import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
-/** Options of the index-based common-neighbour score. @public */
+/** Options of the index-based common-neighbor score. @public */
 export interface CommonNeighborsOptions {
     /** Intersect out(u) with in(v) instead of the two undirected rows. */
     readonly directed?: boolean | undefined;
 }
 
 /**
- * Merge row u of `fwd` with row v of `bwd` (both sorted) and add up each DISTINCT common neighbour
- * once: 1 per neighbour, or `weight(z)` when a weight function is given. Skipping the repeats of a
+ * Merge row u of `fwd` with row v of `bwd` (both sorted) and add up each DISTINCT common neighbor
+ * once: 1 per neighbor, or `weight(z)` when a weight function is given. Skipping the repeats of a
  * match in row v gives simple-graph semantics on a multigraph; a repeat in row u is then smaller
  * than the next entry of row v and the ordinary advance passes it.
  * @param fwd - The view whose row u is read
  * @param bwd - The view whose row v is read
  * @param u - A node index
  * @param v - A node index
- * @param weight - Optional weight of a common neighbour
- * @returns The count, or the weight sum, over distinct common neighbours
+ * @param weight - Optional weight of a common neighbor
+ * @returns The count, or the weight sum, over distinct common neighbors
  */
 export function sortedRowMerge(
     fwd: AdjacencyView,
@@ -50,12 +50,12 @@ export function sortedRowMerge(
 }
 
 /**
- * The number of distinct common neighbours of two nodes, by a merge of their sorted rows.
+ * The number of distinct common neighbors of two nodes, by a merge of their sorted rows.
  * @param s - The snapshot
  * @param u - A node index
  * @param v - A node index
  * @param o - Options
- * @returns The count of distinct common neighbours
+ * @returns The count of distinct common neighbors
  * @public
  */
 export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {

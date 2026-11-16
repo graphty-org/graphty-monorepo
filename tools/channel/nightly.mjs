@@ -663,7 +663,7 @@ async function lookAtDeploy(env) {
 // The deploy sends no event the job can wait on when it never starts (a disabled workflow, a refused runs read),
 // so the wait has its own limit, counted from the job's start (JOB_STARTED_MS, the site job's first step) and
 // 4 minutes under its 20-minute hang guard: it fails by name and the job's failure report runs, which a job
-// timeout (cancelled) would skip, however long the download and pack before it took.
+// timeout (canceled) would skip, however long the download and pack before it took.
 export const WAIT_LIMIT_MS = 16 * 60_000;
 
 /**

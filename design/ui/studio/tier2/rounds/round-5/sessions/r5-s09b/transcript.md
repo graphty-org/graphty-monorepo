@@ -12,7 +12,7 @@ All commands use `REAL_DIST=/home/apowers/Projects/graphty-monorepo/.study-build
 
 Command: `--step $S --click-at 833,864` -> `button "Filters"`.
 
-02.png: left panel now says friends.csv, "20 nodes, 41 edges" -- writing that down: 20 people, 41 pairs. Edges have one attribute, "weight"; that must be my third column (runs together). Right panel: "New filter step", Keep "an attribute's value", Attribute (empty), "Add step" greyed. I will open Attribute and pick weight.
+02.png: left panel now says friends.csv, "20 nodes, 41 edges" -- writing that down: 20 people, 41 pairs. Edges have one attribute, "weight"; that must be my third column (runs together). Right panel: "New filter step", Keep "an attribute's value", Attribute (empty), "Add step" grayed. I will open Attribute and pick weight.
 
 ## Step 03
 

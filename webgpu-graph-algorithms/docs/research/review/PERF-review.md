@@ -8,7 +8,7 @@ speedup claims).
 Document reviewed: /home/apowers/Projects/webgpu-graph-algorithms/design/webgpu-acceleration-plan.md
 (3328 lines, read in full). Notes 03, 04, 05, 06 and the probe scripts under
 tmp/webgpu-plan/probe/ were read for the cited numbers; the accepted design's
-sections 10.2, 14.3 and 15 were read for the contracts the plan must honour.
+sections 10.2, 14.3 and 15 were read for the contracts the plan must honor.
 
 Probes written and run for this review (all under
 /home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/review/probes/,
@@ -64,7 +64,7 @@ window while the core is still moving (see PERF-3).
 Fix (text): in 7.7's geometry table replace the "cell size" row with a
 robust extent: `extent = c * rmsRadius` with `rmsRadius = sqrt(sum |p - c|^2
 / n)` (one more vec4 partial in K5, folded by K1; `c` ~ 6-8 so ~99% of a
-clustered core is inside) or a fixed multiple of the median nearest-neighbour
+clustered core is inside) or a fixed multiple of the median nearest-neighbor
 distance; nodes outside the extent have their CELL KEY clamped to the
 boundary cell (cosmos clamps positions; we clamp the key, never the
 position) and are excluded from the near field's Horvitz-Thompson count so
@@ -104,7 +104,7 @@ decision-record item, not v1. Re-bracket line 1583's 1M figure after G4.
 
 ### PERF-3 (major) -- section 7.17, lines 1785-1790
 
-Claim: the settle rule normalises mean displacement by `radius = max |p -
+Claim: the settle rule normalizes mean displacement by `radius = max |p -
 centroid|`, which any isolated node makes enormous (PERF-1), so `settled` is
 reported while the core is still moving; conversely the near field's
 per-iteration Horvitz-Thompson resampling injects noise that keeps
@@ -116,7 +116,7 @@ arithmetic); `settleThreshold * radius = 4.2e4` units per node per iteration
 against core displacements of O(1-100). Note 03 section 1.3 documents the
 0.46 units/tick random walk cosmos saw from resampling.
 
-Fix (text): normalise by the RMS radius (or the 90th-percentile radius) that
+Fix (text): normalize by the RMS radius (or the 90th-percentile radius) that
 PERF-1 adds to the partials; state that the settle window compares the
 displacement of nodes NOT in over-capacity cells, or that `nearMax` is raised
 adaptively (cosmos's "adaptive K") when `maxCellOccupancy > nearMax` persists
@@ -152,8 +152,8 @@ personalized PageRank is the one kernel that requests `maxStorageBuffersPerShade
 
 ### PERF-5 (major) -- section 6 row 7, line 1255; section 8.4, lines 2059-2060; section 10.1, line 2578
 
-Claim: the two-phase BFS materialises an edge frontier into a buffer of
-`min(A, 16M)` entries with no stated behaviour when a level's degree sum
+Claim: the two-phase BFS materializes an edge frontier into a buffer of
+`min(A, 16M)` entries with no stated behavior when a level's degree sum
 exceeds it; at the 1M / 10M tier (A = 20M) the peak level of an R-MAT graph
 touches more than 16M arcs, and at 10M / 100M every large level does, so the
 workhorse traversal either overflows (wrong result) or must read back per
@@ -310,7 +310,7 @@ Claim: "256 sampled sources at 1M / 10M is 20-60 s" contradicts the plan's
 own bandwidth framing: a BFS plus a backward sweep over 20M arcs moves ~2 x
 20M x ~16 B = 640 MB per source, i.e. 160 GB for 256 sources = 0.3-0.5 s at
 the 4070's ~500 GB/s, and the batched multi-source form (64 sources per
-traversal) amortises the per-level dispatch overhead the plan says
+traversal) amortizes the per-level dispatch overhead the plan says
 dominates; 20-60 s implies 80-230 ms per source, 2-3x the plan's own
 whole-run BFS number, times 256, with none of the batching credited.
 

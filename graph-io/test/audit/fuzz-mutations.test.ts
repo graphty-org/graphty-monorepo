@@ -796,7 +796,7 @@ describe("fuzz audit: structural attacks", () => {
     describe("declared counts and numbers beyond what the sink can hold", () => {
         it("Pajek: after reserve() refuses the declared vertex count the importer creates no vertex", async () => {
             // `*Vertices 4294967295` is beyond what reserve() accepts; if the importer carried on
-            // with the count it would materialise implicit vertices one addNode() at a time (~9 s
+            // with the count it would materialize implicit vertices one addNode() at a time (~9 s
             // and >1 GB until V8's Map limit throws, from a 40-byte file). The count is fatal.
             const inner = new GraphBuilder({ directed: true, weightDtype: "f64" });
             let reserveRefused = false;

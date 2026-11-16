@@ -91,7 +91,7 @@ not have to go hunting in the analysis button again. That is the Gephi half I ha
   right-click would be stuck there.
 - After Load, the Top 10 kept showing last month's names and numbers under the 'Data changed' bar.
   The bar is clear enough, but if I had glanced at the list without reading the bar I could have
-  reported the old ranking as the new one. I would rather the stale numbers looked stale (greyed or
+  reported the old ranking as the new one. I would rather the stale numbers looked stale (grayed or
   struck) as well.
 - 'Higher means: Not set' on the weight. The note told me PageRank reads it as closer anyway, so I
   left it to match last month -- but I had to read a sentence to know that leaving it alone was safe.

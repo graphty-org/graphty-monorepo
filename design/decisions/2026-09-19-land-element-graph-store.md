@@ -16,7 +16,7 @@ work. Five of its six commits go in unchanged:
 | Commit     | What it adds                                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------------------------------- |
 | `beb1cad6` | `@graphty/graph-format` declared in both `dependencies` and `peerDependencies`; four new fields on `DataConfig` |
-| `056f11a9` | `@graphty/graph-format` externalised from the `es` and `umd` bundles                                            |
+| `056f11a9` | `@graphty/graph-format` externalized from the `es` and `umd` bundles                                            |
 | `bb748a7e` | `ElementPositions`, an element-owned stride-3 `Float32Array` of coordinates                                     |
 | `cc591cc0` | `GraphStore`, one `GraphBuilder` for the life of the graph, with `getSnapshot()` on an invalidation key         |
 | `a0862758` | `Node.index`, `Edge.index` and element-owned `Node.pinned`                                                      |
@@ -44,7 +44,7 @@ the element's config schemas are all inside that radius.
 
 **Four of the six commits are things the 2.0 design asks for by name.**
 
-- Declaring `@graphty/graph-format` in both `dependencies` and `peerDependencies` and externalising
+- Declaring `@graphty/graph-format` in both `dependencies` and `peerDependencies` and externalizing
   every `@graphty/*` sibling from the build is rule 1 of the packaging section
   (`design/element-api/element-api-design.md` section 6.2, lines 3348-3355). Its stated failure is
   what the element ships today: siblings inlined into a 2.5 MB bundle, and a duplicated
@@ -60,8 +60,8 @@ the element's config schemas are all inside that radius.
 
 **The blast radius on master is small, because the production code is inert.** Nothing in
 `graphty-element/src` constructs `GraphStore`, and the only construction of `ElementPositions` is
-`GraphStore`'s own field. What master actually gains in behaviour is a peer dependency and a bundle
-externalisation. The one exception is `Node.isPinned()`, which stops hard-returning `false` and
+`GraphStore`'s own field. What master actually gains in behavior is a peer dependency and a bundle
+externalization. The one exception is `Node.isPinned()`, which stops hard-returning `false` and
 starts answering from the new field -- see the second fix below.
 
 **The tests pin invariants that are expensive to rediscover.** An unplaced row reads back as `NaN`,
@@ -92,11 +92,11 @@ mean writing code with a known replacement already specified.
   allocation. 2.0 makes the whole per-frame channel `positions.buffer`, read by reference with a
   `version` integer to skip unchanged frames (section 4.7, lines 2267-2282). A per-node accessor is
   the thing that design exists to remove.
-- **`snapshot-replaced` has no place in the 2.0 event catalogue.** That catalogue is closed and
+- **`snapshot-replaced` has no place in the 2.0 event catalog.** That catalog is closed and
   counted -- 23 prefixed DOM events and 13 session events, with a CI test asserting the counts
   (section 4.10, lines 2479-2482, with the tables in 4.10.1 and 4.10.2). Neither list has a member
   for it, and its payload is two `GraphSnapshot` objects and a `Graph`, which the
-  serialisable-`detail` rule at the head of 4.10.1 forbids.
+  serializable-`detail` rule at the head of 4.10.1 forbids.
 
 Holding the branch until those three are resolved means holding it through the churn described
 above, which is the expensive merge this decision exists to avoid.
@@ -107,7 +107,7 @@ idiom, the extension note still telling a third party to write a class, and no `
 registry anywhere, so phase M6's accelerated layout IS a class extending `LayoutEngine` --
 `graphty-element/src/layout/SimulationLayoutEngine.ts`, registered beside the other sixteen
 built-ins. The other two bullets stand: the per-frame channel is still `positions.buffer`'s to
-take, and `snapshot-replaced` is still an internal event with no place in the DOM catalogue. See
+take, and `snapshot-replaced` is still an internal event with no place in the DOM catalog. See
 `design/decisions/2026-09-21-m6-bridge-is-a-layout-engine.md`.
 
 ## Three things that must be fixed before or during the landing
@@ -116,7 +116,7 @@ take, and `snapshot-replaced` is still an internal event with no place in the DO
 the DOM as a `CustomEvent` whose `detail` is the internal event object itself
 (`graphty-element/src/graphty-element.ts:96-104`). A `snapshot-replaced` event therefore reaches
 any listener on `document` under an unprefixed name, carrying a `Graph` reference and two
-`GraphSnapshot`s of typed arrays -- unprefixed and non-serialisable, both of which the 2.0 event
+`GraphSnapshot`s of typed arrays -- unprefixed and non-serializable, both of which the 2.0 event
 rules forbid. It is latent today only because nothing emits the event. Either exclude the name from
 the blanket forwarder, or hold `80c0704e` out of the merge.
 

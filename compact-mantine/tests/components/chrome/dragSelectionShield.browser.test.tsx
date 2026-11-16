@@ -13,7 +13,7 @@ import { moveBy, press, release } from "../../harness/mouse";
 import { touchCancel, touchEnd, touchStart } from "../../harness/touch";
 
 /**
- * Whether a selectstart dispatched now is cancelled.
+ * Whether a selectstart dispatched now is canceled.
  * @returns true when something called preventDefault on it
  */
 function selectStartCancelled(): boolean {
@@ -91,7 +91,7 @@ describe("the drag selection shield (ResizeHandle)", () => {
         expect(userSelect()).toBe("none");
 
         // The system takes the touch over, and the browser cancels the pointer. A touchcancel
-        // cannot be cancelled, so the browser acknowledges it without waiting for the page: the
+        // cannot be canceled, so the browser acknowledges it without waiting for the page: the
         // protocol call can return before the page has dispatched the pointercancel.
         const cancelled = new Promise<void>((resolve) => {
             globalThis.addEventListener("pointercancel", () => resolve(), { capture: true, once: true });

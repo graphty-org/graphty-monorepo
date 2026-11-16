@@ -72,7 +72,7 @@ export function labelsById(s: GraphSnapshot, labels: ArrayLike<number>): Map<str
 }
 
 /**
- * The groups of a label vector: group k holds the ids of the nodes labelled k, in node order.
+ * The groups of a label vector: group k holds the ids of the nodes labeled k, in node order.
  * @param s - The snapshot
  * @param labels - One label per node index, 0 to count - 1
  * @returns The node ids of each label

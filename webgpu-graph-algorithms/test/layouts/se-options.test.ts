@@ -1,6 +1,6 @@
 /**
  * The option pins of createSpringElectrical (spec 7.20, 9.3; P5-T5 Step 3): the resolver's defaults (SE_DEFAULTS plus
- * the origin centre and the null seed) and every E_INVALID_ARGUMENT range (a POSITIVE gravity is accepted: ngraph's
+ * the origin center and the null seed) and every E_INVALID_ARGUMENT range (a POSITIVE gravity is accepted: ngraph's
  * "if you make it positive nodes start attract each other"), the patch rule with maxInFlight pinned, the constant
  * override set of PD-1 / PD-20, the six specs covered by the compile matrix, paramsFor's PD-12 mapping (`gravity` ->
  * `coulomb`, FA2's `gravity` 0, `frK` 0), a numeric setParams that recompiles nothing and reheats, the mass

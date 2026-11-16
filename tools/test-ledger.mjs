@@ -191,7 +191,7 @@ export function failureHashes(text, file, main = "/nonexistent") {
 /**
  * An invocation's outcome (design 3.3). Only `passed` and `failed` count as evidence or in rates.
  * @param run `{ code, log, runs, junit, cancelled }`; junit is null when no JUnit carries the run id
- * @returns passed, failed, error, infra, unattributed or cancelled
+ * @returns passed, failed, error, infra, unattributed or canceled
  */
 export function outcomeOf(run) {
     const { code, log, runs = 1, junit, cancelled } = run;

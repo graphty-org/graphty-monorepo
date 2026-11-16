@@ -268,7 +268,7 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "labelSize")).toEqual([15, 15, 15]);
         expect(drawn(styles, snapshot, "node", "labelColor")).toEqual(["#ad0000", "#ad0000", "#ad0000"]);
         expect(drawn(styles, snapshot, "node", "labelWeight")).toEqual(["bold", "bold", "bold"]);
-        // an arc is grey and 1 wide, an edge (kept as a pair) teal and 2 wide
+        // an arc is gray and 1 wide, an edge (kept as a pair) teal and 2 wide
         expect(drawn(styles, snapshot, "edge", "width")).toEqual([1, 2, 2]);
         expect(drawn(styles, snapshot, "edge", "color")).toEqual(["#999999", "#007091", "#007091"]);
         expect(drawn(styles, snapshot, "edge", "targetArrow")).toEqual(["triangle", "none", "none"]);

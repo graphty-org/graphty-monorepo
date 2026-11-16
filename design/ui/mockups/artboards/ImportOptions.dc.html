@@ -29,7 +29,7 @@
   INPUTS: no graph loaded; format class delimited; header signature unknown; one guessed type column;
     size below both numbers; "Always show import options" off.
   CLAUSE: guessed column. Evaluated from the end, first match wins -- it beats "delimited file",
-    which also matched. This board was mislabelled "delimited file" before 1.7.
+    which also matched. This board was mislabeled "delimited file" before 1.7.
   RENDERS: item 2 recognition banner no; item 3 picker no; item 6 Load defaults to Everything;
     no departure line.
   PRIMARY: Import.
@@ -61,7 +61,7 @@
   REVISION 1.6 (COMPACTION-1.6.md, VOCAB section 11). The Data panel and the Import options dialog were
   re-cut on the row types; the canvas Welcome block, the rail, the top bar and the status bar are
   untouched. Group E moves applied: the sentence-length policy labels became noun labels with the
-  behaviour in the field ("Repeated edges between two nodes" / "Combine into one, count the repeats,
+  behavior in the field ("Repeated edges between two nodes" / "Combine into one, count the repeats,
   sum the weight" -> "Repeats" / "Combine + sum"); the repeated cell word rose to one legend
   ("Not set" x4 -> a dim -- in the cells and "-- not set" once on the grid footer, Rule 9); the
   "Label: value" column meta lines dropped their labels (Rule 3) and their defaults (Rule 7a).
@@ -132,7 +132,7 @@
   the one group "Coming" tag and the one group info circle (REGISTER-1.5 section 3), so the longer
   label buys no extra chrome. The row's own info circle keeps the set-wide sentence -- "An edge whose
   two ends are the same node. Keep leaves it in the graph; Drop removes it on import." -- verbatim, as
-  ImportRecognised and ImportParseError carry it: it is the only place the Keep-versus-Drop behaviour
+  ImportRecognised and ImportParseError carry it: it is the only place the Keep-versus-Drop behavior
   is written down, and trimming its first clause here alone would have replaced one drifting string
   with another. "Repeats" is untouched: all four sibling states already draw that label, so it is not
   part of this finding and inventing a parallel sentence for it would open the drift the finding closes.
@@ -143,7 +143,7 @@
   carries the same string; ImportLargeFile's bare "98%", ImportParseError's bare "71%" and
   ImportRecognised's "(detected)" are the drift, and a bare percentage next to "CSV" does not say what
   the number counts. The word "detected" on the Identifier system field stays: it reports a different
-  fact -- which id system the parser recognised -- and is not a second rendering of format certainty.
+  fact -- which id system the parser recognized -- and is not a second rendering of format certainty.
 
   REVISION 1.8 AFTER-STATE, 12 -> 9 resident rows outside the preview grid, in render order: (1) the
   reading "200 nodes, 612 edges, directed, weighted by amount, timed by ts"; (2) "1 column was
@@ -170,7 +170,7 @@
   The one transient this board draws, the type column's Role menu, keeps its place (item 8): it opens
   3.8px below its opener's bottom edge and its left edge sits on the header cell's own content-box
   left, 6px outside the opener chip's left edge -- 3.8 and 6, both far inside the 32 that would make it
-  unanchored, so it stays in the anchored form and does not become a centred surface.
+  unanchored, so it stays in the anchored form and does not become a centered surface.
 
   REVISION 1.9 (SECTIONS-1.9.md). Two items land here, one in the dialog and one in the panel behind it.
   5.15 POLICIES, the work list's purest case: 1.8 deleted both policy controls under Rule 7a and left a
@@ -2754,7 +2754,7 @@
                                  left: 6px lands the menu's left edge on the chip's own.
                      fit         menu [892,374 160x207], bottom 581 and right edge 1052, inside the
                                  dialog rect [360,168 720x564] on both axes, so nothing is slid, flipped
-                                 or dropped a rung and the centred fallback is never reached.
+                                 or dropped a rung and the centered fallback is never reached.
                      caret       none. A menu under 280 takes an 8px caret INSTEAD of a shared edge line
                                  (B1's third further clause), and this menu keeps its edge line exact, so
                                  the caret would mark a relationship the edge already states.
@@ -2781,9 +2781,9 @@
                                         >
                                             <!-- THE CARET (B1's third further clause, VOCAB 14.2). The menu is 160 wide, under the
                      280 threshold, so it carries an 8px caret at the anchored edge -- the TOP edge, the
-                     one that faces the chip -- instead of relying on the edge line alone. Centred on the
-                     chip: chip centre x 935.5, box 16 wide, so left 35 against the menu's padding box
-                     puts the tip at 936, half a pixel off the chip's centre and far inside 14.2's 12px
+                     one that faces the chip -- instead of relying on the edge line alone. Centered on the
+                     chip: chip center x 935.5, box 16 wide, so left 35 against the menu's padding box
+                     puts the tip at 936, half a pixel off the chip's center and far inside 14.2's 12px
                      corner clamp. The 1px the border costs on the other axis is ViewsMenu's recorded
                      footnote, not a drafting error: CSS positions an absolutely placed child against the
                      PADDING box, so the box lands at 367..375 against a chip bottom of 366. -->

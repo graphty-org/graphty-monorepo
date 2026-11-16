@@ -71,7 +71,7 @@ Rules that shape every entry, from owner/decisions.md:
 
 Every red master is also a stopped release, because the release workflow runs only after CI, the
 GPU lane and the host matrix are green on the same master commit. In 30 days master CI had 19 red
-stretches totalling 192 h, and no release could go out for 221 h. Before 2026-10-02, no red master
+stretches totaling 192 h, and no release could go out for 221 h. Before 2026-10-02, no red master
 was first detected by anything whose job was to detect it.
 
 ### Master red from merged code on a lane pull requests also run
@@ -206,7 +206,7 @@ was first detected by anything whose job was to detect it.
 - Done: status matches npm.
 
 ### Release starved by a steady stream of merges
-- Anticipated. 118 of 256 GPU-lane runs on master were cancelled by newer pushes; seven merges once
+- Anticipated. 118 of 256 GPU-lane runs on master were canceled by newer pushes; seven merges once
   landed within two minutes; the GPU lane takes up to about 2 hours. If merges keep arriving faster
   than the slowest lane finishes, no commit is ever green on every lane and nothing releases, with
   no red anywhere.
@@ -236,7 +236,7 @@ was first detected by anything whose job was to detect it.
 - Who: githerd's code.
 - Done: no pull request is updated onto a red commit.
 
-### Gating lane gets cancelled, never finishes
+### Gating lane gets canceled, never finishes
 - Seen: GPU re-runs take about 2 hours; a provider shut the machine mid-run (09-20); "the
   self-hosted runner lost communication" (09-22).
 - Signal: newest run of a gating lane is `cancelled` or has a runner-loss error, and no newer run
@@ -842,7 +842,7 @@ batch orders by label ("fix all critical bugs").
 - Seen: 13 `needs-decision` and 14 `blocked`, mostly from the 09-24 bulk filing and never
   revisited; on 09-24, 48 issues were `needs-decision` until review against the one-way-door rule
   left 4.
-- Signal: label age from issue events. One REST call per labelled issue during re-triage.
+- Signal: label age from issue events. One REST call per labeled issue during re-triage.
   `[verified]`
 - Do: re-judge each against the one-way-door rule; decide the reversible ones with a written
   decision comment and remove the label; send the real one-way doors to the owner queue.
@@ -892,14 +892,14 @@ batch orders by label ("fix all critical bugs").
 - Do: the order becomes a githerd record with its issue list fixed at that moment; githerd reports
   progress against it and anything dropped.
 - Who: the receiving session records it; githerd's code tracks it.
-- Done: every issue in the order is closed, or labelled `blocked` with a reason.
+- Done: every issue in the order is closed, or labeled `blocked` with a reason.
 
 ### Bulk filing
 - Seen: once (307 issues on 09-24).
 - Signal: many new issues in one poll. free poll.
 - Do: triage at a bounded rate; never dispatch work for all of them at once.
 - Who: githerd's code; agents.
-- Done: all labelled.
+- Done: all labeled.
 
 ### Issue that touches Cytoscape.js
 - Seen: the owner's order on 10-02: never comment on any Cytoscape.js issue or repository.
@@ -939,7 +939,7 @@ batch orders by label ("fix all critical bugs").
 - Signal: free poll; the batch shows as many issues from one session in a short time.
 - Do: same triage; group by Claude judgment so they become a few jobs, not dozens.
 - Who: Claude judgment; githerd's code.
-- Done: labelled and grouped.
+- Done: labeled and grouped.
 
 ---
 

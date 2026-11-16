@@ -9,7 +9,7 @@
 import { GraphtyError } from "../errors";
 import { type FeatureId, FEATURES, GRADUATED_FEATURES } from "./registry";
 
-/** What a session or element actually switched on, and the ids it did not recognise. */
+/** What a session or element actually switched on, and the ids it did not recognize. */
 export interface EnabledFeatures {
     /** The experiments switched on, in `FEATURES` order. */
     readonly enabled: readonly FeatureId[];
@@ -46,7 +46,7 @@ export function pageDefaultFeatures(): readonly string[] {
 /**
  * Resolve requested ids against this build's experiments.
  * @param requested - The ids asked for; absent means the page default (`setDefaultFeatures`).
- * @returns The experiments switched on and the ids not recognised, frozen. Never throws.
+ * @returns The experiments switched on and the ids not recognized, frozen. Never throws.
  */
 export function resolveFeatures(requested?: readonly string[]): EnabledFeatures {
     const asked = new Set<string>();

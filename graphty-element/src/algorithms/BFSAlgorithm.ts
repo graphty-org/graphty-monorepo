@@ -134,7 +134,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
 
            A walk that stops at a target is not one an accelerator answers -- a GPU walk expands
            whole levels at once -- so the decision says so before any work starts. It also tries
-           each node's neighbours in the order their edges were declared: which nodes it expands
+           each node's neighbors in the order their edges were declared: which nodes it expands
            before it reaches the target depends on that order, and the element's walks have always
            used it. A walk with no target keeps row order, which an accelerator can reproduce and
            which reaches every node on the same level either way. */

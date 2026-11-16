@@ -5,20 +5,20 @@ Task as given: practice on the ready-made Les Miserables network; have the progr
 ## Start
 
 Command: `node tool/real.mjs --start rounds/round-3/sessions/r3-s51 empty`
-Screenshot 01.png: a start page. Left: "Open project or file...", "New from data...", "Files are read on this computer and never uploaded" (good -- that answers my IT question before I ask). Middle: Recent projects (empty). Right: Samples, Les Miserables first, "77 characters ... Good for a first look at communities". Bottom: a box asking to share usage data. Small grey text everywhere, hard on my eyes.
+Screenshot 01.png: a start page. Left: "Open project or file...", "New from data...", "Files are read on this computer and never uploaded" (good -- that answers my IT question before I ask). Middle: Recent projects (empty). Right: Samples, Les Miserables first, "77 characters ... Good for a first look at communities". Bottom: a box asking to share usage data. Small gray text everywhere, hard on my eyes.
 
 ## Step 1
 
 Dana: "Usage data? No. Anything that phones home is an IT ticket. No thanks. Then the Les Miserables sample, that's what they told me to use."
 Command: `--step --click "No thanks" --click "Les Miserables"`
-Saw (02.png): the network drawn -- blue dots and grey lines, a hairball as usual. Left: a search box, "Selection", "Everything". Right: "Graph" panel with Overview numbers (Nodes 77, Edges 254, Density, Components 1). Bottom-left hint: "Analyze [flask icon] in the toolbar (Shift+A) to add results here". Bottom toolbar: flask, a chart-ish icon, "3D", magnifier.
+Saw (02.png): the network drawn -- blue dots and gray lines, a hairball as usual. Left: a search box, "Selection", "Everything". Right: "Graph" panel with Overview numbers (Nodes 77, Edges 254, Density, Components 1). Bottom-left hint: "Analyze [flask icon] in the toolbar (Shift+A) to add results here". Bottom toolbar: flask, a chart-ish icon, "3D", magnifier.
 Hesitation: "Components 1" -- is that my answer? One circle? That can't be what they mean by circles of characters who turn up together. I don't trust that word.
 
 ## Step 2
 
 Dana: "Nice hairball. Nothing here says 'groups'. The hint at the bottom says Analyze is the flask in the toolbar -- I'll click the flask."
 Command: `--step --click-at 679,864`
-Saw (03.png): a popup list "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank ("Start here"), Eigenvector, Katz, HITS, All-pairs distance... each with a one-line grey description. All ranking, nothing about groups. Words I don't know (Katz, HITS, Eigenvector) -- I won't touch those.
+Saw (03.png): a popup list "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank ("Start here"), Eigenvector, Katz, HITS, All-pairs distance... each with a one-line gray description. All ranking, nothing about groups. Words I don't know (Katz, HITS, Eigenvector) -- I won't touch those.
 Hesitation: PageRank says "Start here" but that's ranking, not circles. The list continues below; rather than scroll a wall of math terms, I'll use the filter box.
 
 ## Step 3
@@ -75,6 +75,6 @@ Command: `--end`
 - Clicking Group 1 first showed me a color picker (Style tab), not who's in the group. I had to guess that "Values" is where the members are.
 - Members shows only "First 10" of 20. Where are the other ten? I'd want the whole list and a way to get it into Excel.
 - The drawing has no names on the dots, and clicking the group didn't highlight its dots, so the picture didn't help me answer anything -- the side panel did.
-- Small grey text throughout (the descriptions under each analysis, "Under a second", "First 10") is hard to read without my glasses.
+- Small gray text throughout (the descriptions under each analysis, "Under a second", "First 10") is hard to read without my glasses.
 
 **So what for the business:** finding clusters of suppliers that keep showing up together could be interesting, but only if I can get the member list out into a table. "Files never uploaded" on the start page is the first thing I'd show IT.

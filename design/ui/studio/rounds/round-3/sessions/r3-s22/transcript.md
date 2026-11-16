@@ -66,7 +66,7 @@ The find box is a few stops away (title, undo, redo, Local only, Graph, Data...)
 
 ## Step 10 -- Tab x3 (4 presses in this part)
 
-10.png: a tooltip "Nothing to redo" under the redo arrow, so focus is on the greyed-out redo
+10.png: a tooltip "Nothing to redo" under the redo arrow, so focus is on the grayed-out redo
 button. I cannot see a ring around it -- only the tooltip tells me where I am. A disabled button
 that still takes a Tab stop costs me a press. Two more Tabs toward Local only / Graph.
 
@@ -139,7 +139,7 @@ Medici focus went to the details panel instead of being thrown away.
 - After opening the sample, focus fell to the page. My next Tab started at the main menu at the
   very top and I walked seven stops back down to the find box. Putting focus in the find box (or
   printing a shortcut for it) would save that walk. I saw no shortcut hint on the find box.
-- The greyed-out redo button takes a Tab stop, and its focus ring is hard to see -- only the
+- The grayed-out redo button takes a Tab stop, and its focus ring is hard to see -- only the
   "Nothing to redo" tooltip told me where I was.
 - The sample cards on the start page do not answer arrow keys; each is its own Tab stop. Minor.
 - The white frame around the Summary box: I could not tell at first whether it was focus. Arrow

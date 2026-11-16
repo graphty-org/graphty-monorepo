@@ -112,7 +112,7 @@ describe("multipartite", () => {
             layout.multipartite(s, { subsets: layers, scale: 2, center: [1, -1] }),
             golden("multipartite vertical"),
         );
-        // the legacy layout rescaled around the centre before it swapped x and y, so it landed on the swapped centre
+        // the legacy layout rescaled around the center before it swapped x and y, so it landed on the swapped center
         matchesGolden(
             layout.multipartite(s, { subsets: layers, align: "horizontal", center: [1, -1] }),
             golden("multipartite horizontal"),
@@ -303,7 +303,7 @@ describe("bfs", () => {
     });
 
     it("centres a horizontal layout on the centre asked for", () => {
-        // 1.x bfsLayout centred a horizontal layout on the swapped centre [center[1], center[0]]
+        // 1.x bfsLayout centered a horizontal layout on the swapped center [center[1], center[0]]
         const r = layout.bfs(path(4), { align: "horizontal", center: [10, -5] });
         const mean = [0, 1].map((k) => [0, 1, 2, 3].reduce((sum, i) => sum + row(r, i)[k], 0) / 4);
         assert.ok(Math.abs(mean[0] - 10) < 1e-5 && Math.abs(mean[1] + 5) < 1e-5, mean.join(","));
@@ -589,7 +589,7 @@ describe("spectral", () => {
         for (const radius of radii) {
             assert.ok(Math.abs(radius - radii[0]) < 1e-4 * radii[0], radii.join(","));
         }
-        // neighbours on the cycle are neighbours on the circle: every step turns by the same angle
+        // neighbors on the cycle are neighbors on the circle: every step turns by the same angle
         const turn = (i: number): number => {
             const [ax, ay] = row(r, i);
             const [bx, by] = row(r, (i + 1) % n);
@@ -657,7 +657,7 @@ function matchesNetworkX(r: LayoutResult, expected: number[][], scale = 1, cente
     }
 }
 
-/** Per axis, the Rayleigh quotient x^T L x / x^T x of the layout's centred coordinates over the given edges. */
+/** Per axis, the Rayleigh quotient x^T L x / x^T x of the layout's centered coordinates over the given edges. */
 function rayleighQuotients(r: LayoutResult, src: ArrayLike<number>, dst: ArrayLike<number>): number[] {
     return Array.from({ length: r.dim }, (_, k) => {
         const x = (i: number): number => r.positions[r.dim * i + k];

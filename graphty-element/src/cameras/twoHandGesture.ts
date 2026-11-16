@@ -1,6 +1,6 @@
 import type { Vec3 } from "../camera/types";
 
-/** Zoom factor change per metre the two pinching hands move apart or together. */
+/** Zoom factor change per meter the two pinching hands move apart or together. */
 const XR_GESTURE_ZOOM_SENSITIVITY = 2;
 
 /** Movement smaller than this is treated as none. */
@@ -25,9 +25,9 @@ export interface TwoHandGestureDelta {
  * is the gesture graphty-element's own XR controls use. A consumer that moves the graph rather
  * than the camera wants the absolute scale since the gesture began instead of the per-frame zoom:
  * that is `distance / startDistance`.
- * @param previousDistance - Distance between the hands last frame, in metres
+ * @param previousDistance - Distance between the hands last frame, in meters
  * @param previousDirection - Unit vector from left hand to right hand last frame
- * @param distance - Distance between the hands this frame, in metres
+ * @param distance - Distance between the hands this frame, in meters
  * @param direction - Unit vector from left hand to right hand this frame
  * @returns The movement to apply this frame
  */

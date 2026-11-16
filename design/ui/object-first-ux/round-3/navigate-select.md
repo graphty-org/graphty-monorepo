@@ -3,7 +3,7 @@
 This document closes the fifteen "find, navigate and select" gaps in
 `design/ui/object-first-ux/round-3/gaps.md`: functions the object-first design of round 2
 (`design/ui/object-first-ux/round-2/revision.md`) needs for the app to work, or for a reader to
-analyse and look at a graph, that no mock drew. For each one it gives the design (how the reader
+analyze and look at a graph, that no mock drew. For each one it gives the design (how the reader
 gets there, what they see, the rows, the keys, what goes wrong), what graphty-element must
 provide, and the screen that draws it. The screens are 49 to 58 in
 `design/ui/object-first-ux/mocks/v2/`, generated from
@@ -44,7 +44,7 @@ tool keys (V, H, F, E, P, G, R, S, N, backtick, 5), the legend (L) and the minim
 | Key | Does | Where else |
 |---|---|---|
 | Ctrl+F | Find (objects, nodes, values) | the magnifier in the Objects header |
-| Ctrl+= and Ctrl+- (also + and -) | zoom in and out, about the canvas centre; the wheel zooms toward the pointer | pill menu |
+| Ctrl+= and Ctrl+- (also + and -) | zoom in and out, about the canvas center; the wheel zooms toward the pointer | pill menu |
 | Shift+1 | zoom to fit (Figma's key) | pill menu; empty-canvas menu |
 | Shift+2 | zoom to the selection (Figma's key) | pill menu; a node's Locate button |
 | Ctrl+0 | zoom to 100% (2D only) | pill menu in 2D |
@@ -78,7 +78,7 @@ camera (the proposed 3D pan of #290 "no wheel zoom or pan in 3D, and 2D zoom ign
 cursor"), so the two never collide. On touch, a long press. Shift+F10 or the Menu key opens it
 for the node that has keyboard focus (section 12).
 
-**On a node** (screen 49): Select neighbours (double-click), Select connected part; Path from
+**On a node** (screen 49): Select neighbors (double-click), Select connected part; Path from
 here (P), Path to here (both arm the Path tool with that end filled in); Locate (Shift+2),
 Follow; Pin; Note... (N); Style its group... (when exactly one Group contains it), Style this
 node...; Add to Set > (a submenu of the node Sets in the tree and "New set"); What breaks if
@@ -122,7 +122,7 @@ the tree back exactly as it was.
 place; past 50, "Show all N in table" opens the Table dock narrowed to them):
 
 1. **Objects**: tree rows whose name matches, with their kind icon and chip.
-2. **Nodes (by label or id)**: one row per node: label, id in secondary text, the colour chip
+2. **Nodes (by label or id)**: one row per node: label, id in secondary text, the color chip
    of the Group that paints it. Matches rank exact, then starts-with, then contains.
 3. **Values in attributes**, with a scope select [Any attribute v] listing the columns: one row
    per attribute that matched, "label contains "state"  24 nodes" (see section 3).
@@ -176,7 +176,7 @@ it.
 selection (disabled with "Nothing is selected" when so); a divider; Top, Front, Side, Isometric
 (3D); a divider; Reset view; Save view.... The current framing carries a check.
 
-**Behaviour.** Every move animates for 500 ms and can be interrupted by any input. Zoom to
+**Behavior.** Every move animates for 500 ms and can be interrupted by any input. Zoom to
 selection on a Set or Group row zooms to its members. While following a node (section 8) the
 pill reads "Following BrighamYoung" with an x.
 
@@ -196,7 +196,7 @@ shown as a plane, as the Layout tab already says). Selection, Focus, hidden node
 object's paint carry over unchanged; only the camera changes. The pill switches from a
 percentage to a framing name.
 
-**Pointer.** With Hand (H or Space held), a drag orbits about the scene's centre, a right drag
+**Pointer.** With Hand (H or Space held), a drag orbits about the scene's center, a right drag
 pans, the wheel zooms toward the pointer. With Select, a plain drag orbits too, because in 3D
 empty space is most of the screen; Shift+drag draws the selection box, which selects the nodes
 inside the box's slab of the view (all depths), or only the nearest along each ray when "Front
@@ -219,7 +219,7 @@ the card's close x turns the switch off. Off by default.
 **The card.** 160 x 120 px of drawing under a 32 px header ("Minimap" and the zoom), at the
 bottom-left of the canvas with its bottom edge 12 px above the toolbar's top, mirroring the
 legend at the bottom-right, so neither collides with the 725 px toolbar at a 1280 px window.
-It draws every node as a dot in its painted colour (edges only under 5,000) and the part of the
+It draws every node as a dot in its painted color (edges only under 5,000) and the part of the
 graph the canvas shows as a blue box. Drag the box to pan; click anywhere to jump there; the
 wheel over the card zooms the canvas.
 
@@ -236,7 +236,7 @@ switch.
 **Entry.** The Views list above the tree: "+" saves the current camera as "View 2" with the name
 ready to type; the pill menu's Save view...; Ctrl+Alt+V; Ctrl+K "Save view".
 
-**Rows.** Each row is a name; the last applied has the grey current fill; a grey dot after its
+**Rows.** Each row is a name; the last applied has the gray current fill; a gray dot after its
 name when the camera has moved since. "Overview" is written by the element at the first fit
 after a load. Hover shows "..." with Update to current, Rename, Duplicate, Delete, Present from
 here. Click applies (500 ms move; a view that stores a Focus enters it); double-click renames;
@@ -244,7 +244,7 @@ drag reorders; PgUp and PgDn step.
 
 **The View inspector** (no tabs): Camera "moved" with Update to current; Mode [2D | 3D | VR |
 AR]; Showing [Everything v] (the Focus or time window it applies); Export image from this view;
-then what a view keeps: the camera, the mode and what is showing, never colours, eyes, the
+then what a view keeps: the camera, the mode and what is showing, never colors, eyes, the
 selection or node positions, so applying a view never repaints anything.
 
 **The Views "..." menu.** Save view, Previous view, Next view, Export views..., Import views....
@@ -262,7 +262,7 @@ preset (tiny); reader view names kept apart from built-in framing names (tiny).
 **Entry.** A node's "..." Follow, in the inspector header or the right-click menu; Ctrl+K
 "Follow".
 
-**State.** The camera keeps the node centred every frame at the current zoom (and, in 3D, the
+**State.** The camera keeps the node centered every frame at the current zoom (and, in 3D, the
 current orbit distance), which matters while the layout is moving it. The pill and the status
 bar's readout read "Following BrighamYoung"; the pill carries an x. Orbit and zoom still work
 around the node.
@@ -350,11 +350,11 @@ data...); the summary "Undirected, unweighted" or "weight 3.5".
   node Grouping whether the edge is inside one group or between two: "Conference 7 - 1 between
   groups"), MEMBER OF (edge Sets such as Paths), LOOK and NOTES.
 - Attributes: key and value rows with a filter field past ten.
-- Endpoints: the two node rows (label, neighbour count, group chip), Select both, and "Other
+- Endpoints: the two node rows (label, neighbor count, group chip), Select both, and "Other
   edges between them: 0" (a count above 0 lists them, for multigraphs).
 
 **Canvas.** The selected edge is drawn in the selection gold at 5 px under its own paint; its two
-ends are outlined and labelled.
+ends are outlined and labeled.
 
 **Element work.** Edge picking on the canvas (#319, medium); edge attributes by id
 (`session.data.edge(id)`, part of #297, small); `styles.explain` for an edge (small).
@@ -406,21 +406,21 @@ round 2.
 canvas is one stop. Focus lands on the selected node, else the node with the most connections
 that is showing. Help > Keyboard shortcuts has a "Canvas" section (drawn open on screen 58).
 
-**Keys on the canvas.** Arrows: the neighbour nearest to that direction on screen. ] and [: the
-next and previous neighbour going round clockwise. Tab and Shift+Tab: the next member of the
+**Keys on the canvas.** Arrows: the neighbor nearest to that direction on screen. ] and [: the
+next and previous neighbor going round clockwise. Tab and Shift+Tab: the next member of the
 selected object, in its order (a path's hop order), or the next node by connections when no
 object is selected. Enter selects (Shift+Enter adds). Space applies the armed tool to the
-focused node (the Path tool's start or end, the Neighbours tool's centre, the Note tool's
+focused node (the Path tool's start or end, the Neighbors tool's center, the Note tool's
 anchor). Shift+F10 opens its right-click menu. Esc leaves the canvas for the tree.
 
 **What the reader sees and hears.** A 2 px blue ring outside the node's own outlines, never the
 gold selection halo; the edge to where ] goes next is dashed blue. A caption in the secondary
 bar's place (only while the canvas has keyboard focus and no tool is armed): "Node 34: 17
-neighbours, Group 1, Connections rank 1 of 34. ] goes to node 9. Enter selects. Esc leaves." The
+neighbors, Group 1, Connections rank 1 of 34. ] goes to node 9. Enter selects. Esc leaves." The
 same sentence is written to an ARIA live region (a hidden element a screen reader announces
 when its text changes). The camera pans only when the focused node would leave the screen.
 
-**Element work.** A keyboard navigation mode in graphty-element, because neighbour order,
+**Element work.** A keyboard navigation mode in graphty-element, because neighbor order,
 nearest-on-screen and the node's description are graph functions every consumer needs: a
 focused-node property and event, the moves above, and a description string built from the
 objects that cover the node (medium; new issue).

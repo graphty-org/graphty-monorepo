@@ -4,7 +4,7 @@
  * the simulation's own stride-3 position array, stepped once per animation frame exactly the way graphty-element's
  * frame loop will (fire-and-forget step(), at most maxInFlight batches in flight), with drag / pin through
  * setPosition / setFixed; a "Run PageRank" button runs the device PageRank over the same resident snapshot, checks
- * the f32 scores against the test suite's f64 oracle, and colours and sizes the nodes by score.
+ * the f32 scores against the test suite's f64 oracle, and colors and sizes the nodes by score.
  * Served by `pnpm run dev:webgpu-graph-algorithms` (started through servherd, which sets PORT); not part of the package build, the tests or the lint set.
  */
 
@@ -453,9 +453,9 @@ function drawEdgeLines(g: CanvasRenderingContext2D, d: Demo): void {
 }
 
 /**
- * The log-scaled colour range: PageRank scores between the graph's min and max, or the degree from 0.
+ * The log-scaled color range: PageRank scores between the graph's min and max, or the degree from 0.
  * @param d - the demo
- * @param byScore - the scores to colour by, or null for the degree
+ * @param byScore - the scores to color by, or null for the degree
  * @returns lo and hi of the log scale
  */
 function colourRange(d: Demo, byScore: Float32Array | null): { lo: number; hi: number } {

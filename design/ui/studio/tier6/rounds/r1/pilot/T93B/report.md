@@ -71,7 +71,7 @@ selection and offered Use selection (05.png); a click on empty canvas cleared it
 showed Connected components on an empty Style tab (09.png). Values there read Groups 10, with sizes
 249, 7, 5, 5, 5, 5, 4, 4, 4, 4 (12.png). Clicking the active rail button closed the panel: a dot on
 Assistant and a lasting notice "Waiting: remove 82 nodes and 63 edges" with Open (10.png), as decided.
-Open came back. Asking a question while the request waited cancelled the request, removed the earlier
+Open came back. Asking a question while the request waited canceled the request, removed the earlier
 reply, and left "Not run: you sent a new message." (14.png). Asked again; the card returned (15.png).
 Undo on the first turn left the card standing with "Not in this graph" and a live Remove (16.png).
 Remove there gave "Not run: the graph changed.", and the model ran the analysis again and asked

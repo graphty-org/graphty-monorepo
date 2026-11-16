@@ -200,7 +200,7 @@ once (14.2 only). Lines 185 and 3162 cite "(graft: C Q-10)"; draft-C.md:2115 Q-1
 ### COMPLETE-17 -- CONFIRMED (minor)
 
 Plan 1.3 row 14.5 (164) lists "injected as runAlgorithm(snapshot, { accelerator: gpu })" among
-the inherited decisions honoured "as written" (216); design line 4239-4240 says exactly that;
+the inherited decisions honored "as written" (216); design line 4239-4240 says exactly that;
 9.2 defines `accelerated(acc).pageRank(s)` instead and D3 (179) calls the plug-in contract a
 decision "the design left open". Plan 1.3 row 16.2 (168) cites design 4545 "1e-5 for f32 GPU
 parity"; 9.7 (2510) uses 1e-4 for betweenness (Q-24 acknowledges it). Under the plan's own rule

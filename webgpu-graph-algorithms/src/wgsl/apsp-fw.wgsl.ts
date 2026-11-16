@@ -9,7 +9,7 @@
  *   `tileB`, updated in place.
  * - PHASE 2, `(B - 1)^2` workgroups: every block `(i, j)` off the pivot row and column. Its two operands are the
  *   pivot-COLUMN block `(i, r)` in `tileA` and the pivot-ROW block `(r, j)` in `tileB`; its own cells are read,
- *   minimised over the 32 steps and written by one lane each, never shared, so they stay in registers.
+ *   minimized over the 32 steps and written by one lane each, never shared, so they stay in registers.
  *
  * In-place updates are race-free because a cell is written only when the candidate is STRICTLY smaller: the cells
  * every lane reads in step `k` (column `k` and row `k` of the tile) would be updated with `d + d[k][k]`, and the

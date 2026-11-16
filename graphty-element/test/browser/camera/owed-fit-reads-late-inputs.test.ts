@@ -157,7 +157,7 @@ describe("a fit is owed again when the label pass moves the labels it measured",
         const element = document.createElement("graphty-element");
         container.appendChild(element);
         await element.waitForStableFrame();
-        // Four nodes on a square joined by edges, each labelled over its node: `avoidNodesAndEdges`
+        // Four nodes on a square joined by edges, each labeled over its node: `avoidNodesAndEdges`
         // moves every label off its node and edges -- the top row's above the square -- on the pass
         // before a frame, after the fit below measured them over their nodes.
         await element.graph.addNodes(

@@ -337,7 +337,7 @@ const config: KnipConfig = {
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
-                // nothing externalises it), so each is a devDependency that production source imports.
+                // nothing externalizes it), so each is a devDependency that production source imports.
                 // TanStack AI is built into the AI engine's own chunks the same way, imported only by
                 // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
                 // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
@@ -459,7 +459,7 @@ const config: KnipConfig = {
     // be referenced once inside its own file, in all six workspaces.
     //
     // The narrower mechanism is per symbol: knip skips any export whose JSDoc block
-    // carries a `@public` tag (knip honours `@public` with no `tags` entry needed), so a
+    // carries a `@public` tag (knip honors `@public` with no `tags` entry needed), so a
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.

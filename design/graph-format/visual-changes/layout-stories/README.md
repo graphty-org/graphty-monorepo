@@ -149,7 +149,7 @@ before. The 2D Spring story moves by 3.5e-5 of a unit and stays under the thresh
 
 ### Stories that did not change, and why
 
-- **BFS** and **Planar**: `bfsLayout` and `planarLayout` now visit neighbours in node order. The
+- **BFS** and **Planar**: `bfsLayout` and `planarLayout` now visit neighbors in node order. The
   default graph of both stories is a tree, on which the old order and node order agree, so the
   layout is identical. visual-review captures default arguments only, so it will never show the
   two cases below, where a reader who changes the BFS story's controls does see nodes move:
@@ -159,7 +159,7 @@ before. The 2D Spring story moves by 3.5e-5 of a unit and stays under the thresh
       node puts the two branches of the cycle on swapped sides, a move of 0.2 to 1.0 units (at 10
       nodes, seed 42, start node 9: [overlay](bfs-cycle.svg)).
 
-    In each overlay a grey ring is master's position, a blue dot the branch's, and a red dashed line
+    In each overlay a gray ring is master's position, a blue dot the branch's, and a red dashed line
     a node's move. The other graph types (tree, grid, complete, star, path) give identical positions
     for every start node, checked over 4 to 20 nodes and 20 seeds. Planar's graph
     types (tree, grid, cycle, path, star) give identical positions, and so do bipartite and

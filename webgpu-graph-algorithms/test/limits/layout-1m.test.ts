@@ -7,8 +7,8 @@
  * ladder from 32 seeds printed at every rung (grid-unbiased.test.ts's item at scale; G4-F2); (3) at 262,144 nodes (the finest-grid
  * saturation size, spec 7.7): exactVsGrid, and the 200-iteration distributional comparison within
  * grid-distributional over the O(m) and sampled metrics -- the edge-length quantiles, the spread and the
- * nearest-neighbour histogram of every 32nd node (test/helpers/metrics.ts's layoutMetrics runs a BFS from every node
- * for the stress and an all-pairs nearest-neighbour search, hours at this size; the sampled histogram is the same
+ * nearest-neighbor histogram of every 32nd node (test/helpers/metrics.ts's layoutMetrics runs a BFS from every node
+ * for the stress and an all-pairs nearest-neighbor search, hours at this size; the sampled histogram is the same
  * statistic on both tiers); (4) the 1M grid run of 100 iterations in batches of 8 is finite, twice bitwise, with
  * `stats.msPerIteration` printed for the record (T-6's number is the benchmark's; this is the lane's). The 1M
  * 200-iteration comparison of 11.4 is the owner's dev-box run of P4-T15 Step 2 (`benchmarks/layout-run.ts`), never a
@@ -59,7 +59,7 @@ const PROGRESS_SEEDS = 128;
 /** Iterations between two progress lines of a long layout run, for the same reason (the 262k exact run is 73 s). */
 const PROGRESS_ITERATIONS = 50;
 const DISTRIBUTIONAL_ITERATIONS = 200;
-/** Every NN_STRIDE-th node enters the nearest-neighbour histogram (8,192 of 262,144). */
+/** Every NN_STRIDE-th node enters the nearest-neighbor histogram (8,192 of 262,144). */
 const NN_STRIDE = 32;
 const NN_BINS = 8;
 const RUN_ITERATIONS = 100;
@@ -116,8 +116,8 @@ async function positionsAfter(
 }
 
 /**
- * The scale-feasible metrics of a layout: the edge-length quantiles (O(m)), the spread (O(n)) and the self-normalised
- * nearest-neighbour histogram of every NN_STRIDE-th node (O((n / NN_STRIDE)^2)), as one record distributionalError
+ * The scale-feasible metrics of a layout: the edge-length quantiles (O(m)), the spread (O(n)) and the self-normalized
+ * nearest-neighbor histogram of every NN_STRIDE-th node (O((n / NN_STRIDE)^2)), as one record distributionalError
  * compares.
  * @param s - the snapshot
  * @param positions - the stride-3 positions

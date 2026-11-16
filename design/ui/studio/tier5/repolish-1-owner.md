@@ -17,7 +17,7 @@ Every finding below was seen on screen or read in the code.
 
 | Owner point                         | Verdict                                                                                                                                                                                                       |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cramped, hard to find what matters  | Better at rest. The outline is set in 9 px caption type, smaller and greyer than every control around it, so the recipe is the faintest thing in the panel (finding 2).                                       |
+| Cramped, hard to find what matters  | Better at rest. The outline is set in 9 px caption type, smaller and grayer than every control around it, so the recipe is the faintest thing in the panel (finding 2).                                       |
 | Disorganized: buttons, gaps, breaks | Calm at rest, but rows appear when you point at the editor. Pointing at a group inserts two rows and pushes everything below it down 32 to 64 px, so the next click lands on a different control (finding 1). |
 | Progressive disclosure              | Advanced is collapsed, and "Select N" is in "...". But both segments the editor needs, Start with and Computed on, have no visible label (finding 4).                                                         |
 | "Select", "Filter to", "Filter out" | Fixed on the cards: none of the three words appears, and "Select 22" is the first item of the card's "..." menu (`s2/08-crop.png`).                                                                           |
@@ -50,7 +50,7 @@ Every finding below was seen on screen or read in the code.
 
 - **Evidence:** `s1/08-crop.png` and `s1/03-crop.png`. "Which nodes", "Keep", "Degree" and
   "min 10" are drawn in 9 px type. "Style nodes", the pane's selects and the menu items are 11 px.
-  The verb and the test are dimmed. A selected row is grey text on lime ("Keep Degree No test"),
+  The verb and the test are dimmed. A selected row is gray text on lime ("Keep Degree No test"),
   the lowest-contrast line on screen.
 - **Cause:** `SelectionEditor.tsx:669, 679, 759, 764, 838-853, 1148` use `<Text size="xs">`, which
   compact-mantine sets at 9/14 (`compact-mantine/src/theme/components/display.ts:44`). Spec

@@ -546,7 +546,7 @@ Three costs at 30 to 50 merges a day:
    section 11), release.yml takes master's newest commit, unless the previous release is still
    pending: a release pull request is open (one that can no longer merge is closed and re-cut
    from the newest commit: it conflicts with master, a check on its head failed, or it left the
-   merge queue, which the release queue rule never retries; one labelled `hold` waits), a
+   merge queue, which the release queue rule never retries; one labeled `hold` waits), a
    "Release held" issue is open (a fix is in progress; a dispatch runs
    anyway), the last release is not tagged yet, or nothing releasable changed (the train's own
    versioning, run locally, makes no commit). Every one of these ends on an event, never on a
@@ -573,7 +573,7 @@ Three costs at 30 to 50 merges a day:
    two trains: every attempt shares the one `release-train` concurrency group, so the second
    waits for the first and then finds its release pull request (it skips) or its held issue (it
    tries the newer commit). Coverage goes to Coveralls from the same CI run. A lane that was only
-   cancelled (gpu.yml's queue replaced the pending T4 run, a person cancelled it) opens no issue:
+   canceled (gpu.yml's queue replaced the pending T4 run, a person canceled it) opens no issue:
    the run goes red with an error annotation and the next attempt retries. A T4 refused or lost by
    machine.dev (balance, runner limit) still opens the issue, whose text says there is no code to
    fix: the owner restores capacity and dispatches, or closes the issue.

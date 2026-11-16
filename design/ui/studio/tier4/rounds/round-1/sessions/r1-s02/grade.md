@@ -10,7 +10,7 @@ Leaks: none (leaks.json lists no file outside the session folder; 37 calls check
 ## Result
 
 The last screenshot (16.png) shows one network built from both files: Sources lists gauges.csv
-(11 nodes) and the joined flows file (row "flows.c...", a grey "1", 11 nodes, 13 edges), the
+(11 nodes) and the joined flows file (row "flows.c...", a gray "1", 11 nodes, 13 edges), the
 inspector reads "From 2 files", Nodes 11, Edges 13, Components 1, and the Edges table holds 13
 edges with G03 -> G04 once. `data.json` agrees: 11 nodes and 13 edges, source s1 gauges.csv (11
 nodes) and source s2 flows.csv of kind join onto s1 (15 rows, 13 matched, 11 nodes, 13 edges).
@@ -35,7 +35,7 @@ Asked "How many of the stretches came from the second spreadsheet, and where did
 she answered 13, all from flows.csv, read on the flows.csv Sources row in Data (the orange 13),
 under the flows.csv heading in Fields (the edge chip 13), the inspector's Edges 13 and the Edges
 table header "13 edges" (16.png). That matches her own end network; the key's 14 belongs to the
-network before her "Leave out". She added that she could not tell what the grey "1" on the row
+network before her "Leave out". She added that she could not tell what the gray "1" on the row
 means and guessed it is the row she left out (problem 3).
 
 ## Route against the success path
@@ -74,7 +74,7 @@ repeat, which the join screen did not let her decide beforehand (problems 2 and 
 | - | -------- | ---- | ---- | -------- |
 | 1 | 2 | build-defect | On the join screen, the Join split button's menu lists "Join" first, but picking it only closes the menu: nothing is joined and nothing on screen changes, so the person has to find the main half of the button. The screen-reader read-out after the pick still shows the join screen's header and its Join, "Join choices" and Cancel buttons. Reproduced by script (below). | Steps 9 and 10, 09.png and 10.png ("menu closed, nothing else changed"); repro 04.png and 05.png |
 | 2 | 2 | build-defect | "1 new node" and "1 not in graph" describe the same row (G09 -> G12), but only "1 not in graph" does anything when clicked, neither has a tooltip, and nothing on the join screen says whether Join will create G12 or skip the row. She joined without knowing, and learned only from Nodes 12 that an empty G12 had been invented. Same defect as r1-s01 on the A half, reproduced there by script (`repro/r1-s01/`, 03.png against 04.png). | Steps 6 to 8, 06.png ("tooltip: null"), 08.png unchanged from 07.png; step 11 and 12, 11.png and 12.png |
-| 3 | 2 | behavior | After "Leave out", nothing names what was removed or folded: the issue list reads only "Resolved 1", the flows.csv row shows an unlabeled grey "1" beside its name, and the repeated G03 -> G04 is mentioned nowhere after Join. The row's accessible name, "13 of 15 rows joined", is the only place the two missing rows are counted, and it is not on screen. She reconstructed 15 -> 13 from the preview she had read before Join and said she would otherwise have thought data was dropped without a word. | Steps 14 and 15, 14.png and 16.png; repro 08.png and 09.png and the read-out (`button "flows.csv 13 of 15 rows joined 11 nodes, 13 edges"`, `button "Resolved 1"`) |
+| 3 | 2 | behavior | After "Leave out", nothing names what was removed or folded: the issue list reads only "Resolved 1", the flows.csv row shows an unlabeled gray "1" beside its name, and the repeated G03 -> G04 is mentioned nowhere after Join. The row's accessible name, "13 of 15 rows joined", is the only place the two missing rows are counted, and it is not on screen. She reconstructed 15 -> 13 from the preview she had read before Join and said she would otherwise have thought data was dropped without a word. | Steps 14 and 15, 14.png and 16.png; repro 08.png and 09.png and the read-out (`button "flows.csv 13 of 15 rows joined 11 nodes, 13 edges"`, `button "Resolved 1"`) |
 | 4 | 1 | opinion | What to do with an unknown end (Add nodes, Leave out, Ignore) can be chosen only after Join, in the issue list; on the join screen, where she was looking at the row, there is no such choice, and the default adds an empty node. | Step 9 note (09.png: the Join menu has no choice for the unmatched row); step 13, 13.png |
 | 5 | 1 | opinion | The joined river network opens in 3D although the gauges carry Latitude and Longitude; she expected it flat or on a map. Outside this task. | End-of-session notes; 11.png ("3D" in the toolbar) |
 

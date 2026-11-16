@@ -1,11 +1,11 @@
-// Screen 90: a signed value on a diverging palette centred on a midpoint.
+// Screen 90: a signed value on a diverging palette centered on a midpoint.
 // Karate Club with a formula Measure "Bridges per link", the log2 of a node's
 // share of betweenness over its share of connections: above 0 a node bridges
 // more than its links suggest, below 0 less. The values are computed here
 // from karate.mjs (-4.85 to +1.51); the 12 nodes with no betweenness have no
-// finite log and are drawn grey as missing. Symmetric is off, so each side
+// finite log and are drawn gray as missing. Symmetric is off, so each side
 // stretches to its own end (-4.85 is full blue, +1.51 full red) and 0 is the
-// white centre.
+// white center.
 import { NODES, DEGREE, BETWEENNESS } from "../karate.mjs";
 import { OTHER } from "../palettes.mjs";
 import { rampAt } from "../render.mjs";

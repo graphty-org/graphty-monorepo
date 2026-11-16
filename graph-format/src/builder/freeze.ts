@@ -191,7 +191,7 @@ function sortInputOf(staging: Staging, directed: boolean): SortInput {
  * @param staging - the (compacted) staging the core was built from
  * @param directed - the direction
  * @param policy - a policy other than "keep"
- * @param countMultiplicity - whether "sum" on an unweighted staging materialises multiplicities (false on a `weighted: false` builder, which never gains a weight array)
+ * @param countMultiplicity - whether "sum" on an unweighted staging materializes multiplicities (false on a `weighted: false` builder, which never gains a weight array)
  * @param builderIndex - compacted edge index -> the builder's own index, for error details
  * @returns the walk, or null when no group had more than one member
  */
@@ -243,7 +243,7 @@ interface WalkInput {
     readonly weights: ArrayLike<number> | null;
     /** The duplicate policy (never "keep"). */
     readonly policy: Exclude<DuplicatePolicy, "keep">;
-    /** Whether "sum" on an unweighted staging materialises multiplicities. */
+    /** Whether "sum" on an unweighted staging materializes multiplicities. */
     readonly countMultiplicity: boolean;
     /** Compacted edge index -> the builder's own index, for error details. */
     readonly builderIndex: (e: number) => number;

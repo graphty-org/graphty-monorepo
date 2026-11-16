@@ -38,7 +38,7 @@ Said: "Hops 1, 2, 3. Two marriages away -- that should be 2."
 ## Step 7
 Said: "Eleven. Now the drawing should have only these. 'Filter to neighbors' is the only button that sounds like that. Filter, not delete, so I'll try it."
 `--step <session> --click "Filter to neighbors"`
--> 08.png: the three unlit balls are gone; 12 balls left, all lit. Top bar now says "12 of 15 nodes" with a filter mark. The legend now says "PageRank, full graph". The button went grey. The icon on the PageRank row changed to a little clock-like arrow, which I did not touch.
+-> 08.png: the three unlit balls are gone; 12 balls left, all lit. Top bar now says "12 of 15 nodes" with a filter mark. The legend now says "PageRank, full graph". The button went gray. The icon on the PageRank row changed to a little clock-like arrow, which I did not touch.
 
 ## Step 8
 Said: "That's it. Twelve on the drawing, the Medici plus the eleven. The top says 12 of 15, so I know the other three are only hidden, not gone. I'm done."

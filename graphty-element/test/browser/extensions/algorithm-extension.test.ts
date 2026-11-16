@@ -20,7 +20,7 @@
  *
  * WHAT THIS FILE PROVES. Three dummy extensions, written the way a customer would write them, are
  * built here and then driven through every capability a built-in algorithm has. Every assertion
- * reads an OUTCOME -- the numbers published, the colour a node ended up painted, the run that
+ * reads an OUTCOME -- the numbers published, the color a node ended up painted, the run that
  * was actually stopped, the name a summary row carries -- rather than checking that a call did
  * not throw.
  *
@@ -32,9 +32,9 @@
  * is what the "paints only the nodes it measured" test below reads back.
  *
  * THE SECOND DUMMY. `AlphabetWalk` starts at the node whose id sorts first and keeps stepping to
- * the alphabetically next neighbour it has not already visited. It exists because a metric only
+ * the alphabetically next neighbor it has not already visited. It exists because a metric only
  * exercises half the result: a route publishes a value for EDGES as well as nodes, addressed by
- * the pair of endpoints, and the element derives a highlight rather than a colour ramp from it.
+ * the pair of endpoints, and the element derives a highlight rather than a color ramp from it.
  * It also publishes a row only for the elements it actually walked, which is the rule the
  * element holds every algorithm to -- an element an algorithm has nothing to say about is not
  * that algorithm's to paint, not even to a default.
@@ -104,8 +104,8 @@ import { TieStrength } from "./guide-example/tie-strength";
 /**
  * Eight nodes in a line, plus one with no links at all.
  *
- * The line gives the metric more than one answer -- the two ends reach fewer neighbours than the
- * middle -- so a ranking, a distribution and a colour ramp all have something to show. The
+ * The line gives the metric more than one answer -- the two ends reach fewer neighbors than the
+ * middle -- so a ranking, a distribution and a color ramp all have something to show. The
  * unconnected node is the element the extension deliberately says nothing about.
  *
  * Each node also carries a `name`, which is what a reader would see on a card. Nothing reads it
@@ -138,7 +138,7 @@ const EDGES = [
 /** The node the extension never measures, named once so no test spells it twice. */
 const UNMEASURED = "alone";
 
-/** The colour the element's own base layer paints every node before anything else runs. */
+/** The color the element's own base layer paints every node before anything else runs. */
 const DEFAULT_NODE_COLOR = { r: 99 / 255, g: 102 / 255, b: 241 / 255 };
 
 /** Where a node's display name lives in the records above, for the one test that configures it. */
@@ -191,7 +191,7 @@ const HOP_REACH_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 });
 
 /**
- * What the catalogue publishes about this extension.
+ * What the catalog publishes about this extension.
  *
  * Declaring this is what makes a third party's algorithm a first-class one. Without it the class
  * can be registered and called and nothing more: it cannot be started as a run, and progress,
@@ -225,7 +225,7 @@ const PROGRESS_PHASE = "Counting nearby nodes";
  * It fills only `value`; the element fills `rank` and `percentile` from that column, and the
  * graph-level statistics from it too. Declaring the full set is what says "this is a node
  * metric" -- the shape fixes the names, which is how any consumer reads
- * `results.<runId>.value` without opening the catalogue first.
+ * `results.<runId>.value` without opening the catalog first.
  */
 const HOP_REACH_FILLED: readonly ResultFieldSpec[] = metricFieldSpecs("node", "integer");
 
@@ -237,15 +237,15 @@ const HOP_REACH_FILLED: readonly ResultFieldSpec[] = metricFieldSpecs("node", "i
  * A window into the extension's own execution, so a test can assert the element reached it.
  *
  * Cancellation is the reason this exists. "The promise rejected with an AbortError" is also what
- * a run cancelled before it ever started would produce, and that would prove nothing about
+ * a run canceled before it ever started would produce, and that would prove nothing about
  * whether a third party's code can be stopped. So the extension says when it has begun, offers
- * to hold until cancelled so a cancel has somewhere to land, and records whether its own abort signal is what
+ * to hold until canceled so a cancel has somewhere to land, and records whether its own abort signal is what
  * stopped it.
  */
 const probe = {
     /** Called by the extension the first time it reaches a yield point. Reset per test. */
     begun: (): void => undefined,
-    /** Whether the extension waits at each yield point until it is cancelled, so a cancel lands mid-run. */
+    /** Whether the extension waits at each yield point until it is canceled, so a cancel lands mid-run. */
     holdUntilCancelled: false,
     /** Whether the extension's own signal was aborted when it stopped. */
     stoppedBySignal: false,
@@ -313,7 +313,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
         }
 
         // Gathered once, so the walk below is over the extension's own data structure. The
-        // neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
+        // neighbors of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
         const neighbours = new Map<NodeId, readonly NodeId[]>(
             ids.map((id, row) => [
                 id,
@@ -336,7 +336,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
 
                 // A node nothing links to has no reach to report. Publishing zero for it would be
                 // a measurement this algorithm did not make, and everything downstream -- the
-                // ranking, the distribution, the colour ramp -- would then carry an invented
+                // ranking, the distribution, the color ramp -- would then carry an invented
                 // value.
                 if (reached !== null) {
                     measured.push({ id, values: { value: reached } });
@@ -385,7 +385,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
 
 /**
  * How many other nodes lie within `hops` steps of one node.
- * @param neighbours - Who each node is linked to.
+ * @param neighbors - Who each node is linked to.
  * @param from - The node to walk out from.
  * @param hops - How far to walk.
  * @returns The count, or null when the node has no links and there is nothing to measure.
@@ -430,12 +430,12 @@ const WALK_STEPS: OptionDescriptor = {
 };
 
 /**
- * What the catalogue publishes about the walk.
+ * What the catalog publishes about the walk.
  *
  * A `path` shape rather than a metric, which changes three things the element does with the
  * result and none of what the extension writes: the field names it must publish, the fact that
  * the edge half is part of the contract, and the picture derived from it -- a highlight over the
- * elements the walk chose rather than a colour ramp over everything measured.
+ * elements the walk chose rather than a color ramp over everything measured.
  */
 const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     key: "alphabet-walk",
@@ -487,7 +487,7 @@ interface AlphabetWalkOptions extends Record<string, unknown> {
 }
 
 /**
- * A third party's route: walk to the alphabetically next neighbour, over and over.
+ * A third party's route: walk to the alphabetically next neighbor, over and over.
  *
  * Chosen because it is obviously right by inspection and resembles nothing the element ships. It
  * exists to exercise the half of a result a metric cannot reach: a value per EDGE, addressed by
@@ -546,7 +546,7 @@ class AlphabetWalk extends DeclaredAlgorithm<AlphabetWalkOptions> {
         // The element's own chunk-report-yield loop, rather than one written here. Before it was
         // published an extension had to reimplement it, and the two copies the element itself
         // carried disagreed about the chunk size AND about whether yielding hands the frame back
-        // -- so there was no single behaviour to copy even if an author went looking.
+        // -- so there was no single behavior to copy even if an author went looking.
         await forEachChunked(context, WALK_PHASE, route, (id, index) => {
             nodes.push({ id, values: { onPath: true, order: index } });
         });
@@ -897,7 +897,7 @@ describe("an algorithm written outside this package", () => {
     }
 
     /**
-     * The colour one node is currently drawn in, read off the mesh the renderer is using.
+     * The color one node is currently drawn in, read off the mesh the renderer is using.
      * @param id - The node to read.
      * @returns The red, green and blue the renderer holds for it, each from 0 to 1.
      */
@@ -918,8 +918,8 @@ describe("an algorithm written outside this package", () => {
     }
 
     /**
-     * Whether two colours are the same to within rounding.
-     * @param left - One colour.
+     * Whether two colors are the same to within rounding.
+     * @param left - One color.
      * @param right - The other.
      * @returns True when they match.
      */
@@ -1014,7 +1014,7 @@ describe("an algorithm written outside this package", () => {
         const result = await run;
 
         assert.strictEqual(run.status, "succeeded");
-        // One step along a line: the two ends have one neighbour, the six in the middle have two,
+        // One step along a line: the two ends have one neighbor, the six in the middle have two,
         // and the unlinked node was not measured.
         assert.strictEqual(result.node("a")?.value, 1);
         assert.strictEqual(result.node("d")?.value, 2);
@@ -1044,7 +1044,7 @@ describe("an algorithm written outside this package", () => {
         const started = deferred();
 
         probe.begun = started.resolve;
-        // The extension holds between steps until it is cancelled, so the cancel below lands while
+        // The extension holds between steps until it is canceled, so the cancel below lands while
         // its own loop is running, rather than before the work ever started.
         probe.holdUntilCancelled = true;
 

@@ -1461,7 +1461,7 @@
                  DECISIONS-1.7 gives each pop-out one drawing board and the notes filter is not among them.
                  The filter glyph is at value ink #d5d7da, not dimmed #7a828e, because a non-default filter is
                  active -- 6.11's stub obligation in the form POP-5 states it, "the gear draws in the primary
-                 colour whenever any hidden option deviates from its default" -- and it matches this section's
+                 color whenever any hidden option deviates from its default" -- and it matches this section's
                  own eye glyph, which is at value ink because markers are on.
                  The collision, and how it was settled: POP-10 writes the header as "Notes 14" or "8 of 14
                  visible", but the deleted "Open" chip was carrying floor item 2, every departure named, and
@@ -1729,7 +1729,7 @@
                    the ACTIVITY PANEL lane: left edge 336, 8px clear of the panel's 328 edge, top on the card's
                    own top -- MEASURED at 488 for this first card, which 1.8's two inserted sections moved down
                    from the 437 the checklist quoted -- and a 6px caret on the pop-out's LEFT
-                   edge, the edge that faces the panel, at the card's vertical centre, clamped 12px inside the
+                   edge, the edge that faces the panel, at the card's vertical center, clamped 12px inside the
                    corners (VOCAB 14.2, the snippet verbatim). No pin (E2). It follows the card while the card
                    is in the region, docks to the edge it left through with a 20px return strip if the list
                    scrolls it out (VOCAB 14.3), and closes if the Notes section collapses or the activity
@@ -2635,7 +2635,7 @@
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-4), verbatim from VOCAB.md section 12. The 56 x 160
                navigation cluster that stood at left 12 / bottom 120, stacked above the minimap, is deleted: the
-               same six items, rotated, centred on the LIVE CANVAS RECT with left: 50% and translateX(-50%),
+               same six items, rotated, centered on the LIVE CANVAS RECT with left: 50% and translateX(-50%),
                never on the window. 246 x 36, derived as 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders;
                items 28 x 28 carrying the register's fixed 14px glyph. It is the one canvas overlay with a
                shadow -- lift is the mark of an instrument -- and its 7px radius is concentric with the 4px item
@@ -2646,7 +2646,7 @@
                the Explore panel's dimmed "Step through time" ROW but not the slider bar itself, so the 82 offset
                does not apply, and there is no drawer, so 272 and 342 do not apply either. The floor is the
                canvas rect and the offset is the plain 12.
-               Clearances, measured: centred on 832 the bar spans x 293 to 539 in canvas coordinates. The minimap
+               Clearances, measured: centered on 832 the bar spans x 293 to 539 in canvas coordinates. The minimap
                ends at 172 and the legend starts at 660, so the bar clears each of them by 121px and all three
                sit on one 12px baseline. The two-line rule fires below 172 + 16 + 246 + 16 + 172 = 622px of
                canvas; 832 is far above it, so nothing reflows and neither overlay rises. The vacated left-edge
@@ -2655,7 +2655,7 @@
                board is in 3D), divider, Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F),
                divider, Views. Zoom OUT precedes Zoom in because magnitude increases rightward on a horizontal
                bar, where in-above-out was already correct vertically. Do not re-sort this to match the old
-               column. The item set is FIXED -- nothing appears or disappears with selection, because a centred
+               column. The item set is FIXED -- nothing appears or disappears with selection, because a centered
                container that changes width moves every item under the pointer -- so Zoom to selection stays
                permanently drawn and merely DISABLED at #5f6873, carrying the register's exact disabled title,
                which is floor item 4's reason-a-control-is-disabled. Nothing is selected on this board.
@@ -3340,7 +3340,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -4011,7 +4011,7 @@
                                         </div>
                                         <!-- RT-9 chart row, two pitches. Links per node across all 200 nodes, 15 bins of 3 links.
                    It replaces the four numbers a degree summary would print and answers what they cannot: the
-                   long tail, and the five hubs standing alone at the right. Both axis ends are labelled and
+                   long tail, and the five hubs standing alone at the right. Both axis ends are labeled and
                    every bar carries its own count, so the picture degrades into the table it replaced; the
                    exact figures stay one click away through Show in table and Export. -->
                                         <div
@@ -4381,7 +4381,7 @@
                     <!-- ZOOM (drops last). Fit extent over current extent; click opens Fit, Zoom to selection, 50%, 100%, 200% (5.6).
          TB-7: the zoom percentage STAYS here and never enters the canvas toolbar. One fact, one region; the bar sits 12px
          above the status bar, so the number is already adjacent to the buttons that change it; and a numeric readout would
-         change a centred bar's width as the graph is zoomed, moving every item under the pointer. Zoom therefore moves to
+         change a centered bar's width as the graph is zoomed, moving every item under the pointer. Zoom therefore moves to
          LAST in the drop order, because it is now the only camera fact in the bar and the toolbar shows four zoom controls
          with no readout of their own. -->
                     <span style="cursor: pointer">Zoom 100%</span>

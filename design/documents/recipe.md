@@ -32,10 +32,10 @@ means nothing on the next dataset.
 | Set the layout | yes, `layout.set` | options name no element; with its seed the replayed picture is similar |
 | Run an algorithm while a filter hides part of the graph | converted | the filter is written as `graph.filter` commands before the run when it is made of rules over columns ("Recording" rule 3) |
 | Run with an option naming a node, or on the selection, listed nodes or a kept set | no | the chosen nodes exist only in the data they were chosen from |
-| A run that was cancelled, failed or stopped partway | no | its numbers are not what the command computes |
+| A run that was canceled, failed or stopped partway | no | its numbers are not what the command computes |
 | Load data; select, drag or pin nodes; move the camera; change 2D or 3D | no | the data is what changes between replays; the rest is one-off or presentation |
-| Add, edit or remove style layers | no | appearance travels in a style member; a run's own colouring is kept as its `style` option |
-| Define a kept set, compute a column, randomise, fetch | no | later versions may add commands; an older reader stops at one it does not know ("Replaying" rule 4) |
+| Add, edit or remove style layers | no | appearance travels in a style member; a run's own coloring is kept as its `style` option |
+| Define a kept set, compute a column, randomize, fetch | no | later versions may add commands; an older reader stops at one it does not know ("Replaying" rule 4) |
 
 ## Data model
 
@@ -156,14 +156,14 @@ nests, so each filter keeps its place in the sequence.
    distance, so a confidence or correlation must not be their weight: the plan says "read as a
    distance" and carries a notice when one is given.
 7. **`seed`, `sample`, `exact`** mean what they mean on graphty-element's run command. Whether an
-   algorithm is randomised is a fact of its descriptor, and `seed` feeds its own seed option, which
-   a recipe never sets in `params` (`E_BAD_COMMAND`). A randomised or sampled command with no
+   algorithm is randomized is a fact of its descriptor, and `seed` feeds its own seed option, which
+   a recipe never sets in `params` (`E_BAD_COMMAND`). A randomized or sampled command with no
    `seed` runs with its seed option's published default, so it replays the same; only when the
    option has no default is a seed drawn and reported. An algorithm that can approximate samples in
    a recipe only when the command gives `sample`; without one it runs exactly and is never switched
    to sampling by the cost estimate, so it computes the same on every machine. The plan's `method`
    says which.
-8. **`style`** is the run's own suggested colouring: `true` paints it, `false` paints nothing, and
+8. **`style`** is the run's own suggested coloring: `true` paints it, `false` paints nothing, and
    `{ "size": true }` or `{ "size": [a, b] }` paints only the size part. Absent, it paints, unless
    a style member of the same file reads this run's results: then it paints nothing, and the plan
    says so. Its layers are added when the run completes, above every layer present then, and the
@@ -171,7 +171,7 @@ nests, so each filter keeps its place in the sequence.
    alone ("Recording" rule 6).
 9. **Unknown keys.** An algorithm key or layout id this installation has not registered skips the
    command with `E_UNKNOWN_ALGORITHM` or `E_UNKNOWN_LAYOUT`. A retired key graphty-element still
-   resolves (`scc`) runs, translated through the catalogue's legacy keys, and the report names the
+   resolves (`scc`) runs, translated through the catalog's legacy keys, and the report names the
    current key.
 10. **Dependencies.** A command depends on every earlier command whose `as` it reads and on every
     `graph.filter` before it. A command reading a later or unknown `as` is skipped with
@@ -180,7 +180,7 @@ nests, so each filter keeps its place in the sequence.
 11. A command whose scope matches no element is skipped with `E_SCOPE_EMPTY`.
 12. **Layouts.** A `layout.set` replaces the layout, so the last one decides the picture; the
     application's `remove()` restores the layout and positions it replaced while the recipe's is
-    still in force. It names its `engine` when that is not the catalogue's default. The applier
+    still in force. It names its `engine` when that is not the catalog's default. The applier
     dispatches it with the scope `"graph"`, so a recipe's layout draws the whole graph, the elements
     its filters hide included. A seed makes a layout start from the same positions, so a replayed
     picture is similar, not identical. A layout that takes lists of particular nodes
@@ -291,7 +291,7 @@ rules of README, "Applying to new data" rules 1 and 2. In a recipe:
 ## Finding algorithms and their options
 
 The algorithm keys, their options with types and defaults, their result fields and whether they can
-sample are graphty-element's catalogue, published by every release; so are the layouts, their
+sample are graphty-element's catalog, published by every release; so are the layouts, their
 engines and options. List them in a browser console, or in Node with `createGraphSession()` from
 `@graphty/graphty-element/session` in place of `element.session`:
 
@@ -319,7 +319,7 @@ for (const l of element.session.catalog.layouts()) {
 ```
 
 A layout's options differ by engine, so a `layout.set` is checked against its engine's own list.
-The same catalogue is published for every release as a generated page of graphty-element's
+The same catalog is published for every release as a generated page of graphty-element's
 documentation, so a person who runs no JavaScript can read each algorithm's options and whether it
 takes `weight`.
 
@@ -391,7 +391,7 @@ the reader does something else.
 **Repeat application.** When a recipe with the same `id` has already been applied to the same data
 in this session and ran at least one command, a second application follows `onRepeat`: `"refuse"`
 (the default) fails with `E_REPEAT_APPLICATION`, naming both versions when they differ;
-`"replace"` keeps the earlier namespace, removes the earlier runs and their colouring, and runs
+`"replace"` keeps the earlier namespace, removes the earlier runs and their coloring, and runs
 again; `"add"` applies it again under a new namespace. New data starts afresh: an import that
 replaces the graph, or a data member that applies, is new data; merging a file, and adding,
 removing or updating elements, is the same data. A refused repeat still answers the file's styles:
@@ -411,7 +411,7 @@ their `results.<as>` paths bind to the runs of the earlier application.
    knows what `capSeconds` to consider; the applier never raises the cap from it.
 3. **Stopping at the cap.** A command still running when it reaches the cap is stopped, its partial
    result discarded, and reported with `E_CAP_EXCEEDED`; its dependants are skipped. An algorithm
-   whose cost the catalogue cannot bound over every option and graph shape is marked `unbounded`,
+   whose cost the catalog cannot bound over every option and graph shape is marked `unbounded`,
    and a recipe command naming it is skipped before anything runs.
 4. **The total budget.** One application has a total budget of 300 seconds by default. A recipe
    whose planned total is over it does not start: `run()` fails with `E_CAP_EXCEEDED` and the
@@ -419,14 +419,14 @@ their `results.<as>` paths bind to the runs of the earlier application.
    file to one budget together, whenever and however each `run()` is called, so a file of many
    recipes cannot spend many budgets. A recipe that reaches its budget while running stops, keeping
    the commands that finished.
-5. Cancelling keeps the results of the commands that finished; `run()` again runs the rest.
+5. Canceling keeps the results of the commands that finished; `run()` again runs the rest.
 
 ## Same data, same results
 
 Replaying a recipe on the same data gives the same numbers when all of these hold:
 
 1. **The same release** of graphty-element; the report carries `W_RELEASE_DIFFERS` otherwise.
-2. **A seed on every randomised or sampled command**, or a published default seed ("Commands"
+2. **A seed on every randomized or sampled command**, or a published default seed ("Commands"
    rule 7). The recorder always writes one.
 3. **The same method**: exact, or the same sample size.
 4. **The same precision.** A WebGPU accelerator computes in single precision and the CPU in double,
@@ -558,7 +558,7 @@ document beside the style. The recorder:
 
 1. **Chooses runs.** It writes the `algo.run` command of each selected run at the position of its
    latest start, and the last layout set at the position it was set. Runs that failed, were
-   cancelled or stopped partway are left out, and so is a run that read another run's result
+   canceled or stopped partway are left out, and so is a run that read another run's result
    which was re-run after it (stale), or a run the caller's `runs` left out.
 2. **Leaves out every run a recipe may not hold** ("What a recipe records") and reports each with
    the reason. It never rewrites a run into something it was not: a run on the selection is not
@@ -582,7 +582,7 @@ document beside the style. The recorder:
    them is rewritten to the new names.
 5. **Writes what the run computed**: in `params`, every option whose value differs from the
    published default, or every effective value with `explicitDefaults: true` (which a release
-   lacking one of those options cannot replay); `seed` whenever the run was randomised or sampled;
+   lacking one of those options cannot replay); `seed` whenever the run was randomized or sampled;
    `sample`, or `exact: true` for an approximable algorithm that ran exactly; `recordedCapSeconds`
    when the cap was above the default or the run's estimate or duration passed half of it;
    `recordedPrecision` from the run's caveats; for the layout, the seed the engine used; the

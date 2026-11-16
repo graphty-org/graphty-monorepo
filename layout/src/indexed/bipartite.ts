@@ -26,8 +26,8 @@ export interface BipartiteLayoutOptions extends CommonLayoutOptions {
  * @param right - node indices of the second line
  * @param aspectRatio - the width of the unscaled layout (its height is 1)
  * @param align - the line direction
- * @param scale - the distance of the farthest node from the centre
- * @param center - the centre, at least 2 components
+ * @param scale - the distance of the farthest node from the center
+ * @param center - the center, at least 2 components
  * @returns `2 * n` values, NaN for a node on neither line
  */
 function bipartiteRows(
@@ -93,9 +93,9 @@ function topOf(s: GraphSnapshot, topSet: NodeMask | NodeSet | string): (i: numbe
 
 /**
  * Nodes in two straight lines: with `vertical` alignment the `top` nodes form the left column and the rest the right,
- * each in node-index order. In 3D the layout lies in the plane of the centre's z.
+ * each in node-index order. In 3D the layout lies in the plane of the center's z.
  * @param s - the snapshot; only its node count and the named column are read
- * @param options - `scale` is the distance of the farthest node from the centre; `top` the first line
+ * @param options - `scale` is the distance of the farthest node from the center; `top` the first line
  * @returns the layout
  * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `top` names a node column the snapshot does
  * not hold or one that is not bool, and `E_BAD_OPTION` for a short `top` mask or an unknown `align`; `params` carry

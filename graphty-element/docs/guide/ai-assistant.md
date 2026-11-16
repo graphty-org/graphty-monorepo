@@ -1223,7 +1223,7 @@ What differs from turn by turn:
   (running its tools, or waiting for its answer) runs turn by turn and is sent after it;
   `ai-voice-start` says so with `AI_VOICE_UNAVAILABLE` `{ reason: "live-busy" }`. A press while it
   is speaking cuts the answer off instead.
-- **Stop and undo end it.** Cancelling a spoken message (`cancelAiCommand()`), or undoing its step
+- **Stop and undo end it.** Canceling a spoken message (`cancelAiCommand()`), or undoing its step
   while it runs, takes its changes back and closes the live connection, so nothing the model was
   about to do runs.
 - **Routers do not plan a spoken message.** With `agents.router` set, a live message is routed by

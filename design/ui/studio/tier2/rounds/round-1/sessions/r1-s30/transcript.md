@@ -50,7 +50,7 @@ Command prefix for every step below: `REAL_DIST=/home/apowers/Projects/graphty-m
 
 `--step S --click "PageRank"` -> 08.png
 
-08.png: A plain grey band: "Data changed since this run" with a blue "Rerun" button. Good -- it tells me the old numbers are old, and the top 10 still shows the old order (Hal first) with the old date. I will press Rerun.
+08.png: A plain gray band: "Data changed since this run" with a blue "Rerun" button. Good -- it tells me the old numbers are old, and the top 10 still shows the old order (Hal first) with the old date. I will press Rerun.
 
 ## Step 8
 

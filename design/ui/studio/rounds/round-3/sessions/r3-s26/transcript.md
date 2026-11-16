@@ -643,7 +643,7 @@ Morgan (on the last read): The Values tab has a top 10 as text: Valjean 1,624, M
 - Focus went to "the page itself" after I declined usage data and again after opening the sample. Both times I had to find my way back from the top.
 - The usage-data confirmation arrived already filled in, so my screen reader may never have spoken it. Then a stray "Change this in Settings > Privacy" button turned up as the first Tab stop.
 - After the sample opened, the screen had no headings at all, only buttons, a tree and tabs. I found things by Tab and by reading regions.
-- The only advanced setting for betweenness is "Sample size", value 1, with no unit or explanation. Sample of what? To me that reads as "estimated from one node", which would make the result a rumour. The numbers turned out exact, so the label is wrong or misleading for this graph.
+- The only advanced setting for betweenness is "Sample size", value 1, with no unit or explanation. Sample of what? To me that reads as "estimated from one node", which would make the result a rumor. The numbers turned out exact, so the label is wrong or misleading for this graph.
 - Nothing says whether betweenness is normalized or raw, or whether the graph was treated as directed. The overview said "Undirected, from the file: directed 0", which helped, but the result itself should say it.
 - Size is filed under "Shape", behind a button called "Add to Shape". I would not have looked there if Shape had not been the only plausible heading. There is no "Size" in the panel until you add one.
 - Picking an attribute for size announced nothing. I had to read the panel to learn it became "1 to 3, variable Betweenness". 1 to 3 of what?

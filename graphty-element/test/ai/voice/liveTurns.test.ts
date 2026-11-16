@@ -3,7 +3,7 @@
  * runs its calls in one undo step and is saved as a voice message; a held batch or a question
  * hands off to the turns path; a response before its transcript, one with none, and one cut off
  * each save one whole message; the history seeds the next live session, and a typed message sees
- * the spoken ones. A message cancelled or undone closes the connection and nothing it still sends
+ * the spoken ones. A message canceled or undone closes the connection and nothing it still sends
  * runs; words heard after a message was saved are saved in its place; a press while a message runs
  * its tools is busy; a router never plans a spoken message; a change of conversation, or a typed
  * message, tells an open connection it is stale.

@@ -54,9 +54,9 @@ except the published-type item, which the owner should confirm before the packag
 
 9. **Parallel edges are distinct shortest paths.** Each arc adds its source's path count to `sigma`, so two parallel
    edges double the paths through them. The CPU package refuses parallel edges, and with `allowParallelEdges: true`
-   collapses them to one neighbour. On edges `[0,1], [0,1], [1,2], [0,3], [3,2]` the GPU scores the vertices
+   collapses them to one neighbor. On edges `[0,1], [0,1], [1,2], [0,3], [3,2]` the GPU scores the vertices
    `[0.667, 0.667, 0.333, 0.333]` and the CPU `[0.5, 0.5, 0.5, 0.5]`. Matching the CPU would need the forward pass to
-   deduplicate neighbours per row. Rejected for now: the multigraph count is the standard one for a multigraph, and no
+   deduplicate neighbors per row. Rejected for now: the multigraph count is the standard one for a multigraph, and no
    caller routes a multigraph here yet. The element's routing floor must either keep multigraphs on the CPU or accept
    this difference. Self-loops and directed graphs match the CPU.
 

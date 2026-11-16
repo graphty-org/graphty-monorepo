@@ -13,7 +13,7 @@ import { WebGpuGraphError } from "../errors.js";
  * thrown from the returned promise (spec 5.7). An error `fn` itself throws is rethrown unchanged after the
  * scope is popped, so the device's scope stack stays balanced.
  * @param device - the device
- * @param label - names the operation in the error (every object the package creates is labelled)
+ * @param label - names the operation in the error (every object the package creates is labeled)
  * @param fn - the work; may return a promise
  * @returns the value of `fn`
  */
@@ -79,7 +79,7 @@ export class AllocationTracker {
     }
 
     /**
-     * createBuffer with the scope rule; every buffer is labelled (an unlabelled descriptor becomes `buffer-<n>`).
+     * createBuffer with the scope rule; every buffer is labeled (an unlabeled descriptor becomes `buffer-<n>`).
      * @param descriptor - the buffer descriptor
      * @returns the buffer
      */

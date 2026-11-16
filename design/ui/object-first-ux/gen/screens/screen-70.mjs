@@ -2,7 +2,7 @@
 // analysis-results.md, "Scatter plot of two Measures"). Influence (PageRank)
 // and Bridges (Betweenness) are both selected in the tree; the several-objects
 // inspector offers "Plot against each other"; the plot opens as a floating
-// 480 px panel over the canvas: one dot per node in the Communities colours,
+// 480 px panel over the canvas: one dot per node in the Communities colors,
 // Bridges on a log scale, and a dragged rectangle whose nodes (high on
 // Bridges, modest on Influence) halo on the canvas. Computed from karate.mjs.
 

@@ -1,9 +1,9 @@
 /**
- * Link prediction over a snapshot: common-neighbour and Adamic-Adar scores for one pair, a list of
+ * Link prediction over a snapshot: common-neighbor and Adamic-Adar scores for one pair, a list of
  * pairs, every pair, or one node's candidates, and the ranking metrics of a held-out evaluation.
  *
- * Every score is a merge of two sorted rows with simple-graph semantics: a neighbour reached by
- * parallel arcs counts once, and a self-loop makes a node its own neighbour. With
+ * Every score is a merge of two sorted rows with simple-graph semantics: a neighbor reached by
+ * parallel arcs counts once, and a self-loop makes a node its own neighbor. With
  * `{ directed: true }` a pair (u, v) intersects out(u) with in(v) -- the nodes on a path u -> z -> v
  * -- and otherwise the two out rows (the two rows of an undirected snapshot).
  *
@@ -80,22 +80,22 @@ type PairScore = (u: number, v: number) => number;
 
 /**
  * Adamic-Adar weights are multiples of 2^-36, so any sum of them below 2^16 is exact and the same in
- * whatever order it is added: two pairs whose common neighbours have the same degrees score
+ * whatever order it is added: two pairs whose common neighbors have the same degrees score
  * bit-identically, and a ranking never splits them by rounding. The snap moves a weight by at most
  * 2^-37, far inside the 1e-9 relative tolerance of a score.
  */
 const WEIGHT_GRID = 2 ** 36;
 
 /**
- * The Adamic-Adar weight of a common neighbour of the given degree: 1 / ln(degree) snapped to the
+ * The Adamic-Adar weight of a common neighbor of the given degree: 1 / ln(degree) snapped to the
  * weight grid, 1 for degree 1 (ln 1 is 0) and 0 for degree 0. The legacy `adamicAdarScore` adds
- * the unsnapped weights in neighbour-visit order, so its scores differ from these in the last bits
+ * the unsnapped weights in neighbor-visit order, so its scores differ from these in the last bits
  * and it may order two exactly tied pairs either way.
- * @param degree - The neighbour's degree
+ * @param degree - The neighbor's degree
  * @returns The weight
  */
 function adamicAdarWeight(degree: number): number {
-    // ponytail: exact only while a pair's score stays below 2^16 (tens of thousands of hub neighbours);
+    // ponytail: exact only while a pair's score stays below 2^16 (tens of thousands of hub neighbors);
     // a coarser grid chosen from the graph's largest row sum lifts that ceiling if it is ever reached.
     if (degree > 1) {
         return Math.round(WEIGHT_GRID / detLog(degree)) / WEIGHT_GRID;
@@ -122,10 +122,10 @@ function distinctRowLength(view: AdjacencyView, z: number): number {
 }
 
 /**
- * The Adamic-Adar weight of a node as a common neighbour, from its degree in distinct neighbours:
- * out-neighbours for `{ directed: true }` or an undirected snapshot, else out- plus in-neighbours,
+ * The Adamic-Adar weight of a node as a common neighbor, from its degree in distinct neighbors:
+ * out-neighbors for `{ directed: true }` or an undirected snapshot, else out- plus in-neighbors,
  * a self-loop in both. Costs the node's degree, so one pair costs the degrees of its common
- * neighbours, not the whole graph.
+ * neighbors, not the whole graph.
  * @param s - The snapshot
  * @param directed - The `directed` option
  * @returns The weight of node z
@@ -136,10 +136,10 @@ function adamicAdarWeightOf(s: GraphSnapshot, directed: boolean): (z: number) =>
 }
 
 /**
- * The pair score: a count of common neighbours, or their weight sum when `weight` is given.
+ * The pair score: a count of common neighbors, or their weight sum when `weight` is given.
  * @param s - The snapshot
  * @param o - Options
- * @param weight - Optional weight of a common neighbour
+ * @param weight - Optional weight of a common neighbor
  * @returns The score of (u, v); 0 when either is absent
  */
 function scorer(s: GraphSnapshot, o: CommonNeighborsOptions, weight?: (z: number) => number): PairScore {
@@ -302,7 +302,7 @@ function rankingMetrics(edges: F64, nonEdges: F64): LinkPredictionMetrics {
 }
 
 /**
- * Common-neighbour scores of every pair not already joined, ranked.
+ * Common-neighbor scores of every pair not already joined, ranked.
  * @param s - The snapshot
  * @param o - Options
  * @returns The pairs with a positive score, highest first
@@ -313,7 +313,7 @@ export function commonNeighborsPrediction(s: GraphSnapshot, o: LinkPredictionOpt
 }
 
 /**
- * Common-neighbour scores of the given pairs, in order.
+ * Common-neighbor scores of the given pairs, in order.
  * @param s - The snapshot
  * @param pairs - The pairs
  * @param o - Options
@@ -325,7 +325,7 @@ export function commonNeighborsForPairs(s: GraphSnapshot, pairs: NodePairs, o: C
 }
 
 /**
- * One node's best common-neighbour candidates, ranked.
+ * One node's best common-neighbor candidates, ranked.
  * @param s - The snapshot
  * @param uNode - The node: its index, or `{ id }`
  * @param o - Options
@@ -342,7 +342,7 @@ export function getTopCandidatesForNode(
 }
 
 /**
- * Ranking metrics of the common-neighbour score on held-out edges against non-edges.
+ * Ranking metrics of the common-neighbor score on held-out edges against non-edges.
  * @param s - The training snapshot
  * @param edges - The held-out edges
  * @param nonEdges - The non-edges
@@ -361,7 +361,7 @@ export function evaluateCommonNeighbors(
 }
 
 /**
- * The Adamic-Adar index of two nodes: the sum over distinct common neighbours z of 1 / ln(degree(z)).
+ * The Adamic-Adar index of two nodes: the sum over distinct common neighbors z of 1 / ln(degree(z)).
  * @param s - The snapshot
  * @param uNode - A node: its index, or `{ id }`
  * @param vNode - A node: its index, or `{ id }`
@@ -440,9 +440,9 @@ export function evaluateAdamicAdar(
 }
 
 /**
- * Both evaluations on the same held-out sets. The common-neighbour side always intersects the two
+ * Both evaluations on the same held-out sets. The common-neighbor side always intersects the two
  * OUT rows, whatever `directed` says, as the legacy function of this name does; the Adamic-Adar side
- * honours `directed`.
+ * honors `directed`.
  * @param s - The training snapshot
  * @param edges - The held-out edges
  * @param nonEdges - The non-edges

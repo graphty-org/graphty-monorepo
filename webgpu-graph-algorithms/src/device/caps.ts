@@ -44,7 +44,7 @@ export function captureCaps(
 
 /**
  * GpuContext.from(device, info?): caps from device.limits / device.features and the partial info given;
- * software false and runtime "unknown" unless given; the subgroup sizes are honoured only when the device
+ * software false and runtime "unknown" unless given; the subgroup sizes are honored only when the device
  * has the feature.
  * @param device - the adopted device
  * @param info - what the caller knows about the adapter, if anything

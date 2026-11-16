@@ -40,7 +40,7 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 
 ## What is recorded
 
-- **Every command that finishes, and nothing that fails.** A command that is refused or cancelled
+- **Every command that finishes, and nothing that fails.** A command that is refused or canceled
   writes no entry.
 - **Each member of a batch or a transaction is its own entry**, although undo takes them back as
   one step. The entries are written, in order, when the batch or transaction finishes; one that

@@ -1130,7 +1130,7 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
-        // A load still reading when the clear is asked for is cancelled: it rejects with
+        // A load still reading when the clear is asked for is canceled: it rejects with
         // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
         // edit still waiting resolves and adds nothing either.
         const send = this.writes.applier();
@@ -1145,7 +1145,7 @@ export class SessionData implements SessionDataApi {
      * lands on what they load instead of under them (issue #3526).
      * A clear asked for while it waits cancels it: it resolves without applying.
      * @param mutation - The edit.
-     * @returns Settles once it is applied, or cancelled by a clear.
+     * @returns Settles once it is applied, or canceled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
@@ -1250,9 +1250,9 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Load a generated graph from the catalogue, as one undoable step.
+     * Load a generated graph from the catalog, as one undoable step.
      * @param name - The generator's name.
-     * @param params - Its parameters; each one left out takes its catalogue default.
+     * @param params - Its parameters; each one left out takes its catalog default.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the graph is loaded.
      */
@@ -1303,7 +1303,7 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Download a sample dataset from the catalogue and load it, as one undoable step.
+     * Download a sample dataset from the catalog and load it, as one undoable step.
      * @param name - The dataset's name.
      * @param options - The import mode, a mirror to download from, and a signal.
      * @returns Settles once the graph is loaded.
@@ -1854,7 +1854,7 @@ export class SessionData implements SessionDataApi {
      * clear asked for while it waits cancels it: it resolves with `skipped`, or by default
      * rejects with `E_SUPERSEDED`, since what it names is gone.
      * @param run - The door's work.
-     * @param skipped - What a cancelled door resolves with; rejects when not given.
+     * @param skipped - What a canceled door resolves with; rejects when not given.
      * @returns What `run` returned.
      */
     private afterLoads<T>(run: () => Promise<T>, skipped?: () => T): Promise<T> {
@@ -6888,7 +6888,7 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * @param source - The source as the caller named it.
  * @param signal - Cancels reading the file's head or fetching the URL.
  * @returns The source the `data.import` command carries.
- * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
+ * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognizes the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
 /**

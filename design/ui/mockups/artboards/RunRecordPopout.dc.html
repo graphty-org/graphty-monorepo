@@ -78,15 +78,15 @@
   (418). The smaller binds, so 396 is legal by 22px and the vertical flip stays available if the opener ever
   scrolls lower.
   THE CARET (B3, VOCAB 14.2 verbatim) is 6px on the LEADING edge -- the left edge, the one that faces back at
-  the panel -- drawn at [331,235 6x12]. Its centre wants the opener row's vertical centre, y 239, which is only
+  the panel -- drawn at [331,235 6x12]. Its center wants the opener row's vertical center, y 239, which is only
   10px inside the pop-out, and the rule clamps a caret 12px inside the pop-out's own corners, so it is drawn AT
-  the clamp: centre y 241, exactly 12 inside the top corner and 2px below the row's centre. That is the clamp
+  the clamp: center y 241, exactly 12 inside the top corner and 2px below the row's center. That is the clamp
   working rather than a miss -- the shared edge line, which is the relationship that carries the meaning, is
   exact at 0, and the caret is the thing that gives.
   ONE DISCREPANCY, recorded rather than silently resolved: 6.11's caret sentence and DECISIONS-1.8 B3 both read
   "the left edge for an inspector pop-out, the right edge for an activity-panel one", which is transposed --
   an activity-panel pop-out sits to the RIGHT of the panel, so the edge that faces its opener is its LEFT one.
-  VOCAB 14.2's snippet has it right and is labelled "activity-panel pop-out: caret on the LEFT edge, pointing
+  VOCAB 14.2's snippet has it right and is labeled "activity-panel pop-out: caret on the LEFT edge, pointing
   back at the panel". This board draws VOCAB's snippet verbatim; the spec sentence needs its two halves swapped.
 
   THE OPENER IN ITS OPEN STATE (VOCAB section 12, last clause): while its pop-out is open the row that owns the
@@ -98,7 +98,7 @@
 
   TIER 3a, drawn: no scrim and no focus trap. The canvas is at full brightness and keeps pointer and keyboard,
   the selection keeps flowing, Escape closes the pop-out and returns focus to the chevron. No pin: E2 closes the
-  pin set at four surfaces -- the colour and gradient picker, Selection statistics with a pin active, the group
+  pin set at four surfaces -- the color and gradient picker, Selection statistics with a pin active, the group
   profile and the AI console -- and a record of one finished run has nothing to hold still while the selection
   changes, so the header is the name pair and the close X and nothing else.
   MULTIPLICITY, drawn: one pop-out per region, and the region is the OPENER's. This one belongs to the activity
@@ -1529,7 +1529,7 @@
                                             </div>
                                         </div>
 
-                                        <!-- RT-7, the run's style face: the swatch is resident state saying this result drives node colour,
+                                        <!-- RT-7, the run's style face: the swatch is resident state saying this result drives node color,
                    which is the fact the canvas legend carries in words (floor item 5), and Change encoding opens
                    Style with this layer selected. The layer name is not repeated: it is "Groups", printed by the
                    identity row at the top of this card (Rule 8). -->
@@ -1985,9 +1985,9 @@
                live in the groups table, the result card and the exported legend; no state rows -- they are app
                chrome, every state is named by the region that owns it, and they render in the export and in Help's
                "What the marks mean"; five categorical rows plus Other rather than twelve, with the Other row
-               absorbing the coverage footer; and max-height 240, not 334. This board's colour block is four rows,
+               absorbing the coverage footer; and max-height 240, not 334. This board's color block is four rows,
                so the cap never fires and the Other row does not render.
-               THIS BOARD: the cat graph. Colour is the Louvain partition in the set's group ramp, blue / cyan /
+               THIS BOARD: the cat graph. Color is the Louvain partition in the set's group ramp, blue / cyan /
                amber / green, the same four fills the canvas, the minimap and the result card's swatches carry.
                Size is the default degree encoding; the domain is FIXTURES 1.3's whole distribution, 2 / median 3 /
                4, and no node in the file has one link.
@@ -2128,7 +2128,7 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, TB-1 / TB-2 / TB-4): the 5.6 navigation cluster rotated and moved to the bottom
-               centre of the live canvas rect, centred on the rect and never on the window. Order, left to right, by how
+               center of the live canvas rect, centered on the rect and never on the window. Order, left to right, by how
                long the effect lasts: [2D | 3D] segmented (5 toggles it, 3D by default); divider; Zoom out (-), Zoom in
                (=), Zoom to fit (0), Zoom to selection (F); divider; Views (a cube with an up-caret whose menu opens
                upward: Reset view, Top, Front, Side, Isometric, Follow selection, Save view..., Show minimap, Show
@@ -2139,12 +2139,12 @@
                a floating style; the minimap and the legend stay flat at radius 4.
                TB-4 bottom stack: bottom 12 here, because this board draws neither the time slider (82) nor the Data
                table drawer (272; 342 with both).
-               The item set is fixed -- nothing appears or disappears with selection, because a centred bar that changes
+               The item set is fixed -- nothing appears or disappears with selection, because a centered bar that changes
                width moves every item under the pointer -- so Zoom to selection is drawn permanently and merely disables
                at #5f6873, carrying its whole reason in its title (floor 4). A result is not a selection, which is the
                same fact the status bar's empty selection slot reports. The zoom percentage stays in the status bar
                (TB-7), which sits 12px below the bar.
-               TB-3: centred on the 832-wide canvas the bar spans x 293 to x 539. The minimap ends at x 172 and the
+               TB-3: centered on the 832-wide canvas the bar spans x 293 to x 539. The minimap ends at x 172 and the
                legend starts at x 580, so the clearances are 121 and 41, both over the 16 minimum; 832 is above the 622
                two-line threshold, so neither overlay rises. The Insights strip is at the top of the canvas (G3). -->
                                 <div
@@ -2902,7 +2902,7 @@
                   The reading, the counts, the degree
                  distribution and every id stay in the inspector column; what moves is a table that never had
                  anywhere to render.
-                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door license is WITHDRAWN
                  and the POP-13b sentence above is struck: there is no permanently-closed chevron, and a chevron
                  that reveals nothing is a defect. This is an ordinary collapsed section, drawn shut here for the
                  multiplicity reason above and no other, and it opens IN PLACE onto the node-type rows with their
@@ -3213,10 +3213,10 @@
                     "
                 >
                     <!-- THE CARET (6.11 Anchor, DECISIONS-1.8 B3, VOCAB 14.2 verbatim). 6px, on the leading edge -- the LEFT
-         edge, the one that faces back at the panel -- at the vertical centre of its opener's row, clamped 12px
-         inside the pop-out's own corners. The row's centre is y 239, 10px down from the pop-out's top, which is
-         inside that clamp, so the caret is drawn AT the clamp: its centre is y 241, exactly 12px inside the top
-         corner and 2px below the row's centre. That is the clamp working rather than a miss -- the shared edge
+         edge, the one that faces back at the panel -- at the vertical center of its opener's row, clamped 12px
+         inside the pop-out's own corners. The row's center is y 239, 10px down from the pop-out's top, which is
+         inside that clamp, so the caret is drawn AT the clamp: its center is y 241, exactly 12px inside the top
+         corner and 2px below the row's center. That is the clamp working rather than a miss -- the shared edge
          line, which is the relationship that carries the meaning, is exact at 0, and the caret is what gives.
          It ships with the shell, not per case, and it is what says which of the panel's rows raised this
          surface when the lane also serves every other row in the column. -->

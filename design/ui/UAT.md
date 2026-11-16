@@ -77,13 +77,13 @@ when source changes.
 ### 1.2 Viewport
 
 Unless a scenario says otherwise, run at **1600 x 1000**. The shell lays out at
-**1024 px and above and nowhere else**: below 1024 px it draws a centred "Screen too
+**1024 px and above and nowhere else**: below 1024 px it draws a centered "Screen too
 small" state over a shell that is still mounted but hidden and inert (spec 5.2).
 Scenarios that exercise the boundary say so and set their own size.
 
-Every colour expected below is a **dark-scheme** value: `main.tsx` mounts Mantine with
+Every color expected below is a **dark-scheme** value: `main.tsx` mounts Mantine with
 `defaultColorScheme="dark"`, so the probe's `scheme` field must read `dark`. If it
-reads `light`, the colours will all differ and nothing below applies -- reset the
+reads `light`, the colors will all differ and nothing below applies -- reset the
 scheme before continuing rather than reporting a wall of FAILs.
 
 ```
@@ -241,12 +241,12 @@ reporting a failure.
    rectangle at the bottom left of the canvas is the expected state, not a defect.
 
 9. **Playwright leaves the pointer on whatever it last clicked, and hover has a
-   colour.** An icon button that is NOT pressed but is still hovered computes
+   color.** An icon button that is NOT pressed but is still hovered computes
    `background-color: rgba(34, 139, 230, 0.2)` -- close enough to the pressed
    `rgba(34, 139, 230, 0.15)` to read as "still pressed" and cause a false FAIL on
    UAT-03. Always `await page.mouse.move(800, 900)` before probing a computed
    background, and prefer `data-variant` plus `aria-pressed`, which hover does not
-   touch, over the colour.
+   touch, over the color.
 
 10. **Below 1024 px the shell is present but unreachable.** Measured at 1000 x 800 and
     at 375 x 812: `[data-testid="screen-too-small"]` is present and
@@ -263,12 +263,12 @@ reporting a failure.
 ### 1.6 How to check RENDERING, and the warning about it
 
 Two of the shell's most important facts are invisible to the DOM: the node labels and
-the node colours are painted by graphty-element into a **WebGL canvas**, where
+the node colors are painted by graphty-element into a **WebGL canvas**, where
 `getComputedStyle` reaches nothing. Rendering is therefore checked two ways, and both
 halves are required.
 
 **(a) Measured contrast -- the numeric half.** `tools/uat-contrast.py` crops a box out
-of a screenshot, takes the most common colour in the box as the ground and the pixel
+of a screenshot, takes the most common color in the box as the ground and the pixel
 farthest from it in relative luminance as the ink, and prints the WCAG 2.1 contrast
 ratio between them. Crop tightly around the string under test; a box with no text in it
 measures about 1.0.
@@ -290,7 +290,7 @@ text). The script exits 0 on PASS and 1 on FAIL.
 >
 > - can be answered YES or NO from the image alone,
 > - are about countable or geometric facts (how many, which side, is X inside Y, is
->   colour A the same as colour B), and
+>   color A the same as color B), and
 > - are **neutral or inverted** -- write the question so that the DEFECT would be a
 >   YES at least half the time, and include at least one question whose correct
 >   answer is NO, as a control, and
@@ -300,7 +300,7 @@ text). The script exits 0 on PASS and 1 on FAIL.
 >   as the premise check: a NO there means the screen did not render, and every other
 >   answer in the set is then worthless.
 >
-> Do not ask it for contrast judgements at all. It was asked, in the session that
+> Do not ask it for contrast judgments at all. It was asked, in the session that
 > wrote this document, whether any text on the loaded-graph screen was hard to make out
 > against its background; it answered NO, while `uat-contrast.py` measured the node
 > labels at 2.94:1. Use (a) for contrast and (b) for layout.
@@ -399,7 +399,7 @@ Three Storybook gotchas, all of them measured here:
    removal snippet works here if a screenshot is needed.
 2. **A story renders in the DARK scheme by default.** `preview.tsx` sets
    `initialGlobals: { theme: "dark" }` and forces the Mantine scheme from it, matching
-   1.2, so every colour below is a dark-scheme value.
+   1.2, so every color below is a dark-scheme value.
 3. **A size token is SET on the component root.** Mantine writes `--slider-size`,
    `--slider-thumb-size`, `--input-height`, `--ai-size` and `--cb-size` onto the
    component's root element, and the track, the input or the icon consumes them from
@@ -416,7 +416,7 @@ Three Storybook gotchas, all of them measured here:
 ### UAT-01 -- Welcome draws on its own surface
 
 Product owner item 6. Spec 7.1, amended 2026-09-13: the Welcome block carries its own
-ground and no longer depends on the graph background colour, which graphty-element
+ground and no longer depends on the graph background color, which graphty-element
 clears to a near-white #F5F5F5.
 
 **Precondition.** Preview running. Viewport 1600 x 1000.
@@ -700,7 +700,7 @@ mcp__playwright__browser_run_code_unsafe
 ### UAT-06 -- The 7.2 load defaults apply
 
 Spec 7.2: a load decides the layout, the label budget, the size scale and the one
-neutral colour, from the graph's size alone, and nothing else runs. Two of those four
+neutral color, from the graph's size alone, and nothing else runs. Two of those four
 are deliberately NOT applied -- see the departure recorded in `AppShell.tsx` dated
 2026-09-13 -- so this scenario asserts what actually ships.
 
@@ -728,7 +728,7 @@ mcp__playwright__browser_run_code_unsafe
 - `layers` is `Layers | Top degree labels | selection | default`. The
   `Top degree labels` layer is 7.2's label budget having been spent; its absence is a
   FAIL. `selection` and `default` are graphty-element's own tuned layers and must
-  still be there -- a node-colour or node-size layer of the shell's own ON TOP of them
+  still be there -- a node-color or node-size layer of the shell's own ON TOP of them
   would be the departure being reverted without a decision.
 - `layoutChip` is `NGraph`.
 - On the cat network the canvas draws exactly **5** node labels
@@ -834,7 +834,7 @@ mcp__playwright__browser_run_code_unsafe
 
 - `panelTitle` is `Analyze` and `reading` matches the same regex, from a **single
   click** on a cold start. That is 7.1 item 2's "one interaction from a cold start to
-  a coloured graph".
+  a colored graph".
 - `legendHead` is `Color: Groups (Communities, Louvain)`.
 - `insightTitles` is exactly `["Search for something you know (Search)"]` -- the
   `Find groups` card has been **retired**, because the hint took the reader where the
@@ -845,7 +845,7 @@ mcp__playwright__browser_run_code_unsafe
 
 ### UAT-09 -- The legend names the encoding
 
-Spec 01 section 9. What the colours MEAN is the legend's fact, not the reading's.
+Spec 01 section 9. What the colors MEAN is the legend's fact, not the reading's.
 
 **Precondition.** Find groups has run (UAT-08, either route).
 
@@ -947,7 +947,7 @@ another for any reason. UAT-14 covers what the boundary does now.
 ### UAT-13 -- The loaded graph renders
 
 The rendering sweep the product owner asked for, on the state a novice actually ends
-up in: a sample loaded, groups found, colours on the canvas.
+up in: a sample loaded, groups found, colors on the canvas.
 
 **Precondition.** Viewport 1600 x 1000. RESET, then UAT-04, then UAT-08 route A.
 
@@ -1001,9 +1001,9 @@ the label positions off the screenshot and crop tightly around each word.
 
 - Nanobanana answers **NO, NO, NO, NO, NO, YES, YES** in that order.
 - The set's arithmetic, against the rule in 1.6: five of the seven (1-5) are written so
-  that the DEFECT is the YES -- one flat colour where six groups were encoded (1), an
+  that the DEFECT is the YES -- one flat color where six groups were encoded (1), an
   empty canvas (2), a legend short of its six rows (3), a swatch with nothing naming it
-  (4), and the Insights strip gone from the top centre (5) -- and those five are the NO
+  (4), and the Insights strip gone from the top center (5) -- and those five are the NO
   controls. Questions 6 and 7 are the YES anchors, and 6 is the premise check: a NO
   there means nothing rendered and every other answer in the set is worthless.
 - Each node label measures **4.5:1 or better** against the canvas ground.
@@ -1022,7 +1022,7 @@ the label positions off the screenshot and crop tightly around each word.
     > second place: `LABEL_TEXT_COLOR` in
     > `graphty/src/components/shell/defaults/loadDefaults.ts` is `#d5d7da`, which is
     > `PANEL_INK.VALUE` -- ink chosen for the dark panel ground, painted by
-    > `topDegreeLabelLayer` onto graphty-element's near-white clear colour. Its own
+    > `topDegreeLabelLayer` onto graphty-element's near-white clear color. Its own
     > comment says the override exists because "RichTextStyle would otherwise default to
     > #000000", which on a near-white ground is the readable choice. Item 6 was fixed by
     > giving Welcome its own dark ground; the labels have no ground to give them, so the
@@ -1151,7 +1151,7 @@ mcp__playwright__browser_run_code_unsafe
   catches it.
 - `covered` is `0/0` at both layout widths. The sidebars are docked columns that
   resize the canvas rather than overlays over it (spec 5.1), so the canvas rect
-  excludes them and the Welcome sheet centred in it cannot be under one. A non-zero
+  excludes them and the Welcome sheet centered in it cannot be under one. A non-zero
   number here means a sidebar is being drawn as an overlay again.
 
 Steps 2 to 5 are the dismissal guarantee and the removal of auto-hide, checked rather
@@ -1247,7 +1247,7 @@ Slider story's row order was changed once on 2026-09-13 and the ids stayed the s
 | md         | 6        | 16       | `6px`     | `16px`     |
 
 - `compact` and `sm` are deliberately IDENTICAL. `compact` is this design system's own
-  step and `sm` is Mantine's nearest neighbour, and the theme maps them to one value on
+  step and `sm` is Mantine's nearest neighbor, and the theme maps them to one value on
   purpose. TWO identical rows in a Size Comparison story is the intended result; FOUR
   identical rows is item 1. A reader who reports the duplicate pair as the bug has
   reported the thing the story exists to disprove, so check which pair it is before
@@ -1328,14 +1328,14 @@ mcp__playwright__browser_run_code_unsafe
 - The first group's `heading` is `Filled` and all five of its icons report
   `variant: "filled"`.
 - Each of those five has an OPAQUE ground: `bg` is an `rgb(...)` value, never
-  `rgba(..., 0)`, and the five grounds are five DIFFERENT colours. In this theme's dark
+  `rgba(..., 0)`, and the five grounds are five DIFFERENT colors. In this theme's dark
   scheme they are the same five the `Button - Colors` story's Filled row draws --
   `rgb(25, 113, 194)` blue, `rgb(47, 158, 68)` green, `rgb(224, 49, 49)` red,
   `rgb(240, 140, 0)` yellow, `rgb(52, 58, 64)` gray -- with `fg: "rgb(255, 255, 255)"`.
   Those five values are the expected reading; the load-bearing assertions are the
   variant, the opacity and the five being distinct, which survive a palette retune.
 - The second group's `heading` is `Subtle`, its five icons report `variant: "subtle"`,
-  `bg: "rgba(0, 0, 0, 0)"`, and their colour lives in `fg` -- `rgb(116, 192, 252)`,
+  `bg: "rgba(0, 0, 0, 0)"`, and their color lives in `fg` -- `rgb(116, 192, 252)`,
   `rgb(140, 233, 154)`, `rgb(255, 168, 168)`, `rgb(255, 224, 102)`,
   `rgb(222, 226, 230)`. The point of the scenario is that the two groups DIFFER.
 - Every icon in both groups stays `box: 24` with `glyph: "14"`. A variant is a paint
@@ -1344,7 +1344,7 @@ mcp__playwright__browser_run_code_unsafe
 
 > **Measured 2026-09-13.** Before the story was made explicit, both groups came back
 > identical: ten icons, every one `variant: "subtle"` with `bg: "rgba(0, 0, 0, 0)"`,
-> `--ai-size: 24px`, colour only in the glyph -- item 2 exactly, a `Filled` heading over
+> `--ai-size: 24px`, color only in the glyph -- item 2 exactly, a `Filled` heading over
 > five subtle icons. After it, the same probe returned the two groups as the expected
 > result above states them, value for value.
 

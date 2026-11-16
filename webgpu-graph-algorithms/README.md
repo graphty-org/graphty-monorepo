@@ -273,7 +273,7 @@ sim.dispose();
 | `maxIter`                                                             | `null`                        | the iteration cap; an integer >= 1, or `null` for none                                                                                                                                     |
 | `springLength`                                                        | `10`                          | the rest length of an edge; a finite number > 0                                                                                                                                            |
 | `springCoefficient`                                                   | `0.8`, size-scaled            | Hooke's constant. Left out or `null` it is ngraph's `0.8` times `min(1, 300 / nodeCount)`, applied once `nodeCount` is known at `load()`; a number you pass is used as given at every size |
-| `gravity`                                                             | `-12`, size-scaled            | ngraph's Coulomb constant, where NEGATIVE repels -- this is not ForceAtlas2's centre gravity. Left out or `null` it is ngraph's `-12` times the same factor. Any finite number is accepted |
+| `gravity`                                                             | `-12`, size-scaled            | ngraph's Coulomb constant, where NEGATIVE repels -- this is not ForceAtlas2's center gravity. Left out or `null` it is ngraph's `-12` times the same factor. Any finite number is accepted |
 | `dragCoefficient`                                                     | `0.9`                         | velocity damping; a finite number >= 0                                                                                                                                                     |
 | `timeStep`                                                            | `0.5`                         | the integrator's step; a finite number > 0                                                                                                                                                 |
 | `dim`, `scale`, `center`, `seed`                                      | `2`, `1`, `[0, 0, 0]`, `null` | as ForceAtlas2                                                                                                                                                                             |
@@ -500,7 +500,7 @@ device's budget is `E_OUT_OF_MEMORY { requested, resident, label }`.
 
 PageRank is the stationary distribution of a surfer who follows an out-arc with probability `dampingFactor`
 and teleports to a uniformly random node otherwise. `pageRank` runs NetworkX's iteration on the device: rank
-is pulled along the reverse adjacency, out-weights normalise the push, and the mass sitting on nodes with no
+is pulled along the reverse adjacency, out-weights normalize the push, and the mass sitting on nodes with no
 out-arcs is redistributed through the teleport vector every iteration.
 
 ```ts
@@ -536,7 +536,7 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 nodes with no positive out-weight and redistributed) and `precision`.
 
 Directed or undirected both work: an undirected snapshot carries both directions, so the pull and the
-normaliser see the same arcs, and the scores differ from the directed form's as they should. `nodeCount: 0`
+normalizer see the same arcs, and the scores differ from the directed form's as they should. `nodeCount: 0`
 returns an empty `scores` with `iterations: 0`, `converged: true` and does no GPU work. A graph with no arcs
 at all makes every node dangling, so the teleport vector is already the fixed point: the call returns
 `1 / nodeCount` everywhere with `iterations: 0` and `danglingMass: 1`. An isolated node inside a larger graph
@@ -557,16 +557,16 @@ console.log(r.scores); // mass concentrated on what node 0 reaches
 ```
 
 `personalization` is a `Float32Array` of one finite non-negative number per node, not all zero, and it is
-normalised to sum 1 on the host before the run -- so unnormalised weights are fine. A wrong length, a
+normalized to sum 1 on the host before the run -- so unnormalized weights are fine. A wrong length, a
 negative or non-finite entry, or a zero total is `E_INVALID_ARGUMENT { argument: "personalization" }`.
-Options, result and edge cases are PageRank's, except that a graph with no arcs returns the normalised
+Options, result and edge cases are PageRank's, except that a graph with no arcs returns the normalized
 personalization vector rather than `1 / nodeCount`.
 
 ### HITS
 
 HITS scores each node twice: as a hub (it points at good authorities) and as an authority (good hubs point at
 it). `hits` runs the CPU package's recurrence -- `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` from
-uniform seeds -- as two interleaved chains on the device, then sum-normalises both vectors once on the host.
+uniform seeds -- as two interleaved chains on the device, then sum-normalizes both vectors once on the host.
 
 ```ts
 import { hits } from "@graphty/webgpu-graph-algorithms";
@@ -595,7 +595,7 @@ with no arcs returns all zeros in both, since there is nothing to be a hub of.
 ### Eigenvector centrality
 
 A node is central when central nodes point at it. The scores are the principal eigenvector of the adjacency
-matrix, found by power iteration over the forward adjacency and L2-normalised once at the end.
+matrix, found by power iteration over the forward adjacency and L2-normalized once at the end.
 
 ```ts
 import { eigenvectorCentrality } from "@graphty/webgpu-graph-algorithms";
@@ -638,9 +638,9 @@ console.log(r.scores); // f32, index-aligned, L2-normalised
 | `weighted`      | `true`  | as above                                                                                                                                 |
 
 A run stops at the first pass whose summed (L1) change is below `tolerance` times the summed size of the pass,
-as eigenvector centrality does. A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalised on the
-host with no per-iteration normaliser on the device. Walks arrive along the reverse adjacency, so direction
-matters. `nodeCount: 0` is empty; with no arcs every node holds `beta` alone, which after normalisation is
+as eigenvector centrality does. A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalized on the
+host with no per-iteration normalizer on the device. Walks arrive along the reverse adjacency, so direction
+matters. `nodeCount: 0` is empty; with no arcs every node holds `beta` alone, which after normalization is
 `1 / sqrt(nodeCount)` each.
 
 ### Connected components
@@ -691,7 +691,7 @@ every pending `step()` with `E_DEVICE_LOST` (create a new context from a fresh a
 ## The device self-check
 
 Some GPU drivers return wrong answers rather than failing. On Windows over the Microsoft Basic Render Driver,
-compute shaders that synchronise across a workgroup produce silently incorrect results, which would make every
+compute shaders that synchronize across a workgroup produce silently incorrect results, which would make every
 number this package computes there unreliable with no error anywhere.
 
 So the first algorithm or layout you run on a context asks the device for an answer this package already knows --
@@ -816,7 +816,7 @@ carries the same 164 MB upload T-1 times; with the core resident the same call t
 therefore below the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `pagerank` rows run all
 100 iterations (`tolerance: 0`), so every row times the same hundred pulls whatever the input's convergence. The Chromium round trip (T-3, issue
 #278) is what every interactive frame of a browser layout pays; its figure is the mean of batches of 20 round trips,
-because Chromium quantises `performance.now()` to 100 us, and it was measured on 2026-09-27 at a load average near 70,
+because Chromium quantizes `performance.now()` to 100 us, and it was measured on 2026-09-27 at a load average near 70,
 so it is an upper bound.
 
 The three T-10 rows are the `bfs` group of session 2026-09-25T10:19:11.536Z (the file's last session, the current
@@ -883,7 +883,7 @@ T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this ba
 a later run of the lane whose median AND minimum both exceed 1.35x the best figures this file has ever held, by at
 least 2.5 ms, or whose row misses a target that is not one of the known misses listed under the table. The T-table
 targets were set on the dev box; the T4 meets T-4, T-5, T-6 and T-8 and misses T-1 (both uploads), T-2, T-3, T-7 (the
-1M attraction pass of the grid tier, 18.165 ms against 15 ms) and T-9, which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
+1M attraction pass of the grid tier, 18.165 ms against 15 ms) and T-9, which is the class difference of a datacenter card behind a cloud vCPU (host-side copies and submit
 latency), not a regression: the exact tier's `ms / iteration` is 1.7x the RTX 4070 SUPER's at 10k and 3.0x at 65k, and
 the grid tier's is 2.8x at 100k 2D and 5.7x at 1M 2D while the attraction pass alone is 12.2x.
 
@@ -925,8 +925,8 @@ Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Eac
 
 Known misses on this class, which `bench:compare` reports without failing:
 
-- T-1: host-side copy cost of a datacentre card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7).
-- T-2: readback and submit latency of a datacentre card behind a cloud vCPU (the README's CI-lane section); met on the dev box.
+- T-1: host-side copy cost of a datacenter card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7).
+- T-2: readback and submit latency of a datacenter card behind a cloud vCPU (the README's CI-lane section); met on the dev box.
 - T-3: submit latency of the cloud runner; on the dev box the row misses too whenever the SM clock has dropped to idle (G3-F2 of docs/decisions/G3.md section 10).
 - T-7: the pass's 16 MiB working set does not fit the T4's 4 MiB L2, and two T4 instances read 13.8 and 18.2 ms on the same work (G4-F16 and G4-F21 of docs/decisions/G4.md).
 - T-9: the row carries the same 164 MB upload T-1 times, which alone takes longer than the 100 ms target; it misses on the dev box too (docs/decisions/G7.md).

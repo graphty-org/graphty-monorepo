@@ -109,7 +109,7 @@ describe("Graph.loadFromUrl", () => {
             errorThrown = true;
 
             // See the same test in graph-load-from-file.test.ts: the refusal carries a code and a
-            // list read from the catalogue rather than a sentence naming seven hard-coded names.
+            // list read from the catalog rather than a sentence naming seven hard-coded names.
             assert.isTrue(isGraphtyError(error), "a failure the element reports carries a code");
             assert.strictEqual((error as GraphtyError).code, "E_UNKNOWN_FORMAT");
             assert.include(

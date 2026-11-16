@@ -107,7 +107,7 @@ describe("a label's panel is sized from the font's own metrics", () => {
                 `ink bottom ${ink.bottom} is inside the bottom margin ${text.bottom}`,
             );
 
-            // The text is centred in its line box: the slack above the ink and the slack below it
+            // The text is centered in its line box: the slack above the ink and the slack below it
             // differ by less than a tenth of the panel, rather than all of it sitting below.
             const above = ink.top - text.top;
             const below = text.bottom - ink.bottom;

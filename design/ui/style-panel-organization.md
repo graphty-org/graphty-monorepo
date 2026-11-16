@@ -178,7 +178,7 @@ The panel is built for many and honest about one. The Text section holds a **lis
 entries**: "+" adds one, each entry has its own size, position and settings popover, an eye and a
 minus. While the element has one label slot, "+" on a section that holds a label is disabled with
 "One label per element until graphty-element has label slots", and the mock shows the many-labels
-list on Key people as a greyed second entry ("degree, above") marked as not drawable. The eye and
+list on Key people as a grayed second entry ("degree, above") marked as not drawable. The eye and
 the minus differ: the minus removes the entry, so labels from layers beneath show through; the
 closed eye hides labels on this layer's elements, including labels a lower layer wrote. A label
 hidden for overlapping another is neither: it is a scene decision, counted in the Values tab.
@@ -738,7 +738,7 @@ A folder lists the values its layers read, each with the layers that read it.
 - Which elements: "Named nodes: Valjean, Javert, Cosette, Marius, Fantine", "5 nodes".
 - Shape: Shape "Octahedron"; Size "2".
 - Text: a label entry, pill "name", Size 48 px, Position "Below", white text on 1F2933; below it a
-  greyed second entry ("degree", "Above") marked as not drawable, showing the many-labels list. The
+  grayed second entry ("degree", "Above") marked as not drawable, showing the many-labels list. The
   section's "+" offers Label disabled with the one-label reason.
 
 ### 7.11 Annotations (folder)
@@ -783,7 +783,7 @@ reader's flag, one layer painting both kinds) are recorded in `design/ui/unified
 | The selection halo as a layer effect                                                    | halo color, size and opacity as style channels, instead of a setting drawn from the selection                |
 | Show, on nodes and on edges                                                             | visibility as a style write (today only session filters hide elements)                                       |
 | The per-property eye                                                                    | a paused flag on a property write, saved with the layer                                                      |
-| A second label entry (greyed)                                                           | label slots keyed by name, with a combine mode and stacking                                                  |
+| A second label entry (grayed)                                                           | label slots keyed by name, with a combine mode and stacking                                                  |
 | Label size, color, background varying (disabled)                                        | those look fields as properties that take bindings                                                           |
 | Label priority when crowded                                                             | a label priority read from a layer (declutter ranks by selection, degree and id)                             |
 | A number format on a label                                                              | a number format on text bindings                                                                             |

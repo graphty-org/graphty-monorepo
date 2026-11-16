@@ -51,7 +51,7 @@ owner's dev box on 2026-09-14 with the probe scripts under
    in Dawn / 4 GiB in Chromium), benchmarks with baseline comparison, and the
    browser-on-real-GPU smoke with the four flags from
    `HEADLESS_GPU_REPORT.md`. The GPU lane runs on push to master, nightly,
-   on `workflow_dispatch`, and on PRs labelled `gpu`. It is **not** a
+   on `workflow_dispatch`, and on PRs labeled `gpu`. It is **not** a
    required check; the default lane is.
 5. **Coverage** comes only from the default lane (deterministic, always
    runs). The GPU lane uploads benchmark JSON and a `gpu-report.json`
@@ -133,7 +133,7 @@ better because the WebGPU package wants its correctness suite on every PR.
 | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | **GitHub GPU-hosted larger runner** (Linux 4 vCPU, 28 GB, 1x Tesla T4 16 GB, 176 GB SSD; Windows too)                                      | **Not available**: larger runners require GitHub Team or Enterprise Cloud; graphty-org is on the free plan. Also "not free for public repositories".                                                                                                                                                                      | $0.052/min Linux, $0.102/min Windows (2026 pricing), billed even for public repos; needs a credit card and spending limit                                              | GitHub-managed ephemeral VMs (best)                                                                                                                                                                                                                                                                                                             | Fast queue; T4 is a 2018 datacenter part, fine for correctness, weak for perf baselines      | Low; image is the NVIDIA GPU-Optimized partner image (conda permissions gotcha per scikit-learn's write-up); `modprobe nvidia` was needed in one report | Rejected for now; re-evaluate if the org moves to Team ($4/user/month)                            |
 | **Self-hosted runner on the dev box** (RTX 4070 SUPER in an Ubuntu 22.04 container)                                                        | Available today; org or repo level                                                                                                                                                                                                                                                                                        | Free for public repos (the March-2026 $0.002/min self-hosted platform charge does not apply: "Runner usage in public repositories will remain free"); electricity only | Weakest by default: GitHub says self-hosted runners "should almost never be used for public repositories" because fork PRs can run code on them. Mitigations: `--ephemeral`/JIT registration, never trigger from fork PRs, require approval for all external contributors, no secrets in the GPU job, dedicated container not the dev workspace | Zero queue when up; single runner, so one GPU job at a time; unavailable when the box is off | Medium: runner image (needs `libegl1`, `libvulkan1`, `mesa-vulkan-drivers`), driver updates, ephemeral restart loop, `--disableupdate`                  | **Recommended GPU lane**                                                                          |
-| **Third-party runner provider in your own cloud** (RunsOn, Cirun, machine.dev)                                                             | RunsOn: `runs-on=${{ github.run_id }}/family=g4dn.xlarge/image=ubuntu24-gpu-x64` in your AWS account, GPU AMIs with NVIDIA driver + container toolkit; Cirun: free for open source, runners on AWS/GCP/Azure/..., `.cirun.yml` with `gpu: nvidia-tesla-t4`; machine.dev: `runs-on: machine/gpu=t4`, spot from ~$0.003/min | RunsOn: flat licence (commercial tier quoted at EUR 300/year) + AWS spot; Cirun: $0 platform for public repos + cloud bill; machine.dev per-minute                     | Ephemeral cloud VMs (good); cloud account credentials to manage                                                                                                                                                                                                                                                                                 | Cold start 1-3 min (VM boot); scales to N                                                    | Medium-high: AWS/GCP account, quotas for GPU instances (often need a support ticket), image drift                                                       | Good fallback if the dev box is unreliable; needs a cloud account the project does not have today |
+| **Third-party runner provider in your own cloud** (RunsOn, Cirun, machine.dev)                                                             | RunsOn: `runs-on=${{ github.run_id }}/family=g4dn.xlarge/image=ubuntu24-gpu-x64` in your AWS account, GPU AMIs with NVIDIA driver + container toolkit; Cirun: free for open source, runners on AWS/GCP/Azure/..., `.cirun.yml` with `gpu: nvidia-tesla-t4`; machine.dev: `runs-on: machine/gpu=t4`, spot from ~$0.003/min | RunsOn: flat license (commercial tier quoted at EUR 300/year) + AWS spot; Cirun: $0 platform for public repos + cloud bill; machine.dev per-minute                     | Ephemeral cloud VMs (good); cloud account credentials to manage                                                                                                                                                                                                                                                                                 | Cold start 1-3 min (VM boot); scales to N                                                    | Medium-high: AWS/GCP account, quotas for GPU instances (often need a support ticket), image drift                                                       | Good fallback if the dev box is unreliable; needs a cloud account the project does not have today |
 | **Software adapter on `ubuntu-latest`** -- Dawn-in-Node on Mesa **lavapipe**; Chromium on bundled **SwiftShader** (or lavapipe under xvfb) | Available today, free                                                                                                                                                                                                                                                                                                     | $0 for public repos                                                                                                                                                    | GitHub-hosted ephemeral VM (best)                                                                                                                                                                                                                                                                                                               | Slow per kernel (see 3.5) but correct; 4 vCPUs                                               | Low: `apt-get install mesa-vulkan-drivers libvulkan1`; pin `webgpu` version                                                                             | **Recommended default lane**                                                                      |
 
 ### 3.2 GitHub GPU-hosted runners: details verified
@@ -152,7 +152,7 @@ better because the WebGPU package wants its correctness suite on every PR.
   round up per job.
 - Practitioner reports: scikit-learn uses a label ("CUDA CI") to route a
   PR to the `cuda-gpu-runner-group`, stayed under a $50/month spending
-  limit, and notes fork PRs cannot get the write permissions the labelling
+  limit, and notes fork PRs cannot get the write permissions the labeling
   flow needs; Dave Snider's Playwright-on-`gpu-linux-4` report found
   headless Chromium did **not** use the T4 until run headed under
   `xvfb-run` with `--use-angle=vulkan --enable-features=Vulkan ...`, that
@@ -200,7 +200,7 @@ better because the WebGPU package wants its correctness suite on every PR.
   GPU images `ubuntu22-gpu-x64`, `ubuntu24-gpu-x64`, `ubuntu24-gpu-arm64`
   with "NVIDIA drivers, CUDA toolkit, and container toolkit" rebuilt every
   15 days; deploys into your AWS account (spot billing by AWS, flat annual
-  licence -- the search summary quoted EUR 300/year for the commercial
+  license -- the search summary quoted EUR 300/year for the commercial
   tier; the pricing page itself was not fetched, treat as approximate).
 - **Cirun.io**: runners created in your own cloud account (AWS, GCP, Azure,
   Oracle, OpenStack, DigitalOcean), terminated after each job, GPU
@@ -249,7 +249,7 @@ better because the WebGPU package wants its correctness suite on every PR.
   than the dev box's 23.2.1. wgpu goes further and downloads a pinned Mesa
   26.1.3 build from `gfx-rs/ci-build`, writes its own ICD JSON and sets
   `VK_DRIVER_FILES` -- worth copying only if the distro package misbehaves.
-- Speed, probe kernel = 100k nodes / 1M arcs random CSR, per-node neighbour
+- Speed, probe kernel = 100k nodes / 1M arcs random CSR, per-node neighbor
   gather + scale (PageRank / attraction access pattern), 50 iterations,
   timed after warm-up (`tmp/webgpu-plan/probe/bench-node.mjs`):
 
@@ -410,7 +410,7 @@ several `coverage-<pkg>-*` artifacts per package).
 ## 5. Workflow YAML sketch for this repo now
 
 Replaces `.github/workflows/test.yml`. Sketch, not final; package manager
-follows whatever the repo standardises on (the scaffold uses npm; the
+follows whatever the repo standardizes on (the scaffold uses npm; the
 monorepo uses pnpm).
 
 ```yaml
@@ -809,9 +809,9 @@ with `--reporter=blob` and merges in `coverage.yml`.
    the GPU lane; device-limit branches (windowed uploads, 2D dispatch)
    must be unit-tested with faked limits or they will be uncovered on the
    default lane.
-7. **Not verified**: the RunsOn licence price and calculator, whether
+7. **Not verified**: the RunsOn license price and calculator, whether
    Blacksmith/Namespace/Depot/Buildjet offer GPUs, GitHub's larger-runner
-   concurrency limits for GPU SKUs, and the exact behaviour of Chromium 152
+   concurrency limits for GPU SKUs, and the exact behavior of Chromium 152
    (the version on the current runner image) with SwiftShader WebGPU --
    Playwright pins its own Chromium (139 in this project), so the runner's
    system Chrome is irrelevant unless the config switches to
@@ -858,7 +858,7 @@ Practitioner reports on GitHub GPU runners:
 
 Third-party runners:
 
-- RunsOn GPU runners: https://runs-on.com/runners/gpu/ (pricing page https://runs-on.com/pricing/ not fetched; licence figure from search summary only)
+- RunsOn GPU runners: https://runs-on.com/runners/gpu/ (pricing page https://runs-on.com/pricing/ not fetched; license figure from search summary only)
 - Cirun.io (free for open source, own-cloud GPU runners): https://cirun.io/
 - machine.dev GPU runners: https://machine.dev/docs/platform-specifications/gpu-runners/
 

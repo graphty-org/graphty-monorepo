@@ -214,7 +214,7 @@ export interface ParityCase {
     readonly name: string;
     readonly graph: ParityGraph;
     readonly weighted: boolean;
-    /** nodeMass = massVector(n), materialised by caseOptions() once n is known. */
+    /** nodeMass = massVector(n), materialized by caseOptions() once n is known. */
     readonly massVector: boolean;
     readonly pinned: boolean;
     readonly unseeded: boolean;
@@ -313,7 +313,7 @@ export function forceParityCases(): readonly ParityCase[] {
 }
 
 /**
- * The options of a case once the snapshot's node count is known (materialises the nodeMass vector).
+ * The options of a case once the snapshot's node count is known (materializes the nodeMass vector).
  * @param c - the case
  * @param s - its snapshot
  * @returns the options handed to createForceAtlas2 and to the oracle
@@ -416,7 +416,7 @@ export interface StageIo {
 }
 
 /**
- * The inspect() / debugRunStages() pair of a simulation, or a throw when ctx.debug.inspect was not honoured.
+ * The inspect() / debugRunStages() pair of a simulation, or a throw when ctx.debug.inspect was not honored.
  * @param sim - the simulation
  * @returns the pair
  */
@@ -623,7 +623,7 @@ export const P3_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
         "fa2-inspect.k1": { cap: 1e-4, basis: "fa2-inspect.k1.oracle-f64" },
         "fa2-inspect.k1.cross": { cap: 1e-4, basis: "fa2-inspect.k1.cross" },
         "fa2-trace-parity.f32": { cap: 1e-4, basis: "fa2-trace-parity.oracle-f32" },
-        // PLAN DECISION 17: the re-synchronised legs (one GPU iteration against one oracle iteration from the GPU's
+        // PLAN DECISION 17: the re-synchronized legs (one GPU iteration against one oracle iteration from the GPU's
         // own iteration-start state) are held to the f32 cap of spec 11.4 against BOTH oracles: the f64 oracle differs
         // from the GPU by one iteration's f32 rounding only, never by the chaotic amplification of the trajectory
         "fa2-trace-parity.resync.f32": { cap: 1e-4, basis: "fa2-trace-parity.resync.oracle-f32" },
@@ -719,17 +719,17 @@ export interface NoiseFixtureName {
 }
 /**
  * The (kernel, fixture) names of the P3 noise members (PLAN DECISION 7: the stage members, the free-running trace
- * members and the metrics member are recorded on the UNSCALED random1k; PLAN DECISION 17: the two re-synchronised
+ * members and the metrics member are recorded on the UNSCALED random1k; PLAN DECISION 17: the two re-synchronized
  * members on the unscaled random1k AND on karate, the worst-conditioned trace fixture -- its per-iteration swing
- * cancellation gives the largest re-synchronised floor, and a tolerance derived from random1k alone would not cover
+ * cancellation gives the largest re-synchronized floor, and a tolerance derived from random1k alone would not cover
  * it). `trace10` / `trace50` are the free-running traces of the NETWORKX mode (noiseInputs(NETWORKX)): the free-running
  * legs of fa2-trace-parity.test.ts are asserted in that mode only, the paper-mode trajectory being chaotic beyond
  * any derivable tolerance (docs/decisions/G3.md finding G3-F3), and `trace50Karate` is the same 50-iteration networkx
  * trace on karate, the fixture whose free-running divergence through 50 comes closest to the 5e-2 cap (its row makes
  * the recorded factor of fa2-trace-parity.f64 honest); `resync50` / `resyncKarate50` are the paper-mode
- * re-synchronised traces (resyncTrace over TRACE_ITERATIONS), whose oracle fixtures are per adapter class;
+ * re-synchronized traces (resyncTrace over TRACE_ITERATIONS), whose oracle fixtures are per adapter class;
  * `states10` is K4's record of ONE iteration from each of the ten trajectory states of oracleStates() in each mode
- * (the re-synchronised twin comparison of fa2-twins.test.ts: twenty geometries through the same reductions);
+ * (the re-synchronized twin comparison of fa2-twins.test.ts: twenty geometries through the same reductions);
  * `layout5` is the GPU's positions after 5 paper-mode iterations on random1k against @graphty/layout's CPU class (the
  * member of fa2-layout-oracle; the case of that file's asserted set furthest from the CPU class, so the derived
  * tolerance covers the others).
@@ -789,7 +789,7 @@ export function noiseInputs(
 /**
  * The first `count` iteration-start states of the f64 oracle's free-running trajectory (positions after 0 .. count - 1
  * steps, f32-rounded, scene = layout units): adapter-independent states for the multi-state twin comparison of
- * fa2-twins.test.ts and its states10 noise member (PLAN DECISION 17). Requires scale 1 and a zero centre.
+ * fa2-twins.test.ts and its states10 noise member (PLAN DECISION 17). Requires scale 1 and a zero center.
  * @param s - the snapshot
  * @param start - the scene start
  * @param options - the FA2 options
@@ -844,7 +844,7 @@ export function oracleRecordFrom(
 }
 
 /**
- * The fixture class of an oracle reference re-synchronised to ONE adapter's states (the resync members: the oracle's
+ * The fixture class of an oracle reference re-synchronized to ONE adapter's states (the resync members: the oracle's
  * values depend on the adapter's own iteration-start states, so each adapter class carries its own oracle fixture).
  * @param oracleClass - ORACLE_F32_CLASS or ORACLE_F64_CLASS
  * @param adapterClass - the adapter (or twin) class the oracle followed
@@ -1188,7 +1188,7 @@ export function traceError(
  * the denominator (P3-T5 implementation note, a deviation from the plan part's fixed 1e-2 floor): the centroid is a
  * coordinate-like quantity that stays near the origin while the layout expands to a radius of 1e2, so a fixed floor
  * turns a 0.9-unit difference in a layout of radius 184 (grid10 / networkx at iteration 28, measured on NVIDIA) into
- * a relative error of 81 while rmsRadius and layoutRadius differ by 0.6%; normalised by the layout's own scale the
+ * a relative error of 81 while rmsRadius and layoutRadius differ by 0.6%; normalized by the layout's own scale the
  * same centroid difference reads as 5e-3, the same order as the other two fields.
  * @param stats - per-step stats
  * @param oracle - the oracle's records
@@ -1240,17 +1240,17 @@ export interface TraceRun {
     readonly positions: F32;
 }
 
-// ---------------------------------------------------------------- the re-synchronised trace (spec 11.4 trace parity; PLAN DECISION 17)
+// ---------------------------------------------------------------- the re-synchronized trace (spec 11.4 trace parity; PLAN DECISION 17)
 
-/** The step(1) count of the trace tests and of their re-synchronised legs (spec 11.4: 50 iterations). */
+/** The step(1) count of the trace tests and of their re-synchronized legs (spec 11.4: 50 iterations). */
 export const TRACE_ITERATIONS = 50;
 /** The horizon of the tight free-running leg of spec 11.4 (the first 10 records against the f32 oracle). */
 export const TRACE_TIGHT = 10;
-/** The values of one re-synchronised record (resyncValues): [swing, traction, speed, speedEfficiency, meanDisplacement, settledCount, centroid x, y, z, rmsRadius]. */
+/** The values of one re-synchronized record (resyncValues): [swing, traction, speed, speedEfficiency, meanDisplacement, settledCount, centroid x, y, z, rmsRadius]. */
 const RESYNC_FIELDS = 10;
 
 /**
- * One iteration of a re-synchronised comparison: K4's four controller fields of the iteration and K1's statistics
+ * One iteration of a re-synchronized comparison: K4's four controller fields of the iteration and K1's statistics
  * written at ITS start (the fold of the previous integrate; load()'s statistics for the first) -- every one a SUM
  * over the nodes. K1's layoutRadius (max |p - c|) is deliberately absent: it is an extreme-value statistic, and in
  * paper mode one node whose consecutive forces nearly cancel carries a per-node displacement error of up to 1e-3
@@ -1272,7 +1272,7 @@ interface ResyncRecord {
 
 /**
  * The records as one flat array of RESYNC_FIELDS values each (the noise fixture layout of the resync members).
- * @param records - re-synchronised records
+ * @param records - re-synchronized records
  * @returns RESYNC_FIELDS x records.length values
  */
 export function resyncValues(records: readonly ResyncRecord[]): F64 {
@@ -1333,7 +1333,7 @@ export function resyncValuesError(a: ArrayLike<number>, b: ArrayLike<number>): n
 export interface ResyncRun extends TraceRun {
     /** The GPU's records: K4's fields of record t and K1's statistics of iteration t (the stats after step t). */
     readonly gpu: ResyncRecord[];
-    /** The f32 oracle re-synchronised before every iteration: its K4 fields of the iteration and its fold of the previous one. */
+    /** The f32 oracle re-synchronized before every iteration: its K4 fields of the iteration and its fold of the previous one. */
     readonly f32: ResyncRecord[];
     /** The same with the f64 oracle. */
     readonly f64: ResyncRecord[];
@@ -1350,7 +1350,7 @@ export interface ResyncHooks {
 }
 
 /**
- * One re-synchronised oracle of precision `precision`: a fresh oracle over the GPU's iteration-start positions,
+ * One re-synchronized oracle of precision `precision`: a fresh oracle over the GPU's iteration-start positions,
  * seeded (for t > 0) with the GPU's controller after the previous iteration, K1's statistics of this iteration and
  * the previous oracle's force as F(t-1) (the oracle chains its OWN oldForce: a K5 that forgets to store it stays
  * visible, PLAN DECISION 17).
@@ -1380,7 +1380,7 @@ function resyncOracle(
  * seeded with the GPU's iteration-start state (PLAN DECISION 17: the positions the previous step left in the
  * owner's array, the controller the stats report, K1's statistics of the iteration, the oracle's own previous
  * force as F(t-1)), each stepped once: the comparison of one GPU iteration with one oracle iteration, free of the
- * chaotic amplification of the free-running trajectory (spec 7.16). Requires scale 1 and a zero centre (layout
+ * chaotic amplification of the free-running trajectory (spec 7.16). Requires scale 1 and a zero center (layout
  * units = scene units, so the owner's array IS the layout state).
  * @param ctx - the context
  * @param s - the snapshot
@@ -1487,7 +1487,7 @@ export async function resyncTrace(
 }
 
 /**
- * The two re-synchronised reports: every record of the run against the f32 oracle under
+ * The two re-synchronized reports: every record of the run against the f32 oracle under
  * fa2-trace-parity.resync.f32 and against the f64 oracle under fa2-trace-parity.resync.f64.
  * @param run - a resyncTrace run
  * @param label - the case label
@@ -1607,13 +1607,13 @@ export function metricsValues(record: Readonly<Record<string, number>>): {
     return { keys, values: Float64Array.from(keys.map((k) => record[k])) };
 }
 
-/** The key prefix of the nearest-neighbour histogram bins of layoutMetrics(); the bins are compared as ONE distribution. */
+/** The key prefix of the nearest-neighbor histogram bins of layoutMetrics(); the bins are compared as ONE distribution. */
 const NN_BIN_PREFIX = "nnBin";
 
 /**
  * The "within 10%" distance of two metrics value lists in one key order: every non-histogram metric (stress, the
- * edge-length and nearest-neighbour quantiles, spread, separation) as |a - b| / max(|b|, DISTRIBUTIONAL_FLOOR), and
- * the nearest-neighbour histogram (the nnBin* keys) as ONE total-variation distance, sum |a_i - b_i| / 2 -- the
+ * edge-length and nearest-neighbor quantiles, spread, separation) as |a - b| / max(|b|, DISTRIBUTIONAL_FLOOR), and
+ * the nearest-neighbor histogram (the nnBin* keys) as ONE total-variation distance, sum |a_i - b_i| / 2 -- the
  * fraction of the nodes that sit in a different bin. P3-T5 implementation note (a deviation from the plan part's
  * PLAN DECISION 11, which compared every bin relative to its own fraction under a 0.05 floor): on a 34-node graph one
  * bin holds 1 / 34 = 0.029 of the nodes, so a single node changing bin read as 0.6 under the per-bin rule, and the

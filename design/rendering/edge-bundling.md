@@ -555,7 +555,7 @@ Build bundling, off by default, in this order. Stop after any phase if no use ca
 
 - The foundation on the existing `placeBent` path (7.1).
 - Edge-path bundling with the greedy spanner on the CPU: a loop on the main thread split into
-  chunks, with an abort signal (the pattern the algorithms already use, `forEachChunked`); cancelled
+  chunks, with an abort signal (the pattern the algorithms already use, `forEachChunked`); canceled
   when the layout restarts; never run while a GPU layout is still stepping.
 - Focus unbundling (7.2).
 - The result reports neutral facts: the method and variant that ran, how many edges were bundled,

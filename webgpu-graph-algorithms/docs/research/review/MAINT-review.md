@@ -31,11 +31,11 @@ Probe results relied on (all outputs reproduced in the probe files' directory):
   `navigator` in that core is `error TS2304` while a browser entry reading
   `(globalThis as { navigator?: ... }).navigator` compiles.
 
-## Summary judgement
+## Summary judgment
 
 The plan is unusually thorough on WHAT the kernels do and on verification, and its big structural
 calls are right (algorithms as plain functions; two thin entries; CPU packages own the accelerator
-interfaces; no registry). Its maintainability weak spots are the places where two artefacts must agree
+interfaces; no registry). Its maintainability weak spots are the places where two artifacts must agree
 by hand: WGSL text versus TypeScript (storage bindings, the `state` struct, three copies of 256 / 65535,
 `DIM` as both override and uniform), the CPU-owned option types versus the GPU package's copies, the
 CI lane presets restated in three places, and one base class (`ForceSimulation`) plus one composition
@@ -108,7 +108,7 @@ xyz, cellSize, meanDisplacement, iteration, settledCount` and the trace from a s
   the classic 16-byte-alignment offset trap; storage layout rules differ from uniform rules, so the
   Chromium negative test of D20 does not cover it. Every LayoutStats field, every trace-parity test
   and the grid `GridSpec` block depend on those offsets.
-- Fix (plan text): in 5.3 generalise `UniformBlock` to `StructBlock.define(fields, { layout: "uniform"
+- Fix (plan text): in 5.3 generalize `UniformBlock` to `StructBlock.define(fields, { layout: "uniform"
 | "storage" })` that emits the WGSL struct text, `write(view, values)` AND `read(view): values`, and
   state that `state`, `partials`, `GridSpec` and every other host-visible block are declared through
   it; add to the 11.3 kinds a round-trip test (write on the host, copy through a trivial kernel, read
@@ -430,7 +430,7 @@ options?: ForceAtlas2Options)`), 2459 (element config `behavior.layout.maxInFlig
 ### MAINT-20 (minor) -- two test-harness contract gaps the probes expose: an adapter is consumed by one `requestDevice`, and the deferred "throw from the next public call" misattributes kernel errors
 
 - Lines 265 / 277-279 (`options.adapter` given -> `requestDevice` on it), 2676-2684 (`acquire()`
-  generalised from `gpu-upload.test.ts`, "acquire once per worker"), 2710 (device-loss test: "a
+  generalized from `gpu-upload.test.ts`, "acquire once per worker"), 2710 (device-loss test: "a
   new context + `load()` works afterwards"), 1202 (uncaptured errors "stored and thrown from the
   NEXT public call"), 2690-2691 ("An `uncapturederror` listener fails the current test").
 - Claim: `uncaptured-order-probe.mjs` shows Dawn-node 0.4.0 rejects a second `requestDevice()` on the

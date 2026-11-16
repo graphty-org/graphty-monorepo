@@ -410,7 +410,7 @@ export type ChannelId = "canary" | "nightly" | "production";
 
 /**
  * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
- * nightly candidate waiting for screenshot approval), or cancelled.
+ * nightly candidate waiting for screenshot approval), or canceled.
  */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 

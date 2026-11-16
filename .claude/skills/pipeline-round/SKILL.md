@@ -198,7 +198,7 @@ first-parent merges since the last green full run.
 - **`ci-budget` issues**, filed by a run's `timings` job (`tools/ci-budgets.mjs trend`, budgets in `ci-budgets.json`):
   read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
   raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
-- A job killed at its `timeout-minutes` (labelled `hung`) is a defect: fix the hang, never re-run or raise it.
+- A job killed at its `timeout-minutes` (labeled `hung`) is a defect: fix the hang, never re-run or raise it.
 - **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
   the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a
   run with no missed-slot issue: a slot produced no run): check the release scheduler and the newest release.yml
@@ -402,13 +402,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
   `tools/worktree-cleanup.mjs`, not a forced removal.
 - **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
   round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
-- **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
+- **A full run canceled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
   Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
   passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
   2026-11-13). Judge master by that verdict (the `release.yml` line of `shared.md`'s state block), never by
   the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
-  conclusion and skipping cancelled runs kept master red for hours on an older failure.
-- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
+  conclusion and skipping canceled runs kept master red for hours on an older failure.
+- **Not work:** issues labeled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 
 ## How this skill improves

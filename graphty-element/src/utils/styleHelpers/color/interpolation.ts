@@ -2,7 +2,7 @@
  * Color interpolation utilities.
  *
  * Every function here is total over the values it is handed. A value that is missing,
- * null, NaN or infinite yields a colour; it never yields an exception and never yields
+ * null, NaN or infinite yields a color; it never yields an exception and never yields
  * `undefined` wearing the `string` type. This matters because these functions run once
  * per node inside a repaint loop that has no try/catch: a single throw from one node
  * aborts the loop, and every node after it silently keeps its old style.
@@ -16,9 +16,9 @@
 import { clamp } from "../../clamp";
 
 /**
- * The colour returned when a ramp is asked for a value that does not exist.
+ * The color returned when a ramp is asked for a value that does not exist.
  *
- * It is the missing-texture magenta rather than a grey, and deliberately so. A grey reads
+ * It is the missing-texture magenta rather than a gray, and deliberately so. A gray reads
  * as a real low measurement, sits comfortably inside several of the palettes here, and so
  * turns "nothing was measured" into a picture that looks measured. Magenta appears in no
  * palette in this package, so a reader who sees it knows at a glance that the value was
@@ -26,12 +26,12 @@ import { clamp } from "../../clamp";
  *
  * Seeing it on screen is a report, not a design: it means a style layer asked a ramp for
  * an element the algorithm never measured. The repair is to scope the layer so the
- * unmeasured element is never visited, not to pick a prettier colour here.
+ * unmeasured element is never visited, not to pick a prettier color here.
  */
 export const MISSING_DATA_COLOR = "#ff00ff";
 
 /**
- * The red, green and blue channels of a colour, each 0-255.
+ * The red, green and blue channels of a color, each 0-255.
  */
 export interface RgbColor {
     r: number;
@@ -48,7 +48,7 @@ const HEX_COLOR_PATTERN = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
 /**
  * Parse a hex color string to RGB components.
  * @param hex - Hex color string (e.g., "#440154"), or a missing value.
- * @returns The three channels, or null if the input is not a six-digit hex colour.
+ * @returns The three channels, or null if the input is not a six-digit hex color.
  * @example
  * hexToRgb("#440154")  // { r: 68, g: 1, b: 84 }
  * hexToRgb("#fff")     // null
@@ -74,8 +74,8 @@ export function hexToRgb(hex: string | null | undefined): RgbColor | null {
 /**
  * Convert RGB components to hex color string.
  *
- * The channels are expected to be finite: the callers mix two parsed hex colours with a finite
- * factor, or apply a colour-blindness matrix to one, so they always are. A channel outside 0-255 is clamped, which is
+ * The channels are expected to be finite: the callers mix two parsed hex colors with a finite
+ * factor, or apply a color-blindness matrix to one, so they always are. A channel outside 0-255 is clamped, which is
  * what keeps a rounding overshoot from producing a seven-digit string.
  * @param r - Red component (0-255).
  * @param g - Green component (0-255).
@@ -96,7 +96,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
  * @param color2 - Second color (hex string).
  * @param t - Interpolation factor (0-1), where 0 = color1, 1 = color2.
  * @returns The interpolated color as a hex string, or null if either endpoint is not a
- * hex colour or the factor is not a finite number.
+ * hex color or the factor is not a finite number.
  */
 function interpolateColor(color1: string, color2: string, t: number): string | null {
     const rgb1 = hexToRgb(color1);
@@ -116,37 +116,37 @@ function interpolateColor(color1: string, color2: string, t: number): string | n
 /**
  * Interpolate a value within a color palette.
  *
- * A value of 0 gives the first colour, 1 gives the last, and a value between them is
+ * A value of 0 gives the first color, 1 gives the last, and a value between them is
  * mixed from the two nearest anchors. A finite value outside 0-1 is clamped to the
- * nearest end, which is long-standing behaviour that callers such as the diverging ramps
- * rely on after they re-centre a value around a midpoint.
+ * nearest end, which is long-standing behavior that callers such as the diverging ramps
+ * rely on after they re-center a value around a midpoint.
  *
  * A value that cannot be placed on the ramp at all -- undefined, null, NaN or an infinity
  * -- returns `missingColor`. That is the whole point of the function: it is called from a
  * repaint loop with no try/catch, so it must answer for a node the algorithm never
  * measured rather than abort the frame and leave every later node unstyled.
  *
- * A palette anchor that is not a hex colour also returns `missingColor`, because it is
+ * A palette anchor that is not a hex color also returns `missingColor`, because it is
  * only discovered when a value happens to sample that anchor: throwing there would take
  * down the repaint for some nodes and not others, which is exactly the failure this
- * function exists to prevent. An entire ramp band drawn in the missing colour is loud
+ * function exists to prevent. An entire ramp band drawn in the missing color is loud
  * enough to find the typo.
  *
  * An EMPTY palette does throw. It is a programmer error in the palette definition, not a
- * bad value: there is no colour in it to return for anybody, it is detected before a
+ * bad value: there is no color in it to return for anybody, it is detected before a
  * single element is painted, and it therefore fails identically on the first call rather
- * than part way through a frame. Returning the missing colour instead would paint an
+ * than part way through a frame. Returning the missing color instead would paint an
  * entire graph magenta and call it data.
  * @param value - Value to map (0-1); outside that range it clamps, and a value that is
  * not a finite number yields `missingColor`.
  * @param colors - Array of hex color strings; must not be empty.
- * @param missingColor - The colour to return for a value that cannot be placed on the
+ * @param missingColor - The color to return for a value that cannot be placed on the
  * ramp. Defaults to {@link MISSING_DATA_COLOR}.
  * @returns Interpolated color (hex string).
  * @throws If `colors` is empty.
  * @example
  * interpolatePalette(0.5, VIRIDIS_COLORS)        // "#23908c"
- * interpolatePalette(undefined, VIRIDIS_COLORS)  // "#ff00ff", the missing colour
+ * interpolatePalette(undefined, VIRIDIS_COLORS)  // "#ff00ff", the missing color
  */
 export function interpolatePalette(
     value: number | null | undefined,
@@ -158,7 +158,7 @@ export function interpolatePalette(
     }
 
     // A value that is not a finite number has no place on the ramp. Answer with the
-    // missing colour rather than clamping NaN into an index of NaN.
+    // missing color rather than clamping NaN into an index of NaN.
     if (typeof value !== "number" || !Number.isFinite(value)) {
         return missingColor;
     }

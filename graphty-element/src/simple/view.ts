@@ -9,7 +9,7 @@
  * - ORDER IS THE IDS', NOT THE LOAD'S. Nodes iterate numbers ascending, then strings by code unit
  *   (`compareNodeIds`); edges by their numeric edge id; every node's lists follow the same order.
  *   So a result never depends on which record happened to arrive first.
- * - A SELF-LOOP COUNTS ONCE and is never its own neighbour; PARALLEL EDGES STAY SEPARATE, each with
+ * - A SELF-LOOP COUNTS ONCE and is never its own neighbor; PARALLEL EDGES STAY SEPARATE, each with
  *   its own id, and add together in `weightTo`.
  * - DIRECTION IS NEVER GUESSED. A definition that did not ask for `direction: "directed"` gets a
  *   view whose directed accessors throw, so a plugin cannot read a direction the view was not

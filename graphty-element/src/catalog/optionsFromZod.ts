@@ -21,7 +21,7 @@
  *   saying what stopped it.
  * - The emitter never throws. A schema that cannot be converted at all becomes a set of
  *   "unknown" descriptors, one per option, not an exception in the middle of building a
- *   catalogue.
+ *   catalog.
  *
  * What the emitter will not do is guess semantics from a name. An option called "seed" is an
  * integer as far as the schema is concerned, and turning it into the "seed" control is a
@@ -544,7 +544,7 @@ function authoredBound(bound: number | undefined): number | undefined {
 /**
  * Turn an identifier into a readable label, for when no metadata supplies one.
  * @param name - The identifier to convert.
- * @returns The identifier with word breaks restored and each word capitalised.
+ * @returns The identifier with word breaks restored and each word capitalized.
  */
 function humanize(name: string): string {
     const spaced = name

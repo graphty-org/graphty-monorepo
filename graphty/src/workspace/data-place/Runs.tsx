@@ -171,7 +171,7 @@ function ResultRow({
         setAsking(false);
         session.runs.remove(run.id);
     };
-    // Kept, greyed, once it draws: the reader learns where the action lives.
+    // Kept, grayed, once it draws: the reader learns where the action lives.
     let applyReason: string | null = layers.length > 0 ? "Already styled" : null;
     if (applyReason === null && run.status !== "succeeded") {
         applyReason = "Not finished";

@@ -140,7 +140,7 @@ function sortUnique<T>(items: readonly T[], compare: (a: T, b: T) => number): T[
 /**
  * Members the element built itself from a snapshot (known fields only, integers, no `-0`) in the
  * canonical order, de-duplicated, without the per-member key sort a caller's members need.
- * Internal: for the materialising doors.
+ * Internal: for the materializing doors.
  * @param members - Element-built members.
  * @returns A fresh sorted array.
  */
@@ -149,7 +149,7 @@ export function sortElementEdgeMembers(members: readonly EdgeMember[]): EdgeMemb
 }
 
 /**
- * Node ids in the canonical order, de-duplicated. Internal: for the materialising doors.
+ * Node ids in the canonical order, de-duplicated. Internal: for the materializing doors.
  * @param ids - Element-built ids.
  * @returns A fresh sorted array.
  */

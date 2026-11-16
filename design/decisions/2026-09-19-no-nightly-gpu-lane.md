@@ -9,7 +9,7 @@ Those sections are NOT edited; this record supersedes them.
 ## The decision
 
 `gpu.yml` runs on a push to master, on `workflow_dispatch`, and on a same-repo pull request
-labelled `gpu`. There is no `schedule` trigger. Removed with it: the `changed` job, which
+labeled `gpu`. There is no `schedule` trigger. Removed with it: the `changed` job, which
 existed only to skip the cron when master had not moved, and `gpu-nightly-report`, which
 opened a "GPU lane nightly" tracking issue after two consecutive nightly failures. The
 workflow went from three jobs to one, 147 lines to 94.
@@ -58,7 +58,7 @@ no tracking-issue job. Most of the detection at a seventh of the cost.
 
 ## What still exists
 
-The whole lane, on master pushes, dispatch and `gpu`-labelled PRs, with the release gate
+The whole lane, on master pushes, dispatch and `gpu`-labeled PRs, with the release gate
 requiring it green. `bench:compare` keeps its rule of SKIPPING rather than failing when
 `nvidia-smi` shows the GPU is busy. The `fast-check` `numRuns` of 1,000 that 14.x calls
 "nightly" was never wired to the cron and is unaffected.
@@ -94,11 +94,11 @@ ones in the Changes line above.
 - **14.1, risk row R-25 (line 4292)** offers "an issue only after two consecutive nightly
   failures" as one of its mitigations for shared-tenant benchmark noise. Its others -- medians of
   5 runs, the 3x threshold against the T4's own baseline, `gpu-report.js` recording clocks and
-  utilisation, the T-table targets measured by hand on the dev box -- stand.
+  utilization, the T-table targets measured by hand on the dev box -- stand.
 - **The Review log's applied-findings table, row VERIFY-14 (line 4615)** records the
   `gpu-nightly-report` job with `issues: write` as the change that closed the finding, and **row
   VERIFY-20 (line 4621)** records "two nightly failures before an issue" as part of its. Neither
-  is buildable now. VERIFY-20's other two items, the utilisation sample and the skip on a busy
+  is buildable now. VERIFY-20's other two items, the utilization sample and the skip on a busy
   GPU, stand.
 
 ### The 1M comparison now has nowhere to run

@@ -82,7 +82,7 @@ nightly that can never be green.
 
 Fix: as the reviewer wrote -- a separate `.github/workflows/gpu.yml` with
 its own triggers (push master, schedule, workflow_dispatch, same-repo PRs
-labelled `gpu`), its own install and
+labeled `gpu`), its own install and
 `pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms`
 on the runner; do not touch ci.yml `on:`; no `needs:` on ci.yml jobs.
 
@@ -94,7 +94,7 @@ ci.yml that fails makes the CI run's conclusion `failure` (job-level
 `continue-on-error` is absent from the 12.3 body), and a job queued for an
 offline self-hosted runner keeps the run in progress: docs.github.com/en/
 actions/reference/limits, fetched: "A job can be in the queue for 24 hours
-before it is automatically cancelled." So the plan's own note 06 section
+before it is automatically canceled." So the plan's own note 06 section
 4.4 observation ("coverage.yml only runs on a successful CI run") applies to
 the GPU job itself, and line 2845 "never blocks" plus line 3108-3110
 "release.yml ... unchanged for this package" are false in the monorepo. This
@@ -327,7 +327,7 @@ and green when skipped. After a pipefail-safe gpu-report (VERIFY-7) exits 0
 under `nvidia`, the same default `create([])` pick is NVIDIA, so the
 residual gap is the skip path. Fix: `shell: bash` and `| tee canary.log &&
 grep -q "vendor=nvidia" canary.log` (the test prints `[gpu-upload] adapter
-vendor=...`, line 76-78), or list honouring the two variables as an F2
+vendor=...`, line 76-78), or list honoring the two variables as an F2
 change to graph-format.
 
 ### VERIFY-16 -- CONFIRMED (minor)
@@ -377,7 +377,7 @@ interactive GPU use on the same 4070 producing > 3x medians on O(n^2)
 kernels is plausible but not measured; with VERIFY-14 each such night opens
 an issue. Fix (narrowed): record `nvidia-smi --query-gpu=utilization.gpu,
 memory.used` sampled over 10 s in gpu-report.json; `bench:compare` SKIPS
-(not fails) when utilisation > 10 %; compare the median of 5 runs; two
+(not fails) when utilization > 10 %; compare the median of 5 runs; two
 consecutive nightly failures before an issue is opened.
 
 ### VERIFY-21 -- CONFIRMED (minor)
@@ -415,7 +415,7 @@ packages/package.json }` in both jobs (and in the deliberate-red-run
 instructions); add "`packages/pnpm-workspace.yaml` entry, `packages/
 knip.config.ts` workspace entry mirroring graph-io" to the P0 deliverables.
 
-### MISSED-2 -- 11.4 "iteration 0 positions are bit-identical" needs f32 quantisation on the oracle side (minor)
+### MISSED-2 -- 11.4 "iteration 0 positions are bit-identical" needs f32 quantization on the oracle side (minor)
 
 11.4 (2719-2720): both sides seed NaN rows "with the same LCG in index
 order ... so iteration 0 positions are bit-identical"; 11.3 says the

@@ -9,7 +9,7 @@
  * That is not a cosmetic mislabel. Density is measured against the pairs that could carry an edge,
  * and a directed graph has twice as many of those, so the karate club network printed HALF its
  * real density. Every algorithm that needs an undirected graph -- Kruskal, Prim, bipartite
- * matching -- was refused on every graph. A node inspector split the neighbours of every node into
+ * matching -- was refused on every graph. A node inspector split the neighbors of every node into
  * incoming and outgoing on a file whose edges have no direction to split.
  *
  * The files below are the corpus this repository ships, read through the same data sources the
@@ -371,7 +371,7 @@ describe("the direction a file declares", () => {
 
         // karate.gml carries no `directed` key anywhere. GML gives an omitted key the value 0, so
         // the file has declared itself undirected -- which is how every other reader takes it, and
-        // is why this shipped sample was labelled "Directed" everywhere but in its own header.
+        // is why this shipped sample was labeled "Directed" everywhere but in its own header.
         const karate = await declarationOf("gml", "gml/karate.gml");
         assert.strictEqual(karate?.directed, false);
         assert.strictEqual(karate?.conflictingEdges, 0);
@@ -540,7 +540,7 @@ describe("what the element says settled the direction", () => {
         // The element knew this all along and kept it to itself: every importer reports the text
         // that stated the direction, and until now that text reached a log line and nothing else.
         // A properties panel is specified to read "Directed (from file)", and without this it can
-        // only say "Directed" -- which on a CSV nobody labelled would be the element's own default
+        // only say "Directed" -- which on a CSV nobody labeled would be the element's own default
         // being reported as though it were a fact about the data.
         const { session } = await load("gml", "gml/karate.gml");
 

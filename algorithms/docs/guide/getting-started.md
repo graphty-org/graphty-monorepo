@@ -147,7 +147,7 @@ Every function below is a top-level export of `@graphty/algorithms`.
 - Minimum spanning tree (`kruskalMST`, `primMST`)
 - Maximum flow and minimum cuts (`maxFlow`, `minSTCut`, `stoerWagner`, `kargerMinCut`)
 - Bipartite matching through `bipartiteFlowNetwork`
-- Link prediction (common neighbours, Adamic-Adar)
+- Link prediction (common neighbors, Adamic-Adar)
 
 ## Next Steps
 

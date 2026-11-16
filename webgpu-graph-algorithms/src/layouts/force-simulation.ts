@@ -117,7 +117,7 @@ export interface ModelInputs {
  * debugRunStages / inspect, spec 11.9 item 2); `params` (the model's uniform block, which must declare the shared
  * field names n, dim, flags, iterationIndex, seed, scale, center, settleThreshold, so the simulation can write
  * them); `state` and `trace` (the model's generated Fa2State / Fa2Trace blocks, so the simulation allocates,
- * initialises and decodes the state buffer through the model's own layouts, D20); `specs` (the module specs of an
+ * initializes and decodes the state buffer through the model's own layouts, D20); `specs` (the module specs of an
  * override set, for warm() and the compile matrix); `bind` (the model compiles and binds after load(), when the
  * buffers exist); `inputs` (mass and weight resolution need the model's option names -- nodeMass / weight are
  * ForceAtlas2Options, not CommonLayoutOptions -- so the simulation calls it at load() and derives USE_PERM /
@@ -1652,7 +1652,7 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: the batch driver
 
     /**
-     * The serialised submission of one pending batch: awaits the bind / warm promise and allocator.check(), then
+     * The serialized submission of one pending batch: awaits the bind / warm promise and allocator.check(), then
      * records and submits unless the record went stale meanwhile; wires the readback handlers. A record that went
      * stale while waiting (a load() or dispose() superseded it) RESOLVES even when the wait rejected (PLAN
      * DECISION 8: the rejection belongs to the superseded generation -- a bind that failed E_SHADER_COMPILE, or
@@ -1836,7 +1836,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list (spec 7.12).
+     * Copies the scene bytes of a landed batch into the owner's array, honoring the override list (spec 7.12).
      * @param owner - the owner's array
      * @param bytes - the readback
      * @param record - the batch
@@ -2060,7 +2060,7 @@ export class ForceSimulation<
 
     /**
      * Allocates the shared buffers (spec 7.3 sizes) and the model's BufferSpecs through the allocator (every buffer
-     * labelled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads (PLAN
+     * labeled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads (PLAN
      * DECISION 17). The state buffer is STATE_HEADER_BYTES + MAX_ITERATIONS_PER_STEP x model.trace.byteLength:
      * contract 3.13 writes TRACE_RECORD_BYTES (32, the FA2 record) for the last factor; the model's block is the
      * same number for FA2 and is what the simulation decodes the trace with, so it is the general rule (PLAN
@@ -2434,7 +2434,7 @@ export class ForceSimulation<
 
     /**
      * Chains the compile + bind promise the next step() awaits on the PREVIOUS one (PLAN DECISION 20: binds are
-     * serialised on `ready` for load() and setParams() alike, so a superseded load()'s bind either fails its
+     * serialized on `ready` for load() and setParams() alike, so a superseded load()'s bind either fails its
      * generation check before model.bind() or completes before its successor's bind starts -- it can never bind
      * the model to destroyed buffers AFTER the new bind finished). The previous promise's rejection is swallowed by
      * the chain (it belonged to the superseded generation); this promise's rejection is kept for the next step()

@@ -526,7 +526,7 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expectBitwiseEqual(closeness.scores, closenessDirect.scores, "closenessCentrality");
         expect(closeness.iterations).toBe(closenessDirect.iterations);
         expect(closeness.precision).toBe("f32");
-        // PD-25: an option the exact traversal cannot honour is refused through the member, never dropped (the seam's
+        // PD-25: an option the exact traversal cannot honor is refused through the member, never dropped (the seam's
         // closeness options no longer carry it, so this is a JavaScript caller's object)
         const legacy = { maxIterations: 3 } as unknown as ClosenessAcceleratorOptions;
         await expect(acc.closenessCentrality(snapshot, legacy)).rejects.toMatchObject({

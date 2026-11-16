@@ -138,17 +138,17 @@ type RegisterableLayout = LayoutEngineClass & Partial<LayoutEngineStatics>;
  * The engine names the element itself ships, which is also the list of names a third party may
  * not take.
  *
- * WHY IT IS SPELLED OUT HERE rather than read from the layout catalogue, which is where the
- * element's editorial answer lives: the catalogue module imports all nineteen engine classes so it
+ * WHY IT IS SPELLED OUT HERE rather than read from the layout catalog, which is where the
+ * element's editorial answer lives: the catalog module imports all nineteen engine classes so it
  * can emit their options, and every one of those imports this module in order to extend
- * {@link LayoutEngine}. Importing the catalogue from here would close that loop, and a class
+ * {@link LayoutEngine}. Importing the catalog from here would close that loop, and a class
  * evaluated before its own base class is a "Cannot access before initialization" crash at import
- * time rather than a type error. The list is pinned against the catalogue by
+ * time rather than a type error. The list is pinned against the catalog by
  * `test/browser/extensions/layout-extension.test.ts`, so the copy cannot drift in silence.
  *
  * These nineteen are also the one exemption from the descriptor requirement: the arrangements they
  * serve are authored centrally in `src/catalog/layouts.ts`, where five engines can sit behind one
- * public arrangement name, which is a judgement the element makes about its own implementations
+ * public arrangement name, which is a judgment the element makes about its own implementations
  * and not a shape a plugin declares.
  */
 const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
@@ -227,7 +227,7 @@ export interface LayoutEngineStatics {
      */
     scoped?: boolean;
     /**
-     * What the catalogue publishes about this layout, so a picker can offer it.
+     * What the catalog publishes about this layout, so a picker can offer it.
      *
      * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own nineteen, whose
      * arrangements are authored in `src/catalog/layouts.ts` instead. `descriptor.id` must equal
@@ -497,7 +497,7 @@ export abstract class LayoutEngine {
      * What a picker reads about this layout. See {@link LayoutEngineStatics.descriptor}.
      *
      * A third party's engine declares one and {@link LayoutEngine.register} publishes it to the
-     * catalogue; the element's own engines leave it undefined because their arrangements are
+     * catalog; the element's own engines leave it undefined because their arrangements are
      * authored centrally.
      */
     static descriptor?: AuthoredLayoutDescriptor;
@@ -1356,17 +1356,17 @@ export abstract class LayoutEngine {
 
     /**
      * File a layout engine class under the name it declares, and publish what it says about
-     * itself to the catalogue.
+     * itself to the catalog.
      *
      * WHAT CHANGED AND WHY. This used to read `cls.type` through a cast and put the class in a
      * map, which meant a class with no `static type` registered under the string "undefined", a
      * second class under a taken name silently replaced the first, and a registered engine
-     * reached no catalogue at all -- so a third party's layout could run but could never be
+     * reached no catalog at all -- so a third party's layout could run but could never be
      * offered by a picker, described in a reader's language, or found by `layoutIdForEngine`.
      *
      * A third party's class must declare a `static descriptor` whose `id` equals its
      * `static type`. The element's own nineteen are the one exemption, because their arrangements
-     * are authored centrally in the layout catalogue where several engines may sit behind one
+     * are authored centrally in the layout catalog where several engines may sit behind one
      * public name.
      * @param cls - The layout engine class.
      * @param options - How to register it; `strict` refuses a different layout under a taken id.
@@ -1763,7 +1763,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  *
  * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
  * other than where they are held: a circle of ten is rotated against the circle of nine it
- * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
+ * replaces, and Kamada-Kawai re-centers and rescales its answer. Taking a newcomer's coordinate
  * from that other frame as it stands can put it on top of a held node. So the re-run is moved onto
  * the held picture -- shifted centroid onto centroid, turned about z (mirrored first when that
  * fits better) by the least-squares rotation, and scaled by the ratio of the two spreads -- and
@@ -1909,7 +1909,7 @@ export const simpleLayoutInternals = {
  * edges to the ones already drawn -- and no file is still loading, a re-run of an engine that
  * reads `graph` places only the new nodes and leaves every existing one where it was. The
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
- * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
+ * what lets Kamada-Kawai and ARF place a newcomer among its neighbors rather than from scratch.
  * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
  * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
  * places.

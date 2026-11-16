@@ -895,7 +895,7 @@ const config = defineConfig({
                         "test/browser/channel-paints.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
-                        // report the right colour while the lit half of the node is drawn flat.
+                        // report the right color while the lit half of the node is drawn flat.
                         // It is also the only thing that notices if a Babylon upgrade moves the
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.

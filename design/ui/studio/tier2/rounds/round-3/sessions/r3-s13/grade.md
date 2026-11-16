@@ -23,7 +23,7 @@ last screenshot, which is what the grade rests on.
 
 - **Marked links (right).** `08.png`: three blue bands on the full drawing; the table's three rows
   match the key row for row.
-- **Nothing taken off the drawing (right).** All 10 stops and the grey links still drawn; the
+- **Nothing taken off the drawing (right).** All 10 stops and the gray links still drawn; the
   PageRank row still reads 10; no filter step, nothing removed (`work.json`).
 - **Count (right).** "Three links take 10 minutes or more", with the three named links and
   minutes, matching the table.

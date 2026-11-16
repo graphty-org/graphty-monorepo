@@ -5,7 +5,7 @@
  * matches on, what a filter reads and what an expression editor completes. Nobody types it by
  * hand: {@link ResultsApi.path} builds it from the run, and the field defaults to the one the
  * run's shape declares primary, because a caller holding a `Run` should not have to open the
- * catalogue to learn that a centrality's number is called `value`.
+ * catalog to learn that a centrality's number is called `value`.
  *
  * The other half is the one an editor needs. `roots` publishes every run that has a result
  * together with the fields it carries, so an unknown `results.*` path can be answered with the

@@ -1,5 +1,5 @@
 /**
- * Kernel and runKernel (spec 5.1, 5.6; contract 3.9, 5.2; 5.5 row kernel.test.ts): bind() creates one labelled group
+ * Kernel and runKernel (spec 5.1, 5.6; contract 3.9, 5.2; 5.5 row kernel.test.ts): bind() creates one labeled group
  * per layout incl. empty ones and caches by buffer identity + offset + size; a missing / extra name and a zero-size
  * binding are E_INVALID_ARGUMENT; the host-side aliasing rule (intersecting ranges, and a writable slot next to any
  * other access mode of one buffer) is E_INVALID_ARGUMENT { argument: "aliasing" } synchronously while disjoint

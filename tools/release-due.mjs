@@ -13,7 +13,7 @@
  * the red run that issue names, if it is still in progress: the full run files the red issue the moment a lane ends
  * red, while its other lanes may run for hours, and release.yml's concurrency group would keep the restart pending
  * behind it. A `Refs` or `Part of` merge cancels nothing, so the red run still reaches its verdict, its bisect and
- * its record in the results store. Only runs the issue names are cancelled, never one testing another commit, and a
+ * its record in the results store. Only runs the issue names are canceled, never one testing another commit, and a
  * note on the Release status issue keeps release-watch from announcing the cancel as a release that ended badly.
  *
  * A merge of the owner's screenshot approval (design/ci/channels-pipeline.md section 5, "Approval gates nightly"):
@@ -31,8 +31,8 @@
  * replaces while pending loses nothing.
  *
  * A newer master push cancels an unfinished older build (ci.yml's concurrency), and this job runs only in a green
- * build, so it reads every merge since the last green master build, not only this one: a cancelled build's `Fixes #N`
- * or `Refs #N` still restarts (lastGreenBuild), and a cancelled build's approval merge still promotes (approvalsIn).
+ * build, so it reads every merge since the last green master build, not only this one: a canceled build's `Fixes #N`
+ * or `Refs #N` still restarts (lastGreenBuild), and a canceled build's approval merge still promotes (approvalsIn).
  *
  * Usage: node tools/release-due.mjs [--dry-run]
  *   env GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token; the checkout is the master commit, with
@@ -95,7 +95,7 @@ export function restartDispatch(mode, sha) {
  * @param messages the merge's commit messages, joined
  * @param [now] milliseconds
  * @param [closedSince] milliseconds: an issue closed at or after this still counts (by default an hour before now; a
- *   cancelled build's merge may have closed it earlier)
+ *   canceled build's merge may have closed it earlier)
  * @returns the dispatch to make ({ mode, issue, cancel, stale }), or null when nothing is due; `cancel` when the merge
  *   says it fixes the issue, not only refers to it; `stale` when the issue is too old to re-test (tooOldToRetest),
  *   which dispatches nothing
@@ -135,7 +135,7 @@ export function toCancel(runs, title, issueText) {
 }
 
 /**
- * The note on the Release status issue that a cancelled red run was not a release ending badly: it is a failure
+ * The note on the Release status issue that a canceled red run was not a release ending badly: it is a failure
  * report of that run attempt as release-status.mjs's reportsFailure reads one, so release-watch posts nothing.
  * @param issue the red issue
  * @param url the run's URL
@@ -183,7 +183,7 @@ export function resumesDue(merges, store) {
 
 /**
  * The last green master build before this one: every merge after it is this job's to read, because a build in
- * between was cancelled by a newer push or ended red, and this job ran in neither.
+ * between was canceled by a newer push or ended red, and this job ran in neither.
  * @param head this build's commit
  * @param greenShas the head commits of master's green push builds, newest first
  * @param isAncestor (sha) => whether that commit is in head's history
@@ -283,7 +283,7 @@ function cancelRedRun(issue, dryRun) {
 }
 
 /**
- * Cancels one run, posting the cancel note first so release-watch finds it when the cancelled run completes. The
+ * Cancels one run, posting the cancel note first so release-watch finds it when the canceled run completes. The
  * note's failure never skips the cancel; a failed cancel deletes the note, since the run goes on and may end badly
  * for a real reason the note would hide.
  * @param id the run
@@ -300,7 +300,7 @@ export function cancelWithNote(id, postNote, gh = (args) => run("gh", args)) {
     try {
         gh(["run", "cancel", String(id)]);
     } catch (error) {
-        // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+        // a run that ended meanwhile cannot be canceled; the restart still goes ahead
         console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
         const comment = /#issuecomment-(\d+)/.exec(note ?? "")?.[1];
         if (!comment) return;
@@ -491,12 +491,12 @@ async function main() {
             // not a merge
         }
     }
-    // an issue a merge since the base closed still counts, however long the cancelled builds took
+    // an issue a merge since the base closed still counts, however long the canceled builds took
     const baseAt = base ? Number(run("git", ["log", "-1", "--format=%ct", base])) * 1000 : now;
     const closedSince = Math.min(now - CLOSED_WITHIN_MS, baseAt);
     const issues = [...listRedIssues("open"), ...listRedIssues("closed", new Date(closedSince).toISOString())];
     // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
-    // ponytail: one call per master commit since the base, capped; a longer run of cancelled builds reads the newest 20
+    // ponytail: one call per master commit since the base, capped; a longer run of canceled builds reads the newest 20
     const commits = base ? run("git", ["rev-list", "--first-parent", "-20", `${base}..HEAD`]).split("\n") : [head];
     const { bodies, merges } = readMerges(commits);
     // an approval merge promotes its candidate whatever the red issues say; its failure never stops the restart

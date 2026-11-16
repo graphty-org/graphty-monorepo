@@ -501,7 +501,7 @@ describe("a Cytoscape node's own size under a locked node size", () => {
 });
 
 describe("a label outline another program wrote", () => {
-    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a grey outline
+    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a gray outline
     // (`text-outline-color`, `text-outline-width`). Without the outline the white letters spill
     // onto the light canvas and cannot be read.
     it("draws the outline around the label's letters, in the label's own proportion", async () => {

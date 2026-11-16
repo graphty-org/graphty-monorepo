@@ -254,7 +254,7 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no ${WF} run started on ${BRANCH}"; exit 1; }
                   echo "::notice::point ${SHA} runs as $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/${id}"
                   gh run watch "$id" --interval 60 > /dev/null || true
-                  # success or failure is the point's verdict; anything else (cancelled, lost) is no run, tested again
+                  # success or failure is the point's verdict; anything else (canceled, lost) is no run, tested again
                   echo "result=$(gh run view "$id" --json conclusion --jq .conclusion)" >> "$GITHUB_OUTPUT"
             - name: Delete the point's branch
               if: ${{ always() && steps.dispatch.outputs.branch }}

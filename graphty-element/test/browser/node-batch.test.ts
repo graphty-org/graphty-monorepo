@@ -921,7 +921,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
     });
 
-    // Stage 31: a labelled row hangs its label from a geometry-free anchor, so it stays on the batch.
+    // Stage 31: a labeled row hangs its label from a geometry-free anchor, so it stays on the batch.
     it("keep labelled and tooltip rows on the batch, their labels where the object path puts them", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -944,7 +944,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         // label follows its row as on the object path.
         await graph.setLayout("circular", { scale: 0.3 });
         await element.waitForStableFrame();
-        // With no framing, which reads every row, only the frame's walk moves a labelled row's anchor.
+        // With no framing, which reads every row, only the frame's walk moves a labeled row's anchor.
         const canvas = graph.getScene().getEngine().getRenderingCanvas() as HTMLCanvasElement;
         element.autoFrame = false;
         await graph.setLayout("ngraph", { seed: 7 });

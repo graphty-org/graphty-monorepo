@@ -350,7 +350,7 @@ red team 13.)
 **TL-31. Nodes are called by their label in the timeline samples.** (Severity 2; personas 12.)
 
 - What: the Office email sample's nodes carry `name` as their label (the tier 3 rule "a node is
-  called by its label" already holds for labelled data; the sample left it unset), and the sample
+  called by its label" already holds for labeled data; the sample left it unset), and the sample
   cards use the standard "N nodes, M edges" line.
 - Owner: graphty (sample manifest and `scripts/write-timeline-samples.ts`).
 - Check: the Edges table's From and To and the node header show names; the card reads
@@ -386,7 +386,7 @@ the column name; bare numbers never. Detection does not designate the timeline f
 **TL-29. Ghosts.** `time.settings.outside`: `"hide"` (default, today's behavior) or `"ghost"`,
 which keeps elements outside the window drawn in the element state `"ghosted"`
 (`{ match: "state", state: "ghosted" }`) and not visible (no count, run or export includes them).
-With `startingRows` on, designating a field adds the Ghost starting row (grey `#9E9E9E`, nodes at
+With `startingRows` on, designating a field adds the Ghost starting row (gray `#9E9E9E`, nodes at
 opacity 0.2, edges 0.15), pinned to the top directly below Selected; clearing the field removes it.
 The time card has an Outside row: Hide, Ghost.
 

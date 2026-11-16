@@ -21,7 +21,7 @@ default 8) and red, and every person and every other tie left as they were.
   `kind` = family. `styles.json`: edge part `layer-1_1`, selector `data.kind` in [family], matched
   8, sets `edge.color` `#FF0000` and `edge.width` 20, painted 8 each. Its node part `layer-1_2`
   sets nothing (painted {}), so no node value: the people are untouched.
-- Everything else unchanged: Everything's edge part still sets darkgrey at width 8 and paints the
+- Everything else unchanged: Everything's edge part still sets darkgray at width 8 and paints the
   other 22 ties; its node part still sets `#6366F1` on all 16 nodes. `key.json` draws 16 nodes
   `#6366f1`, 8 edges `#ff0000` and 22 edges `#a9a9a9`.
 - Final screen (`18.png`): eight red ties visibly thicker than the gray ones, the key "Edge color:

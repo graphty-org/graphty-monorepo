@@ -103,7 +103,7 @@ the entries above stay as the record. The graphty-element contract moved to
 - **Runs: one run per algorithm, settings and scope**, shared by every reader of that scope. Narrows
   "one value per algorithm everywhere": a filter reads full-graph runs and a style layer
   filtered-graph runs, so Louvain can have two runs, told apart by their scope word. In the import
-  filter, filtered-graph runs are greyed (circular) and the algorithm stays startable on the full
+  filter, filtered-graph runs are grayed (circular) and the algorithm stays startable on the full
   graph (red team 3, completeness B4).
 - **Every algorithm step saves as a `measure` step; graphty-element starts, gates and keeps consent
   for its runs.** Run limits are element options, unset by default; the app sets 50 ms live and 1 s
@@ -279,7 +279,7 @@ Carried, each with its reason:
   needs graphty-element to read a condition whose union has no applied step as inert (removes and
   selects nothing) -- a behavior change to a @beta leaf, to be designed with the counts' reason code.
 - `watchSteps` still starts session runs, and the render-time peeks remain; the import filter's
-  picker still lists filtered-graph runs un-greyed, and two runs of one algorithm are not yet told
+  picker still lists filtered-graph runs un-grayed, and two runs of one algorithm are not yet told
   apart by scope. These need graphty-element's `checkStep` to say which run a step reads.
 - After reopening a project, a layer with a So far step can count 7 while painting 8 until an undo:
   graphty-element does not restore step-owned computations with the project.
@@ -359,7 +359,7 @@ Carried, each with its reason:
 - A Select card's effect is still written while its editor is open (the select-condition undo
   pairing, as before).
 - `watchSteps` still starts runs and the render-time peeks remain; the import filter's picker still
-  lists filtered-graph runs un-greyed; `checkStep`'s typed codes and details, the rank and
+  lists filtered-graph runs un-grayed; `checkStep`'s typed codes and details, the rank and
   percentile role on `FieldDescriptor`, and a `stepValuePath` helper: one graphty-element change to
   how a step names the run it reads, not a polish fix.
 - After reopening a project a never-ready So far group still counts as nothing until it computes:
@@ -468,7 +468,7 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
 - **Words:** "While ... has nodes" until a reference is chosen; an untouched test (text, a date)
   leaves the test column empty; a long list keeps "and N more" and cuts the names before it; a long
   value cuts before its tags and state word; a tier 4 degree leaf reads "Degree min 5"; menu keys
-  draw Delete as "Del"; Move up and Move down at an end are greyed with no second line.
+  draw Delete as "Del"; Move up and Move down at an end are grayed with no second line.
 - **Large graphs:** the reference search matches a node's id and name only
   (`data.nodePage({ matching: { names: true } })`, graphty-element, additive, @beta); "Pick on
   canvas" is the list's first item and a 24 px target beside the field (the next node clicked);
@@ -540,7 +540,7 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
   Hovered or selected waits (`run-paused`) over `liveMs` while the pointer is on a node, estimated
   from its base size and hop limit. Girvan-Newman's estimate charges a betweenness pass per round
   up to `maxIterations` (4,000 nodes and 8,000 edges: minutes, not 6 seconds), and it computes in
-  the element's Worker so the page and Cancel stay live (a cancelled run is abandoned there).
+  the element's Worker so the page and Cancel stay live (a canceled run is abandoned there).
 - **Not fixed this round, with the reason:**
     - The preview's and the filter's paint on 50,000 nodes (blockers): each node is still repainted
       through the layer pipeline in 128-node slices. Drawing the preview and filter visibility as a
@@ -688,7 +688,7 @@ Two-way doors decided while fixing the workspace polish 1 reviews (`ws-polish-1-
 - **The canvas toolbar is hidden and inert** under the workspace (owner-decisions.md, 2026-11-01).
 - **Sidebar Edit** is drawn on hover or focus over the title row's end.
 - **Group pane** has Color (the compact color field) and Save as set (`sets.createFrom`).
-- **A cancelled or removed step run keeps its estimate** on Run (graphty-element), and a cancelled
+- **A canceled or removed step run keeps its estimate** on Run (graphty-element), and a canceled
   or failed run draws no empty table column.
 - **Words**: no Live heading; "Link value..."; "Text" placeholder; "Include not measured" only
   when the value has elements with no value; a reference row shows the value that matched;
@@ -893,7 +893,7 @@ none reverses one.
   "Cancel on a new filter card takes the card away" ("there was no card") and the placement entry
   "Cancel restores ... as one undo step", which stays for an existing card. Why: on 47c95a09fc Cancel
   writes the removal as a new step, so Undo reads "Undo deleting a filter condition", a deletion nobody
-  made, and brings the cancelled card back switched on (T79 A touched-32: dept Grants on, 1,076 of
+  made, and brings the canceled card back switched on (T79 A touched-32: dept Grants on, 1,076 of
   50,000 drawn, a filter card T79 grades as not success; T70 B touched-2, T72 B touched-1).
 - **Done, Cancel and Escape on a large graph keep "Drawing" on screen until the result is painted.**
   The workspace stays open with its header's "Drawing" through the blocking work and closes on the
@@ -927,7 +927,7 @@ or settles what one leaves open; none reverses one.
   undid the setup's last step: the colleague's orange on Staff (T77 A touched-1 09.png, orange count 0) and on Oldest (T77 B touched-1 04.png), which T77 grades.
 - **Undo right after Cancel on an existing card undoes the Cancel.** The placement entry "Cancel
   restores the selection as it was at open, as one undo step" (line 586) makes the Cancel a step:
-  the first Undo brings the cancelled edit back, and the workspace's own edits stay as steps under
+  the first Undo brings the canceled edit back, and the workspace's own edits stay as steps under
   it. Not changed in the dry run; whether readers expect it is for the sessions (record every session
   that presses Undo after Cancel). Why: T71 A touched-6 and T76 B touched-6 found it; the count and
   the card agree with the history at every step, and the toast's words are a backlog item.

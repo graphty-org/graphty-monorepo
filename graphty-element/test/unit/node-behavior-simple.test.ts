@@ -14,7 +14,7 @@ interface MockActionManagerInstance {
     registerAction: (action: unknown) => void;
 }
 
-/** The three observables the fake drag behaviour exposes. */
+/** The three observables the fake drag behavior exposes. */
 interface MockDragBehaviorInstance {
     onDragStartObservable: { add: (cb: unknown) => void };
     onDragEndObservable: { add: (cb: unknown) => void };

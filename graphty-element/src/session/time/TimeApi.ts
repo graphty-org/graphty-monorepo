@@ -560,7 +560,7 @@ export interface TimeApi {
      * screen or touching history. Step, mode and zone left out come from the window in force, else
      * the settings; `from` and `to` default to the start and end of the data.
      * @param options - Step, mode, range, zone and measures.
-     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     * @returns A run resolving to the rows, one per window; it can be canceled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
      *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
      * @throws `E_FEATURE_OFF` with the experiment off.

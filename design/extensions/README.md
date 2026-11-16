@@ -24,8 +24,8 @@ is where an author goes for full control. Each point's specification opens with 
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `README.md` (this file)              | The model every extension point shares: packaging, registration, discovery, versioning, options, parity, lifecycle, isolation, errors, testing |
 | `common.d.ts`                        | The shared TypeScript vocabulary (normative for shapes)                                                                                        |
-| `descriptors.schema.json`            | JSON Schema for every catalogue descriptor (normative for the serialised form)                                                                 |
-| `palette.md`, `palette.d.ts`         | A named set of colours a style layer ramps through                                                                                             |
+| `descriptors.schema.json`            | JSON Schema for every catalog descriptor (normative for the serialized form)                                                                   |
+| `palette.md`, `palette.d.ts`         | A named set of colors a style layer ramps through                                                                                              |
 | `file-format.md`, `file-format.d.ts` | A reader, and a proposed writer, for a graph file format                                                                                       |
 | `camera.md`, `camera.d.ts`           | A named camera view computed from a bounding box                                                                                               |
 | `layout.md`, `layout.d.ts`           | An engine that places nodes, live or in one pass                                                                                               |
@@ -61,7 +61,7 @@ appear in capitals.
 1. The TypeScript declaration files (`*.d.ts`) are normative for the SHAPE of every type they
    declare, in their "Published" sections. Their "Proposed" sections are not normative until the
    open decision they name is taken.
-2. `descriptors.schema.json` is normative for the serialised (JSON) form of every descriptor. It
+2. `descriptors.schema.json` is normative for the serialized (JSON) form of every descriptor. It
    is consistent with the declaration files; where the two could differ (a function-valued member,
    which JSON cannot hold) the declaration file governs the in-memory form and the schema governs
    what may be persisted or published.
@@ -97,7 +97,7 @@ of `graphty-element/extend.ts`. This specification keeps it.
 
 | Point       | What a third party brings                                          | Registration                                                  | Specification    |
 | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------- | ---------------- |
-| Palette     | A named set of colour anchors                                      | `registerPalette(descriptor)`                                 | `palette.md`     |
+| Palette     | A named set of color anchors                                       | `registerPalette(descriptor)`                                 | `palette.md`     |
 | File format | A reader for a graph file format (a writer is proposed, not built) | `DataSource.register(Class)`                                  | `file-format.md` |
 | Camera      | A named view: where the viewer stands and what it looks at         | `registerCameraView({ descriptor, compute })`                 | `camera.md`      |
 | Layout      | An engine that decides where nodes sit                             | `LayoutEngine.register(Class)`                                | `layout.md`      |
@@ -177,7 +177,7 @@ register writers is open (section 12). That section needs to be corrected to mat
    copies keep separate stores instead of misreading each other. An additive change (a new
    optional descriptor member) MUST NOT: a new key splits copies on different minors into separate
    registries, and a plugin registered through one copy then silently vanishes from the other
-   copy's catalogue (`setLayout` answers `E_UNKNOWN_LAYOUT` with no warning). Copies that share a
+   copy's catalog (`setLayout` answers `E_UNKNOWN_LAYOUT` with no warning). Copies that share a
    key rely on the rules that follow instead. **(not yet met)** Each copy checks built-in ids against its
    own table and validates with its own rules, and the frozen descriptor cache is shared, so an
    older copy can file an id a newer copy reserves, or publish descriptors without a member the
@@ -186,7 +186,7 @@ register writers is open (section 12). That section needs to be corrected to mat
    MUST re-validate an entry it did not register before using it, and MUST cache descriptors per
    copy. Re-validation is the full registration check against THIS copy's contract version for the
    point (`requiresApi`, `mustUnderstand`, union values); an entry that fails it is left out of this
-   copy's catalogue, and using it answers `E_UNSUPPORTED` with `details` naming the registering
+   copy's catalog, and using it answers `E_UNSUPPORTED` with `details` naming the registering
    copy's version. When the key is bumped for a contract major, the new copy MUST read the old
    key's store and emit one coded warning per entry it cannot adopt, so a plugin registered
    through an older copy never vanishes without a word. No test runs two versions together today; the parity suite needs one. The shared store
@@ -236,7 +236,7 @@ an extension MAY rely on it:
    built-ins through a private path, not the public `register`.
 4. **Re-registration of the same implementation** is a no-op. "The same" is decided per point: the
    class (algorithm, layout, reader), the `compute` function (camera), the `create` function (log
-   destination), or the whole normalised descriptor (palette, compared by value because a palette
+   destination), or the whole normalized descriptor (palette, compared by value because a palette
    is data). Hot module replacement and a bundler re-evaluating a module MUST NOT produce two
    extensions. **(not yet met)** 2.6.1 compares the descriptor OBJECT for algorithms and formats, so
    a subclass that inherits its parent's descriptor is treated as a re-import and is filed over
@@ -275,9 +275,9 @@ an extension MAY rely on it:
    `clearRegistered<Kind>ForTesting()` function; it exists only so a test suite can leave the
    registry as it found it, and a conforming extension or consumer MUST NOT call it outside tests.
 8. **Registration is synchronous** and completes before the call returns. A registration made
-   after an element exists is visible to that element's next catalogue read and next use; nothing
+   after an element exists is visible to that element's next catalog read and next use; nothing
    needs to be re-created.
-9. **The catalogue identity promise.** `registered<Kind>Descriptors()` returns the same frozen
+9. **The catalog identity promise.** `registered<Kind>Descriptors()` returns the same frozen
    array until something registers. `session.catalog.<kind>()` composes the built-in table with the
    registered one and returns the built-in array itself while nothing is registered.
 
@@ -306,7 +306,7 @@ open decision 6.
    unprefixed plugin already uses breaks that plugin at import, and silently changes what every
    document naming the id means. Open decision 4 also covers the element's side of this: which id
    space the element reserves for its own future built-ins.
-5. Ids compare EXACTLY: case-sensitive, no normalisation. `Acme-Turtle` and `acme-turtle` are two
+5. Ids compare EXACTLY: case-sensitive, no normalization. `Acme-Turtle` and `acme-turtle` are two
    ids, and a document naming one does not resolve to the other.
 
 ### 4.4 Result paths and run ids
@@ -344,11 +344,11 @@ true }` and no `exact` give DIFFERENT ids although both runs are exact); the req
 7. A run that a later run of the same id supersedes (`E_SUPERSEDED`) repaints every layer bound to
    the path. Whether its run record and result survive in the analysis history is open decision 26.
 
-## 5. Discovery: the catalogue
+## 5. Discovery: the catalog
 
 Every registered extension MUST be discoverable exactly as its built-in peers are:
 
-| Point       | Catalogue read                                              | Registry read (Node-safe)          |
+| Point       | Catalog read                                                | Registry read (Node-safe)          |
 | ----------- | ----------------------------------------------------------- | ---------------------------------- |
 | Palette     | `session.catalog.palettes()`                                | `registeredPaletteDescriptors()`   |
 | File format | `session.catalog.formats()`                                 | `registeredFormatDescriptors()`    |
@@ -364,16 +364,16 @@ Every registered extension MUST be discoverable exactly as its built-in peers ar
 2. A descriptor MUST validate against its definition in `descriptors.schema.json`.
 3. Built-ins come first, in the element's order; registered extensions follow in registration
    order.
-4. A picker built from the catalogue MUST NOT need to know whether an entry is built-in. A
+4. A picker built from the catalog MUST NOT need to know whether an entry is built-in. A
    consumer that needs to know compares the id against the point's `KNOWN_<KIND>_IDS` constant.
    **(not yet met)** No algorithm constant is published: `KNOWN_ALGORITHMS` exists only in
    `src/catalog/types.ts`, on no entry point, so for algorithms this rule cannot be followed yet.
    Exporting one from `./extend` is additive; its name (for example `KNOWN_ALGORITHM_KEYS`) is a
    published name the owner confirms.
-   **(not yet met)** `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, which the layout catalogue
+   **(not yet met)** `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, which the layout catalog
    publishes as built-ins, so this comparison labels them third-party. The constant MUST list
-   every built-in the catalogue publishes (additive), and a test should hold the two together.
-5. `graphty-catalog.json`, the static catalogue file the package publishes, lists built-ins only
+   every built-in the catalog publishes (additive), and a test should hold the two together.
+5. `graphty-catalog.json`, the static catalog file the package publishes, lists built-ins only
    by construction, and 2.6.1 omits cameras and log destinations from it. See open decision 12.
 6. Every descriptor string (`plainName`, `description`, `technicalName`, option labels, caveat
    notes, loss notes, error messages) is PLAIN TEXT. A consumer MUST render it as text, never as
@@ -388,10 +388,10 @@ Every registered extension MUST be discoverable exactly as its built-in peers ar
    size today; bounds (for ids, names, descriptions, option and anchor arrays) SHOULD be added with
    the next schema version (open decision 12), so a descriptor cannot put megabytes into every
    menu.
-7. **(not yet met)** 2.6.1 freezes and republishes a normalised copy only for palettes. The
+7. **(not yet met)** 2.6.1 freezes and republishes a normalized copy only for palettes. The
    format, camera and log-destination registries publish the author's own object, so code holding
-   it can change what the catalogue publishes after registration (for example set `canExport` to
-   `true` past the refusal). Every registry MUST publish a frozen, normalised copy.
+   it can change what the catalog publishes after registration (for example set `canExport` to
+   `true` past the refusal). Every registry MUST publish a frozen, normalized copy.
 
 ### 5.1 Scopes
 
@@ -419,7 +419,7 @@ change:
 - **Implemented by extensions** (a descriptor an author writes, a base class an author extends, a
   `Sink` an author returns). Adding a REQUIRED member, removing a member, or narrowing a member's
   type is a major release. Adding an OPTIONAL member with a default that preserves existing
-  behaviour is a minor release.
+  behavior is a minor release.
 - **Called by extensions** (`AlgorithmRunContext`, `ScopedInput`, `CameraViewInput`, `LogRecord`,
   the protected helpers of a base class). Adding a member is a minor release. Removing a member or
   changing its type is a major release, preceded by at least one minor release in which it is
@@ -487,10 +487,10 @@ minor releases can extend it without an element major.
 | `ExtensionErrorCode` (`GraphtyErrorCode`)                                                                                                                                    | open for readers, closed for writers | a generic failure                                                                                                                                                          |
 
 1. **Open unions for readers.** A reader (a consumer or an extension) MUST handle an unknown value
-   of an open union without throwing, using the value in the table. The serialised schema
+   of an open union without throwing, using the value in the table. The serialized schema
    (`descriptors.schema.json`) lists the known values of an open union as documentation, marks
    the property `"x-open-union": true`, and MUST NOT be used to refuse a descriptor over one; a
-   consumer validating a newer catalogue against an older schema treats an enum failure on a
+   consumer validating a newer catalog against an older schema treats an enum failure on a
    property so marked as an unknown value. A consumer MUST NOT switch exhaustively over an open
    union (an `assertNever` default), including one the table does not list. The declaration files type several open unions as closed
    literal unions (`OptionType`, `CostClass`, `sizeRating`, `ResultShape`), because the same types
@@ -505,8 +505,8 @@ minor releases can extend it without an element major.
    (section 4.2 item 6). Declaring `requiresApi` makes this refusal predictable: the newer
    extension says which contract it needs.
 3. **Unknown descriptor members.** The element MUST ignore a descriptor member it does not know,
-   and MUST NOT publish it in the catalogue. This lets an extension written for a newer contract
-   run on an older element when the member is advisory. A member that RESTRICTS behaviour (a new
+   and MUST NOT publish it in the catalog. This lets an extension written for a newer contract
+   run on an older element when the member is advisory. A member that RESTRICTS behavior (a new
    precondition, an egress declaration) is not safe to ignore: an extension lists such members in
    `mustUnderstand` (section 6.4), and an element that does not know one refuses the registration.
    `mustUnderstand` names TOP-LEVEL members only, so every restricting member nested inside
@@ -524,7 +524,7 @@ minor releases can extend it without an element major.
 5. **Missing required members** MUST be refused at registration with `E_BAD_COMMAND` naming the
    member.
 6. **Persisted descriptors and files naming extensions.** Every file and record the element
-   persists -- the catalogue file, a style document, a run record, a load record, a view or
+   persists -- the catalog file, a style document, a run record, a load record, a view or
    layout record, every configuration file that names an extension -- carries a format version
    of two parts, a major and a minor. A descriptor is persisted only inside such a versioned
    container, never bare. The rules:
@@ -560,7 +560,7 @@ minor releases can extend it without an element major.
 ### 6.4 Host compatibility (proposed)
 
 Prior art is unanimous that a plugin should state which host contract it targets and that the
-host should refuse, loudly and early, an extension it cannot honour (VS Code `engines.vscode`,
+host should refuse, loudly and early, an extension it cannot honor (VS Code `engines.vscode`,
 Figma's manifest `api`, Cytoscape desktop's per-class compatibility promise). The recommended
 design, which is open decision 3 (`ExtensionCompatibility` in `common.d.ts`):
 
@@ -583,7 +583,7 @@ design, which is open decision 3 (`ExtensionCompatibility` in `common.d.ts`):
       element delivers only to extensions that declared it is NOT such a change: adding a
       `DrawingMode` is a camera MINOR, because a view that did not declare the new mode is never
       called in it (`camera.md` section 7). Adding a value to a closed union that only READERS see
-      (a new palette `kind` in the catalogue) is versioned on the catalogue and document formats
+      (a new palette `kind` in the catalog) is versioned on the catalog and document formats
       (section 6.3 item 6), not on `requiresApi`.
     - **Deprecation before removal.** A contract major MAY only remove what an earlier minor marked
       `@deprecated` with its replacement named. A new REQUIRED member (the planned `static version`
@@ -618,7 +618,7 @@ design, which is open decision 3 (`ExtensionCompatibility` in `common.d.ts`):
    that imports it, so one outdated plugin would blank the whole page instead of being refused.
    Recommended there: a compatibility refusal (`E_UNSUPPORTED` for `requiresApi`, and
    `E_DUPLICATE_PLUGIN` for an id the element reserved after the plugin shipped) does NOT throw by
-   default; the element files the extension as refused, lists it in the catalogue as refused with
+   default; the element files the extension as refused, lists it in the catalog as refused with
    the reason, and emits a coded event, while `{ strict: true }` keeps the throw; and the plugin
    guide teaches plugin packages to export a `register()` function rather than registering at
    import time. The kit then checks that importing an incompatible plugin does not throw. An absent `requiresApi` is
@@ -638,7 +638,7 @@ design, which is open decision 3 (`ExtensionCompatibility` in `common.d.ts`):
 Every point that takes configuration uses one mechanism: a `readonly OptionDescriptor[]` on the
 descriptor (`common.d.ts`, `descriptors.schema.json#/$defs/OptionDescriptor`).
 
-1. The declared options are, at once, what a form renders, what the catalogue publishes and what
+1. The declared options are, at once, what a form renders, what the catalog publishes and what
    the element validates a caller's values against. An extension MUST NOT validate the same values
    a second way with different results.
 2. The element MUST resolve a caller's values with `resolveOptionValues` before the extension sees
@@ -676,9 +676,9 @@ descriptor (`common.d.ts`, `descriptors.schema.json#/$defs/OptionDescriptor`).
    is emitted with `type: "unknown"` and an `unsupportedReason`, never dropped.
 5. The older `defineOptionsSchema` / `OptionsSchema` vocabulary on `./extend` is deprecated. A new
    extension MUST NOT use it; it throws uncoded errors and names types differently (`select` where
-   the catalogue says `enum`).
+   the catalog says `enum`).
 6. The element does not accept Standard Schema, JSON Schema or arbitrary validators as option
-   declarations. The option set is deliberately a closed, serialisable subset (close to Vega's
+   declarations. The option set is deliberately a closed, serializable subset (close to Vega's
    transform parameter definitions), so every option can be rendered, published and persisted.
 7. A palette takes no options (`palette.md` explains why). Every other descriptor carries an
    `options` array, which MAY be empty.
@@ -697,7 +697,7 @@ descriptor (`common.d.ts`, `descriptors.schema.json#/$defs/OptionDescriptor`).
 10. **No secrets in options.** Options are plain JSON that is published, stored in configurations
     and recipes, and replayed; an API token or credential passed as an option is written into all
     of them. An extension MUST NOT ask for a secret as an option. A `secret` option type that the
-    element resolves but never serialises is open decision 22.
+    element resolves but never serializes is open decision 22.
 11. **An `"attribute"` option is checked as a string only (not yet met).** A misspelt column, or a
     column loaded as text where `attributeType` says `"integer"`, is accepted, and the extension
     computes a wrong answer with no error. The element SHOULD refuse a column that no element
@@ -718,7 +718,7 @@ specification enumerates what its built-ins actually do so that each clause can 
 2. **Addressable**: it is reachable by the key a consumer types, through every route that reaches
    a built-in of the same kind, and by the key a saved document records wherever the element reads
    one back.
-3. **Observable and stoppable**: it reports progress and honours cancellation wherever its built-in
+3. **Observable and stoppable**: it reports progress and honors cancellation wherever its built-in
    peer does.
 4. **Configurable**: it is configured through the same options mechanism (section 7).
 5. **Failing the same way**: its failures reach the consumer as a `GraphtyError` with a code from
@@ -728,7 +728,7 @@ specification enumerates what its built-ins actually do so that each clause can 
 
 A capability the element keeps for its own modules is a defect in the extension point, not a
 design choice. Where parity is VACUOUS (no built-in has the capability either -- an import cannot
-be cancelled, a layout reports no progress) the point's specification says so under "Known gaps",
+be canceled, a layout reports no progress) the point's specification says so under "Known gaps",
 because a plugin author would otherwise assume it.
 
 **Conformance of the element to this rule** is pinned by seven test files in
@@ -782,7 +782,7 @@ future.
       lifecycle (`flush`, `dispose`), the logger's global enable flag, two-step register-then-attach;
     - ids: node rows against node ids, edge rows against edge ids, `ids.idOf`, `edgeId(row)`.
 
-    A term the point's domain uses anyway (a colour, a kind of palette, a file extension, a node,
+    A term the point's domain uses anyway (a color, a kind of palette, a file extension, a node,
     an edge, an attribute, 2D and 3D, a log level) is domain knowledge, not an internal concept.
 
 5. **The first-plugin tasks.** Chosen as the most common real request at each point, not to
@@ -794,7 +794,7 @@ future.
     | Layout      | nodes in rows by a tier attribute; nodes in rows by a category; nodes at coordinates their data carries |
     | File format | a tab-separated edge list, read and written                                                             |
     | Data source | a paged REST API with a bearer token                                                                    |
-    | Palette     | a brand's categorical and sequential colours                                                            |
+    | Palette     | a brand's categorical and sequential colors                                                             |
     | Camera      | a slow orbit; a named corner view                                                                       |
     | Logging     | errors sent to a telemetry endpoint                                                                     |
 
@@ -890,9 +890,9 @@ Consequences:
    as unresolved, naming the missing id, and never fetches code. The element MUST NOT present a
    package name taken from a file as something to install: the file's author controls it, and a
    shared recipe naming a typosquatted package would turn "files never load code" into "files
-   tell a person which code to load". It MAY show the file's claimed package labelled as the file
+   tell a person which code to load". It MAY show the file's claimed package labeled as the file
    author's claim ("this file says it was made with ..."). A mapping from extension ids to
-   installable packages comes only from the embedder (an allowlist or catalogue it supplies), and
+   installable packages comes only from the embedder (an allowlist or catalog it supplies), and
    only a package on that list is shown as an install suggestion.
 3. **Configuration files never enable egress.** No field of a style, recipe, annotation, view or
    project file may start a network request to a host the embedder has not allowed, and none of
@@ -973,7 +973,7 @@ extension built against a newer element), which a consumer reads as a generic fa
 met)** "Is a `GraphtyError`" is decided by `instanceof` this copy's class (`isGraphtyError` and
 `GraphtyError.wrap`, `graphty-element/src/errors/GraphtyError.ts`). An error built by ANOTHER copy
 of the element on the same page -- the case section 3 item 6 supports, a plugin bundling a newer
-`./extend` -- is not recognised: it is wrapped, its code replaced by the caller's default
+`./extend` -- is not recognized: it is wrapped, its code replaced by the caller's default
 (`E_PARSE_FAILED`, `E_INTERNAL`) and kept only in `details.sourceCode`, and its `recoverable`
 flag and details lost. The fix brands the class with a `Symbol.for` key (for example
 `Symbol.for("graphty.error.v1")`) and tests the brand; the two-copy parity test needs a case.
@@ -1017,7 +1017,7 @@ importers is in progress on branch `feat/graph-format-migration` (plan:
 `design/graph-format/migration-plan.md` on that branch). The owner decided three things on
 2026-09-28 that bind this specification:
 
-1. **`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` export are deprecated** in favour
+1. **`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` export are deprecated** in favor
    of a documented snapshot accessor, deprecated in a 3.x minor and removed in graphty-element 4.0
    together with algorithms 3.0. `algorithm.md` is written against the snapshot accessor
    (`context.input(...)`), which 2.6.1 already publishes, and treats `algorithmGraph` as deprecated.
@@ -1032,7 +1032,7 @@ importers is in progress on branch `feat/graph-format-migration` (plan:
 3. **An export carries whatever the chosen format can represent**: nodes, edges, attributes,
    positions, algorithm results as attributes, and style where the format has a place for it, with
    every omission reported as a loss note. `file-format.md` specifies the writer contract to match.
-   The owner did NOT decide where third-party writers register. A workflow script summarising the
+   The owner did NOT decide where third-party writers register. A workflow script summarizing the
    decision added "third-party writers register through graph-io's existing registry"; that
    clause was not the owner's. It is open decision 1.
 
@@ -1049,7 +1049,7 @@ Where this specification is not yet consistent with the migration:
 1. After the migration the element's built-in readers are graph-io importers wrapped in
    `DataSource` classes, while a third-party reader is a `DataSource` subclass that yields
    records. The two are still the same kind of thing from the consumer's side (both registered
-   classes, both in the catalogue), but they are different contracts from the author's side. Open
+   classes, both in the catalog), but they are different contracts from the author's side. Open
    decision 2 asks which one a third party writes.
 2. The migration moves the element's static layout engines onto the snapshot: `SimpleLayoutEngine`
    loads the snapshot and the position array, and the per-call `{ nodes, edges }` objects go. A
@@ -1094,11 +1094,11 @@ Where this specification is not yet consistent with the migration:
    `toAlgorithmGraph`, the file's type exports and `algorithmGraph()` behind `@deprecated`; its
    "nothing constructs a legacy Graph" check applies to the element's own adapters only, and the
    deletion moves to the 4.0 removal item.
-9. **CSV formula neutralisation is missing in the writer the element will use.** `file-format.md`
-   section 8.1 item 4 holds every CSV and TSV writer to neutralising cells that begin with `=`,
+9. **CSV formula neutralization is missing in the writer the element will use.** `file-format.md`
+   section 8.1 item 4 holds every CSV and TSV writer to neutralizing cells that begin with `=`,
    `+`, `-`, `@`, tab or carriage return. graph-io's CSV writer, which option A of open decision 1
    and the plan's `element-export-api` item make the element's own export code, quotes cells per
-   RFC 4180 and neutralises nothing (`graph-io/src/common/escape.ts`, `quoteCsvCell`). The rule
+   RFC 4180 and neutralizes nothing (`graph-io/src/common/escape.ts`, `quoteCsvCell`). The rule
    belongs in graph-io's shared cell writer, and the `element-export-api` "Done when" check must
    test it.
 
@@ -1114,7 +1114,7 @@ cannot run it against their own extension.
 
 Each point's specification defines a list of conformance checks a third party can run against
 their extension. The recommended harness, open decision 9, is a published entry point
-`@graphty/graphty-element/conformance`, modelled on ESLint's `RuleTester`:
+`@graphty/graphty-element/conformance`, modeled on ESLint's `RuleTester`:
 
 ```ts
 import {
@@ -1140,7 +1140,7 @@ Requirements on the kit:
    open decision 9.
 2. Checks that need no renderer (registration, descriptor validity, option resolution, Node-safety
    of the plugin module, a camera view's `compute`, a log destination's `write`, a palette's
-   normalisation, a reader's records and errors, an algorithm's output shape over a snapshot, a
+   normalization, a reader's records and errors, an algorithm's output shape over a snapshot, a
    layout's placement, pins, holds and determinism through the proposed headless layout driver of
    `layout.md` section 9) MUST run in Node.
 3. Checks that need a renderer (a layout placing real nodes, a palette painting real meshes, a
@@ -1183,19 +1183,19 @@ skipped for a stated reason.
 
 ## 12. Open decisions
 
-Each item below is a one-way door: a published name, shape, file format or behaviour that
+Each item below is a one-way door: a published name, shape, file format or behavior that
 consumers and saved documents would come to depend on. None is decided by this specification. Each
 carries a recommendation.
 
 1. **Where third-party file WRITERS register.** DECIDED 2026-09-28: option A, element-owned `registerFormatWriter`. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) The owner decided what an export contains
    ("whatever the format supports"), not where writers register. Options: (A) an element-owned
    `registerFormatWriter({ descriptor, exporter })` that wraps a graph-io `GraphExporter`, so the
-   writing code is graph-io's contract but the catalogue entry, the reserved ids, the options and
+   writing code is graph-io's contract but the catalog entry, the reserved ids, the options and
    the error mapping are the element's; (B) third parties call graph-io's
    `FormatRegistry.registerExporter` directly and the element lists what it finds; (C) the
    element's `DataSource` class also carries the writer, as the current guide and
    `design/graphty-element/extension-points.md` promise. **Recommended: A.** B fails four parity
-   clauses (no catalogue entry, no reserved ids, no option descriptors, graph-io errors instead of
+   clauses (no catalog entry, no reserved ids, no option descriptors, graph-io errors instead of
    `GraphtyError`) and makes the consumer write the integration, which the architectural
    principles forbid. C couples writing to a class built around async record generation, which a
    writer does not do. Details in `file-format.md`; the writer's remaining one-way details are
@@ -1241,7 +1241,7 @@ descriptor)` so an author who already has a graph-io `GraphImporter` registers i
    when excluded; the member named `requiresApi` on every point so it never collides with
    `AlgorithmDescriptor.requires`; a broad peer range once `requiresApi` is enforced (section 3
    item 3). Also part of it: whether a compatibility refusal throws. Recommended: it does not by
-   default -- the element files the extension as refused, lists it in the catalogue with the
+   default -- the element files the extension as refused, lists it in the catalog with the
    reason and emits a coded event, and `{ strict: true }` keeps the throw -- and plugin packages
    export a `register()` function rather than registering on import, which the guide teaches
    (section 6.4 item 3). A throwing default would make one incompatible plugin blank the page.
@@ -1303,7 +1303,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
    lack: the drawing MODE (`mode` on `CameraViewReference`, `dimensions` on the layout record),
    because a 3D state holds position and target and a 2D state zoom and pan, and restoring one
    in the other mode frames nothing -- on restore the element switches to the recorded mode or
-   reports the view unresolved in this mode; and a serialised SCOPE rule: a live keyword
+   reports the view unresolved in this mode; and a serialized SCOPE rule: a live keyword
    (`"selection"`, `"visible"`, `"largest-component"`) is replaced by its definition, or its member
    ids, when the record is saved, as run ids already do (section 4.4 item 2), so a saved
    "APAC chokepoints" view frames the same twelve suppliers when the deck is reopened. Whether a
@@ -1350,16 +1350,16 @@ options, dimension, scope }` in the project, with no extension version, which pr
     is refused unless that palette was registered first. The owner wants communities to share
     style and recipe files without sharing data, which argues for self-contained documents. But
     registering a document's palettes into the page-global, permanent registry lets untrusted data
-    squat on an id (every later genuine document is refused), put false colour-blind-safety claims
+    squat on an id (every later genuine document is refused), put false color-blind-safety claims
     and misleading names into every picker beside reviewed palettes, and fill memory for the
     page's lifetime. **Recommended:** a document's palettes resolve in a scope OWNED BY THE
     DOCUMENT -- they paint that document's layers and shadow no registered palette elsewhere; the
     document is open from being applied until its last layer is removed, a load with
     `replace: true` does not close it, and while it is open the picker lists its palettes marked
     as the document's; a carried built-in id is refused and a carried id registered by code with
-    other colours is refused or shown under a document-local name; a palette gains an optional
+    other colors is refused or shown under a document-local name; a palette gains an optional
     `version` so a document can say which revision it carries; within a document the carried
-    anchors win, so a document always paints the colours it was saved with; a document's palette
+    anchors win, so a document always paints the colors it was saved with; a document's palette
     is compared by kind and anchors only; bounds on palettes per document, anchors per palette and
     string lengths are part of the schema. See `palette.md` section 5.
 11. **Supported and internal exports on `./extend`.** The accelerator seam (`registerAccelerator`,
@@ -1418,7 +1418,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     the architectural principles forbid. **Recommended:** decide it before the file-format contract
     is frozen, as a seventh point with its own descriptor declaring the hosts it contacts, the
     service release it queried and the query parameters (both recorded as provenance), a
-    credential slot whose values the element keeps and never logs or serialises, cancellation by
+    credential slot whose values the element keeps and never logs or serializes, cancellation by
     `AbortSignal`, a found and not-found identifier report, a push mode for feeds beside polling,
     and rate limiting and caching owned by the element. A publish direction (uploading to a
     repository such as NDEx) belongs to the same decision. Also part of it: an `ambiguous`
@@ -1462,7 +1462,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       accelerator".
     - **Work inside a step.** `forEachChunked` checks every 1,024 items and yields only once 16 ms
       have passed, and the kit counts items, so neither the kit nor the run budget sees work done
-      inside one step (a hub's neighbourhood on a star). A `context.work(units)` channel, or a
+      inside one step (a hub's neighborhood on a star). A `context.work(units)` channel, or a
       `forEachChunked` weighted by declared work, makes that work visible to both.
     - **The seed domain.** A seed is an unsigned integer in `[0, 2^32)` (or `[0, 2^53)`, the owner
       picks), refused with `E_OPTION_RANGE` outside it and drawn uniformly from it by the element,
@@ -1599,7 +1599,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       `"string"` (compare by canonical string form) or `"refuse-mixed"` (a coded error when a load
       would put `"1"` and `1` in one graph) -- with `"string"` the default for join keys; for an
       added load, `"exact"` stays the default but the load report warns whenever a load's ids equal
-      existing ids after string normalisation while differing in type; every coerced match is
+      existing ids after string normalization while differing in type; every coerced match is
       listed. Readers SHOULD emit ids as the source spells them, as strings, unless the format
       itself types them (`file-format.md` section 2.2 item 9). Making `"string"` the default for
       every load was not adopted (section 15).
@@ -1645,7 +1645,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       the owner of that route.
 20. **Reader input beyond one string.** `getContent()` returns the whole input as one string: no
     binary format can be read from a URL, a compressed or multi-gigabyte file cannot be read at
-    all, a load cannot be cancelled, and no element-owned limit bounds a body. **Recommended:**
+    all, a load cannot be canceled, and no element-owned limit bounds a body. **Recommended:**
     protected `getBytes()` and `getStream()` under the same retry policy; element-owned gzip and
     zip decompression by magic bytes and compound extensions (`.nt.gz`); an `AbortSignal` on every
     load, in the base class; element limits on bytes (refused with `E_TOO_LARGE`), body time, node
@@ -1669,7 +1669,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     `declareSchema`.
     Three rules the first draft lacked:
     - **Staged loads.** A load is staged and committed only when it succeeds, so a failed,
-      cancelled or error-limited load in ANY mode leaves the graph as it was, and its report says
+      canceled or error-limited load in ANY mode leaves the graph as it was, and its report says
       `partial: true, committed: "none"`. If the owner prefers streamed commits for memory, every
       row carries its load id, the report says what was committed, dependent runs are marked stale,
       and a load can be removed by id.
@@ -1678,7 +1678,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       extension, with no nested archive; a declared type that disagrees with the sniffed
       compression is refused unless the caller opts in. Otherwise element-owned decompression is a
       decompression-bomb path into every reader.
-    - **Cancellation leaves no trace.** The kit checks that a load cancelled in add mode leaves the
+    - **Cancellation leaves no trace.** The kit checks that a load canceled in add mode leaves the
       graph byte-identical.
     - **Ordering.** This decision, the columnar results of decision 18(e) and the run budget of
       decision 16 are taken before the reader and algorithm contracts are frozen: at the
@@ -1699,7 +1699,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     `Symbol.for`, shared by every copy of the element, and any script can write to it (section 3
     item 6). A lock held in one copy's module state does not bind another copy, and a copy older
     than the lock (a plugin bundling an older `./bundle`) registers freely. Recommended: the lock
-    state is kept IN the shared store and honoured by every copy that knows it; on lock the store
+    state is kept IN the shared store and honored by every copy that knows it; on lock the store
     is frozen and redefined as a non-writable, non-configurable property holding frozen maps; the
     specification states plainly that older copies and arbitrary scripts can still bypass it, so
     the lock is a guard against mistakes, not a security boundary; and it is paired with the
@@ -1709,7 +1709,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     (aliases the element rewrites) and `deprecated: { since, replacement }`; a stored option the
     installed extension lacks is kept, reported as unresolved and not applied, rather than failing
     the whole configuration; a `secret` option type, resolved and passed to the extension but
-    never serialised into a catalogue, configuration, recipe, run record, log record or error
+    never serialized into a catalog, configuration, recipe, run record, log record or error
     `details` (written as `{ "$secret": "<name>" }` and supplied again by the embedder); and new
     input types -- `edge-set`, `pair-list` (validated node-id pairs), `dataset` (a loaded,
     versioned non-graph table such as a gene-set file or an IOC list, recorded by name and version
@@ -1730,7 +1730,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     these". **Recommended**, to be taken before the algorithm contract is frozen: a run option
     `exclude: { nodes, edges }`, each naming a set, a rule (`region == "APAC"`) or ids, that every
     algorithm receives as a subgraph, and refusal with `E_UNSUPPORTED` (not a caveat) when a caller
-    asks an algorithm to compute on a scope it cannot honour. The same decision states what a scope
+    asks an algorithm to compute on a scope it cannot honor. The same decision states what a scope
     means for a pair-list: recommended, a row is kept when its SOURCE is in scope and the target is
     unrestricted ("score these users against the whole catalogue"), recorded in the caveats.
     Found in review, part of the same decision:
@@ -1742,27 +1742,27 @@ options, dimension, scope }` in the project, with no extension version, which pr
       `scopeInput`: hiding STRING edges below a confidence cutoff and running a whole-graph MCL
       must not cluster over the hidden edges while the run record shows the filter. The run record
       separates "computed over" from "reported for", and a run whose scope excludes edges on an
-      algorithm that cannot honour it is refused with `E_UNSUPPORTED`, never kept with a caveat;
+      algorithm that cannot honor it is refused with `E_UNSUPPORTED`, never kept with a caveat;
     - whether `exact` in the derivation stays the caller's tri-state (section 4.4 item 2) or
       becomes a plain "sampled" flag before the derivation is frozen.
 24. **Export details.** **Recommended:** exported result columns are named `<run name>_<field>`
     (the run's `as` name, format-safe); run records are written as graph attributes wherever the
     format has them, with a `W_RUN_PROVENANCE_DROPPED` loss note otherwise; the writer receives the
     declarative style bindings (channel, source column, palette anchors, domain, midpoint, missing
-    colour) beside the resolved values and raises `W_STYLE_MAPPING_RESOLVED` when it flattens a
+    color) beside the resolved values and raises `W_STYLE_MAPPING_RESOLVED` when it flattens a
     mapping; an export takes a caller-chosen scope and column list, each deliberate omission a
     loss note of its own (`W_EXCLUDED_BY_CALLER`); `ExportResult` carries bytes or a stream, not
     only text; `FormatDescriptor` gains `writerOptions` so an export dialog can be built from the
-    catalogue; a writer may declare a subset of its reader's extensions; an older element
+    catalog; a writer may declare a subset of its reader's extensions; an older element
     publishes `canExport: false` for a descriptor that claims export rather than refusing the
     reader. Graph-level result TABLES get their own route: an element-owned "export result table"
     that writes one run's table field as CSV or TSV with the run record as a header or JSON
     sidecar, and `W_RESULT_TABLE_DROPPED` from a writer whose format has no place for one. Derived
     fields (`rank`, `percentile`, `groupSize`) are exported with the rest. A vector field becomes
-    dimension-indexed columns where the format has no lists. CSV and TSV formula neutralisation
+    dimension-indexed columns where the format has no lists. CSV and TSV formula neutralization
     applies to string cells only, with an option to switch it off (`file-format.md` section 8.1).
     Three of these go beyond the owner's words "whatever the format supports" and need his
-    confirmation: whether style MAPPINGS (not only resolved colours) must be written; whether a
+    confirmation: whether style MAPPINGS (not only resolved colors) must be written; whether a
     caller may export less than everything -- a scope, excluded columns, pseudonymised ids, each
     reported as a `W_EXCLUDED_BY_CALLER` loss note so nothing is dropped silently, which an
     outside incident-response partner requires; and whether run provenance is written by DEFAULT
@@ -1822,7 +1822,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       accelerator package changes its output for the same input and seed.
     - **Superseded runs.** A run a later run of the same id supersedes keeps its record, and its
       result or a retrievable digest, in the analysis history, so a methods section citing it
-      stays resolvable. Also: forms built from the catalogue default to an `as` name that includes
+      stays resolvable. Also: forms built from the catalog default to an `as` name that includes
       a changed parameter, or the derived id gains a parameter digest with a stable alias for
       "latest" -- one of the two, picked before the derivation is frozen.
     - **Digests are specified.** Each digest (input identity, scope members, source bytes) is
@@ -1849,9 +1849,9 @@ options, dimension, scope }` in the project, with no extension version, which pr
     `positions`, the element draws unplaced nodes one element-defined way, leaves them out of camera
     bounds and reports them -- replacing any need for a layout to invent a position (2.6.1 already
     leaves such a row unplaced, but still draws its edges to the origin); (b) the existing
-    `readNodePosition` either documented as the held-position route or deprecated in favour of
+    `readNodePosition` either documented as the held-position route or deprecated in favor of
     `heldPosition`; (c) an optional `up` vector on `CameraState` and stated units for `zoom` (CSS
-    pixels per scene unit) and `pan` (the scene coordinates of the viewport centre); (d) when
+    pixels per scene unit) and `pan` (the scene coordinates of the viewport center); (d) when
     `setLayout` resolves -- recommended: after the first publish for a batch layout, with the
     settled event named as what a caller waits for with a live one, and a wait-for-settled option
     on `applyCameraView` and `captureScreenshot`; (e) a coded warning event when a carried layout
@@ -1891,7 +1891,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     back to the source key (`declareSchema`'s `sourceKey`), handed to writers so a round trip
     restores the IRI. The reserved record keys (`file-format.md` section 2.2 item 1) are part of
     the same decision.
-30. **Colour-vision claims.** `ColorVisionDeficiency` is a closed union of the three dichromacies,
+30. **Color-vision claims.** `ColorVisionDeficiency` is a closed union of the three dichromacies,
     so a grayscale or print-safety claim cannot be recorded, and every document written until
     the union changes carries only those three. **Recommended:** add `"achromatopsia"` (grayscale
     legibility) now, in the same release that defines what the element's `isPaletteSafe` checks
@@ -1899,7 +1899,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
 31. **Rank direction and the derived statistics.** The element always ranks descending (rank 1 is
     the highest value), and no descriptor member can say that LOWER is notable: for a p-value, an
     eccentricity, a mean distance or a "lower means riskier" score, the derived rank, percentile,
-    top-N reading and default colour ramp all come out inverted, and saved styles and readings
+    top-N reading and default color ramp all come out inverted, and saved styles and readings
     record ranks, so adding a direction later changes what saved documents mean. The derived
     statistics also stop at min, max, lower median, mean, measured and tiedAtMin, with nothing for
     "more than three standard deviations out". **Recommended**, before the algorithm contract is
@@ -1909,17 +1909,17 @@ options, dimension, scope }` in the project, with no extension version, which pr
     record; and `stddev` (population, Kahan-summed), `q1`, `q3` and `mad` as derived graph
     fields, with a derived per-element `zscore` or robust z. The change to what a percentile means
     is recorded with the run-record rules of item 26.
-32. **How groups and categories get their colours.** Nothing specifies how a categorical value or a
+32. **How groups and categories get their colors.** Nothing specifies how a categorical value or a
     community group is assigned to a palette anchor, and group numbers are whatever the plugin
-    chose. So a lab style mapping Up, Down and Unchanged shifts colours on a dataset with no
+    chose. So a lab style mapping Up, Down and Unchanged shifts colors on a dataset with no
     Unchanged genes; the same module is cluster 3 in one condition and cluster 7 in the other; and
     re-running a clustering on a file listed in another row order renumbers the clusters, moving
-    colours, legends and any label bound to a group number onto different members with no error.
+    colors, legends and any label bound to a group number onto different members with no error.
     Style documents record these assignments, so this is a one-way door for them. **Recommended:**
     the element renumbers community groups canonically before deriving the layer -- by size
     descending, ties broken by the smallest member id's string form -- and records the rule in the
     run record; attribute categories take a documented sorted order; and a categorical binding
-    may carry an explicit value-to-anchor (or value-to-colour) map, so a shared style pins its
+    may carry an explicit value-to-anchor (or value-to-color) map, so a shared style pins its
     categories. `palette.md` section 4 states the gap.
 33. **The names and shapes of the simple tier.** Having a simple tier is decided (2026-09-28); its
     exports are published names. **Recommended:** exactly the exports of `simple.d.ts` -- the
@@ -1939,7 +1939,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     definition members; `PlainLogRecord.error` as plain data; the
     short option form of `simple-tier.md` section 2.2, including the new `on: "node" | "edge"`
     option member; the new `edgeMetricFields`, `communityFields` and `communityFieldSpecs`
-    builders; the new catalogue kind `session.catalog.sources()`; the element's
+    builders; the new catalog kind `session.catalog.sources()`; the element's
     `setSourceCredential` and `allowSourceHosts`; and the conformance kit's `graphView`,
     `loadContext`, `checkSameResults` and `logRecord`. Also the view's `edgesTo`, `weightTo` and
     `compareNodeIds`; `SimpleTierElementControls`, the consumer calls the element class gains; an
@@ -1954,7 +1954,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     the global flag says, and the global `enabled` and `level` govern only the built-in console.
     The rule that a destination may only narrow the global level stays for configurations read
     from storage or a URL, where it protects against an injected configuration raising verbosity.
-    This changes what an existing `addSink` call receives, so it is a behaviour change to decide,
+    This changes what an existing `addSink` call receives, so it is a behavior change to decide,
     not only a new name.
 35. **Element-scoped default palettes.** **Recommended:**
     `setDefaultPalettes({ categorical, sequential, diverging })` on the element and on
@@ -1986,7 +1986,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     edges with `on: "edge"`) and refuses a name nothing carries with `E_OPTION_RANGE`, listing the
     attributes that do exist; and a run whose every value came back unmeasured completes with a
     warning in its run record. Both tiers. It changes what a 2.6.1 run with a misspelt attribute
-    does (refused instead of silently empty), so it is a behaviour change to decide.
+    does (refused instead of silently empty), so it is a behavior change to decide.
 
 ## 13. Corrections this specification makes to existing documents
 
@@ -2013,14 +2013,14 @@ door.
 | same, the static-layout item                                                                                   | deletes `LayoutEngine.pairWeights` and `pairWeightKey` in the dual-API window                                                                                                | A protected helper a plugin can call; keep it through an adapter until the next major (section 10 item 7)                                                                                                                                                                                              |
 | `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | edge results through the `edgeIdsByPair` helper, which reads `this.graph.getSession()`                                                                                       | That breaks the snapshot-only rule and cannot name a parallel edge; the guide must say plainly that no conforming edge-shaped plugin exists until the edge identity accessor ships, and what the snapshot's weights hold and that attribute columns do not reach a plugin (`algorithm.md` section 3.1) |
 | `design/graph-format/migration-plan.md`, item "element-plugin-seam"                                            | delete `toAlgorithmGraph` and its file when nothing internal calls it; nothing in `src` constructs a legacy `Graph`                                                          | `algorithmGraph()` is implemented by `toAlgorithmGraph`, and `./extend` exports its types from that file; in 3.x keep all three behind `@deprecated` and move the deletion to the 4.0 removal item (section 10 item 8)                                                                                 |
-| same, item "element-export-api"                                                                                | exports through graph-io's CSV writer                                                                                                                                        | That writer neutralises no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9)                                                                                                                                                         |
+| same, item "element-export-api"                                                                                | exports through graph-io's CSV writer                                                                                                                                        | That writer neutralizes no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9)                                                                                                                                                         |
 | `design/extensions/candidates.md`, section 8 (earlier draft)                                                   | a registered accelerator implements `AlgorithmAccelerator`                                                                                                                   | It returns the element's own `GraphAccelerator`, narrowed internally; corrected there                                                                                                                                                                                                                  |
 | every guide page under `graphty-element/docs/guide/extending/`                                                 | opens with the full class or descriptor contract                                                                                                                             | Open with the point's simple-tier example (`simple-tier.md` section 4); move the current content under "Advanced: full control" (section 8.1)                                                                                                                                                          |
-| `graphty-element/docs/guide/extending/custom-algorithms.md`, first example                                     | "nodes within N hops" computed as the neighbour count times the hop count                                                                                                    | That is not the number of nodes within N hops; a reader copies the arithmetic. Replace the example (`complexity-review.md`, Algorithm)                                                                                                                                                                 |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`, first example                                     | "nodes within N hops" computed as the neighbor count times the hop count                                                                                                     | That is not the number of nodes within N hops; a reader copies the arithmetic. Replace the example (`complexity-review.md`, Algorithm)                                                                                                                                                                 |
 | `graphty-element/docs/guide/extending/custom-layouts.md`                                                       | types the descriptor as `LayoutDescriptor` without `honoursWeights` and `scoped`; the live example reads `e.srcNode`; suggests `session.positions.isPinned` inside an engine | Use `AuthoredLayoutDescriptor`; look endpoints up by id; an engine is never handed a session (`layout.md` sections 2 and 3)                                                                                                                                                                            |
 | `graphty-element/docs/guide/extending/custom-log-destinations.md`                                              | `timestamp: number`; route one's `addSink` alone receives records; route two's buffer is a module-level array                                                                | `timestamp` is a `Date`; nothing is delivered until logging is enabled (open decision 34); a buffer shared by every `create()` call mixes two configurations' records -- keep it inside `create`                                                                                                       |
 | `graphty-element/docs/guide/extending/custom-cameras.md`                                                       | `viewport` is in device pixels; `measured: 0` frames "the element's default box"                                                                                             | CSS pixels; a view is not called for an empty box (`camera.md` sections 2 and 4.4)                                                                                                                                                                                                                     |
-| `graphty-element/docs/guide/extending/custom-palettes.md`, first example                                       | claims deuteranopia and tritanopia safety for an invented palette                                                                                                            | Make no colour-vision claim in an example; the element never checks one (open decision 30)                                                                                                                                                                                                             |
+| `graphty-element/docs/guide/extending/custom-palettes.md`, first example                                       | claims deuteranopia and tritanopia safety for an invented palette                                                                                                            | Make no color-vision claim in an example; the element never checks one (open decision 30)                                                                                                                                                                                                              |
 | `graphty-element/test/browser/extensions/layout-extension.test.ts`, the live engine's `getEdgePosition`        | reads `e.srcNode` and `e.dstNode`                                                                                                                                            | Outside the layout contract's member list; look endpoints up by `srcId` and `dstId`, so the reference engine conforms (`layout.md` section 2)                                                                                                                                                          |
 
 ## 14. What graphty-element 3.0 changes (open pull request)
@@ -2064,8 +2064,8 @@ Points raised in review and not adopted, with the reason.
 | Restrict a contract major to removals of deprecated members, so pre-declaring the next major stays safe                                                        | The planned majors (a required `static version`, a required `package`, refusing a descriptor-less class) are not removals, and forbidding them would freeze the contracts. Section 6.4 item 1 instead phases each new required member in through an optional minor and forbids naming an unreleased major                                                                                                                                                  |
 | Make comparison by canonical string form the default for EVERY id match across loads                                                                           | It silently merges two nodes an existing document keeps apart (`"1"` and `1` loaded on purpose from two sources). Open decision 19 recommends it as the default for join keys only, keeps exact matching for added loads with a warning whenever ids differ only in type, and asks readers to emit ids as strings                                                                                                                                          |
 | Decide now that a STRING or BioGRID query from a gene list is served, before the file-format contract is frozen                                                | Open decision 15 already recommends a data-source point with a pinned release, recorded query parameters and an identifier report with an ambiguous category, to be taken before the file-format contract is frozen; the review adds nothing to decide beyond it                                                                                                                                                                                           |
-| Type `CameraViewReference.scope` as the element's `ScopeInput` in `camera.d.ts`                                                                                | `ScopeInput` is declared in the element, not in these files, and the reference is proposed; the declaration now states the serialisation rule (a live keyword replaced by its definition or members when saved), and open decision 8 carries it                                                                                                                                                                                                            |
-| Rewrite the worked hub-score example to chunk over neighbour pairs, so a hub cannot freeze the page inside one step                                            | Chunking inside a step needs the work channel proposed in open decision 16; without it the rewrite would hand-roll yielding and lose the kit's counting. The example now states the limit, and the "yields" and "cost is honest" checks are defined structurally so they do not pass it by accident                                                                                                                                                        |
+| Type `CameraViewReference.scope` as the element's `ScopeInput` in `camera.d.ts`                                                                                | `ScopeInput` is declared in the element, not in these files, and the reference is proposed; the declaration now states the serialization rule (a live keyword replaced by its definition or members when saved), and open decision 8 carries it                                                                                                                                                                                                            |
+| Rewrite the worked hub-score example to chunk over neighbor pairs, so a hub cannot freeze the page inside one step                                             | Chunking inside a step needs the work channel proposed in open decision 16; without it the rewrite would hand-roll yielding and lose the kit's counting. The example now states the limit, and the "yields" and "cost is honest" checks are defined structurally so they do not pass it by accident                                                                                                                                                        |
 | Let a reader declare which records are duplicates, or merge reciprocal pairs when a load declares the graph undirected                                         | What happens to repeated edges is the CONSUMER's choice, through the element's repeated-edge policy (`keep` by default); a reader that merged would override it. `file-format.md` section 2.2 item 8 now documents the policy and forbids a reader to merge, and `ImportReport.repeated` already counts what the policy did                                                                                                                                |
 | Replace `SimpleLayoutEngine.positions` with a `Map` now, because a node id `__proto__` corrupts it                                                             | `positions` is a published member plugins write; changing its type breaks every batch plugin. It is recorded as a known gap (`layout.md` section 11) and the rule of section 9.2 item 6, to be fixed with the snapshot layout contract or the next major                                                                                                                                                                                                   |
 | `KNOWN_LAYOUT_IDS` in `layout.d.ts` should list `spiral` and `planar`                                                                                          | The Published section describes the constant as 2.6.1 builds it, which omits them. The omission is recorded as not yet met (section 5 item 4) and the fix belongs in the element; the declaration file notes it                                                                                                                                                                                                                                            |
@@ -2089,7 +2089,7 @@ Points raised in review and not adopted, with the reason.
 | Add `E_BAD_DEFINITION`, and rename the beginner-facing `E_OPTION_RANGE`, `E_CAP_EXCEEDED` and `E_UNKNOWN_CAMERA`                                               | They are published codes that built-ins and the advanced tier raise for the same failures; a different code for the same failure from one tier would break "failing the same way" (section 8 item 5). Every message starts with the plain fact, and "settled report" and "scene units" are now defined where they are first used                                                                                                                           |
 | Use one `progress(done, total?)` signature, returning a promise, on every point                                                                                | A pager rarely knows its total, so a data source counts; a run or a layout always knows its share and must await it to yield. `simple-tier.md` section 2.1 item 7 now states both differences and why                                                                                                                                                                                                                                                      |
 | Let a simple algorithm take its direction from a reader option (`direction: "option"`)                                                                         | The same definition would then have to be right both ways, and a plugin written for one would return plausible wrong numbers the other way, the trap the throwing accessors exist to prevent. Two definitions, or the advanced tier's `context.input(orientation)`, serve a method that supports both                                                                                                                                                      |
-| Give the graph view an indexed form (`node.index` and a neighbour-index iterator) so simple plugins scale further                                              | A row index is an internal concept the budget forbids (section 8.1 item 4). The view's arrays are instead frozen, built once and cached, and an author who needs indices graduates                                                                                                                                                                                                                                                                         |
+| Give the graph view an indexed form (`node.index` and a neighbor-index iterator) so simple plugins scale further                                               | A row index is an internal concept the budget forbids (section 8.1 item 4). The view's arrays are instead frozen, built once and cached, and an author who needs indices graduates                                                                                                                                                                                                                                                                         |
 | Take a hierarchical community shape, a worker helper and `accelerated()` now, for a Leiden port                                                                | They are open decisions 9, 16, 18 and 32, the owner's to take                                                                                                                                                                                                                                                                                                                                                                                              |
 | Spell out the hand-written community field list in `algorithm.md` so an advanced author can conform on 2.6.1                                                   | `communityFields` and `communityFieldSpecs` ship before or with `defineAlgorithm` (`simple-tier.md` section 6 item 3); a hand-written list would be copied and then drift from the builders                                                                                                                                                                                                                                                                |
 | Type the data source's fetch as `fetchJson<T>()`                                                                                                               | Nothing checks a response against `T` at run time, so the type would claim a shape nobody verified; the examples validate the body and throw, which reaches the reader as `E_PARSE_FAILED`                                                                                                                                                                                                                                                                 |
@@ -2099,7 +2099,7 @@ Points raised in review and not adopted, with the reason.
 | Replace the simple tier's performance ceiling with measured numbers now                                                                                        | Nothing runs yet to measure; the ceiling is marked as an estimate until the dogfood built-ins (`simple-tier.md` section 3 item 5) measure it                                                                                                                                                                                                                                                                                                               |
 | Name the release that will ship the simple tier                                                                                                                | The number is set when the implementation lands; the release rule already makes the guide's first line name it                                                                                                                                                                                                                                                                                                                                             |
 | Show `await context.progress(i / n)` in the first layout example, or add a per-node `place(node, context)` form                                                | One pass over the nodes finishes in milliseconds at 100,000 nodes, so the line would teach a step the task does not need; `simple-tier.md` section 2.4 item 9 now says a REPEATED loop is what must await it. A per-node form cannot hold the counters a row layout needs, and `graph.groupBy` covers the common case                                                                                                                                      |
-| Resolve `var(--token)` colours inside `definePalette`                                                                                                          | A token read at definition time is wrong after a theme change and empty before the stylesheet loads, so the element would register a wrong or missing colour silently. `definePalette` now refuses `var()` and an empty string with the fix in the message                                                                                                                                                                                                 |
+| Resolve `var(--token)` colors inside `definePalette`                                                                                                           | A token read at definition time is wrong after a theme change and empty before the stylesheet loads, so the element would register a wrong or missing color silently. `definePalette` now refuses `var()` and an empty string with the fix in the message                                                                                                                                                                                                  |
 | Add an `endpoints: ["bait", "prey"]` member to `defineFormat`                                                                                                  | The rename is one destructuring line in `read` and one header in `write`, now shown in `simple-tier.md` section 4.3; a member would be a second way to say what the records already say                                                                                                                                                                                                                                                                    |
 | Let a definition declare `needs: { strength: "acme-confidence-degree" }` so a result dependency is named by id                                                 | A result is addressed by its run name everywhere a saved selector reads it (section 4.4 item 5). The first example no longer chains: `node.strength` lets the edge score compute its ends itself, and a result-path refusal now names the run to do first                                                                                                                                                                                                  |
 | Give the data source's fetch a `json<T>()` helper                                                                                                              | Nothing checks the body against `T` at run time, so the type would claim a shape nobody verified (the earlier row on `fetchJson<T>()`). The guide now shows the cast to a type of unknowns that a strict lint wants, which the shape check then narrows                                                                                                                                                                                                    |
@@ -2112,6 +2112,6 @@ Points raised in review and not adopted, with the reason.
 | Make advanced members optional members of every `define*` object, so graduation adds members instead of rewriting                                              | The owner decided on 2026-09-28 that the existing contracts become the advanced tier; only the data source, which had no contract, grows that way. The graduation rules of `simple-tier.md` section 5 keep the id and the numbers                                                                                                                                                                                                                          |
 | Split `simple-tier.md` into a user guide and a design document                                                                                                 | The user-facing split is the guide pages under `graphty-element/docs/guide/extending/`, written with the release that ships the tier. The page now says which three things a first plugin needs and that the "What the element fills in" tables are not steps                                                                                                                                                                                              |
 | Accept default palettes as an element attribute at construction                                                                                                | `setDefaultPalettes(palettes, { reapply: true })` and the warning on a late call cover effect ordering; another route to the same setting is more surface for the same need                                                                                                                                                                                                                                                                                |
-| Let a data source declare its own rate limit                                                                                                                   | The element's fetch sends one request at a time and waits out a 429's `Retry-After`, which honours an API's own limit without a setting                                                                                                                                                                                                                                                                                                                    |
+| Let a data source declare its own rate limit                                                                                                                   | The element's fetch sends one request at a time and waits out a 429's `Retry-After`, which honors an API's own limit without a setting                                                                                                                                                                                                                                                                                                                     |
 | Add worker transfer, `accelerated()` and canonical group numbers for a 100,000-node community plugin                                                           | They are open decisions 9, 16, 18 and 32, the owner's to take                                                                                                                                                                                                                                                                                                                                                                                              |
 | Add an advanced worked example of a community algorithm                                                                                                        | It uses `communityFields` and `communityFieldSpecs`, which are proposed; it lands with them                                                                                                                                                                                                                                                                                                                                                                |

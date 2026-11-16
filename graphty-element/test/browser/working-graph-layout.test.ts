@@ -28,7 +28,7 @@ import type { ElementSession } from "../../src/session/types";
 /** Twenty nodes on a path. */
 const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);
 
-/** Five neighbours on the path: on the whole graph's circle of twenty they are 18 degrees apart. */
+/** Five neighbors on the path: on the whole graph's circle of twenty they are 18 degrees apart. */
 const FIVE = IDS.slice(0, 5);
 
 /** A clique of ten nodes, a component of its own beside the path. */
@@ -86,7 +86,7 @@ function positionsOf(graph: Graph): Map<string, [number, number, number]> {
 }
 
 /**
- * The smallest gap, in degrees, between the angles of some nodes about their centre.
+ * The smallest gap, in degrees, between the angles of some nodes about their center.
  * @param at - Every node's position.
  * @param ids - The nodes.
  * @returns The gap: 360 / n for n nodes on a circle of their own.

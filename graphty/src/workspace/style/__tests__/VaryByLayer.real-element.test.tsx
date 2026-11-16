@@ -210,7 +210,7 @@ function written(session: GraphSession, ids: readonly string[], channel: Channel
 }
 
 /**
- * The sections of a binding popover in order, outside its group list: each labelled control with
+ * The sections of a binding popover in order, outside its group list: each labeled control with
  * its kind, each button but a field's Reset, and the group list itself. The words that name the source ("values",
  * "layers") are taken out, so two popovers drawn by one component give the same structure.
  * @param popover - The popover.

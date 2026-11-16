@@ -27,7 +27,7 @@ Both reached the right answer: 15 in the picture and 4 orange (A), 7 in the pict
   new orange staff -- I could hardly tell my orange people from everyone else and nothing told me
   the old coloring was still on"
 - T70 B, frozen: "3 -- the dots going all green, then back to blue after Done, with nothing orange
-  yet -- I couldn't tell if green was the colour it would use or just "picked", and after Done it
+  yet -- I couldn't tell if green was the color it would use or just "picked", and after Done it
   looked like nothing had happened"
 
 Neither named crowding, layout or disorganization. A's reason is the setup's own coloring under the

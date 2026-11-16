@@ -1006,7 +1006,7 @@ about these formats may need app code. The file's look (its styles) waits for is
       edges), and the arrow is drawn by a style layer that reads it, not by the scratch builder's
       single direction.
       Cytoscape's `name` / `shared name` and OBO's `name` carry the `label` role and become the node
-      label as every other labelled column does.
+      label as every other labeled column does.
 6. **Choosing a network.** A catalog function `listGraphs(source)` (file, URL or data) returning
    graph-io's `GraphListing[]`, or `null` for a format that does not list its graphs, so a host can
    offer a picker before loading; the load option `graphName` / `graphIndex` then picks one.

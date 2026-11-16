@@ -66,7 +66,7 @@ be a number."
 
 ### 7. `--step --click "name"` -> 07.png
 
-Saw: names appeared next to the dots: Blacheville, Fameuil, Favourite, Zephine, Dahlia, Myriel,
+Saw: names appeared next to the dots: Blacheville, Fameuil, Favorite, Zephine, Dahlia, Myriel,
 Napoleon, Old Man, Mlle Baptistine and so on. The label row now reads "Aa Above Abc name" and,
 in tiny gray text under it, "77 labels, 7 hidden to avoid overlap". The names are very small and
 in the crowded middle they pile on each other and are hard to read.

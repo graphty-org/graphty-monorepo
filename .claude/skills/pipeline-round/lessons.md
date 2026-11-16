@@ -67,7 +67,7 @@ by mutation testing" block of `tools/test-select.test.mjs`. `node tools/test-sel
 - **Doomed runs held the queue:** release runs on commits that lacked a merged fix for a failure that happens on
   every run were left running for hours -- the 10 PM full run on cc45c61 and its same-commit retry, and a restart
   on ef47760 -- holding the `release-train` queue while the run with every fix waited.
-- **What cleared it,** at about 11:50 PM PT: the owner cancelled the ef47760 run, and an agent dispatched
+- **What cleared it,** at about 11:50 PM PT: the owner canceled the ef47760 run, and an agent dispatched
   `gh workflow run release.yml --ref master -f mode=restart`, which replaced the pending cc45c61 retry (the group
   keeps one pending run).
 - **Fix:** SKILL.md "Master onto nightly": check master between full runs as soon as a fix merges, cancel doomed

@@ -1,13 +1,13 @@
 /**
  * HITS, eigenvector centrality and Katz centrality on the device (spec 3.3 lines 794-796, 8.2 lines 2603-2605):
  * three entry points over the ONE power-iteration driver, differing only in the adjacency the pull walks, the
- * normaliser and the coefficients. Eigenvector is the L2-normalised iteration over the forward core; Katz is
- * `alpha * A^T x + beta` over the reverse view with no per-iteration normaliser; HITS alternates the two pulls with
- * sum normalisation, `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` (the CPU package's recurrence, which
+ * normalizer and the coefficients. Eigenvector is the L2-normalized iteration over the forward core; Katz is
+ * `alpha * A^T x + beta` over the reverse view with no per-iteration normalizer; HITS alternates the two pulls with
+ * sum normalization, `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` (the CPU package's recurrence, which
  * design 9.7 makes the parity target), as TWO interleaved chains of the driver -- the reverse-first chain from the
  * hub seed and the forward-first chain from the authority seed -- so a call is still two runs and two readbacks.
- * Every result is normalised ONCE on the host after the readback (sum for HITS, L2 for the other two), matching
- * the f64 oracle; the per-iteration normaliser never leaves the device (PD-10).
+ * Every result is normalized ONCE on the host after the readback (sum for HITS, L2 for the other two), matching
+ * the f64 oracle; the per-iteration normalizer never leaves the device (PD-10).
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
@@ -100,7 +100,7 @@ function finite(value: number | undefined, fallback: number, argument: string): 
  * @param raw - the driver's iterate
  * @param dest - the caller's destination, or null for the raw array itself
  * @param norm - "sum" (L1) or "l2"
- * @returns the normalised scores
+ * @returns the normalized scores
  */
 function normalised(raw: F32, dest: F32 | null, norm: "sum" | "l2"): F32 {
     let acc = 0;
@@ -119,7 +119,7 @@ function normalised(raw: F32, dest: F32 | null, norm: "sum" | "l2"): F32 {
  * The score result of one run.
  * @param run - the driver's run
  * @param dest - the caller's destination, or null
- * @param norm - the final normaliser
+ * @param norm - the final normalizer
  * @returns the result
  */
 function scoresOf(run: PowerIterationRun, dest: F32 | null, norm: "sum" | "l2"): GpuScoresResult {
@@ -164,10 +164,10 @@ function latestOfKind(sameSeed: PowerIterationRun, otherSeed: PowerIterationRun)
 }
 
 /**
- * Eigenvector centrality on the device (spec 3.3, 8.2): the L2-normalised power iteration over the forward
+ * Eigenvector centrality on the device (spec 3.3, 8.2): the L2-normalized power iteration over the forward
  * adjacency, stopping at the first pass whose L1 change is below `tolerance` times the pass's L1 size; the scores
- * are L2-normalised. On an undirected snapshot each pass is `(A + cI) x` with `@graphty/algorithms`' shift
- * `c = max(1, sqrt(h) / 2)`, `h` the largest sum of squared weights of a node's arcs to other nodes (its neighbour
+ * are L2-normalized. On an undirected snapshot each pass is `(A + cI) x` with `@graphty/algorithms`' shift
+ * `c = max(1, sqrt(h) / 2)`, `h` the largest sum of squared weights of a node's arcs to other nodes (its neighbor
  * count when unweighted), from 0 at a node with no arcs; so a bipartite graph or a star converges, and the CPU and
  * the device stop at the same pass. A directed snapshot iterates `A` itself from 1 / n everywhere.
  * @param ctx - the context whose device runs the kernels
@@ -245,7 +245,7 @@ function seedOf(s: GraphSnapshot): F32 {
 
 /**
  * Katz centrality on the device (spec 3.3, 8.2): `x = alpha * A^T x + beta` over the reverse adjacency with no
- * per-iteration normaliser; the scores are L2-normalised once at the end.
+ * per-iteration normalizer; the scores are L2-normalized once at the end.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - alpha 0.1 / beta 1 / maxIterations 100 / tolerance 1e-6 / weighted true, plus dest / signal / onProgress
@@ -282,14 +282,14 @@ export async function katzCentrality(
 
 /**
  * HITS on the device (spec 3.3, 8.2): `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` from uniform seeds,
- * sum-normalised. Those two recurrences interleave into two independent chains, each alternating the reverse and
+ * sum-normalized. Those two recurrences interleave into two independent chains, each alternating the reverse and
  * the forward pull, so the driver runs twice: the chain seeded as hubs pulls reverse first and holds h(m) after an
  * even number m of iterations and a(m) after an odd one; the chain seeded as authorities is the mirror image. Each
  * chain stops at its own batch boundary, so the two can end on opposite parities holding the SAME kind; the result
  * takes the latest iterate of each kind across both chains (a chain's last two iterates are one of each kind),
  * which is h(m) and a(m) when both ran m iterations and never two vectors of one kind otherwise.
  * `iterations` is the larger of the two and `converged` their conjunction. `dest`, when given, receives the hubs.
- * Both vectors are sum-normalised.
+ * Both vectors are sum-normalized.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - maxIterations 100 / tolerance 1e-6 / weighted true, plus dest / signal / onProgress

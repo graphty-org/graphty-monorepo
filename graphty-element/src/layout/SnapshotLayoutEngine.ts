@@ -68,7 +68,7 @@ export interface SnapshotLayoutInput {
     /**
      * When the graph only grew since the last arrangement: the new rows. Every other row is kept
      * where it is (it is in `fixed`), so a layout that can start from `initial` places the newcomers
-     * among their neighbours. Null for a fresh arrangement.
+     * among their neighbors. Null for a fresh arrangement.
      */
     readonly added: NodeMask | null;
     /**
@@ -137,7 +137,7 @@ export type SnapshotLayoutAnswer = F32 | Promise<F32>;
 /** A layout on the snapshot contract: a descriptor, and a function from the graph to coordinates. */
 export interface SnapshotLayoutRegistration {
     /**
-     * What the catalogue publishes. `honoursWeights` and `scoped` are declared here, since there is
+     * What the catalog publishes. `honoursWeights` and `scoped` are declared here, since there is
      * no class to carry them as statics.
      */
     readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights?: boolean; readonly scoped?: boolean };
@@ -613,7 +613,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
 /**
  * Register a layout on the snapshot contract: the element builds its engine from the
- * registration, publishes the descriptor to the catalogue and answers `setLayout(descriptor.id)`.
+ * registration, publishes the descriptor to the catalog and answers `setLayout(descriptor.id)`.
  * @param registration - the descriptor and the compute function
  * @throws what `LayoutEngine.register` throws for a missing, mismatched or taken name
  */

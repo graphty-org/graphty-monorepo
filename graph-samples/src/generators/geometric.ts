@@ -214,21 +214,21 @@ class IndexList {
     }
 }
 
-/** The state of the random geometric graph's neighbour search. */
+/** The state of the random geometric graph's neighbor search. */
 interface RggSearch {
     readonly axes: Float64Array[];
     readonly grid: CellGrid;
     readonly periodic: boolean;
     /** The squared radius. */
     readonly r2: number;
-    /** around[k]: the distinct neighbouring cell coordinates of cell k on one axis. */
+    /** around[k]: the distinct neighboring cell coordinates of cell k on one axis. */
     readonly around: number[][];
-    /** Receives one row's neighbours. */
+    /** Receives one row's neighbors. */
     readonly found: IndexList;
 }
 
 /**
- * The distinct neighbouring cell coordinates of every cell coordinate on one axis.
+ * The distinct neighboring cell coordinates of every cell coordinate on one axis.
  * @param g - cells per axis
  * @param periodic - whether the axis wraps around
  * @returns around[k] for k in [0, g)
@@ -244,7 +244,7 @@ function neighbourCells(g: number, periodic: boolean): number[][] {
  * Row u of the random geometric graph: every v > u within the radius, ascending.
  * @param search - the search state
  * @param u - the row
- * @returns the neighbours, a view of `search.found` valid until the next row
+ * @returns the neighbors, a view of `search.found` valid until the next row
  */
 function rggRow(search: RggSearch, u: number): Uint32Array {
     const { grid, around, found } = search;
@@ -417,7 +417,7 @@ export function waxmanGraph(options: WaxmanOptions): SampleGraph {
 export interface KnnOptions extends WeightOptions {
     /** The node count, >= 0. */
     n: number;
-    /** The neighbours per node, in [0, n - 1]. */
+    /** The neighbors per node, in [0, n - 1]. */
     k: number;
     /** 2 (default) or 3. */
     dimension?: 2 | 3 | undefined;
@@ -432,7 +432,7 @@ export interface KnnOptions extends WeightOptions {
 }
 
 /**
- * Gaussian mixture points: cluster c's centre is `dimension` nextFloat() draws from stream
+ * Gaussian mixture points: cluster c's center is `dimension` nextFloat() draws from stream
  * (seed, "knn-centres", c); point i draws its cluster with nextBelow(clusters) and then standard
  * normal offsets by the Marsaglia polar method (pairs u, v = 2 nextFloat() - 1 until
  * 0 < s = u^2 + v^2 < 1, then u sqrt(-2 ln s / s) and v sqrt(-2 ln s / s)), all from stream
@@ -481,10 +481,10 @@ function mixturePoints(
 }
 
 /**
- * The k nearest neighbours of every point, exact, by an expanding ring search over a cell grid.
+ * The k nearest neighbors of every point, exact, by an expanding ring search over a cell grid.
  * @param axes - the coordinate columns
- * @param k - neighbours per point
- * @returns row u's neighbours at [u k, (u + 1) k), ascending by index
+ * @param k - neighbors per point
+ * @returns row u's neighbors at [u k, (u + 1) k), ascending by index
  */
 function nearestNeighbours(axes: Float64Array[], k: number): Uint32Array<ArrayBuffer> {
     const n = axes[0].length;
@@ -550,7 +550,7 @@ class NearestList {
     }
 }
 
-/** The state of the k-nearest-neighbour ring search, reused across rows. */
+/** The state of the k-nearest-neighbor ring search, reused across rows. */
 interface KnnSearch {
     readonly axes: Float64Array[];
     readonly grid: CellGrid;
@@ -587,7 +587,7 @@ function searchNearest(search: KnnSearch, u: number): void {
 
 /**
  * Whether the block of cells within Chebyshev radius r of `cell` covers the whole grid.
- * @param cell - the centre cell on every axis
+ * @param cell - the center cell on every axis
  * @param r - the radius in cells
  * @param g - cells per axis
  * @returns true when every axis is covered
@@ -639,7 +639,7 @@ function scanCell(search: KnnSearch, u: number, c: number): void {
 /**
  * The flat index of the cell at `offset` from `cell`, or -1 when it lies outside the grid or
  * inside the ring (Chebyshev distance below r).
- * @param cell - the centre cell on every axis
+ * @param cell - the center cell on every axis
  * @param offset - the offset on every axis
  * @param g - cells per axis
  * @param r - the ring radius
@@ -707,8 +707,8 @@ function ringSettles(search: KnnSearch, u: number, r: number): boolean {
 /**
  * The arcs u -> each of its k nearest, ascending u then ascending target.
  * @param n - the node count
- * @param k - neighbours per node
- * @param neighbours - k nearest per node, row u at u * k
+ * @param k - neighbors per node
+ * @param neighbors - k nearest per node, row u at u * k
  * @returns the edges
  */
 function knnArcs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
@@ -725,8 +725,8 @@ function knnArcs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
  * The union of the k-nearest pairs without duplicates as (u, v), u < v, ascending u then v: bucket
  * the pairs (min, max) by their smaller end with a counting sort, then sort and dedupe each bucket.
  * @param n - the node count
- * @param k - neighbours per node
- * @param neighbours - k nearest per node, row u at u * k
+ * @param k - neighbors per node
+ * @param neighbors - k nearest per node, row u at u * k
  * @returns the edges
  */
 function knnPairs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
@@ -760,12 +760,12 @@ function knnPairs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
 }
 
 /**
- * The k-nearest-neighbour graph of random points, the standard input of spectral clustering
+ * The k-nearest-neighbor graph of random points, the standard input of spectral clustering
  * (U. von Luxburg, "A tutorial on spectral clustering", Statistics and Computing 17, 395-416, 2007,
  * doi:10.1007/s11222-007-9033-z).
  *
  * Points: uniform in the unit square or cube (point i = nextFloat() per axis from stream
- * (seed, "knn-points", i)), or with `clusters` a Gaussian mixture: cluster centres uniform in the
+ * (seed, "knn-points", i)), or with `clusters` a Gaussian mixture: cluster centers uniform in the
  * unit cube from stream (seed, "knn-centres", c), point i picks its cluster uniformly and adds
  * normal offsets of standard deviation `spread` (Marsaglia polar method) from stream
  * (seed, "knn-points", i); mixture points may leave [0, 1). Each node's k nearest are exact,

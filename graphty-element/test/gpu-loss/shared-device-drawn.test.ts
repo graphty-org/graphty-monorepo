@@ -226,7 +226,7 @@ describe("the layout filling the row table on a shared device", () => {
     it("selects the node a click lands on while the layout copies", async () => {
         const graph = await running("batched");
         await copied(graph);
-        // the node farthest from its nearest neighbour on screen, framed whole, so the click can only
+        // the node farthest from its nearest neighbor on screen, framed whole, so the click can only
         // land on it
         const shown = Array.from({ length: 200 }, (_, i) => `n${String(i)}`).flatMap((id) => {
             const at = graph.nodeScreenPosition(id);

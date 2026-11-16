@@ -57,4 +57,4 @@ End of the list: s08 Hope Ward, s09 Iris Chen, s10 June Kaur, then s11 with blan
 - After I clicked Add, that row still shows the red warning "s11 (no node row)". The counts went green, but the row still looks like an error. I wasn't sure for a second that Add had taken.
 - "Weight: none (each edge counts 1)" -- it kept the passes number as a column but didn't treat it as how strong the link is. Fine for this job, but if I ranked who matters most, I'd want to know whether 17 passes counts more than 3. It didn't ask.
 - No names on the dots in the drawing; I had to open the table to know who is who. And the edge table shows s01/s02 rather than player names, so I'm back to cross-referencing like a VLOOKUP.
-- The "+" is small and grey next to "Tables"; I found it because I was looking for it.
+- The "+" is small and gray next to "Tables"; I found it because I was looking for it.

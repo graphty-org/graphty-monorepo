@@ -297,7 +297,7 @@ describe("release channels", () => {
             [2, "bad"],
             [3, "held"],
         ]);
-        // a cancelled newest attempt does not set the state; the ref says what production serves
+        // a canceled newest attempt does not set the state; the ref says what production serves
         expect(production).toMatchObject({ state: "ok", sha: "p".padEnd(40, "0"), link: "/releases" });
         expect(production.attempts.map((a) => a.outcome)).toEqual(["ok", "cancelled"]);
     });

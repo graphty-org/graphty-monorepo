@@ -402,14 +402,14 @@ export const NodeStyle = z.strictObject({
                 .strictObject({
                     // https://doc.babylonjs.com/features/featuresDeepDive/mesh/glowLayer
                     color: ColorStyle.optional(),
-                    // 0 draws no glow at all (NodeEffects.applyGlowEffect), the same as no colour.
+                    // 0 draws no glow at all (NodeEffects.applyGlowEffect), the same as no color.
                     strength: z.number().nonnegative().optional(),
                 })
                 .optional(),
             outline: z
                 .strictObject({
                     // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
-                    // with no colour, draws nothing, as a glow strength alone draws nothing.
+                    // with no color, draws nothing, as a glow strength alone draws nothing.
                     color: ColorStyle.optional(),
                     // How wide the ring's band is drawn, as a multiple of its own width (1).
                     // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
@@ -430,7 +430,7 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
-            // Drawn in the node's own colour with no light or shade, as 2D draws every node.
+            // Drawn in the node's own color with no light or shade, as 2D draws every node.
             unlit: z.boolean().optional(),
         })
         .optional(),
@@ -593,7 +593,7 @@ export const NodeStyle = z.strictObject({
      * Bands of color drawn over the node's face, inside its outline (Cytoscape.js `stripe-*`,
      * Graphviz `style=striped`): `colors`, `sizes` and `opacities` as a pie's, the bands following
      * one another top to bottom (`direction` "down", the default) or left to right ("right"),
-     * over a box `size` (default 1) times the node's, centred on it. `frame`, four fractions
+     * over a box `size` (default 1) times the node's, centered on it. `frame`, four fractions
      * "top right bottom left" (of the box's height and width), keeps only the rim that deep inside
      * the box's edges, so the bands frame what the node shows in the middle.
      */
@@ -616,7 +616,7 @@ export const NodeStyle = z.strictObject({
      * colors separated by spaces, item i drawn in color i and the last color for the rest (a box's
      * whiskers in the first, its median in the second, else black). The plot is a box `size`
      * (default 1) times the node's (`width` and `height`, shares of the node's, give its sides
-     * apart), centred on it or moved by `offsetX` / `offsetY` (in the units of `shape.size`, y
+     * apart), centered on it or moved by `offsetX` / `offsetY` (in the units of `shape.size`, y
      * down); the values run along it from `min` (default the
      * smaller of 0 and the least value) to `max` (default the greatest), bottom to top, or left to
      * right with `horizontal`; the categories run along the other side, left to right or top to

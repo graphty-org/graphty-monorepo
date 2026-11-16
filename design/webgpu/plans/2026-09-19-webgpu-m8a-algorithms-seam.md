@@ -4,7 +4,7 @@
 
 **Goal:** Give `@graphty/algorithms` the three things the WebGPU design's section 9.2 seam cannot exist without -- the graph-format bridge of graph-format design 14.6 row A1 (`Graph.mutationCount`, `toSnapshot(Graph)` with `weightDtype: "f64"` and the differential harness, public signatures UNCHANGED), the first six `indexed.*` ports, which are graph-format design 14.2's own Ports 1-6 (`breadthFirstSearch`, `dijkstra`, `pageRank`, `connectedComponents`, `kruskalMST`, `commonNeighborsScore`) -- four carried there as complete reference implementations and two, Ports 4 and 5, specified there in prose and designed here (DEP-8A-D, DEP-8A-H), and `src/indexed/accelerator.ts` itself (the `*ResultLike` shapes, `AlgorithmAccelerator`, `AcceleratedAlgorithms`, `accelerated(acc)` with the `pathTo` / `pathEdges` decoration, `sources` / `k` on `BetweennessCentralityOptions`, the fake-accelerator tests) -- and then close the W1b algorithms half in the GPU package (`AlgorithmAccelerator` by `import type`, `CpuAlgorithmOptions` retired, the last `implicitDependencies` negation removed, the conformance reverse compile) (gate: the algorithms clause of design G6 plus the algorithms clause of design G10).
 
-**Architecture:** The seam is one-directional and async. `@graphty/algorithms` OWNS the `AlgorithmAccelerator` interface and the `accelerated(acc)` dispatcher; the GPU package satisfies the interface structurally and is never imported at runtime by anybody except the app (design 9.1, `design/webgpu/webgpu-acceleration-plan.md:2870-2899`). Inside algorithms the new code sits strictly UNDER the legacy surface: `src/indexed/*` takes `GraphSnapshot` / `AdjacencyView` first and returns typed arrays; the legacy `Graph`-taking functions keep their exact signatures and shapes (graph-format design 14.1 rule 1, `design/graph-format/graph-format-design.md:3700-3702`). `toSnapshot(Graph)` is the one bridge between the two, memoised on `(graph, mutationCount)` in a `WeakMap` (rule 4, `:3712-3722`). The dispatcher body is fixed by the design: `acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))` (`design/webgpu/webgpu-acceleration-plan.md:2959-2960`, repeated verbatim in the M8a deliverables cell of `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3268`), one dispatcher object owned by algorithms, never `runAlgorithm(snapshot, { accelerator })`. NOTE for an executor: the graph-format design's own record of that spelling, D-INJECT, lives in section 17.8, which is NOT on master -- `graph-format-design.md:4940` says 17.8 "is reserved for the WebGPU W1 amendments (integration plan Task M5b-T4)" and the written section exists only on `feat/webgpu-layout-types`, the branch M8a deliberately does not start from (PD-12). Every citation in this plan is to a line an executor on master can open.
+**Architecture:** The seam is one-directional and async. `@graphty/algorithms` OWNS the `AlgorithmAccelerator` interface and the `accelerated(acc)` dispatcher; the GPU package satisfies the interface structurally and is never imported at runtime by anybody except the app (design 9.1, `design/webgpu/webgpu-acceleration-plan.md:2870-2899`). Inside algorithms the new code sits strictly UNDER the legacy surface: `src/indexed/*` takes `GraphSnapshot` / `AdjacencyView` first and returns typed arrays; the legacy `Graph`-taking functions keep their exact signatures and shapes (graph-format design 14.1 rule 1, `design/graph-format/graph-format-design.md:3700-3702`). `toSnapshot(Graph)` is the one bridge between the two, memoized on `(graph, mutationCount)` in a `WeakMap` (rule 4, `:3712-3722`). The dispatcher body is fixed by the design: `acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))` (`design/webgpu/webgpu-acceleration-plan.md:2959-2960`, repeated verbatim in the M8a deliverables cell of `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3268`), one dispatcher object owned by algorithms, never `runAlgorithm(snapshot, { accelerator })`. NOTE for an executor: the graph-format design's own record of that spelling, D-INJECT, lives in section 17.8, which is NOT on master -- `graph-format-design.md:4940` says 17.8 "is reserved for the WebGPU W1 amendments (integration plan Task M5b-T4)" and the written section exists only on `feat/webgpu-layout-types`, the branch M8a deliberately does not start from (PD-12). Every citation in this plan is to a line an executor on master can open.
 
 **Tech Stack:** pnpm 10.0.0 workspaces, Nx 22 (`nx:run-commands` targets, `nx release` with conventional commits, independent projects, `{projectName}@{version}` tags), TypeScript 5.9 (strict; `algorithms/tsconfig.json` overrides `moduleResolution` to `"node"` and turns `noUnusedLocals` / `noUnusedParameters` off), vitest 3.2.4 (`default` happy-dom / `browser` Playwright Chromium projects, v8 coverage 80/80/75/80), `@graphty/graph-format` 1.0.0, ESLint 9 flat config with `projectService: true` and `strictTypeChecked`, knip, prettier (tabWidth 4, printWidth 120), GitHub Actions (`ci.yml` 20-shard matrix, `hosts.yml`, `gpu.yml`, `release.yml` with the GPU/Hosts gate).
 
@@ -27,7 +27,7 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 - No `eslint-disable`, `@ts-expect-error` (outside negative type tests) or `@ts-ignore`; never lower a coverage threshold (algorithms' are 80 lines / 80 functions / 75 branches / 80 statements, `algorithms/vitest.config.ts:68-76`).
 - Temporary files under `./tmp/`; write a script file there instead of repeating an inline one-liner.
 - Project rule (`CLAUDE.md`): never create a fallback when WebGPU is unsupported. `accelerated(acc)` is NOT a fallback: with `acc === null` it runs the CPU port, and with an accelerator whose method THROWS it lets the throw propagate unchanged (design 9.2, `webgpu-acceleration-plan.md:2986-2989`). There is no try/catch anywhere in the dispatcher.
-- Public signatures of `@graphty/algorithms` are UNCHANGED by this plan (graph-format design 14.1 rule 1 and 14.6 row A1). Everything added is additive. The one behaviour addition to an existing function is the `sources` / `k` guard of Task M8a-T9, which no code that compiles today can reach.
+- Public signatures of `@graphty/algorithms` are UNCHANGED by this plan (graph-format design 14.1 rule 1 and 14.6 row A1). Everything added is additive. The one behavior addition to an existing function is the `sources` / `k` guard of Task M8a-T9, which no code that compiles today can reach.
 - algorithms tests use `expect`, not `assert` (the `assert` rule in the root `CLAUDE.md` is the LAYOUT package's rule); they live under `algorithms/test/`, never colocated with `src/`; they import vitest explicitly even though `globals: true`.
 - The design is the specification. Where this plan departs from it, the departure is listed in section 0.5 with its reason, and a `design/decisions/` record is written by Task M8a-T12.
 
@@ -463,7 +463,7 @@ So: externalise graph-format in `dist/algorithms.js`, and emit a SECOND, fully s
                     // (graph-format/src/constants.ts:37), so two copies would still interoperate and
                     // no test would fail -- the bundle would just double in size, silently. Exactly
                     // the reasoning the layout seam used (2026-09-16-graphty-monorepo-integration.md:2245).
-                    // NOTHING ELSE is externalised: typedfastbitset stays inlined, as today.
+                    // NOTHING ELSE is externalized: typedfastbitset stays inlined, as today.
                     external: [/^@graphty\/graph-format(\/|$)/],
 ```
 
@@ -718,7 +718,7 @@ Beside the `nodeCount` getter at `:222`, add:
 ```ts
     /**
      * A counter that increases on every topology change (`addNode` of a new id, `removeNode`,
-     * `addEdge`, `removeEdge`, `clear`) and never on a read. Callers memoise derived structures on
+     * `addEdge`, `removeEdge`, `clear`) and never on a read. Callers memoize derived structures on
      * `(graph, mutationCount)`; graph-format design 14.1 rule 4 names this counter, and `toSnapshot`
      * is its first consumer. It is monotone and is NOT reset by `clear()`: a reset could hand a
      * stale cache entry a matching key.
@@ -774,7 +774,7 @@ interface CacheEntry {
 const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
 
 /**
- * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount`.
+ * Freeze a legacy `Graph` into a `GraphSnapshot`, memoized on the graph's `mutationCount`.
  *
  * The builder is created with `weightDtype: "f64"` so a legacy graph's double weights survive
  * exactly: at freeze, graph-format keeps the original values in an f64 edge column with role
@@ -863,7 +863,7 @@ Create `AT/algorithms/test/helpers/snapshot-differential.ts`:
 /**
  * The A1 differential harness (graph-format design 14.6 row A1): a legacy `Graph` and the snapshot
  * `toSnapshot` builds from it are compared on every property a snapshot can answer DIRECTLY --
- * the node set, the neighbour sets, the out-degrees, the edge multiset with weights, the self-loop
+ * the node set, the neighbor sets, the out-degrees, the edge multiset with weights, the self-loop
  * count, and topological determinism. It deliberately does NOT compare algorithm results: no legacy
  * algorithm consumes a snapshot until A2 widens its first parameter.
  */
@@ -919,7 +919,7 @@ export function assertSnapshotMatchesGraph(graph: Graph): GraphSnapshot {
     }
     expect(fromSnapshot.sort()).toEqual(fromGraph.sort());
 
-    // ---- 4. neighbour sets and out-degrees, per node
+    // ---- 4. neighbor sets and out-degrees, per node
     const outDegree = s.outDegree();
     for (let u = 0; u < s.nodeCount; u++) {
         const id = s.ids.idOf(u);
@@ -931,7 +931,7 @@ export function assertSnapshotMatchesGraph(graph: Graph): GraphSnapshot {
         const fromGraphNeighbours = [...graph.outNeighbors(id)].map((v) => String(v));
         expect(fromArcs.sort()).toEqual(fromGraphNeighbours.sort());
         // outDegree() counts ARCS, and the legacy graph forbids parallel edges by default
-        // (`allowParallelEdges: false`, graph.ts:24), so arcs and distinct neighbours coincide.
+        // (`allowParallelEdges: false`, graph.ts:24), so arcs and distinct neighbors coincide.
         expect(outDegree[u]).toBe(fromArcs.length);
     }
 
@@ -950,7 +950,7 @@ export function assertSnapshotMatchesGraph(graph: Graph): GraphSnapshot {
     // ---- 6. arc accounting (invariants I6 and I7)
     expect(s.arcCount).toBe(s.directed ? s.edgeCount : 2 * s.edgeCount - s.selfLoopCount);
 
-    // ---- 7. determinism and memoisation
+    // ---- 7. determinism and memoization
     expect(toSnapshot(graph)).toBe(s);
     expect(equalsTopology(s, toSnapshot(graph.clone()))).toBe(true);
 
@@ -1296,7 +1296,7 @@ export class IndexedMinHeap {
     }
 
     /**
-     * Remove and return the node with the smallest key. Undefined behaviour on an empty heap;
+     * Remove and return the node with the smallest key. Undefined behavior on an empty heap;
      * callers guard with `isEmpty()`.
      * @returns The node index
      */
@@ -1587,8 +1587,8 @@ export interface BfsOptions {
 }
 
 /**
- * Breadth-first search over out-neighbours. Takes any `AdjacencyView`, so `s.reverse()` gives an
- * in-neighbour BFS with no extra code.
+ * Breadth-first search over out-neighbors. Takes any `AdjacencyView`, so `s.reverse()` gives an
+ * in-neighbor BFS with no extra code.
  * @param g - The adjacency to traverse
  * @param start - The node index to start from
  * @param options - Traversal options
@@ -2067,19 +2067,19 @@ Create `AT/algorithms/src/indexed/common-neighbors.ts`. The body is `graph-forma
 ```ts
 import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
-/** Options of the index-based common-neighbour score. @public */
+/** Options of the index-based common-neighbor score. @public */
 export interface CommonNeighborsOptions {
     /** Intersect out(u) with in(v) instead of the two undirected rows. */
     readonly directed?: boolean | undefined;
 }
 
 /**
- * The number of distinct common neighbours of two nodes, by a merge of their sorted rows.
+ * The number of distinct common neighbors of two nodes, by a merge of their sorted rows.
  * @param s - The snapshot
  * @param u - A node index
  * @param v - A node index
  * @param o - Options
- * @returns The count of distinct common neighbours
+ * @returns The count of distinct common neighbors
  * @public
  */
 export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
@@ -2214,7 +2214,7 @@ describe("commonNeighborsScore", () => {
     });
 
     it("scores zero when the two rows are disjoint", () => {
-        // row(a) = [c] and row(c) = [a, b, d]: c is not its own neighbour and a is not its own,
+        // row(a) = [c] and row(c) = [a, b, d]: c is not its own neighbor and a is not its own,
         // so the merge finds nothing.
         const s = star();
         expect(commonNeighborsScore(s, s.ids.requireIndex("a"), s.ids.requireIndex("c"))).toBe(0);
@@ -2469,7 +2469,7 @@ export interface AlgorithmAccelerator {
  * The option shape of the power-iteration family until each one's `indexed.*` port lands and
  * brings its real option type (plan decision PD-2's "NOT TOUCHED" rows). It is DELIBERATELY not
  * `Record<string, unknown>`: these three are the members every one of those algorithms takes, so
- * an accelerator can honour them today and the type narrows rather than widens as ports arrive.
+ * an accelerator can honor them today and the type narrows rather than widens as ports arrive.
  * @public
  */
 export interface HitsOptionsLike {
@@ -3374,12 +3374,12 @@ Environment: Node <version>, pnpm 10.0.0, vitest 3.2.4, TypeScript <version>, `@
 
 ## 2. The A1 gate of graph-format design 14.6, discharged here (plan departure DEP-8A-B)
 
-| Item                                                                      | Evidence                                                                   | Result                | Status      |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------- | ----------- |
-| every fixture graph converts with `equalsTopology` / neighbour-set parity | `test/unit/indexed/to-snapshot-differential.test.ts`                       | <11 passed>           | pass / fail |
-| `mutationCount` memoisation, no stale hit                                 | `test/unit/indexed/to-snapshot.test.ts`                                    | <8 passed>            | pass / fail |
-| `weightDtype: "f64"` keeps a non-f32-exact weight exactly                 | the shadow-column case of the same file                                    | <pass>                | pass / fail |
-| public signatures UNCHANGED                                               | `git diff --stat master -- algorithms/src/algorithms algorithms/src/types` | <only betweenness.ts> | pass / fail |
+| Item                                                                     | Evidence                                                                   | Result                | Status      |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------- | --------------------- | ----------- |
+| every fixture graph converts with `equalsTopology` / neighbor-set parity | `test/unit/indexed/to-snapshot-differential.test.ts`                       | <11 passed>           | pass / fail |
+| `mutationCount` memoization, no stale hit                                | `test/unit/indexed/to-snapshot.test.ts`                                    | <8 passed>            | pass / fail |
+| `weightDtype: "f64"` keeps a non-f32-exact weight exactly                | the shadow-column case of the same file                                    | <pass>                | pass / fail |
+| public signatures UNCHANGED                                              | `git diff --stat master -- algorithms/src/algorithms algorithms/src/types` | <only betweenness.ts> | pass / fail |
 
 ## 3. The six ports, against their legacy counterparts
 
@@ -3463,8 +3463,8 @@ Subject lengths, measured with `printf '%s' "<subject>" | wc -c`, in the order o
 | the format resolves                               | M8a-T2           | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/package-wiring.test.ts`                                           | `workspace:^` + `^1.0.0` peer, and the module imports                                 |
 | the published bundle stays thin                   | M8a-T7           | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.js` = 0 and `grep -c 'from "@graphty/graph-format"' algorithms/dist/algorithms.js` >= 1 | graph-format is external, not inlined                                                 |
 | the examples' bundle is self-contained            | M8a-T2, M8a-T7   | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.standalone.js` >= 1 and `grep -rl 'from "@graphty/' algorithms/gh-pages/` empty         | no bare specifier reaches a browser                                                   |
-| A1 differential                                   | M8a-T4           | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/to-snapshot-differential.test.ts`                                 | every fixture converts with neighbour-set and edge-multiset parity                    |
-| memoisation has no stale hit                      | M8a-T3           | the `memoises on mutationCount` case of `to-snapshot.test.ts`                                                                                | a mutation replaces the cached snapshot                                               |
+| A1 differential                                   | M8a-T4           | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/to-snapshot-differential.test.ts`                                 | every fixture converts with neighbor-set and edge-multiset parity                     |
+| memoization has no stale hit                      | M8a-T3           | the `memoises on mutationCount` case of `to-snapshot.test.ts`                                                                                | a mutation replaces the cached snapshot                                               |
 | the six ports                                     | M8a-T6, M8a-T7   | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed`                                                                  | each port matches its legacy counterpart at the stated tolerance                      |
 | the seam compiles as declared                     | M8a-T10          | `cd algorithms && tsc -p tsconfig.typecheck.json`                                                                                            | `test/types/accelerator.test-d.ts` holds                                              |
 | delegation / CPU path / throw                     | M8a-T11          | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/accelerated.test.ts`                                              | the three proofs design 9.2 asks for                                                  |

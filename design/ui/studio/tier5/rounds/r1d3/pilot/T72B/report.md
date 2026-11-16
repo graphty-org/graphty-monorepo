@@ -32,7 +32,7 @@ announcements") is `touched-5`. The other twelve are other tasks' walks on other
   `station` to the label column (toast "Undid changing a column's role.", the table header loses
   its Label tag) (04.png). This is the decided behavior (decided.md, dry run pass 3: Undo names and
   undoes what came before the card).
-- Control+Shift+Z: "Redid changing a column's role.", Label back, Redo greyed, still no card (05.png).
+- Control+Shift+Z: "Redid changing a column's role.", Label back, Redo grayed, still no card (05.png).
 - A real card built after it: "telemetry yes / Except installed before 2000", 5 of 11 nodes, top bar
   "5 of 11 nodes, 1 of 13 edges" (06.png).
 

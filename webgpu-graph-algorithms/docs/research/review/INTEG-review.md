@@ -17,10 +17,10 @@ Reviewer: adversarial, integration lens. Date: 2026-09-14.
   `graphty-element/src/{algorithms,managers,layout,config,ai,behaviors}`, `algorithms/src`,
   the monorepo `ci.yml` / `release.yml` / `coverage.yml` / `nx.json` / `package.json`, and the design
   sections 10, 13.5, 14.2-14.6, 15.3, 16.2, 16.6-16.7 was opened and compared.
-- Nx release behaviour was verified in the installed nx 22.3.3 source under
+- Nx release behavior was verified in the installed nx 22.3.3 source under
   `graphty-monorepo/node_modules/.pnpm/nx@22.3.3`.
 - One probe was run: `tmp/webgpu-plan/review/probes/serial-sharing.mjs` (withColumns / toUndirected
-  identity and serial behaviour).
+  identity and serial behavior).
 - External facts checked: GitHub Actions queue limit (docs.github.com/en/actions/reference/limits),
   pnpm `workspace:` publish replacement (pnpm.io/workspaces), the published
   `@graphty/graphty-element` dependency pins (`npm view`).
@@ -31,7 +31,7 @@ Every graph-format name the plan uses exists with the stated shape: `INVALID_IND
 `AttributeTable.gpuView(name)`, `column.version`, `markDirty()`, `setAll()`, `paddedU32View()`,
 `gpuEligibility`, `foldArcs(snapshot, perArc, reducer, out?)`, `expandEdges(snapshot, perEdge, out?)`,
 `renumberPartition(labels, out?)` at `derived.ts:1155`, `makeMask` / `maskSet`, `NodeMask` / `EdgeMask`
-(= `U32`), `F32` / `U32` / `F64` (`<ArrayBuffer>`-parameterised), `TypedArrayData`, `NumericVector`,
+(= `U32`), `F32` / `U32` / `F64` (`<ArrayBuffer>`-parameterized), `TypedArrayData`, `NumericVector`,
 `ArenaLayout { buffer, byteOffset, byteLength, alignment, segments, hotByteLength }`, `ArenaSegment`,
 `CoreArrayName`, `ViewName` (all eight names the residency binds), `DegreeOrderView { perm,
 segmentOffsets }`, `DegreeOrderOptions.of`, `ReverseView.fwdArc`, `CooView.src`, `EdgeListView.arc`,
@@ -58,14 +58,14 @@ GPU lane a release and coverage gate, contradicting "never blocks" (line 2845).
 Evidence: `graphty-monorepo/.github/workflows/release.yml:4-5,19` and `coverage.yml:4-5,17,51` are
 `workflow_run` on `CI` gated on `github.event.workflow_run.conclusion == 'success'`. A workflow run's
 conclusion is `failure` when any job fails unless that job has `continue-on-error: true`, and a job that
-waits for a self-hosted runner is queued for up to 24 hours before it is cancelled ("A job can be in the
-queue for 24 hours before it is automatically cancelled", docs.github.com/en/actions/reference/limits).
+waits for a self-hosted runner is queued for up to 24 hours before it is canceled ("A job can be in the
+queue for 24 hours before it is automatically canceled", docs.github.com/en/actions/reference/limits).
 `timeout-minutes: 45` (line 2976) only starts once the job runs. Not being in `all-checks.needs`
 (line 3100) protects branch protection, not `workflow_run` consumers. So a powered-off box delays every
 master release by 24 hours and a red GPU run cancels the release and the coverage merge.
 
 Fix: put the GPU lane in its own workflow file (`gpu.yml`, triggers push / schedule / dispatch /
-labelled same-repo PR, `needs` nothing from `CI`; it downloads the build artifact by run id or rebuilds),
+labeled same-repo PR, `needs` nothing from `CI`; it downloads the build artifact by run id or rebuilds),
 so `CI`'s conclusion never depends on it; state in 12.1 that "never required" means "not in `CI` at all",
 and add `continue-on-error: true` on the job as belt and braces. Apply the same to the staging 12.3
 workflow so the shape that moves in at W1 is already right.
@@ -210,7 +210,7 @@ Claim: the WGSL sketch writes `eff = max(eff * 0.5, 0.05)` and `eff = max(eff * 
 port (`layout/src/layouts/force-directed/forceatlas2.ts:205-216`) and Gephi both write `if (eff >
 minSpeedEfficiency) eff *= 0.5` -- a conditional multiply that can leave `eff` BELOW 0.05 (0.06 -> 0.03)
 and never raises it (0.03 stays 0.03; the sketch would lift it to 0.05). The sketch also divides by
-`max(traction, 1e-30)` where the CPU divides by `traction` (Infinity / NaN behaviour differs). The
+`max(traction, 1e-30)` where the CPU divides by `traction` (Infinity / NaN behavior differs). The
 trace-parity test of 11.4 (`1e-4` for ten iterations) is meaningful only if both sides implement the
 same law, which is the whole point of R-1.
 
@@ -246,7 +246,7 @@ are bundle-only.
 
 Section 1.3 row 14.5 and 9.2; plan lines 164, 2313-2319.
 
-Claim: 1.3 says the plan honours "injected as `runAlgorithm(snapshot, { accelerator: gpu })`"
+Claim: 1.3 says the plan honors "injected as `runAlgorithm(snapshot, { accelerator: gpu })`"
 (design 14.5 lines 4239-4240), but 9.2 defines `accelerated(acc).pageRank(s, options)`: an option on the
 call in the design, a dispatcher object in the plan. Both are explicit injection, but the plan's 1.5
 promises that "everything else ... is honoured as written".
@@ -254,7 +254,7 @@ promises that "everything else ... is honoured as written".
 Fix: add a one-line note in 1.3 (or a DEPARTURE-5) that the injection shape follows note 02 section
 4.5 (`accelerated(acc)`), and why (one dispatcher, no per-function option plumbing).
 
-### INTEG-11 (minor) -- the f32 parity tolerance departs from design 16.2 while 1.3 claims it is honoured
+### INTEG-11 (minor) -- the f32 parity tolerance departs from design 16.2 while 1.3 claims it is honored
 
 Section 1.3 row 16.2, 9.7, 11.4; plan lines 168, 2510, 2722-2723.
 
@@ -436,7 +436,7 @@ devDependency.
       `playwright ^1.54.1`, `vite ^7`, `vitest ^3.2.4`; `packages/move/root-touch-points.diff` shape.
 - cuda-ffi: `on: [push, workflow_dispatch]`, `runs-on: cudaffi-gpu-runner`, `container.options:
 --gpus all --user root`, lint-only without a GPU.
-- graph-io skeleton facts: both deps and peer on graph-format, `build-bundle.js:33-47` externalises
+- graph-io skeleton facts: both deps and peer on graph-format, `build-bundle.js:33-47` externalizes
   dependencies + peerDependencies, `coverage:preview` ports 9056 / 9057, `pool: "forks"`, prettier
   4 / 120 / all, `no-console` allows `warn`, `jsdoc/require-jsdoc` and explicit return types on.
 - The four declared departures are real departures; besides INTEG-10 and INTEG-11 no other silent

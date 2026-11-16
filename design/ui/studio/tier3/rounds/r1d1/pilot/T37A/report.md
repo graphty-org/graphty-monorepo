@@ -159,7 +159,7 @@ relative to `5bd16cda6e/`.
 | ---- | ------------- | ---------------------- | ---------- |
 | 1 | Start screen | Samples list "Les Miserables, 77 characters"; usage-data card at the bottom | `pointer/01.png` |
 | 2 | No thanks | Card gone | `pointer/02.png` |
-| 3 | Les Miserables | Graph opens; inspector on Graph, Values tab: Nodes 77, Edges 254, Degree histogram 1..36, "Highest 36" with no name. Undo and Redo greyed | `pointer/03.png` |
+| 3 | Les Miserables | Graph opens; inspector on Graph, Values tab: Nodes 77, Edges 254, Degree histogram 1..36, "Highest 36" with no name. Undo and Redo grayed | `pointer/03.png` |
 | 4 | Click the central node (766,410) | Inspector: Valjean, Node, Values tab; Summary id Valjean, name Valjean, "Degree 36 >". The shortest path ends here (36 = Highest 36) | `pointer/04.png` |
 | 5 | Analyze (flask button in the bottom toolbar) | Analysis list with a "Filter analyses" box; Degree first under "Rank nodes and edges", described "How many edges each node has: the most connected rank highest." | `pointer/05.png` |
 | 6 | Degree | A card: Degree, the same description, "Under a second", Run | `pointer/06.png` |

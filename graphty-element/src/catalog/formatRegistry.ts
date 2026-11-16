@@ -7,14 +7,14 @@
  * detection: a consumer had to know the format's name already and type it, and dropping a file
  * of that format on the element found nothing.
  *
- * WHAT IS HELD HERE. Only the catalogue half and the sniffer: the descriptor a picker reads, the
+ * WHAT IS HELD HERE. Only the catalog half and the sniffer: the descriptor a picker reads, the
  * registry type the class was filed under, and the optional `detect`. The reader class itself
  * stays in `DataSource`'s own map. Nothing in this module imports a reader, which is what keeps
  * `./catalog` free of the import machinery -- a picker reading `catalog.formats()` pays for no
  * parser.
  *
  * ONE ACT, NOT TWO. `DataSource.register` publishes here; there is no separate
- * `registerFormat(descriptor)`. A descriptor filed without its class would be a catalogue entry
+ * `registerFormat(descriptor)`. A descriptor filed without its class would be a catalog entry
  * a consumer can see, select, and then be told does not exist.
  */
 
@@ -26,9 +26,9 @@ import { type FormatDescriptor, type FormatId, KNOWN_FORMAT_IDS } from "./types"
 /** Lists the graphs a file holds, given its text or its bytes. */
 export type GraphLister = (input: string | Uint8Array) => Promise<readonly GraphListing[]>;
 
-/** One format a third party registered: what a picker reads, and how a file is recognised. */
+/** One format a third party registered: what a picker reads, and how a file is recognized. */
 export interface RegisteredFormat {
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     readonly descriptor: FormatDescriptor;
     /** The name `DataSource.register` filed the reader class under. Equal to `descriptor.id`. */
     readonly type: string;
@@ -57,7 +57,7 @@ const registry = createPluginRegistry<RegisteredFormat, FormatDescriptor>({
 });
 
 /**
- * Publish a registered format to the catalogue and to detection.
+ * Publish a registered format to the catalog and to detection.
  *
  * Called by `DataSource.register` for a class that declares a descriptor, and by nothing else.
  * @param entry - The descriptor, the registry type and the optional sniffer.
@@ -103,7 +103,7 @@ export function registeredFormatById(id: FormatId): RegisteredFormat | undefined
  * Forget every registered format.
  *
  * FOR TESTS, and named so that a reader cannot mistake it for part of the plugin contract. It
- * clears the catalogue half only: a suite that also registered a reader class clears that
+ * clears the catalog half only: a suite that also registered a reader class clears that
  * through `DataSource`.
  */
 export function clearRegisteredFormatsForTesting(): void {

@@ -7,8 +7,8 @@
  *
  * WHAT IS MEASURED. A red edge runs past the middle node close enough to cross its halo ring but not
  * the node itself. The node is selected by a real click, and the canvas is read on the edge's row
- * where it crosses the ring: the halo's gold must show there. The node's own centre must still be
- * the node's colour, not the halo's, so the halo stays behind the node. Both the node's own mesh and
+ * where it crosses the ring: the halo's gold must show there. The node's own center must still be
+ * the node's color, not the halo's, so the halo stays behind the node. Both the node's own mesh and
  * a node drawn by a shader batch are checked; in 3D, where the halo is a shell round the node, only
  * that it rings the node and stays under it.
  */
@@ -43,10 +43,10 @@ const EDGES = [{ src: "left", dst: "right" }];
 /** Pure red, which neither the node, the background nor the halo's gold is. */
 const EDGE_COLOR = "#FF0000";
 
-/** The node's own colour: a blue the halo's gold is far from. */
+/** The node's own color: a blue the halo's gold is far from. */
 const NODE_COLOR = "#0000FF";
 
-/** A surface shader that paints the node its own colour, so a sphere draws on the impostor batch. */
+/** A surface shader that paints the node its own color, so a sphere draws on the impostor batch. */
 const FLAT_SHADER = "halo-over-edges/flat";
 
 const cleanups: (() => void)[] = [];
@@ -110,7 +110,7 @@ async function mounted(viewMode: "2d" | "3d", shader: boolean): Promise<Graphty>
  * Where a node is drawn on screen.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);

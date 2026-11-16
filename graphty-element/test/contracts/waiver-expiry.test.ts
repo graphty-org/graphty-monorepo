@@ -60,7 +60,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SUBJECTS_SHOWN = 6;
 
 /**
- * The defect waivers in one list, labelled with what each is about.
+ * The defect waivers in one list, labeled with what each is about.
  * @param list - The name of the list, as a reader would grep for it.
  * @param entries - Every waiver in that list, of either kind.
  * @param subjectOf - How to say what one entry is about.

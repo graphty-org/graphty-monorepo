@@ -35,7 +35,7 @@
 
 /**
  * A re-run's answer from its job conclusion. Only a finished pass or failure answers; anything else
- * (not finished, cancelled, skipped) leaves the procedure waiting, and the incident's deadline bounds
+ * (not finished, canceled, skipped) leaves the procedure waiting, and the incident's deadline bounds
  * the wait.
  * @param {string | null | undefined} conclusion the re-run job's `conclusion`
  * @returns {"pass" | "fail" | null} the answer, or null when there is none yet

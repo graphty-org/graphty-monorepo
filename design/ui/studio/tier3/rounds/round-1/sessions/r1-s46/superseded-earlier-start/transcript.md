@@ -22,10 +22,10 @@ Thinking: "'Style layers' is a bit developer-ish, but 'Everything 34' is obvious
 Command: --step --click "Everything"
 Screen (05.png): Everything selected; right panel shows Style > Node, "Everything styles all 34 nodes". Fill > Color 6366F1 with a purple swatch.
 
-## Step 5 -- click the colour swatch
+## Step 5 -- click the color swatch
 Thinking: "There it is, Fill colour. I'll click the little swatch and see if I get a picker with a yellow."
 Command: --step --click-at 1268,483
-Screen (06.png): a Color picker popover: gradient, hue bar, Hex 6366F1, and five preset swatches at the bottom -- purple, grey, blue, yellow, black.
+Screen (06.png): a Color picker popover: gradient, hue bar, Hex 6366F1, and five preset swatches at the bottom -- purple, gray, blue, yellow, black.
 
 ## Step 6 -- click the yellow preset swatch
 Thinking: "Fourth swatch is yellow. Click it."

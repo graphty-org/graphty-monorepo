@@ -87,7 +87,7 @@ DataSource.register(PagedSource);
 interface Frame {
     /** Whether the layout had settled. */
     readonly settled: boolean;
-    /** Each node's instance colour as "r,g,b", or "none". */
+    /** Each node's instance color as "r,g,b", or "none". */
     readonly colors: readonly string[];
     /** Each node's drawn radius, in scene units. */
     readonly radii: readonly number[];

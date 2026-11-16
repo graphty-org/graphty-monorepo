@@ -293,7 +293,7 @@ an operation that has no record appends nothing. The shape:
 what it read (the frozen graph reference, columns and sets with their revisions), what ran (the
 operation and its version, the engine -- CPU, or WebGPU with its adapter class -- parameters, seed,
 how edges were read, exact or estimated with the sample size), who and when, and freshness and
-status as separate fields. Whether a run is deterministic is declared in the algorithm catalogue,
+status as separate fields. Whether a run is deterministic is declared in the algorithm catalog,
 never assumed. The log is append-only; undo appends an entry rather than erasing one
 (`element-contract.md` 5).
 
@@ -379,7 +379,7 @@ the filter pipeline and the search graph, which the architectural principles for
   set), because a local step gives the same answer on any input and two commuting steps must not
   give two shortest paths; only a **structural** step after a working set is lifted with it.
   Rejected: re-evaluating later data steps on the lifted graph (one step would mean two
-  things) and forcing working sets to the end of the list (it reorders "neighbours of the seeds,
+  things) and forcing working sets to the end of the list (it reorders "neighbors of the seeds,
   then the 3-core", which analysts run as one chain).
 - **The verbs.** `session.sets` with `list`, `get`, `status`, `pathKind`, `containing`, `usedBy`,
   `offers`, `create`, `createFrom` (Create set; `follow: true` keeps a following rule over an item),
@@ -435,7 +435,7 @@ threshold over `graph.degree` resolves to nothing today and would silently chang
 root arrives.
 
 **Recommendation: refuse every root other than `data` and `results` at the doors now, so `graph`
-is additive later; enforce that no result field is named `runs` by a catalogue check.** Degree and
+is additive later; enforce that no result field is named `runs` by a catalog check.** Degree and
 the other always-available measures need a stable path that is not a run. Because attributes live
 under `data.`, an imported column called "graph" is `data.graph` and cannot collide, so no column
 is renamed on import. No `sets` root is reserved: membership is the `member` rule leaf (door 11),
@@ -455,7 +455,7 @@ first (`glossary.md` 17, items 2 to 7):
 | `Caveats.notes` | `Caveats.remarks` | "notes" must mean analyst notes only, before notes ship |
 | `WeightMeaning` `"distance" \| "strength"` | `"distance" \| "similarity" \| "capacity"`; old files map "strength" to "similarity" | max flow reads capacity, which "strength" misstates |
 | result shape `community` | `partition`, with `community` read as an alias | connected components are not communities |
-| catalogue `plainName` as labels; `audience: "plain"`; `category`; `OptionChoice.label` | a sentence-case `displayName`; `plainName` becomes (i) text; `audience` deprecated; `category` becomes `family` | friendly substitutes for field terms ("Bridges" for betweenness) were ruled out, and a per-audience vocabulary is a persona-specific feature |
+| catalog `plainName` as labels; `audience: "plain"`; `category`; `OptionChoice.label` | a sentence-case `displayName`; `plainName` becomes (i) text; `audience` deprecated; `category` becomes `family` | friendly substitutes for field terms ("Bridges" for betweenness) were ruled out, and a per-audience vocabulary is a persona-specific feature |
 | `Run.engine` (package versions) | `Run.versions`, plus a new `Run.accelerator` (CPU or WebGPU) | a consumer reading `engine` expects CPU or WebGPU; nothing records which accelerator ran today |
 
 **Why it is a door.** Consumers' code calls these names; removing the old ones is a breaking
@@ -464,7 +464,7 @@ change.
 **Recommendation: all six, on the schedule in door 15.** Each one either makes the published
 documentation false or collides with a word the interface needs.
 
-**Depends on it.** Every screen label drawn from the catalogue, the weight-role row, the "Engine"
+**Depends on it.** Every screen label drawn from the catalog, the weight-role row, the "Engine"
 line under Details.
 
 ### 15. When the old names are removed
@@ -575,9 +575,9 @@ parts present; a recipe that names attributes only, bound by name.
 recipe is the profile with no data part; a style file is a recipe with only style layers. A recipe
 declares one **requirement slot** per attribute it reads: element kind, measurement level (door
 20), weight role for an edge weight (door 21), node- or edge-type role, and name hints; and one per
-catalogue entry, by key and version. Parts keyed by element id cannot travel, so a recipe drops
+catalog entry, by key and version. Parts keyed by element id cannot travel, so a recipe drops
 working-set steps, fixed sets, notes on elements, positions, pins, the Overrides layer and the
-camera, and turns the rest into slots of these published kinds: **attribute**, **catalogue**,
+camera, and turns the rest into slots of these published kinds: **attribute**, **catalog**,
 **set** (a rule that referenced a fixed set), **argument** (a node-valued argument such as a
 shortest path's source and target, bound by the analyst or left unbound and switched off),
 **requirement** (each declared property, such as direction or the parallel-edge policy, checked
@@ -618,7 +618,7 @@ between a small and a large file, and integer-coded categories are read as quant
 "temporal"`, inferred only when undeclared and correctable in the import report; partition results
 declare `"nominal"` by construction.** The screen words are categorical, ordinal, quantitative and
 time (`glossary.md` 6). The scale descriptors' existing `domainKind` (`src/catalog/scales.ts`)
-then matches against it. The catalogue scale named `ordinal` (`src/catalog/scales.ts`) is d3's
+then matches against it. The catalog scale named `ordinal` (`src/catalog/scales.ts`) is d3's
 categorical lookup, not the ordinal level, and will mislead anyone who reads both; recommendation:
 publish `categorical` as its preferred name beside `ordinal`, deprecated, in the same release.
 
@@ -636,7 +636,7 @@ records it on every run. Recipes bind to it, so its home and values are fixed on
 **Recommendation: a role on the edge attribute, `"distance" | "similarity" | "capacity"`, absent
 while unknown, with every run still recording the role it read; a similarity may be declared
 `signed: true`.** Three values, because no
-catalogue algorithm needs a fourth: max flow is the only capacity reader, and it treats its value as
+catalog algorithm needs a fourth: max flow is the only capacity reader, and it treats its value as
 a bound, not an affinity; graph-format already has a separate `capacity` column role, so one edge
 can carry a cost and a capacity (`graph-format/src/types/columns.ts:156`). The run-level rename is
 door 14; this door adds the attribute-level field. Signed similarity exists because correlation
@@ -672,7 +672,7 @@ but a filter can make a cyclic graph acyclic, so every precondition checked agai
 wrong on a filtered run. Consumers will call whatever ships.
 
 **Recommendation: one read that takes a scope, `properties(scope)`, whose default scope is the one a
-run would use, and algorithm preconditions declared in the catalogue against those facts.**
+run would use, and algorithm preconditions declared in the catalog against those facts.**
 
 **Depends on it.** `graph-conventions.md` 1; precondition marks; the Statistics of every scope.
 
@@ -685,7 +685,7 @@ set) to traverse: "within 2 hops over transfers edges".
 
 **Recommendation: add it as an optional field of the neighborhood leaf, together with a
 `direction`, `"in" | "out" | "all"`, default `"all"`.** The default keeps what the leaf does today
-(it counts hops both ways) and matches Cytoscape's first-neighbour selection; NetworkX's
+(it counts hops both ways) and matches Cytoscape's first-neighbor selection; NetworkX's
 `ego_graph` follows successors only, so the choice is stated in the methods text. Typed traversal is how
 knowledge-graph and fraud analysts query (relationship-type patterns in Cypher, metapaths in
 heterogeneous networks), and every other route to it is a filter step that also changes scope.
@@ -700,10 +700,10 @@ adds to it. Select neighbors changes only the selection and never adds to it.
 **Why it is a door.** It is part of the published `FilterStep` shape (door 11) and of every saved
 file, and the methods text is written from it.
 
-**Recommendation: the step stores the union of its rule and each addition, each labelled with the
+**Recommendation: the step stores the union of its rule and each addition, each labeled with the
 command that made it ("+37 by Filter to neighbors, 2 hops, from 3 nodes"), and the step's kind
 follows the command that created it, with no published toggle.** A walkthrough of "Fraud Ring
-Investigation" showed that without the working set the methods text states a cleaning judgement the
+Investigation" showed that without the working set the methods text states a cleaning judgment the
 investigation never followed. graphty-element keeps one node mask and one edge mask for all steps
 (`src/session/visibility/VisibilityApi.ts:409-445`), so "excluded by step X" and per-step
 membership need either a mask per step or re-evaluating each step's predicate on request; that
@@ -718,7 +718,7 @@ element change is not yet filed.
 **Why it is a door.** graphty-element 2.x paints automatically (`RunStyle` on by default) and
 suppresses the suggestion when an enabled authored layer writes the same channel
 (`src/session/styles/autoApply.ts:182-197`). Turning the default off changes published 2.0
-behaviour.
+behavior.
 
 **Options.**
 1. Automatic paint with "covered" states: three screen states, four rules, and a coverage test on
@@ -731,15 +731,15 @@ behaviour.
 **Recommendation: option 3.** It matches what graphty-element already does, avoids both published
 changes, and always tells the analyst why a result did not repaint. It departs from Figma, where
 creating a variable paints nothing, and is recorded as a departure. The defect in the suppression
-check (it ignores the authored layer's selector, so one hand-coloured node suppresses every later
-automatic colour) is issue https://github.com/graphty-org/graphty-monorepo/issues/551 and is
+check (it ignores the authored layer's selector, so one hand-colored node suppresses every later
+automatic color) is issue https://github.com/graphty-org/graphty-monorepo/issues/551 and is
 fixed whatever the answer.
 
 **Depends on it.** `conceptual-model.md` 5.1; `interaction-patterns.md`; `content-design.md`.
 
 **Added by the information architecture.** A Look's `template` layers count as authored
-(`src/session/styles/autoApply.ts:147`), so a Look that sets node colour suppresses every later
-run's colour; and withheld suggestions are recorded nowhere, so "suppressed by" should be one value
+(`src/session/styles/autoApply.ts:147`), so a Look that sets node color suppresses every later
+run's color; and withheld suggestions are recorded nowhere, so "suppressed by" should be one value
 of a per-run outcome per suggested channel (`element-contract.md`, "Received from the information
 architecture").
 
@@ -800,7 +800,7 @@ latest source loses that.
 **Decision.** How graphty-element knows that an algorithm reads the search graph rather than the
 filtered graph.
 
-**Why it is a door.** It is a new published field on the catalogue descriptor, which third-party
+**Why it is a door.** It is a new published field on the catalog descriptor, which third-party
 algorithms declare, and it changes which graph a flow value or a path length is computed on.
 
 **Options.** A fixed list inside graphty-element; a descriptor field; every algorithm reads the
@@ -843,7 +843,7 @@ names of the channels it writes.
 selector form is part of the one set grammar (door 11).
 
 **Options.** No group styling; a closed list of group channels (hull, label, the collapsed node's
-size and colour) on a set target; group marks as a separate object outside the style stack.
+size and color) on a set target; group marks as a separate object outside the style stack.
 
 **Recommendation: a set target with a closed list of group channels.** "Enrichment Map - Pathway Similarity Network"
 needs labels visible on themes and hidden on nodes, and "Cluster and Functionally Annotate a Molecular Network" writes
@@ -856,7 +856,7 @@ the top term as a cluster label; a separate object would sit outside the stack's
 **Decision.** How a consumer replaces the overview recipe graphty-element runs at Load, and the
 option's published name.
 
-**Why it is a door.** It is a published element option and a published default behaviour.
+**Why it is a door.** It is a published element option and a published default behavior.
 
 **Options.** Only the shipped General overview; a project setting only; three levels -- General
 ships, a consumer configures the element's default, a project names its own and wins.
@@ -866,7 +866,7 @@ every new file should start on its own overview, because a new file has no setti
 The graphty app sets the consumer level from a reader preference; every level keeps the floor.
 
 **Two halves, decided at different times.** That the element runs the General overview at load is
-a published default behaviour; it is decided before the first build slice that ships it
+a published default behavior; it is decided before the first build slice that ships it
 (`implementation-mapping.md`, "Build order", slice 1a). The replaceable option and its name are
 decided before slice 6, which ships them, so the first half does not wait on the second.
 
@@ -901,9 +901,9 @@ reason to publish the least:
 
 **Depends on it.** `information-architecture.md` 6; `element-contract.md`, "What a bare embed does".
 
-### 35. Catalogue families, aliases and display labels
+### 35. Catalog families, aliases and display labels
 
-**Decision.** How the catalogue's families and search words are published.
+**Decision.** How the catalog's families and search words are published.
 
 **Why it is a door.** `AlgorithmDescriptor.category` is a published union
 (`graphty-element/src/catalog/types.ts:508`). It is open (`(string & {})`), so adding a family is
@@ -925,7 +925,7 @@ show the same things. Rename or remove a category only with a deprecation cycle.
 **Decision.** Whether graphty-element publishes a verb that says which profile a file holds
 (project, recipe, style, data) before it is opened.
 
-**Why it is a door.** It is a published verb, and it fixes how a profile is recognised on disk,
+**Why it is a door.** It is a published verb, and it fixes how a profile is recognized on disk,
 which door 19's manifest decides.
 
 **Options.** The app sniffs files; the element reports the profile and parts.
@@ -959,7 +959,7 @@ value row and a table column show data and style together (`information-architec
 
 **Decision.** The names and shapes of the session-part fields the information architecture needs
 stored (the list is in `element-contract.md` 11): among them the order of the saved views, each
-view's note order, item attributes, group columns, the start nodes of a neighbourhood or path
+view's note order, item attributes, group columns, the start nodes of a neighborhood or path
 step, a filter step over items, per-run direction and weight overrides, the No value look, the
 Default look and Overrides rows, the project's overview recipe and the applied recipes.
 
@@ -999,7 +999,7 @@ id and draw one selection-banded hull with a count badge above the cap.
 
 **Recommendation: hold every id; above the cap draw one selection-banded hull with a count badge (`visual-language.md` B6).** Storage is
 already one byte per element (`session/selection/SelectionApi.ts`), so the cap limits only highlight
-instances. Truncation makes a later Filter to analyse part of what was chosen, and an object
+instances. Truncation makes a later Filter to analyze part of what was chosen, and an object
 selection made from a box has no object behind it. Make the cap configurable, as the documented
 `config.selectionCap` promises (today `GraphSession.ts` never passes it). The undo design's rule
 that an over-cap step leaves the selection unchanged is revisited when the cap changes.
@@ -1009,16 +1009,16 @@ that an over-cap step leaves the selection unchanged is revisited when the cap c
 ### 40. The focused node and its event
 
 **Decision.** A published "focused node" state on the canvas, distinct from the selection, with a
-change event, which the arrow keys move between neighbours.
+change event, which the arrow keys move between neighbors.
 
 **Why it is a door.** A published name and event that assistive layers and consumers bind to.
 
 **Options.** No focused node (keyboard users cannot explore the drawing); a focused node in the app
 (a bare embed has no keyboard access); a focused node in the element.
 
-**Recommendation: in the element**, with neighbour order stable and not spatial. It also requires
+**Recommendation: in the element**, with neighbor order stable and not spatial. It also requires
 the plain arrow keys to stop moving the camera (`cameras/OrbitInputController.ts:164-176`,
-`cameras/TwoDInputController.ts`). That reassignment breaks current behaviour: today the arrows
+`cameras/TwoDInputController.ts`). That reassignment breaks current behavior: today the arrows
 orbit, and there is no telemetry or interview to say whether readers rely on it. So the walk never
 ships on the arrows while the camera still holds them; the move ships in one release with camera
 step controls and a changelog note, and a keyboard-only task test with screen-reader users
@@ -1038,9 +1038,9 @@ second undo stack for state declared outside undo; widening later is additive, n
 
 **Depends on it.** `interaction-patterns.md` 4.4; `conceptual-model.md` 2.
 
-### 42. The cost class as a public catalogue field
+### 42. The cost class as a public catalog field
 
-**Decision.** Whether each catalogue entry and `session.estimate` publish a cost band that the
+**Decision.** Whether each catalog entry and `session.estimate` publish a cost band that the
 commit rule reads, including an explicit "no cost model" answer.
 
 **Why it is a door.** The band words and the "no model" value are read by every consumer's run
@@ -1059,7 +1059,7 @@ need no estimate, because they compute no values.
 ### 43. `history.nextUndo` as a published label
 
 **Decision.** Whether `history.nextUndo` (undo design 6.1) is public, with a label that
-distinguishes cancelling pending work from undoing a step.
+distinguishes canceling pending work from undoing a step.
 
 **Why it is a door.** Every consumer's Undo control and tooltip reads it.
 
@@ -1079,7 +1079,7 @@ breaks the American-spelling rule in any case.
 ### 44. An "invocable from" field on the command registry
 
 **Decision.** Whether each registered command declares where it can be invoked (menu, palette,
-context menu, keyboard), so the command catalogue is generated rather than hand-kept. "The
+context menu, keyboard), so the command catalog is generated rather than hand-kept. "The
 registry" is the undo design's command definitions (`CommandDefinition` in
 `graphty-element/src/session/commands/`, undo design 4.1), not the assistant's `CommandRegistry`
 in `src/ai/commands/`, which should be derived from the same definitions. The same field set
@@ -1093,9 +1093,9 @@ registrations stay valid.
 
 **Depends on it.** `interaction-patterns.md` 6.7 and 11.1.
 
-### 45. The default palette colours on a dark canvas
+### 45. The default palette colors on a dark canvas
 
-**Decision.** Whether graphty-element changes the colours of its two default palettes so both hold
+**Decision.** Whether graphty-element changes the colors of its two default palettes so both hold
 on a dark canvas: the default group palette's black (1.26:1 on `#1E1E1E`) and the default
 measurement ramp's darkest step (1.45:1).
 
@@ -1109,9 +1109,9 @@ ship the changed palettes under new ids and make them the defaults, leaving the 
 
 **Recommendation: new ids, made the defaults.** Replace the group palette's black with purple
 `#6929C4` and trim the ramp to `#FA9828 #EE7718 #D75908 #B44103 #8B3005`, which keeps every
-colour at 2:1 or more on both canvases and every pair at the element's own separation floors,
-including under colour blindness (`research/colour-checks.md` section 4). A file that named the
-old ids keeps its colours.
+color at 2:1 or more on both canvases and every pair at the element's own separation floors,
+including under color blindness (`research/colour-checks.md` section 4). A file that named the
+old ids keeps its colors.
 
 **Depends on it.** `visual-language.md` Part B (palettes), `document-architecture.md` 7.3.
 
@@ -1121,7 +1121,7 @@ old ids keeps its colours.
 `defaultScaleFor` in `session/styles/encoding.ts`) or by square root, so area rather than length
 tracks the value.
 
-**Why it is a door.** It is a published default behaviour: every saved encoding that names no
+**Why it is a door.** It is a published default behavior: every saved encoding that names no
 scale would draw different sizes after the change.
 
 **Recommendation: square root for the size channels only**, stated in the channel descriptor so
@@ -1204,7 +1204,7 @@ overflow group's `#505050` (`research/colour-checks.md` 3.2).
 channel, by new hues (which would need a new palette `kind`), or by a neutral highlight mark that
 is not a style channel.
 
-**Why it is a door.** The pairs are exported constants and catalogue entries with a published
+**Why it is a door.** The pairs are exported constants and catalog entries with a published
 `kind`; files and suggested styles name them.
 
 **Recommendation: drop the muted member from the defaults, and draw highlights with the neutral
@@ -1213,7 +1213,7 @@ feeds a mark slot (`mark: "highlight"`), indexed in stack order and outside the 
 `session/styles/channels.ts`. It stacks and undoes like any layer, is never offered for data
 binding and is not counted with the 34 drawable channels, so the published channel descriptor gains
 a mark kind beside the channels. Algorithm suggested styles that trace a result (a Dijkstra path)
-use this kind; those that encode a value (a degree colour) stay channel layers. The first three are
+use this kind; those that encode a value (a degree color) stay channel layers. The first three are
 told apart by dash inside the casing; a node in several takes one ring each in stack order, and a
 fourth and later add an index badge listing every index. The muted half paints elements outside an algorithm's
 result, which the Algorithm Styles rule forbids; the strong half equals Okabe-Ito slots 0, 2 and 3;
@@ -1255,7 +1255,7 @@ attribute path door 37 adds and the layer id it already has.
 
 **Recommendation: value and path per channel.** The inspector's bound-value row needs value,
 attribute and layer on one read; pairing two reads is how two surfaces come to disagree about one
-colour.
+color.
 
 **Depends on it.** Door 37; `interface-specification.md` 3.1, 5.0 and 8.4.
 
@@ -1322,12 +1322,12 @@ applies. A consumer can raise them; the probe replaces them.
 
 **Depends on it.** `state-matrix.md` 5 and 6; `element-contract.md` 13.
 
-### 55. `minMeaningfulNodes` on catalogue entries
+### 55. `minMeaningfulNodes` on catalog entries
 
 **Decision.** Whether an algorithm entry may declare the smallest input at which its value means
 something.
 
-**Why it is a door.** A published catalogue field that third-party entries would fill.
+**Why it is a door.** A published catalog field that third-party entries would fill.
 
 **Options.** No field (the app would keep a table of its own, which the repository forbids); a
 required field; an optional field with no default.
@@ -1373,7 +1373,7 @@ their slots too.
 **Recommendation: option 2 now, option 3 as the next door.** Option 1 hands every consumer the
 work of turning developer text into reader text, which the architectural principles forbid. The
 codes are already the contract and `details` is the structured part consumers need; key names are
-still moving (`content-design.md` 8), so publishing them now would freeze a catalogue under review.
+still moving (`content-design.md` 8), so publishing them now would freeze a catalog under review.
 This follows Node.js, which treats `error.code` as stable and `error.message` as prose
 (https://nodejs.org/api/errors.html). The canvas-string list is published with the legend model it
 extends, or kept internal if the word counter can read the legend model alone.
@@ -1483,7 +1483,7 @@ option form calls.
 command, the lists and ready-made form fields shipped with the element.
 
 **Recommendation: the command and the lists, without form fields.** Picking and level filtering
-are graph behaviour a third party would otherwise rebuild; the field that renders them is UI, and
+are graph behavior a third party would otherwise rebuild; the field that renders them is UI, and
 graphty-element's consumers bring their own component library.
 
 **Depends on it.** `interface-specification.md` 5.11; `element-contract.md` 13; door 20.
@@ -1590,9 +1590,9 @@ the split is the alternative.
 
 **Depends on it.** `options-and-encodings.md` 3.
 
-### 68. Author presets on catalogue entries
+### 68. Author presets on catalog entries
 
-**Decision.** Whether an algorithm or layout catalogue entry publishes named partial option sets
+**Decision.** Whether an algorithm or layout catalog entry publishes named partial option sets
 (ForceAtlas2's "LinLog", "Prevent overlap").
 
 **Why it is a door.** A published field on the extension API every plugin author fills.
@@ -1623,12 +1623,12 @@ no format change. Reopen if a tree test on a stack of 40 or more layers shows pe
 
 ### 70. Graph-dependent option bounds before `optionsFor`
 
-**Decision.** Whether any catalogue option may publish a bound that depends on the loaded graph
+**Decision.** Whether any catalog option may publish a bound that depends on the loaded graph
 (`OptionBound`, `graphty-element/src/catalog/types.ts`) before `catalog.optionsFor` is implemented.
 
 **Why it is a door.** Option descriptors are published; validation skips any bound that is not a
 number (`src/catalog/options.ts`), so such an option would accept every value, and consumers would
-build against that behaviour.
+build against that behavior.
 
 **Options.** Publish them now; publish none until `optionsFor` resolves them.
 
@@ -1689,13 +1689,13 @@ embed uncluttered. Until it lands the app's `canvas/Minimap.tsx` is a named work
 
 **Depends on it.** `interface-specification.md` 5.13, 8.4; `implementation-mapping.md` 5 and 8.
 
-### 74. Declared preconditions on catalogue entries
+### 74. Declared preconditions on catalog entries
 
-**Decision.** Which fields a catalogue algorithm entry uses to declare what it assumes of the
+**Decision.** Which fields a catalog algorithm entry uses to declare what it assumes of the
 graph, beyond today's `requires` (`directed`, `weighted`, `accelerator`, `connected`;
 `graphty-element/src/catalog/types.ts`).
 
-**Why it is a door.** The catalogue types are exported, and every consumer's precondition notes
+**Why it is a door.** The catalog types are exported, and every consumer's precondition notes
 and warnings read these fields; a field renamed or re-meant later breaks them silently.
 
 **Options.** Keep `requires` as it is and fill it in; add fields for the edge reading each
@@ -1717,7 +1717,7 @@ note or a failure branch.
 **Decision.** Whether Run layout starts from the current positions or from a fresh start when the
 caller does not say, and whether the layout run records which.
 
-**Why it is a door.** It is default behaviour of graphty-element's published layout call and a
+**Why it is a door.** It is default behavior of graphty-element's published layout call and a
 field of every saved layout run; a default changed later moves every consumer's drawing.
 
 **Options.** Current positions by default, fresh on request; fresh by default, current on request;
@@ -1733,12 +1733,12 @@ ignores the start and records that it did.
 
 ### 76. A gesture a host control drives, as one undo step
 
-**Decision.** How a control outside the canvas -- scrubbing a number field, dragging in a colour
+**Decision.** How a control outside the canvas -- scrubbing a number field, dragging in a color
 picker, dragging a slider -- tells graphty-element where one undo step begins and ends, and how Esc
 during that gesture puts the value back.
 
 **Why it is a door.** It is a published verb on the session that every host control calls, and its
-cancel meaning is behaviour consumers rely on. Two cancels with different meanings are already in
+cancel meaning is behavior consumers rely on. Two cancels with different meanings are already in
 the undo design: aborting a transaction rolls back, while a style verb's cancel deliberately does
 not revert. A third spelling would have to be named apart from both.
 
@@ -1774,13 +1774,13 @@ the same bridging code. Figma behaves as option 1: a scrub or picker drag is one
 long it pauses, and Esc mid-drag restores the value from before the drag. The element documents the
 difference between this cancel (reverts) and a style verb's cancel (does not).
 
-Whichever option is chosen must state two more behaviours, so the handle cannot leak the way option
+Whichever option is chosen must state two more behaviors, so the handle cannot leak the way option
 2's open key does:
 
 - **A gesture a host never closes ends on its own**: on `pointercancel`, when the control that
   opened it unmounts or loses focus, and when another gesture begins. The element ends it, not each
   host.
-- **A cancelled gesture publishes `project:changed` with cause `rollback`**, the cause the undo
+- **A canceled gesture publishes `project:changed` with cause `rollback`**, the cause the undo
   branch already has for a revert that leaves no step, not a new cause.
 
 **Depends on it.** `interaction-patterns.md` 3.6 (the Esc rung that aborts a gesture);
@@ -1788,12 +1788,12 @@ Whichever option is chosen must state two more behaviours, so the handle cannot 
 
 ### 77. Read identity, change events and windowed reads as published properties
 
-**Decision.** Whether graphty-element promises three behaviours of its session to every host:
+**Decision.** Whether graphty-element promises three behaviors of its session to every host:
 a read returns the identical object until an event naming its slice fires; every change to project
 state publishes `project:changed { slices, cause }` and moves a version per slice; and every read
 whose size grows with the graph is offered as a count plus a window.
 
-**Why it is a door.** These are behaviours, not names, but consumers code against them. A React host
+**Why it is a door.** These are behaviors, not names, but consumers code against them. A React host
 using `useSyncExternalStore` loops or tears the moment one read returns a fresh object; a host that
 trusts the events to be complete never polls, and misses the one change that fires none. Once
 consumers rely on `===` and on completeness, relaxing either breaks them silently.
@@ -1807,7 +1807,7 @@ frame. The undo branch adds `project:changed` over the `ProjectSlice` union and
 **Options.**
 
 1. Publish all three, each enforced by an element test that calls every read twice.
-2. Publish the events only, and let each host memoise reads on their contents.
+2. Publish the events only, and let each host memoize reads on their contents.
 3. Per-collection event names (`sets:changed`, `notes:changed`, ...) and one project-wide revision.
 
 **Recommendation: option 1.** It is what lets a host be one hook and no cache, and a cache in the
@@ -1868,17 +1868,17 @@ command disabled** rather than to every command up front. Every disabled action 
 the partition that bipartite, multipartite and shell require -- is published as an option
 descriptor, so any consumer's option form can draw it.
 
-**Why it is a door.** A new descriptor kind in the catalogue's published option types, which every
+**Why it is a door.** A new descriptor kind in the catalog's published option types, which every
 option form renders.
 
-**What exists.** The catalogue marks these three layouts `structuralInputs: ["partition"]`
+**What exists.** The catalog marks these three layouts `structuralInputs: ["partition"]`
 (`catalog/layouts.ts:400,491,505`), while the input itself lives only in each engine's internal
 config: `nodes` (`BipartiteLayoutEngine.ts:48`), `subsetKey` (`MultipartiteLayoutEngine.ts:38`) and
 `nlist` for shell. `catalog/optionsFromZod.ts` produces no descriptor for any of them, so no form
 can run these layouts with a chosen partition.
 
 **Options.** Leave it out (the three layouts are unusable from a form); each host builds a
-partition picker from `structuralInputs` (the app working around the catalogue); a `partition`
+partition picker from `structuralInputs` (the app working around the catalog); a `partition`
 descriptor kind in the option schema, listing the categorical attributes and kept set collections a
 partition may come from, filtered by measurement level as door 62 filters attribute lists.
 
@@ -1993,7 +1993,7 @@ This table was section 13 of the earlier conceptual model
 
 - additive names published beside old ones (`Result`, `Run.name`, `freshness`, `scopeDiffers`,
   new result shapes, a session pin API): `glossary.md` 17;
-- edits to catalogue content (display names in sentence case, layout names): `glossary.md` 17;
+- edits to catalog content (display names in sentence case, layout names): `glossary.md` 17;
 - what the nav rail holds, the inspector's order, every placement and every screen word:
   `information-architecture.md` and `glossary.md`, decided from the personas and workflows;
 - URLs: a shareable URL is door 34. The documentation URLs that

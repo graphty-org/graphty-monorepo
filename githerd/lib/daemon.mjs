@@ -1612,7 +1612,7 @@ export async function startDaemon({
     async function classifyLanes(m) {
         for (const [name, l] of Object.entries(m.lanes)) {
             const lane = /** @type {any} */ (l);
-            // A cancelled or skipped run after the red one leaves the verdict, and its class, as they were.
+            // A canceled or skipped run after the red one leaves the verdict, and its class, as they were.
             if (!gatingLane(name) || lane.verdict !== "red" || !lane.runId || !RED_JOB.has(lane.conclusion)) continue;
             const at = `${lane.runId}/${lane.attempt}`;
             const today = utcDay(now());
@@ -2397,7 +2397,7 @@ export async function startDaemon({
 
     /**
      * Turns this poll's facts into job records (jobs.mjs), and tells each owner session whose job
-     * was cancelled (asks.mjs tellCancelled); in dry-run that message is a would-do line.
+     * was canceled (asks.mjs tellCancelled); in dry-run that message is a would-do line.
      * @param {Date} t the poll's time
      */
     async function jobsFromFacts(t) {
@@ -3092,7 +3092,7 @@ export async function startDaemon({
      * The pull requests that are a red master's fix, exempt from its merge hold (design 4.6, line
      * 2), which Mergify's priority rule puts first: every open incident job's pull request, every
      * revert pull request the open incident's procedure opened, every linked fix (master-fix.mjs), and every owner pull request
-     * labelled `priority:critical` by the owner's account (the owner, or an incident's worker: the
+     * labeled `priority:critical` by the owner's account (the owner, or an incident's worker: the
      * guard refuses the label to every other worker).
      * @returns {number[]} their numbers
      */
@@ -3113,10 +3113,10 @@ export async function startDaemon({
      * Release truth: records the last release and raises a failed or stalled release. A failed
      * release is one incident per red stretch of the release lane, keyed on the open "Release
      * held" issue the release workflow files (or, before githerd has read it, on when the lane went
-     * red), never on a run: a skipped push run or a cancelled restart is no verdict, so it never
+     * red), never on a run: a skipped push run or a canceled restart is no verdict, so it never
      * makes, re-keys or names the incident. Its summary names the hold issue and the newest failed
      * run githerd saw with its failed jobs. An open release-failed escalation keeps its key, so its
-     * job is never cancelled and made again; only its summary and run are brought up to date.
+     * job is never canceled and made again; only its summary and run are brought up to date.
      * @param {any} m the master record
      * @param {number} ms the poll's time
      * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
@@ -3409,8 +3409,8 @@ export async function startDaemon({
     }
 
     /**
-     * Re-runs the failed and cancelled jobs of a pull request head's newest run of a workflow whose
-     * required checks were only cancelled (no runner took its jobs, as in a GitHub Actions outage):
+     * Re-runs the failed and canceled jobs of a pull request head's newest run of a workflow whose
+     * required checks were only canceled (no runner took its jobs, as in a GitHub Actions outage):
      * once, at the run's first attempt, through the `worker-writes` group (a `would-do` line, once
      * per run, while it does not act). A run at attempt 2 or more was re-run already, by githerd or
      * anyone, and is not re-run again: the pull request's reasons show it. Each run is marked on its
@@ -4840,7 +4840,7 @@ function refusedPrRuns(nodes, prs, { refused, ran }) {
  * for already (or recorded as a would-do while the group does not act and still does not).
  * @param {ReturnType<typeof createGitHub>} gh the client
  * @param {number | null} n the pull request, null for master
- * @param {any} cancelled the run, marked with `rerun`
+ * @param {any} canceled the run, marked with `rerun`
  * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string, rec: any,
  *   situation?: string}} opts the re-runs asked for by run, whether `worker-writes` acts, the runs'
  *   API path, the poll's time, the pull request's record (its `headSha`), and the ledger's situation

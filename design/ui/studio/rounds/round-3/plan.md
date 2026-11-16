@@ -234,7 +234,7 @@ round's questions:
 - **T9 and T15 (sizing):** whether the Size list was used, closed, or answered "Fixed size"; the
   chain-link route after closing the list is SD on round 3 (a detour then a correction); whether
   the participant named sizing as a difficulty.
-- **T11:** whether a community analysis was run and a group layout tried; a group layout greyed
+- **T11:** whether a community analysis was run and a group layout tried; a group layout grayed
   after a finished community run is a build regression (F `dead-end`, build-decided). "Did it
   help" is an opinion: expect it to differ between Rings by group and Columns by group.
 - **Run names:** every pause or question about a run's name (round 2: 17). Either word ("PageRank"

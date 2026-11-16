@@ -83,13 +83,13 @@ function resolveSides(s: GraphSnapshot, options: BipartiteMatchingOptions): Side
 }
 
 /**
- * Every node's neighbours over `views`, each row in ascending order of the edge that joins them (a
+ * Every node's neighbors over `views`, each row in ascending order of the edge that joins them (a
  * counting sort of the arcs by edge, O(n + m)): the order in which the 2.x Graph listed a node's
- * neighbours, its edges' insertion order. Parallel arcs leave repeats, which the searches skip.
+ * neighbors, its edges' insertion order. Parallel arcs leave repeats, which the searches skip.
  * @param views - The adjacencies to merge
  * @param nodeCount - The number of nodes
  * @param edgeCount - The number of logical edges
- * @returns Row offsets and the neighbours of every row
+ * @returns Row offsets and the neighbors of every row
  */
 function edgeOrderedRows(
     views: readonly AdjacencyView[],
@@ -134,9 +134,9 @@ function edgeOrderedRows(
 }
 
 /**
- * The breadth-first order the left nodes search in: roots in node order, neighbours in row order.
+ * The breadth-first order the left nodes search in: roots in node order, neighbors in row order.
  * @param start - The row offsets
- * @param nbr - The neighbours, row by row
+ * @param nbr - The neighbors, row by row
  * @param nodeCount - The node count
  * @returns Every node in search order
  */
@@ -174,15 +174,15 @@ interface KuhnState {
     seen: Uint32Array;
     /** The DFS stack of left nodes. */
     stack: Uint32Array;
-    /** The neighbour cursor per stacked node. */
+    /** The neighbor cursor per stacked node. */
     cursor: Uint32Array;
     /** The right node taken to descend from each stacked node. */
     via: Uint32Array;
 }
 
 /**
- * Advances the stacked node `x` to its next unseen right neighbour.
- * @returns The neighbour, or INVALID_INDEX when `x` has none left
+ * Advances the stacked node `x` to its next unseen right neighbor.
+ * @returns The neighbor, or INVALID_INDEX when `x` has none left
  * @param st - The run state, updated in place
  * @param x - The stacked left node
  * @param stamp - The mark of this search
@@ -248,7 +248,7 @@ function augmentFrom(st: KuhnState, root: number, stamp: number): boolean {
  *
  * Tie rule: among the equally large matchings it returns the one 2.x returned. Left nodes search
  * in the order a breadth-first walk first reaches them (roots in node order, as `isBipartite`
- * colours), and every node tries its neighbours in the order of the edge that joins them, the
+ * colors), and every node tries its neighbors in the order of the edge that joins them, the
  * earliest added first. The search is depth-first and iterative. Parallel arcs and arc direction
  * (by default) make no difference to the matching size.
  * @param s - The snapshot
@@ -291,9 +291,9 @@ export function maximumBipartiteMatching(
 
 /**
  * Greedy maximal bipartite matching: every left node in index order takes its first unmatched
- * right neighbour in row order (the lowest index; out-arcs before in-arcs). The size depends on
+ * right neighbor in row order (the lowest index; out-arcs before in-arcs). The size depends on
  * those orders, so it can differ from the legacy function, which visits left nodes in its
- * colouring BFS order and neighbours in insertion order; it is at least half the maximum.
+ * coloring BFS order and neighbors in insertion order; it is at least half the maximum.
  * @param s - The snapshot
  * @param options - The two sides, and which arcs to follow on a directed snapshot
  * @returns The partner of every matched left node and the number of pairs

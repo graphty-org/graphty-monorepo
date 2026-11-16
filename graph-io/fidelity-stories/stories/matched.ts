@@ -4,7 +4,7 @@
  * elements failing there are shown on the pictures. Three panels share the oracle's frame and scale: the program's own
  * drawing, graphty-element's drawing carried into that frame by the comparison's fitted transform, and the two
  * overlaid (the oracle at 50%). Every element that fails a property the known failures do not list (the gate's own
- * judgement, `judgeKey`) is outlined on all three and listed below them with its property and a short reason;
+ * judgment, `judgeKey`) is outlined on all three and listed below them with its property and a short reason;
  * hovering a list item picks its outline out, and clicking it zooms every panel onto that element. The outlines are this story's own SVG over the pictures: nothing in
  * graphty-element is restyled.
  *

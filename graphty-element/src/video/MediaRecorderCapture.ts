@@ -4,7 +4,7 @@ import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
 import { type AnimationOptions, type AnimationResult, calculateDropRate } from "./VideoCapture.js";
 
 /**
- * Error thrown when animation capture is cancelled by the user
+ * Error thrown when animation capture is canceled by the user
  */
 export class AnimationCancelledError extends Error {
     /**
@@ -42,7 +42,7 @@ export type FrameSource = (onFrame: () => void) => () => void;
  * 3. The reject callback is called synchronously after stopping
  * 4. References are cleared after rejection to prevent double-handling
  *
- * This guarantees that a cancelled capture will always reject with
+ * This guarantees that a canceled capture will always reject with
  * AnimationCancelledError, never accidentally resolve with partial data.
  */
 export class MediaRecorderCapture {
@@ -184,7 +184,7 @@ export class MediaRecorderCapture {
             // Store reject for cancellation
             this.cancelReject = reject;
 
-            // Check if already cancelled before starting
+            // Check if already canceled before starting
             if (this.isCancelled) {
                 this.activeRecorder = null;
                 this.cancelReject = null;
@@ -228,7 +228,7 @@ export class MediaRecorderCapture {
                 const startTime = Date.now();
                 counter.start();
                 progressInterval = setInterval(() => {
-                    // Stop progress tracking if cancelled
+                    // Stop progress tracking if canceled
                     if (this.isCancelled) {
                         clearInterval(progressInterval);
                         return;
@@ -245,7 +245,7 @@ export class MediaRecorderCapture {
 
                 durationTimer = setTimeout(() => {
                     clearInterval(progressInterval);
-                    // Only stop if not already cancelled
+                    // Only stop if not already canceled
                     if (!this.isCancelled && recorder.state !== "inactive") {
                         recorder.stop();
                         onProgress?.(100);
@@ -265,7 +265,7 @@ export class MediaRecorderCapture {
                 this.activeRecorder = null;
                 this.cancelReject = null;
 
-                // If cancelled, don't resolve - the rejection has already happened
+                // If canceled, don't resolve - the rejection has already happened
                 if (this.isCancelled) {
                     return;
                 }
@@ -339,7 +339,7 @@ export class MediaRecorderCapture {
      * 2. Stop the recorder (may trigger onstop asynchronously)
      * 3. Reject the promise synchronously (guarantees cancellation error)
      * 4. Clear state (prevents double-handling)
-     * @returns true if a capture was cancelled, false if no capture was in progress
+     * @returns true if a capture was canceled, false if no capture was in progress
      */
     cancel(): boolean {
         if (!this.activeRecorder) {

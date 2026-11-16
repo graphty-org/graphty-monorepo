@@ -4,7 +4,7 @@
  * or `countingSortByKey` when the caller asks for the set-deterministic path) and the per-cell histogram with its
  * exclusive scan (G3: the `histogram` kernel over `cellKey` and the `scan` of it; DEP-P4-I names no grid-specific
  * id). `cellHist` and `cellStart` hold `histWords = cells + 2^dim + 1` words: every real cell, the 2^dim outside
- * pseudo-cells (one per orthant about the grid centre, issue #90) from index `cells`, and one more so
+ * pseudo-cells (one per orthant about the grid center, issue #90) from index `cells`, and one more so
  * `cellStart[histWords - 1] === n` closes the last range. Every zeroing is a `fill` dispatch inside the
  * pass (PD-12), never an encoder clear.
  *
@@ -37,7 +37,7 @@ export interface GridSpec {
     readonly levels: number;
     /** `G^dim` finest cells; the outside pseudo-cells are indices `cells .. cells + outsideCells - 1`. */
     readonly cells: number;
-    /** `2^dim`: one outside pseudo-cell per orthant about the grid centre (issue #90). */
+    /** `2^dim`: one outside pseudo-cell per orthant about the grid center (issue #90). */
     readonly outsideCells: number;
     /** `cells + outsideCells + 1`: the length of `cellHist` / `cellStart`. */
     readonly histWords: number;

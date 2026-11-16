@@ -30,7 +30,7 @@ const TEST_EDGES = [
 /** The appearance every story in this file draws: a green sphere of size 10. */
 const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 } as const;
 
-/** That colour as the renderer writes it into a node's own instance. */
+/** That color as the renderer writes it into a node's own instance. */
 const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
 describe("Nested Operations", () => {
@@ -88,10 +88,10 @@ describe("Nested Operations", () => {
      * Verify that all nodes have the expected style properties applied.
      *
      * Read from the style stack's own answer for each node, which is the one reading that says
-     * what a node is drawn as. The colour is beside the style rather than in it, because it is
+     * what a node is drawn as. The color is beside the style rather than in it, because it is
      * written into the node's instance while the style builds the source mesh the instances
      * share -- so it is asserted separately.
-     * @param expectedColor - The colour, as the renderer writes it into the instance.
+     * @param expectedColor - The color, as the renderer writes it into the instance.
      * @param expectedShape - The shape the source mesh is built from.
      * @param expectedSize - Its size.
      */
@@ -196,13 +196,13 @@ describe("Nested Operations", () => {
     }
 
     /**
-     * Verify the colour the renderer wrote into each node's own instance.
+     * Verify the color the renderer wrote into each node's own instance.
      *
      * NOT THE MATERIAL. Every node of one shape and size shares a source mesh whose material is
-     * deliberately neutral, so that a graph of fifty thousand colours is fifty thousand
-     * instances of one mesh rather than fifty thousand meshes. The colour lives in the
+     * deliberately neutral, so that a graph of fifty thousand colors is fifty thousand
+     * instances of one mesh rather than fifty thousand meshes. The color lives in the
      * instance's own buffer, and that is what is read here.
-     * @param expectedColor - The colour to expect, as hex.
+     * @param expectedColor - The color to expect, as hex.
      */
     function verifyNodeMeshMaterials(expectedColor: string): void {
         const expectedColorObj = Color3.FromHexString(expectedColor);
@@ -616,7 +616,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            // Rapidly switch modes and colours, both of which trigger nested operations
+            // Rapidly switch modes and colors, both of which trigger nested operations
             for (let i = 0; i < 10; i++) {
                 await graph.setViewMode(i % 2 === 0 ? "2d" : "3d");
                 await styleEveryNode(
@@ -643,7 +643,7 @@ describe("Nested Operations", () => {
                 assert.equal(paint?.style.shape?.type, "sphere");
                 assert.equal(paint?.style.shape?.size, 10);
             }
-            // The material check expects NODE_STYLE's green; the colour is asserted above.
+            // The material check expects NODE_STYLE's green; the color is asserted above.
             await verifyMeshState(true);
         });
     });

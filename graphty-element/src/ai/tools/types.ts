@@ -249,7 +249,7 @@ export interface MessageState {
     /**
      * Set while a helper runs beside others (`"parallel-helper"`) or a program the model wrote
      * calls a tool (`"in-page-code"`): every call that does not only read (a write, an undo or
-     * redo, a selection, the view, cancelling a run) is refused (`AI_TOOL_DENIED_BY_POLICY` with
+     * redo, a selection, the view, canceling a run) is refused (`AI_TOOL_DENIED_BY_POLICY` with
      * this as `reason`), before the policy is asked.
      */
     readonly readOnly?: "parallel-helper" | "in-page-code";

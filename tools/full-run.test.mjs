@@ -368,7 +368,7 @@ describe("the red issue and its bisect", () => {
     });
 
     // #4556: GitHub reports a job that hit its timeout-minutes as "cancelled", and the verdict runs only in a run
-    // nobody cancelled (!cancelled()), so a cancelled lane there timed out: say so, or it reads as a cancelled run
+    // nobody canceled (!cancelled()), so a canceled lane there timed out: say so, or it reads as a canceled run
     it("calls a cancelled lane timed out, since the verdict never runs in a cancelled run", () => {
         const { title, body } = redIssue({
             sha: "abcdef1234",
@@ -498,7 +498,7 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         const other = "https://github.com/o/r/actions/runs/42";
         const names = () => "The full run failed on abcdef1234 (CI): https://github.com/o/r/actions/runs/41";
         assert.equal(fixedRecently(closed, "abcdef1234", other, names, now), null, "another run on the same commit");
-        // the same test as release-due's toCancel: a run named on another commit is not cancelled either
+        // the same test as release-due's toCancel: a run named on another commit is not canceled either
         const elsewhere = () => "The full run failed on 1234567890 (CI): https://github.com/o/r/actions/runs/42";
         assert.equal(fixedRecently(closed, "abcdef1234", other, elsewhere, now), null);
         assert.deepEqual([...runsOnTitleCommit(closed[0].title, names())], [41]);

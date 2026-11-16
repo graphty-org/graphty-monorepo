@@ -83,5 +83,5 @@ Screenshot 18.png: v14 Nora Lindqvist (Yes, blank), v20 Julia Rossi (Yes, blank)
 - The layer's "Members" list gives ids (v03, v10...) not names. I had to open the table and scroll to match v20 to Julia Rossi. That's exactly the copy-an-account-number-between-screens busy work I hate. Show the name column there, or let me click a member to jump to its row.
 - The balls have no names on them, so the red picture alone doesn't tell me who to phone; for the alert file I'd want one picture with the four names visible.
 - The condition defaulted to "Contains" with a text box for phone; I had to know to open it to find "Has no value". Fine once, but I wasn't sure at first whether a blank text box meant "blank" or "anything".
-- Colour is a hex code box. I know FF0000, a newer volunteer coordinator might not; there was no obvious red swatch to click.
+- Color is a hex code box. I know FF0000, a newer volunteer coordinator might not; there was no obvious red swatch to click.
 - The table didn't show me which rows were the red ones, so I matched by eye.

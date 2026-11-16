@@ -54,7 +54,7 @@ function ring(): InputGraph {
     );
 }
 
-/** What is shown: three neighbours on the ring. */
+/** What is shown: three neighbors on the ring. */
 const SHOWN = ["a", "b", "c"];
 
 /**
@@ -143,7 +143,7 @@ describe("an algorithm that declares no scoped input, over the working view", ()
         );
 
         assert.isDefined(result);
-        // On the whole ring every node has degree 2; on the view a and c have one neighbour each.
+        // On the whole ring every node has degree 2; on the view a and c have one neighbor each.
         assert.deepStrictEqual(
             ["a", "b", "c", "d"].map((id) => result.node(id)?.value),
             [1, 2, 1, undefined],

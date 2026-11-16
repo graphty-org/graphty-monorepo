@@ -27,13 +27,13 @@ function graph(): Harness {
     return h;
 }
 
-/** The colour the element's own base layer paints every node. */
+/** The color the element's own base layer paints every node. */
 const BASE = "#6366f1";
 
 /**
- * Every node's painted colour, by id.
+ * Every node's painted color, by id.
  * @param h - The harness.
- * @returns id to hex, "none" where nothing painted colour.
+ * @returns id to hex, "none" where nothing painted color.
  */
 function colours(h: Harness): Record<string, string> {
     const snapshot = h.session.data.snapshot();

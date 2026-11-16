@@ -45,32 +45,32 @@ export interface AlgorithmStatics {
     type: string;
     namespace: string;
     /**
-     * What the catalogue publishes about this algorithm, for a plugin that wants to be one.
+     * What the catalog publishes about this algorithm, for a plugin that wants to be one.
      *
      * DECLARING IT IS WHAT MAKES A PLUGIN A FIRST-CLASS ALGORITHM. Without it a class can be
      * registered and called, and that is all: the run machinery resolves a key through the
-     * catalogue, so a class the catalogue does not carry cannot be started as a run, and
+     * catalog, so a class the catalog does not carry cannot be started as a run, and
      * everything hanging off a run is out of reach -- progress, cancellation, a cost estimate
      * before the click, a ranking, a histogram, a summary, a plain-language reading, and the
      * styling the element derives from a result's shape.
      *
      * The `shape` is the load-bearing field: field NAMES are fixed by the shape rather than by
      * the algorithm, which is what lets any consumer read `results.<runId>.value` without
-     * opening the catalogue first. `checkShapeContract` will tell you whether your fields match
+     * opening the catalog first. `checkShapeContract` will tell you whether your fields match
      * the shape you declared.
      *
      * Absent, the class stays exactly as capable as it was: registered, callable through the
-     * 1.10 address, and invisible to the catalogue.
+     * 1.10 address, and invisible to the catalog.
      */
     descriptor?: AlgorithmDescriptor;
     /**
      * A cost model in seconds over a graph of n nodes and m edges.
      *
      * HERE RATHER THAN ON THE DESCRIPTOR, because a function is not plain JSON and the composed
-     * catalogue has to survive `JSON.stringify` and a `postMessage` to a worker. The registry
+     * catalog has to survive `JSON.stringify` and a `postMessage` to a worker. The registry
      * keeps the model beside the class reference, and the estimator reads it from there, so a
      * plugin supplies real arithmetic for "what would this cost before I click" without a
-     * descriptor ever carrying something unserialisable.
+     * descriptor ever carrying something unserializable.
      *
      * Absent, the element estimates from the `costClass` the descriptor declares, which is what
      * every algorithm this package ships does.
@@ -138,7 +138,7 @@ const algorithmRegistry = new SharedImplementationMap<AlgorithmClass>("algorithm
 const publishedDescriptors = new WeakMap<AlgorithmDescriptor, Map<ScopeInputDeclaration, AlgorithmDescriptor>>();
 
 /**
- * The descriptor the catalogue publishes: the authored one with `scopeInput` taken from the class.
+ * The descriptor the catalog publishes: the authored one with `scopeInput` taken from the class.
  * @param authored - What the plugin wrote.
  * @param declared - The class's `static scopeInput`, `"none"` when absent.
  * @param address - The class's registry address, for the refusal.
@@ -336,7 +336,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * The meaning of edge weight this algorithm reads -- `"strength"`, `"distance"` or
      * `"capacity"` -- or null (the default) when it has no weighted form. A class that declares one
      * takes the uniform `weight` run option, reads the weight the graph was loaded with when the
-     * option is absent, and states what it read with {@link Algorithm.weightCaveats}. The catalogue
+     * option is absent, and states what it read with {@link Algorithm.weightCaveats}. The catalog
      * publishes it as `descriptor.weightMeaning`.
      * @internal
      */
@@ -346,7 +346,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * Whether a run whose `weight` option is absent reads the weight the graph was loaded with
      * (true, the default) or no weight at all (false). False is for a class whose weighted form
      * came after its unweighted one, so a run that names no weight computes exactly as it always
-     * did. The catalogue publishes false as the `weight` option's `default: null`.
+     * did. The catalog publishes false as the `weight` option's `default: null`.
      * @internal
      */
     static readonly loadedWeightByDefault: boolean = true;
@@ -715,7 +715,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * hand back. Both shipped families -- a metric and a declared algorithm -- override it.
      * @param _context - A signal, a progress channel and a yield.
      * @param runId - The id the result is published under.
-     * @param _fields - The catalogue's descriptors for this algorithm's fields, when the caller
+     * @param _fields - The catalog's descriptors for this algorithm's fields, when the caller
      *   holds them.
      * @returns The result, or undefined when there was nothing to compute.
      * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this algorithm has no result to
@@ -750,12 +750,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const ns = String(statics.namespace);
 
         /* THE CATALOGUE IS PUBLISHED BEFORE THE CLASS IS FILED, and the order is the whole
-           point. Filing first meant a registration the catalogue refused -- a descriptor whose
+           point. Filing first meant a registration the catalog refused -- a descriptor whose
            key disagrees with `static type`, a key a built-in already holds -- still left a
            runnable class behind under the address the refusal was about, so `graph.runAlgorithm`
-           reached an algorithm that no catalogue listed and no consumer could have chosen.
+           reached an algorithm that no catalog listed and no consumer could have chosen.
            Published here rather than by the plugin author, so a descriptor and the class it
-           describes cannot be registered separately: a catalogue entry whose class nothing
+           describes cannot be registered separately: a catalog entry whose class nothing
            registered is an algorithm a consumer can see, start, and then be told does not
            exist. */
         const { descriptor, cost, costUnits, version, suggestedName } = statics;

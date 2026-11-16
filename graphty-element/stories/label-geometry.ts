@@ -2,12 +2,12 @@
  * @file Where a label sits and what shape the ink on it makes.
  *
  * WHY THIS IS SEPARATE FROM `assertions.ts`. The readings there answer "is a label drawn, and
- * what colour is it" -- one number and one palette per label, which is all eleven of the
+ * what color is it" -- one number and one palette per label, which is all eleven of the
  * surviving Label stories ever needed to ask. Seventeen more stories are about the label's
  * GEOMETRY: where it hangs relative to its node, how much empty margin surrounds the words,
  * whether the panel's corners are rounded off, whether a pointer sticks out of the bottom of it,
  * how far apart the lines sit, whether the whole thing is fading with distance or moving.
- * None of that is a colour, and none of it can be read from the style model -- the model agreed
+ * None of that is a color, and none of it can be read from the style model -- the model agreed
  * with itself the entire time those seventeen were unreachable.
  *
  * EVERYTHING HERE IS READ FROM THE SCENE. The plane's own local position, its scale, its
@@ -36,7 +36,7 @@ const CORNER_INSET = 3;
 /** How tall a band at the top or bottom of the texture counts as "the edge of the panel". */
 const BAND = 0.08;
 
-/** How far one channel may be from the colour asked for and still count as that colour. */
+/** How far one channel may be from the color asked for and still count as that color. */
 const COLOUR_TOLERANCE = 40;
 
 /** Where ink starts and stops across a band of rows, as fractions of the texture's width. */
@@ -55,7 +55,7 @@ interface InkBox {
     readonly height: number;
 }
 
-/** What one label is actually drawn as, beyond its colours. */
+/** What one label is actually drawn as, beyond its colors. */
 export interface LabelGeometry {
     /** The node the label belongs to. */
     readonly id: string;
@@ -99,16 +99,16 @@ export interface LabelGeometry {
      * A PANEL IS A RECTANGLE AND A POINTER IS NOT. A plain label's background fills its canvas,
      * so all three run from 0 to 1. A speech-bubble pointer is drawn in a band added below the
      * panel and it tapers, so the bottom band is a short run in the middle. And a line of text
-     * pushed to the left starts at the margin whatever its length, where a centred one starts
+     * pushed to the left starts at the margin whatever its length, where a centered one starts
      * further in the shorter it is.
      */
     readonly band: { readonly top: Run; readonly middle: Run; readonly bottom: Run };
     /** How wide each of those bands runs, as a fraction of the texture's width. */
     readonly spread: { readonly top: number; readonly middle: number; readonly bottom: number };
     /**
-     * The mean colour of a narrow strip down each side of the texture, as `#rrggbb`.
+     * The mean color of a narrow strip down each side of the texture, as `#rrggbb`.
      *
-     * WHAT A GRADIENT LOOKS LIKE AND A FLAT FILL DOES NOT. A panel painted in one colour reads
+     * WHAT A GRADIENT LOOKS LIKE AND A FLAT FILL DOES NOT. A panel painted in one color reads
      * the same on both sides; one painted as a gradient reads its two ends.
      */
     readonly sides: { readonly left: string; readonly right: string };
@@ -165,7 +165,7 @@ function measure(
     const image = texture.getContext().getImageData(0, 0, width, height);
     // WITH A COLOUR, ONLY THAT COLOUR COUNTS AS INK. A label with a background panel is opaque
     // from corner to corner, so "how far is the text inset from the edge" cannot be asked of the
-    // alpha channel at all -- the panel answers first. Filtering to the text's own colour asks
+    // alpha channel at all -- the panel answers first. Filtering to the text's own color asks
     // about the letters, which is what a margin, an alignment and a line height move.
     const inked = (x: number, y: number): boolean => {
         const at = (y * width + x) * 4;
@@ -183,10 +183,10 @@ function measure(
     };
 
     /**
-     * The mean colour of one vertical strip of the texture, over its opaque pixels.
+     * The mean color of one vertical strip of the texture, over its opaque pixels.
      * @param from - The first column.
      * @param to - One past the last column.
-     * @returns That colour, as `#rrggbb`.
+     * @returns That color, as `#rrggbb`.
      */
     const strip = (from: number, to: number): string => {
         let red = 0;
@@ -343,8 +343,8 @@ function measure(
 /**
  * Read every label in the scene.
  * @param scene - What the story drew.
- * @param onlyColour - Count only pixels near this colour as ink, as `#rrggbb`. Pass the text
- *     colour to ask about the letters on a label that also has a background panel.
+ * @param onlyColour - Count only pixels near this color as ink, as `#rrggbb`. Pass the text
+ *     color to ask about the letters on a label that also has a background panel.
  * @returns One reading per node, in the order the graph holds them.
  */
 export function labelGeometry(scene: Drawn, onlyColour?: string): readonly LabelGeometry[] {
@@ -398,7 +398,7 @@ export function labelGeometry(scene: Drawn, onlyColour?: string): readonly Label
  * leaves the margin itself. The line box is laid out the way `measureLine` in
  * `src/meshes/RichTextParser.ts` lays it out: the larger of the font box and the ink box, times
  * the line height, with the extra leading split evenly above and below.
- * @param label - One reading from {@link labelGeometry}, taken with the text colour.
+ * @param label - One reading from {@link labelGeometry}, taken with the text color.
  * @param text - The words on the label.
  * @param font - The CSS font the label is drawn in, such as `"normal 48px Verdana"`.
  * @param lineHeight - The label's line height multiplier.
@@ -537,7 +537,7 @@ export async function labelMotion(scene: Drawn, frames = 20): Promise<{ scale: n
 /**
  * Everything these readings can see about the labels, as one short string.
  *
- * WHY A STORY NEEDS THIS. `assertDistinctPicture` digests each node's shape, size, colour and the
+ * WHY A STORY NEEDS THIS. `assertDistinctPicture` digests each node's shape, size, color and the
  * amount of ink on its label, which separates most sibling stories from one another -- but a label
  * with a background panel is opaque from corner to corner, so its ink is its area and three
  * stories that paint the panel three different ways digest identically. Everything that tells them

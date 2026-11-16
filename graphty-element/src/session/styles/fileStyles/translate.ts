@@ -517,7 +517,7 @@ function expressionTerms(where: string): number {
         const character = where[at];
         const two = where.slice(at, at + 2);
         if (character === "'" || character === "`" || character === '"') {
-            // Skip the literal or the quoted name, honouring its backslash escapes.
+            // Skip the literal or the quoted name, honoring its backslash escapes.
             at = closingQuote(where, at + 1, character) + 1;
         } else if (two === "==" || two === "!=" || two === "<=" || two === ">=") {
             terms++;
@@ -532,7 +532,7 @@ function expressionTerms(where: string): number {
 }
 
 /**
- * Where a quoted literal or name closes: its quote, its backslash escapes honoured.
+ * Where a quoted literal or name closes: its quote, its backslash escapes honored.
  * @param where - The expression.
  * @param from - The position after the opening quote.
  * @param quote - The quote.

@@ -43,7 +43,7 @@ const DEFAULT_COALESCE_MS = 1000;
  * merge without end and one undo would take back a minute of deliberate work.
  */
 const COALESCE_SPAN_MS = 5000;
-/** Eviction runs down to this share of both limits, so its work is amortised over many records. */
+/** Eviction runs down to this share of both limits, so its work is amortized over many records. */
 const EVICT_TO = 0.9;
 
 /** What a charge pass has counted: something counted once is counted where it is first seen. */

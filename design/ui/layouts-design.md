@@ -135,7 +135,7 @@ interface LayoutMetadata {
 **Dimension Selection (`dim`):**
 
 - Shown as a radio button group: `[2D] [3D]`
-- When rendering mode is **2D**: 3D option is disabled/greyed out (cannot compute 3D layout in 2D render)
+- When rendering mode is **2D**: 3D option is disabled/grayed out (cannot compute 3D layout in 2D render)
 - When rendering mode is **3D**: both 2D and 3D are available (can render a 2D layout in 3D space)
 - Default selection based on current rendering mode
 - Only shown for layouts that support both dimensions (maxDimensions=3)
@@ -219,7 +219,7 @@ interface GraphtyElementType extends HTMLElement {
 - [ ] On open, modal reads current layout type from graphty-element and selects it
 - [ ] On open, modal reads current layout config from graphty-element and populates form fields
 - [ ] Dimension radio buttons (2D/3D) shown for layouts supporting both dimensions
-- [ ] In 2D render mode, 3D radio option is disabled/greyed out
+- [ ] In 2D render mode, 3D radio option is disabled/grayed out
 - [ ] In 3D render mode, both 2D and 3D radio options are selectable
 - [ ] For 2D-only layouts (maxDimensions=2), dimension radio is hidden
 - [ ] Selecting a layout shows its configurable options as form fields

@@ -406,7 +406,7 @@ function cellImporter(): GraphImporter {
 
 /**
  * An importer that declares one node and then gives up on the document.
- * @param recognised - the confidence its sniff reports for the document
+ * @param recognized - the confidence its sniff reports for the document
  * @returns the importer
  */
 function abortingImporter(recognised: number): GraphImporter {

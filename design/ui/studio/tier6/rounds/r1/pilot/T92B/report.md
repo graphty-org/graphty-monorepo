@@ -161,7 +161,7 @@ Severity 0 to 4. Each has its route and screenshot.
 16. Severity 1. "Stopped. Changes taken back." on a turn that changed nothing. keyboard, near the end.
 17. Severity 1. A notice "Undid Show me those 7 genes." showed with the panel open, beside the row's
     Undone. Settled only for a turn's change notice; check whether it covers Undo. detour-1/07.png.
-18. Severity 0. The Stop's cancelled call prints as a failed request (net::ERR_ABORTED): the app
+18. Severity 0. The Stop's canceled call prints as a failed request (net::ERR_ABORTED): the app
     aborting its own fetch, not a fault.
 
 The selection left by a reply and carried into the next message is known from the answer key

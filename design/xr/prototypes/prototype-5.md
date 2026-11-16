@@ -176,7 +176,7 @@ _The idea in one line:_ the closest thing to Figma in VR. Panels fixed in space 
 
 Gaps still open for a next prototype:
 
-- **Navigation:** walking the graph from inside, by travelling along edges.
+- **Navigation:** walking the graph from inside, by traveling along edges.
 - **Selection:** "select by example".
 - **Menus:** objects that carry their own controls, so each node, run or layer has handles and dials directly on it.
 - **AI:** an assisted scheme.

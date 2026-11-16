@@ -310,7 +310,7 @@ export function assertInvariants(snapshot: GraphSnapshot): void {
 }
 
 /**
- * Check a snapshot against the spec it was built from: the neighbour structure (I14 order: node
+ * Check a snapshot against the spec it was built from: the neighbor structure (I14 order: node
  * index = spec index, edge index = spec order), I15 determinism (a second construction from the same
  * spec has byte-identical core arrays and the same content hash) and I18 (no aliasing with the naive
  * construction's arrays).

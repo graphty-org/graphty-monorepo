@@ -28,11 +28,11 @@
   iPad, Analyze panel open (Loaded). 1180 by 820. Spec revision 1.5: app-shell-progressive-disclosure-design.md
   sections 5.1, 5.2, 5.3 Analyze, 5.6, 5.8, 6.3. Rail 48, top bar 40, status bar 24. The body row holds only the canvas (1132 by 756).
   The Analyze panel is an absolute overlay at left 48, top 40, bottom 24, width 280; it covers the minimap. The canvas
-  toolbar is centred on the full 1132 canvas rect (5.2: overlays do not resize the canvas) and clears the overlay by
+  toolbar is centered on the full 1132 canvas rect (5.2: overlays do not resize the canvas) and clears the overlay by
   149px, so the panel never covers it.
   Inspector closed (one overlay at a time). Dataset: cat social network (AppLayout.tsx TEST_GRAPH_DATA), 20 nodes, 29 edges.
 
-  Revision 1.7: TB-1/TB-2/TB-5 (the narrow 274 x 40 canvas toolbar at bottom 12, centred on 1132, 149px clear of the
+  Revision 1.7: TB-1/TB-2/TB-5 (the narrow 274 x 40 canvas toolbar at bottom 12, centered on 1132, 149px clear of the
   panel overlay and 227px clear of the legend; tapping it does not close the overlay), POP-8 (All statistics becomes a
   door whose stub reports the computation), SAV-8/SAV-1/SAV-7 (a Recipes library section with resident row verbs),
   POP-5/POP-0 (Advanced opens as a full-width sheet over the panel with a back chevron, not a floating pop-out),
@@ -53,7 +53,7 @@
   18 -> 17.
 
   REVISION 1.9 (SECTIONS-1.9). One work-list item touches this board: 5.9 All statistics. D1 withdraws the
-  licence for a section that is only a door -- POP-13b's permanently-closed chevron is struck from RT-8, from
+  license for a section that is only a door -- POP-13b's permanently-closed chevron is struck from RT-8, from
   VOCAB and from DECISIONS-1.7 A2 -- so the All statistics chevron opens, onto density, diameter and average
   path length, with the long tail and the verbs behind its gear (D6 makes a section of readouts eligible for the
   test; AllStatistics.dc.html draws the open form). D4 keeps the section CLOSED here and D5 keeps its trailing
@@ -939,12 +939,12 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1, 5.2; TB-1, TB-2, TB-5). The 5.6 navigation cluster, rotated and moved to
-               the bottom centre of the live canvas rect: it replaces the 56px column that stood at left 12, bottom 120.
+               the bottom center of the live canvas rect: it replaces the 56px column that stood at left 12, bottom 120.
                Order left to right, by how long the effect lasts: [2D | 3D] segmented (key 5, 3D selected); divider;
                Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F); divider; Views (cube plus an up-caret,
                whose menu opens upward with its bottom edge 4px above the bar, clamped 12px inside the canvas edges).
                Zoom out precedes Zoom in because horizontally magnitude increases rightward. The item set is FIXED --
-               nothing appears or disappears with selection -- because a centred bar that changes width moves every item
+               nothing appears or disappears with selection -- because a centered bar that changes width moves every item
                under the pointer; Zoom to selection is therefore drawn permanently and merely disables, carrying the
                register's exact disabled title, which is floor item 4. Nothing is selected on this board.
                NARROW VARIANT (TB-2): below 1280px, 6.8 point 3 mandates 32 x 32 with a 16px glyph for any icon that is
@@ -952,7 +952,7 @@
                unchanged: 3 + 68 + 12 + (32*4 + 2*3) + 12 + 40 + 3 + 2 borders = 274. The 7px radius is concentric
                (outer = inner 4 + padding 3) and the shadow is the mark of an instrument; the minimap and the legend
                stay flat at radius 4. The zoom percentage stays in the status bar 12px below (TB-7).
-               THIS BOARD'S COLLISIONS (TB-5). 5.2 says overlays do not resize the canvas, so the bar centres on the
+               THIS BOARD'S COLLISIONS (TB-5). 5.2 says overlays do not resize the canvas, so the bar centers on the
                full 1132 rect and spans x 429 to 703. The Analyze panel overlay is 280 wide at canvas x 0 to 280,
                leaving 149px clear on the left; the legend is 190 wide at right 12 (x 930 to 1120), leaving 227px clear
                on the right. The minimap stays at left 12, bottom 12 under the panel overlay exactly as before. The
@@ -1252,7 +1252,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -1418,20 +1418,20 @@
                     <div style="display: none; align-items: center; gap: 8px"></div>
                 </div>
 
-                <!-- ANALYZE PANEL OVERLAY, 280 wide, over the canvas (spec 5.2). Covers the minimap. The canvas toolbar is centred
+                <!-- ANALYZE PANEL OVERLAY, 280 wide, over the canvas (spec 5.2). Covers the minimap. The canvas toolbar is centered
        on the full 1132 canvas rect (5.2: overlays do not resize the canvas) and clears the overlay by 149px, so the
        panel never covers it.
        Rebuilt under COMPACTION-1.6, group A, with the iPad exceptions in R2 and R4.
-       Decision A: the 26-card catalogue leaves the resting state. What is left, in order: the graph reading and its
+       Decision A: the 26-card catalog leaves the resting state. What is left, in order: the graph reading and its
        facts (floor 1, and on iPad this panel is the reading's only home because 5.2 allows one overlay at a time and
        the inspector is closed), a Suggested group of four one-click rows chosen by graph shape (undirected, weighted,
-       20 nodes) and by nothing having been run yet, and one "+ Analysis" row. The catalogue is one tap behind it: on
+       20 nodes) and by nothing having been run yet, and one "+ Analysis" row. The catalog is one tap behind it: on
        iPad the picker is a sheet, not a popover -- a search field, then the 7 question rows (Find groups, Find
        important nodes, Find weak points, Find paths, Find unusual things, Predict, Advanced), each expanding to its
        methods, with the one-line description on the picker row at the moment of choosing.
        Touch (R4): nothing here is hover-revealed. Every action glyph and every Run is resident.
        Every row below is one of RT-1..RT-10; the panel grid is 16 | 108 | 8 | 108 | 8 | 24 | 8. -->
-                <!-- NAV-10: below 1280 px, activating a row whose behaviour is "selects and centers the target and shows it in the inspector"
+                <!-- NAV-10: below 1280 px, activating a row whose behavior is "selects and centers the target and shows it in the inspector"
        -- a search result, a result-table row, a path step, a note row, a Matches row -- closes this panel overlay and opens the
        inspector overlay on that target, with a back affordance that returns here with the list state and scroll position intact. -->
                 <div
@@ -2362,7 +2362,7 @@
              rendering rule, not a tier change. Katz is reached from inside the Advanced sheet the gear on the row
              above opens, one tap, and the row's own name reads the method back when it is not PageRank. -1 row. -->
 
-                            <!-- the whole 26-method catalogue is one tap behind this row. On iPad it opens as a sheet: a search field,
+                            <!-- the whole 26-method catalog is one tap behind this row. On iPad it opens as a sheet: a search field,
              then 7 question rows, each expanding to its methods, with the one-line description on the picker row. -->
                             <div style="display: flex; align-items: center; height: 32px">
                                 <div
@@ -2401,7 +2401,7 @@
                         </div>
 
                         <!-- Tier 2 sections. The Settings header is gone: its only content was the weight pair, which is the RT-2 row at
-           the top. The Advanced question group is gone with the rest of the catalogue (Decision A). Sections keep a
+           the top. The Advanced question group is gone with the rest of the catalog (Decision A). Sections keep a
            fixed order.
            "How it changed over time" does not render inside More at all: the cat dataset has no Time role, and a
            section the data cannot support does not render, not even dimmed (RT-8 conditional rule).
@@ -2416,7 +2416,7 @@
            the computation, which is 6.11's stub obligation and A6's requirement that a door never hides a deviation.
            Behind the door, and below 1280px, the pop-out is a second sheet over this panel at full panel width (280)
            with a back chevron rather than a floating 360 box (POP-0, 5.2's one-overlay-at-a-time rule): the four stat
-           rows with their per-row caveats travelling with them, so no departure is separated from what it qualifies
+           rows with their per-row caveats traveling with them, so no departure is separated from what it qualifies
            (6.10); the "Computed 14:12" footer; and Recompute, Export CSV and More resident in its header. Nothing is
            drawn open here. While it is open this stub carries the selected-row fill #28364e.
            REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D6, 5.9), and it changes what is behind this row without moving

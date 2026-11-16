@@ -7,7 +7,7 @@
  * mesh in the scene (issue #27), loading N caps cost O(N^2). Batching them as `InstancedMesh`es
  * fixed the draw calls and the materials and left a scene object per cap. Now each scene keeps
  * one mesh per appearance and a cap is a THIN instance of it: sixteen floats in that mesh's
- * matrix buffer, plus the direction, size and colour the billboard shader reads per instance.
+ * matrix buffer, plus the direction, size and color the billboard shader reads per instance.
  * Nothing per cap is added to the scene at all.
  */
 import {

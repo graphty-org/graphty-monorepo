@@ -5,7 +5,7 @@ import { fetchJson } from "./data/source-bytes";
  * The element's configuration document: everything about a graph that is not a style layer.
  *
  * WHAT IT CARRIES. The id paths a record is read with, the view mode, the background, the layout
- * and its options, the algorithms to run on load, and the behaviour settings. Every one of those
+ * and its options, the algorithms to run on load, and the behavior settings. Every one of those
  * is reachable from a property on `<graphty-element>`; this is where the element keeps them.
  *
  * WHAT IT NO LONGER CARRIES. A stack of jmespath-selector style layers, and the methods that

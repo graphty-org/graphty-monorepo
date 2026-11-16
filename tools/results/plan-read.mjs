@@ -304,7 +304,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
             snapshot: values.snapshot,
         });
     } catch (e) {
-        // fail open: the plan is an optimisation, never a reason to fail the run
+        // fail open: the plan is an optimization, never a reason to fail the run
         const snap = readSnapshot(values.snapshot);
         fallback(e.message.split("\n")[0], snap);
         mkdirSync(out, { recursive: true });

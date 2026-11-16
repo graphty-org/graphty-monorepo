@@ -57,10 +57,10 @@ Call route with every helper the request needs, in the order they should work; o
  * @param input - The reader's request.
  * @param roles - The helpers it may pick.
  * @param engine - The engine the turn runs on.
- * @param signal - Ends the turn when the message is cancelled.
+ * @param signal - Ends the turn when the message is canceled.
  * @param onUsage - Told the tokens the turn used, which are the message's.
  * @returns A one-step plan of the helpers picked, or undefined when the model picked none.
- * @throws {TurnFailed} When the turn failed or was cancelled.
+ * @throws {TurnFailed} When the turn failed or was canceled.
  */
 export async function classify(
     input: string,

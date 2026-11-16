@@ -25,7 +25,7 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
      *
      * A piece is a group in the community shape's sense -- two nodes are in the same one when a
      * path joins them -- so this publishes the same `group` per node that every grouping method
-     * does, and no modularity, which is not defined for a partition nothing optimised.
+     * does, and no modularity, which is not defined for a partition nothing optimized.
      * @param context - What the element gave the run.
      * @returns The community result, or null when there are no nodes to group.
      */

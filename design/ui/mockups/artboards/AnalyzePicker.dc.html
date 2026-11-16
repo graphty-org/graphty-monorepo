@@ -26,29 +26,29 @@
             </helmet>
             <!--
   Analyze picker, the screen "+ Analysis" opens (Loaded). Desktop 1440 by 900. Spec revision 1.5, compaction 1.6.
-  Revision 1.7: TB-1/TB-2/TB-4 (the navigation cluster becomes the bottom-centre canvas toolbar, bottom 12, copied
+  Revision 1.7: TB-1/TB-2/TB-4 (the navigation cluster becomes the bottom-center canvas toolbar, bottom 12, copied
   verbatim from AnalyzePanel), TB-2 (the toolbar's shadow is the instrument mark; the hover preview keeps its own
   shadow because it is a transient surface, not a resident canvas overlay). No decision in tracks 1 to 4 touches this
   board: the picker holds no parameters block, no library section and no result card. The panel is unchanged at 761px
   of resident content. D3 touches it by naming its surface class: this is not a pop-out, not a dialog and not a
   menu -- it is a panel-scale drill-down that takes over the 280px column, with the rail item still active and
   the top bar unchanged. It is the sixth surface class after 6.11's five plus the preview, and the only member.
-  Review F-37: the hover preview is legalised as 6.11's sixth surface, the preview, and drawn to its contract. Width
-  280, a rung of 6.11's ladder, instead of the off-ladder 272; one fixed home centred over the canvas instead of the
+  Review F-37: the hover preview is legalized as 6.11's sixth surface, the preview, and drawn to its contract. Width
+  280, a rung of 6.11's ladder, instead of the off-ladder 272; one fixed home centered over the canvas instead of the
   activity-panel pop-out anchor at x = 336; no focus; and no touch-tap route. Panel, shell and inspector untouched.
   Round 2, R2-M22: the preview's names move below the thumbnails, where 6.11 puts a caption, and the second thumbnail
   gains its technical half; and the Well-connected neighbors row stops repeating Influence's claim in other words.
-  The same finding asked for that row's technical name inline and for the preview to be centred: the first is
+  The same finding asked for that row's technical name inline and for the preview to be centered: the first is
   refused on a measurement 6.3 decides (below, at the row) and the second was already true (left 276 of 832).
-  Revision 1.8: D3 (the + Analysis catalogue is refused as an anchored pop-over on two grounds, the second
+  Revision 1.8: D3 (the + Analysis catalog is refused as an anchored pop-over on two grounds, the second
   measured against this board's own preview geometry; the picker is named a panel-scale drill-down and 6.11
-  gains the row), B5 (the preview's centred, unanchored home is confirmed by pixel and a preview takes no lane),
+  gains the row), B5 (the preview's centered, unanchored home is confirmed by pixel and a preview takes no lane),
   C6 (legend cap 334 -> 240). Nothing on this board moves.
-  D3: the + Analysis catalogue is refused as an anchored pop-over, and this is the one place in the revision
+  D3: the + Analysis catalog is refused as an anchored pop-over, and this is the one place in the revision
   where the user's "anchor pop-overs to their parents" instruction and 6.11's geometry point in opposite
   directions. Two reasons, the second measured. It is not one member of a list and not a report read once; it
   is the index of the product, seven groups and twenty-six cards, which 5.3 says in its own words. And with the
-  panel open the canvas band runs x 328 to 1160, so the preview's fixed centred home occupies x 604 to 884;
+  panel open the canvas band runs x 328 to 1160, so the preview's fixed centered home occupies x 604 to 884;
   a 360 pop-out at x 336 runs to 696 and a 280 one to 616 -- every rung of the width ladder collides with the
   preview, and 6.11's own remedy ("where that fallback is in play, the preview does not open") would cost the
   picker the one thing it has that a list of names does not. So the picker is the product's one panel-scale
@@ -70,12 +70,12 @@
   draws the node-type and edge-type rows with their counts capped at five plus an "N more" row, and Filter to type /
   Select all of type, with the type-pair matrix and per-type completeness behind a 480 gear (D7).
   The picker itself is untouched, and 6 of SECTIONS-1.9 says why in as many words: a picker is not a section with a
-  chevron, and D1 does not reach one. The "+ Analysis" catalogue keeps the panel-scale drill-down D3 gave it.
+  chevron, and D1 does not reach one. The "+ Analysis" catalog keeps the panel-scale drill-down D3 gave it.
   MEASURED: the panel body's picker content still runs y 76 to 841 -- 765px of the 800px region, so it still does
   not scroll -- and the inspector body still runs y 76 to 531 in its own 800, because this pass added and removed no
   row on this board.
 
-  Why this board exists. Decision A moved the 26-method catalogue out of the Analyze panel's resting state and left it
+  Why this board exists. Decision A moved the 26-method catalog out of the Analyze panel's resting state and left it
   "one click behind + Analysis" -- a picker that had no artboard, so the panel pointed at nothing. This is that picker,
   and it is where the 3,060px of card list went.
 
@@ -88,7 +88,7 @@
     4. the preview over the canvas draws what two similar analyses actually do, which is the thing a sentence cannot
        do at all. Search is the fifth route and it is for a reader who already has a word.
 
-  Measured: the whole catalogue browses in 833px of a 836px column with three groups open and no scrollbar. The panel
+  Measured: the whole catalog browses in 833px of a 836px column with three groups open and no scrollbar. The panel
   it replaces held 3,060px of card list in a 518px window.
 -->
             <div
@@ -746,12 +746,12 @@
              chosen here: it keeps the 16 | 108 | 8 | 108 | 8 | 24 | 8 grid, the palette and the density of the panel
              it replaces, it can hold 24 two-line rows without a scrollbar, and one back caret returns to the panel
              with its state intact. A popover over a 280px column would either cover the canvas or scroll like the
-             catalogue this decision deleted.
+             catalog this decision deleted.
 
              Structure, top to bottom: the search field (matches plain names, technical names and method names), then
              the seven question rows of 5.3 Analyze in fixed order. Three groups are open (memory rule 6.5 remembers
              open state per group); four are collapsed and carry the only thing a collapsed group can tell you, its
-             card count. Seven headers plus one field is the whole catalogue's resting cost.
+             card count. Seven headers plus one field is the whole catalog's resting cost.
 
              Counts: 4 + 4 + 4 + 3 + 1 + 3 + 5 = 24 cards. AnalyzePanel's "+ Analysis" title says "26 methods behind
              7 questions": methods, not cards -- a variant is always a Method on its card, never a row here (5.3), and
@@ -2350,14 +2350,14 @@
                                 </svg>
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-4). The 5.6 navigation cluster, rotated and moved to the
-               bottom centre of the live canvas rect: left 50% with translateX(-50%) on the 832-wide canvas, bottom 12,
+               bottom center of the live canvas rect: left 50% with translateX(-50%) on the 832-wide canvas, bottom 12,
                which is TB-4's "nothing else on" offset -- the cat dataset has no Time role, so there is no time slider,
                and the Data table drawer is closed. 246 x 36, every number derived: 3 + 60 + 12 + (28*4 + 2*3) + 12 +
                36 + 3 + 2 borders = 246; padding 3 with a 4px item radius makes the container radius concentric at 7.
                Order, left to right, by how long the effect lasts: [2D | 3D] segmented (5 toggles it, 3D selected);
                divider; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F); divider; Views, whose caret
                points up and whose menu opens upward. Zoom out precedes Zoom in because magnitude increases rightward.
-               The item set is fixed -- nothing appears or disappears with selection, because a centred bar that changes
+               The item set is fixed -- nothing appears or disappears with selection, because a centered bar that changes
                width moves every item under the pointer -- so Zoom to selection stays drawn and merely disables,
                carrying floor item 4's reason a control is disabled: "Zoom to selection (F). Select something first".
                The zoom percentage is not in the bar; the status bar 12px below owns it. Copied character for character
@@ -2365,7 +2365,7 @@
                identically.
 
                Bottom-band collision on this board, every number re-measured in 1.8 because this sentence carried a
-               stale 200px legend from before LEGEND-1.8 settled the width at 256. The bar is 246 wide and centred in
+               stale 200px legend from before LEGEND-1.8 settled the width at 256. The bar is 246 wide and centered in
                whatever canvas it sits in: root x 481 to 727 when no panel is open, and here, with the picker holding
                the 280px column, canvas x 293 to 539, which is root x 621 to 867. The minimap is 160 wide at left 12
                (canvas x 12 to 172, root x 340 to 500) and clears the bar by 121px. The legend is 256 wide at right 12
@@ -2694,7 +2694,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -2791,14 +2791,14 @@
                that opened on hover. That is why the per-thumbnail word labels are gone rather than extended: the
                caption is the only place in a 280px preview where the pair is legal, and it is now the only place the
                names are drawn. Ink keeps the hierarchy the labels carried: the previewed method in the primary text
-               colour, the contrast in the secondary, both technical halves dimmed.
+               color, the contrast in the secondary, both technical halves dimmed.
 
                Width 280, the panel rung of 6.11's ladder, fixed for this kind of preview and never chosen per case:
                8 padding, two thumbnails at an 8 gap, 8 padding, inside the 1px border. The 272 it used to be was a
                seventh width, off the ladder entirely.
 
                Anchor, which is the whole reason it moved. It is NOT anchored. It has one fixed home over the canvas,
-               centred on both axes -- left 276 = (832 - 280) / 2, top 336 = (836 - 164) / 2 -- and it never takes a
+               centered on both axes -- left 276 = (832 - 280) / 2, top 336 = (836 - 164) / 2 -- and it never takes a
                pop-out lane. It used to sit at left 8, which is x = 336 in the frame: the activity-panel pop-out
                anchor of 6.11, top-aligned to the hovered row, so a card with no pin, no close X and no focus arrived
                in the exact place a surface that can be clicked, pinned and focused arrives -- on the one gesture 6.11
@@ -2809,7 +2809,7 @@
 
                B5 (revision 1.8) settles it by pixel: the card measures [604,376 280x163] in root coordinates and is
                recorded among the five already-correct surfaces in the set, with the reason spelled out -- correctly
-               centred on the canvas band's centre and correctly unanchored; a preview takes no lane. A later anchor
+               centered on the canvas band's center and correctly unanchored; a preview takes no lane. A later anchor
                pass must not give it one, and the 8px shell-boundary gap and 12px canvas-overlay inset of B2 are not
                its constants: a lane is what it does not have.
 

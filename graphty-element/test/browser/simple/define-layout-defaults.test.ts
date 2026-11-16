@@ -167,7 +167,7 @@ describe("defineLayout's defaults on a rendered graph", () => {
     }
 
     /**
-     * The catalogue entry a picker reads.
+     * The catalog entry a picker reads.
      * @param id - The layout's id.
      * @returns The descriptor.
      */

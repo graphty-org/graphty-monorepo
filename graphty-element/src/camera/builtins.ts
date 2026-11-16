@@ -5,7 +5,7 @@
  * node bounding box itself and reading the field of view off the camera -- which is why a view
  * could not be written by anybody outside this package, and why the element's own five were
  * reached by a five-case `switch` rather than by a lookup. They are now plain
- * registration objects: a descriptor from the catalogue, and one pure function
+ * registration objects: a descriptor from the catalog, and one pure function
  * from a bounding box to a camera state. That is exactly the shape `registerCameraView` takes,
  * so the element's own views and a plugin's are the same kind of thing and travel the same path.
  *
@@ -41,7 +41,7 @@ const DEFAULT_FOV = 0.8;
 const FLAT_PADDING = 1.05;
 
 /**
- * How many world units the 2D camera shows either side of its centre, across, at a zoom of 1.
+ * How many world units the 2D camera shows either side of its center, across, at a zoom of 1.
  *
  * An orthographic `zoom` is relative to this: zoom 2 shows half as much, so it reads half-width
  * over this many units, and a view that wants a half-width of `h` asks for `5 / h`.
@@ -361,7 +361,7 @@ function topView(input: CameraViewInput): CameraState {
 
     if (input.mode === "2d") {
         // Flat drawing already looks straight down, so the only thing left to decide is where the
-        // centre of the frame is. The zoom stays at the element's neutral 1.0 rather than fitting,
+        // center of the frame is. The zoom stays at the element's neutral 1.0 rather than fitting,
         // which is what distinguishes this view from fitToGraph in two dimensions.
         return {
             type: "orthographic",

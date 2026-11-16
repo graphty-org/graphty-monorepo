@@ -100,7 +100,7 @@ describe("geometric layouts: geometry", () => {
         const r = layout.shell(nodes(7), { dim: 3, scale: 2, center: [0, 0, 4], nlist: [[0], [1, 2, 3], [4, 5, 6]] });
         assert.deepEqual(row(r, 0), [0, 0, 4]);
         for (let i = 1; i < 7; i++) {
-            // three shells, radius step 2 / 3: the single node of the first sits on the centre
+            // three shells, radius step 2 / 3: the single node of the first sits on the center
             assert.ok(Math.abs(distance(r, i, [0, 0, 4]) - (i < 4 ? 2 / 3 : 4 / 3)) < 1e-5, `node ${i}`);
             assert.equal(row(r, i)[2], 4);
         }
@@ -267,7 +267,7 @@ describe("radial ring order and root choice", () => {
     });
 
     it("defaults the root to the lowest index on a degree tie", () => {
-        // path 0 - 1 - 2 - 3: nodes 1 and 2 both have two neighbours
+        // path 0 - 1 - 2 - 3: nodes 1 and 2 both have two neighbors
         const s = fromEdgeArrays({
             directed: false,
             nodeCount: 4,
@@ -278,7 +278,7 @@ describe("radial ring order and root choice", () => {
     });
 
     it("counts distinct neighbours, not parallel edges, when choosing the default root", () => {
-        // node 0 has three parallel edges to 1; node 2 has two distinct neighbours
+        // node 0 has three parallel edges to 1; node 2 has two distinct neighbors
         const s = fromEdgeArrays({
             directed: false,
             nodeCount: 5,
@@ -390,7 +390,7 @@ describe("radial sector arrangement", () => {
         at(r, 1, 1, (2 * Math.PI) / 3);
         at(r, 2, 1, (5 * Math.PI) / 3);
         // node 1's share (4 pi / 3) is wider than the wedge between its tangents at ring 1 that meet ring 2
-        // (2 acos(1 / 2) = 2 pi / 3), so its two children split that wedge, centred on node 1's angle
+        // (2 acos(1 / 2) = 2 pi / 3), so its two children split that wedge, centered on node 1's angle
         at(r, 3, 2, (2 * Math.PI) / 3 - Math.PI / 6);
         at(r, 4, 2, (2 * Math.PI) / 3 + Math.PI / 6);
         at(r, 5, 2, (5 * Math.PI) / 3);
@@ -408,7 +408,7 @@ describe("radial sector arrangement", () => {
                 onAxis++;
             }
         }
-        // the root, on the centre; 190 with arrangement "rings"
+        // the root, on the center; 190 with arrangement "rings"
         assert.ok(onAxis <= 3, `${onAxis} nodes on the x axis`);
         const side = (a: number[], b: number[], c: number[]): number =>
             Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));

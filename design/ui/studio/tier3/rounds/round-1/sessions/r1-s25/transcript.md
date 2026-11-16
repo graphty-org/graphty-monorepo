@@ -55,11 +55,11 @@ Did I finish? Yes. The file holds 24 people and 63 ties (shown in the import pre
 
 Ease: 6 out of 7. About ten clicks, no dead ends.
 
-What went well: "It never leaves your computer" right on the open box, plus "Local only" and MIT licence -- that answered my data and cost questions before I had to ask. Counts shown before I even pressed Load, and the role checkboxes showed per-value counts (16/5/3) so I could sanity-check that 8 was right. "Is any of" answered my AND/OR worry.
+What went well: "It never leaves your computer" right on the open box, plus "Local only" and MIT license -- that answered my data and cost questions before I had to ask. Counts shown before I even pressed Load, and the role checkboxes showed per-value counts (16/5/3) so I could sanity-check that 8 was right. "Is any of" answered my AND/OR worry.
 
 What confused me / slowed me down:
 - Every node already starts out a blue-violet (6366F1). The task says "make them blue", and the color box pre-filled with that same violet, so if I'd just accepted the default nothing would have visibly changed. I had to know to type a hex code. A few named swatches would be quicker than hex; I don't think in hex.
-- Even after my change, my bright blue vs. the default violet is a closer call than I'd like -- in a slide it would be "blue vs slightly-purple blue". I'd probably recolor the volunteers grey too, but the task said leave them alone.
+- Even after my change, my bright blue vs. the default violet is a closer call than I'd like -- in a slide it would be "blue vs slightly-purple blue". I'd probably recolor the volunteers gray too, but the task said leave them alone.
 - "Style layers", "Layer", "Folder", "Rendering" -- a bit developer-ish. I only went to "Layer" because it had a paintbrush icon. In Gephi this is just Appearance > Nodes > Partition > role.
 - "Nodes that pass every condition" made me think it would be AND only, until I saw the "Is any of" list.
 - Coloring by role in one go (one color per role, like Gephi's partition) would be what I'd actually want for a deck; here I built a filter-plus-color by hand. Fine for one group, tedious for five.

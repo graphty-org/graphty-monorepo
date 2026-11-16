@@ -13,7 +13,7 @@
 # main checkout run crawl every worktree until it ran out of heap).
 #
 # A main checkout still on an older .gitignore (unanchored `.worktrees/`) breaks
-# a worktree run, so that one case keeps the old `--no-gitignore` behaviour.
+# a worktree run, so that one case keeps the old `--no-gitignore` behavior.
 # ponytail: delete the fallback once every main checkout has the anchored rule.
 
 set -euo pipefail

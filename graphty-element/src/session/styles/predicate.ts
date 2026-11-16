@@ -26,7 +26,7 @@
  *   the character that is wrong, which that parser cannot say.
  * - A path is not walked here, it is READ: `results.louvain.group` is one column lookup, not
  *   three object dereferences, because the session stores values in columns addressed by path.
- *   An off-the-shelf evaluator would need the whole root materialised per element, which is an
+ *   An off-the-shelf evaluator would need the whole root materialized per element, which is an
  *   object allocation per element per layer.
  *
  * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
@@ -81,8 +81,8 @@ export interface SelectorSource {
      * Whether one node carries a value for a path.
      *
      * Optional, and worth supplying: this is the test `{match:"has"}` compiles to and the test
-     * `<path> != \`null\`` is recognised as, so a store holding a presence bitmap answers it
-     * without materialising the value. Absent, it is derived from {@link nodeValue}.
+     * `<path> != \`null\`` is recognized as, so a store holding a presence bitmap answers it
+     * without materializing the value. Absent, it is derived from {@link nodeValue}.
      *
      * PRESENT MEANS A VALUE THAT IS NEITHER ABSENT NOR NULL. An override that answers anything
      * else disagrees with the expression form of the same question, and the two would paint
@@ -312,10 +312,10 @@ export interface CompiledSelector {
     /**
      * Every column path the test reads, in the order the selector names them, without repeats.
      *
-     * This is what the caller resolves against the run list and the attribute catalogue. A
+     * This is what the caller resolves against the run list and the attribute catalog. A
      * selector that parses perfectly and names a run or an attribute nothing answers matches
      * NOTHING, silently, and an empty screen reads exactly like a correct answer of zero. The
-     * compiler cannot tell the difference -- it has no catalogue -- so it reports what was asked
+     * compiler cannot tell the difference -- it has no catalog -- so it reports what was asked
      * for and leaves the reference check to whoever holds one.
      */
     readonly paths: readonly Path[];
@@ -335,7 +335,7 @@ export interface CompiledSelector {
  *
  * A column answers undefined for an element it has no value for; JMESPath answers null for a
  * field that is not there. They are the same fact, so both are absent here and every read is
- * normalised to null before anything compares it.
+ * normalized to null before anything compares it.
  * @param value - The value a column answered.
  * @returns True when it is neither undefined nor null.
  */
@@ -552,7 +552,7 @@ function continuesIdentifier(character: string): boolean {
 }
 
 /**
- * Find the end of a delimited run, honouring backslash escapes.
+ * Find the end of a delimited run, honoring backslash escapes.
  * @param where - The expression being lexed.
  * @param from - The index of the opening delimiter.
  * @param delimiter - The character that closes the run.
@@ -930,7 +930,7 @@ function rejectCharacter(where: Query, at: number, character: string): never {
  */
 type CompareOperator = "!=" | "<" | "<=" | "==" | ">" | ">=";
 
-/** The comparators, keyed by their text, so the parser recognises one without a cast. */
+/** The comparators, keyed by their text, so the parser recognizes one without a cast. */
 const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Object.freeze({
     "!=": "!=",
     "<": "<",
@@ -940,7 +940,7 @@ const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Objec
     ">=": ">=",
 } satisfies Record<CompareOperator, CompareOperator>);
 
-/** Each arithmetic operator's work, keyed by its text, so the parser recognises one without a cast. */
+/** Each arithmetic operator's work, keyed by its text, so the parser recognizes one without a cast. */
 const ARITHMETIC: Readonly<Record<string, ((a: number, b: number) => number) | undefined>> = Object.freeze({
     "+": (a: number, b: number) => a + b,
     "-": (a: number, b: number) => a - b,
@@ -1609,7 +1609,7 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 /**
  * Compile a tree into the closure that reads one element's value for it.
  *
- * A path reads its column and normalises an absent value to null, because that is what JMESPath
+ * A path reads its column and normalizes an absent value to null, because that is what JMESPath
  * calls a field that is not there, and every comparison below is written against that.
  * @param node - The tree.
  * @param columns - Where to read values.
@@ -1732,7 +1732,7 @@ function pickLiteral(left: ExpressionNode, right: ExpressionNode): { readonly va
  * Two of those roads matter. `<path> != \`null\`` and `<path> == \`null\`` are the presence test
  * in disguise -- they are half of every selector the element ships -- so they compile to
  * {@link ElementColumns.has}, which a columnar store can answer from a presence bitmap without
- * materialising the value. And an equality against a primitive compiles to `===` rather than to
+ * materializing the value. And an equality against a primitive compiles to `===` rather than to
  * a structural walk, because a structural walk on a number is three type checks for nothing.
  * @param operator - Which comparison.
  * @param left - Its left side.

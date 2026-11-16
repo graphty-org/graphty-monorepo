@@ -17,7 +17,7 @@
  * Zod across a package boundary makes the consumer's Zod version part of this package's API and
  * forces it to read Zod internals to recover a type, a default and a range.
  *
- * The descriptor barrel is re-exported wholesale on purpose: the catalogue module's own public
+ * The descriptor barrel is re-exported wholesale on purpose: the catalog module's own public
  * list is the single declaration of what a descriptor is, and restating it here would guarantee
  * the two drift. The tables are listed by name, because a table is a thing a consumer asks for
  * by name.

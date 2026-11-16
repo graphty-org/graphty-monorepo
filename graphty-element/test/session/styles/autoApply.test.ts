@@ -62,7 +62,7 @@ function runOf(
     };
 }
 
-/** A node measurement, which asks for a colour over the nodes it measured. */
+/** A node measurement, which asks for a color over the nodes it measured. */
 const BETWEENNESS = runOf("betweenness", "node-metric", [field("value", "node", "number", "betweenness")]);
 
 /** A second node measurement, which asks for the same channel. */
@@ -148,12 +148,12 @@ function highlights(suggestions: readonly StyleSuggestion[]): unknown[] {
     return suggestions.flatMap((suggestion) => (suggestion.as === "highlight" ? [suggestion.spec] : []));
 }
 
-/** What a mark paints the elements an algorithm chose: its own values, not the highlight colour. */
+/** What a mark paints the elements an algorithm chose: its own values, not the highlight color. */
 const MARK_SET = { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": DEFAULT_HIGHLIGHT.edgeWidth };
 
 /** The run ids some suggestions encode, in order. */
 function encodedRuns(suggestions: readonly StyleSuggestion[]): string[] {
-    // The policy names a run by its bare id, which is what makes a suggestion serialisable and
+    // The policy names a run by its bare id, which is what makes a suggestion serializable and
     // what a saved layer would carry. Anything else here is the policy having changed its mind.
     return encodings(suggestions).map((spec) => (typeof spec.run === "string" ? spec.run : "not an id"));
 }
@@ -289,7 +289,7 @@ describe("when somebody has already said what that channel looks like", () => {
     });
 
     it("is not suppressed by the element's own base layer", () => {
-        // The base layer paints a colour on every node. Counting it would suppress every
+        // The base layer paints a color on every node. Counting it would suppress every
         // suggestion there will ever be, which is the same as having no policy at all.
         const harness = record();
         harness.layers = [layerOf("base", { by: "element", reason: "default" }, { kind: "base" })];
@@ -311,7 +311,7 @@ describe("when somebody has already said what that channel looks like", () => {
     });
 
     it("still paints when the authored layer names only some elements", () => {
-        // A reader who coloured one node by hand decided about that node, not about the graph:
+        // A reader who colored one node by hand decided about that node, not about the graph:
         // the run still paints, and is placed beneath the override so the node stays as chosen.
         const harness = record();
         harness.layers = [layerOf("one node", { by: "user" }, { selector: { match: "ids", nodes: ["n0"] } })];
@@ -330,7 +330,7 @@ describe("when somebody has already said what that channel looks like", () => {
 
 describe("when a sweep finishes", () => {
     it("paints once rather than once per member", () => {
-        // Four node metrics all want the node colour. Painting each would leave three layers
+        // Four node metrics all want the node color. Painting each would leave three layers
         // invisible under the fourth, and four blocks in a legend describing one picture.
         const harness = record();
         const hold = harness.policy.hold();
@@ -532,7 +532,7 @@ describe("what the policy leaves in a real stack", () => {
     it("hands the layer over to an explicit encode of the same run and channel", async () => {
         // The case the suppression rule cannot catch: the `encode()` call comes AFTER the run
         // completed, so auto-apply has already fired. Without the takeover a quickstart that runs
-        // an algorithm and then colours by it leaves two layers and two legend blocks on one
+        // an algorithm and then colors by it leaves two layers and two legend blocks on one
         // channel, one of them invisible under the other.
         const { styles, finish } = realStack();
 
@@ -584,7 +584,7 @@ describe("what the policy leaves in a real stack", () => {
         assert.deepStrictEqual(layers[0].set, { "node.color": "#D55E00" });
         assert.deepStrictEqual(layers[1].set, { "edge.color": "#D55E00", "edge.width": DEFAULT_HIGHLIGHT.edgeWidth });
         // The membership column carries FALSE for the elements the run looked at and did not
-        // choose, so a presence test would paint the whole neighbourhood in the route's colour.
+        // choose, so a presence test would paint the whole neighborhood in the route's color.
         for (const layer of layers) {
             assert.deepStrictEqual(layer.selector, {
                 match: "expression",

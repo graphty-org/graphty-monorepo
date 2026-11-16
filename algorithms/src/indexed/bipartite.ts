@@ -14,10 +14,10 @@ export interface BipartiteResult {
 /** Options of {@link isBipartite}. @public */
 export interface BipartiteOptions {
     /**
-     * Which arcs of a directed snapshot to colour along. "both" (default) follows out- and in-arcs,
+     * Which arcs of a directed snapshot to color along. "both" (default) follows out- and in-arcs,
      * which answers for the graph with direction ignored. "out" follows out-arcs only, as the legacy
      * `bipartitePartition` does: roots are taken in index order and a node first reached through an
-     * in-arc is coloured as a new root, so the answer depends on node order. Ignored on an undirected
+     * in-arc is colored as a new root, so the answer depends on node order. Ignored on an undirected
      * snapshot.
      */
     readonly arcs?: "both" | "out" | undefined;
@@ -26,12 +26,12 @@ export interface BipartiteOptions {
 const UNSEEN = 2;
 
 /**
- * Two-colour the graph by BFS, one BFS per component in index order. A self-loop makes a graph
+ * Two-color the graph by BFS, one BFS per component in index order. A self-loop makes a graph
  * non-bipartite; parallel arcs change nothing. Arc direction plays no part in bipartiteness, so on
- * a directed snapshot every node is coloured against its in-neighbours (over `s.reverse()`) as well
- * as its out-neighbours. Following out-arcs only -- as the legacy `bipartitePartition` does -- makes
+ * a directed snapshot every node is colored against its in-neighbors (over `s.reverse()`) as well
+ * as its out-neighbors. Following out-arcs only -- as the legacy `bipartitePartition` does -- makes
  * the answer depend on node order: with the single arc `a -> b`, a walk that starts at `b` never
- * meets `a`, colours it as a new root and then finds the arc inside one side. `options.arcs: "out"`
+ * meets `a`, colors it as a new root and then finds the arc inside one side. `options.arcs: "out"`
  * gives that legacy answer.
  * @param s - The snapshot to test
  * @param options - Which arcs to follow on a directed snapshot
@@ -58,11 +58,11 @@ export function isBipartite(s: GraphSnapshot, options: BipartiteOptions = {}): B
 }
 
 /**
- * Two-colour the component of root `r` by BFS, the root on the first side.
+ * Two-color the component of root `r` by BFS, the root on the first side.
  * @param views - The adjacencies to follow
- * @param side - Each node's side, UNSEEN until coloured
+ * @param side - Each node's side, UNSEEN until colored
  * @param queue - Scratch queue, one slot per node
- * @param r - The component's root, not yet coloured
+ * @param r - The component's root, not yet colored
  * @returns False when an arc joins two nodes of one side
  */
 function colourComponent(views: readonly AdjacencyView[], side: Uint8Array, queue: Uint32Array, r: number): boolean {

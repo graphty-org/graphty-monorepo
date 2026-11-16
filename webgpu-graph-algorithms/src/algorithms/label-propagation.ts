@@ -3,14 +3,14 @@
  * snapshot (`buildSimpleSymmetric`), with the rules of `@graphty/algorithms`' `labelPropagationSynchronous`. Vertex
  * `i` starts with the label `fmix32(i)`, the murmur3 32-bit finalizer of its index: a one-to-one scramble, so comparing
  * two labels compares the priorities the CPU port gives them. Each pass, `group-by-key-row` finds every vertex's
- * weighted mode of its neighbours' labels -- its own label when that ties for the lead, else the lowest on a tie --
+ * weighted mode of its neighbors' labels -- its own label when that ties for the lead, else the lowest on a tie --
  * and `lpa-step` adopts it synchronously, but only in the pass's direction: up to a higher label on even passes (the
  * first is pass 0), down to a lower one on odd passes (cuGraph's swap-avoidance rule), which is what stops two
- * neighbours trading labels forever. A pass that moves nothing in either direction after one that moved nothing in
+ * neighbors trading labels forever. A pass that moves nothing in either direction after one that moved nothing in
  * the other is a fixed point, and the run stops there or at `maxIterations` passes.
  *
  * Ranking labels by node index instead ties the outcome to the numbering: on a path numbered in order every interior
- * vertex is tied between its two neighbours, the lowest index wins every tie, and it creeps one vertex per two passes
+ * vertex is tied between its two neighbors, the lowest index wins every tie, and it creeps one vertex per two passes
  * (issue #694). Under the scramble the winners are spread along the chain and a 1,000-node path settles in about ten
  * passes. One difference from the CPU port remains: a run whose labels cycle with period two runs to `maxIterations`
  * here, where the port stops at the first repeat.
@@ -122,7 +122,7 @@ function maxIterationsOf(value: number | undefined): number {
 }
 
 /**
- * An upper bound of every vertex's number of distinct neighbours in the simple symmetric graph: its arcs in both
+ * An upper bound of every vertex's number of distinct neighbors in the simple symmetric graph: its arcs in both
  * directions, which the merge of parallel edges and the drop of self-loops can only shrink.
  * @param s - the snapshot
  * @returns one bound per vertex
@@ -164,7 +164,7 @@ function resultOf(raw: U32, dest: U32 | null): GpuLabelResult {
 }
 
 /**
- * The identity labelling: every vertex its own community.
+ * The identity labeling: every vertex its own community.
  * @param n - the node count
  * @param dest - the caller's destination, if any
  * @returns the result
@@ -267,7 +267,7 @@ export async function labelPropagation(
         const build = await buildSimpleSymmetric(ctx, s, scope, weighted, ALGORITHM);
         const { graph } = build;
         if (graph.colIdx === null) {
-            // only self-loops: no vertex has a neighbour, so nothing ever moves
+            // only self-loops: no vertex has a neighbor, so nothing ever moves
             scope.flush();
             const bytes = await build.batch.submit().readback;
             ctx.assertReady();

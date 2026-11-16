@@ -69,7 +69,7 @@ function writeYFiles(key: string, column: Column, row: number, record: Record<st
  * Copy a row's declared keys and yFiles graphics onto its record.
  *
  * A key the file declared lands under its `attr.name`. The raw yFiles graphics tree is left out,
- * because its readable parts (position, size, colours, label, shape, arrows) are written from the
+ * because its readable parts (position, size, colors, label, shape, arrows) are written from the
  * `yfiles.*` columns instead.
  * @param kind - node or edge
  * @param table - the node or edge table
@@ -181,7 +181,7 @@ function readDirection(
 /**
  * Data source for loading graph data from GraphML files, read by `@graphty/graph-io`'s GraphML
  * importer. Supports key definitions and data elements, and the yFiles `ShapeNode` and
- * `PolyLineEdge` graphics (position, size, colours, border, label, shape and arrows).
+ * `PolyLineEdge` graphics (position, size, colors, border, label, shape and arrows).
  *
  * The yFiles graphics are copied onto the records under `position`, `width`, `height`, `color`,
  * `borderColor`, `borderWidth`, `label` and `shape` (`sphere` or `box`), and on edges `color`,

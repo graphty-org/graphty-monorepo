@@ -63,7 +63,7 @@ function makeEdge(args: EdgeArgs): Mesh | InstancedMesh | PatternedLineMesh {
 
 /**
  * Build the line of a style drawn by a line batch, the way `Edge` builds it.
- * @param args - The style, and optionally the appearance id, width and colour.
+ * @param args - The style, and optionally the appearance id, width and color.
  * @returns The batch's mesh.
  */
 function makeBatchEdge(args: EdgeArgs): Mesh | InstancedMesh {

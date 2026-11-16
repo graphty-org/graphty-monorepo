@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 /**
- * Builds a graph asking for a renderer and initialises it.
+ * Builds a graph asking for a renderer and initializes it.
  * @param renderer - What to ask for; left out, nothing is asked.
  * @returns The graph.
  */
@@ -158,7 +158,7 @@ async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray
 }
 
 /**
- * The share of pixels that are not the same colour in two pictures, and the share that are ink
+ * The share of pixels that are not the same color in two pictures, and the share that are ink
  * (not the background) in the first.
  * @param one - The first picture's pixels.
  * @param other - The second's.
@@ -692,7 +692,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.isAbove(ink, 0.01, "the WebGL picture has almost nothing on it");
         // Anti-aliasing differs between the two back ends along every line; a missing line, cap
         // or glow is a whole shape. A tenth of the ink covers the first and not the second: the
-        // grey and blue lines alone are more than a quarter of it.
+        // gray and blue lines alone are more than a quarter of it.
         assert.isBelow(differ, ink / 10, "the WebGPU frame is not the WebGL frame");
 
         await animateEdges(webgl);

@@ -803,7 +803,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };
     }
-    // A slow window the history does not yet cover still shows its value, labelled with the days it covers,
+    // A slow window the history does not yet cover still shows its value, labeled with the days it covers,
     // and is never gray only for too few samples while history is short.
     const short = c.window === "slow" && v.value !== undefined && (v.covered ?? 0) < slowDays(c);
     const out = short

@@ -56,7 +56,7 @@ All in `.github/workflows/ci.yml`.
   to a capture job in the same run, and useless as a "live Storybook to click through" a day later.
   Artifacts are not browsable in place; a reviewer has to download and unzip them.
 - **Chromatic jobs today.** Five jobs `chromatic-element`, `-app`, `-compact-mantine`,
-  `-algorithms`, `-layout` (lines 517-730). Each runs only on a pull request labelled `chromatic`
+  `-algorithms`, `-layout` (lines 517-730). Each runs only on a pull request labeled `chromatic`
   whose package is affected, or on `workflow_dispatch` with the `chromatic` input (lines 7-19,
   520-523). They use `chromaui/action@latest` with `exitZeroOnChanges: false` and TurboSnap off.
   The `labeled` event type on `pull_request` (line 8) exists so adding the label starts a run.
@@ -202,7 +202,7 @@ and worktree scripts"):
 ## 7. Chromatic features the stories actually use
 
 These are the only `chromatic` story parameters in the repository (grep of `*.ts`/`*.tsx`
-excluding `node_modules`). A replacement capture tool must honour each one.
+excluding `node_modules`). A replacement capture tool must honor each one.
 
 | Parameter                                  | Where                                                                                                                                                                                                                                                            | Meaning to replicate                                                       |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -308,7 +308,7 @@ command`). The repository has no LFS-tracked files today.
 - graphty.app is deployed only from master, as a whole-site artifact; per-PR pages need either a
   separate Pages repository or images on an orphan branch linked by raw URLs.
 - The capture must set `chromatic=true` in the URL (or change the previews to a neutral flag),
-  honour `modes`, `delay`, `pauseAnimationAtEnd`, `disableSnapshot` and the two per-story
+  honor `modes`, `delay`, `pauseAnimationAtEnd`, `disableSnapshot` and the two per-story
   thresholds, and run in a pinned Playwright 1.57.0 image. The font pin is not on master yet.
 - Environment approval is available on this public Team-plan repository, but the owner's `gh`
   token can approve it through the REST API. Only a hardware-key signature (or an approval

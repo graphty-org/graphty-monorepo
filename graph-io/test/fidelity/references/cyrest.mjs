@@ -146,7 +146,7 @@ export function sceneFromCyrest(v) {
                 : null,
             visible: r.NODE_VISIBLE !== false,
             z: r.NODE_Z_LOCATION ?? 0,
-            // a gradient custom graphic is painted over the node's whole face: NODE_FILL_COLOR is the colour under it
+            // a gradient custom graphic is painted over the node's whole face: NODE_FILL_COLOR is the color under it
             ...(paintsGradient(r) ? { paintedOver: true } : {}),
         };
     });

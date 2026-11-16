@@ -17,7 +17,7 @@ Parity is six things, not one registration call:
 
 1. it appears in `session.catalog`, so a picker can offer it
 2. it is addressable by the key a consumer types and a saved document records
-3. it reports progress and honours cancellation wherever its built-in peer does
+3. it reports progress and honors cancellation wherever its built-in peer does
 4. it is configurable through the same options mechanism the built-ins use
 5. it reports failure as a `GraphtyError` carrying a code from `src/errors/codes.ts`
 6. it can be written in TypeScript against a published entry point, with no cast, no
@@ -36,7 +36,7 @@ no media types and no content sniffer, so a registered reader is invisible to ev
 detection. A camera has no seam of any kind: the five built-in views are a `switch` over five
 string literals, and the one registration call that does exist takes Babylon.js types and is used
 for two of the element's own three cameras. A layout engine registers and runs but reaches no
-catalogue, declares no options a form can render, and implements five undeclared optional methods
+catalog, declares no options a form can render, and implements five undeclared optional methods
 none of the sixteen built-ins demonstrates. An algorithm is the one point that mostly works -- and
 it still asks its author to name the class three times, declare its options twice in two
 unrelated vocabularies, and re-declare two types the element has but does not publish. A log sink
@@ -73,13 +73,13 @@ function of a bounding box; a sink is a destination the consumer already holds. 
 those three in a class would be a data carrier wearing a constructor.
 
 Two candidates were rejected on the record. A `registerFormat({ descriptor, source })` free
-function would let the catalogue half be imported without the parser -- but it makes two
+function would let the catalog half be imported without the parser -- but it makes two
 registrations possible where one act is meaningful, and a descriptor filed without its class is a
-catalogue entry a consumer can see, select, and then be told does not exist. That is exactly the
+catalog entry a consumer can see, select, and then be told does not exist. That is exactly the
 failure `src/catalog/registry.ts` was written to prevent, and its reasoning applies unchanged. A
 `PaletteDescriptor` plus an optional `color(position)` function would express a computed palette
--- an OKLCH ramp, colours read from a theme token -- but a function cannot travel in a
-`StyleDocument`, cannot survive the `postMessage` the catalogue's contract promises, and puts a
+-- an OKLCH ramp, colors read from a theme token -- but a function cannot travel in a
+`StyleDocument`, cannot survive the `postMessage` the catalog's contract promises, and puts a
 per-element call back into the repaint loop the ramp table exists to remove (37 ms against 0.6 ms
 at fifty thousand nodes). A consumer who wants a computed palette samples the function into
 anchors once and registers the result.
@@ -107,7 +107,7 @@ an hour later. What counts as malformed is listed per point below.
 
 **Registration is global and there is no unregister.** It is global because
 `session.catalog` is one shared answer and two sessions that disagreed about what the element can
-do would be the bug the shared catalogue prevents. There is no unregister because a descriptor
+do would be the bug the shared catalog prevents. There is no unregister because a descriptor
 becomes public API the moment something records it: a layer's source names the palette, a saved
 document references the format, a run's result path is built from the algorithm key. Every
 registry ships a `clearRegistered<Kind>ForTesting()` escape hatch, named so that nobody can
@@ -119,10 +119,10 @@ This is a requirement, not a hope, and it is met by five specific properties.
 
 - **Registration only adds.** The six built-in descriptor tables stay frozen module constants and
   are exactly what `./catalog` publishes. Nothing appends to them. Composition happens at the
-  catalogue door, in `src/session/catalog.ts`.
+  catalog door, in `src/session/catalog.ts`.
 - **The identity promise survives.** Each composed table returns the built-in array _itself_ until
   something registers, so a page that imports no plugin gets the same object it got before the
-  catalogue learned to carry plugins, and two sessions that agree still compare equal.
+  catalog learned to carry plugins, and two sessions that agree still compare equal.
 - **Built-in ids are reserved**, so no registration can change what an existing key means.
 - **A plugin's code runs only when its key is named.** A registered layout lays nothing out, a
   registered palette paints nothing, a registered view moves no camera, and a registered reader
@@ -138,7 +138,7 @@ This is a requirement, not a hope, and it is met by five specific properties.
 
 `src/session/catalog.ts` already composes the built-in algorithm table with the registered one and
 holds an identity promise its header states as a rule: the same array until something registers,
-so two sessions that agree do not look like they disagree. That mechanism is generalised rather
+so two sessions that agree do not look like they disagree. That mechanism is generalized rather
 than copied.
 
 One helper replaces `composedAlgorithms`:
@@ -178,14 +178,14 @@ undefined) still hold.
 ## Decision 3: one options mechanism, and it is not Zod
 
 Today an extension author faces three disagreeing mechanisms. Algorithms declare options twice --
-as `OptionDescriptor[]` for the catalogue and as a deprecated `OptionDefinition` schema for the
+as `OptionDescriptor[]` for the catalog and as a deprecated `OptionDefinition` schema for the
 constructor -- in two vocabularies that do not correspond (`select`/`nodeId` against
-`enum`/`node-id`), with nothing cross-checking them. Layouts declare a Zod schema the catalogue
-emitter reads for built-ins only. Formats hand-write descriptors in the catalogue and only the
+`enum`/`node-id`), with nothing cross-checking them. Layouts declare a Zod schema the catalog
+emitter reads for built-ins only. Formats hand-write descriptors in the catalog and only the
 JSON reader validates anything. Cameras have nothing.
 
 **One mechanism: an extension declares `readonly OptionDescriptor[]`, the plain-JSON type the
-catalogue already publishes, and the element validates the caller's values against it.**
+catalog already publishes, and the element validates the caller's values against it.**
 
 - `OptionDescriptor` already carries everything a form needs and everything validation needs: a
   name, a plain name, a type, a default, a range, an enum list, a group, an advanced flag.
@@ -239,20 +239,20 @@ They join the `E_UNKNOWN_*` family beside `E_UNKNOWN_ALGORITHM`, `E_UNKNOWN_LAYO
 
 Existing codes carry everything else. Nothing new is invented where a code already fits:
 
-| Situation                                                                                                                                                                                                                                         | Code                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| A malformed registration: no id, no colours, a non-function factory, a contradicting palette kind and capacity, an anchor that is not a colour, a format claiming `canExport`, an algorithm whose `descriptor.key` differs from its `static type` | `E_BAD_COMMAND`, `details.field` naming it                   |
-| A different implementation under a taken name with `{ strict: true }`, or any registration under a built-in id                                                                                                                                    | `E_DUPLICATE_PLUGIN`, `details` naming the kind and the name |
-| An unknown option name                                                                                                                                                                                                                            | `E_UNKNOWN_OPTION`                                           |
-| An option value out of range or not one of the choices                                                                                                                                                                                            | `E_OPTION_RANGE`                                             |
-| A camera view asked for in a drawing mode it does not declare                                                                                                                                                                                     | `E_UNSUPPORTED`, `details.reason` and `details.modes`        |
-| A layout asked for in more dimensions than its `maxDimensions`                                                                                                                                                                                    | `E_UNSUPPORTED`                                              |
-| `saveCameraPreset` given a name a registered view already holds                                                                                                                                                                                   | `E_PROTECTED`                                                |
-| A categorical palette asked to name more groups than it has colours                                                                                                                                                                               | `E_CAP_EXCEEDED` (unchanged)                                 |
-| An unknown layout name                                                                                                                                                                                                                            | `E_UNKNOWN_LAYOUT`, replacing a bare `TypeError`             |
-| An unknown format name, or detection that matched nothing                                                                                                                                                                                         | `E_UNKNOWN_FORMAT`, replacing two plain `Error`s             |
-| A file that will not parse                                                                                                                                                                                                                        | `E_PARSE_FAILED`, `details` carrying the format and the line |
-| A source that will not fetch                                                                                                                                                                                                                      | `E_FETCH_FAILED`, `details` carrying the url and the status  |
+| Situation                                                                                                                                                                                                                                       | Code                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A malformed registration: no id, no colors, a non-function factory, a contradicting palette kind and capacity, an anchor that is not a color, a format claiming `canExport`, an algorithm whose `descriptor.key` differs from its `static type` | `E_BAD_COMMAND`, `details.field` naming it                   |
+| A different implementation under a taken name with `{ strict: true }`, or any registration under a built-in id                                                                                                                                  | `E_DUPLICATE_PLUGIN`, `details` naming the kind and the name |
+| An unknown option name                                                                                                                                                                                                                          | `E_UNKNOWN_OPTION`                                           |
+| An option value out of range or not one of the choices                                                                                                                                                                                          | `E_OPTION_RANGE`                                             |
+| A camera view asked for in a drawing mode it does not declare                                                                                                                                                                                   | `E_UNSUPPORTED`, `details.reason` and `details.modes`        |
+| A layout asked for in more dimensions than its `maxDimensions`                                                                                                                                                                                  | `E_UNSUPPORTED`                                              |
+| `saveCameraPreset` given a name a registered view already holds                                                                                                                                                                                 | `E_PROTECTED`                                                |
+| A categorical palette asked to name more groups than it has colors                                                                                                                                                                              | `E_CAP_EXCEEDED` (unchanged)                                 |
+| An unknown layout name                                                                                                                                                                                                                          | `E_UNKNOWN_LAYOUT`, replacing a bare `TypeError`             |
+| An unknown format name, or detection that matched nothing                                                                                                                                                                                       | `E_UNKNOWN_FORMAT`, replacing two plain `Error`s             |
+| A file that will not parse                                                                                                                                                                                                                      | `E_PARSE_FAILED`, `details` carrying the format and the line |
+| A source that will not fetch                                                                                                                                                                                                                    | `E_FETCH_FAILED`, `details` carrying the url and the status  |
 
 **`ScreenshotError` stops being a camera error family.** Its three camera codes convert:
 `CAMERA_PRESET_NOT_FOUND` becomes `E_UNKNOWN_CAMERA`, `CAMERA_PRESET_NOT_AVAILABLE_IN_2D` becomes
@@ -301,11 +301,11 @@ Reasons, in the order they decide it.
 2. **The element does not use (B) for its own third camera.** `XRPivotCameraController` is parked
    on `scene.metadata` and stepped from a render-loop callback, while `"xr"` sits unused in the key
    union. A seam the element routes around is not a seam.
-3. **(B) is decided by duck-typing.** Six branches in `Graph.ts` recognise the two built-in
+3. **(B) is decided by duck-typing.** Six branches in `Graph.ts` recognize the two built-in
    controllers by property name (`"pivot" in controller`, `"velocity" in controller`). A third
    controller silently falls into a fallback that loses animation and every state field except
    position and target -- with no error and no warning. Publishing that is publishing a trap.
-4. **(A) is reachable, typeable and testable**, slots into the catalogue and into a picker, and
+4. **(A) is reachable, typeable and testable**, slots into the catalog and into a picker, and
    inherits the animation, easing, queueing and cancellation the element already built around a
    preset name.
 
@@ -409,7 +409,7 @@ published contract.
 
 **User presets stay per-graph.** `saveCameraPreset(name)` stores a snapshot of where _this_
 graph's camera is. That is not a capability of the element, so it does not belong in a shared
-catalogue that answers "what can the element do". `catalog.cameras()` lists registered views;
+catalog that answers "what can the element do". `catalog.cameras()` lists registered views;
 `getCameraPresets()` lists this graph's snapshots. `saveCameraPreset` now refuses a name any
 registered view holds, not just a built-in one, with `E_PROTECTED`.
 
@@ -419,7 +419,7 @@ goes with this work because it is a bug rather than a design: `zoom-to-fit-compl
 but absent from `addListener`'s switch, so no consumer can subscribe to an event the element
 sends. Add it.
 
-**The natural-language camera command reads the catalogue.** `src/ai/commands/CameraCommands.ts`
+**The natural-language camera command reads the catalog.** `src/ai/commands/CameraCommands.ts`
 builds its preset parameter as a Zod enum spread from `BUILTIN_PRESETS` and re-validates against
 the same array, so a registered view could never be named. It reads `catalog.cameras()` instead.
 
@@ -427,8 +427,8 @@ the same array, so a registered view could never be named. It reads `catalog.cam
 
 ### Palette
 
-**Unit.** A `PaletteDescriptor`: an id, a plain name, a kind, colour anchors, a capacity and a
-colour-blindness claim. Nothing in the element ever asks a palette for behaviour -- every palette
+**Unit.** A `PaletteDescriptor`: an id, a plain name, a kind, color anchors, a capacity and a
+color-blindness claim. Nothing in the element ever asks a palette for behavior -- every palette
 capability is implemented by code that reads those six fields -- so the descriptor is the whole
 unit and a class would be a data carrier wearing a constructor.
 
@@ -436,15 +436,15 @@ unit and a class would be a data carrier wearing a constructor.
 
 **Validated at the door, with reasons.**
 
-- _An anchor that is not a colour is refused_ with `E_BAD_COMMAND` naming the palette and the
-  colour. Today the same check happens inside `prepareRamp`, one repaint after the mistake.
-- _Anchors are normalised to six-digit hex at registration._ The parser the element already uses
-  accepts three, four, six or eight hex digits, named colours, `rgb()`, `hsl()` and `oklch()`, but
+- _An anchor that is not a color is refused_ with `E_BAD_COMMAND` naming the palette and the
+  color. Today the same check happens inside `prepareRamp`, one repaint after the mistake.
+- _Anchors are normalized to six-digit hex at registration._ The parser the element already uses
+  accepts three, four, six or eight hex digits, named colors, `rgb()`, `hsl()` and `oklch()`, but
   the interpolation path reads six digits only and returns magenta otherwise -- so a sequential
-  palette written in named colours would pass validation, produce correct endpoints and a magenta
-  middle. Normalising once at registration means an author may write `oklch(...)` and the
+  palette written in named colors would pass validation, produce correct endpoints and a magenta
+  middle. Normalizing once at registration means an author may write `oklch(...)` and the
   renderer, the legend and every consumer read the same hexes. `src/catalog/color.ts` holds the
-  one normaliser; `src/session/styles/channels.ts` calls it so there is one parse, not two.
+  one normalizer; `src/session/styles/channels.ts` calls it so there is one parse, not two.
 - _`kind` is authoritative and `capacity` is derived._ Categorical gets `colors.length`,
   sequential and diverging get `null`. A descriptor whose `capacity` contradicts its `kind` is
   refused with `E_BAD_COMMAND`. The built-ins already keep the two in lockstep and a test pins it;
@@ -476,7 +476,7 @@ it first. The refusal survives; the wrong sentence does not.
 
 **Deliberate limits, stated rather than left to be discovered.**
 
-- _A palette takes no options._ `PaletteDescriptor` is the only catalogue descriptor with no
+- _A palette takes no options._ `PaletteDescriptor` is the only catalog descriptor with no
   `options` field, because every knob -- scale, domain, clamp, midpoint, reverse, missing, bins --
   belongs to the binding. No built-in palette takes configuration, so nothing is withheld, and
   adding an options surface no built-in has would be inventing a parity gap rather than closing
@@ -491,24 +491,24 @@ it first. The refusal survives; the wrong sentence does not.
   published function itself.
 - _The function-style helpers are legacy and closed._ `sequential.viridis(v)`,
   `categorical.okabeIto(id)`, `diverging.purpleGreen(v, mid)` and the binary pairs are a second,
-  older palette vocabulary with no registration seam and no link to the catalogue, and they
+  older palette vocabulary with no registration seam and no link to the catalog, and they
   disagree with the descriptor path on over-subscription: the categorical helpers wrap by modulo
-  where `prepareRamp` refuses with `E_CAP_EXCEEDED` and the catalogue's own header calls silent
+  where `prepareRamp` refuses with `E_CAP_EXCEEDED` and the catalog's own header calls silent
   wrapping the defect that refusal exists to prevent. They are marked `@deprecated` pointing at
   `catalog.palettes()`; no registration seam is built for them.
 - _The element's hard-coded palette choices stay hard-coded._ `DEFAULT_PALETTE` (`viridis`),
   `CATEGORICAL_PALETTE` (`okabe-ito`), `CONTINUOUS_PALETTE` (`viridis`) and `HIGHLIGHT_PALETTE`
   (`blue-highlight`) keep no hook. Parity does not require one -- not even a consumer choosing
   among built-ins can change them today -- and changing what `encode()` writes when no palette is
-  named would change the meaning of every already-saved document. A caller who wants brand colours
+  named would change the meaning of every already-saved document. A caller who wants brand colors
   names them. Recorded as a follow-on, not as a defect in this extension point.
 - _`'highlight'` is not a palette kind._ The three built-in highlight pairs are categorical
-  palettes of two colours, and the legend's highlight block comes from the _layer's_ kind. A
-  plugin registering a two-colour categorical palette gets exactly what a built-in highlight pair
+  palettes of two colors, and the legend's highlight block comes from the _layer's_ kind. A
+  plugin registering a two-color categorical palette gets exactly what a built-in highlight pair
   gets.
 
 **One unrelated fix that lands in the same file.** `KNOWN_PALETTE_IDS` lists four ids where the
-catalogue has seventeen, so `PaletteId`'s autocomplete already fails to suggest most of the
+catalog has seventeen, so `PaletteId`'s autocomplete already fails to suggest most of the
 element's own palettes. It is corrected to list all seventeen.
 
 ### File format
@@ -534,7 +534,7 @@ for a whole format, which the existing test already demonstrates.
 **Why the descriptor is a static on the class rather than an argument or a second call.** It
 mirrors `DeclaredAlgorithm`, which a consumer has already met, and it makes one registration the
 only registration -- a descriptor and the class it describes cannot be filed separately, so there
-can be no catalogue entry whose reader nothing registered. The cost is honest and worth naming: a
+can be no catalog entry whose reader nothing registered. The cost is honest and worth naming: a
 host that imports the plugin to get its descriptor also gets the parser. That is already true of
 the element's own seven, which register at import time, and a picker that reads `catalog.formats()`
 from `./catalog` still pays nothing, because that table imports no reader.
@@ -549,7 +549,7 @@ is what puts the format into `catalog.formats()`, into `formatDescriptor`, into
 - a descriptor whose `id` differs from `static type`
 - a descriptor with no extensions or no media types
 - a descriptor with `canExport: true` -- a reader never claims to write; `registerFormatWriter`
-  marks the catalogue entry when a writer for the id is registered
+  marks the catalog entry when a writer for the id is registered
 - a built-in format id
 
 all with `E_BAD_COMMAND` naming the field, or `E_DUPLICATE_PLUGIN` for the last.
@@ -604,13 +604,13 @@ is resolved through the configured weight path.
 **Deliberate limits.**
 
 - _A reader only reads._ Writing is a separate registration: `registerFormatWriter({ descriptor,
-exporter, writerOptions })` wraps a graph-io exporter, and the catalogue shows one entry with
+exporter, writerOptions })` wraps a graph-io exporter, and the catalog shows one entry with
   both flags when a reader and a writer share an id. All seven built-ins can be written
   (`exportGraph`), so their descriptors say `canExport: true`. A reader's own descriptor is still
   refused when it says `canExport: true`, because a flag on a reader with no writer behind it
   would put the format in a "Save as" menu that then fails; see
   `design/decisions/2026-09-29-element-export-signature.md`.
-- _Imports cannot be cancelled._ No built-in can be either, so the contract's cancellation clause
+- _Imports cannot be canceled._ No built-in can be either, so the contract's cancellation clause
   is satisfied vacuously -- but it is an absence nobody had decided about, so it is decided here:
   no signal is threaded through `BaseDataSourceConfig` in this design, and the limit is recorded
   rather than inherited.
@@ -623,10 +623,10 @@ exporter, writerOptions })` wraps a graph-io exporter, and the catalogue shows o
   content. A registered format inherits the same advisory status rather than a third detection
   tier that does not exist.
 
-**A behaviour change worth watching.** `test/catalog/registries.test.ts` asserts a bijection
+**A behavior change worth watching.** `test/catalog/registries.test.ts` asserts a bijection
 between `DataSource.getRegisteredTypes()` and `FORMAT_DESCRIPTORS`. Requiring a descriptor at
 registration turns that test into a forcing function: a reader registered without one now fails at
-registration rather than at the test. That is the intended pressure and it is a behaviour change
+registration rather than at the test. That is the intended pressure and it is a behavior change
 for the one-argument `register` -- which is why the refusal names the missing field.
 
 ### Camera
@@ -639,7 +639,7 @@ Decided in full above. The mechanics, restated as an implementation list:
 descriptor with no id, an empty `modes`, a non-function `compute` (`E_BAD_COMMAND`), or a built-in
 view id (`E_DUPLICATE_PLUGIN`).
 
-**Catalogue.** A sixth table. `CAMERA_DESCRIPTORS` and `cameraDescriptor(id)` and
+**Catalog.** A sixth table. `CAMERA_DESCRIPTORS` and `cameraDescriptor(id)` and
 `camerasForMode(mode)` in `src/catalog/cameras.ts`, published from `./catalog`;
 `catalog.cameras()` composes built-ins with registrations.
 
@@ -649,7 +649,7 @@ the registry, so a registered view is named exactly the way a built-in is, from 
 public API, from a screenshot's `{ preset }` option, and from the natural-language layer.
 
 **Progress and cancellation.** A view computes a state synchronously and has nothing to report
-progress about. The _animated apply_ already honours the operation queue's `AbortSignal` and stops
+progress about. The _animated apply_ already honors the operation queue's `AbortSignal` and stops
 the Babylon animatable rather than rejecting; a registered view inherits that unchanged, because
 the animation belongs to the apply and not to the view. Parity means cancellation only, and it is
 already met.
@@ -703,12 +703,12 @@ differs from `static type`, and refuses a built-in layout id.
 
 **One key, not two.** The element has two keys for a layout: the _engine_ name (`ngraph`,
 `circular`), which `setLayout` takes, and the _arrangement_ name (`force`, `circular`), which the
-catalogue uses -- and `recommendLayout` has to hand a consumer `layout.engine` to act on. A plugin
+catalog uses -- and `recommendLayout` has to hand a consumer `layout.engine` to act on. A plugin
 declares one key and its descriptor's `id` must equal it, so `layoutIdForEngine` answers a
 plugin's own id and nothing has to be named twice. A plugin cannot add an engine to an existing
 arrangement -- a third ForceAtlas2 implementation behind `force`, say -- and that is deliberate:
-the arrangement table encodes the element's editorial judgement about which of its own engines to
-prefer and why, which is not a judgement a third party can make on the element's behalf.
+the arrangement table encodes the element's editorial judgment about which of its own engines to
+prefer and why, which is not a judgment a third party can make on the element's behalf.
 
 `LAYOUT_DESCRIPTORS` keeps meaning "the twelve arrangements the element ships", so
 `test/catalog/registries.test.ts`'s three invariants over it stay true with no edit.
@@ -744,7 +744,7 @@ change fixes a built-in bug and removes an obligation from plugins.
 
 **`maxDimensions` is enforced.** A layout asked for in more dimensions than it declares is refused
 with `E_UNSUPPORTED` rather than run anyway. The declaration is read by a picker through the
-descriptor and by the element as a backstop. This is a behaviour change for the 2D-only built-ins
+descriptor and by the element as a backstop. This is a behavior change for the 2D-only built-ins
 if anything currently asks for one in 3D, and is the one change in this design most likely to have
 test fallout; it is kept because a declaration nothing reads is worse than no declaration.
 
@@ -818,10 +818,10 @@ additive interface change, so no existing algorithm breaks, and it is the larges
 win available here.
 
 **`cost` moves off the descriptor.** `AlgorithmDescriptor.cost` is a closure the estimator calls,
-and the built-in table deliberately never sets it so the catalogue survives `JSON.stringify` and a
+and the built-in table deliberately never sets it so the catalog survives `JSON.stringify` and a
 `postMessage` -- an invariant a plugin could break silently by setting it. It moves to the
 registration (`static cost` on the class, held beside the class reference in `RegisteredAlgorithm`)
-and the estimator reads it from there. The composed catalogue becomes plain JSON _by type_ rather
+and the estimator reads it from there. The composed catalog becomes plain JSON _by type_ rather
 than by discipline, and a plugin still supplies real arithmetic.
 
 **A run records the plugin's version.** `EngineVersions` has three fixed slots -- element,
@@ -869,7 +869,7 @@ Dijkstra and MinCut are corrected.
   plugin type-checking rather than a headless test. No built-in can be tested headlessly either,
   so this is parity by shared absence; it is recorded here and named as a follow-on (a
   session-backed input the constructor accepts) rather than solved.
-- _`algorithmsOnLoad` still demands a `namespace:type` address_, not a catalogue key, and calls
+- _`algorithmsOnLoad` still demands a `namespace:type` address_, not a catalog key, and calls
   `run()` directly -- no run record, no progress, no cancel, no published result for anybody. A
   shared gap, not a withheld capability; named as a follow-on.
 
@@ -900,9 +900,9 @@ path is retired as a destination. Two consequences worth stating: `removeSink("c
 works, and **TRACE prints as TRACE**, because the collapse of trace onto LogTape's debug goes with
 the LogTape path.
 
-**Three published descriptors and a sixth catalogue table.** `LOG_SINK_DESCRIPTORS` carries
+**Three published descriptors and a sixth catalog table.** `LOG_SINK_DESCRIPTORS` carries
 `console` and `remote`; `catalog.logSinks()` composes it with registrations. The alternative was to
-write into `CLAUDE.md` that Logging is exempt from the catalogue clause. It is not exempt: once a
+write into `CLAUDE.md` that Logging is exempt from the catalog clause. It is not exempt: once a
 destination has a name and a plain name -- which the factory registry requires anyway -- the table
 costs one file and a settings panel can be built from it.
 
@@ -1076,7 +1076,7 @@ they hold whatever is handed to them at run time, which is what keeps `./catalog
 Add to the type export list: `CameraDescriptor`, `CameraId`, `DrawingMode`, `LogSinkDescriptor`,
 `LogSinkId`. Add to the value export list: `KNOWN_CAMERA_IDS`, `KNOWN_LOG_SINK_IDS`.
 
-### 7. Two new catalogue tables and one new helper module
+### 7. Two new catalog tables and one new helper module
 
 - `src/catalog/cameras.ts`: `CAMERA_DESCRIPTORS` (the five built-in views, frozen),
   `cameraDescriptor(id)` (built-ins then registry), `camerasForMode(mode)`.
@@ -1089,7 +1089,7 @@ Add to the type export list: `CameraDescriptor`, `CameraId`, `DrawingMode`, `Log
 - `src/catalog/color.ts`: `normalizeHexAnchor(color: string): string | null`, used by
   `registerPalette` and by `src/session/styles/channels.ts` so there is one parse.
 
-### 8. Three existing catalogue tables: lookups only
+### 8. Three existing catalog tables: lookups only
 
 - `src/catalog/palettes.ts`: `paletteDescriptor` and `palettesOfKind` consult the registry after
   the built-in table. `PALETTE_DESCRIPTORS` is unchanged and gains `Object.freeze`.
@@ -1296,16 +1296,16 @@ leaves the registries as it found them. House style: `import { assert, describe,
 ### `palette-extension.test.ts` (new)
 
 **The dummy.** Two palettes registered from one file: `acme-heat`, a five-anchor sequential ramp
-written in a mix of six-digit hex and `oklch()` to exercise normalisation; and `acme-teams`, a
-four-colour categorical palette declaring safety for deuteranopia only.
+written in a mix of six-digit hex and `oklch()` to exercise normalization; and `acme-teams`, a
+four-color categorical palette declaring safety for deuteranopia only.
 
 **Must be driven through.** Registration; appearing in `session.catalog.palettes()` beside the
 built-ins, with the built-in array's identity preserved before anything registered; being found by
-`paletteDescriptor` and filtered by `palettesOfKind`; being named in a colour binding and actually
-painting a node the expected colour; the categorical path placing a value by indexing one anchor;
-the sequential path interpolating between anchors, with the `oklch()` anchor normalised so the
+`paletteDescriptor` and filtered by `palettesOfKind`; being named in a color binding and actually
+painting a node the expected color; the categorical path placing a value by indexing one anchor;
+the sequential path interpolating between anchors, with the `oklch()` anchor normalized so the
 middle of the ramp is not magenta; the capacity refusal (`E_CAP_EXCEEDED`) when the categorical
-palette is asked for more groups than it has colours; anchors parsed once at registration, with a
+palette is asked for more groups than it has colors; anchors parsed once at registration, with a
 bad anchor refused at the door with `E_BAD_COMMAND`; a contradicting `kind`/`capacity` refused with
 `E_BAD_COMMAND`; a built-in id refused with `E_DUPLICATE_PLUGIN`; an unregistered palette name
 refused at `styles.validate`/`styles.add`/`styles.encode` with `E_UNKNOWN_PALETTE` and a candidates
@@ -1355,7 +1355,7 @@ returns an orthographic state in 2D and an arcRotate state in 3D from the same r
 and moving the camera to the computed state; computing a different state in 2D than in 3D from one
 registration; being refused in a mode it does not declare, with `E_UNSUPPORTED` carrying the modes;
 an unregistered name refused with `E_UNKNOWN_CAMERA` carrying `details.available`; being applied
-with animation and easing and resolving when the animation completes; honouring cancellation
+with animation and easing and resolving when the animation completes; honoring cancellation
 mid-animation by settling rather than rejecting; emitting `camera-state-changed` with the state it
 computed; framing a named subset rather than the whole graph, with the bounds it was handed
 covering only those elements; receiving its options resolved against the defaults its descriptor
@@ -1397,9 +1397,9 @@ built-in layout id.
 hand-written field descriptors and `ResultElementValues` instead of an inline re-declaration, plus
 a second algorithm publishing a path shape so the edge half and the edge id helper are exercised.
 
-**Already covered, keep passing.** Appearing in the catalogue; being offered as a metric with a
+**Already covered, keep passing.** Appearing in the catalog; being offered as a metric with a
 cost; being asked what it would cost; running by name and answering with its own numbers;
-reporting progress; stopping when cancelled; reading the caller's option; having parameters
+reporting progress; stopping when canceled; reading the caller's option; having parameters
 checked before work starts; the derived ranking, distribution, summary and plain-language reading;
 carrying its caveats; painting from its result with no styling of its own; painting only what it
 measured; publishing values a reader's own layer can select on; running through the older
@@ -1408,7 +1408,7 @@ namespace and type address; being re-runnable in place.
 **Added.** Labels appearing in its ranking rows and its reading, read from the configured label
 attribute -- the capability the seven built-in centralities have and the sixteen declared
 algorithms do not; publishing per-edge values keyed by `edgeResultId`; receiving `scope`, `seed`,
-`exact`, `sample` and `timeBox` on its run context, and honouring the scope so a run over a
+`exact`, `sample` and `timeBox` on its run context, and honoring the scope so a run over a
 selection measures only the selection; supplying its own `cost` function and having the estimator
 use it, with `catalog.algorithms()` still surviving `JSON.stringify`; recording its
 `static version` on the run's engine versions; being one member of a batch run sharing one progress
@@ -1451,16 +1451,16 @@ Written down so a reader finds a decision rather than an absence.
 
 | Limit                                                           | Why it is not in this design                                                                                                                            |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An import cannot be cancelled                                   | No built-in can be either; parity is vacuous. Threading a signal through `BaseDataSourceConfig` and `addDataFromSource` is its own change.              |
+| An import cannot be canceled                                    | No built-in can be either; parity is vacuous. Threading a signal through `BaseDataSourceConfig` and `addDataFromSource` is its own change.              |
 | The File format point reads, it does not write                  | There is no writer seam to register into. `canExport: true` is refused so a "Save as" menu is never lied to.                                            |
 | An algorithm plugin cannot be unit-tested in Node               | `Algorithm`'s constructor takes the renderer-backed `Graph`, as it does for every built-in. Needs a headless algorithm host.                            |
-| Camera controllers stay internal                                | They cannot be published without Babylon.js in their signature, and six duck-typed branches decide their behaviour silently.                            |
+| Camera controllers stay internal                                | They cannot be published without Babylon.js in their signature, and six duck-typed branches decide their behavior silently.                             |
 | A plugin cannot claim the element's default palettes            | Not withheld from a plugin -- not even a consumer choosing among built-ins can change them -- and changing them changes every saved document's meaning. |
 | A log sink cannot take more than the global level allows        | The built-in remote sink is behind the same gate, so parity holds. Widening changes what every existing sink sees.                                      |
 | Log records emitted before a sink is attached are not replayed  | The built-in console loses them too. A named sink can now be configured before the element exists, which is the real fix.                               |
 | A palette carried by a document is not scoped to that document  | Requires a per-document palette lookup threaded through the repaint. Registration plus a self-describing document covers the parity clause.             |
-| A layout plugin cannot add an engine to an existing arrangement | The arrangement table is the element's editorial judgement about its own engines.                                                                       |
-| `StoredConfig` persists a sink by name, never a live object     | An object reference cannot be serialised, which is exactly why the factory registry exists.                                                             |
+| A layout plugin cannot add an engine to an existing arrangement | The arrangement table is the element's editorial judgment about its own engines.                                                                        |
+| `StoredConfig` persists a sink by name, never a live object     | An object reference cannot be serialized, which is exactly why the factory registry exists.                                                             |
 
 Independent bugs found during this work, fixed alongside because they are cheap and each has a
 single cause: `zoom-to-fit-complete` emitted but unsubscribable; the 2D camera controller built

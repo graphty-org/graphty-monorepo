@@ -12,7 +12,7 @@
  *
  * This file must stay free of Babylon and of anything under `src/`. It is loaded before the test
  * module graph, and importing the code under test from a setup file makes the order in which
- * modules initialise depend on the setup file rather than on the test.
+ * modules initialize depend on the setup file rather than on the test.
  */
 
 import { afterEach, beforeAll } from "vitest";
@@ -44,7 +44,7 @@ setup();
 // Babylon prints a version banner from its first engine in every file. The "default" project
 // silences it in test/setup.ts, which this project deliberately does not load; without this the
 // banner lands in the middle of the test output as stray stdout. The import is dynamic because
-// pulling Babylon in at setup time would fix the module graph's initialisation order here rather
+// pulling Babylon in at setup time would fix the module graph's initialization order here rather
 // than in the test.
 beforeAll(async () => {
     const { Logger } = await import("@babylonjs/core");

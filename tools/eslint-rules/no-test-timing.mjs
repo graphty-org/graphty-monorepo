@@ -209,7 +209,7 @@ const rule = {
 
         // A directive that names this rule (under any plugin prefix) or no rule switches it off. The
         // report goes where that directive does not reach, or the directive would hide it: on the
-        // comment for -next-line, on a neighbouring line for -line, just before the comment for a
+        // comment for -next-line, on a neighboring line for -line, just before the comment for a
         // block disable.
         // Known gap: a -line directive in a one-line file, or a block disable that is the file's
         // first character, still hides its report; no test file is either.
@@ -435,7 +435,7 @@ const rule = {
         const frameAwaits = [];
         const timers = [];
 
-        // The value of a number literal, arithmetic over them, or a const initialised to one.
+        // The value of a number literal, arithmetic over them, or a const initialized to one.
         const numValue = (n) => {
             if (n?.type === "Literal" && typeof n.value === "number") {
                 return n.value;

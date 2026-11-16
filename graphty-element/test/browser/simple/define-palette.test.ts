@@ -5,7 +5,7 @@
  * Each example is the file the guide includes (docs/examples/simple-tier/palette/), imported here
  * as it is written, so the guide cannot show code this file did not run. The examples register
  * through `definePalette`; everything below reads only what a person or a picker can observe --
- * the catalogue, the colour a style layer paints, the refusal a mistake gets.
+ * the catalog, the color a style layer paints, the refusal a mistake gets.
  */
 
 import "../../../src/graphty-element";
@@ -18,7 +18,7 @@ import type { Graphty } from "../../../index.js";
 import type { LayerSpec } from "../../../session";
 import { operationQueueOf } from "../../../src/Graph";
 
-/** The brand example's colours, as the guide writes them. */
+/** The brand example's colors, as the guide writes them. */
 const BRAND = ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"] as const;
 
 /** The brand ramp's three anchors. */
@@ -91,9 +91,9 @@ async function addLayer(spec: LayerSpec): Promise<void> {
 }
 
 /**
- * The colour a node is painted, as six-digit upper-case hex.
+ * The color a node is painted, as six-digit upper-case hex.
  * @param id - The node.
- * @returns The colour, or null when nothing paints it.
+ * @returns The color, or null when nothing paints it.
  */
 function painted(id: string): string | null {
     const color = element.session.styles.explain({ node: id }).merged["node.color"];
@@ -101,7 +101,7 @@ function painted(id: string): string | null {
 }
 
 /**
- * A layer that colours every node by a value.
+ * A layer that colors every node by a value.
  * @param by - The value's path.
  * @param scale - "ordinal" for groups, "linear" for amounts.
  * @param palette - The palette to name, or none to take the default.

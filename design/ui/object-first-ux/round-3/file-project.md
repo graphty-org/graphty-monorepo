@@ -21,7 +21,7 @@ of the Dataset's Overview tab, or the status bar. Paths are under
 - **Dark menu**: Figma's menu style: a #1e1e1e panel, 24 px rows of 11 px white text, the
   shortcut in a right-hand column at 70 percent white, a 17 px separator between groups, a
   chevron on a row that opens a submenu (`design/ui/figma/left-sidebar/README.md` section 9).
-- **Dialog**: the kit's 480 px modal panel centred on the canvas over a dimming layer (the
+- **Dialog**: the kit's 480 px modal panel centered on the canvas over a dimming layer (the
   "scrim"); the Import dialog (screen 14) and the reload dialog (screen 15) are dialogs.
 - **Project**: a `.graphty` file that holds a whole session: the data (or a link to it), every
   object in the tree with its definition, results and style, the Views, the notes and the node
@@ -120,7 +120,7 @@ its journal (settled decision 1 of round 2): small.
 
 **Screens 16 (marker) and 17 (prompt).**
 
-**The marker.** The 6 px dot after the dataset name in the file header, secondary colour, with
+**The marker.** The 6 px dot after the dataset name in the file header, secondary color, with
 the tooltip "Changes since 13:40 are not in a project file" (or "Never saved"). The browser tab's
 title gets the same mark ("* Karate Club - graphty"). The Dataset's Overview tab gains a first
 row, **Project**, reading "Not saved  [Save...]", "karate-club.graphty, 14:02" once saved, or
@@ -263,7 +263,7 @@ step 3" on its Record tab. The whole replay is one History entry, so Ctrl+Z remo
 **Errors.** Not a recipe; a newer recipe format; every step skipped ("Nothing in this recipe
 fits club-week-39: it names columns sent and weight, and nodes 1 and 34"), Run disabled.
 
-**Element API.** The door exists: `session.run(SessionCommand)` is the serialisable form of every
+**Element API.** The door exists: `session.run(SessionCommand)` is the serializable form of every
 run, documented as the recipe's door (`graphty-element/src/session/types.ts`), and
 `session.plan()` answers what a command would do. Missing: `objects.recipe(ids, { stylesOnly,
 layout })` to write one, `objects.checkRecipe(recipe)` returning the per-step fit report, and
@@ -294,8 +294,8 @@ session's name: the project name once saved, otherwise the two dataset names ("t
 normal": summary "matched by gene_id: 32 of 34 nodes"; a reading line "55 edges in both, 16
 only in tumor, 7 only in normal"; one tab, Compare: a side-by-side table (Nodes, Edges, Density,
 Parts, Mean links); the edge key for the canvas, which previews the union while both are
-selected (both grey, tumor only orange, normal only blue and dashed; nodes present in one graph
-only outlined in that graph's colour); **Combine into a new graph**: [Union] [Intersection]
+selected (both gray, tumor only orange, normal only blue and dashed; nodes present in one graph
+only outlined in that graph's color); **Combine into a new graph**: [Union] [Intersection]
 [tumor - normal] [normal - tumor], each adding a third root ("tumor + normal") whose edges carry
 an "in" column (tumor, normal, both), so the edge key becomes an ordinary Grouping on it; and
 "Compare side by side" [switch], round 2's two-canvas compare (section 6.7, #186).

@@ -636,7 +636,7 @@ export class SpringElectricalOracle {
  * the way out), the shape the layout-level comparisons use.
  * @param s - the snapshot
  * @param scenePositions - 3 x nodeCount scene-unit coordinates (read only)
- * @param options - the oracle options plus the scene scale / centre
+ * @param options - the oracle options plus the scene scale / center
  * @param iterations - steps to run
  * @returns the oracle (its positions in layout units), the trace and the final SCENE-unit positions; exported for the
  *   P5-T4 layout-level suites (se-distributional.test.ts)

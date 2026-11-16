@@ -9,7 +9,7 @@
  *   - a graphty-element/src file that imports papaparse or fast-xml-parser
  *   - graphty-element/src/data/csv-variant-detection.ts existing
  *   - a file under graphty-element/src/data defining one of the hand-written parser functions:
- *     parsePajek, tokenizeLine (Pajek) or tokenize (the DOT and GML tokenisers), as a function,
+ *     parsePajek, tokenizeLine (Pajek) or tokenize (the DOT and GML tokenizers), as a function,
  *     a method, a class property or a variable
  *
  * The move onto graph-io is finished, so there is no allow-list: any problem fails.

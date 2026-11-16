@@ -324,7 +324,7 @@ graphty-element (web component - source of truth)
 2. Toggle view mode to 3D (bottom toolbar)
 3. Open "Run Layouts..." → select "Circular" (supports 3D) → see 2D/3D radio, both enabled
 4. Toggle view mode to 2D
-5. Open "Run Layouts..." → select "Circular" → 3D radio is disabled/greyed
+5. Open "Run Layouts..." → select "Circular" → 3D radio is disabled/grayed
 6. Select "Spiral" (2D only) → dimension radio hidden
 7. Apply layout and verify correct `dim` value is passed
 

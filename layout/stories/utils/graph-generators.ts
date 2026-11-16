@@ -37,7 +37,7 @@ export function generateGraph(
 }
 
 /**
- * A graph-samples graph in the shape the story renderer draws, with unlabelled nodes (the graphs are too big for
+ * A graph-samples graph in the shape the story renderer draws, with unlabeled nodes (the graphs are too big for
  * labels).
  * @param g - the generated graph
  * @returns its nodes and edges

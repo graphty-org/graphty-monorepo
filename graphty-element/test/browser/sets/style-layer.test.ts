@@ -1,7 +1,7 @@
 /**
  * @file A style layer naming a set, in a real graph (design/sets/sets-design.md section 11): the
- * layer colours the set's members on screen, and redefining the set repaints exactly the nodes
- * that entered or left it. Colours are read off each node's own mesh instance, which is what the
+ * layer colors the set's members on screen, and redefining the set repaints exactly the nodes
+ * that entered or left it. Colors are read off each node's own mesh instance, which is what the
  * element draws.
  */
 
@@ -12,7 +12,7 @@ import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { ElementSession } from "../../../src/session/types";
 import { nextFrame } from "../../helpers/real-input";
 
-/** The colour the layer paints. */
+/** The color the layer paints. */
 const RED = "#ff0000";
 
 /** Twenty nodes on a path. */

@@ -7,7 +7,7 @@
  * between a Node being constructed and the store handing it the dense index a session's paint is
  * addressed by.
  *
- * The third thing, that two instances of one source mesh really are drawn in two colours, needs
+ * The third thing, that two instances of one source mesh really are drawn in two colors, needs
  * pixels and lives in `test/browser/node-instance-color.test.ts`.
  */
 
@@ -51,9 +51,9 @@ const EDGES: readonly Row[] = [{ "data.kind": "wire" }, { "data.kind": "wire" }]
 const MEASURED: Readonly<Record<Path, readonly number[]>> = { "results.degree.value": [0, 1, 2, 3] };
 
 /**
- * The element's default node colour, as a string.
+ * The element's default node color, as a string.
  *
- * `texture.color` accepts an advanced colour object as well as a string, and only the string form
+ * `texture.color` accepts an advanced color object as well as a string, and only the string form
  * is a channel value -- so the default is read through a check rather than stringified blind.
  */
 const NODE_DEFAULT_COLOR =
@@ -63,7 +63,7 @@ const NODE_DEFAULT_COLOR =
  * The element's own layer, written the way `elementBaseLayers` derives it from the defaults.
  *
  * The three channels are exactly the ones `defaultNodeStyle` settles: a shape, a size and a
- * colour. Taken from the default object rather than retyped, so a change to the element's default
+ * color. Taken from the default object rather than retyped, so a change to the element's default
  * appearance moves this test with it.
  */
 const NODE_BASE: ElementLayerSpec = {
@@ -175,7 +175,7 @@ describe("StylePainter bootstrap paint", () => {
         const paint = bootstrapNodePaint();
 
         // The same split a resolved paint produces. A bootstrap built straight from the default
-        // style would put the colour in the source mesh's material, which is a material the
+        // style would put the color in the source mesh's material, which is a material the
         // session's own neutral one can never match -- so the first pass would rebuild every
         // node's mesh instead of writing one buffer value per node.
         assert.strictEqual(paint.style.texture?.color, "#FFFFFF");
@@ -192,8 +192,8 @@ describe("StylePainter bootstrap paint", () => {
     it("keeps the edge colour IN its style, because an edge has no per-instance state", () => {
         const paint = bootstrapEdgePaint();
 
-        // The element's own default edge colour, as the schema normalises it: `defaultEdgeStyle`
-        // writes the CSS name `darkgrey` and parsing turns every colour into hex -- and then as the
+        // The element's own default edge color, as the schema normalizes it: `defaultEdgeStyle`
+        // writes the CSS name `darkgrey` and parsing turns every color into hex -- and then as the
         // SESSION spells it, lowercase, because `Edge.paintFrom` decides whether the first pass has
         // to rebuild an edge by comparing the two styles, and `#A9A9A9` against `#a9a9a9` rebuilt
         // every edge of every load once at the size of the scene each (issue #388).
@@ -255,7 +255,7 @@ describe("StylePainter channels", () => {
 
         const paint = held.painter.nodePaint(0);
 
-        // Neutral, so that what shows is the instance's own colour rather than the material's.
+        // Neutral, so that what shows is the instance's own color rather than the material's.
         assert.strictEqual(paint?.style.texture?.color, "#FFFFFF");
         assert.deepStrictEqual(paint?.color, { r: 99, g: 102, b: 241, a: 1 }, "#6366F1, parsed once");
     });
@@ -303,12 +303,12 @@ describe("StylePainter channels", () => {
             direction: 45,
             colors: ["#E8EEF7", "#B7C9E3"],
         });
-        // The ramp is the fill: no instance colour is drawn over it.
+        // The ramp is the fill: no instance color is drawn over it.
         assert.isNull(filled?.color);
         assert.notStrictEqual(filled?.meshKey, held.painter.nodePaint(2)?.meshKey, "a gradient is its own mesh");
         assert.deepStrictEqual(held.painter.nodePaint(2), flat, "a node the layer does not select is untouched");
 
-        // The ramp starts at the node's own colour, so two starts are two meshes.
+        // The ramp starts at the node's own color, so two starts are two meshes.
         await held.styles.add({
             name: "another start",
             target: "node",
@@ -355,7 +355,7 @@ describe("StylePainter channels", () => {
             radius: 1.5,
         });
 
-        // stops that are not one per colour are left out, so the colours are evenly spaced
+        // stops that are not one per color are left out, so the colors are evenly spaced
         await held.styles.add({
             name: "linear two stops",
             target: "node",
@@ -468,7 +468,7 @@ describe("StylePainter channels", () => {
 
         const paint = held.painter.edgePaint(0);
 
-        // Lower case, because a channel's colour carries the hex the encoding produced rather
+        // Lower case, because a channel's color carries the hex the encoding produced rather
         // than the string an author typed.
         assert.strictEqual(paint?.style.line?.color, "#ff0000");
         assert.include(paint?.meshKey ?? "", "#ff0000", "the colour has to key the mesh, so it is in the key");

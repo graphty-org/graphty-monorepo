@@ -180,9 +180,9 @@ describe("what a session publishes without being asked to compute", () => {
         assert.isAbove(first.catalog.palettes().length, 0);
         assert.isAbove(first.catalog.scales().length, 0);
 
-        // THE TABLES, not the catalogue object. What the element CAN do does not depend on which
+        // THE TABLES, not the catalog object. What the element CAN do does not depend on which
         // graph is loaded, so all five are the same frozen arrays for both sessions, and two
-        // sessions that disagreed about which algorithms exist would be a bug. The catalogue
+        // sessions that disagreed about which algorithms exist would be a bug. The catalog
         // itself is per session because `metrics()` is about THIS graph -- see metrics.test.ts,
         // which pins both halves of that.
         assert.strictEqual(first.catalog.algorithms(), second.catalog.algorithms());

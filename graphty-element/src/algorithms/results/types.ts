@@ -2,8 +2,8 @@
  * @file What an algorithm produces, and the context it produces it in.
  *
  * An algorithm used to write its answer through side effects, one deep path at a time, and
- * return nothing. Nothing could then be handed to a caller, cancelled, watched, or checked
- * against what the catalogue promised the algorithm would publish.
+ * return nothing. Nothing could then be handed to a caller, canceled, watched, or checked
+ * against what the catalog promised the algorithm would publish.
  *
  * So an algorithm now RETURNS what it computed. The return value names its result shape, the
  * fields it actually filled, the values per node, per edge and for the graph, and the caveats
@@ -30,7 +30,7 @@ import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
  * One field a run actually published.
  *
  * This is deliberately NOT a {@link FieldDescriptor}: the plain and technical names a reader
- * sees belong to the catalogue, which states them once for every algorithm. A run knows which
+ * sees belong to the catalog, which states them once for every algorithm. A run knows which
  * of them it filled, in which half of the result and carrying what type -- and nothing more.
  */
 export interface ResultFieldSpec {
@@ -52,14 +52,14 @@ export interface ResultFieldSpec {
  * Everything one run of an algorithm produced.
  *
  * Returned rather than written through side effects, so a run is a value: it can be handed to a
- * caller, posted to a worker, checked against the catalogue, or thrown away when the run that
- * produced it was cancelled.
+ * caller, posted to a worker, checked against the catalog, or thrown away when the run that
+ * produced it was canceled.
  */
 export interface AlgorithmOutput {
     /** The result shape, which fixes the field names below. */
     readonly shape: ResultShape;
     /**
-     * The fields this run filled. Fewer than the catalogue declares whenever a parameter changed
+     * The fields this run filled. Fewer than the catalog declares whenever a parameter changed
      * what there was to publish.
      */
     readonly fields: readonly ResultFieldSpec[];
@@ -156,7 +156,7 @@ export interface AlgorithmRunContext extends RunControls {
  * `publishResult`, which binds `input` to the algorithm it is publishing for.
  */
 export interface RunControls {
-    /** Aborted when the run is cancelled. Throw from it; never swallow it. */
+    /** Aborted when the run is canceled. Throw from it; never swallow it. */
     readonly signal: AbortSignal;
     /**
      * Say how far along the work is.

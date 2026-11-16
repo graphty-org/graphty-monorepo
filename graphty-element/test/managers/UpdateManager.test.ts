@@ -134,7 +134,7 @@ describe("UpdateManager", () => {
         it("should enable zoom to fit", () => {
             updateManager.enableZoomToFit();
 
-            // Armed, and not yet answered: the request is honoured by the next pass, not by the
+            // Armed, and not yet answered: the request is honored by the next pass, not by the
             // call itself, and no pass has run (the render loop is held; see beforeEach).
             assert.isTrue(updateManager.isZoomToFitEnabled());
             assert.isFalse(updateManager.zoomToFitCompleted);

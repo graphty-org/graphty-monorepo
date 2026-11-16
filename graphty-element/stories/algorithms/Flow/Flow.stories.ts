@@ -59,14 +59,14 @@ const bipartiteJobMatchingData = {
     ],
 };
 
-// Directed flow network: a municipal water supply. Capacities are megalitres/day.
+// Directed flow network: a municipal water supply. Capacities are megaliters/day.
 //
 // The cat social network the other stories use is undirected and has no capacities, so
 // max flow across it is 0 -- every edge renders blues(0), which is #f7fbff and invisible.
 // This network is built to demonstrate the algorithm instead:
 //   - max flow is 26, and the flow assignment is unique
 //   - the bottleneck is the three plant -> city mains, which all saturate
-//   - the reservoir -> pump mains keep spare capacity, so utilisation varies
+//   - the reservoir -> pump mains keep spare capacity, so utilization varies
 //   - every edge carries between 4 and 9, so no edge lands on blues(0) and disappears
 const waterSupplyNetworkData = {
     nodes: [
@@ -101,8 +101,8 @@ const waterSupplyNetworkData = {
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
  * Demonstrates job candidate ↔ job position matching
- * Matched edges are marked in vermilion, drawn wide, over a reader layer that greys every edge
- * Nodes are coloured by the side of the pairing they are on
+ * Matched edges are marked in vermilion, drawn wide, over a reader layer that grays every edge
+ * Nodes are colored by the side of the pairing they are on
  */
 export const BipartiteMatching: Story = {
     args: {
@@ -113,7 +113,7 @@ export const BipartiteMatching: Story = {
             viewMode: "2d",
             algorithms: ["graphty:bipartite-matching"],
             // The reader's own layer, beneath the algorithm's: every edge pale, so the pairing
-            // stands out when the algorithm's mark repaints it on top. Colour only -- an
+            // stands out when the algorithm's mark repaints it on top. Color only -- an
             // opacity here would dim the pairing too, because the mark does not set one.
             layers: [
                 {
@@ -145,7 +145,7 @@ export const BipartiteMatching: Story = {
 
         // Apply suggested styles. The positions used to have to be saved and put back around
         // this call, because applying a style walked every node and re-applied its layout
-        // position on the way; a style pass writes a colour into an instance and moves nothing.
+        // position on the way; a style pass writes a color into an instance and moves nothing.
         const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
 
         await holds(
@@ -165,10 +165,10 @@ export const BipartiteMatching: Story = {
 
 /**
  * Max Flow - network flow visualization on a water supply network
- * Edge colour and width follow the flow carried, colour along the element's sequential ramp, so the
+ * Edge color and width follow the flow carried, color along the element's sequential ramp, so the
  * mains carrying the most read widest and at the bright end
- * The source (Reservoir) and the sink (City) are coloured by their role
- * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
+ * The source (Reservoir) and the sink (City) are colored by their role
+ * Max flow is 26 megaliters/day; the three plant -> city mains are the bottleneck
  */
 export const MaxFlow: Story = {
     args: {
@@ -207,7 +207,7 @@ export const MaxFlow: Story = {
 
         // Name the endpoints. The algorithm otherwise defaults to the first and last node in
         // insertion order, which is only ever the right pair by accident.
-        // `size: true` asks for the edge width as well as the colour, so the mains carrying the
+        // `size: true` asks for the edge width as well as the color, so the mains carrying the
         // most are drawn widest.
         await graph.run("max-flow", { source: "reservoir", sink: "city" }, { style: { size: true } });
         graph.applySuggestedStyles("graphty:max-flow");
@@ -218,7 +218,7 @@ export const MaxFlow: Story = {
         await assertAlgorithmPainted(scene, "graphty:max-flow", { paints: "edge", atLeast: 12 });
 
         // The demonstration is that the mains carry different amounts, drawn as different widths
-        // and colours. One appearance for all twelve is the picture this story exists to rule out.
+        // and colors. One appearance for all twelve is the picture this story exists to rule out.
         await assertEdgeVariety(scene, 2);
         await assertEdgeWidthVariety(scene, 2);
 
@@ -230,8 +230,8 @@ export const MaxFlow: Story = {
 
 /**
  * Min Cut - minimum cut visualization
- * Cut edges are marked in vermilion, drawn wide, over a reader layer that greys every edge
- * Nodes are coloured by the side of the cut they are on
+ * Cut edges are marked in vermilion, drawn wide, over a reader layer that grays every edge
+ * Nodes are colored by the side of the cut they are on
  */
 export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
     paints: "edge",
@@ -239,7 +239,7 @@ export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
     readerLayers: [
         /*
          * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
-         * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
+         * chose stand out when the algorithm's layer repaints them on top. It grays EVERY edge
          * rather than naming the ones outside the cut, because an edge the cut left out is not the
          * cut's to paint, and naming "the rest" would need the id of a run that has not started when
          * this story is written.

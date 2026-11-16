@@ -6,7 +6,7 @@ import { FieldGlyph, type FieldGlyphName } from "../../../src/icons";
 /**
  * The circles a glyph draws, as numbers.
  * @param name - The field glyph to draw
- * @returns Each circle's centre and radius, in viewBox units
+ * @returns Each circle's center and radius, in viewBox units
  */
 function circlesOf(name: FieldGlyphName): { cx: number; cy: number; r: number }[] {
     const { container } = render(<FieldGlyph name={name} />);

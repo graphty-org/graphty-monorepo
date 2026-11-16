@@ -22,9 +22,9 @@ code.
   the inspector edits.
 - **Element**: one node or one edge. The material. Never painted directly.
 - **Set**: an object whose members are a list of elements, painted with one look. A path, a
-  filter result, a neighbourhood, a promoted selection, a spanning tree and a cut are all Sets.
+  filter result, a neighborhood, a promoted selection, a spanning tree and a cut are all Sets.
 - **Measure**: an object with one value per element (a centrality, a numeric column), painted
-  with a scale (a colour ramp or a size range).
+  with a scale (a color ramp or a size range).
 - **Grouping**: a Measure whose values are labels (communities, components, a category column),
   which is also a folder of **Group** objects, one per label.
 - **Tree**: the left panel's ordered, nested list of objects. Its order is the paint order.
@@ -32,7 +32,7 @@ code.
   Dataset when nothing is selected.
 - **Style**: an object's whole appearance: the style layer or layers that paint its members.
   Round 1 called this "Fill" (Figma's word); this round renames it (section 5.1).
-- **Channel**: one visual property a Style can write: node colour, node size, edge width, edge
+- **Channel**: one visual property a Style can write: node color, node size, edge width, edge
   pattern and so on. graphty-element has 40 (`Channel` in `graphty-element/src/catalog/types.ts`).
 - **Encoding**: a Style that maps a value to a channel through a scale and a palette. A
   Measure's or Grouping's Style is an encoding; a Set's Style is a fixed look.
@@ -54,7 +54,7 @@ code.
 - **Tab** (pill tab): one of a short row of labels at the top of a panel that swap what the panel
   shows without changing what is selected. Figma's "Design" and "Prototype" are a tab pair
   (`design/ui/figma/components.md` section 16: 24 px tall, 11 px text, the selected one bold on
-  a grey pill, text plus 8 px of padding each side, 4 px between tabs). This design uses 4 px
+  a gray pill, text plus 8 px of padding each side, 4 px between tabs). This design uses 4 px
   of padding, because 8 px does not fit four tabs in a 240 px panel (section 2.3).
 - **Disclosure**: a section that is collapsed to its header, with a one-line summary in the
   header, and expands on click.
@@ -79,7 +79,7 @@ code.
 | If a rail: do layout, camera and the rest have enough content for a panel? | No. Layout is 5 to 11 rows and is a property of the Dataset; camera is 8 commands and 1 to 5 saved Views; neither is a panel. Only the tree, the data table and the assistant are panel-sized, and the table and the assistant need the tree beside them, so they are bottom docks, not rail panels | 1.2 |
 | If a rail: why are "Data" and "Table" different? | They were split by the current app's task-first frame: "Data" is the import activity, "Table" is the drawer. In an object-first frame "Data" is the Dataset object (the root row and its inspector) and "Table" is the same material at full resolution. One object, two views of it; not two homes | 1.2 |
 | What would running algorithms look like? | Step by step in section 4, with every state glyph and where it shows. Every creation tool works one way: arm, read the secondary bar (what it will run on and what it will cost), Run, snap back. A parameters popover before the first run, a queue chip in the status bar, and the reading on the surface of the inspector header | 3.5, 4 |
-| Highlights are exclusive; paths are just edge styles and should layer | Adopted. A Path (or any edge Set) is an edge style layer; several stack, distinguished by colour, width, pattern, arrows and animation; the element's exclusive-highlight rule is retired | 5.4 |
+| Highlights are exclusive; paths are just edge styles and should layer | Adopted. A Path (or any edge Set) is an edge style layer; several stack, distinguished by color, width, pattern, arrows and animation; the element's exclusive-highlight rule is retired | 5.4 |
 | Does the element own the tree? Yes | Taken as given. The objects API on the session; its saved shape is the project file (#301). Undo goes with it (settled decision 1) | Settled decisions |
 | One set vocabulary in the session contract? Yes | Taken as given. Filter sets, scoped runs, Combine, Focus and set Styles become one mechanism; the vocabulary gains an edge list and a run-result set so a Path is a scope too | Settled decisions |
 | The right panel scrolls too much; tabs? | Yes: a header block that never scrolls, then three or four tabs per object kind (never five), each fitting 14 rows on a 1366 x 768 laptop, with disclosures inside a tab. The tab sets are per kind (a Set: Define, Members, Style, Record; a Measure: Values, Define, Style, Record; the Dataset: Overview, Layout, Canvas, Data; a node: About, Attributes, Links) | 2 |
@@ -111,12 +111,12 @@ code.
    edge style layer that stacks exactly as node layers do. Several paths show at once. The
    element's rule "a highlight is exclusive" (`graphty-element/src/session/styles/StylesApi.ts`)
    and "every set is blue-highlight" are retired; the objects API passes `exclusive: false` and
-   assigns each Set the next unused colour of a highlight palette. Two invariants of a run-backed
+   assigns each Set the next unused color of a highlight palette. Two invariants of a run-backed
    Set: one tree row maps to one or two layers (the element splits a highlight naming node and
    edge channels into a "(nodes)" and an "(edges)" layer, `StylesApi.ts:1598-1610`), and the
    generated selector is the value test `results.<run>.onPath == true`, never a presence test,
    because the membership column carries `false` for every element the run looked at and did
-   not choose, so a presence test would paint the route's whole neighbourhood
+   not choose, so a presence test would paint the route's whole neighborhood
    (`StylesApi.ts:1596-1600`).
 
 ## 1. The frame
@@ -154,7 +154,7 @@ actually hold:
 | **Styles** (a library of looks, palettes, saved styles) | the element ships 18 palettes and, once #331 lands ("implement session.catalog.themes()"), a handful of looks; a reader might save 2 to 10 styles | no; and it is a picker, used from the object being styled, not a place to go | pickers opened from the Style tab and the Canvas tab (section 5.6) |
 | **Layout** | Layout select, engine gear, transport, Dimensions, Group by or Root or Order by when the layout needs one, Pinned: 5 to 11 rows (`feature-fit/4-layouts.md` section 8) | no; and it is a property of the Dataset, since one arrangement is in force for the whole graph and two cannot both be true | the Dataset's Layout tab |
 | **Camera** | zoom in, out, fit, to selection, four framings, reset, save view: 9 commands, all one click each, none with state to edit | no; they are commands, not properties | the zoom menu in the right header, the keys, the mode switch |
-| **Data** | the import dialog's fields (before a load) and the attribute catalogue, the import report and exports (after) | after a load, yes (up to 14 rows); before a load, nothing but three verbs | it IS the Dataset object: the root row's inspector, Data tab. A rail item would be a second home for the root row |
+| **Data** | the import dialog's fields (before a load) and the attribute catalog, the import report and exports (after) | after a load, yes (up to 14 rows); before a load, nothing but three verbs | it IS the Dataset object: the root row's inspector, Data tab. A rail item would be a second home for the root row |
 | **Assistant** | the transcript, open-ended | yes, but it must not replace the tree: the assistant's whole value is that the row it made appears in the tree while the reply says "Made: Bridges" (`feature-fit/7-.md` section 1) | a bottom dock beside Table |
 | **History** | the journal (#145), open-ended | yes, but hovering a history row must outline the object it touched, so the tree stays | a bottom dock beside Assistant |
 | **Notes** | every note, grouped by anchor (`feature-fit/7-.md` section 3) | a list, but a note is about a thing and is found from the thing | the Dataset's Overview lists them; markers on the canvas |
@@ -367,7 +367,7 @@ The inspector has three parts, top to bottom:
 | Title | 48 | the kind word in secondary text ("Group", "Measure", "Node", "Dataset") above the name (13 px, weight 550, rename on double-click); at the right the eye, the lock and the overflow "..." (the eye and lock only on objects; a node has Locate and Pin instead) |
 | Summary | 32 | the Style chip (a swatch for a Set, a ramp for a Measure, a strip for a Grouping, the first channel's chit for a Group override), then the count and the state: "11 nodes, 32% of the scope", "34 values", "4 groups", "Computing 42% [Cancel]", "Stale: ran on 34, now 40 [Re-run (3 s)]", "Waiting [Run (about 4 min)]" |
 | Reading | 32 | one sentence in secondary text: on an object, the element's reading (`RunResult.reading()`): "The groups are clearly separated (modularity 0.36)", "The shortest route has 4 hops"; on the Dataset, from a new `statistics().reading()` (section 8): "34 nodes joined by 78 edges in one connected part"; on a Group, written from the run's fields: "Group 2 of 4 in Communities". Ends with a "?" that opens the longer explanation as a popover, which also defines the words on the surface (Density, Parts, Settled, modularity). Omitted on a node and a View |
-| Tabs | 32 | the pill tabs for this kind; the selected tab is bold on a grey pill; Left and Right arrows move between them |
+| Tabs | 32 | the pill tabs for this kind; the selected tab is bold on a gray pill; Left and Right arrows move between them |
 
 The summary row answers the novice's "what did I just make" on the surface (round-1 finding 4)
 and shows the state without opening anything.
@@ -395,7 +395,7 @@ rarely; tabs are for jobs.
 
 **What is always visible regardless of tab**: the name, the kind, the state, the reading, the
 Style chip, the eye and the lock. The reader never has to change tab to see whether an object
-is stale or what colour it is.
+is stale or what color it is.
 
 ### 2.4 The tab set and row budget per kind
 
@@ -410,8 +410,8 @@ collapsed; every count is 14 or under.
 |---|---|---|
 | Overview | Nodes 34 \| Edges 78; Direction "Undirected, from file" (read-only; "Mixed" on #309 data; "Change..." reopens the import options, since re-direction after a load is a re-import today); Density 0.139 \| Mean links 4.6; Parts 1 \| Weighted No; Self-loops (cond, non-zero); Drawing 200,000 of 350,000 (cond, over the render ceiling, #302); "3 objects are stale [Re-run all (about 2 min)]" (cond); Import report (disclosure: read, kept, rejected with "See in table", repeated, weights from); FINDINGS header with "+": up to 3 rows then "and N more" (whole-graph facts: diameter; "likely missing links: 312 pairs, Open in table"; and, when a time-typed column has no time role yet, "Time column: sent, 2019-01 to 2019-12 [Show over time]", the timeline's first door, section 6.1); NOTES header with "+" (disclosure: every note by anchor) | 14 |
 | Layout | Layout [Spread out v] with a gear (engine and its options in a popover, including the simulation's pace: pre-steps, steps per frame, stop delta); the select's first row is "Recommended: Spread out (small, one part)" from `recommendLayout`, with the reason, and the list is `catalog.layouts()` filtered on served (radial, grid and Sugiyama appear when served); transport row [Pause] [Step] [Re-run] "Settling 62%" or "Settled" or "Computing 42% [Cancel]" or "Stale: Communities changed [Re-run]" or "Failed: <reason> [Retry] [Run on the CPU]"; Dimensions "3D, follows the view" (read-only; "2D, flat layout: shown in 3D as a plane" for a flat-only layout); Group by [Communities v] (cond: the layout needs a grouping); Root [pick a node] \| Direction [Down v] (cond: a tree layout); Order by [Load order v] (cond: Ring, Spiral); caveat "Contains cycles: 12 edges reversed [Make a set]" (cond); "Ring on 12 of 34 (Group 2)" (cond: the last layout was scoped); "Positions from file: 34 of 34 [Keep positions]" (cond: the file carried positions); Pinned 2 [Unpin all] (cond); acceleration line "Runs on the GPU (NVIDIA T4)" or "CPU: WebGPU unavailable" in secondary text | 11 |
-| Canvas | Background [chit] with "Follow theme" first (#291) and "Image..." for a skybox; Look [Default v] (the base looks: Default, Presentation, Print, Colour-blind safe, High contrast; #331); Labels [Top 6 by Connections v] with a gear (the label-style popover: text, background, placement including billboarding, wrap #294, avoid overlaps #5); Edge labels [none v]; Tooltip [Label + 3 attributes v] with a gear; Arrows [switch] (cond: directed data; writes the dataset-default layer below); Legend [switch] (L) \| Minimap [switch] (M, #293) as one two-column row; Note markers [switch] (Shift+N, #295) \| Show hidden faintly [switch] (the element's `visibility.showContext`: elements outside the mask drawn at low opacity instead of absent) as one row; DEFAULT LOOK header with "+": Node [chit] [size], Edge [chit] [width] (an unlocked "dataset default" layer just above the element's locked base layers; the "+" adds a whole-graph channel; the round-1 Dataset Fill) | 11 |
-| Data | ATTRIBUTES header with "+" (Join a table... #298, New from formula...): one row per column (type glyph, name, completeness "94%", "..." with Colour by, Size by, Shape by, Filter by, Group by, Label by, Set as weight, Set as label, Set as time, Set as type; Set as weight and Set as label after a load reopen the import options, because they are load-time paths today), up to 10 visible then "See all 40 in table"; Time [sent v] (the second door to the timeline: choosing a column sets the time role and shows the transport bar; "none" clears it); Made by (disclosure: source, format, field mapping with "Change...", direction, time, fetches) | 14 |
+| Canvas | Background [chit] with "Follow theme" first (#291) and "Image..." for a skybox; Look [Default v] (the base looks: Default, Presentation, Print, Color-blind safe, High contrast; #331); Labels [Top 6 by Connections v] with a gear (the label-style popover: text, background, placement including billboarding, wrap #294, avoid overlaps #5); Edge labels [none v]; Tooltip [Label + 3 attributes v] with a gear; Arrows [switch] (cond: directed data; writes the dataset-default layer below); Legend [switch] (L) \| Minimap [switch] (M, #293) as one two-column row; Note markers [switch] (Shift+N, #295) \| Show hidden faintly [switch] (the element's `visibility.showContext`: elements outside the mask drawn at low opacity instead of absent) as one row; DEFAULT LOOK header with "+": Node [chit] [size], Edge [chit] [width] (an unlocked "dataset default" layer just above the element's locked base layers; the "+" adds a whole-graph channel; the round-1 Dataset Fill) | 11 |
+| Data | ATTRIBUTES header with "+" (Join a table... #298, New from formula...): one row per column (type glyph, name, completeness "94%", "..." with Color by, Size by, Shape by, Filter by, Group by, Label by, Set as weight, Set as label, Set as time, Set as type; Set as weight and Set as label after a load reopen the import options, because they are load-time paths today), up to 10 visible then "See all 40 in table"; Time [sent v] (the second door to the timeline: choosing a column sets the time role and shows the transport bar; "none" clears it); Made by (disclosure: source, format, field mapping with "Change...", direction, time, fetches) | 14 |
 
 Export is not on the Data tab: the Export button in the panel header is its one home (section
 6.8). Attributes sit in Data and open expanded for small schemas (analyst finding F10). Where
@@ -419,12 +419,12 @@ round 1 had "Showing" and "Show [Everything v]" rows on the Dataset, this round 
 what is showing is the status bar's "Focused on X: 6 of 34 [Exit]" line and the focus glyph on
 the tree row, and Focus is a verb on the Set. One home.
 
-**Set** (rule, path, neighbourhood, fixed, cut, combination, network, pinned): Define |
+**Set** (rule, path, neighborhood, fixed, cut, combination, network, pinned): Define |
 Members | Style | Record (24 characters)
 
 | Tab | Rows | Max |
 |---|---|---|
-| Define | by kind: Rule: expression field (autocomplete #332, validate #335; a layer-spec error from `styles.validate` shows inline today) or Attribute [v] \| Values [tokens] or [attribute v] Min \| Max, "+ Rule" (an AND line), Target [Nodes \| Edges]; a rule over connections reads whole-graph degree (the element's degree filter, `visibility/filter.ts:717-731`) and the tab says so under the field: "Counts every edge, not only what is showing"; Neighbours: Of [node 1] \| Within [2 v], Direction [All v], Edges [All among members v \| To the centre only]; Path: From [node 1] \| To [node 34], Method [Shortest v], Weighted [switch]; Network: Method [Kruskal v], Start [node] (Prim); Flow or cut: Source \| Sink, Capacity from [weight v]; Fixed: "12 nodes, 3 edges, fixed" [Edit members]; Cut: Of [Bridges >] \| Top [10] or Above [0.05]; Combination: [Group 1 >] [and v] [Path >]; Pinned: "Nodes fixed in place" (read-only). Then always: Invert [switch]; Within [Everything v] (read-only once the Set has nested children); Advanced (disclosure: bidirectional, Karger iterations and the like); "Live" or "Re-run on Enter" word in secondary text (the cost rule made visible); [Re-run (about 2 s)] (cond: stale); [Run (about 4 min)] [Approximate instead] (cond: waiting) | 12 |
+| Define | by kind: Rule: expression field (autocomplete #332, validate #335; a layer-spec error from `styles.validate` shows inline today) or Attribute [v] \| Values [tokens] or [attribute v] Min \| Max, "+ Rule" (an AND line), Target [Nodes \| Edges]; a rule over connections reads whole-graph degree (the element's degree filter, `visibility/filter.ts:717-731`) and the tab says so under the field: "Counts every edge, not only what is showing"; Neighbors: Of [node 1] \| Within [2 v], Direction [All v], Edges [All among members v \| To the center only]; Path: From [node 1] \| To [node 34], Method [Shortest v], Weighted [switch]; Network: Method [Kruskal v], Start [node] (Prim); Flow or cut: Source \| Sink, Capacity from [weight v]; Fixed: "12 nodes, 3 edges, fixed" [Edit members]; Cut: Of [Bridges >] \| Top [10] or Above [0.05]; Combination: [Group 1 >] [and v] [Path >]; Pinned: "Nodes fixed in place" (read-only). Then always: Invert [switch]; Within [Everything v] (read-only once the Set has nested children); Advanced (disclosure: bidirectional, Karger iterations and the like); "Live" or "Re-run on Enter" word in secondary text (the cost rule made visible); [Re-run (about 2 s)] (cond: stale); [Run (about 4 min)] [Approximate instead] (cond: waiting) | 12 |
 | Members | Nodes 12 \| Edges 18; Inside edges 18 \| Cut edges 7 \| Density 0.27 (from a new `scope.statistics(spec)`, section 8, so reading them never touches the reader's selection); Hops 4 \| Cost 3.0 (cond: a path); Total weight 41.0 (cond: a network); up to 5 member rows (label, then the hop order or depth in secondary text), "See all 12 in table"; header actions: Select, Focus, Locate | 10 |
 | Style | section 5.4: a NODES section and an EDGES section of paint rows, each with a "+"; "Covered by Influence on 12 of 12 members" (cond); overflow: Save style..., Apply style [v], Reset style | 14 |
 | Record | MADE BY header; Method "Shortest route (Dijkstra)"; Parameters (disclosure: "weighted, both directions"; one row per parameter as run when open); Scope "What was showing, 115 nodes" or "Within Group 2, 11 nodes"; Engine "algorithms 2.0.1, on the GPU (single precision)" (from the new `backend` field, section 8); Time "80 ms, seed 42"; Caveats (disclosure: "2", one row each when open: "sampled 2,000 of 50,000", "computed on 2019-01 to 2019-12"); "Assistant: <request>" or "Recipe: <name>, step 3" (cond); [Copy as methods text] \| [Copy as command]; Export [Members, CSV v] [Export] (one row; the select lists what this object can export: Members CSV, Subgraph GraphML, Framed image PNG); NOTES header with "+": up to 2 rows then "All N notes" | 14 |
@@ -443,7 +443,7 @@ characters)
 | Tab | Rows | Max |
 |---|---|---|
 | Values | Field [value v] (cond: several fields, e.g. hub and authority; in, out and total on Connections, which `degree` publishes today); Min 0.010 \| Max 0.101; Mean 0.029 \| Median 0.022; Widest 5 \| Narrowest 3 (cond: graph fields such as diameter and radius); histogram 208 x 40 (2 rows) with [linear \| log]; TOP header [10 v] with "+" (Top N set..., Above threshold set..., Bottom N set...); five ranked rows (rank, label, value; click selects the node; a drag across the histogram selects a band through a new `{between}` selection target, section 8); "See all in table" | 13 |
-| Define | Method "Influence (PageRank)" with an info circle; one row per option from the catalogue's descriptors (Damping [0.85] \| Iterations [100]; Tolerance [1e-6]); Weights [switch] \| Direction [As loaded v] (#313 "weight and direction options are missing on most algorithms"); Exact [switch]; Within [Everything]; Advanced (disclosure); "edited" beside the method name when a parameter differs from its default; [Re-run] (cond: stale) or [Run] [Approximate instead] (cond: waiting) | 10 |
+| Define | Method "Influence (PageRank)" with an info circle; one row per option from the catalog's descriptors (Damping [0.85] \| Iterations [100]; Tolerance [1e-6]); Weights [switch] \| Direction [As loaded v] (#313 "weight and direction options are missing on most algorithms"); Exact [switch]; Within [Everything]; Advanced (disclosure); "edited" beside the method name when a parameter differs from its default; [Re-run] (cond: stale) or [Run] [Approximate instead] (cond: waiting) | 10 |
 | Style | section 5.2: NODES and EDGES sections; one encoding block per channel, one block open at a time | 12 |
 | Record | as a Set's; Export lists Ranked list CSV | 14 |
 
@@ -457,7 +457,7 @@ Define | Style | Record (23 characters)
 |---|---|---|
 | Groups | Groups 6 \| Modularity 0.36 (or Parts, Levels, Shells); Sizes "12, 9, 6, 4, 2, 1"; Show the largest [8 v], the rest as Other (this default applies to every Grouping, so 3,000 isolated parts from Separate pieces are eight rows and one "Other"); Names from [none v] (#191 "community groups have numbers but no names"); Sort groups by [size v]; "6 of 6 matched to their predecessors" (cond: after a re-run); the Group rows themselves are the tree's children and are not repeated; FINDINGS header with "+" (per-group profiles #193) | 8 |
 | Define | Method; Resolution [1.0] \| Seed [42] [dice]; Iterations [100]; Kind [Weak v] (components on directed data); From [node] and Within [any v] steps (Steps away, #160 "BFS has no maxDepth"); Attribute [value] (read-only, an attribute grouping); Within; Advanced; Re-run or Run | 9 |
-| Style | section 5.3: NODES and EDGES sections; the Colour block with the palette, five swatch rows then "and N more", Other, Overflow, Show the largest | 13 |
+| Style | section 5.3: NODES and EDGES sections; the Color block with the palette, five swatch rows then "and N more", Other, Overflow, Show the largest | 13 |
 | Record | as a Set's; Export lists Membership CSV | 14 |
 
 **Node** (a canvas or table click; not an object): About | Attributes | Links (20 characters)
@@ -466,7 +466,7 @@ Define | Style | Record (23 characters)
 |---|---|---|
 | About | leads with the material, because the novice's two questions are "what is it" and "who does it connect to": the first three attributes as key: value rows; "All 23 attributes >" (to the Attributes tab); "Connected to 17 nodes >" (to the Links tab; "In 9, out 8" on directed data); VALUES header: up to 3 rows, one per Measure and Grouping covering this node ("Bridges 0.031  rank 12 of 115 >", "Communities  Group 3 >", each a link to the object), then "and N more"; MEMBER OF: the header row carries the chips inline, one per Set, clickable (the header alone when empty); LOOK (disclosure, collapsed: its summary is the painted channels "Colour from Conference, Size from Bridges"; open, one row per painted channel from `session.styles.explain`, and its "+" is the door "Style this node..." which creates a one-node Set and opens the picker); NOTES header with "+" then up to 1 row | 14 |
 | Attributes | a filter field (cond: more than 10 attributes); key: value rows, up to 12; "Show all 23" (expands in place) | 14 |
-| Links | Neighbours 17 (In 9 \| Out 8 on directed data), from a new `session.data.neighbours(id, {direction})` (section 8); up to 10 rows "label, edge label" with a note glyph per row; "See all 17 in table"; header actions: Select, Neighbours tool (E) prefilled | 12 |
+| Links | Neighbors 17 (In 9 \| Out 8 on directed data), from a new `session.data.neighbours(id, {direction})` (section 8); up to 10 rows "label, edge label" with a note glyph per row; "See all 17 in table"; header actions: Select, Neighbors tool (E) prefilled | 12 |
 
 The header of a node has Locate and Pin in the eye and lock slots, and its overflow holds Style
 its group... (cond: exactly one Group contains it; opens that Group's Style tab), Add to [set],
@@ -529,18 +529,18 @@ events override the memory, so the panel answers the question the reader just as
 
 ### 3.1 Shape and labels
 
-A 56 px floating bar at the bottom centre of the canvas (Figma's is 48; the extra 8 px carries
+A 56 px floating bar at the bottom center of the canvas (Figma's is 48; the extra 8 px carries
 a label under the icon of every tool that has no thirty-year-old icon). Radius 13, the panel
 surface, the 200-level shadow. **Tool buttons are 40 x 40 with an 8 px label** under a 16 px
 icon; Select and Hand, whose icons every reader knows, are 32 x 32 with no label. A label
-longer than 40 px ("Neighbours") may extend 4 px into each neighbouring gap; nothing else is in
+longer than 40 px ("Neighbours") may extend 4 px into each neighboring gap; nothing else is in
 a gap. A 16 x 40 chevron follows a tool that has a flyout; groups 8 px apart; 1 px full-height
 dividers between the four groups. The active (armed) tool is the brand blue with a white icon;
 blue means nothing else on the toolbar. Tooltips carry the sentence and the key chip; the
 toolbar's tooltip delay is 0 ms (every other tooltip waits 1000 ms), so a hovering novice reads
 the name at once.
 
-The bar is 725 px wide: 8 px padding, Select 32 plus its 16 px chevron, Hand 32, six labelled
+The bar is 725 px wide: 8 px padding, Select 32 plus its 16 px chevron, Hand 32, six labeled
 tools at 40 (five of them with a 16 px chevron), Note and Ask at 40, the 122 px mode switch,
 8 px gaps and three dividers. At the 1280 px window with two 240 px panels the canvas is 800
 px, so the bar fits with 37 px to spare each side; below 1280 the bar overlaps the panels
@@ -584,7 +584,7 @@ for Structure.
 
 **Double-click on a node** expands it from the server when a fetcher is configured
 (`el.layoutBehavior.fetchNodes`, the shipped gesture, `NodeBehavior.ts:555-565`); otherwise it
-selects the node's neighbours. One gesture, one meaning per dataset, and the node's overflow
+selects the node's neighbors. One gesture, one meaning per dataset, and the node's overflow
 carries "Expand from server" as the findable door.
 
 ### 3.3 Every button
@@ -595,16 +595,16 @@ means element work with the issue number; **new** means new to this round.
 | Button | Icon | Label | Key | What it does | Status |
 |---|---|---|---|---|---|
 | Select | arrow cursor | none | V | click selects a node (Shift adds, Ctrl toggles, Alt subtracts); drag on empty canvas draws a marquee in 2D; in 3D a plain drag orbits and Shift+drag draws the marquee; double-click per 3.2; Tab steps through the selected object's members. Flyout: 3.4 | click today; marquee proposed (element hit-test); lock-aware picking proposed |
-| Hand | open hand | none | H, or Space held | drag pans (2D) or orbits (3D); wheel zooms | today (2D pan; wheel zoom about the centre); zoom toward the cursor in 2D, 3D wheel zoom and right-drag pan proposed, #290 "no wheel zoom or pan in 3D, and 2D zoom ignores the cursor" |
+| Hand | open hand | none | H, or Space held | drag pans (2D) or orbits (3D); wheel zooms | today (2D pan; wheel zoom about the center); zoom toward the cursor in 2D, 3D wheel zoom and right-drag pan proposed, #290 "no wheel zoom or pan in 3D, and 2D zoom ignores the cursor" |
 | Filter | funnel | Filter | F | arms; the secondary bar reads "Filter by values  [Options]  Matches 8 nodes  [Select] [Create] [Create and focus]  Cancel" and the parameters popover opens at once, because its fields are the whole tool; the live count is a dry run (`session.plan`). Flyout: 3.4 | By values, By range, By connections, Largest part today; By id list creates a Set today (a `{nodes}` scope) and can Focus with decision 2 (the filter type has no ids kind); By rule and Pattern proposed (#149) |
-| Neighbours | node with spokes | Neighbours | E | arms; the secondary bar reads "Within [1 v] steps, [All directions v], of node 1  [Create]  Cancel"; a click on a node, or the selection, seeds it; Enter creates a Set "Around node 1" | today (`neighborhood` filter and the `neighborsOf` selection target) |
+| Neighbors | node with spokes | Neighbors | E | arms; the secondary bar reads "Within [1 v] steps, [All directions v], of node 1  [Create]  Cancel"; a click on a node, or the selection, seeds it; Enter creates a Set "Around node 1" | today (`neighborhood` filter and the `neighborsOf` selection target) |
 | Path | two dots joined by a line | Path | P | arms; "Pick the start node", then "Pick the end node  [Shortest route v]  Cancel" with a rubber-band line from A to the pointer; hands back an edge Set (ordered for a route). Flyout: 3.4 | Shortest route today; the rest per 3.4 |
 | Groups | three circles in a ring | Groups | G | arms; "Find groups by [Communities v] on what is showing, 34 nodes, about 80 ms  [Options]  [Run]  Cancel"; hands back a Grouping with Group children. Flyout: 3.4 | today |
 | Rank | bar chart | Rank | R | arms; "Rank by [Connections v] on what is showing, 115 nodes, instant  [Options]  [Run]  Cancel"; hands back a Measure. Flyout: 3.4 | today |
 | Structure | bridge glyph | Structure | S | arms; "Find [Separate pieces v] on what is showing, 115 nodes, instant  [Options]  [Run]  Cancel"; hands back what the algorithm's shape says, shown by the kind icon on each flyout row. Flyout: 3.4 | new grouping; the entries have their own status |
 | Note | speech bubble | Note | N | arms; "Click what the note is about"; a click on a node, an edge, a point on the canvas, or a tree row; the note row opens in the anchor's Record tab (a node's About tab) with its text field focused | proposed, #145; a note on an edge also waits on edge picking #319; markers #295 "no node image or icon channel" |
 | Ask | sparkle | Ask | backtick | opens the bottom dock on the Assistant tab with the composer focused; a microphone at the right of the composer for voice. Ctrl+K is the keyboard-only palette, where a sentence that matches no command becomes the last row "Ask: <sentence>" | today (`el.aiCommand`); the assistant's tools rewritten as commands proposed, #337 "publish the command vocabulary in the ./commands entry point" |
-| 2D / 3D / VR / AR | plane, cube, headset, glasses | (segment labels) | 5 toggles 2D and 3D; no key for VR or AR | switches the view mode; VR and AR enter a headset session at once when they can (no entry sheet); the panels minimise; the status bar reads "VR [Exit]" | today |
+| 2D / 3D / VR / AR | plane, cube, headset, glasses | (segment labels) | 5 toggles 2D and 3D; no key for VR or AR | switches the view mode; VR and AR enter a headset session at once when they can (no entry sheet); the panels minimize; the status bar reads "VR [Exit]" | today |
 
 Not on the toolbar, and where it went: zoom (the header's zoom menu, which also holds "Reset
 view (Home)", and the keys), legend and minimap (the Canvas tab, L and M), undo (Ctrl+Z, and
@@ -620,11 +620,11 @@ icon of the tree row it will make** (Set, Measure, Grouping, or a Finding glyph 
 lands in the Dataset's Findings), in place of Figma's check glyph, so the flyout shows its
 result shape without a word; the face row is marked by its bold name. Every row shows the plain
 name, the technical name in secondary text, and at the right the cost from `session.estimate`
-("instant", "about 4 min", "at least 4 min" when the confidence is modelled) or "unavailable"
+("instant", "about 4 min", "at least 4 min" when the confidence is modeled) or "unavailable"
 with the reason in the row's tooltip (from `session.catalog.metrics()`: needs weights, needs a
 directed graph, needs WebGPU). A row that already ran on this data reads "in tree" in secondary
 text; running it again makes a second row. A "..." at the right of a row opens the parameters
-popover before running (section 3.5). The flyouts are populated from the algorithm catalogue
+popover before running (section 3.5). The flyouts are populated from the algorithm catalog
 (`session.catalog.algorithms()`), so a plugin lands in the right one with no app change; the
 rule that places an entry is 3.6.
 
@@ -723,7 +723,7 @@ every tool: what will happen, on what, at what cost, the one control, Cancel:
 - Groups: "Find groups by [Communities v] on what is showing, 34 nodes, about 80 ms  [Options]  [Run]  Cancel";
 - Structure: "Find [Separate pieces v] on what is showing ...  [Run]  Cancel";
 - Path: "Pick the start node", then "Pick the end node  [Shortest route v]  Cancel";
-- Neighbours: "Within [1 v] steps, [All directions v], of node 1  [Create]  Cancel";
+- Neighbors: "Within [1 v] steps, [All directions v], of node 1  [Create]  Cancel";
 - Filter: "Filter by values  [Options]  Matches 8 nodes  [Select] [Create] [Create and focus]  Cancel";
 - Note: "Click what the note is about".
 
@@ -734,7 +734,7 @@ The **parameters popover** (a 240 px light popover above the toolbar, caret at t
 appears when the reader asks for it: the bar's "Options" button, the "..." on a flyout row, or
 the Filter tool always (its fields are the whole tool). It holds: the scope line in secondary
 text ("On what is showing, 34 nodes" or "In Group 4, 12 nodes"), one row per option descriptor
-with the catalogue's bounds (#336 "implement session.catalog.optionsFor()"), Weights \|
+with the catalog's bounds (#336 "implement session.catalog.optionsFor()"), Weights \|
 Direction (#313), Exact [switch], the cost line ("About 4 min on the GPU", from the new
 `CostEstimate.backend`, section 8), and one button: Run (or Create for Filter). It answers
 analyst F5 ("Gephi asks first"): a reader who knows the parameter sets it before the first run
@@ -752,12 +752,12 @@ Findings section.
 This round's rule: **the flyout is chosen by the question the algorithm answers; the result
 shape decides what kind of object it hands back, and the row's icon shows it.** Groups answers
 "what groups are there"; Rank answers "who matters most"; Path answers "how are A and B
-joined"; Structure answers "what is this graph's skeleton". The catalogue's `category`
+joined"; Structure answers "what is this graph's skeleton". The catalog's `category`
 (`graphty-element/src/catalog/types.ts:508`: centrality, community, path, flow, structure,
 prediction) maps onto the four: centrality to Rank, community to Groups, path and flow to
 Path, structure and prediction to Structure. Every algorithm still has exactly one flyout, so
 the duplicate-home objection does not apply, and a plugin declares its question in its
-catalogue entry. What moved: Kruskal and Prim from Path to Structure; components from Groups
+catalog entry. What moved: Kruskal and Prim from Path to Structure; components from Groups
 to Structure; k-core, bridges, distances and link prediction from a Findings "+" to Structure;
 temporal analysis to the transport bar's gear. The Findings "+" on the Dataset stays as a
 shortcut to the same rows.
@@ -775,14 +775,14 @@ appears. On Karate Club steps 5, 6 and 7 pass in 80 ms and the reader sees only 
 | 4 Run | presses Run, or Enter | the tool snaps back to Select; what happens next depends on the cost gate |
 | 5 The cost gate | the estimate (4 min) is over the gate (30 s) | the row "Bridges (Betweenness)" appears at the top of the tree at once, selected, in the **waiting** state: a hollow circle glyph, and in the count slot a small secondary button "Run (about 4 min)". The inspector opens on Define with [Run (about 4 min)] and [Approximate instead (about 20 s)] as its first row, Run focused so Enter is the second click. Nothing computes. Under the gate, this step is skipped and the row appears computing. A waiting row is an object with no run yet: "defined, not started", a state the element's run model does not have today (section 8) |
 | 6 Computing | presses Run | **computing** state: a 12 px progress ring replaces the count, filling to "42%"; the inspector's summary row reads "Computing 42%, on the GPU [Cancel]" with the phase in secondary text ("sampling 1,200 of 2,000"); the status bar's computing chip reads "Computing 1 of 1 [Cancel]" (with a batch: "Computing 1 of 6 [Cancel all]", and queued rows read "queued, 3rd" in their count slot); the object's chip is empty. A run that blocks the frame (`CostEstimate.blocksFrame`) shows a static working glyph instead of a ring and the status bar says "the page will pause for about 8 s"; its Cancel is not drawn |
-| 7 Cancel (optional) | presses Cancel | a cancelled creation removes the row (same as Ctrl+Z); a cancelled re-run returns the row to its previous state; a cancelled sampling run keeps what it has, lands current with the caveat "cancelled at 60% of the sample" and a "~" before its count (partial results on cancel are element work; today a cancelled run has no result) |
+| 7 Cancel (optional) | presses Cancel | a canceled creation removes the row (same as Ctrl+Z); a canceled re-run returns the row to its previous state; a canceled sampling run keeps what it has, lands current with the caveat "cancelled at 60% of the sample" and a "~" before its count (partial results on cancel are element work; today a canceled run has no result) |
 | 8 The object appears | the run ends | **current** state: the ring becomes "50,000 values"; the chip becomes a ramp; the summary row reads "50,000 values, ~ sampled"; the reading row reads "Node 812 sits on the most shortest paths; the top 1% carry 40% of them" with a "?"; the inspector switches to the Values tab (top 10, histogram) |
-| 9 First paint | nothing | the element's suggested encoding takes the first free channel **in the order for its kind** (section 5.7): a Measure tries Colour, then Size, then Opacity; a Grouping Colour, then Shape, then Outline; a Set Outline, then Colour, then Glow. "Free" means no visible object above writes it; when none is free the first choice is taken anyway and the covered object's Style tab says "Covered by Bridges on 34 of 34 members". So Rank then Groups gives a Measure on Colour and a Grouping on Shape, never four communities as four sizes. The legend switches itself on with the first Grouping or Measure (novice finding 7). The chip and the legend block show the ramp |
+| 9 First paint | nothing | the element's suggested encoding takes the first free channel **in the order for its kind** (section 5.7): a Measure tries Color, then Size, then Opacity; a Grouping Color, then Shape, then Outline; a Set Outline, then Color, then Glow. "Free" means no visible object above writes it; when none is free the first choice is taken anyway and the covered object's Style tab says "Covered by Bridges on 34 of 34 members". So Rank then Groups gives a Measure on Color and a Grouping on Shape, never four communities as four sizes. The legend switches itself on with the first Grouping or Measure (novice finding 7). The chip and the legend block show the ramp |
 | 10 The reading on request | clicks "?" | a popover with the longer explanation (audience "novice"), the caveats ("sampled 2,000 of 50,000, seed 42, on the GPU in single precision") and "Copy as methods text" |
 | 11 Edit a parameter | in Define, switches Weights on, presses Enter | the cost rule: under one second the row re-runs at once (a "Live" word in the tab says so); otherwise the row turns **stale**: an amber dot after the name, the name at 50%, the old paint kept, the summary row "Stale: weights changed [Re-run (about 4 min)]". Linked objects (a Top 10 cut) turn stale with it. In the element a changed parameter is a new run that replaces the old one under the same object id (section 8), and the replaced result stays in the journal so undo can restore it |
 | 12 Data changes | Add data brings 6,000 nodes | every cheap object re-runs; every expensive one turns stale: "Stale: ran on 50,000 nodes, now 56,000 [Re-run]". The status bar gains "3 stale [Re-run all]"; the Dataset's Overview gains the same line with the total estimate. Re-run all respects the gate: rows over it go to waiting and the chip says "2 waiting". With Focus on, the status line adds "(6,000 new nodes hidden)" |
 | 13 Failure | the run throws | **failed** state: a red dot; the summary row shows the message with [Retry] and, for a GPU error, [Retry on the CPU] as an explicit second button (an explicit choice is not a silent fallback; it needs a per-start backend override, section 8). The same state covers the element refusing its own painting (`style:problem`): "Paint refused: <reason> [Reset style]" |
-| 14 An input is deleted | the reader deletes Bridges while "Top 10 by Bridges" links to it | the Top 10 turns **frozen**: a grey snowflake, members kept as a fixed list, summary "Frozen: Bridges was deleted [Unfreeze as fixed set]" |
+| 14 An input is deleted | the reader deletes Bridges while "Top 10 by Bridges" links to it | the Top 10 turns **frozen**: a gray snowflake, members kept as a fixed list, summary "Frozen: Bridges was deleted [Unfreeze as fixed set]" |
 
 Every state, its glyph, and where each shows:
 
@@ -793,7 +793,7 @@ Every state, its glyph, and where each shows:
 | waiting | a hollow circle; the count slot is a small secondary button "Run (about 4 min)" | "[Run (about 4 min)] [Approximate instead]" | "2 waiting" only inside the computing chip during Re-run all |
 | stale | an amber dot after the name; the name at 50%; the old count and paint | "Stale: <why> [Re-run (about 3 s)]" | "3 stale [Re-run all]" when more than one |
 | failed | a red dot | the message, [Retry], [Retry on the CPU]; or "Paint refused: <reason>" | nothing (the row carries it) |
-| frozen | a grey snowflake; the name in secondary text | "Frozen: 'X' was deleted [Unfreeze as fixed set]" | nothing |
+| frozen | a gray snowflake; the name in secondary text | "Frozen: 'X' was deleted [Unfreeze as fixed set]" | nothing |
 
 Rules that hold throughout: the row appears instantly, always; no step opens a modal dialog;
 Ctrl+Z after a creation removes the row and cancels its run; Ctrl+Z after a re-run restores
@@ -831,13 +831,13 @@ never as a tab name.
 and every encoding block begins with its channel name: "Colour [chit] D55E00 100%" on a Set,
 "Colour [ramp]" as the block header on a Measure, "Width [3]" under EDGES on a Path. The
 section says which element kind the row paints; the first word says which channel. "Edge
-colour" is no longer a channel name anywhere; an edge Measure's Colour block simply sits under
+color" is no longer a channel name anywhere; an edge Measure's Color block simply sits under
 EDGES. A reader who learned the tab on a Path meets the same layout on a Measure.
 
 ### 5.2 Continuous values: a Measure's Style tab
 
 Under NODES (or EDGES, for an edge Measure), one encoding block per channel the Measure writes.
-The first block is the one the tool suggested (Colour, or the next free channel in the
+The first block is the one the tool suggested (Color, or the next free channel in the
 Measure's order). Blocks are an accordion: one open at a time, the rest collapsed to their
 header ("Size  0.8x to 2.2x  [eye] [-]"), so two channels fit the budget. Rows of an open
 block, exactly:
@@ -845,18 +845,18 @@ block, exactly:
 | Row | Control | Notes |
 |---|---|---|
 | Block header | "Colour [ramp chip]" with an eye and a minus at the right, and a chevron | the channel name leads; the block's eye stops this channel only; the minus removes the block; clicking the name changes the channel among those the section allows |
-| Scale | [Even steps v] | the catalogue's nine scales by plain name (`graphty-element/src/catalog/scales.ts`): Even steps (linear), By order of magnitude (log), By significance (neglog10), By area (sqrt), Curved (pow, with an Exponent row), Equal ranges (bins, with a Bins row), Equal counts (quantile, with a Bins row), One colour per value (ordinal), Use the value as it is (passthrough). The list offers only the scales that suit the value's kind (`scalesForDomain`) |
+| Scale | [Even steps v] | the catalog's nine scales by plain name (`graphty-element/src/catalog/scales.ts`): Even steps (linear), By order of magnitude (log), By significance (neglog10), By area (sqrt), Curved (pow, with an Exponent row), Equal ranges (bins, with a Bins row), Equal counts (quantile, with a Bins row), One color per value (ordinal), Use the value as it is (passthrough). The list offers only the scales that suit the value's kind (`scalesForDomain`) |
 | Palette | a 156 x 14 ramp swatch with a chevron | opens the palette picker (5.6): sequential first for a Measure; diverging when a Midpoint is set |
 | Values from \| to | [0.010] \| [0.101] | 9 px captions "from" and "to"; the value bounds the scale maps (the element's `domain`); scrubbable; commit on Enter, Tab or blur |
 | Values actions | [Reset] [Reverse checkbox] [Clamp outliers checkbox] | Clamp cuts the bounds at the 2nd and 98th percentiles (the objects API reads them from `RunResult.column()` and sets `EncodingSpec.clamp` to them); the legend's departure line then reads "clamped at p2 and p98" |
-| Midpoint | [0] | cond: a diverging palette (log fold change centred on zero) |
+| Midpoint | [0] | cond: a diverging palette (log fold change centered on zero) |
 | Missing | [chit #b3b3b3] | what an element with no value is painted |
 | Sizes from \| to | [0.8] \| [2.2] | cond: a size, width or opacity channel: the output range instead of a palette ("Widths from / to", "Opacity from / to") |
 | Legend | a 208 x 14 preview strip of the ramp with the end labels | read-only; the on-canvas legend (L) draws the same block |
 
-The NODES "+" lists Colour, Size, Opacity, Outline width, Glow, Label, and the preset "Colour
+The NODES "+" lists Color, Size, Opacity, Outline width, Glow, Label, and the preset "Color
 and size" that adds Colour and Size in one click (analyst F13); the EDGES "+" lists Width,
-Colour, Opacity. Editing any row repaints at once; on a large graph the row shows "Restyling
+Color, Opacity. Editing any row repaints at once; on a large graph the row shows "Restyling
 38%" in its summary row while the repaint runs and a second edit replaces the first in the
 queue.
 
@@ -869,12 +869,12 @@ authority or in versus out degree, and the Style follows the field.
 
 | Row | Control | Notes |
 |---|---|---|
-| Block header | "Colour [strip chip]" with eye and minus | the channel name leads; the NODES "+" offers Colour, Shape (one of 25 meshes per group), Outline, Label (the group's name); the EDGES "+" offers Colour (on the inside edges of each group, once the induced-edge selector exists) |
-| Palette | [Okabe-Ito v] | a categorical picker: Okabe-Ito, Tol vibrant, Tol muted, Pastel, Carbon, custom; the capacity ("8 colours") beside each; colour-blind-safe marked |
+| Block header | "Colour [strip chip]" with eye and minus | the channel name leads; the NODES "+" offers Color, Shape (one of 25 meshes per group), Outline, Label (the group's name); the EDGES "+" offers Color (on the inside edges of each group, once the induced-edge selector exists) |
+| Palette | [Okabe-Ito v] | a categorical picker: Okabe-Ito, Tol vibrant, Tol muted, Pastel, Carbon, custom; the capacity ("8 colours") beside each; color-blind-safe marked |
 | Group swatches | one row per Group, in group order: [chit] Group 1  12 | five rows, then "and 7 more" which expands in place; a chit click opens the picker and writes an **override** on that Group (below); an overridden chit carries a small dot |
-| Other | [chit] | the overflow colour for groups past the palette's capacity (#201 "the legend's Other swatch shows the default node colour") |
-| Overflow | [Other v] | Other (paint the largest N, the rest grey), Shape (cycle node shapes past the colours: shown as a second block bound to the same field), Extend (keep inventing colours) |
-| Show the largest | [8 v] | mirrored from the Groups tab; decides which Groups get their own colour and their own tree row (the rest collapse to one "Other" row, `critique/rough-edges.md` section 8) |
+| Other | [chit] | the overflow color for groups past the palette's capacity (#201 "the legend's Other swatch shows the default node colour") |
+| Overflow | [Other v] | Other (paint the largest N, the rest gray), Shape (cycle node shapes past the colors: shown as a second block bound to the same field), Extend (keep inventing colors) |
+| Show the largest | [8 v] | mirrored from the Groups tab; decides which Groups get their own color and their own tree row (the rest collapse to one "Other" row, `critique/rough-edges.md` section 8) |
 
 **A Group's Style tab** has exactly two rows under NODES: the override paint row when one
 exists ("Colour [chit #d55e00] D55E00  100%  [eye] [-]"), and under it the inherited row
@@ -883,7 +883,7 @@ the inherited chit creates the override and opens the picker (novice finding 2: 
 swatch was the natural first click and did nothing). The override is a layer inserted directly
 above the Grouping's encoding layer in the element's flat stack (the objects API projects tree
 order onto the stack; `Layer` has no parent), which is why it wins; its minus returns the Group
-to the inherited colour.
+to the inherited color.
 
 **Precedence between a Group and its Grouping**: children paint above their parent. A Group
 with an override beats the Grouping's palette on that group's members and nowhere else. Moving
@@ -897,38 +897,38 @@ largest-overlap matching once the element has it (#191). Until then the Record t
 ### 5.4 Edge styling, edge Sets, and how several paths layer
 
 A Set's Style tab has NODES and EDGES sections of paint rows. A node Set (a rule, a
-neighbourhood) draws both once the induced-edge selector exists (its EDGES rows paint the edges
+neighborhood) draws both once the induced-edge selector exists (its EDGES rows paint the edges
 between its members); an edge Set (a path, a network, a cut) draws both too (its NODES rows
 paint the endpoints on a path). Each section's "+" lists its channels:
 
 | NODES "+" | EDGES "+" |
 |---|---|
-| Colour, Opacity, Size, Shape, Outline (width, colour), Glow, Label (attribute, member value such as hop order, or fixed text; a style gear), Tooltip, Marker (#295), Animation (label pulse), More... (Wireframe, Flat, Glow strength) | Colour, Opacity, Width, Pattern [Solid v] (solid, dot, star, box, dash, diamond, dash-dot, sinewave, zigzag; a repeat count in its popover), Curve, Arrows (head [v], tail [v]; size, colour, text in a popover), Animation (flow speed along the edge), Label |
+| Color, Opacity, Size, Shape, Outline (width, color), Glow, Label (attribute, member value such as hop order, or fixed text; a style gear), Tooltip, Marker (#295), Animation (label pulse), More... (Wireframe, Flat, Glow strength) | Color, Opacity, Width, Pattern [Solid v] (solid, dot, star, box, dash, diamond, dash-dot, sinewave, zigzag; a repeat count in its popover), Curve, Arrows (head [v], tail [v]; size, color, text in a popover), Animation (flow speed along the edge), Label |
 
-A Path made by the Path tool starts with three rows: EDGES > Colour (the next unused highlight
-colour), EDGES > Width 3, NODES > **Outline** 2 px in the same colour. An outline, not a fill,
-so the community colour of a node on the path stays visible under it and a route through
-same-coloured nodes never vanishes. The reader adds Pattern, Arrows or Animation from the "+".
+A Path made by the Path tool starts with three rows: EDGES > Color (the next unused highlight
+color), EDGES > Width 3, NODES > **Outline** 2 px in the same color. An outline, not a fill,
+so the community color of a node on the path stays visible under it and a route through
+same-colored nodes never vanishes. The reader adds Pattern, Arrows or Animation from the "+".
 
-**The highlight palette.** The objects API assigns every new Set the next unused colour of a
+**The highlight palette.** The objects API assigns every new Set the next unused color of a
 highlight palette that the element ships **disjoint from every categorical palette it ships**
-(the element owns both lists, so it can check): no colour of it is within a perceptual
-distance of an Okabe-Ito, Tol or Pastel colour, and none is the UI accent. The round-1 cycle
+(the element owns both lists, so it can check): no color of it is within a perceptual
+distance of an Okabe-Ito, Tol or Pastel color, and none is the UI accent. The round-1 cycle
 (blue, green, orange, then the categorical palette) collided with the default community
 palette. Past the highlight palette's capacity the cycle continues through a darkened copy.
 
-**Several paths at once.** Each Path is its own row, its own edge layer, its own colour. Where
-two paths share an edge, the per-channel rule decides: the higher row's Colour wins on that
+**Several paths at once.** Each Path is its own row, its own edge layer, its own color. Where
+two paths share an edge, the per-channel rule decides: the higher row's Color wins on that
 edge, but the lower row's Width or Pattern still shows if the higher row does not write it. So a
 reader who wants three overlapping routes told apart gives them different **patterns** (solid,
-dash, dot) or different **widths** (5, 3, 2) as well as colours, and the shared edge shows the
-higher route's colour with the pattern of whichever writes Pattern highest. The legend (L)
+dash, dot) or different **widths** (5, 3, 2) as well as colors, and the shared edge shows the
+higher route's color with the pattern of whichever writes Pattern highest. The legend (L)
 lists each Path as a block with its swatch, width and pattern. Screen 8 in `screens.md` draws
 it. In the element a Path is two layers (nodes and edges; settled decision 3), so "Covered by"
 counts are per section.
 
 **What this needs from the element** (`feature-fit/5-styling.md` A1, A2, A6): `highlight()`
-loses its exclusivity (or the objects API passes `exclusive: false`); the highlight colour
+loses its exclusivity (or the objects API passes `exclusive: false`); the highlight color
 cycles per Set from the disjoint palette; a layer selector by scope with an edge target
 resolving to the induced edges of a node scope; the legend block carries width and pattern.
 All four are small.
@@ -955,9 +955,9 @@ object's rows (`feature-fit/1-data.md` note L):
 
 | Thing | What it holds | Home | Status |
 |---|---|---|---|
-| **Look** (a base preset) | the Dataset's default look (node and edge defaults, label style, arrows, background) and the default palette per kind (sequential, categorical, diverging, highlight); never an object's rows | Dataset > Canvas > Look [Default v]: Default, Presentation (bigger labels, nodes, edges), Print (greyscale categorical, pattern edges), Colour-blind safe (Okabe-Ito and viridis defaults), High contrast, Dark; "Save current as look..." | proposed, #331; the row exists only once themes are restricted to match-everything layers (a precondition, because `applyTemplate` replaces the whole stack today) |
+| **Look** (a base preset) | the Dataset's default look (node and edge defaults, label style, arrows, background) and the default palette per kind (sequential, categorical, diverging, highlight); never an object's rows | Dataset > Canvas > Look [Default v]: Default, Presentation (bigger labels, nodes, edges), Print (grayscale categorical, pattern edges), Color-blind safe (Okabe-Ito and viridis defaults), High contrast, Dark; "Save current as look..." | proposed, #331; the row exists only once themes are restricted to match-everything layers (a precondition, because `applyTemplate` replaces the whole stack today) |
 | **Saved style** (an object preset) | the paint rows of one object: "thick red dashed" for a path, "outline 2 px" for a Top N | any object's Style tab overflow: "Save style..." names it; "Apply style [v]" lists the saved styles that fit the object's kind (edge styles for an edge Set); stored in the project file | new; the objects API stores it as a layer template without a selector |
-| **Palette** | a named list of colours | the palette picker, opened from any Palette row: built-in by kind (7 sequential, 5 categorical, 3 diverging, the highlight palette), then custom; "Add palette..." takes a list of hex values or a name; a saved document carries custom palettes | today (`session.catalog.palettes()`, `registerPalette`, `toDocument()` carries them) |
+| **Palette** | a named list of colors | the palette picker, opened from any Palette row: built-in by kind (7 sequential, 5 categorical, 3 diverging, the highlight palette), then custom; "Add palette..." takes a list of hex values or a name; a saved document carries custom palettes | today (`session.catalog.palettes()`, `registerPalette`, `toDocument()` carries them) |
 
 Exporting the whole stack as a style document (`session.styles.toDocument()`) is Export >
 "Export styles..." (it exists today); the reader's way to carry a look plus its objects to
@@ -968,16 +968,16 @@ another file is the recipe (Export > Recipe, "Styles only" ticked) or the projec
 | Change | Size | Round-1 reference |
 |---|---|---|
 | Exclusive highlights become opt-in and off for the objects API | small | `feature-fit/5-styling.md` A2 |
-| Highlight colour cycles per Set from a highlight palette disjoint from the shipped categorical palettes | small | A6 |
+| Highlight color cycles per Set from a highlight palette disjoint from the shipped categorical palettes | small | A6 |
 | A layer selector by scope; an edge target resolves to induced edges | small to medium | A1, settled decision 2 |
 | A top-N scope kind usable as a layer selector (the label budget "Top 6 by Connections" is a hidden layer with one) | small | round-1 A8, settled decision 2 |
-| Suggested encoding picks the first free channel **in a per-kind order** (Measure: Colour, Size, Opacity; Grouping: Colour, Shape, Outline; Set: Outline, Colour, Glow) and never drops itself; a precondition of the objects API (section 4) | small | A3 |
+| Suggested encoding picks the first free channel **in a per-kind order** (Measure: Color, Size, Opacity; Grouping: Color, Shape, Outline; Set: Outline, Color, Glow) and never drops itself; a precondition of the objects API (section 4) | small | A3 |
 | Batch members after the first are created with the eye off; replaces the coalescing rule (`autoApply.ts` rule 3) | small | A4 |
 | Coverage counts from member masks; a partial-cover flag per row | small | `critique/rough-edges.md` section 1 |
 | `encodeAttribute` (or `encode` accepting a data path) | small | `feature-fit/5-styling.md` 2.3 |
 | Themes restricted to match-everything layers; a "base and palettes only" template scope; an unlocked dataset-default layer above the base | medium | A12, `feature-fit/1-data.md` note L |
 | A saved style: a layer template without a selector, stored with the objects | small | new |
-| The legend block publishes the Other colour, group display names, and a highlight block's width and pattern | small | #201, #191 |
+| The legend block publishes the Other color, group display names, and a highlight block's width and pattern | small | #201, #191 |
 | The legend drawn by the element, on canvas and in captures | medium | #292 "no built-in on-canvas legend" |
 
 ## 6. The timeline, and every other capability the round-1 mocks ignored
@@ -999,7 +999,7 @@ not an object: it has no members and paints nothing; it is a mask (what is showi
 Focus is, and the two compose ("Focused on Group 2, 2019-03: 6 of 34").
 
 **Two doors.** A reader who loads a CSV with a `date` column must find the timeline without
-knowing the words. The attribute catalogue already types the column as time
+knowing the words. The attribute catalog already types the column as time
 (`session.data.attributes()`), so: (1) while a time-typed column has no time role, the
 Dataset's Overview carries a Findings row "Time column: sent, 2019-01 to 2019-12 [Show over
 time]", which sets the role (#333 "implement session.catalog.timeAttributes()"), sets a
@@ -1026,8 +1026,8 @@ so screen 10 as first drawn was impossible. This design adds one rule to the ele
 its edges is; a node with its own time value follows that value; when nothing carries a time
 value, everything is inside.** So nodes follow their edges, an email network's silent people
 disappear from a month they sent nothing in, and a node table with a `joined` column is
-honoured when it exists. The gear shows "Nodes by [joined v]" as a second select when the
-catalogue has a node time column.
+honored when it exists. The gear shows "Nodes by [joined v]" as a second select when the
+catalog has a node time column.
 
 **Interval data.** graph-io stores a GEXF file's dynamics as `start`, `end` and `spells` (a list
 of intervals) role columns (`graph-io/src/formats/gexf/schema.ts:120-128, 169-177`), and the
@@ -1075,7 +1075,7 @@ or positions (`feature-fit/2-selection.md` 4.4; `feature-fit/4-layouts.md` 6.6):
 the one place appearance lives. The Views header's overflow has "Export views..." and "Import
 views..." (the element's camera-preset export and import). **Interaction.** Click applies with
 a 500 ms animation and may enter or leave Focus; double-click renames; drag reorders; Left and
-Right arrows step through Views in Present mode (Shift+\ minimises both panels to a pill;
+Right arrows step through Views in Present mode (Shift+\ minimizes both panels to a pill;
 Escape returns). Element gaps: a view preset that carries mode and mask
 (`feature-fit/6-camera.md` section 4); and the objects API stores a reader's View under its own
 namespace, because `saveCameraPreset` refuses a name that shadows a built-in framing such as
@@ -1102,7 +1102,7 @@ is disabled with the reason and the fix in its tooltip. The pre-entry choice fro
 ("Enter VR showing [Set v]") is a right-click on the segment: a dark menu of "Everything" and
 every Set, which is Focus then enter. The headset's input settings (teleportation, hand
 tracking, controllers, reference space, z-axis amplification) are Settings > Headset (6.12).
-**Interaction.** Entering minimises both panels; the status bar reads "VR [Exit]"; the headset
+**Interaction.** Entering minimizes both panels; the status bar reads "VR [Exit]"; the headset
 shows the picture as painted, and the element's own in-headset UI takes over (grab and drag a
 node pins it and the Pinned row grows; voice through the assistant creates objects that appear
 in the tree on return). On exit the desk camera is restored and the status bar says "Back from
@@ -1126,7 +1126,7 @@ assistant is scoped as the tools are (to what is showing, or the focused Set) an
 so. It gets `session.estimate`, so a four-minute run is reported as "I set up Bridges; it needs
 about four minutes, press Run" and the row lands waiting. Element work: the tool vocabulary
 becomes the command vocabulary (#337); `ai-stream-tool-result` carries the object ids;
-cancelling the request cancels the run.
+canceling the request cancels the run.
 
 ### 6.6 Notes and annotations
 
@@ -1181,12 +1181,12 @@ to 6; screens 18 to 20).
 
 **Home.** Dataset > Canvas: Labels [Top 6 by Connections v] (none, all, selected, top N by any
 Measure in the tree) with a gear opening the label-style popover; Edge labels; Tooltip. Any
-object's Style tab can add a Label row that wins on its members (a Path labelled by hop order).
-**Rows.** The label-style popover: Text (font, size, weight, colour, "Wrap at 20 characters, 2
+object's Style tab can add a Label row that wins on its members (a Path labeled by hop order).
+**Rows.** The label-style popover: Text (font, size, weight, color, "Wrap at 20 characters, 2
 lines" #294 "node labels never wrap to a width", "Cut at 15 characters"), Background (fill,
 padding, radius), Placement (attach position, offset, fade with distance, billboarding), Badge
-[none v], "Avoid overlaps" [switch] (#5). Settings > Canvas: "Highlight neighbours on hover
-[Off \| Neighbours \| 2 steps]" with "dim the rest" (element-owned, transient, allowed to dim
+[none v], "Avoid overlaps" [switch] (#5). Settings > Canvas: "Highlight neighbors on hover
+[Off \| Neighbors \| 2 steps]" with "dim the rest" (element-owned, transient, allowed to dim
 because it is the reader's setting, not an algorithm's style). **Interaction.** The label
 budget is a hidden layer whose selector is a top-N scope (5.7); if that Measure is deleted the
 row falls back to None and says so. A hover on any node shows its label even when budgeted
@@ -1238,7 +1238,7 @@ disclosures rather than a left list of sections
 | Load progress and Cancel a load (#296) | the status bar's computing chip: "Loading 42% [Cancel]" |
 | List edges (`getEdges`, #297); column to ids (#148) | the table dock's Edges tab and its object columns; noted on screen 9 |
 | Node merging | Several elements: "Merge into one node..." (proposed; the second data edit) |
-| SIF, CX2, STRING, BioGRID, Neo4j APOC readers | Open... accepts what `catalog.formats()` lists; the dialog is catalogue-driven |
+| SIF, CX2, STRING, BioGRID, Neo4j APOC readers | Open... accepts what `catalog.formats()` lists; the dialog is catalog-driven |
 | Progressive / viewport-first loading | out of scope for this design; said here |
 | Selection halo style | Settings > Canvas |
 | Selection cap 5,000 and `truncated` | status bar: "5,000 selected (capped)" |
@@ -1287,9 +1287,9 @@ this round depends on, smallest first. "Decision 2" means settled decision 2.
 
 | Item | Size | Needed by |
 |---|---|---|
-| Double-click expands when a fetcher exists, else selects neighbours | tiny | the Select tool (3.2) |
+| Double-click expands when a fetcher exists, else selects neighbors | tiny | the Select tool (3.2) |
 | `Scope` gains `{edges: EdgeId[]}` and a run-result set kind | small | every edge Set; decision 2 |
-| `session.data.neighbours(id, {direction})` returning node ids and edge ids | small | the node's Links tab; the Neighbours bar's count |
+| `session.data.neighbours(id, {direction})` returning node ids and edge ids | small | the node's Links tab; the Neighbors bar's count |
 | A `{between: {run, field, min, max}}` selection target | small | the histogram band drag (or route it through #192) |
 | A `backend` field on `RunRecord` and `CostEstimate` | small | "on the GPU" in Record, the GPU glyph, the popover's cost line |
 | A per-start backend override (`backend: "cpu"`) | small | [Retry on the CPU] (4, step 13) |
@@ -1305,7 +1305,7 @@ this round depends on, smallest first. "Decision 2" means settled decision 2.
 | The objects API keeps the history and exposes undo and redo | decision 1; #145 | Ctrl+Z, the History dock |
 | The "Overview" View written by the element as a default preset; saved View names namespaced | tiny | 6.2 |
 | Saved styles: a layer template without a selector, stored with the objects | small | Style tab overflow (5.6) |
-| A `category` (question) on every catalogue entry so a plugin lands in the right flyout | exists (`category`); the mapping is 3.6 | the Structure tool |
+| A `category` (question) on every catalog entry so a plugin lands in the right flyout | exists (`category`); the mapping is 3.6 | the Structure tool |
 | Per-step summaries and change counts for the transport's tick marks | medium | #300 |
 | A per-canvas layer visibility for Compare (two renderers, one tree) | large | 6.7, #186 |
 | An agreement statistic between two Groupings; a Difference between two Measures | small | 6.7 |
@@ -1314,7 +1314,7 @@ this round depends on, smallest first. "Decision 2" means settled decision 2.
 | Re-mapping weight, label and direction after a load without a re-import | medium | Dataset > Overview and Data (today those rows reopen the import options) |
 
 Nothing in this round asks the app to compute over nodes and edges, sniff a format, resolve a
-group into ids, estimate a cost, or copy a catalogue. Every list a panel draws is a catalogue or
+group into ids, estimate a cost, or copy a catalog. Every list a panel draws is a catalog or
 a session call; every paint row is a layer on an object the element owns; every "today" word in
 section 3 was checked against the element's source by the maintainer's critique and corrected
 where it was optimistic.
@@ -1331,12 +1331,12 @@ amends; the mocks in `../mocks/v2/` were regenerated from the amended rules.
 
 | Change | Amends | Why |
 |---|---|---|
-| **Categorical wins Colour.** When a Grouping is created while a Measure holds Colour, the Grouping takes Colour and the Measure's Colour block becomes Size (one journal entry, undoable; the Measure's summary row reads "moved to Size for Communities"). A Grouping's own order becomes Colour, Outline, Shape, and a shape encoding says "shape" in the legend | 4 step 9, 5.7 (decision T7) | with the per-kind order alone the picture depended on which of two buttons was pressed first: Groups then Rank gave colours for groups; Rank then Groups gave fourteen communities as fourteen node shapes, which nobody reads as groups |
+| **Categorical wins Color.** When a Grouping is created while a Measure holds Color, the Grouping takes Color and the Measure's Color block becomes Size (one journal entry, undoable; the Measure's summary row reads "moved to Size for Communities"). A Grouping's own order becomes Color, Outline, Shape, and a shape encoding says "shape" in the legend | 4 step 9, 5.7 (decision T7) | with the per-kind order alone the picture depended on which of two buttons was pressed first: Groups then Rank gave colors for groups; Rank then Groups gave fourteen communities as fourteen node shapes, which nobody reads as groups |
 | **A Group opens on Members.** A Group's tabs are Members, Style, Define, Record (23 characters) | 2.4 Group, 2.5 | the novice's most frequent tree click landed on three read-only rows |
-| **A Path can be asked for by name.** The Path bar's "Pick the start node" carries a field ("or type a name") backed by the Ctrl+F node lookup; a selected node pre-fills From, as Neighbours already does; the Set's Define tab "From \| To" fields are the same control. Under Focus the bar states its scope ("among what is showing, 38 nodes") and on no route reads "No route among what is showing  [Search everything]" | 3.3 Path, 3.5 | on a graph larger than the label budget the start node cannot be found by eye; eleven actions per path |
+| **A Path can be asked for by name.** The Path bar's "Pick the start node" carries a field ("or type a name") backed by the Ctrl+F node lookup; a selected node pre-fills From, as Neighbors already does; the Set's Define tab "From \| To" fields are the same control. Under Focus the bar states its scope ("among what is showing, 38 nodes") and on no route reads "No route among what is showing  [Search everything]" | 3.3 Path, 3.5 | on a graph larger than the label budget the start node cannot be found by eye; eleven actions per path |
 | **Compare's second canvas takes its own mask.** The Compare strip gains "Showing [Same \| a View v]"; a View already stores a time window (6.2), so March beside September is two Views. Nothing toggles eyes; only the mask differs | 6.7 (decision R4 kept) | the temporal question the design's own example asks (workflow W19) could not be drawn under one shared mask |
 | **The Import dialog exists on paper**, screen 14: Format detected, a five-row preview, the column roles as selects fed by a new `session.data.peek(file)` (column names, detected types, five rows, the row count) before the load | 2.4 Dataset > Data, 8 | it is the analyst's first minute and the novice's first file, and round 2 had drawn nothing and typed column names by hand |
-| **A reload keeps the objects**, screen 15: "Change..." on Direction, "Set as weight" and "Set as label" open a dialog whose default is "Keep and re-run" (the objects API replays every object's definition under the stale rule) and which states what will re-run and the cost; "Remove" is the old behaviour made explicit. When the element re-maps in place (section 8, last row) the dialog loses the reload and keeps the rule | 2.4 Dataset Overview and Data, 8 | a one-word mistake in a column role cost the whole tree, and round 1 had already asked for this twice |
+| **A reload keeps the objects**, screen 15: "Change..." on Direction, "Set as weight" and "Set as label" open a dialog whose default is "Keep and re-run" (the objects API replays every object's definition under the stale rule) and which states what will re-run and the cost; "Remove" is the old behavior made explicit. When the element re-maps in place (section 8, last row) the dialog loses the reload and keeps the rule | 2.4 Dataset Overview and Data, 8 | a one-word mistake in a column role cost the whole tree, and round 1 had already asked for this twice |
 | **A suggestion row runs at once** ("Find groups (G)" under a fresh Dataset), under the cost gate, with the cost in its tooltip; it is a flyout row drawn in the tree | 3.2, screen 2 | a row that names the verb and then asks for Run is a speed bump on the novice's first click |
 | **The bar's Run dims while the parameters popover is open**; Enter presses the popover's | 3.5, screen 4 | two live Run buttons at once |
 | **A flyout row's tooltip says what a click does** ("Click runs; ... asks first"); a flyout row clicked while the secondary bar is open behaves as the bar's select (chooses, does not run) | 3.2, 3.4 | a novice opening the chevron to look was starting a run |
@@ -1365,7 +1365,7 @@ amends; the mocks in `../mocks/v2/` were regenerated from the amended rules.
 | Screen 1 omitted both left "..." buttons instead of disabling them | drawn disabled; the left panel is one box on all app screens |
 | The canvas token was #f0f0f0; the kind line and name were 11/14 and 13/20; the dark selected pill tab was written as #444 | #f5f5f5; 11/16 and 13/22; #383838 |
 | `screen-11.html` and `toolbar-reference.html` were byte-identical | the copy is gone; screen 11 is the toolbar reference |
-| Values drifted between `screens.md` and the mocks (FloridaState for BrighamYoung, conference 7 for 4, "Tol vibrant 7 colours" for the element's nine-colour palette, "Inherited from" for "From", "Undirected, from file" for "Undirected (file)") | `screens.md` now states the mocks' values, which are the real ones from `football.gml` and the element's palette list |
+| Values drifted between `screens.md` and the mocks (FloridaState for BrighamYoung, conference 7 for 4, "Tol vibrant 7 colours" for the element's nine-color palette, "Inherited from" for "From", "Undirected, from file" for "Undirected (file)") | `screens.md` now states the mocks' values, which are the real ones from `football.gml` and the element's palette list |
 
 Not done, and recorded: the group-swatch rows ("[chit] 4  10") keep the chit at the label's
 x rather than the control's, because the chit is the row's subject, not its control; the
@@ -1380,7 +1380,7 @@ px); and screen 8's note row is 64 px because the sentence wraps to three lines.
 |---|---|---|
 | `session.data.peek(file \| url \| text)`: column names, detected types, five sample rows, the row count, before a load | small | screen 14 |
 | A reload that keeps the objects: the objects API records the tree, reloads with the new role and replays every definition under the stale rule, as one undo step | small, on the objects API | screen 15; until in-place re-mapping lands |
-| The first-paint rule gains "categorical wins Colour" (a Grouping displaces a Measure's Colour to Size) | small, in the per-kind order rule | 9.1 |
+| The first-paint rule gains "categorical wins Colour" (a Grouping displaces a Measure's Color to Size) | small, in the per-kind order rule | 9.1 |
 | Repeat naming by what differs (window, parameter) in the objects API | tiny | 9.1 |
 | A per-canvas mask for Compare, from a View | part of the second-renderer work (#186, large) | 6.7 |
 | Text search for the Path bar's name field | part of the query engine (#149, large) | 9.1 |
@@ -1395,7 +1395,7 @@ and errors 6, finding and selecting 15, filters and sets 10, analysis results 16
 export and presentation 19) and draws every one: screens 16 to 102, beside screens 1, 13 and 14
 redrawn.
 
-The design is `../round-3/revision-round-3.md`, which summarises each area, lists the few new
+The design is `../round-3/revision-round-3.md`, which summarizes each area, lists the few new
 surfaces (the Export sheet, the scatter-plot panel, the minimap card, the table's Rejected and
 Findings tabs, a second Dataset root, two canvas panes), the element work by size and five
 decisions for the owner. Its section 5 lists the sections of this file it amends; where they

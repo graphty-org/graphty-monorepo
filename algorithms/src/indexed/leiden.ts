@@ -12,7 +12,7 @@ import { modularity } from "./modularity.js";
  * @public
  */
 export interface LeidenOptions {
-    /** Resolution gamma: above 1 favours smaller communities; default 1. */
+    /** Resolution gamma: above 1 favors smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Seed of the visit orders; default 42. */
     readonly randomSeed?: number | undefined;
@@ -137,7 +137,7 @@ interface Ring {
 }
 
 /**
- * Sum the weight from u to each neighbouring community, self-loops skipped.
+ * Sum the weight from u to each neighboring community, self-loops skipped.
  * @param level - The level
  * @param comm - Community of every node
  * @param t - The tally, written for this visit
@@ -166,7 +166,7 @@ function tallyNeighbourCommunities(level: Level, comm: U32, t: Tally, u: number,
 }
 
 /**
- * The community u (taken out of `cu`) moves to: the neighbouring one with the largest modularity
+ * The community u (taken out of `cu`) moves to: the neighboring one with the largest modularity
  * gain, or an empty one when every gain is negative. Takes the chosen empty community off `empty`.
  * @param t - The tally of u's visit
  * @param cnt - Communities in the tally
@@ -200,7 +200,7 @@ function chooseCommunity(t: Tally, cnt: number, cu: number, ku: number, cs: Comm
 }
 
 /**
- * Queue again every neighbour of u not queued and outside u's new community.
+ * Queue again every neighbor of u not queued and outside u's new community.
  * @param level - The level
  * @param comm - Community of every node
  * @param ring - The work queue
@@ -237,8 +237,8 @@ function emptyCommunities(size: U32): number[] {
 
 /**
  * Leiden's fast local moving: nodes wait in a queue started as a seeded shuffle; a visited node
- * moves to the neighbouring community (or an empty one) with the largest modularity gain, and when
- * it moves, its neighbours outside its new community are queued again. Ends when the queue empties.
+ * moves to the neighboring community (or an empty one) with the largest modularity gain, and when
+ * it moves, its neighbors outside its new community are queued again. Ends when the queue empties.
  * @param level - The level
  * @param comm - Community of every node, below the node count; moved in place
  * @param rand - Generator
@@ -403,7 +403,7 @@ function gainOf(t: Tally, rf: Refinement, r: number, kv: number, resolution: num
 }
 
 /**
- * The unnormalised draw weight of sub-community r: exp of its gain over the best, in modularity
+ * The unnormalized draw weight of sub-community r: exp of its gain over the best, in modularity
  * units, divided by theta.
  * @param t - The tally of v's visit
  * @param rf - The refinement
@@ -480,7 +480,7 @@ function drawCandidate(
  * @param rand - Generator
  * @param resolution - Resolution gamma
  * @param m2 - Twice the total edge weight
- * @returns The sub-community of every node, labelled by a member's index (not dense)
+ * @returns The sub-community of every node, labeled by a member's index (not dense)
  */
 function refine(level: Level, comm: U32, rand: () => number, resolution: number, m2: number): U32 {
     const { s, deg } = level;
@@ -628,7 +628,7 @@ function checkedEdgeWeights(s: GraphSnapshot): F64 {
  * on a graph without self-loops equals the legacy `leiden`'s. Weights are the exact f64 ones when
  * the snapshot keeps them. The partition is not the legacy function's move for move: the legacy
  * `leiden` splits disconnected communities rather than refining them, and visits nodes in another
- * order; what this guarantees is connected communities. Both are randomised heuristics, so for one
+ * order; what this guarantees is connected communities. Both are randomized heuristics, so for one
  * seed either can come out ahead; on the shared fixtures this one's modularity is at least the
  * legacy's at the default seed and on average over seeds.
  * @param s - An undirected snapshot

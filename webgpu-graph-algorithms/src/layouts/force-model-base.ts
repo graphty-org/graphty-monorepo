@@ -208,7 +208,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
     readonly stages: typeof FORCE_STAGES = FORCE_STAGES;
     /** Fa2Params: the per-iteration uniform block (the simulation writes the shared fields into it). */
     readonly params: UniformBlock = FA2_PARAMS;
-    /** Fa2State: the state header block (the simulation allocates and initialises it through this layout). */
+    /** Fa2State: the state header block (the simulation allocates and initializes it through this layout). */
     readonly state: UniformBlock = FA2_STATE;
     /** Fa2Trace: one record per iteration of a batch. */
     readonly trace: UniformBlock = FA2_TRACE;
@@ -637,7 +637,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
 
     /**
      * Drops the bind groups of the previous bind() (the buffers changed) so the cached kernels do not accumulate stale
-     * groups across reloads (FA2's K3 / K4 live inside RepulsionExact and keep the P1-T6 behaviour); the grid stage
+     * groups across reloads (FA2's K3 / K4 live inside RepulsionExact and keep the P1-T6 behavior); the grid stage
      * releases its lease. Also forgets the pass of a batch recorded before the rebind.
      */
     private dropBound(): void {

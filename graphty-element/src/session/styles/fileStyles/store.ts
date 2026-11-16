@@ -61,7 +61,7 @@ export interface FileStyleLoadValues {
 
 /** One load, held. */
 interface StoredFileStyleLoad {
-    /** What it was written from, normalised. */
+    /** What it was written from, normalized. */
     readonly values: FileStyleLoadValues;
     /** Its columns by `<kind>:<key>`, each by element id. */
     readonly columns: ReadonlyMap<string, ReadonlyMap<NodeId | EdgeId, FileStyleScalar>>;

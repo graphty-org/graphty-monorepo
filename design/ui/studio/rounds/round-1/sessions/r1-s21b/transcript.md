@@ -70,7 +70,7 @@ Start: the empty app. Commands run from `design/ui/studio`, session folder
 
 11. `--step $S --click-at 157,200` -> 11.png. Instead of a table, a whole page titled "Add to
     Florentine families": "Drop a file here, or choose a file...", Direction "As the file says",
-    Cancel, Load (greyed), "Choose a file first".
+    Cancel, Load (grayed), "Choose a file first".
 
     > "What? I didn't want to add anything. I wanted to see the table. That's scary, I don't want
     > to break the sample."
@@ -95,10 +95,10 @@ Start: the empty app. Commands run from `design/ui/studio`, session folder
     > HESITATION: tooltips that show the previous button's name.
 
 15. `--step $S --click-at 838,864` -> 17.png. A command box opens: "Search commands", Go to
-    Graph / Data, Graph tree: Find, "Add label line" (greyed out), Analyze, Data: New from
+    Graph / Data, Graph tree: Find, "Add label line" (grayed out), Analyze, Data: New from
     data...
 
-16. `--step $S --type "label"` -> 18.png. Only "Add label line" remains, still greyed out.
+16. `--step $S --type "label"` -> 18.png. Only "Add label line" remains, still grayed out.
 
     > "There is a label thing but I can't press it. I don't know what a 'label line' is.
     > That's my second wrong try for names."
@@ -142,7 +142,7 @@ Start: the empty app. Commands run from `design/ui/studio`, session folder
     - Clicking the name row, or "Selection 7", never gave me a list of the selected families.
     - Clicking "Edge table" in Data opened an "Add to Florentine families" import page instead of
       showing the table; I was afraid I would change the sample.
-    - The only label command, "Add label line", was greyed out with no explanation.
+    - The only label command, "Add label line", was grayed out with no explanation.
     - Tooltips on the bottom toolbar seemed to show the previous button's name, and
       "NeighborhoodG" ran the shortcut into the word.
     - Clicking one dot dropped the neighborhood highlight, so I could not check off the six as I

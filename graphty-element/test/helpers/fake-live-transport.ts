@@ -54,7 +54,7 @@ class FakeNode {
     }
 }
 
-/** An analyser whose level a test sets (0 to 1). */
+/** An analyzer whose level a test sets (0 to 1). */
 class FakeAnalyser extends FakeNode {
     fftSize = 2048;
     smoothingTimeConstant = 0;
@@ -312,7 +312,7 @@ export interface FakeLiveTransport {
     readonly contexts: FakeAudioContext[];
     readonly worklets: FakeWorkletNode[];
     readonly audios: { paused: boolean; srcObject: unknown }[];
-    /** The microphone's level, 0 to 1, as the analysers report it. */
+    /** The microphone's level, 0 to 1, as the analyzers report it. */
     inputLevel: number;
     /** The socket answers a setup message with `setupComplete`. */
     answerSetup: boolean;

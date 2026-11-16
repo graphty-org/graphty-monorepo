@@ -147,7 +147,7 @@ async function bridge(graph: Graph, layout = "forceatlas2", options: object = {}
  *
  * WHY NOT THE PUBLISHED ARRAY. This fake's movement is a rigid translation -- every unfixed row
  * slides the same distance along x -- and a rigid translation is exactly what the bridge's refit
- * removes on the way out, because the arrangement's centre slides with it. So "did a batch move
+ * removes on the way out, because the arrangement's center slides with it. So "did a batch move
  * the graph" is a question only the simulation's own array can answer. A real layout deforms the
  * arrangement and shows up in both.
  * @param simulation - The fake simulation to read, which holds the array the bridge handed it.
@@ -165,7 +165,7 @@ function rawX(simulation: FakeSimulation | undefined, row: number): number {
  * A row's whole coordinate in the SIMULATION's own units, off a fake that is running the layout.
  *
  * The three components of {@link rawX}, for the cases that are about the MAP between the two unit
- * systems rather than about movement: the scale is one number but the centre is three, so a case
+ * systems rather than about movement: the scale is one number but the center is three, so a case
  * that only read x would leave two thirds of the map unpinned.
  * @param simulation - The fake simulation to read, which holds the array the bridge handed it.
  * @param row - The dense row to read.
@@ -180,7 +180,7 @@ function rawAt(simulation: FakeSimulation | undefined, row: number): { x: number
 }
 
 /**
- * How far the furthest of these rows sits from their own centre, in scene units.
+ * How far the furthest of these rows sits from their own center, in scene units.
  *
  * The published radius of a part of the graph, which is what the refit fits to `scalingFactor` --
  * so it is also what a case asking "did something else resize these rows" measures.
@@ -208,7 +208,7 @@ function spread(rig: Rig, rows: readonly number[]): number {
 /**
  * A number that describes an arrangement's shape and nothing about its size or its position.
  *
- * The ratio of two distances, which the envelope map -- a uniform scale about a moving centre --
+ * The ratio of two distances, which the envelope map -- a uniform scale about a moving center --
  * cannot change. A row that was reseeded instead of carried would land somewhere unrelated and
  * change it.
  * @param rig - The rig whose first three rows are measured.
@@ -940,7 +940,7 @@ describe("the simulation layout bridge", () => {
 
         // LOUD, not quiet. There is no processor implementation of spring-electrical at all, so
         // the alternative to refusing is arranging the graph some other way and saying nothing.
-        // The layout catalogue declares `requires.accelerator` on this engine, so a picker never
+        // The layout catalog declares `requires.accelerator` on this engine, so a picker never
         // has to reach this refusal to find out.
         const refused = await graph.setLayout("spring-electrical").catch((error: unknown) => error);
 
@@ -1070,7 +1070,7 @@ describe("the simulation layout bridge", () => {
         assert.closeTo(landed.z, 5, 1e-3);
 
         // AND IT STAYS THERE while the arrangement around it is refitted, which is the harder
-        // half: the graph is still settling, so the scale and the centre move under it every
+        // half: the graph is still settling, so the scale and the center move under it every
         // frame. A node that was published from the simulation's stale copy of itself would drift
         // out from under the pointer by the ratio of the two scales.
         for (let frame = 0; frame < 30; frame += 1) {
@@ -1133,10 +1133,10 @@ describe("the simulation layout bridge", () => {
 
     it("reads a scene-unit position as the simulation coordinate that point is published from", async () => {
         // THE WRITE-BACK DIRECTION, pinned where it can be seen. A published position cannot pin
-        // it: the refit is a uniform scale about the arrangement's own centre, so it normalises
+        // it: the refit is a uniform scale about the arrangement's own center, so it normalizes
         // any consistent pair of unit systems to the same picture, and a drag that wrote raw
         // scene units into the simulation would still read back at the pointer. What it would
-        // break is the simulation's own arithmetic -- a dragged node would pull its neighbours
+        // break is the simulation's own arithmetic -- a dragged node would pull its neighbors
         // toward some other point entirely -- and only the simulation's array shows that. This
         // fake holds the bridge's array, so here it can be read.
         const graph = await pathGraph(12);
@@ -1223,7 +1223,7 @@ describe("the simulation layout bridge", () => {
         // simulation's array from the element's -- through the same map, inverted. Read in scene
         // units instead, the arrangement would arrive at some other size and the forces, which
         // are absolute in the simulation's units, would take it apart and settle it again. The
-        // published picture would not say so: the refit normalises it either way, which is why
+        // published picture would not say so: the refit normalizes it either way, which is why
         // this is read off the simulation's own array and not off a node's position.
         const graph = await pathGraph(8);
         // The working graph off: with it on, the seeded restart the add sets off lands after the

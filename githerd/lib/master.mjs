@@ -40,7 +40,7 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
 /**
  * The outcome class of a completed run's conclusion.
  * @param {string | null} conclusion the run's conclusion
- * @returns {Outcome} green, red, or neutral (cancelled, skipped, neutral, action_required)
+ * @returns {Outcome} green, red, or neutral (canceled, skipped, neutral, action_required)
  */
 function classify(conclusion) {
     if (conclusion === "success") return "green";
@@ -89,7 +89,7 @@ export function updateLane(name, saved, runs, config, now) {
     recordScheduled(lane, prev, sorted, at);
     const events = trackInFlight(lane, prev, sorted, name, config.lanes[name], now);
 
-    // The newest run with a verdict: a skipped or cancelled run (a push the release workflow skips,
+    // The newest run with a verdict: a skipped or canceled run (a push the release workflow skips,
     // a superseded restart) is none, and an older run that finishes after it still counts.
     const done = sorted.find((r) => r.status === "completed" && classify(r.conclusion) !== "neutral");
     // A record an older githerd left on a neutral run is no bound.
@@ -105,7 +105,7 @@ export function updateLane(name, saved, runs, config, now) {
 }
 
 /**
- * Keeps the newest failed run of a red lane in `redRun`: a cancelled or skipped run after it moves
+ * Keeps the newest failed run of a red lane in `redRun`: a canceled or skipped run after it moves
  * `runId` but is no verdict, so `runId` alone would name a run that never failed. Gone once green.
  * @param {LaneRecord} lane the record being built
  * @param {WorkflowRun[]} sorted the runs, newest first
@@ -221,7 +221,7 @@ function applyDone(lane, prev, done, name, at, events) {
         updatedAt: done.updated_at ?? at,
     });
     if (outcome !== "red") {
-        // Green, or cancelled, skipped, neutral, action_required: the previous verdict stands.
+        // Green, or canceled, skipped, neutral, action_required: the previous verdict stands.
         lane.pendingRed = null;
         if (outcome !== "green") return;
         lane.verdict = "green";
@@ -332,7 +332,7 @@ export function masterVerdict(lanes, config, { headSha, commits, greenSha = null
 
 /**
  * The lanes starved since the green commit (design 4.7): a lane whose runs on the first-parent
- * commits after `greenSha` were all superseded (they ended neither green nor red, cancelled by the
+ * commits after `greenSha` were all superseded (they ended neither green nor red, canceled by the
  * next merge's run) and at least one was, so it has finished on no commit since green. A green
  * commit not among `commits` means more merges went on past it than the list holds; the whole
  * list is counted then. Event-based: no age of the green commit decides it.
@@ -434,7 +434,7 @@ function isRelease(message, pattern) {
  * @returns {{lastRelease: {sha: string, at: string} | null, releaseEligibleSince: string | null,
  *   failed: boolean, stalled: boolean, stuckOnly: boolean}} `failed` while the release lane is red;
  *   `stalled` while eligible when the release train's newest scheduled or dispatched run, started
- *   after the last release, ended other than green (it never got going: cancelled, skipped, a
+ *   after the last release, ended other than green (it never got going: canceled, skipped, a
  *   startup failure; a red one is `failed` already); `stuckOnly` when only a stuck lane run stands
  *   between the branch and eligibility. Elapsed time alone never stalls a release
  */

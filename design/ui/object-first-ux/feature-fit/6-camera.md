@@ -69,13 +69,13 @@ whether using it changes the tree, the precedence or any object's state.
 |---|---|---|---|---|---|
 | View mode 2D / 3D | shipped | the mode switch's first two segments; key 5 toggles; the palette | natural | `el.viewMode`, `el.setViewMode()`; the layout dimension follows it (`LayoutManager.updateLayoutDimension`) | none. The tree paints the same objects in both. Section 2.1: the Dataset's Arrangement section must not offer a second Dimensions control |
 | 3D orbit (left-drag orbits, pinch zooms, keys zoom) | shipped | the canvas, with the Select tool on empty space or the Hand tool (H) or Space held | natural | `OrbitInputController` | none |
-| 2D pan and wheel zoom | shipped; zoom is about the centre, not the cursor (#290) | the canvas; Hand (H) or Space | natural | `TwoDInputController`; gap: cursor-anchored zoom, 3D wheel zoom, right-drag pan (#290) | none |
+| 2D pan and wheel zoom | shipped; zoom is about the center, not the cursor (#290) | the canvas; Hand (H) or Space | natural | `TwoDInputController`; gap: cursor-anchored zoom, 3D wheel zoom, right-drag pan (#290) | none |
 | Hand tool versus marquee | new in the model | Hand (H) pans or orbits; Select (V) drags a marquee on empty canvas | awkward, section 2.2 | gap (small): a pointer mode the app can set so Select-drag selects and Hand-drag pans; today drag on empty space always pans or orbits | none |
 | Zoom in / out (= and -) | shipped in the app | the zoom menu; keys; the palette | natural | `el.setCameraZoom()` | none |
 | Zoom to fit (0) | shipped | the zoom menu | natural | `el.zoomToFit()`, framing `fitToGraph` | none |
 | Zoom to selection (F) | shipped for one node in the app | the zoom menu; also "Locate" on a node inspector and "Locate" in every Set's and Group's overflow (the model, section 4.8 and 4.2) | natural | gap (small): fit the camera to a scope or a list of ids (`fit(scope)`, `zoomToNodes(ids)` in `design/element-api/element-api-design.md` 4.8); today the app reads a mesh position and sets the target | none; for a Set row it uses the object's members as the scope |
 | Camera framings: From above, From the front, From the side, Isometric, Fit | shipped in the element; Isometric is "Coming" in the app (#183) | the zoom menu, below the zoom rows; keys 7, 1, 3; the palette. Not rows in the Views list (model decision 23) | natural | `session.catalog.cameras()` filtered by `camerasForMode(mode)` so a framing that is 3D-only (front, side, isometric) is not offered in 2D; `el.applyCameraView(id)` | none |
-| Custom framing plugin | shipped | appears in the zoom menu from the catalogue, no app change | natural | `docs/guide/extending/custom-cameras.md`, `cameraRegistry` | none |
+| Custom framing plugin | shipped | appears in the zoom menu from the catalog, no app change | natural | `docs/guide/extending/custom-cameras.md`, `cameraRegistry` | none |
 | Reset camera (Shift+0) | shipped | the palette only; the zoom menu's Fit and the "Overview" view cover the everyday need | natural | `el.resetCamera()` | none |
 | Camera state read / write with animation | shipped | not on the screen; the machinery under Views, Locate, video paths and the assistant's `setCameraPosition` tool | natural | `el.getCameraState()`, `el.setCameraState(state, {animate, duration, easing})` | none |
 | Camera change event and the zoom readout | shipped event; the app draws no readout because it has no zoom percentage | the status bar's right end and the zoom menu's face ("100%") | awkward, section 2.3 | `camera-state-changed`; gap: a readable zoom percentage (`zoomPercent`, design 4.8) with a definition of 100% | none |
@@ -83,7 +83,7 @@ whether using it changes the tree, the precedence or any object's state.
 | Animated camera and layout transitions (250 ms zoom, 300 to 1000 ms layout moves, fades on mask changes) | shipped for layout transitions; a mask change does not fade | not on the screen: element defaults. The one rule the model adds: Focus and Exit focus animate the mask change so the reader sees what left | natural | `RunOptions.transitionMs`; gap (small): a fade on `visibility.set` | none |
 | World-to-screen and back | shipped | not on the screen; used by the note markers and a consumer-drawn minimap | natural | `el.worldToScreen()`, `el.screenToWorld()` | none |
 | Input enable | shipped | not on the screen; the app turns pointer input off under a popover or during a pick | natural | `el.setInputEnabled(false)` | none |
-| Background colour or skybox | shipped | Dataset > Canvas > Background chit (the model, section 4.1) | natural | `el.background` | none |
+| Background color or skybox | shipped | Dataset > Canvas > Background chit (the model, section 4.1) | natural | `el.background` | none |
 | Canvas theme (light / dark canvas follows the page) | proposed #291, #331 | the file menu > Settings > Appearance for the page; the Dataset > Canvas > Background row offers "Follow theme" as its first choice | natural | gap: `session.catalog.themes()` (#331) | none |
 | Fullscreen | not in either inventory | the palette ("Enter fullscreen", F11 is the browser's) | natural | none needed (the browser's Fullscreen API on the app's root) | none |
 
@@ -103,7 +103,7 @@ whether using it changes the tree, the precedence or any object's state.
 
 | Capability | Status | Home | Fit | Element API used or needed | Tree / precedence / state |
 |---|---|---|---|---|---|
-| Minimap: whole graph at reduced scale, viewport indicator, click to centre | proposed #293; the app draws an empty box | a canvas overlay at the bottom left, toggled by M, by Dataset > Canvas > Minimap and by the palette; off by default (the model shows nothing on the canvas unasked) | natural in 2D, awkward in 3D, section 2.6 | gap (medium): an element-owned minimap or an overview API (projected points or density grid plus the viewport rectangle, with change events) (#293) | none |
+| Minimap: whole graph at reduced scale, viewport indicator, click to center | proposed #293; the app draws an empty box | a canvas overlay at the bottom left, toggled by M, by Dataset > Canvas > Minimap and by the palette; off by default (the model shows nothing on the canvas unasked) | natural in 2D, awkward in 3D, section 2.6 | gap (medium): an element-owned minimap or an overview API (projected points or density grid plus the viewport rectangle, with change events) (#293) | none |
 | Legend overlay (L) | shipped in the app, drawn from the element's model; the element draws none (#292) | a canvas overlay at the bottom right; Dataset > Canvas > Legend; one block per visible Measure or Grouping in precedence order | natural (covered in the styling area's file; listed here because it is an overlay and goes into captures) | `session.styles.legend()`; gap: element-drawn legend (#292) | reads precedence; never changes it |
 | Canvas toolbar show / hide (today's Views menu checkbox) | shipped in the app | dropped. The toolbar is always shown except in Present mode (1.5) | natural | none | none |
 | Label budget (top N labels by a Measure) | shipped in the app as a load-time setting | Dataset > Canvas > Labels [Top 6 by Connections v] (the model, section 4.1); the Measure named there must be in the tree | natural | `node.label` channel through a layer whose selector is a top-N of a run; gap (small): the result-field filter "top" as a selector (#192) | the label layer is the Dataset's, below every object; a Set's own Label channel still wins on its members |
@@ -152,9 +152,9 @@ thing for the rail-and-panels shell and most of it transfers unchanged.
 | Export a result (ranked list, membership CSV) | proposed (#178) | each Measure's and Grouping's Export section; covered in the runs area's file | natural | `RunResult.ranking()`; gap: exporters | none |
 | Export the graph as a file (GraphML, GEXF, CSV, JSON, CX2) | proposed (every format is `canExport: false`) | Share > "Export data..." and Dataset > Export; covered in the data area's file | natural | gap: exporters (graph-io has them) | none |
 | Export styles as a document | shipped | not in Share: it is the styling area's "Save look" on the Dataset; listed here only to say it is not a Share item | natural | `session.styles.toDocument()` | none |
-| Project file: save and reopen the session (#301) | proposed; a one-way door on the file format | the file menu (the left panel header's chevron): "Save project", "Open"; also Ctrl+S. Not under Share, because it is the reader's own work, not a picture for someone else | natural | gap: #301, which must serialise the element-owned tree (the model, section 11) | it IS the tree, saved |
+| Project file: save and reopen the session (#301) | proposed; a one-way door on the file format | the file menu (the left panel header's chevron): "Save project", "Open"; also Ctrl+S. Not under Share, because it is the reader's own work, not a picture for someone else | natural | gap: #301, which must serialize the element-owned tree (the model, section 11) | it IS the tree, saved |
 | Share as a link, collaboration, spotlight, follow a collaborator (Figma's Share) | not in any inventory; no server exists | none. Share's menu is exports only | does not fit, section 3.4 | none | none |
-| Present mode (chrome-free canvas; step through Views with arrow keys) | new here; the analogue of Figma's Present and Minimize UI, and the persona need behind `design/designloom/workflows/W15.yaml` | the file menu "Present" and Shift+\ (Figma's Minimize UI key): both panels and the status bar unmount; a 48 px floating pill at the top left holds the file name and "Exit"; Left and Right arrows apply the previous and next View with the 500 ms animation; the legend stays; the toolbar's mode switch stays as a pill | natural: the Views list is the slide list, as Figma's pages are | `el.setCameraState(state, {animate})`; nothing new | none; the tree still paints, it is just not shown |
+| Present mode (chrome-free canvas; step through Views with arrow keys) | new here; the analog of Figma's Present and Minimize UI, and the persona need behind `design/designloom/workflows/W15.yaml` | the file menu "Present" and Shift+\ (Figma's Minimize UI key): both panels and the status bar unmount; a 48 px floating pill at the top left holds the file name and "Exit"; Left and Right arrows apply the previous and next View with the 500 ms animation; the legend stays; the toolbar's mode switch stays as a pill | natural: the Views list is the slide list, as Figma's pages are | `el.setCameraState(state, {animate})`; nothing new | none; the tree still paints, it is just not shown |
 | Render settings, WebGPU rendering (#36), profiling | shipped loosely typed; #36 proposed | the file menu > Settings > Performance; a status bar chip "WebGL" or "WebGPU" only when the reader asked to see it; never on the everyday screen | natural | `el.setRenderSettings()`, `el.getStatsManager()` | none |
 | Screen too small (below 1280 px) | shipped | the frame (not this area); noted because Present mode and Minimize UI are the obvious way to make a 1024 px window usable, which the app's sheet forbids today (#327) | natural | none | none |
 
@@ -243,7 +243,7 @@ zoom menu are the shortcuts.
 ### 2.6 A minimap in 3D
 
 In 2D a minimap is a solved thing: the whole graph small, a rectangle for the viewport, click
-to centre. In 3D the "viewport" is a frustum and the graph must be projected along the current
+to center. In 3D the "viewport" is a frustum and the graph must be projected along the current
 view direction, which only the element can do (that is why the app's minimap is an empty box,
 #293). Decision: the minimap is drawn by the element (an opt-in overlay, as #293 proposes for
 the legend too), because both the projection and the viewport shape are the element's; in 3D
@@ -292,7 +292,7 @@ nearest thing is.
 
 ### 3.1 Two datasets side by side (Condition Comparison, phases 1 and 2)
 
-The tree has one root, and every object is computed within it. Two networks (tumour beside
+The tree has one root, and every object is computed within it. Two networks (tumor beside
 normal) are two roots, and "merge (union, intersection, difference)" across them is a data
 operation, not a Set operation. Compare mode (2.5) covers one pair of views of ONE dataset,
 which serves comparing two algorithms, two masks or two moments in time, but not two files.
@@ -339,7 +339,7 @@ the reasons in 2.9 and holds exports only.
 The designloom view V03 is a second layout with a right sidebar for composing a report. The
 paradigm replaces it with Share > "Export report...", a popover whose sections are the tree's
 objects in tree order. A second screen would be a mode that changes what the panels mean,
-which the comparison document criticised. Does not fit as a screen; fits as a popover.
+which the comparison document criticized. Does not fit as a screen; fits as a popover.
 
 ## 4. Element work this area needs, in one list
 

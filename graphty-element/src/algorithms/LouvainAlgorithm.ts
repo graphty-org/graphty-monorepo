@@ -122,7 +122,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     };
 
     /**
-     * Group the nodes into communities by optimising modularity.
+     * Group the nodes into communities by optimizing modularity.
      *
      * Publishes the community shape's uniform fields: a group per node, and the modularity the
      * method reported for its own partition. The group sizes, the group count and the size table

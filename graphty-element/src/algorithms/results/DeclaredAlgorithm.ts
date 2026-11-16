@@ -26,14 +26,14 @@ import {
 /**
  * Turn a run's own account of a field into the descriptor the result object carries.
  *
- * The plain and technical names are the catalogue's to state, and the catalogue cannot be
+ * The plain and technical names are the catalog's to state, and the catalog cannot be
  * imported here without a cycle -- it reads these classes to publish their options. So the 1.x
  * adapter fills them from the field name, and the run executor, which does hold the descriptor,
- * passes the catalogue's own. Nothing published to a consumer comes from this path.
+ * passes the catalog's own. Nothing published to a consumer comes from this path.
  * @param spec - What the run says it filled.
  * @param runId - The run the field belongs to.
  * @param shape - The run's result shape, which says whether the field names groups.
- * @param declared - The catalogue's descriptors for this algorithm, when the caller holds them.
+ * @param declared - The catalog's descriptors for this algorithm, when the caller holds them.
  * @returns The descriptor.
  */
 function toFieldDescriptor(
@@ -65,18 +65,18 @@ export abstract class DeclaredAlgorithm<
     TOptions extends Record<string, unknown> = Record<string, unknown>,
 > extends Algorithm<TOptions> {
     /**
-     * What the catalogue publishes about this algorithm.
+     * What the catalog publishes about this algorithm.
      *
      * DECLARED HERE, ON THE PUBLISHED BASE, so a plugin author reads one class to learn what a
      * subclass must carry. It is also what turns the descriptor into the single declaration:
-     * `descriptor.options` is what a form renders, what the catalogue publishes, what the run
+     * `descriptor.options` is what a form renders, what the catalog publishes, what the run
      * path validates a caller's parameters against, and -- through
      * `resolveOptions` below -- what the running code receives. An
      * algorithm used to say all of that twice, in two vocabularies that did not correspond, with
      * nothing cross-checking them.
      *
      * Absent, the class stays exactly as capable as it was: registered, callable through the
-     * 1.10 address, and invisible to the catalogue.
+     * 1.10 address, and invisible to the catalog.
      */
     static descriptor?: AlgorithmDescriptor;
 
@@ -88,7 +88,7 @@ export abstract class DeclaredAlgorithm<
      *
      * ONE DECLARATION, NOT TWO. `descriptor.options` is the only list a declared algorithm
      * writes, and this is what makes that true at the point the values reach the running code:
-     * the same descriptors the catalogue hands a picker are what the caller's values are checked
+     * the same descriptors the catalog hands a picker are what the caller's values are checked
      * against. The older `static optionsSchema` remains the answer for a class that declares no
      * descriptor, which is every algorithm the element itself ships.
      *
@@ -132,8 +132,8 @@ export abstract class DeclaredAlgorithm<
      * Compute this algorithm's result.
      *
      * Report progress and yield through the context rather than running to completion in one
-     * block, and honour its signal: an analysis that cannot be watched or stopped is unusable on
-     * a graph big enough to be worth analysing.
+     * block, and honor its signal: an analysis that cannot be watched or stopped is unusable on
+     * a graph big enough to be worth analyzing.
      * @param context - What the element gave the run.
      * @returns Everything the run produced, or null when there was nothing to compute.
      */
@@ -159,9 +159,9 @@ export abstract class DeclaredAlgorithm<
      * name every algorithm answers to.
      * @param context - A signal, a progress channel and a yield.
      * @param runId - The id the result is published under.
-     * @param fields - The catalogue's descriptors for this algorithm's fields.
+     * @param fields - The catalog's descriptors for this algorithm's fields.
      * @returns The result, or undefined when there was nothing to compute.
-     * @throws Whatever the context's signal throws once the run has been cancelled.
+     * @throws Whatever the context's signal throws once the run has been canceled.
      */
     publishResult(
         context: RunControls,
@@ -174,17 +174,17 @@ export abstract class DeclaredAlgorithm<
     /**
      * Compute this algorithm's result, publish it under a run id, and project the 1.x view of it.
      *
-     * This is what the run executor calls. The catalogue's own field descriptors are passed in
-     * because the catalogue states what a reader sees a field called and cannot be imported here
+     * This is what the run executor calls. The catalog's own field descriptors are passed in
+     * because the catalog states what a reader sees a field called and cannot be imported here
      * without a cycle -- it reads these classes to publish their options.
      * @param context - What the element gave the run: a signal, a progress channel and a yield.
      *   The graph the run computes over is bound here, as the context's `input`.
      * @param runId - The id the result is published under, which is the `<runId>` in
      *   `results.<runId>`.
-     * @param declared - The catalogue's descriptors for this algorithm's fields, when the caller
+     * @param declared - The catalog's descriptors for this algorithm's fields, when the caller
      *   holds them.
      * @returns The result, or undefined when there was nothing to compute.
-     * @throws Whatever the context's signal throws once the run has been cancelled, which is a
+     * @throws Whatever the context's signal throws once the run has been canceled, which is a
      *   `DOMException` named `AbortError`.
      */
     async computeRun(

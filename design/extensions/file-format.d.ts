@@ -1,6 +1,6 @@
 /**
- * File format extension point. NORMATIVE for shapes; behaviour in design/extensions/file-format.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
+ * File format extension point. NORMATIVE for shapes; behavior in design/extensions/file-format.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/FormatDescriptor.
  */
 import type { AttributeType, GraphtyError, OptionDescriptor, RegisterOptions } from "./common";
@@ -178,7 +178,7 @@ export interface ExportCapabilitiesLike {
     readonly temporal: "none" | "intervals" | "spells" | "dynamic-values";
     readonly graphAttributes: boolean;
     readonly positions: boolean;
-    /** Whether the format has a place for colour, size, shape and thickness. */
+    /** Whether the format has a place for color, size, shape and thickness. */
     readonly viz: boolean;
 }
 
@@ -195,7 +195,7 @@ export interface LossNote {
 export interface FormatWriterRegistration<Snapshot = unknown> {
     /**
      * The format's descriptor with canExport: true. When a reader for the same id is registered,
-     * the two descriptors MUST agree on id, plainName, extensions and mimeTypes; the catalogue
+     * the two descriptors MUST agree on id, plainName, extensions and mimeTypes; the catalog
      * publishes one entry with canImport and canExport both true.
      */
     readonly descriptor: FormatDescriptor;
@@ -280,7 +280,7 @@ export interface LoadReport extends ImportReport {
         readonly sha256Decompressed?: string | null;
         readonly loadedAt: string;
     };
-    /** True when the load failed, was cancelled or stopped at a limit; then committed says what stayed. */
+    /** True when the load failed, was canceled or stopped at a limit; then committed says what stayed. */
     readonly partial: boolean;
     readonly committed: "all" | "none";
     /** The reader's static version, when it declares one. */
@@ -333,7 +333,7 @@ export interface LoadReport extends ImportReport {
  * members (README section 6.2 item 1), so adding it cannot collide with a plugin's own members.
  */
 export interface ReaderContext {
-    /** Aborted when the load is cancelled. A reader checks it between chunks and throws its reason. */
+    /** Aborted when the load is canceled. A reader checks it between chunks and throws its reason. */
     readonly signal: AbortSignal;
     /** The input as bytes, decompressed by the element (gzip, zip) when the name or magic bytes say so. */
     bytes(): Promise<Uint8Array>;

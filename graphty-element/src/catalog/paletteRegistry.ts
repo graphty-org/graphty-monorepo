@@ -2,22 +2,22 @@
  * @file The palettes a third party registered.
  *
  * A palette is the one extension point with no code in it. Nothing in the element ever asks a
- * palette for behaviour: the categorical index path, the continuous interpolation path, the step
+ * palette for behavior: the categorical index path, the continuous interpolation path, the step
  * table, the over-subscription refusal, the legend and the reversal flag are all implemented by
  * code that reads six fields off a descriptor. So the descriptor is the whole unit, and a class
  * would be a data carrier wearing a constructor.
  *
  * WHAT REGISTRATION CHECKS, AND WHY EACH CHECK IS AT THE DOOR RATHER THAN IN THE REPAINT.
  *
- * - An anchor that is not a colour is refused here. The same mistake used to be caught inside
+ * - An anchor that is not a color is refused here. The same mistake used to be caught inside
  *   the ramp builder, one repaint after it was made, by which point the author is looking at a
  *   picture rather than at their registration call.
- * - Anchors are normalised to six-digit hex here, so an author may write `oklch(...)` or a CSS
- *   colour name and the renderer, the legend and a saved document all read the same hexes. The
+ * - Anchors are normalized to six-digit hex here, so an author may write `oklch(...)` or a CSS
+ *   color name and the renderer, the legend and a saved document all read the same hexes. The
  *   interpolation path reads six digits and answers magenta for anything else, so without this a
- *   palette written in named colours produces correct endpoints and a magenta middle.
+ *   palette written in named colors produces correct endpoints and a magenta middle.
  * - `kind` is authoritative and `capacity` is derived from it: a categorical palette carries as
- *   many values as it has colours, and a continuous one carries anchors to interpolate between
+ *   many values as it has colors, and a continuous one carries anchors to interpolate between
  *   rather than a fixed set. A descriptor whose `capacity` contradicts its `kind` is refused
  *   rather than silently corrected, because the contradiction means the author believes one of
  *   the two and the element cannot tell which.
@@ -41,7 +41,7 @@ import { KNOWN_PALETTE_IDS, type PaletteDescriptor, type PaletteId, type Palette
  * re-evaluating the module rebuilds from scratch -- a new object every time, describing exactly
  * the same palette. Comparing the objects would call that a collision and warn about a palette
  * nobody changed.
- * @param descriptor - The normalised descriptor.
+ * @param descriptor - The normalized descriptor.
  * @returns A key two identical palettes share.
  */
 function contentKey(descriptor: PaletteDescriptor): string {
@@ -80,8 +80,8 @@ function refuse(id: unknown, field: string, message: string): never {
 
 /**
  * Register a palette so that a style layer, a legend and a saved document can all name it.
- * @param descriptor - The palette: an id, a plain name, a kind and its colour anchors, and
- *   optionally its capacity (derived when left off) and whatever colour-blindness safety it claims.
+ * @param descriptor - The palette: an id, a plain name, a kind and its color anchors, and
+ *   optionally its capacity (derived when left off) and whatever color-blindness safety it claims.
  * @param options - Whether a collision with an existing registration throws instead of replacing.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the descriptor is malformed, naming the
  * field, or with `E_DUPLICATE_PLUGIN` when the id is one the element ships.
@@ -150,7 +150,7 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
      * A MISSING SAFETY CLAIM BECOMES AN EMPTY ONE rather than a refusal. An empty list means the
      * palette makes no claim, which is already what the element's own red-to-blue descriptor
      * says, and it is not the same as a palette known to fail. Refusing a palette for declining
-     * to answer a question about colour blindness would be the element overruling an author about
+     * to answer a question about color blindness would be the element overruling an author about
      * their own palette; a picker that wants the answer computes it with `isPaletteSafe`.
      */
     registry.register(

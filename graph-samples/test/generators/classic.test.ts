@@ -210,7 +210,7 @@ describe("trees and named graphs", () => {
         expect(g.nodeCount).toBe(10);
         expect(g.src.length).toBe(15);
         expect(degrees(g).every((d) => d === 3)).toBe(true);
-        // no triangles or 4-cycles: any two adjacent nodes share no neighbour
+        // no triangles or 4-cycles: any two adjacent nodes share no neighbor
         const adj = Array.from({ length: 10 }, () => new Set<number>());
         for (const [u, v] of pairs(g)) {
             adj[u].add(v);

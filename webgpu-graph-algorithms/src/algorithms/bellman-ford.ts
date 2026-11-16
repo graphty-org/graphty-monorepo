@@ -22,7 +22,7 @@
  * can satisfy it. One rule the kernel's shape forces: on an UNDIRECTED snapshot the kernel reads ONE weight per
  * logical edge (its forward arc's) and applies it in both directions, so a caller-supplied override whose two arcs
  * of one edge differ means the caller wanted a directed graph, and the driver REFUSES it (E_UNSUPPORTED
- * `bellmanFord.asymmetricUndirectedWeights`, before any device work) rather than half-honour it; the snapshot's own
+ * `bellmanFord.asymmetricUndirectedWeights`, before any device work) rather than half-honor it; the snapshot's own
  * column never trips it. `edgeToArc` is absent from the residency on a directed snapshot built from a sorted edge
  * list (`flags.arcToEdgeIsIdentity`): edge `e` IS arc `e` there, and the driver binds an `edgeCount`-word iota
  * scratch in that slot (the `fill` kernel's mode 1) so the kernel reads `weights[edgeToArc[e]]` unchanged.

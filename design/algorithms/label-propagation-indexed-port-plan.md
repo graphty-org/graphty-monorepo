@@ -78,7 +78,7 @@ Tests first:
   `port-fixtures.ts`): `iterations` <= 1 and, since one sweep cannot settle it, `converged` false.
 
 Code: section 4's arrays; mulberry32 (private); Fisher-Yates over the initial queue; the visit loop
-with the stamp accumulator, two-pass reservoir tie draw, a node with no positive-weight neighbour
+with the stamp accumulator, two-pass reservoir tie draw, a node with no positive-weight neighbor
 keeping its label, and the requeue filter; the visit cap; `iterations = ceil(visits / n)`. Undirected
 only in this step: a directed snapshot throws "not yet" so step 4's tests fail visibly.
 
@@ -118,7 +118,7 @@ Tests first:
 - Two triangles given as directed arcs, one per edge, in one direction each: the same partition as
   the undirected triangles.
 - Section 8.2's reciprocal-pair fixture: x lands in T1's community on seeds 1..10, and
-  `dominanceHolds` passes on the symmetrised view.
+  `dominanceHolds` passes on the symmetrized view.
 - `weighted: false` counts a reciprocal pair once: x has a reciprocal pair to A1 of triangle T1 and
   two one-way arcs, x->B1 and B2->x, to triangle T2. Weighted, T1 and T2 both weigh 2, so both
   communities occur across seeds 1..10; with `weighted: false` T1 counts 1 and T2 counts 2, so x

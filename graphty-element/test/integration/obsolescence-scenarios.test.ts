@@ -18,7 +18,7 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 /**
- * Throw if the queue cancelled this operation, as a real operation body does after an await.
+ * Throw if the queue canceled this operation, as a real operation body does after an await.
  * @param context - The operation's context.
  */
 function stopIfCancelled(context: OperationContext): void {
@@ -296,7 +296,7 @@ describe("Obsolescence Scenarios", () => {
         const releaseFirst = deferred();
 
         // Each algorithm obsoletes every algorithm queued before it. The second and third arrive
-        // while the first is running at 0% progress, so the first and second are both cancelled.
+        // while the first is running at 0% progress, so the first and second are both canceled.
         for (let i = 0; i < 3; i++) {
             ids.push(
                 queueManager.queueOperation(

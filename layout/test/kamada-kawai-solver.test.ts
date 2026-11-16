@@ -4,7 +4,7 @@ import { _kamadaKawaiSolve } from "../src/algorithms/optimization";
 import { _kamadaKawaiCostfn } from "../src/algorithms/optimization/kamada-kawai-solver";
 
 /**
- * The quantity the solver minimises, less the tiny centring term: half the squared relative
+ * The quantity the solver minimizes, less the tiny centering term: half the squared relative
  * error between each pair's drawn distance and the distance it was asked for.
  */
 function kkCost(positions: number[][], dist: number[][]): number {

@@ -16,7 +16,7 @@ describe("Edge 2D Arrows Integration", () => {
         const graph = new Graph(container);
 
         await graph.setViewMode("2d");
-        // The arrow's own colour is not a channel: `edge.arrowHead` chooses WHICH arrow is drawn
+        // The arrow's own color is not a channel: `edge.arrowHead` chooses WHICH arrow is drawn
         // and the rest of its appearance follows the line. What these tests are about is the
         // material an arrow is built with, which the type decides.
         await styleEveryEdge(graph, {

@@ -51,11 +51,11 @@ export interface PulledCapPlace {
     headGap: number;
     /** The cap's own gap back from the head end (`Edge.capGap`). */
     capGap: number;
-    /** How far the cap's centre sits behind its tip at node scale 1 (`EdgeMesh.calculateArrowPosition`). */
+    /** How far the cap's center sits behind its tip at node scale 1 (`EdgeMesh.calculateArrowPosition`). */
     centreBack: number;
     /** Its length at node scale 1. */
     size: number;
-    /** Its colour, as a hex string. */
+    /** Its color, as a hex string. */
     colour: string;
 }
 

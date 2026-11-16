@@ -5,7 +5,7 @@ import { checkNumber, checkWeights, ConvergenceError } from "../errors.js";
 /** Options of the index-based Katz centrality, matching the legacy `katzCentrality`. @public */
 export interface KatzOptions {
     /**
-     * Attenuation factor applied to a neighbour's score; default 0.1. Must be at least 0 and below 1 / lambda_max, the
+     * Attenuation factor applied to a neighbor's score; default 0.1. Must be at least 0 and below 1 / lambda_max, the
      * reciprocal of the graph's largest adjacency eigenvalue, or the series diverges and the call throws
      * `ConvergenceError`: a complete graph on 11 nodes, or a star with 100 leaves, already needs less than 0.1.
      */
@@ -18,7 +18,7 @@ export interface KatzOptions {
     readonly tolerance?: number | undefined;
     /** Rescale the scores to [0, 1] by min-max, as the legacy function does; default true. */
     readonly normalized?: boolean | undefined;
-    /** Weight a neighbour's contribution by the arc weight; default false. */
+    /** Weight a neighbor's contribution by the arc weight; default false. */
     readonly weighted?: boolean | undefined;
 }
 
@@ -108,7 +108,7 @@ export function checkKatzOptions(s: GraphSnapshot, o: KatzOptions | undefined): 
  * Katz centrality by power iteration over incoming arcs: `x[v] = alpha * sum(x[u] for u -> v) + beta`.
  *
  * `reverse()` supplies the in-arcs, and is the forward adjacency itself on an undirected snapshot,
- * so one loop serves both directions exactly as the legacy function's in-neighbours / neighbours
+ * so one loop serves both directions exactly as the legacy function's in-neighbors / neighbors
  * split does.
  * The series converges only when alpha is below 1 / lambda_max (the reciprocal of the largest
  * eigenvalue of the adjacency); above it the scores grow without bound and the run reaches its cap.

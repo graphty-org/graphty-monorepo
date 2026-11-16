@@ -47,7 +47,7 @@
   inspector comment.
 
   REVISION 1.7. Four of the five changes in this revision land here.
-  1. The 5.6 navigation cluster is deleted and its contents are the bottom-centre canvas toolbar, 246 by 36,
+  1. The 5.6 navigation cluster is deleted and its contents are the bottom-center canvas toolbar, 246 by 36,
      at left 50% with bottom offset 12 -- the plain state of A1's four offsets (12 / 82 / 272 / 342), because
      this board draws neither the time slider nor the Data table drawer. The hover preview banner rose from
      bottom 12 to bottom 60 (12 toolbar offset + 36 toolbar height + 12 gap) to clear it: the toolbar's offset
@@ -145,7 +145,7 @@
   one of the four comparative surfaces the pin is kept at, and a pop-out whose content is the parameters of the row
   that opened it has nothing to hold still. (3) C3 cut 1, twice, in the canvas legend: the "preview of 14:12" state
   line and the "At the current point: Color: Groups..." footer with its rule both leave, the second because the
-  previewed frame paints no colour at all, and the preview banner's sentence grows to carry that fact in the region
+  previewed frame paints no color at all, and the preview banner's sentence grows to carry that fact in the region
   that owns it. (4) C6, the legend falls to its 80px floor, which makes the 100px minimap the tallest resident
   member of the bottom stack, so the banner's offset recomputes from bottom 144 to bottom 124 against the minimap
   rather than to the 104 a legend-only reading gives; measured, the banner is 618 wide, not the 470 the checklist
@@ -2722,13 +2722,13 @@
                                     </g>
                                 </svg>
 
-                                <!-- preview banner, bottom centre, riding 12 px above the tallest resident member of the bottom stack.
-               The toolbar is bottom-centre at bottom 12, so the two would occupy the same point. The
+                                <!-- preview banner, bottom center, riding 12 px above the tallest resident member of the bottom stack.
+               The toolbar is bottom-center at bottom 12, so the two would occupy the same point. The
                banner is the object that moves: A1 fixes the toolbar's offset to four states (12 / 82 / 272 /
                342) and a transient hover banner is not one of them. That gave 12 (toolbar offset) + 36 (toolbar
                height) + 12 (gap) = 60.
                1.10: the same rule now has a second member to clear. LEGEND-1.8 fixed one legend width for the
-               set, 256, so the legend's left edge moved from canvas x 630 to 564 and the banner's centred rect ran
+               set, 256, so the legend's left edge moved from canvas x 630 to 564 and the banner's centered rect ran
                under it. The legend is floor item 5 and is resident; the banner is transient, so the banner moves
                again, by the same arithmetic against the taller member: against a 120px legend that read
                12 (legend offset) + 120 (legend height) + 12 (gap) = 144.
@@ -2738,7 +2738,7 @@
                since 1.7 is "12 px above the TALLEST resident member", so the arithmetic is 12 (minimap inset) +
                100 (minimap height) + 12 (gap) = 124, and not the 12 + 80 + 12 = 104 the legend alone would give.
                Measured after the change: banner [434.9,724 618.2x28], minimap top y 764, legend top y 784 -- 12 clear
-               of the minimap and 32 clear of the legend, and nothing overlaps. Vertical only -- the banner is centred
+               of the minimap and 32 clear of the legend, and nothing overlaps. Vertical only -- the banner is centered
                on the canvas and a banner that slides sideways stops being the canvas's.
                THE WIDTH, MEASURED RATHER THAN ESTIMATED, WHICH IS WHY THE MEMBER MATTERS. C3 cut 1 sends the legend's
                current-point footer into this banner, which is the region 5.1's one fact, one region assigns the
@@ -2814,20 +2814,20 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (5.6, 5.1; TB-1..TB-4, TB-8). The 56 px navigation cluster that stood at
-               left 12 / bottom 120 is deleted and its contents are this bar, centred on the live canvas rect
+               left 12 / bottom 120 is deleted and its contents are this bar, centered on the live canvas rect
                with left: 50% and translateX(-50%) -- on the canvas, never on the window. 246 by 36: 3 + 60 +
                12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders. Bottom offset 12, the plain state of A1's four
                (12 / 82 / 272 / 342): this board draws neither the time slider nor the Data table drawer.
                Order is by how long the effect lasts: [2D | 3D], divider, Zoom out / Zoom in / Zoom to fit /
                Zoom to selection, divider, Views. Zoom out precedes Zoom in because magnitude increases
                rightward when the set is horizontal.
-               The item set is fixed -- nothing appears or disappears with selection, because a centred
+               The item set is fixed -- nothing appears or disappears with selection, because a centered
                container that changes width moves every item under the pointer -- so Zoom to selection is
                drawn and merely DISABLED: nothing is selected on this board, hence #5f6873, cursor: default
                and the register's exact disabled title "Zoom to selection (F). Select something first",
                which is floor 4, the reason a disabled control is disabled. It is the string the deleted
                cluster already carried; nothing about it changed but its position.
-               The Views caret points UP and its menu opens upward, bottom edge 4 px above the bar, centred
+               The Views caret points UP and its menu opens upward, bottom edge 4 px above the bar, centered
                on the Views button and clamped 12 px inside the canvas's left, right and top edges, scrolling
                internally if the stack pushes it up (TB-8). This board prints no Views menu list, so the
                menu's checked Toolbar row -- between Minimap and Legend, with the command palette row
@@ -3199,7 +3199,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3215,7 +3215,7 @@
                above already reads "Previewing 14:12, Ran Groups (Louvain), 2 steps back" with a Restore button
                beside it, which is the region 5.1's one fact, one region assigns the preview to. The 26px footer
                "At the current point: Color: Groups (Communities, Louvain), 7 groups" and the 1px #374047 rule above
-               it went with it, because the drawn frame does NOT paint colour -- the previewed point is before Groups
+               it went with it, because the drawn frame does NOT paint color -- the previewed point is before Groups
                was encoded, so every node carries the single default -- and LEGEND-1.8 section 8 forbids a block for
                an unencoded channel. The fact is not lost: the banner's sentence carries it now, the current point's
                Color: Groups encoding is named by the Analyze panel's Groups result card and by the History row
@@ -3235,7 +3235,7 @@
                plus Other.
                THIS BOARD'S EXPORT LEGEND, so the split is checkable on a board where the two differ: it carries
                1 CHANNEL -- Size: Most connected (Degree centrality), 1 / median 6 / 44, sqrt scale -- and NO Color
-               block, because the frame being exported is the PREVIEWED one and colour is not encoded at that point;
+               block, because the frame being exported is the PREVIEWED one and color is not encoded at that point;
                and it carries NO STATE ROWS, because none is drawn in this frame. The export legend is composed from
                what the exported frame encodes, not from what the app knows. -->
                                 <div
@@ -3882,7 +3882,7 @@
                                         </div>
 
                                         <!-- RT-9, one pitch. Replaces "min 0, median 0.04, mean 0.07, max 0.41, p99 0.36". Both axis
-                   ends are labelled, so the picture degrades into the table it replaced; every bin carries
+                   ends are labeled, so the picture degrades into the table it replaced; every bin carries
                    its own count in a title, and Copy methods text still carries the exact figures.
                    R2-N03: the bars were drawn by eye, not by the counts -- two 0-node bins and one 1-node bin
                    were all 2px while three other 1-node bins were 3px, so zero and one looked alike and equal
@@ -4363,7 +4363,7 @@
        #2a3035 tooltip bubble, and the same 32px header GroupProfilePopout and CategoryTable draw -- the surface's own
        name "History", the dimmed state line "12 entries, 6 undone" beside it, and the register's close X titled
        "Close (Esc)", and nothing else.
-       1.8 E2 TAKES THE PIN OFF THIS HEADER. E2 keeps the pin at four comparative surfaces -- the colour and gradient
+       1.8 E2 TAKES THE PIN OFF THIS HEADER. E2 keeps the pin at four comparative surfaces -- the color and gradient
        picker, Selection statistics with a pin active, the group profile and the AI console -- and History is none of
        them: a pop-out whose content is the parameters of the row that opened it has nothing to hold still, and pinning
        it produces a stale panel that lies. The 24px the glyph held goes to the state line, which is the one thing on

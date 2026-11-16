@@ -8,7 +8,7 @@
  * transferring them, so no sibling snapshot is ever silently emptied. The count is never decremented
  * (conservative: a holder that is garbage-collected still counts, which only ever causes a copy).
  *
- * Holders are tracked at three granularities because a shared holder materialises buffers lazily
+ * Holders are tracked at three granularities because a shared holder materializes buffers lazily
  * (the Utf8 store of a string column or a string id map, the Float64Array of a numeric id map): a
  * buffer, a Column (or a NodeIdMap) and an AttributeTable. The wire module treats a buffer as shared
  * when the buffer itself, the column that holds it or the table that holds the column is shared.

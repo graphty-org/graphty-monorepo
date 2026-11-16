@@ -190,7 +190,7 @@ export interface KernelEntry {
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
 
-/** `RangeParams` (uniform, 32 B): rows `[start, end)` @0 / @4 of the dispatch, the bound arc window `[arcBase, arcEnd)` @8 / @12 (0 and arcCount when not windowed), `accumulate` @16 (1 combines into `out[i]` instead of overwriting: the P4 windowed loop), `n` @20 (the node count that bounds neighbour indices), `pad0` @24, `pad1` @28. */
+/** `RangeParams` (uniform, 32 B): rows `[start, end)` @0 / @4 of the dispatch, the bound arc window `[arcBase, arcEnd)` @8 / @12 (0 and arcCount when not windowed), `accumulate` @16 (1 combines into `out[i]` instead of overwriting: the P4 windowed loop), `n` @20 (the node count that bounds neighbor indices), `pad0` @24, `pad1` @28. */
 export const RANGE_PARAMS: UniformBlock = UniformBlock.define("RangeParams", [
     ["start", "u32"],
     ["end", "u32"],
@@ -377,7 +377,7 @@ export const PR_PARAMS: UniformBlock = UniformBlock.define("PrParams", [
 /**
  * `PrPartial` (storage record, 32 B; spec 8.2). Element 0 is the HEADER, whose first 16 bytes are exactly the four
  * fields the design names -- `danglingMass` @0, `delta` @4, `firstConvergedIteration` @8, `iteration` @12 -- plus
- * `norm` @16, which M8b adds so HITS / eigenvector / Katz keep their normaliser on the device (PD-10). Element
+ * `norm` @16, which M8b adds so HITS / eigenvector / Katz keep their normalizer on the device (PD-10). Element
  * `1 + g` is workgroup g's partial: it uses `danglingMass`, `delta` and `norm` as three sums and leaves the two u32
  * fields zero.
  */
@@ -396,7 +396,7 @@ export const PR_PARTIAL: UniformBlock = UniformBlock.define(
     { layout: "storage" },
 );
 
-/** `WccParams` (uniform, 32 B; spec 8.3): `n` @0, `items` @4 (rows for a sample round, edges for an edge round, 1024 for the sampler), `stride` @8, `r` @12 (the neighbour index of the sampled round, and the sampler's seed), `flagIndex` @16 (the changed word inside `comp`, PD-4), `giant` @20 (`U32_MAX` before the sample), `maxSteps` @24, `pad0` @28. */
+/** `WccParams` (uniform, 32 B; spec 8.3): `n` @0, `items` @4 (rows for a sample round, edges for an edge round, 1024 for the sampler), `stride` @8, `r` @12 (the neighbor index of the sampled round, and the sampler's seed), `flagIndex` @16 (the changed word inside `comp`, PD-4), `giant` @20 (`U32_MAX` before the sample), `maxSteps` @24, `pad0` @28. */
 export const WCC_PARAMS: UniformBlock = UniformBlock.define("WccParams", [
     ["n", "u32"],
     ["items", "u32"],
@@ -895,7 +895,7 @@ const SPMV_PULL: KernelEntry = {
     phase: "P7",
 };
 
-/** `pr-scale` (spec 8.2 dispatch (a), 8.10): the per-node normaliser and the per-workgroup partials; NORM_MODE 0 PageRank / 1 L1 pass / 2 L2 pass / 3 scale / 4 identity; 5 storage bindings; calls the reduction helpers. */
+/** `pr-scale` (spec 8.2 dispatch (a), 8.10): the per-node normalizer and the per-workgroup partials; NORM_MODE 0 PageRank / 1 L1 pass / 2 L2 pass / 3 scale / 4 identity; 5 storage bindings; calls the reduction helpers. */
 const PR_SCALE: KernelEntry = {
     id: "pr-scale",
     body: prScaleWgsl,
@@ -928,7 +928,7 @@ const PR_FINALIZE: KernelEntry = {
     phase: "P7",
 };
 
-/** `wcc-link-sample` (spec 8.3): Afforest's sampled link round over the CSR rows (every vertex links its r-th neighbour); the standard USE_PERM / HAS_WEIGHTS only; 5 storage bindings (the four graph slots and the atomic `comp`, whose word at P.flagIndex is the changed flag, PD-4). */
+/** `wcc-link-sample` (spec 8.3): Afforest's sampled link round over the CSR rows (every vertex links its r-th neighbor); the standard USE_PERM / HAS_WEIGHTS only; 5 storage bindings (the four graph slots and the atomic `comp`, whose word at P.flagIndex is the changed flag, PD-4). */
 const WCC_LINK_SAMPLE: KernelEntry = {
     id: "wcc-link-sample",
     body: wccLinkSampleWgsl,
@@ -1080,7 +1080,7 @@ const COUNTING_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `radix-hist` (spec 6 row 6; P4-T4, PD-5): the per-workgroup 256-bin digit histogram, privatised in workgroup memory and stored digit-major `hist[digit * groups + group]`; 2 storage bindings. */
+/** `radix-hist` (spec 6 row 6; P4-T4, PD-5): the per-workgroup 256-bin digit histogram, privatized in workgroup memory and stored digit-major `hist[digit * groups + group]`; 2 storage bindings. */
 const RADIX_HIST: KernelEntry = {
     id: "radix-hist",
     body: radixHistWgsl,
@@ -1117,7 +1117,7 @@ const RADIX_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
+/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearized, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
 const GRID_CELL_KEY: KernelEntry = {
     id: "grid-cell-key",
     body: gridCellKeyWgsl,
@@ -1494,7 +1494,7 @@ const BFS_FUSED: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-bottom-up` (design 8.4 "the bottom-up sweep", 8.10 "BFS bottom-up"; P8-T8, PD-18 / PD-21): one invocation per entry of the unvisited list, walking its in-neighbours through the REVERSE core bound in group 0 until the first one whose bit is set in the frontier bitset (the early exit `arcsScanned` witnesses), claiming with a plain `atomicStore` and packing the winners into the output vertex queue by `bfs-contract`'s scan; 8 storage bindings (the four graph slots of the reverse core, `sweepIn` read-only -- the unvisited list at word 0 and the bitset at `P.bitsBase`, one buffer -- the counters block, `depth` and `frontierOut` as `array<atomic<u32>>` / `array<u32>`); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+/** `bfs-bottom-up` (design 8.4 "the bottom-up sweep", 8.10 "BFS bottom-up"; P8-T8, PD-18 / PD-21): one invocation per entry of the unvisited list, walking its in-neighbors through the REVERSE core bound in group 0 until the first one whose bit is set in the frontier bitset (the early exit `arcsScanned` witnesses), claiming with a plain `atomicStore` and packing the winners into the output vertex queue by `bfs-contract`'s scan; 8 storage bindings (the four graph slots of the reverse core, `sweepIn` read-only -- the unvisited list at word 0 and the bitset at `P.bitsBase`, one buffer -- the counters block, `depth` and `frontierOut` as `array<atomic<u32>>` / `array<u32>`); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
 const BFS_BOTTOM_UP: KernelEntry = {
     id: "bfs-bottom-up",
     body: bfsBottomUpWgsl,
@@ -1957,7 +1957,7 @@ const GROUP_BY_KEY_ROW: KernelEntry = {
     phase: "P11",
 };
 
-/** `lpa-step` (design 8.6, 8.10 "Label propagation"; P11): a vertex adopts its best neighbour label when the move goes the pass's direction; one atomic per workgroup adds the moves to `counters[P.counterIndex]`; 4 storage bindings. */
+/** `lpa-step` (design 8.6, 8.10 "Label propagation"; P11): a vertex adopts its best neighbor label when the move goes the pass's direction; one atomic per workgroup adds the moves to `counters[P.counterIndex]`; 4 storage bindings. */
 const LPA_STEP: KernelEntry = {
     id: "lpa-step",
     body: lpaStepWgsl,

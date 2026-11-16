@@ -5,7 +5,7 @@ Reviewer findings verified: INTEG-1 .. INTEG-23. Verifier date: 2026-09-14.
 
 Method: every cited plan line was re-read; every cited source file was opened at the cited
 lines; the one probe (`probes/serial-sharing.mjs`) was re-run; two external documents were
-fetched (docs.github.com/en/actions/reference/limits, pnpm.io/workspaces); nx behaviour was
+fetched (docs.github.com/en/actions/reference/limits, pnpm.io/workspaces); nx behavior was
 checked in the monorepo's resolved `nx@22.7.12` / `@nx/js@22.3.3` sources and in a real
 release commit (`5ef67039`). Default was "refuted unless the evidence holds".
 
@@ -34,7 +34,7 @@ Probe re-run output (`node probes/serial-sharing.mjs`):
 | INTEG-16 | downgraded | minor    | Refuted as stated: graphty-element already has a package-local `eslint.config.js` extending the root, so no root edit is required; the residual is a wording clarification.                                                                                                                                          |
 | INTEG-17 | confirmed  | minor    | 11.8 skips thresholds under a single `--project`; every CI command selects `--project=node`; merge-coverage.sh only sums and publishes. Thresholds are never enforced.                                                                                                                                               |
 | INTEG-18 | confirmed  | minor    | pnpm publishes `workspace:*` as an exact pin (pnpm.io/workspaces; `npm view @graphty/graphty-element` shows `@graphty/algorithms: 1.7.2`); design rule 3's "caret range" is wrong and the plan inherits it.                                                                                                          |
-| INTEG-19 | confirmed  | minor    | Sketch probes with `rejectSoftware`, then `requestGpuContext({ limits })` re-requests an adapter; `GpuContext.create` never says it honours `rejectSoftware`.                                                                                                                                                        |
+| INTEG-19 | confirmed  | minor    | Sketch probes with `rejectSoftware`, then `requestGpuContext({ limits })` re-requests an adapter; `GpuContext.create` never says it honors `rejectSoftware`.                                                                                                                                                         |
 | INTEG-20 | confirmed  | minor    | RenderManager.ts:63-69 IS the `useWebGPU` branch (unwired: no other reference); Graph.ts:94 types `WebGPUEngine \| Engine`; Babylon `_device` exists.                                                                                                                                                                |
 | INTEG-21 | confirmed  | minor    | Real-GPU stories in graphty-element/stories need `@graphty/webgpu-graph-algorithms/browser`, contradicting "imports nothing new".                                                                                                                                                                                    |
 | INTEG-22 | confirmed  | minor    | The plan's E1 content presupposes the design-E1 DataManager refactor, unlisted as a precondition and outside P6's 8-10 ed.                                                                                                                                                                                           |
@@ -61,11 +61,11 @@ types: [completed] branches: [master]`; job `if: github.event.workflow_run.concl
 - `coverage.yml:3-7,17,51`: identical gate on both jobs.
 - `ci.yml`: no `concurrency:` block at all (grep), `all-checks` (706-738) needs only test + Chromatic.
 - docs.github.com/en/actions/reference/limits (fetched): "A job can be in the queue for 24 hours
-  before it is automatically cancelled" (self-hosted runners).
+  before it is automatically canceled" (self-hosted runners).
 
 Reasoning: with `test-gpu` a job of `CI` and `push` in its `if`, every master push queues it. Runner
 offline -> the run is not `completed` for 24 h -> `release.yml` / `coverage.yml` do not fire; at the
-24 h mark the job is cancelled, the run's conclusion is not `success`, and the release for that push
+24 h mark the job is canceled, the run's conclusion is not `success`, and the release for that push
 NEVER happens (the next push repeats the cycle). A real GPU-test failure has the same effect: every
 package's release is blocked by the optional lane. "Not in all-checks.needs" protects only PR merges.
 The plan considered release.yml (line 3107) and missed that the gate is the whole-workflow conclusion.
@@ -356,7 +356,7 @@ Plan 314-321 (`ProbeResult.adapter: AdapterSummary | null`), 265 (`GpuContextOpt
 735-737 (`BrowserGpuOptions` carries `rejectSoftware` for both helpers), 271-290 (`create()` steps
 compute `software` but never reject on it), 2481-2483 (sketch: probe with `rejectSoftware`, then
 `requestGpuContext({ limits: "raise" })`). Fix as proposed; additionally specify whether `create()`
-honours `rejectSoftware` (-> `E_SOFTWARE_ONLY`).
+honors `rejectSoftware` (-> `E_SOFTWARE_ONLY`).
 
 ### INTEG-20 -- confirmed, minor
 
@@ -442,7 +442,7 @@ not state.
 
 Fix: state that the canary relies on `gpu-report.mjs` using the same `create([])` +
 `requestAdapter()` default path, and make the step fail on skips (e.g. `--reporter=json` piped to a
-check that `numPendingTests === 0` and `numTotalTests > 0`), or teach the audit to honour
+check that `numPendingTests === 0` and `numTotalTests > 0`), or teach the audit to honor
 `GRAPHTY_GPU_REQUIRE` (a graph-format change: add it to the touch points).
 
 ### M-4 (minor) -- 12.5 drops the design-16.6 strict-consumer CI step

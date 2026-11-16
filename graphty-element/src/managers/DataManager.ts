@@ -364,7 +364,7 @@ export const dataManagerInternals = {} as {
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
     /**
-     * Settles once the edit a data door dispatched last has landed, been cancelled or failed (a
+     * Settles once the edit a data door dispatched last has landed, been canceled or failed (a
      * failure is published as a graph error): at once unless it waited in the load line.
      */
     lastEdit(manager: DataManager): Promise<void>;
@@ -685,7 +685,7 @@ class LazyView<K, V> extends Map<K, V> {
  * The two copies are not always in step, and the direction of the discrepancy is deliberate:
  *
  * - An edge whose endpoints have not arrived is in the STORE already (the builder is
- *   `addMissingNodes: true`, so it materialises both endpoints) while its render object waits in
+ *   `addMissingNodes: true`, so it materializes both endpoints) while its render object waits in
  *   `pendingEdges` for the `Node` objects it reads in its constructor. The snapshot is therefore
  *   the more complete of the two mid-load.
  * - A NODE whose configured id path yields something graph-format will not accept -- `null` from a
@@ -1293,7 +1293,7 @@ export class DataManager implements Manager {
      * cause its own while it runs.
      * @param command - The import.
      * @param draft - The command's draft.
-     * @param signal - Fires when the import is cancelled.
+     * @param signal - Fires when the import is canceled.
      * @param after - Starts work once the import's step is recorded.
      * @param hooks - What the graph does around a write.
      * @param hooks.rowsAdded - Called once the import added rows.

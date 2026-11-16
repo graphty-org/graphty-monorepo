@@ -133,7 +133,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         ...(ownRows(state.styles) === undefined ? [] : [`styleRows=${canonical(ownRows(state.styles), path)}`]),
         `visibility=${canonical(state.visibility, path)}`,
         // Each set by its revision, the canonical hash of its definition: a fixed set's edge
-        // members are typed columns that a walk would materialise at 72 bytes a member.
+        // members are typed columns that a walk would materialize at 72 bytes a member.
         `sets=${canonical(
             new Map(
                 [...state.sets].map(([id, set]) => [
@@ -174,7 +174,7 @@ const dataDigests = new WeakMap<object, string>();
  * weights and columns). Equal for two loads of the same data, whatever else the project holds, so
  * a run can tell that the numbers it was computed from have changed under it.
  *
- * Memoised per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
+ * Memoized per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
  * read only on a miss: a layout replaces it every frame (positions are lane columns, which the
  * digest leaves out), so keying on it re-hashed the whole graph on every frame of a layout.
  * ponytail: hashes the whole graph once per data change; hash per column if a large graph's edits

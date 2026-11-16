@@ -14,7 +14,7 @@ the command palette). What graphty-element can do today is `inventory/element-ca
 ## How the tasks were chosen
 
 The people are the twelve personas in `design/designloom/personas/` and the twenty-five
-workflows in `design/designloom/workflows/`, summarised in `inventory/app-today-and-personas.md`.
+workflows in `design/designloom/workflows/`, summarized in `inventory/app-today-and-personas.md`.
 They are used for four things only: to rank tasks, to pick the words, to pick the defaults, and
 to check the design. They do not add features.
 
@@ -46,14 +46,14 @@ only reads. Object names are the plain names the design should give them (see Vo
 | 2 | Find a node by name and read about it | several times a session; Visual Exploration, Path Investigation, Hub Investigation; the fraud and intelligence analysts start from a named account or person |
 | 3 | Rank nodes and read the top of the list | Analyst Alex's first five minutes; Iterative Analysis, Influencer Identification, Drug Target Discovery, Hub Gene Ranking |
 | 4 | Find communities and read them | Community Analysis, Cluster and Annotate, Influencer Identification; the most common second algorithm |
-| 5 | Colour or size nodes by a column or a result | Gene List to Network (log fold change on red-blue), Findings Communication; nearly every figure |
+| 5 | Color or size nodes by a column or a result | Gene List to Network (log fold change on red-blue), Findings Communication; nearly every figure |
 | 6 | Filter to what matters and hide the rest | Visual Exploration ("filter out the uninteresting"), Threat Hunting, Anomaly Detection, Enrichment Map |
 | 7 | Turn the top of a ranking into a set and highlight it | Hub Gene Ranking (top-10 lists), Influencer Identification, Drug Target Discovery |
 | 8 | Export a figure with its legend | Findings Communication, Gene List to Network ("a figure with a legend by Friday"), Reproducible Publication |
 | 9 | Export the numbers | Analyst Alex's stated goal ("export metrics"), Drug Target Discovery, Influencer Identification, Recommendation |
 | 10 | Save the session and reopen it | Reproducible Publication; Alex's frustration "no way to save analysis patterns"; every multi-day case |
 | 11 | Trace a path between two nodes | Path Investigation, Fraud Ring, Criminal Network; daily for fraud and intelligence |
-| 12 | Look at the neighbourhood around a node | Fraud Ring (1 to 2 hops from the alert), Hub Investigation, Criminal Network |
+| 12 | Look at the neighborhood around a node | Fraud Ring (1 to 2 hops from the alert), Hub Investigation, Criminal Network |
 | 13 | Compare two results | Iterative Analysis ("compare results to validate"), Hub Gene Ranking, Influencer Identification (several centralities) |
 | 14 | Combine sets (both, either, one but not the other) | Hub Gene Ranking (intersect top-10 lists), Condition Comparison |
 | 15 | Re-run the same analysis on this week's data | the weekly rhythm itself; Alex's "use specific workflows repeatedly" and "lack of workflow templates" |
@@ -90,7 +90,7 @@ the tool's face instead of a flyout row arms it and needs Run in the secondary b
 
 **4. Find communities and read them**
 1. Toolbar: Groups (face: Communities) -> tool armed; secondary bar shows scope and cost
-2. Secondary bar: Run -> Grouping 'Communities' with Groups 'Group 1' to 'Group 6', coloured
+2. Secondary bar: Run -> Grouping 'Communities' with Groups 'Group 1' to 'Group 6', colored
 3. Tree: double-click 'Group 3', type "Sales team" -> Group renamed
 4. Inspector (Group, Members): read the members and the profile -> no new object
 
@@ -98,10 +98,10 @@ Steps 4. Surfaces: Toolbar, secondary bar, Tree, Inspector. Outside the grammar:
 **Fits.** The profile ("mostly department 7") is element work (#193); names that follow a group
 across re-runs are #191.
 
-**5. Colour or size nodes by a column or a result**
-1. Data panel (Attributes): "..." on 'logFC' > Colour by -> Measure 'logFC', painted with a ramp
+**5. Color or size nodes by a column or a result**
+1. Data panel (Attributes): "..." on 'logFC' > Color by -> Measure 'logFC', painted with a ramp
 2. Inspector (Measure 'logFC', Style): Palette > Red-blue; Midpoint 0 -> the Measure's style
-3. Inspector (Measure 'logFC', Style): Missing > grey -> the Measure's style
+3. Inspector (Measure 'logFC', Style): Missing > gray -> the Measure's style
 
 For a result instead of a column, step 1 is task 3's step 1, and "Size" is NODES "+" > Size on
 the same Style tab. Steps 3. Surfaces: Data panel, Inspector. Outside the grammar: nothing.
@@ -119,8 +119,8 @@ Create (paint) while the reader who filters wants to hide; see Defaults. Filteri
 rather than a column needs "Create on a result" (#192).
 
 **7. Turn the top of a ranking into a set and highlight it**
-1. Inspector (Measure 'Influence', Values): TOP "+" > Top 10 set -> Set 'Top 10 by Influence', linked, placed above the Measure, outlined in the next highlight colour
-2. Inspector (Set, Style): Colour > orange -> the Set's style (optional; the default already shows it)
+1. Inspector (Measure 'Influence', Values): TOP "+" > Top 10 set -> Set 'Top 10 by Influence', linked, placed above the Measure, outlined in the next highlight color
+2. Inspector (Set, Style): Color > orange -> the Set's style (optional; the default already shows it)
 
 Steps 1 to 2. Surfaces: Inspector. Outside the grammar: nothing. **Fits.** The longer route
 (select the top 10 rows, then Make set) makes a fixed list that does not follow a re-run; the
@@ -157,22 +157,22 @@ door the owner must confirm.
 **11. Trace a path between two nodes**
 1. Toolbar: Path (P) -> tool armed, "Pick the start node"
 2. Canvas: click 'Alice' -> start set
-3. Canvas: click 'Bob' -> Set 'Path: Alice -> Bob' (edges coloured, endpoints outlined)
+3. Canvas: click 'Bob' -> Set 'Path: Alice -> Bob' (edges colored, endpoints outlined)
 4. Inspector (Set, Members): read hops and the nodes in between -> no new object
 
 Steps 4. Surfaces: Toolbar, Canvas, Inspector. Outside the grammar: nothing. **Fits.** When an
 end is not on screen, the secondary bar takes a typed name. Alternative routes (All routes, #329)
-come back as one Set of their union, so a single route cannot be hidden, coloured or compared;
+come back as one Set of their union, so a single route cannot be hidden, colored or compared;
 see gap F.
 
-**12. Look at the neighbourhood around a node**
+**12. Look at the neighborhood around a node**
 1. Canvas: click 'Account 812' -> selection of 1 node
 2. Toolbar: Filter > Around a node (E) -> tool armed, seeded with the selection
 3. Secondary bar: 2 steps, Create -> Set 'Around Account 812'
 4. Inspector (Set, Members): Focus -> everything else hidden
 
 Steps 4. Surfaces: Canvas, Toolbar, secondary bar, Inspector. Outside the grammar: nothing.
-**Fits.** A quick look without a new object is right-click > Select neighbours.
+**Fits.** A quick look without a new object is right-click > Select neighbors.
 
 **13. Compare two results**
 1. Toolbar: Rank > Several..., tick Influence and Brokers, Create -> Measures 'Influence' and 'Brokers' (the second created with its eye off)
@@ -273,7 +273,7 @@ report in tree order. The "Include object columns" option and the report checkli
 because the selection is the checklist.
 
 **F. All routes returns one Set** (task 11). Change: All routes returns a Grouping with one Group
-per route, so each route can be hidden, coloured, renamed and compared, and Tab stepping becomes
+per route, so each route can be hidden, colored, renamed and compared, and Tab stepping becomes
 selecting the next Group.
 
 ## 4. Prominence
@@ -287,8 +287,8 @@ A verb in no top task lives in the palette and its object's "..." only, with no 
 | Placement | Verbs |
 |---|---|
 | Toolbar, one click | Select; Filter; Groups; Rank; Path; Time (only when the data has a time column); Actions (the palette's door) |
-| Inspector, one click | rename; eye; Re-run and Run; Top N set (Values tab); Focus and Exit (Members tab, status bar); Colour chip on Style; the Combine buttons on two or more Sets; Difference and Compare on two Measures; Export on the selected objects (move from the Record tab into the header's "...", right-click and the palette); Locate on a node |
-| Menus and palette | Open, Open recent, Save, Save as, Replace data, Run a recipe, Export recipe (file menu); Save view, Present (Views panel); Export image, Export report; Several...; Note...; Select neighbours, Path from here (right-click on a node); Colour by, Size by, Filter by (a column's "...") |
+| Inspector, one click | rename; eye; Re-run and Run; Top N set (Values tab); Focus and Exit (Members tab, status bar); Color chip on Style; the Combine buttons on two or more Sets; Difference and Compare on two Measures; Export on the selected objects (move from the Record tab into the header's "...", right-click and the palette); Locate on a node |
+| Menus and palette | Open, Open recent, Save, Save as, Replace data, Run a recipe, Export recipe (file menu); Save view, Present (Views panel); Export image, Export report; Several...; Note...; Select neighbors, Path from here (right-click on a node); Color by, Size by, Filter by (a column's "...") |
 | Palette and "..." only | Duplicate, Lock, Approximate instead, Copy as methods text, Copy as command, Save style, Apply style, Sweep, Pattern, By id list, Lasso, Follow, Merge nodes, Remove node, What breaks if removed, Re-run all, Unfreeze |
 
 Two findings from the rule. **Structure does not earn its toolbar slot**: none of the seventeen
@@ -308,16 +308,16 @@ The common case of every creation tool should need no settings.
 | Open or drop a file | roles detected (id, source and target, label = a column named name or label, weight = a numeric edge column named weight, time = the first date column); direction from the file; the element's recommended layout; nothing computed unasked |
 | Filter | face By range; attribute = the Measure selected in the tree, else the first numeric column; the band preset to the top 10 percent so the count is live at once; the first button **Create and focus**, because a reader who filters wants to hide (Visual Exploration, Threat Hunting, Anomaly Detection) |
 | Around a node | 1 step, all directions, seeded with the selection |
-| Path | Shortest route; weighted when the Dataset has a weight role; direction as loaded; edges in the next highlight colour at width 3, endpoints outlined |
-| Groups | Communities (Louvain), resolution 1.0, a fixed seed so a re-run gives the same groups; weights when there is a weight role; the largest 8 groups coloured, the rest one "Other"; Okabe-Ito colours, or Shape when colour is already taken above |
-| Rank | face Connections on a fresh session, then the last used; the first free channel (Colour, then Size); a sequential palette with outliers clamped at the 2nd and 98th percentile, because centralities are heavy-tailed |
+| Path | Shortest route; weighted when the Dataset has a weight role; direction as loaded; edges in the next highlight color at width 3, endpoints outlined |
+| Groups | Communities (Louvain), resolution 1.0, a fixed seed so a re-run gives the same groups; weights when there is a weight role; the largest 8 groups colored, the rest one "Other"; Okabe-Ito colors, or Shape when color is already taken above |
+| Rank | face Connections on a fresh session, then the last used; the first free channel (Color, then Size); a sequential palette with outliers clamped at the 2nd and 98th percentile, because centralities are heavy-tailed |
 | Rank > Several... | Connections, Brokers, Reach and Influence ticked (the four the analyst, marketing and genomics workflows name) |
-| Top N set | N = 10, linked to its Measure, outlined in the next highlight colour |
+| Top N set | N = 10, linked to its Measure, outlined in the next highlight color |
 | Combine | the name written from the inputs ("A and B", "A or B", "A not B") |
 | Time (period) | From and To = the full range; Step = the calendar unit that gives 12 to 50 steps |
 | Views "+" | camera, mode and what is showing; named after the focused Set, else "View 2" |
-| Style NODES "+" | Colour = the next unused highlight colour; Size = 1.5 times; Outline = 2 px |
-| Style EDGES "+" | Width 3; Colour = the Set's colour |
+| Style NODES "+" | Color = the next unused highlight color; Size = 1.5 times; Outline = 2 px |
+| Style EDGES "+" | Width 3; Color = the Set's color |
 | Measure Style "+" | Size, 0.8 to 2.2 times |
 | Export image | PNG at 2x, legend in the picture, the current framing, background kept |
 | Export data | CSV, one row per node, a column per visible Measure and Grouping |
@@ -337,7 +337,7 @@ Places where the current design uses a technical or inconsistent word:
 | tree row names | "Communities (Louvain)", "Bridges (Betweenness)" | "Communities", "Influence"; the method in Made by and the tooltip; a second run is "Communities 2" or named by its changed parameter | the reader named the question, not the algorithm |
 | Rank flyout | "Bridges" for betweenness | "Brokers" | "bridge" is already the graph-theory word for a cut edge (Structure's "Bridge edges"); the intelligence and marketing personas say "brokers" and "brokerage" |
 | components | "Separate pieces", "Largest connected part", "Parts 1" | "Parts" everywhere: "Parts", "Largest part", "Parts 1" | three words for one thing |
-| neighbours | "Around a node" (tool), "Links" (node tab), "Connected to", "Select neighbours" | "Neighbours" for the node tab and the right-click; "Around a node" for the tool only | one word for the thing, one phrase for the verb |
+| neighbors | "Around a node" (tool), "Links" (node tab), "Connected to", "Select neighbours" | "Neighbours" for the node tab and the right-click; "Around a node" for the tool only | one word for the thing, one phrase for the verb |
 | states | stale, frozen, waiting | "out of date", "fixed", "not run" | plain words for the three states the reader must act on |
 | last tab of every object | Record | Made by | says what it holds; 7 characters, fits the tab width |
 | Combine buttons | Union, Intersect, Subtract, Exclude | tooltips "In either", "In both", "In the first only", "In one but not both"; icons unchanged | the Figma words are shape words, not set words |

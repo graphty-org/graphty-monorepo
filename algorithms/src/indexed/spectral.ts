@@ -51,7 +51,7 @@ const RESIDUAL_TOLERANCE = 1e-11;
 /** Subspace-iteration cap; each round costs one sparse product per block vector. */
 const MAX_SUBSPACE_ROUNDS = 3000;
 
-/** The symmetric weighted adjacency without self-loops, as rows of (neighbour, weight). */
+/** The symmetric weighted adjacency without self-loops, as rows of (neighbor, weight). */
 interface SymmetricRows {
     readonly rowPtr: Uint32Array;
     readonly colIdx: Uint32Array;
@@ -190,7 +190,7 @@ function vectorNorm(v: Float64Array): number {
 }
 
 /**
- * Orthonormalises column `j` against the columns before it, redrawing it while it collapses.
+ * Orthonormalizes column `j` against the columns before it, redrawing it while it collapses.
  * @param block - p columns of length n
  * @param j - The column index
  * @param random - The seeded generator
@@ -213,7 +213,7 @@ function orthonormaliseColumn(block: Float64Array[], j: number, random: () => nu
 }
 
 /**
- * Orthonormalise the columns of `block` in place (Gram-Schmidt, applied twice for stability). A
+ * Orthonormalize the columns of `block` in place (Gram-Schmidt, applied twice for stability). A
  * column that collapses is replaced by a fresh random one.
  * @param block - p columns of length n
  * @param random - The generator for replacements
@@ -363,7 +363,7 @@ function smallestEigenpairs(
     let order: number[] = [];
     let vectors: Float64Array = new Float64Array(p * p);
     let converged = false;
-    // ponytail: plain subspace iteration converges at the ratio of neighbouring shifted eigenvalues,
+    // ponytail: plain subspace iteration converges at the ratio of neighboring shifted eigenvalues,
     // so a small spectral gap hits the cap; Chebyshev filtering would converge far faster there.
     for (let round = 0; round < MAX_SUBSPACE_ROUNDS; round++) {
         const image = block.map(shifted);
@@ -459,11 +459,11 @@ function inertiaOf(pr: KMeansProblem, assign: Uint32Array): number {
 }
 
 /**
- * The squared distance from row `i` to centre `c`.
+ * The squared distance from row `i` to center `c`.
  * @param pr - The rows and the cluster count
  * @param i - The row
- * @param centres - k centres of length d, row-major
- * @param c - The centre
+ * @param centers - k centers of length d, row-major
+ * @param c - The center
  * @returns The squared distance
  */
 function dist2(pr: KMeansProblem, i: number, centres: Float64Array, c: number): number {
@@ -478,8 +478,8 @@ function dist2(pr: KMeansProblem, i: number, centres: Float64Array, c: number): 
 
 /**
  * The k-means++ draw: a row with probability proportional to its squared distance from the
- * nearest centre so far (the first row when every row sits on a centre).
- * @param nearest - Each row's squared distance to its nearest centre
+ * nearest center so far (the first row when every row sits on a center).
+ * @param nearest - Each row's squared distance to its nearest center
  * @param total - The sum of `nearest`
  * @param random - The seeded generator
  * @returns The drawn row
@@ -498,7 +498,7 @@ function drawWeightedRow(nearest: Float64Array, total: number, random: () => num
 /**
  * k-means++ seeding into `centres`.
  * @param pr - The rows and the cluster count
- * @param centres - k centres of length d, row-major
+ * @param centers - k centers of length d, row-major
  * @param random - The seeded generator
  */
 function seedCentres(pr: KMeansProblem, centres: Float64Array, random: () => number): void {
@@ -517,11 +517,11 @@ function seedCentres(pr: KMeansProblem, centres: Float64Array, random: () => num
 }
 
 /**
- * The nearest centre of row `i`, the lowest index on a tie.
+ * The nearest center of row `i`, the lowest index on a tie.
  * @param pr - The rows and the cluster count
  * @param i - The row
- * @param centres - k centres of length d, row-major
- * @returns The centre
+ * @param centers - k centers of length d, row-major
+ * @returns The center
  */
 function nearestCentre(pr: KMeansProblem, i: number, centres: Float64Array): number {
     let best = 0;
@@ -537,10 +537,10 @@ function nearestCentre(pr: KMeansProblem, i: number, centres: Float64Array): num
 }
 
 /**
- * Moves every non-empty cluster's centre to its mean; an emptied cluster keeps its centre.
- * @returns The furthest any centre moved
+ * Moves every non-empty cluster's center to its mean; an emptied cluster keeps its center.
+ * @returns The furthest any center moved
  * @param pr - The rows and the cluster count
- * @param centres - k centres of length d, row-major
+ * @param centers - k centers of length d, row-major
  * @param assign - The cluster of every row
  */
 function moveCentres(pr: KMeansProblem, centres: Float64Array, assign: Uint32Array): number {
@@ -630,7 +630,7 @@ function checkSpectralOptions(
  * Writes `L x` into `out`, straight from the symmetric rows.
  * @param g - The symmetric rows
  * @param scale - `D^-1/2`, 0 for a degree-0 node
- * @param normalised - Whether the Laplacian is normalised
+ * @param normalized - Whether the Laplacian is normalized
  * @returns The operator
  */
 function laplacianOperator(
@@ -656,10 +656,10 @@ function laplacianOperator(
 }
 
 /**
- * An upper bound on the Laplacian's largest eigenvalue: 2 for the normalised Laplacian, and the
+ * An upper bound on the Laplacian's largest eigenvalue: 2 for the normalized Laplacian, and the
  * largest d(u) + d(v) over the edges (at least 1) for D - A (Anderson and Morley, 1985).
  * @param g - The symmetric rows
- * @param normalised - Whether the Laplacian is normalised
+ * @param normalized - Whether the Laplacian is normalized
  * @returns The bound
  */
 function spectralShift(g: SymmetricRows, normalised: boolean): number {

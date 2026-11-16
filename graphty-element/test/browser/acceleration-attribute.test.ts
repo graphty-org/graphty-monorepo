@@ -7,7 +7,7 @@
  * `connectedCallback`, the `graphty-capabilities-change` DOM event, and the release on
  * `disconnectedCallback`.
  *
- * The hazard the unrecognised-value test exists for: Lit calls the property setter from
+ * The hazard the unrecognized-value test exists for: Lit calls the property setter from
  * `attributeChangedCallback`, and a throw there during an upgrade marks the custom element
  * "failed", so `connectedCallback` never runs and the element never renders. A typo in markup
  * would take the whole graph down. `<graphty-element acceleration="yes">` must therefore render

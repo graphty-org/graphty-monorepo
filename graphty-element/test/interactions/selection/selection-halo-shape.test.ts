@@ -90,7 +90,7 @@ async function applied(element: Graphty): Promise<void> {
  * Where a node is drawn on screen.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);
@@ -130,7 +130,7 @@ function worldVertices(mesh: AbstractMesh): Vector3[] {
 }
 
 /**
- * How far a set of points reaches from a centre along a direction: its support function.
+ * How far a set of points reaches from a center along a direction: its support function.
  * @param points - The points.
  * @param center - Where to measure from.
  * @param direction - A unit direction.

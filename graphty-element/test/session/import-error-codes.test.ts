@@ -56,7 +56,7 @@ DataSource.register(
     ),
 );
 
-// A network source, whose load honours the caller's signal.
+// A network source, whose load honors the caller's signal.
 registerSource(
     defineSource({
         id: "abortable-879",

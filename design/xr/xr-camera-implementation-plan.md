@@ -382,7 +382,7 @@ This implementation plan transforms the existing monolithic XR implementation (`
 1. **CSS Custom Properties** (14 available variables):
     - Button base: `--xr-button-font-family`, `--xr-button-font-size`, `--xr-button-font-weight`, `--xr-button-color`, `--xr-button-border-width`, `--xr-button-border-color`, `--xr-button-padding`, `--xr-button-margin-left`, `--xr-button-border-radius`
     - Available state: `--xr-available-bg` (default: black), `--xr-available-box-shadow`
-    - Unavailable state: `--xr-unavailable-bg` (default: grey), `--xr-unavailable-box-shadow`
+    - Unavailable state: `--xr-unavailable-bg` (default: gray), `--xr-unavailable-box-shadow`
     - Presenting state: `--xr-presenting-bg` (default: red), `--xr-presenting-prefix` (default: "EXIT ")
     - Overlay: `--xr-overlay-gap`, `--xr-overlay-z-index`, `--xr-overlay-offset-vertical`, `--xr-overlay-offset-horizontal`
 

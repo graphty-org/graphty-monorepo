@@ -99,7 +99,7 @@ describe("indexed.betweennessCentrality", () => {
             b.addEdge("b", "c");
             const s = b.freeze();
             expect([...betweennessCentrality(s, { endpoints: true }).scores]).toEqual([2, 3, 2]);
-            // normalised by n (n - 1) / 2 = 3
+            // normalized by n (n - 1) / 2 = 3
             expect([...betweennessCentrality(s, { endpoints: true, normalized: true }).scores]).toEqual([
                 2 / 3,
                 1,

@@ -90,7 +90,7 @@ export const OBSOLESCENCE_RULES: Partial<Record<OperationCategory, ObsolescenceR
     //
     // The defect this closes reached a consumer through the most ordinary two lines anybody would
     // write -- `element.viewMode = "2d"` followed by `element.layout = "circular"`. The layout
-    // cancelled the pending switch, the element's own `viewMode` getter went on answering "2d",
+    // canceled the pending switch, the element's own `viewMode` getter went on answering "2d",
     // and the graph was drawn through a perspective camera. Measured 2026-09-22 against a page
     // importing only the published entry points: set together, `graph.getViewMode()` answered
     // "3d" and the active camera was a perspective `UniversalCamera`; set three seconds apart,

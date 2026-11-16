@@ -466,22 +466,22 @@ the full run stays first in line for runners. Each item's Proof gives its runner
 **cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` makes a newer push replace a waiting
 master build; a running one finishes (#3938) (push to master only; pull request, dispatch and
 release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
-`master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
-`release-due.mjs` reads every merge since the last master build that finished, so a cancelled
+`master-guard.mjs` treats a master build canceled for a newer one as superseded, not red, and
+`release-due.mjs` reads every merge since the last master build that finished, so a canceled
 build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: two quick master
-merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
-restart asked for by the cancelled merge started. Undo: revert.
+merges leave the older build canceled with no red-master issue, the newer deployed to canary, and a
+restart asked for by the canceled merge started. Undo: revert.
 
 **fewer-pushes-per-pr** (#3850) -- agent, S. On 2026-10-26 (07:00Z on, 244 pull request ci.yml
-runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6 minutes
-later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 cancelled
+runs) 101 runs were canceled, 99 of them by a newer push to the same branch, a median 6 minutes
+later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 canceled
 run-minutes a day. Two causes: `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit,
 so every commit on a branch with an open pull request started a run; and `tools/pr-open.sh` merged
 `origin/master` into a branch that was only behind, one more push, though a pull request is tested
 as merged with master and the required checks are not strict. So `branch-push.sh` does not push a
 branch with an open pull request (the status broker's file when fresh, else one cached `gh pr list`;
 unsure, it pushes) and says so, and `pr-open.sh` merges master only on a conflict or
-`--merge-master`. Needs: nothing. Done: over a day, pull request runs cancelled by a newer push to
+`--merge-master`. Needs: nothing. Done: over a day, pull request runs canceled by a newer push to
 the same branch fall well below the 99 measured. Undo: revert.
 
 **stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All

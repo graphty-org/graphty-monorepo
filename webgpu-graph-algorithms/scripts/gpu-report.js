@@ -7,7 +7,7 @@
  * ONLY -- never GpuContext -- so it works from P0 and never depends on the core. Sequence: createNodeGpu with
  * GRAPHTY_GPU_ADAPTER / GRAPHTY_DAWN_FEATURES, gpu.requestAdapter(), adapter.info, the policy verdict of
  * scripts/gpu-policy.js (GRAPHTY_GPU_REQUIRE), runnerClass(info, process.env) of scripts/runner-class.js
- * (honours GRAPHTY_RUNNER_CLASS, which gpu.yml sets to gpu-linux-t4), adapter.requestDevice() with the four
+ * (honors GRAPHTY_RUNNER_CLASS, which gpu.yml sets to gpu-linux-t4), adapter.requestDevice() with the four
  * limits raised to the adapter's values (a default device from a fresh adapter when that request is refused),
  * the 4-byte round-trip latency (10 x writeBuffer + mapAsync of a 4-byte MAP_READ staging buffer, median),
  * then a 10 s sample of `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader` at 1 Hz when

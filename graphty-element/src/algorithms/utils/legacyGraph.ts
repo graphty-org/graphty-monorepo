@@ -296,7 +296,7 @@ export class Graph {
 
     /**
      * A counter that increases on every topology change (`addNode` of a new id, `removeNode`,
-     * `addEdge`, `removeEdge`, `clear`) and never on a read. Callers memoise derived structures on
+     * `addEdge`, `removeEdge`, `clear`) and never on a read. Callers memoize derived structures on
      * `(graph, mutationCount)`; graph-format design 14.1 rule 4 names this counter, and `toSnapshot`
      * is its first consumer. It is monotone and is NOT reset by `clear()`: a reset could hand a
      * stale cache entry a matching key.

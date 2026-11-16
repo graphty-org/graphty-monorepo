@@ -141,8 +141,8 @@ function meshKeyOf(style: object): string {
 /**
  * The paint a node is drawn from.
  *
- * The colour is null because this harness paints no instance colours: what these tests are about
- * is geometry, and a colour lives beside the style precisely so that changing it is not geometry.
+ * The color is null because this harness paints no instance colors: what these tests are about
+ * is geometry, and a color lives beside the style precisely so that changing it is not geometry.
  * @param style - The style to draw from.
  * @returns The paint.
  */
@@ -253,7 +253,7 @@ describe("Node shape changes and connected edges", () => {
         const edge = addEdge(harness, ARROW_EDGE_STYLE);
         assert.isNotNull(edge.arrowCap);
 
-        // A sentinel is the only honest probe here: a colour change leaves the geometry identical,
+        // A sentinel is the only honest probe here: a color change leaves the geometry identical,
         // so a recomputed endpoint and a cached one have the SAME value. Parking the arrow
         // somewhere impossible makes "Edge.update returned early" observable. The guard matters
         // for cost, not for pixels -- the invalidation loop is O(E) per node.
@@ -363,7 +363,7 @@ describe("A self-loop and a bundle of parallel edges", () => {
     }
 
     /**
-     * How far a node's surface reaches from its centre in x-y, at most.
+     * How far a node's surface reaches from its center in x-y, at most.
      * @param node - The node.
      * @returns The reach.
      */
@@ -621,7 +621,7 @@ describe("Node glow effect", () => {
 
     it("draws no glow for a style that sets only a glow strength", () => {
         // `node.glowStrength` writes `effect.glow.strength`, so a layer binding only a strength
-        // leaves an `effect.glow` with no colour. That must not switch glow on (#2068).
+        // leaves an `effect.glow` with no color. That must not switch glow on (#2068).
         harness = createHarness();
         addNode(harness, "src", nodeStyle({ effect: { glow: { strength: 2 } } }));
 

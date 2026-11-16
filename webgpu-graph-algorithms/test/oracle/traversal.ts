@@ -60,7 +60,7 @@ function weightOf(s: GraphSnapshot, weights: NumericVector | undefined): (a: num
 }
 
 /**
- * FIFO breadth-first search over out-neighbours. A node at `maxDepth` is reached and not expanded, exactly as
+ * FIFO breadth-first search over out-neighbors. A node at `maxDepth` is reached and not expanded, exactly as
  * `indexed.breadthFirstSearch` does, so `visitedCount` includes it.
  * @param s - the snapshot
  * @param source - the source node index

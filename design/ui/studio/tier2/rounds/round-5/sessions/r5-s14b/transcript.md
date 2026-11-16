@@ -12,7 +12,7 @@ Okay, Les Miserables is open, colored and sized by PageRank from last time. I ne
 Tooltip says "Filters". That is exactly the tutorial word. Good.
 
 ## Step 2 -- `--step --click "Filters"` (03.png)
-The Data panel opened on the left, with a Filters section, and on the right a "New filter step" form: Keep "an attribute's value", Attribute (empty), Add step (greyed). I'll pick the attribute.
+The Data panel opened on the left, with a Filters section, and on the right a "New filter step" form: Keep "an attribute's value", Attribute (empty), Add step (grayed). I'll pick the attribute.
 
 ## Step 3 -- `--step --click "Attribute"` (04.png)
 List shows Nodes: id, name; Edges: shared_chapters. shared_chapters is the chapter count on each tie.

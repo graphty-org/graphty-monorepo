@@ -170,7 +170,7 @@ async function groupLayer(session: GraphSession): Promise<string> {
 }
 
 /**
- * A layer colouring every node by its group as categories, whose values take entries.
+ * A layer coloring every node by its group as categories, whose values take entries.
  * @param session - The session.
  * @returns The layer's id.
  */
@@ -939,7 +939,7 @@ const CASES: readonly Case[] = [
             };
         },
     },
-    // Runs, highlight colour and playback
+    // Runs, highlight color and playback
     {
         method: "RunsApi.move",
         growth: "linear",

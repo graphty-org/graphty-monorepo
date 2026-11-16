@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 /**
- * Mount an element and wait until its graph is initialised.
+ * Mount an element and wait until its graph is initialized.
  * @returns The element.
  */
 async function mount(): Promise<Graphty> {

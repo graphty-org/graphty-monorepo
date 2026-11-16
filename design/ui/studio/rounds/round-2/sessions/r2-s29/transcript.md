@@ -25,9 +25,9 @@ The usage box should be gone. Next I click the Les Miserables sample, the bigges
 
 `node tool/real.mjs --step $S --click "Les Miserables"` -> 03.png
 
-What I see: a picture of blue dots and grey lines, all the same blue, all about the same size, no names on
+What I see: a picture of blue dots and gray lines, all the same blue, all about the same size, no names on
 them. Right side says 77 nodes, 254 edges, density, components -- numbers I don't need. Bottom left, in small
-grey, "Analyze (a flask) in the toolbar (Shift+A) to add results here". There's a flask button at the bottom
+gray, "Analyze (a flask) in the toolbar (Shift+A) to add results here". There's a flask button at the bottom
 of the picture. "The network depends on most" -- I suppose that's something it has to work out, so I'll try
 the flask, since the page itself points me there.
 
@@ -37,9 +37,9 @@ the flask, since the page itself points me there.
 
 What I see: a list headed "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank,
 Eigenvector, Katz, HITS, All-pairs distance... These are names I don't know and I'm not learning them at 4 pm.
-The small grey lines under each are hard to read. None of them says "depends on". One has a blue tag, "Start
+The small gray lines under each are hard to read. None of them says "depends on". One has a blue tag, "Start
 here" -- PageRank. I'm not going to compare nine of these. I'll take the one the program says to start with.
-(Hesitation: Betweenness's grey line mentions "sit on ... paths between others", which might be closer, but
+(Hesitation: Betweenness's gray line mentions "sit on ... paths between others", which might be closer, but
 I can't tell, and "Start here" is what my eye goes to.)
 
 ## Step 5 -- PageRank
@@ -90,7 +90,7 @@ means here; I'm a bit worried it links something to her file.)
 
 `node tool/real.mjs --step $S --click-at 1380,264` -> 10.png ("Size by attribute")
 
-What I see: a box "Size by attribute" with a list: Influence, Influence rank, Influence percentile; and greyed
+What I see: a box "Size by attribute" with a list: Influence, Influence rank, Influence percentile; and grayed
 out "id" and "name" with "Cannot be used: Holds groups, not amounts". Good -- that answers what the chain
 was. "Attribute" isn't my word, but "Influence" is right there and it's what the colors use. I'll pick plain
 "Influence".
@@ -127,7 +127,7 @@ big one at the bottom with a fan of small ones round it.
 **What the sizes and colors stand for:** both stand for the same thing, "Influence". The box in the top left
 says "Size: Influence" and "Color: Influence", both running from 0.003299 to 0.07543. Bigger dot = higher
 influence; darker brown = higher influence. So the color isn't telling me anything the size doesn't. What
-"Influence" means in plain English, I can only go on the grey line in the list: "which nodes are connected to
+"Influence" means in plain English, I can only go on the gray line in the list: "which nodes are connected to
 other well-connected nodes". The numbers 0.003299 and 0.07543 mean nothing to me -- I couldn't tell the PI
 what a 0.07 is. I'd say "bigger and darker means more central, Valjean is top".
 
@@ -137,7 +137,7 @@ what a 0.07 is. I'd say "bigger and darker means more central, Valjean is top".
 
 - The list behind the flask is nine names I don't know (Degree, Betweenness, Closeness, PageRank, Katz,
   HITS...). Nothing says "who the network depends on". I only picked PageRank because it had "Start here" on
-  it. I honestly don't know whether Betweenness was the right one instead -- its grey line sounded closer.
+  it. I honestly don't know whether Betweenness was the right one instead -- its gray line sounded closer.
 - I picked PageRank but on the drawing and on the left it's called "Influence". I assumed they're the same
   thing; nothing said so where I was looking.
 - Running it changed the colors but not the sizes, and the task was about size. For a moment I thought it

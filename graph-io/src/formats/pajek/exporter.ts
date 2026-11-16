@@ -668,7 +668,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
  * the vertex number, otherwise null (no label needed). A label is forced when something follows
  * it on the line, because Pajek's grammar puts the label second.
  * @param labels - the label column, or null
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param i - the node index
  * @param needed - whether the line has more after the label
  * @returns the label text, or null
@@ -823,7 +823,7 @@ function withoutReservedKey(nodePlan: readonly PlannedColumn[], mangle: boolean)
  * and under "mangle" an original id whose text reads back as the other type under ids
  * "canonical" is reported (the importer coerces the parameter text like every id cell).
  * @param nodeCount - the node count
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param mangle - whether the original ids are written as parameters
  * @param notes - where to record
  */
@@ -867,7 +867,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
 /**
  * The vertex lines: number, label, coordinates, shape, parameters and interval.
  * @param snapshot - the snapshot
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param nodePlan - the node column plan
  * @param mangle - whether a renumbered vertex carries its original id as a parameter
  * @yields one line per vertex

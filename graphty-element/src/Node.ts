@@ -156,14 +156,14 @@ export const XLABEL_UNSHARED = [
 ] as const;
 
 /*
- * The halo's colour, size and opacity are NOT constants any more: they are
+ * The halo's color, size and opacity are NOT constants any more: they are
  * `graph.selection` in the element's configuration, set through
  * `element.selectionStyle` or `graph.setSelectionStyle()`. The gold, the 1.45 and the 0.4 that
  * used to live here are the schema's defaults, in `src/config/GraphStyle.ts`, so an element
  * nobody has configured still draws exactly what it always drew.
  */
 
-/** The context point's colour: neutral, so it never reads as a category. */
+/** The context point's color: neutral, so it never reads as a category. */
 const CONTEXT_POINT_COLOR = "#8A8A8A";
 
 /** How much of the node's size a context point is drawn at. */
@@ -204,7 +204,7 @@ const GROUP_REGION_SHAPE = "round-rectangle";
  * What a group that follows its members is drawn as: a region behind them, never a solid round
  * them. A solid shape becomes a flat {@link GROUP_REGION_SHAPE} (a flat shape the file named is
  * kept), and a group no layer gave an opacity or a draw level -- one the file's styles did not
- * describe, since they give every group a level -- is drawn in its colour at
+ * describe, since they give every group a level -- is drawn in its color at
  * {@link GROUP_REGION_OPACITY}.
  * @param meshKey - The key the paint's style is drawn under.
  * @param style - The resolved style.
@@ -337,10 +337,10 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
 /** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
 const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
 
-/** The colour a node is drawn in when no layer a reader added colours it. */
+/** The color a node is drawn in when no layer a reader added colors it. */
 const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
 
-/** White: an untinted model instance keeps its own colours. */
+/** White: an untinted model instance keeps its own colors. */
 const UNTINTED = new Color4(1, 1, 1, 1);
 
 /** The color a model part that follows the node is drawn in when nothing names one. */
@@ -365,7 +365,7 @@ function modelTintMode(shape: NodeStyleConfig["shape"]): ModelTintMode {
 }
 
 /**
- * Whether a shape block tints its model with the node's colour.
+ * Whether a shape block tints its model with the node's color.
  * @param shape - The shape block.
  * @returns True for tint on or "replace".
  */
@@ -616,7 +616,7 @@ export class Node implements ModelUser {
     private fittedFor: { text: string; label: NodeStyleConfig["label"] } | null = null;
     private fittedExtent: { width: number; height: number } | null = null;
 
-    /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
+    /** The style and the instance color the current mesh was built from; see `paintFrom`. */
     #drawnStyle: NodeStyleConfig | null = null;
 
     /**
@@ -700,7 +700,7 @@ export class Node implements ModelUser {
     /**
      * The shape type of the mesh currently on screen, cached beside {@link Node.size}.
      *
-     * It exists ONLY so that the repaint can tell a geometry change from a colour change; see the
+     * It exists ONLY so that the repaint can tell a geometry change from a color change; see the
      * invalidation block in `paintFrom` for the defect it fixes. It is read from
      * `style.shape.type`, so it is `undefined` for a style that names no shape.
      */
@@ -787,7 +787,7 @@ export class Node implements ModelUser {
      * The source mesh this node is currently drawn from.
      *
      * A KEY, NOT A STYLE. It is the key the style interner minted -- built from the shape and the
-     * size and deliberately NOT from the colour, because a colour is per-instance GPU state and
+     * size and deliberately NOT from the color, because a color is per-instance GPU state and
      * folding it in is what turns a continuous ramp into one source mesh per node.
      */
     private meshKey: string;
@@ -872,7 +872,7 @@ export class Node implements ModelUser {
      * first style pass replaces it.
      * @param graph - The parent graph or graph context that owns this node
      * @param nodeId - Unique identifier for this node
-     * @param paint - The source mesh, the style behind it and the per-instance colour to draw
+     * @param paint - The source mesh, the style behind it and the per-instance color to draw
      * @param data - Custom data associated with this node
      * @param opts - Optional configuration options for the node
      */
@@ -924,7 +924,7 @@ export class Node implements ModelUser {
         this.syncLabel(o, true);
         this.syncTooltip(o);
 
-        // Everything that lives on the instance rather than in its source: the colour, the
+        // Everything that lives on the instance rather than in its source: the color, the
         // outline and the glow. See applyInstancePaint.
         this.applyInstancePaint(o, paint.color);
 
@@ -935,7 +935,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far this node's drawn surface is from its centre, when that distance is the same in
+     * How far this node's drawn surface is from its center, when that distance is the same in
      * every direction -- and null when it is not, or cannot be trusted to be.
      *
      * WHAT IT IS FOR. An edge has to stop at the node's surface, and for a shape that is round
@@ -1011,9 +1011,9 @@ export class Node implements ModelUser {
 
     /**
      * The box this node takes up in the world, for framing the graph: its drawn mesh's world
-     * bounding box, grown by its border. Measured from the box itself rather than as its centre
-     * plus or minus one half-size, because a tetrahedron, a cone or a polygon is not centred on
-     * its position: framed as centred, the point of a tetrahedron above its centre fell outside
+     * bounding box, grown by its border. Measured from the box itself rather than as its center
+     * plus or minus one half-size, because a tetrahedron, a cone or a polygon is not centered on
+     * its position: framed as centered, the point of a tetrahedron above its center fell outside
      * the view (issue #3087). In world units, so an XR gesture's scale of the graph root counts.
      * @returns The box's lowest and highest corners.
      * @internal
@@ -1293,8 +1293,8 @@ export class Node implements ModelUser {
      * thing to trim an edge against, and neither changes its name: a node drawn under a scale
      * that is not the same in every direction is an ellipsoid, and the shape registry lets a
      * creator be replaced, so the name says what was asked for rather than what was built. The
-     * centre matters too -- the arithmetic measures out from `mesh.position`, which is the middle
-     * of the drawn shape only because Babylon builds both round shapes centred on their own
+     * center matters too -- the arithmetic measures out from `mesh.position`, which is the middle
+     * of the drawn shape only because Babylon builds both round shapes centered on their own
      * origin. All three are read in LOCAL space, which needs no up-to-date world matrix.
      * @returns The radius, or null.
      */
@@ -1390,7 +1390,7 @@ export class Node implements ModelUser {
         const pos = layoutEngine === undefined ? undefined : layoutEngineInternals.positionOf(layoutEngine, this);
         const box = layoutManager.groupBox(this.id);
         // A node becomes, or stops being, a group following its members after it is painted (the
-        // groups arrive with the file, the behaviour can turn them off): draw it again as one.
+        // groups arrive with the file, the behavior can turn them off): draw it again as one.
         if ((box !== undefined) !== this.drawnAsGroup) {
             this.updateStyle();
         }
@@ -1412,7 +1412,7 @@ export class Node implements ModelUser {
      * Draw a group that follows its members over their box, behind them: stretched across the
      * box's width and height, thin, and set at the box's far face (the camera looks along +z in
      * both views), so every member, edge and label is drawn in front of it. Its row keeps the
-     * box's centre; only the drawing sits back.
+     * box's center; only the drawing sits back.
      * @param box - The box, from `LayoutManager.groupBox`.
      */
     private drawAsGroup(box: GroupBox): void {
@@ -2172,7 +2172,7 @@ export class Node implements ModelUser {
 
     /**
      * Rebuild this node's mesh, its label and its effects from the paint it is currently drawn
-     * from, preserving its position and reattaching its behaviours.
+     * from, preserving its position and reattaching its behaviors.
      *
      * A REBUILD REQUEST, NOT A STYLE CHANGE. The 2D/3D switch calls this for exactly one reason
      * -- every mesh has just been disposed -- and `update()` calls it when it finds a mesh that
@@ -2276,7 +2276,7 @@ export class Node implements ModelUser {
 
     /**
      * Draw this node as the session's style stack resolved it.
-     * @param paint - The source mesh, the style behind it and the per-instance colour.
+     * @param paint - The source mesh, the style behind it and the per-instance color.
      */
     applySessionPaint(paint: NodePaint): void {
         if (this.disposed) {
@@ -2289,19 +2289,19 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Write the colour the session resolved into this node's own instance.
+     * Write the color the session resolved into this node's own instance.
      *
      * WHY THE COLOUR IS NOT IN THE MATERIAL. Every node drawn from one source mesh shares that
-     * mesh's material, so a colour in the material is a colour in the mesh key -- and a key that
-     * carries the colour mints one source mesh per distinct colour, which for a continuous ramp
+     * mesh's material, so a color in the material is a color in the mesh key -- and a key that
+     * carries the color mints one source mesh per distinct color, which for a continuous ramp
      * is one per node. The instanced buffer is the per-instance state Babylon offers instead: one
      * buffer write against an instance that already exists.
      *
      * THE SOURCE MATERIAL IS UNFROZEN BEFORE THE BUFFER IS REGISTERED. Registering the buffer
      * adds a shader define, and a frozen material is a material that has stopped re-evaluating
      * its defines -- so registering behind a freeze compiles nothing and every instance draws in
-     * the material's own colour, silently. Registration happens once per source mesh.
-     * @param color - The colour, or null when no layer painted one.
+     * the material's own color, silently. Registration happens once per source mesh.
+     * @param color - The color, or null when no layer painted one.
      */
     private applyInstanceColor(color: Rgba | null): void {
         if (this.drawnModel !== null) {
@@ -2336,10 +2336,10 @@ export class Node implements ModelUser {
     /**
      * Write the tint of a drawn model into each of its instanced parts.
      *
-     * A model keeps its own colours unless `node.modelTint` asks for the node's: every template
-     * registers the colour buffer white, so this is one write per part.
+     * A model keeps its own colors unless `node.modelTint` asks for the node's: every template
+     * registers the color buffer white, so this is one write per part.
      * @param model - The model this node draws.
-     * @param color - The colour, or null when no layer painted one.
+     * @param color - The color, or null when no layer painted one.
      */
     private applyModelTint(model: ModelTemplate, color: Rgba | null): void {
         const mode = modelTintMode(this.drawnStyle?.shape);
@@ -2371,9 +2371,9 @@ export class Node implements ModelUser {
      * contract in its own words and got it wrong in one direction -- it applied the node's
      * EFFECTS only on the branch that rebuilds the mesh, so an `instance` channel's edit reached
      * the screen only if some unrelated `mesh` channel happened to change in the same repaint.
-     * That is why a glow was drawn when its colour was in the stack before the first frame and
+     * That is why a glow was drawn when its color was in the stack before the first frame and
      * ignored when a layer added it afterwards. (`node.glowStrength` is a `mesh` channel for a
-     * different reason: a glow's strength is set per SOURCE mesh, like its colour.)
+     * different reason: a glow's strength is set per SOURCE mesh, like its color.)
      *
      * So this method is everything the `instance` role promises, and `paintFrom` calls it on BOTH
      * of its branches -- once when it has just rebuilt the mesh, because every one of these lives
@@ -2381,7 +2381,7 @@ export class Node implements ModelUser {
      * of what the role means. `test/browser/channel-paints.test.ts` is the gate: it edits a live
      * session and requires the picture to move.
      * @param style - The resolved style the effects are read from.
-     * @param color - The per-instance colour, or null when no layer painted one.
+     * @param color - The per-instance color, or null when no layer painted one.
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
@@ -2610,7 +2610,7 @@ export class Node implements ModelUser {
      * the one the mesh was built from, and a mesh that is still alive. See `paintFrom`.
      * @param meshKey - Which source mesh the paint draws from.
      * @param o - The resolved style.
-     * @param color - The per-instance colour.
+     * @param color - The per-instance color.
      * @returns Whether the mesh stays.
      */
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
@@ -2991,7 +2991,7 @@ export class Node implements ModelUser {
 
     /**
      * What this node draws as a model, for the model cache's warnings.
-     * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
+     * @returns Its template, whether it is tinted and whether a reader's layer colored it.
      * @internal
      */
     modelDrawn(): {
@@ -3055,12 +3055,12 @@ export class Node implements ModelUser {
      *
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
      * the SOURCE MESH rather than on a style, because that is what decides whether anything has
-     * to be rebuilt: two nodes of one shape and size differing only in colour share a mesh, and
-     * the colour is one buffer write on an instance that is already correct. A group following
+     * to be rebuilt: two nodes of one shape and size differing only in color share a mesh, and
+     * the color is one buffer write on an instance that is already correct. A group following
      * its members is drawn as a region behind them (`groupRegionPaint`).
      * @param meshKey - Which source mesh this node is drawn from.
      * @param style - The resolved style the mesh, the label and the effects are built from.
-     * @param color - The per-instance colour, or null when the style carries it itself.
+     * @param color - The per-instance color, or null when the style carries it itself.
      */
     private paintFrom(meshKey: string, style: NodeStyleConfig, color: Rgba | null): void {
         this.drawnAsGroup = this.context.getLayoutManager().groupBox(this.id) !== undefined;
@@ -3079,7 +3079,7 @@ export class Node implements ModelUser {
      * `shadedPaint`.
      * @param paintKey - Which source mesh the paint draws from.
      * @param paintStyle - The resolved style.
-     * @param color - The per-instance colour.
+     * @param color - The per-instance color.
      */
     private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const stats = this.context.getStatsManager();
@@ -3095,7 +3095,7 @@ export class Node implements ModelUser {
      * The measured part of `drawPaint`.
      * @param paintKey - Which source mesh the paint draws from.
      * @param paintStyle - The resolved style.
-     * @param color - The per-instance colour.
+     * @param color - The per-instance color.
      */
     private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         const shaded = this.shadedPaint(paintKey, paintStyle);
@@ -3108,7 +3108,7 @@ export class Node implements ModelUser {
         // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
         // role is `mesh` alone, so an unchanged key means the GEOMETRY is unchanged and nothing
         // more. The two `instance` channels are compensated for by `StylePainter.nodePaintOf`,
-        // which folds opacity into the key string, and by the colour write below. The `content`
+        // which folds opacity into the key string, and by the color write below. The `content`
         // channels -- the label and its typography -- are compensated for by nothing at all, so
         // they are applied here. See `drawnLabelText` for the defect that reached a consumer.
         // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
@@ -3120,7 +3120,7 @@ export class Node implements ModelUser {
         // children, so that rebuild cost the size of the scene per element and the load grew as
         // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
         // deep-equal to the one the current mesh was built from means the same geometry, the same
-        // colour and the same content by construction, so the key is adopted and nothing is
+        // color and the same content by construction, so the key is adopted and nothing is
         // touched.
         if (this.keepsMeshFor(meshKey, o, color)) {
             this.meshKey = meshKey;
@@ -3202,7 +3202,7 @@ export class Node implements ModelUser {
         //
         //   a2cb98c5, 2026-01-04, "improved layer and selection management" -- added the
         //   invalidation block below, guarded on `this.size !== oldSize`, written for SELECTION
-        //   (which grows a node). It restored the behaviour for size only. Shape was never
+        //   (which grows a node). It restored the behavior for size only. Shape was never
         //   covered, which is why the regression survived it.
         //
         // Every route into a repaint -- a style pass draining its dirty set, a 2D/3D switch, a
@@ -3211,7 +3211,7 @@ export class Node implements ModelUser {
         // because it predates 973f1d96, not because it called anything different.
         //
         // THIS STAYS A CONDITION, never an unconditional invalidation: the loop is O(E) per node
-        // because a Node holds no incident-edge index, and a colour-only repaint reaches this
+        // because a Node holds no incident-edge index, and a color-only repaint reaches this
         // line too, so invalidating unconditionally would make a full repaint O(N*E). The cost
         // is unchanged for the size case and newly reachable for the shape case; if a repaint
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
@@ -3275,7 +3275,7 @@ export class Node implements ModelUser {
         // The mesh above is a NEW instance, so everything that lives ON an instance rather than
         // in its source has to be said again: what the masks said about this node, and everything
         // the `instance` role covers. Otherwise a restyle silently un-hides a filtered node,
-        // drops its halo, and repaints it in its source mesh's own colour.
+        // drops its halo, and repaints it in its source mesh's own color.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
     }
@@ -3497,7 +3497,7 @@ export class Node implements ModelUser {
      * Read on every overlay pass rather than cached, because a consumer can restyle the
      * selection while a selection is on screen and a cached answer would keep drawing the old
      * one until something else happened to rebuild the node.
-     * @returns The configured colour, scale and opacity.
+     * @returns The configured color, scale and opacity.
      */
     private selectionStyle(): GraphSelectionStyleConfig {
         return this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE;
@@ -3512,7 +3512,7 @@ export class Node implements ModelUser {
      * the rest, and a layer's `node.halo: false` takes the halo off even a selected node. With
      * the starting rows on, the Selected row draws the selection's halo as a style instead, so
      * the selection itself draws none and a node never carries two.
-     * @returns The colour, scale and opacity, or null.
+     * @returns The color, scale and opacity, or null.
      */
     private haloLook(): GraphSelectionStyleConfig | null {
         const layer = this.drawnStyle?.effect?.halo;
@@ -3714,11 +3714,11 @@ export class Node implements ModelUser {
             // an instance of ONE source mesh and shares ONE material, so a selection restyled
             // while a selection is on screen is this one write -- and it is the same write for
             // one selected node and for forty thousand. Minting a source mesh per appearance
-            // instead would leave one behind in the cache for every colour a colour picker
+            // instead would leave one behind in the cache for every color a color picker
             // passed through.
             Node.paintHalo(overlay, look);
             this.ringLabel(look.scale);
-            // The node's own geometry, scaled about its centre: every point of the node's surface
+            // The node's own geometry, scaled about its center: every point of the node's surface
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
@@ -3761,11 +3761,11 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The colour this node is drawn in now, as `#rrggbb` (with `aa` when not opaque): what the
+     * The color this node is drawn in now, as `#rrggbb` (with `aa` when not opaque): what the
      * last paint of the style stack gave it, after hidden rows, runs, notes and data changes have
      * repainted it. Null before its first paint. A read for tests and tools that must check what
      * was drawn rather than what the stack would explain.
-     * @returns The drawn colour, or null.
+     * @returns The drawn color, or null.
      * @since 3.26.0
      */
     get drawnFill(): string | null {
@@ -3773,7 +3773,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far the node's drawn surface reaches from its centre at most: its largest half-extent,
+     * How far the node's drawn surface reaches from its center at most: its largest half-extent,
      * in the units its position is laid out in.
      *
      * THE NODE'S OWN EXTENT, not its world one. The node and the halo are children of
@@ -3817,7 +3817,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far the node's drawn surface reaches from its centre at most, without its border.
+     * How far the node's drawn surface reaches from its center at most, without its border.
      * Measured once per mesh and scaling: a bounding-box read per node per layout step is the cost
      * {@link Node.roundRadius} documents.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
@@ -3892,7 +3892,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far the node's drawn surface reaches from its centre along each axis: its bounding
+     * How far the node's drawn surface reaches from its center along each axis: its bounding
      * box's half-size, in the units its position is laid out in (the node's own space, not the
      * world, for the reason {@link Node.drawnRadius} gives).
      *
@@ -4014,7 +4014,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far the node's outline -- the size its style gives it -- reaches from its centre along each axis: its drawn
+     * How far the node's outline -- the size its style gives it -- reaches from its center along each axis: its drawn
      * surface ({@link Node.drawnHalfExtents}) plus what a border centered on the outline or inside it took from the
      * fill. What a file's ports and a self-loop's bends are measured against (`line.sourcePort`, `line.bends`), so
      * a Gephi loop sized from the node's size is not drawn smaller by the node's inside border.
@@ -4068,7 +4068,7 @@ export class Node implements ModelUser {
     /**
      * Bring the shared halo material into line with the configured appearance.
      * @param overlay - Any halo instance; its material is the shared one.
-     * @param selection - The colour and opacity to draw it in.
+     * @param selection - The color and opacity to draw it in.
      */
     private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
         const { material } = overlay;
@@ -4098,7 +4098,7 @@ export class Node implements ModelUser {
     /**
      * Build the one source mesh a kind of overlay is instanced from.
      * @param name - The mesh name, which is also its cache key.
-     * @param color - The colour, as a hex string.
+     * @param color - The color, as a hex string.
      * @param alpha - How opaque it is, in `[0, 1]`.
      * @param scene - The scene to build it in.
      * @param shape - The node source mesh whose geometry a halo shares, or null for a unit sphere.
@@ -4125,7 +4125,7 @@ export class Node implements ModelUser {
             // SHARED geometry, not a copy: one halo source per node source costs a material and
             // no vertices, and Babylon reference-counts the geometry so either can be disposed
             // first. A new mesh rather than a clone, so nothing of the node's own source -- its
-            // material, its instance colour buffer, its visibility -- comes with it.
+            // material, its instance color buffer, its visibility -- comes with it.
             source = new Mesh(name, scene);
             shape.geometry.applyToMesh(source);
         } else {
@@ -4144,7 +4144,7 @@ export class Node implements ModelUser {
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
         // A halo around a solid draws only its far side. The near side lies in front of the node
-        // it surrounds, and blending it over the node tinted the whole node the halo's colour (a
+        // it surrounds, and blending it over the node tinted the whole node the halo's color (a
         // selected blue node drew gray-brown) instead of ringing it. The far side lies behind the
         // node, so the node hides it inside its own outline and it shows only around it, as a
         // ring; and from inside the halo every face seen is a far face, so the ring survives the
@@ -4176,7 +4176,7 @@ export class Node implements ModelUser {
     /**
      * The cache key of the halo source for this node's current shape and the halo's look: one per
      * node source mesh in the selection's own look, so every selected node of one shape shares
-     * one halo source, and one more per colour and opacity a layer's halo asks for. Every
+     * one halo source, and one more per color and opacity a layer's halo asks for. Every
      * halo of one source shares one material, so two looks cannot share a source.
      * @param look - The halo's look.
      * @returns The key.
@@ -4184,8 +4184,8 @@ export class Node implements ModelUser {
     private haloSourceKey(look: GraphSelectionStyleConfig): string {
         const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}${this.context.is2D() ? ":2d" : ""}`;
         const selection = this.selectionStyle();
-        // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
-        // ones if a continuous halo colour encoding ever shows up in a profile.
+        // ponytail: one cached source per halo color and opacity ever drawn; evict unused
+        // ones if a continuous halo color encoding ever shows up in a profile.
         return look.color === selection.color && look.opacity === selection.opacity
             ? key
             : `${key}:${look.color}:${String(look.opacity)}`;
@@ -4321,7 +4321,7 @@ export class Node implements ModelUser {
      *
      * SEPARATE FROM THE GEOMETRY REBUILD, and the separation is the whole point. `paintFrom`
      * skips the geometry when the source mesh has not changed, which is correct and is what
-     * makes a colour change one buffer write; the label is not geometry and is not keyed by the
+     * makes a color change one buffer write; the label is not geometry and is not keyed by the
      * mesh, so it has to be looked at on every paint instead. Its own comparison is what keeps
      * that free: a repaint that leaves the words and their typography alone rebuilds nothing.
      *

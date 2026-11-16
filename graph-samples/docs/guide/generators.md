@@ -26,7 +26,7 @@ engine-specific floating point enters a decision.
 | --------------------------------------------------------------------- | ----------------------------------------------- | ----------------- |
 | `pathGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `completeGraph` | classic families                                |                   |
 | `completeBipartiteGraph({ a, b })`                                    | K\_{a,b}                                        | `side` (u8)       |
-| `gridGraph({ rows, cols })`, `grid3dGraph({ rows, cols, layers })`    | 4- and 6-neighbour lattices; options below      | `blocked` (u8)    |
+| `gridGraph({ rows, cols })`, `grid3dGraph({ rows, cols, layers })`    | 4- and 6-neighbor lattices; options below       | `blocked` (u8)    |
 | `hypercubeGraph({ dimension })`, `ladderGraph({ n })`                 | Q_d, ladder                                     |                   |
 | `barbellGraph`, `lollipopGraph`                                       | cliques joined by paths                         |                   |
 | `cavemanGraph`, `connectedCavemanGraph`                               | cliques, and a ring of cliques                  | `community` (u32) |
@@ -38,10 +38,10 @@ engine-specific floating point enters a decision.
 | `stochasticBlockModelGraph({ sizes, probabilities, seed })`           | stochastic block model                          | `community` (u32) |
 | `plantedPartitionGraph({ groups, groupSize, pIn, pOut, seed })`       | planted partition                               | `community` (u32) |
 | `randomBipartiteGraph({ n1, n2, p, perfectMatching?, seed })`         | G(n1, n2, p), optional planted perfect matching | `side` (u8)       |
-| `randomTreeGraph({ n, seed })`                                        | uniform random labelled tree (Pruefer)          |                   |
+| `randomTreeGraph({ n, seed })`                                        | uniform random labeled tree (Pruefer)           |                   |
 | `randomDagGraph({ layers, p, seed })`                                 | layered DAG, arcs from each layer to the next   | `layer` (u32)     |
 
-`gridGraph` and `grid3dGraph` also take `periodic` (a torus), `diagonals` (8 or 26 neighbours),
+`gridGraph` and `grid3dGraph` also take `periodic` (a torus), `diagonals` (8 or 26 neighbors),
 `directed` (forward arcs only: a DAG), `obstacles` (a probability of blocking each node) and
 `positions` (`x`, `y`, `z` columns).
 

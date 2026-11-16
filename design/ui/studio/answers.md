@@ -223,7 +223,7 @@ An exported image passes when all of these hold against the final screenshot:
 - **Success:** any sample drawn; the participant says what it is in one sentence that matches
   the sample's description or Overview (what the dots and lines are, roughly how many).
 - **Path (1):** `--click "Open the Les Miserables sample"` (any sample card) (r).
-- **Partial:** SD if it took a detour (a file chooser opened and cancelled). F: nothing drawn, or
+- **Partial:** SD if it took a detour (a file chooser opened and canceled). F: nothing drawn, or
   a wrong description.
 - **Measure, not graded:** the "change it later" answer is right if it names the header's privacy
   chip or Settings > Privacy and matches the screen; reading the line "Change this in Settings >
@@ -431,9 +431,9 @@ PageRank`; `--click "PageRank"`; `--click "Run"`; `--click "Influence"` (select 
 - **Partial:** SD if the method changed only after a detour. F: only Re-run or the seed changed;
   `never-found`; or the arrangement did not change and they said it did (`false-done`).
 - **The "No crossings" refusal.** On Les Miserables (not planar) "No crossings" cannot draw. On
-  round 2's build it is greyed in the Layout list and cannot be picked, with the line "the layout
+  round 2's build it is grayed in the Layout list and cannot be picked, with the line "the layout
   "planar" cannot draw this graph without crossings: G is not planar." under it (recorded at the
-  round 2 pilot; "Rings around a node" and "Tree" are greyed with "Select a node first", three
+  round 2 pilot; "Rings around a node" and "Tree" are grayed with "Select a node first", three
   others with "Needs a node attribute to group by"). A participant who reports that No crossings
   cannot be used here has read the screen correctly; that is not `false-done` and not a wrong
   turn, and it is not a success by itself. A participant confused by "planar" or "G" is a wording
@@ -454,13 +454,13 @@ PageRank`; `--click "PageRank"`; `--click "Run"`; `--click "Influence"` (select 
   4, 2 left to right); a participant who matches columns to the key by color has read it right.
 - **Round 2 and round 3 scoring.** The success definition does not change (a different layout
   applied, positions changed; "helped" is an opinion).
-    - Round 2: the group layouts stayed greyed with "Needs a node attribute to group by" even after
+    - Round 2: the group layouts stayed grayed with "Needs a node attribute to group by" even after
       a community run. A participant who read that and applied another layout is S (SD if it took a
       detour); one who stopped there with nothing applied is F `dead-end`, marked build-decided.
     - Round 3: a group layout applied with the community result is S. If a group layout is still
-      greyed after a finished community run, that is a build defect (the change did not land):
+      grayed after a finished community run, that is a build defect (the change did not land):
       record it, and grade a participant who stopped there F `dead-end`, build-decided, as in round 2.
-      Greyed before any community run (Les Miserables has no attribute to group by) is correct and
+      Grayed before any community run (Les Miserables has no attribute to group by) is correct and
       not a defect.
     - Record for every session whether a community run was made and whether a group layout was
       tried; that share is what credits the change.

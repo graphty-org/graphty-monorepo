@@ -48,7 +48,7 @@ icon toggle in the editor header ("Preview groups", tooltip with its key) shows 
 instead. graphty-element owns it: a transient top layer the StyleManager draws and never persists,
 shown as a temporary "Preview" row at the top of the layer list while active (appearance only
 through layers; nothing hidden from the list). Additive `@beta` API next to the filter-conditions
-API, e.g. `previewSelection(selection, { colors })` returning a handle with `end()`. Figma's analogue:
+API, e.g. `previewSelection(selection, { colors })` returning a handle with `end()`. Figma's analog:
 Outline mode, a view, not an edit.
 
 ## Dropdowns: contents and order
@@ -59,7 +59,7 @@ Outline mode, a view, not an edit.
    Add (Union), Except (Subtract), Keep (Intersect). Full words in tooltips. No Exclude.
 3. **Start with**: a segmented "All | None" on the group's first row, not a dropdown.
 4. **Field picker** (search focused; one component in both homes), groups in order:
-   Data (this tab's columns, then the other kind's columns, labelled Nodes / Edges);
+   Data (this tab's columns, then the other kind's columns, labeled Nodes / Edges);
    Results (runs already in this session, dot = computed);
    catalog categories with Analyze's headings and order (not-run entries show a clock and estimate);
    Added (user-registered algorithms, the catalog's "custom");

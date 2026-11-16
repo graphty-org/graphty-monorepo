@@ -4,10 +4,10 @@
  * The names are fixed by the result's SHAPE rather than by the algorithm -- `results.<run>.value`
  * means the same thing for every metric -- so they are built here once instead of being written
  * out by each algorithm. `test/algorithms/metrics/catalog-agreement.test.ts` asserts that what an
- * algorithm publishes is exactly what the catalogue declares for it, which is what keeps a
+ * algorithm publishes is exactly what the catalog declares for it, which is what keeps a
  * consumer's options form, the cost gate and the running code describing one thing.
  *
- * The catalogue cannot be imported from here: `src/catalog/algorithms.ts` imports every algorithm
+ * The catalog cannot be imported from here: `src/catalog/algorithms.ts` imports every algorithm
  * class, so reading its private builder back out would be a cycle evaluated while the classes are
  * still being defined.
  */

@@ -8,7 +8,7 @@
  * resolver of every P4 tolerance. Shares what fa2-parity.ts exports (the options, the simulation factory, the
  * decoders, the metrics); never imports fr-parity.ts or se-parity.ts.
  *
- * Units: every capture runs at scale 1 with a zero centre (assertUnitStart), so the owner's scene array IS the
+ * Units: every capture runs at scale 1 with a zero center (assertUnitStart), so the owner's scene array IS the
  * layout state on both sides. A one-cell fixture (`hubcell`, `onecell1k`, `onecell1025`: every position inside a
  * 1e-3 box around 0.1) takes ONE anchor node moved to (100, 100, 100) inside the layout (gridFixture): without it
  * the box itself would be the extent and its nodes would spread over the whole grid; with it K1's extent is
@@ -62,7 +62,7 @@ import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and tunings
 
-/** The options every grid parity case starts from: fa2-parity's BASE_OPTIONS (scale 1, zero centre, seed 7, settling off). */
+/** The options every grid parity case starts from: fa2-parity's BASE_OPTIONS (scale 1, zero center, seed 7, settling off). */
 export const GRID_BASE_OPTIONS: ForceAtlas2Options = BASE_OPTIONS;
 /** The grid tier, bitwise reproducible (spec 7.16), paper mode. */
 export const GRID_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "grid", deterministic: true, compat: "paper" });
@@ -80,7 +80,7 @@ export const EXACT_TUNING: GpuLayoutTuning = PAPER;
 export const UNBIASED_SEEDS = 4096;
 
 /**
- * The ladder's top rung on a SOFTWARE rasteriser (G4-F18). A Dawn process never returns the memory a grid
+ * The ladder's top rung on a SOFTWARE rasterizer (G4-F18). A Dawn process never returns the memory a grid
  * iteration takes -- about 0.67 MB on Mesa -- so the full ladder is 2 x 4096 iterations of memory this process can
  * only grow into. The development box carries it; the continuous integration runner's Mesa dies at about 2 GB,
  * taking the whole shard with it, so the software lane walks a ladder five doublings shorter and PRINTS its
@@ -129,7 +129,7 @@ export function gridFixture(
 }
 
 /**
- * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centred at x = +100 and x = -100,
+ * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centered at x = +100 and x = -100,
  * beyond the grid's extent (6 x the rms radius) on opposite sides. The core nodes come first. The core's half-width h
  * (5 in 2D, 15 in 3D) spreads it over enough finest cells that none holds more than the default nearMax (64) nodes,
  * so the near field is exact and the comparison sees the far field alone.

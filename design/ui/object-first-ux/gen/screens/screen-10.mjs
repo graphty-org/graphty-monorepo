@@ -2,8 +2,8 @@
 // window as the mask, the transport bar under the canvas, its gear popover
 // open, and the Dataset inspector on its Data tab (round-2/screens.md). The
 // canvas is email.mjs: the 412 nodes and 1,910 edges inside the window,
-// coloured by the nine whole-year communities (Okabe-Ito's eight, the ninth
-// grey as Other), sized by in-window connections, the 58 busiest outlined.
+// colored by the nine whole-year communities (Okabe-Ito's eight, the ninth
+// gray as Other), sized by in-window connections, the 58 busiest outlined.
 import { NODES, DEGREE, COMMUNITIES } from "../email.mjs";
 import { OKABE_8, OTHER } from "../palettes.mjs";
 

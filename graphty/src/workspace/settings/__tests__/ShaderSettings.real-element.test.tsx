@@ -365,7 +365,7 @@ describe("the graph's shader settings", () => {
         await pickNebula();
 
         // A GPU that takes 80 ms per frame, at the one place the element learns about the GPU:
-        // the WebGL 2 fence after each frame reads unsignalled until that long after it was made.
+        // the WebGL 2 fence after each frame reads unsignaled until that long after it was made.
         // The canvas's own context: asking a canvas again hands back the one it already has.
         const canvas = (element.shadowRoot ?? element).querySelector("canvas");
         const gl = canvas?.getContext("webgl2");

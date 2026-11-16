@@ -1,6 +1,6 @@
 /**
  * The `radix-hist` kernel body (spec 6 row 6; P4-T4): the RADIX_BINS-bin (2^8) digit histogram of one WG-wide block
- * of keys, privatised in workgroup memory (atomics on workgroup memory are order-independent) and written
+ * of keys, privatized in workgroup memory (atomics on workgroup memory are order-independent) and written
  * DIGIT-MAJOR, `hist[digit * P.groups + group]`, so one exclusiveScan over the table yields, per digit, the offsets
  * of the workgroups in workgroup order -- what a stable LSD scatter needs. The bitwise operators act on a KEY and a
  * DIGIT, never on an arc index (house rule). Body only; normative text.

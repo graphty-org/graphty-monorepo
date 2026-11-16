@@ -9,7 +9,7 @@ import { IndexedMaxHeap } from "./structures/max-heap.js";
  * ({@link deltaPageRank}), and the {@link DeltaPageRank} and {@link PriorityDeltaPageRank} engines.
  * The first two reproduce their legacy counterparts' arithmetic, including its quirks, so a facade
  * over them gives the legacy answer; {@link PriorityDeltaPageRank} converges to `pageRank` instead.
- * Neighbours are visited in logical edge order (the legacy adjacency's
+ * Neighbors are visited in logical edge order (the legacy adjacency's
  * insertion order), and every weight comes from the per-arc `weights` override when one is given.
  * @module
  */
@@ -26,9 +26,9 @@ export interface DeltaPageRankOptions {
     readonly weighted?: boolean | undefined;
     /** Per-arc weight override, arcCount long -- a facade passes `expandEdges(s, shadow.data)`. */
     readonly weights?: NumericVector | undefined;
-    /** Starting score per node index, nodeCount long; normalised to sum 1. Default 1 / n each. */
+    /** Starting score per node index, nodeCount long; normalized to sum 1. Default 1 / n each. */
     readonly initialRanks?: NumericVector | undefined;
-    /** Teleport distribution per node index, nodeCount long; normalised to sum 1. Default uniform. */
+    /** Teleport distribution per node index, nodeCount long; normalized to sum 1. Default uniform. */
     readonly personalization?: NumericVector | undefined;
 }
 
@@ -51,14 +51,14 @@ export interface DeltaPageRankComputeOptions {
     /** Split a node's delta by arc weight instead of evenly; default false. */
     readonly weighted?: boolean | undefined;
     /**
-     * Teleport distribution per node index, nodeCount long; normalised to sum 1.
+     * Teleport distribution per node index, nodeCount long; normalized to sum 1.
      * {@link DeltaPageRank} only: the priority engine ignores it, as its legacy counterpart does.
      */
     readonly personalization?: NumericVector | undefined;
 }
 
 /**
- * The arcs of each row reordered into logical edge order: the legacy adjacency's neighbour order.
+ * The arcs of each row reordered into logical edge order: the legacy adjacency's neighbor order.
  * @param s - A directed snapshot
  * @returns Arc indices, grouped by row as `rowPtr` groups them
  */
@@ -93,7 +93,7 @@ function outWeights(s: GraphSnapshot, order: U32, weights: NumericVector | null)
 
 /**
  * Divide by the sum in place, when the sum is positive.
- * @param v - The vector to normalise
+ * @param v - The vector to normalize
  */
 function normalize(v: F64): void {
     let sum = 0;
@@ -108,11 +108,11 @@ function normalize(v: F64): void {
 }
 
 /**
- * A normalised copy of a per-node vector, or null when absent.
+ * A normalized copy of a per-node vector, or null when absent.
  * @param v - The caller's vector
  * @param n - The node count it must match
  * @param name - The option name, for the error message
- * @returns The normalised copy, or null
+ * @returns The normalized copy, or null
  */
 function nodeVector(v: NumericVector | undefined, n: number, name: string): F64 | null {
     if (v === undefined) {
@@ -149,7 +149,7 @@ function arcWeights(s: GraphSnapshot, w: NumericVector | undefined): NumericVect
 }
 
 /**
- * Add `scale * (weight / ow)` to `out` at each out-neighbour of `u`, in logical edge order.
+ * Add `scale * (weight / ow)` to `out` at each out-neighbor of `u`, in logical edge order.
  * @param s - The snapshot
  * @param order - Its arcs in logical edge order
  * @param weights - Per-arc weights, or null for 1 each
@@ -208,7 +208,7 @@ function maxAbsDiff(a: F64, b: F64 | null): number {
  * @param next - The vector to set
  * @param d - The damping factor
  * @param spread - The dangling spread per node (before the personalization)
- * @param personal - The normalised personalization, or null for uniform
+ * @param personal - The normalized personalization, or null for uniform
  */
 function fillTeleport(next: F64, d: number, spread: number, personal: F64 | null): void {
     const n = next.length;
@@ -282,7 +282,7 @@ export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): P
  * Delta-propagating PageRank that keeps its state between calls, as the legacy `DeltaPageRank`
  * does: each round, every active node with a delta of at least `deltaThreshold` adds it to its
  * score and pushes `dampingFactor * delta` along its out-arcs; the teleport share is added to
- * every node's next delta each round, and the scores are normalised at the end. The out-weights
+ * every node's next delta each round, and the scores are normalized at the end. The out-weights
  * that split a delta are the WEIGHTED out-degrees even when `weighted` is false -- legacy's
  * arithmetic, kept so the two agree.
  * @public
@@ -316,7 +316,7 @@ export class DeltaPageRank {
 
     /**
      * Propagate deltas until none is active, every pending delta is below `tolerance`, or
-     * `maxIterations` rounds have run; then normalise the scores.
+     * `maxIterations` rounds have run; then normalize the scores.
      *
      * The rounds reproduce legacy's arithmetic, whose deltas do not decay: the scores keep growing
      * with every round, so a `maxIterations` in the thousands can overflow them.
@@ -330,7 +330,7 @@ export class DeltaPageRank {
     }
 
     /**
-     * Make only the given nodes and their in- and out-neighbours active, then {@link compute}.
+     * Make only the given nodes and their in- and out-neighbors active, then {@link compute}.
      * An index outside the graph names nothing and is skipped, but a non-empty `modified` still
      * starts a round, as legacy does for an id the graph lacks. The snapshot is frozen, so this
      * re-runs over the same graph; a changed graph is a new snapshot and a new engine.
@@ -395,7 +395,7 @@ export class DeltaPageRank {
         }
         // Legacy's arithmetic adds the teleport share and every dangling node's whole score back each
         // round, so the deltas never decay and enough rounds overflow the scores; refuse that rather
-        // than return the NaN ranks normalising Infinity gives.
+        // than return the NaN ranks normalizing Infinity gives.
         if (!scores.every((x) => Number.isFinite(x))) {
             throw withCode(
                 new RangeError(
@@ -413,7 +413,7 @@ export class DeltaPageRank {
      * personalization when one is given.
      * @param next - The next round's deltas
      * @param d - The damping factor
-     * @param personal - The normalised personalization, or null for uniform
+     * @param personal - The normalized personalization, or null for uniform
      */
     private spreadDangling(next: F64, d: number, personal: F64 | null): void {
         const { s, scores } = this;
@@ -476,11 +476,11 @@ export class DeltaPageRank {
  * instead of adding a second entry, so a pop always carries the node's whole pending delta.
  * `maxIterations` counts processed nodes; every 1000 of them the run stops if no pending delta
  * reaches `tolerance`. At the end each pending delta of at least `deltaThreshold` is
- * added to its score (and stays pending), and the scores are normalised.
+ * added to its score (and stays pending), and the scores are normalized.
  *
  * The starting deltas are the teleport share, so the scores converge to `pageRank`'s and no
  * teleport is added at the end. A dangling node's mass is dropped rather than spread; since
- * `pageRank` spreads it by the same uniform distribution as the teleport, normalising gives the
+ * `pageRank` spreads it by the same uniform distribution as the teleport, normalizing gives the
  * same answer. A delta is split by arc weight when `weighted` is true, evenly otherwise.
  * @public
  */
@@ -555,8 +555,8 @@ export class PriorityDeltaPageRank {
     }
 
     /**
-     * Pass `scale` of `u`'s processed delta to its out-neighbours, split by arc weight (or evenly
-     * when `weights` is null), and queue each neighbour whose pending delta reaches `threshold`.
+     * Pass `scale` of `u`'s processed delta to its out-neighbors, split by arc weight (or evenly
+     * when `weights` is null), and queue each neighbor whose pending delta reaches `threshold`.
      * @param u - The processed node
      * @param scale - The damping factor times its delta
      * @param weights - Per-arc weights, or null to split evenly

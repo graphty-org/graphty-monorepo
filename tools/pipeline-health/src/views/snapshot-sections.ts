@@ -341,7 +341,7 @@ export async function workflowsTable(reads: Reads): Promise<Section> {
 const NIGHTLY_MODES = new Set(["full", "restart", "candidate", "promote-nightly"]);
 
 /**
- * A nightly attempt's outcome: cancelled, failed, promoted (its nightly site job passed), or held back.
+ * A nightly attempt's outcome: canceled, failed, promoted (its nightly site job passed), or held back.
  * @param a - the release attempt
  * @returns the attempt's outcome on the nightly channel
  */

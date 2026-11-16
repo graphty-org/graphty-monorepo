@@ -41,12 +41,12 @@ interface Relation {
  * Eigenvector centrality by power iteration on `(A + cI)`: like networkx's `A + I`, the identity shift
  * leaves the eigenvectors alone and makes the largest eigenvalue the only one of largest magnitude,
  * so a bipartite or periodic graph converges instead of oscillating. `c` is 1 on a directed relation and
- * `max(1, sqrt(d) / 2)` on a symmetric one (undirected, or `"total"`), `d` the largest neighbour count: a hub of
+ * `max(1, sqrt(d) / 2)` on a symmetric one (undirected, or `"total"`), `d` the largest neighbor count: a hub of
  * degree `d` puts eigenvalues near both `+sqrt(d)` and `-sqrt(d)`, and the larger shift keeps a star from
  * alternating slowly between them (a 50,000-node star stops in 14 passes, not 1,622).
  * The run stops when the change between passes is small relative to the vector, so the error left behind does
- * not grow with the node count. Each node's neighbours are
- * counted once however many parallel edges join them, as in the legacy neighbour sets. When the
+ * not grow with the node count. Each node's neighbors are
+ * counted once however many parallel edges join them, as in the legacy neighbor sets. When the
  * relation has no cycle (no arcs, or a directed acyclic graph) its matrix is nilpotent and every
  * score is exactly 0.
  * @param s - The snapshot
@@ -152,11 +152,11 @@ function shiftedStep(rel: Relation, shift: number, x: F64, raw: F64): void {
 }
 
 /**
- * The identity shift of a symmetric relation: half the square root of the largest neighbour count, not counting a
- * self-loop, and at least 1 (networkx's `A + I`). A hub of `d` neighbours bounds the largest eigenvalue from below
+ * The identity shift of a symmetric relation: half the square root of the largest neighbor count, not counting a
+ * self-loop, and at least 1 (networkx's `A + I`). A hub of `d` neighbors bounds the largest eigenvalue from below
  * by `sqrt(d)`, so the shift never outweighs it. Mirrored in webgpu-graph-algorithms' eigenvector centrality.
  * @param rowPtr - Row pointers
- * @param colIdx - Neighbour indices, each neighbour once per row
+ * @param colIdx - Neighbor indices, each neighbor once per row
  * @returns The shift
  */
 function hubShift(rowPtr: Uint32Array, colIdx: Uint32Array): number {
@@ -192,11 +192,11 @@ export function minMaxRescale(x: F64): void {
 }
 
 /**
- * The feeding relation as a CSR with each neighbour once per row. Snapshot rows are sorted, so a
+ * The feeding relation as a CSR with each neighbor once per row. Snapshot rows are sorted, so a
  * parallel arc is the previous entry repeated, and the `"total"` row is a merge of two sorted rows.
  * @param s - The snapshot
  * @param mode - Which arcs feed a node on a directed snapshot
- * @returns Row pointers and neighbour indices
+ * @returns Row pointers and neighbor indices
  */
 function feeders(s: GraphSnapshot, mode: "in" | "out" | "total"): Relation {
     const n = s.nodeCount;

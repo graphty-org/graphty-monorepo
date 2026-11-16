@@ -5,7 +5,7 @@
  * style selector matches on, what a filter reads, what an expression editor completes and what
  * an export writes. Because it is public, the field NAMES cannot be an algorithm's private
  * choice -- `results.<run>.value` has to mean the same thing for every metric, forever, or a
- * consumer has to open the catalogue before it can read a number.
+ * consumer has to open the catalog before it can read a number.
  *
  * So the names are fixed by the result's SHAPE rather than by the algorithm, and the table that
  * fixes them is data in this file: {@link RESULT_FIELD_CONTRACT} says what each name means and
@@ -44,7 +44,7 @@ export const RESULT_ROOT = "results";
 /**
  * What a static field path writes where a run id will go.
  *
- * A catalogue descriptor is written before any run exists, so it publishes `results.$.value`.
+ * A catalog descriptor is written before any run exists, so it publishes `results.$.value`.
  * {@link bindResultPath} swaps the placeholder for a real id once a run has one.
  */
 export const RESULT_PATH_RUN_PLACEHOLDER = "$";
@@ -80,7 +80,7 @@ export function resultPath(runId: RunId, field?: string): Path {
  * The name a grouping result gives one of its groups, from its place in the size order.
  *
  * The summary and the legend both print this, so one group is called the same thing in the list
- * of groups and in the key to the colours -- rather than "Group 1" in one and its raw id "0" in the
+ * of groups and in the key to the colors -- rather than "Group 1" in one and its raw id "0" in the
  * other.
  * @param rank - The group's 1-based place, largest group first.
  * @returns The name, such as "Group 1".
@@ -110,7 +110,7 @@ export function compareGroupKeys(left: string | number, right: string | number):
 }
 
 /**
- * Replace the run-id placeholder in a catalogue descriptor's static path with a real run id.
+ * Replace the run-id placeholder in a catalog descriptor's static path with a real run id.
  * @param path - The path as a descriptor declares it, such as "results.$.value".
  * @param runId - The run to bind it to.
  * @returns The bound path, unchanged when it carried no placeholder.
@@ -349,7 +349,7 @@ export const RESULT_FIELD_NAMES = Object.keys(RESULT_FIELD_CONTRACT) as readonly
 /**
  * What a shape's result offers a consumer once it lands.
  *
- * "encoding" shapes carry a value per element that a colour, a size or a width can be bound to.
+ * "encoding" shapes carry a value per element that a color, a size or a width can be bound to.
  * "highlight" shapes name a subset rather than measuring everything, so they paint a selection
  * and are mutually exclusive: a second highlight result replaces the first. "none" shapes are
  * read as tables and numbers and drive no layer at all.
@@ -360,7 +360,7 @@ export type ResultLayerRole = "encoding" | "highlight" | "none";
  * What one result shape must publish.
  *
  * The lists are REQUIRED fields: an algorithm of this shape declares at least these, and may
- * declare more. That is what makes a path guessable without the catalogue while still letting
+ * declare more. That is what makes a path guessable without the catalog while still letting
  * degree publish `inDegree` and shortest-path publish `diameter`.
  */
 export interface ResultShapeContract {
@@ -551,7 +551,7 @@ interface ShapeContractViolation {
  *
  * This is the machine-checkable half of "uniform field names": a shape is only worth having if
  * something fails when an algorithm skips a field it promised, and that is this function. It
- * reads a field list -- a catalogue descriptor's `fields`, or a finished `RunResult.fields` --
+ * reads a field list -- a catalog descriptor's `fields`, or a finished `RunResult.fields` --
  * and never the values behind it.
  * @param shape - The shape the result claims.
  * @param fields - The fields it declares.
@@ -622,9 +622,9 @@ function hasHeadlineScalar(contract: ResultShapeContract, fields: readonly Field
 // ---------------------------------------------------------------------------------------------
 
 /**
- * One numeric field of a result, read without materialising an object per element.
+ * One numeric field of a result, read without materializing an object per element.
  *
- * A histogram, a colour ramp's domain and a summary all walk the same column, and a graph big
+ * A histogram, a color ramp's domain and a summary all walk the same column, and a graph big
  * enough to be interesting cannot afford a row object per node for each of them.
  */
 export interface NumericColumnView {
@@ -831,7 +831,7 @@ export interface SummaryGroup {
     readonly size: number;
     /**
      * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
-     * partitions into groups. The legend of a colour encoding over the same groups carries the
+     * partitions into groups. The legend of a color encoding over the same groups carries the
      * same `rank` on each swatch, a page column of the group field carries it per cell, and an
      * export writes it as the group column's value, so every surface and every exported file names
      * a group the same way: word it from the rank ("Group 3").
@@ -1011,7 +1011,7 @@ export interface RunResult {
     /**
      * Which band of its interpretation scale a graph-level field's value falls in, such as
      * "clear" for a community result's modularity above 0.3. The bands, their thresholds and
-     * their source are on the field's `interpretation` in the catalogue.
+     * their source are on the field's `interpretation` in the catalog.
      * @param field - The graph-level field, such as "modularity".
      * @returns The band, or undefined when the field has no interpretation or no finite value.
      */
@@ -1078,7 +1078,7 @@ export interface ResultsApi {
      *
      * USE THIS ONE INSIDE AN EXPRESSION, and {@link ResultsApi.path} for a selector's `path`
      * member. The difference is not cosmetic. A run id carries its algorithm's name, and ten of
-     * the element's twenty-four catalogue algorithms are hyphenated -- `shortest-path`,
+     * the element's twenty-four catalog algorithms are hyphenated -- `shortest-path`,
      * `min-cut`, `bipartite-matching` -- while the expression grammar reads a bare hyphen as
      * subtraction. So `` `${results.path(run)} >= \`3\`` `` is not a comparison at all on those
      * runs: it parses as one column minus another, and the layer is refused outright. Degree has

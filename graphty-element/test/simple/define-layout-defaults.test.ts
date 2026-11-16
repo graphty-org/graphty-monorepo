@@ -1,5 +1,5 @@
 /**
- * @file What `defineLayout` fills in for the author, without a browser: the catalogue members a
+ * @file What `defineLayout` fills in for the author, without a browser: the catalog members a
  * definition never writes, the seed option `random: true` adds, and the registration rules it
  * shares with every advanced layout (design/extensions/simple-tier.md sections 3 and 4.2).
  */

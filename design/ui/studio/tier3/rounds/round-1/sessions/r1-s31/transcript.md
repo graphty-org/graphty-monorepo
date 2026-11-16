@@ -7,7 +7,7 @@ Tom: "Open a file is the biggest button. That's what I'd click."
 
 ## Step 2 -- open the file
 Command: --step <session> --click "Open a file" --upload volunteers.graphml
-Screenshot 02.png: "Open as a new graph", a spreadsheet-looking table: 24 rows, name, role, hours, trained (Yes/No), phone. Some phones blank. Says "24 node rows and 63 edge rows read". "Local only" at the top -- fine. Lots of small grey words up top (Key, Attribute, Column roles) I'm not reading. I can already see Aisha Bello, Diego Ruiz, Nora Lindqvist trained with no phone. There is a "Load" button bottom right.
+Screenshot 02.png: "Open as a new graph", a spreadsheet-looking table: 24 rows, name, role, hours, trained (Yes/No), phone. Some phones blank. Says "24 node rows and 63 edge rows read". "Local only" at the top -- fine. Lots of small gray words up top (Key, Attribute, Column roles) I'm not reading. I can already see Aisha Bello, Diego Ruiz, Nora Lindqvist trained with no phone. There is a "Load" button bottom right.
 Tom: "24 rows, that's the roster. I'm not touching any of those boxes. Load."
 
 ## Step 3 -- Load
@@ -67,12 +67,12 @@ Tom: "That's them. Now red. There's a 'Style' word at the top right next to 'Val
 
 ## Step 14 -- Style tab
 Command: --step <session> --click "role=tab:Style"
-Screenshot 14.png: a list: Shape, Visibility, Text, Fill, Effects, Rendering, each with a +. Small grey line on top about "a layer for the 4 selected nodes" -- too small, skipped. No word "colour" anywhere.
+Screenshot 14.png: a list: Shape, Visibility, Text, Fill, Effects, Rendering, each with a +. Small gray line on top about "a layer for the 4 selected nodes" -- too small, skipped. No word "colour" anywhere.
 Tom: "No 'colour'. 'Fill' is what PowerPoint calls the colour of a shape. Click the + by Fill."
 
 ## Step 15 -- + by Fill
 Command: --step <session> --click-at 1404,301   (button "Add to node fill")
-Screenshot 15.png: "Color" with a little blue square and "6366F1" highlighted in a box. Some grey small text under it. I don't know what 6366F1 is. The text is highlighted, so it wants me to type.
+Screenshot 15.png: "Color" with a little blue square and "6366F1" highlighted in a box. Some gray small text under it. I don't know what 6366F1 is. The text is highlighted, so it wants me to type.
 Tom: "I don't know colour codes. I'll just type the word red and press Enter and see if it takes it."
 
 ## Step 16 -- type "red", Enter
@@ -95,13 +95,13 @@ Tom: "Four red, the rest as they were. That's it. I'm done."
 
 **How easy, 1 (very difficult) to 7 (very easy):** 5.
 
-**What went well, in my words:** It opened the file straight from the big button, no install, and it said "It never leaves your computer" and "Local only" -- that's the line I look for with anything that has people's phone numbers. Typing "trained" in the Find box gave me "Select the 15 nodes (trained: yes)" with a number, and then the side said "phone 11 of 15 have a value" -- so I knew it was four before I'd found them. The table behaved like Excel: sort by a heading, Ctrl-click rows. Typing the word "red" into the colour box worked. The little box on the picture saying "Color: 4 nodes, 4 of 24" told me it did something and how many.
+**What went well, in my words:** It opened the file straight from the big button, no install, and it said "It never leaves your computer" and "Local only" -- that's the line I look for with anything that has people's phone numbers. Typing "trained" in the Find box gave me "Select the 15 nodes (trained: yes)" with a number, and then the side said "phone 11 of 15 have a value" -- so I knew it was four before I'd found them. The table behaved like Excel: sort by a heading, Ctrl-click rows. Typing the word "red" into the color box worked. The little box on the picture saying "Color: 4 nodes, 4 of 24" told me it did something and how many.
 
 **What confused me / annoyed me:**
 - The picture has no names on the balls, so from the picture alone I could not tell who anyone was. I only got the names because I opened the table.
 - I could get "the trained ones" in one go, but not "trained AND no phone". I clicked the "phone 11 of 15 have a value" line hoping it would pick the four; nothing happened. I ended up picking them by hand from the table.
 - Sorting the phone column: the empty ones stayed at the bottom whichever way I sorted. In Excel I'd flip it and they'd come to the top. I had to scroll.
-- There's no word "colour" in the Style list. I had to guess that "Fill" is colour. Then it showed "6366F1" -- I don't know codes; I only tried typing "red" because the box was highlighted.
+- There's no word "colour" in the Style list. I had to guess that "Fill" is color. Then it showed "6366F1" -- I don't know codes; I only tried typing "red" because the box was highlighted.
 - The legend says "Color: 4 nodes". If I hand this to someone, it doesn't say what red means -- it doesn't say "trained, no phone". I'd have to tell them.
 - It says "Picked by hand". If one of them gives us a phone number next week, I suppose I'd have to do this again -- I'd probably ask about this bit.
 - The bar at the start, "This browser may clear what it keeps for this site", worried me a little -- does that mean my work goes away? I didn't act on it.

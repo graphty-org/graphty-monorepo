@@ -12,7 +12,7 @@ const TOLERANCE = 1e-9;
 const MAX_ITERATIONS = 5000;
 
 /**
- * The rows of a graph of at most two nodes: one node on the centre; two at the centre minus and plus `scale` in every
+ * The rows of a graph of at most two nodes: one node on the center; two at the center minus and plus `scale` in every
  * component.
  * @param n - 0, 1 or 2
  * @param dim - components per row
@@ -32,7 +32,7 @@ function tinyRows(n: number, dim: number, scale: number, center: readonly number
 }
 
 /**
- * Whether arc `a` of row u is the first arc to a neighbour other than u.
+ * Whether arc `a` of row u is the first arc to a neighbor other than u.
  * @param g - the snapshot
  * @param u - the row
  * @param a - the arc
@@ -44,7 +44,7 @@ function distinctArc(g: GraphSnapshot, u: number, a: number): boolean {
 }
 
 /**
- * Each node's count of distinct neighbours, self-loops ignored.
+ * Each node's count of distinct neighbors, self-loops ignored.
  * @param g - the snapshot
  * @returns n degrees
  */
@@ -60,7 +60,7 @@ function distinctDegrees(g: GraphSnapshot): F64 {
 }
 
 /**
- * L x for the Laplacian that counts each distinct neighbour once and ignores self-loops.
+ * L x for the Laplacian that counts each distinct neighbor once and ignores self-loops.
  * @param g - the snapshot
  * @param degree - the distinct degrees
  * @param x - n values
@@ -84,15 +84,15 @@ function applyLaplacian(g: GraphSnapshot, degree: F64, x: F64): F64 {
 /**
  * Spectral rows over an undirected snapshot, as NetworkX's `spectral_layout`: component k is the Laplacian's
  * eigenvector of the k-th smallest eigenvalue after the constant one (the Fiedler vector first). The Laplacian
- * counts each distinct neighbour once and ignores self-loops. Each component is found by LOBPCG (Rayleigh-Ritz over
+ * counts each distinct neighbor once and ignores self-loops. Each component is found by LOBPCG (Rayleigh-Ritz over
  * the current vector, its residual and the previous step) from a seeded random start, kept orthogonal to the
  * constant vector and to the earlier components, so a repeated eigenvalue gives an orthonormal basis of its
  * eigenspace. A component the graph has no eigenvector left for (`dim >= n`) is zero. The rows are rescaled so the
- * farthest node is `scale` from `center`. One node sits on the centre; two sit at the centre minus and plus
+ * farthest node is `scale` from `center`. One node sits on the center; two sit at the center minus and plus
  * `scale` in every component.
  * @param g - an undirected snapshot
  * @param dim - components per row, any positive count
- * @param scale - the distance of the farthest node from the centre
+ * @param scale - the distance of the farthest node from the center
  * @param center - `dim` components
  * @param seed - the start vectors' seed, or null for a random one
  * @returns `n * dim` values
@@ -283,7 +283,7 @@ function norm(v: F64): number {
 
 /**
  * Nodes placed by the Laplacian's eigenvectors of its smallest non-zero eigenvalues (see `spectralRows`), one
- * component per dimension, rescaled so the farthest node is `scale` from the centre.
+ * component per dimension, rescaled so the farthest node is `scale` from the center.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `seed` fixes the start vectors
  * @returns the layout

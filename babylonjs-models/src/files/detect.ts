@@ -409,7 +409,7 @@ const MAIN_MODEL_EXTENSIONS: readonly string[] = Object.freeze(
  * buffers, OBJ materials, its pictures) and a .zip holding them.
  * @param kind - `"model"` or `"image"`.
  * @param options - `parts: false` lists a model's own files and a .zip only, for a chooser that
- *     takes the model first and asks for its parts after (a browser may grey out a part's
+ *     takes the model first and asks for its parts after (a browser may gray out a part's
  *     extension, such as `.mtl`, that it has no file type for). Default: `parts: true`.
  * @param options.parts - Whether a model's parts are listed.
  * @returns The extensions, lower case.

@@ -312,7 +312,7 @@ export function paintCard(ctx: CardCanvas, card: XrCard): void {
     });
 }
 
-/** Metres per card pixel. */
+/** Meters per card pixel. */
 const SCALE = 0.4 / CARD_WIDTH;
 
 /** A stack of cards floating in front of the reader, where it was when they were shown. */
@@ -324,7 +324,7 @@ export class XrCardStack {
      * A stack.
      * @param scene - The scene.
      * @param name - Its meshes' name prefix.
-     * @param height - Metres above (positive) or below eye level.
+     * @param height - Meters above (positive) or below eye level.
      */
     constructor(
         private readonly scene: Scene,

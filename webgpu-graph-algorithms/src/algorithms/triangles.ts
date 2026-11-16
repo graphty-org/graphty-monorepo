@@ -10,7 +10,7 @@
  * 3. `tri-intersect` intersects the two oriented rows of every oriented arc and adds each triangle to the counts of
  *    its three vertices with u32 atomics -- exact, and independent of the schedule.
  *
- * All of it rides in the build's second submit, so a call is two synchronisations whatever the graph.
+ * All of it rides in the build's second submit, so a call is two synchronizations whatever the graph.
  *
  * PLAN DECISION (the P11 plan's DEP-P11-C): the coefficient and the transitivity are computed on the host from the
  * per-node counts and the simple graph's `rowPtr`, both read back in the same submit, not by a `tri-coefficient`

@@ -90,7 +90,7 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 /**
  * Katz centrality: every path that reaches a node, with a longer path counting for less.
  *
- * It generalises eigenvector centrality by giving every node a base amount of influence whatever
+ * It generalizes eigenvector centrality by giving every node a base amount of influence whatever
  * its position, which is what keeps a node with no incoming paths from scoring zero.
  */
 export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptions> {
@@ -165,7 +165,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         refuseEndpoints("Katz centrality", endpoints);
 
-        /* `"total"`, the default: every neighbour counts as an influence, whichever way the record
+        /* `"total"`, the default: every neighbor counts as an influence, whichever way the record
            declared the edge. `"in"` counts the paths that ARRIVE at a node along the declared
            direction, which is what the port reads off a directed snapshot; `"out"` counts the
            paths that LEAVE it, which is the same reading over the transposed snapshot. A graph

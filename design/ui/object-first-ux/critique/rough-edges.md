@@ -22,12 +22,12 @@ graphty-org/graphty-monorepo. This is a design critique; it changes no code.
 - **Layer**: the element's unit of appearance (`LayerSpec` in
   `graphty-element/src/catalog/types.ts`): a selector (which elements) plus either fixed
   values or a binding from a value to a visual property. Layers form a stack; later wins.
-- **Channel**: one visual property a layer can write (node colour, node size, edge width).
+- **Channel**: one visual property a layer can write (node color, node size, edge width).
   There are 40.
 - **Precedence**: when two objects paint the same channel of the same element, which wins.
   The model's rule: the visible object nearest the top of the tree, per channel.
 - **Set**: an object whose members are a list of elements, painted with one look.
-- **Measure**: an object with one value per element, painted with a scale (a colour ramp or
+- **Measure**: an object with one value per element, painted with a scale (a color ramp or
   a size range).
 - **Grouping**: a Measure of labels that is also a folder of **Group** objects, one per label.
 - **Mask** (what is **showing**): the element's one visibility filter (`session.visibility`).
@@ -47,8 +47,8 @@ graphty-org/graphty-monorepo. This is a design critique; it changes no code.
 
 ## 1. Overlapping membership and precedence
 
-**The problem.** In Figma a pixel belongs to one shape. Here node 3 can be in Group 2 (colour
-orange from Communities), in "Path: 1 to 34" (colour blue, edge width 3), in "Degree > 8"
+**The problem.** In Figma a pixel belongs to one shape. Here node 3 can be in Group 2 (color
+orange from Communities), in "Path: 1 to 34" (color blue, edge width 3), in "Degree > 8"
 (outline 2 px), and have a size from Influence. Four objects, one node, and the reader has to
 be able to answer "why is this node blue" without reading the source.
 
@@ -66,7 +66,7 @@ reader sees, not in the rule:
 2. **A conflict has no visible sign in the tree.** Screen 6 (`mocks/screen-6.png`) shows the
    covered Grouping's chip dimmed to 50 percent, which works for the full-cover case. For
    partial cover (a Set of ten nodes above a Grouping of 34), nothing in the tree says the
-   Grouping's colour is missing on ten nodes. The reader finds out from the canvas, or by
+   Grouping's color is missing on ten nodes. The reader finds out from the canvas, or by
    opening the Grouping's Fill and reading "Covered by Path on 10 of 34 members".
 3. **"Covered by X on N of M" is expensive as specified.** The count is `explain()` over
    every member, which is M calls per covered object per repaint. Fine at 34 nodes; at
@@ -88,12 +88,12 @@ reader sees, not in the rule:
   channel on any member. Cheap to compute from the layer selectors when the objects API keeps
   member sets: it is set intersection, not `explain()` per node.
 - B. Forbid the same channel twice: a new object's default Fill takes the first free channel
-  (the model already says this), and the Fill "+" greys out a channel a visible object above
+  (the model already says this), and the Fill "+" grays out a channel a visible object above
   already writes, with the tooltip "Colour is written by Path above this". The reader can still
   do it after moving the row.
 - C. Top row wins every channel (Figma's literal rule). Rejected by the model (decision 11)
   because it erases stacking, which is the point of the tree.
-- D. Blend on conflict (mix colours, average sizes). Rejected: unreadable and unexplainable.
+- D. Blend on conflict (mix colors, average sizes). Rejected: unreadable and unexplainable.
 
 **Recommendation.** A plus the second half of B. Keep per-channel precedence. Add one glyph on
 the row for "some of my members are painted by something above me on a channel I write",
@@ -177,7 +177,7 @@ it in the UI until it exists.
 
 For the cost guess: until `session.calibrate()` exists, the "live" threshold should be
 conservative and the Definition section of a rule Set should carry a small "Live" or "Re-run
-on Enter" word so the reader can see which behaviour they have.
+on Enter" word so the reader can see which behavior they have.
 
 **Prototype first.** A headless-session script that creates a rule Set, a Grouping within it,
 and a Top 10 linked to a Measure, then applies Add data, a parameter edit and a scope edit,
@@ -200,8 +200,8 @@ the row, never a dialog. The rough edges:
 2. **Cancel of a creation deletes the row; cancel of a re-run restores the old state.** Two
    different outcomes for one button, and the second one only works if the element kept the
    previous result, which it does not (a re-run replaces).
-3. **Partial results.** A cancelled community detection at 60 percent has a partial labelling
-   that is meaningless; a cancelled betweenness sampling has a usable approximate answer. The
+3. **Partial results.** A canceled community detection at 60 percent has a partial labeling
+   that is meaningless; a canceled betweenness sampling has a usable approximate answer. The
    model has no "partial" state and the element has no partial result. Cancel throws away the
    work either way.
 4. **The queue.** The element runs one thing at a time through its operation queue. Six
@@ -220,9 +220,9 @@ the row, never a dialog. The rough edges:
   of 6"); the status bar chip's Cancel cancels the whole batch.
 - C. For blocking runs, run them in a worker (design 9.3's worker-hosted session). The real
   fix; large; not this phase.
-- D. For partial results: a "partial" caveat rather than a state. A cancelled approximable run
-  keeps its sample so far and lands current with the caveat "cancelled at 60 percent of the
-  sample"; a cancelled non-approximable run is removed (creation) or reverted (re-run).
+- D. For partial results: a "partial" caveat rather than a state. A canceled approximable run
+  keeps its sample so far and lands current with the caveat "canceled at 60 percent of the
+  sample"; a canceled non-approximable run is removed (creation) or reverted (re-run).
 
 **Recommendation.** B and D. Queue position is one word in the row and stops the ring lying.
 Partial-as-caveat keeps the state list at six and uses the element's existing caveat channel;
@@ -244,7 +244,7 @@ states in one Grouping's worth of rows are readable.
 ## 4. Measures versus sets: is a gradient a Fill?
 
 **The problem.** The model calls everything an object's appearance "Fill", after Figma. For a
-Set that is exact: one paint row, a colour chit, an opacity. For a Measure it is a stretch:
+Set that is exact: one paint row, a color chit, an opacity. For a Measure it is a stretch:
 Channel, Scale, Palette, Domain, Missing, Reverse, a second channel with a Range. Screen 6 shows
 it and it reads well, but three things strain:
 
@@ -254,10 +254,10 @@ it and it reads well, but three things strain:
    the section is no longer the uniform 32 px paint row the comparison document praised Figma
    for. Uniformity was the argument; the Measure's Fill breaks it.
 2. **A Measure has no members to select or halo.** Clicking a Set row halos its members;
-   clicking a Measure row clears the selection (section 8). Two row kinds, two behaviours on
+   clicking a Measure row clears the selection (section 8). Two row kinds, two behaviors on
    click. A reader who clicks Influence expecting to see "the influential nodes" gets nothing
    on the canvas, and has to go to Values > Top 10 or cut a Set.
-3. **A Grouping is a Measure that is also a folder.** Its Fill is a palette (one colour per
+3. **A Grouping is a Measure that is also a folder.** Its Fill is a palette (one color per
    Group), each Group's Fill is one entry of it, and an override is a child layer. The tree
    shows a Grouping with a strip chip and Groups with swatch chips, which is clear. But the
    Fill "+" on a Grouping means "add a second channel bound to the group label" (Shape by
@@ -274,7 +274,7 @@ it and it reads well, but three things strain:
 
 - A. Keep "Fill" for everything and accept the three shapes. The section header is the
   constant; the rows inside vary by kind.
-- B. Two section names: "Fill" on a Set or Group (a colour), "Encoding" on a Measure or
+- B. Two section names: "Fill" on a Set or Group (a color), "Encoding" on a Measure or
   Grouping (a scale). Honest, and it gives the reader a word for the distinction the owner
   drew (sets versus measures) at the one place it matters. Costs one more term.
 - C. Make a Measure's Fill a single paint row whose chit is the ramp and whose "value" field
@@ -284,7 +284,7 @@ it and it reads well, but three things strain:
 **Recommendation.** B. The owner's own split is sets and measures; the inspector should say
 which one the reader is looking at, and "Encoding" is the element's own word (`encode()`,
 encoding layer). Keep the paint-row shape for Fill and the six-row block for Encoding, so the
-uniformity argument holds within each kind. For the click behaviour (edge 2): a Measure row
+uniformity argument holds within each kind. For the click behavior (edge 2): a Measure row
 click should do something on the canvas; the cheapest honest thing is a transient highlight of
 its top 10 (the same element-owned transient layer the hover link uses), with the inspector's
 Values rows already showing them. Not a selection, so the rule "Measures have no members"
@@ -296,13 +296,13 @@ so every object is a picture and the eye means what it always means.
 
 **Prototype first.** Screen 6 redrawn with the section titled "Encoding", beside screen 3's
 "Fill", and a reader test with three engineers: "which of these two objects could you give a
-single colour to?". If the word does not help, revert to A.
+single color to?". If the word does not help, revert to A.
 
 ## 5. The raw-material inspector: a node is not an object
 
 **The problem.** The model's boldest move: a node has an inspector but no Fill. Screen 4
 shows the shape: Attributes, Values (one row per Measure and Grouping covering it), Member of,
-Neighbours, Look (which object won each channel), Notes, and one action row "Colour this
+Neighbors, Look (which object won each channel), Notes, and one action row "Color this
 node...", which creates a one-node Set. It is a good report. The edges:
 
 1. **The Figma reflex fails on the material.** A Figma reader clicks a thing and looks for
@@ -317,8 +317,8 @@ node...", which creates a one-node Set. It is a good report. The edges:
    Delete now means "remove this node from the data" (feature-fit 7, note F). Same key, one
    click apart, two very different results. The rule "Delete acts on what the inspector shows"
    is right and is also exactly the mode error the comparison document warned about.
-3. **One-node Sets pile up.** Decision 19 accepts ten rows for ten recoloured nodes. That is
-   Figma's behaviour for ten rectangles, but ten rectangles are content; ten "Node 7" Sets are
+3. **One-node Sets pile up.** Decision 19 accepts ten rows for ten recolored nodes. That is
+   Figma's behavior for ten rectangles, but ten rectangles are content; ten "Node 7" Sets are
    scaffolding the reader did not want to name. The tree fills with rows whose only meaning is
    "I painted this one".
 4. **The Look section depends on `explain()` being editable-aware.** "Colour from Communities"
@@ -340,14 +340,14 @@ node...", which creates a one-node Set. It is a good report. The edges:
 - C. An automatic "Overrides" Set that collects one-node paints (the element-api-first
   proposal). Rejected by decision 19 because the app would be deciding structure.
 - D. For the pile-up: a multi-selection "Colour these..." (already in 4.9) plus a "Add to
-  [set v]" on the node inspector too, so the second recolour can join the first one's Set.
+  [set v]" on the node inspector too, so the second recolor can join the first one's Set.
   This is the clutter policy already chosen; extending it to one node is one row.
 
 **Recommendation.** A plus D. Keep nodes as material. Move the paint door to the top of Look
 and call it what the reader is looking for. Put "Add to [set v]" on the single-node inspector
 so a reader who paints node 7 and then node 12 can put 12 into "Node 7"'s Set (which they then
 rename). On Delete: the rule stands, and the confirm on the data edit is the safety net; add
-one visible cue, a Delete row in the node inspector's overflow labelled "Remove from data..."
+one visible cue, a Delete row in the node inspector's overflow labeled "Remove from data..."
 so the key and the menu say the same words.
 
 **Prototype first.** Two variants of screen 4: Look first with a "Fill..." row versus the
@@ -362,15 +362,15 @@ inspector header makes the subject obvious enough.
 1. **Edges cannot be picked** (issue #319). No click, no hover, no right-click, no marquee on
    edges. An edge Set (a spanning tree, a min cut, a path's edges) can be created and painted
    but a reader cannot click one of its edges to see the edge inspector. The model reaches
-   edges through a node's Neighbours rows and the table, which is a detour.
+   edges through a node's Neighbors rows and the table, which is a detour.
 2. **A node Set's inside edges.** "Group 2" has "Inside edges 20 | Cut edges 9" in Members,
-   and a reader expects Edge colour on that Set to paint those 20. The element's selectors name
+   and a reader expects Edge color on that Set to paint those 20. The element's selectors name
    nodes or edges, never "edges whose both ends are members" (feature-fit 5, note A1). Until a
    scope-based selector with induced edges exists, a node Set's Fill offers node channels only,
    and the most common styling intent for a community ("show its internal structure") has no
    control.
 3. **Edge Measures and edge Groupings.** Max flow writes a value per edge; edge betweenness
-   (proposed) would too; an edge attribute (weight, type) could be Colour by. The table dock
+   (proposed) would too; an edge attribute (weight, type) could be Color by. The table dock
    has an Edges tab with one column per edge Measure, but the tree has no visual distinction
    between a node object and an edge object beyond the count text ("4 edges"). A reader
    cannot tell at a glance which rows paint lines and which paint dots.
@@ -389,7 +389,7 @@ inspector header makes the subject obvious enough.
 - B. Edges are second-class until #319: reached from nodes and the table; edge objects exist
   but are not clickable on the canvas. The model's current position, unstated.
 - C. Edge objects carry a distinct row icon (a line glyph) and an "edges" count in a
-  different colour, so at least the tree says which is which.
+  different color, so at least the tree says which is which.
 
 **Recommendation.** A as the target, C now, and say B out loud in the model so nobody builds
 around it. Concretely: add a row icon for edge objects (Set of edges, Measure on edges), put
@@ -399,7 +399,7 @@ unlocks the community-structure styling that every persona who finds groups want
 picking (#319) and a selected-edge look are element work that the model should list in section
 11 with size "medium", not leave in a feature-fit footnote.
 
-**Prototype first.** A mock of screen 3 with "Group 2" given an Edge colour row and its 20
+**Prototype first.** A mock of screen 3 with "Group 2" given an Edge color row and its 20
 inside edges painted, plus a "Cheapest connecting network" edge Set row with the line icon,
 selected, its 33 edges haloed. That single picture tests whether the tree can carry edge
 objects without a legend.
@@ -451,7 +451,7 @@ History dock row says "Undo (re-runs 2 objects, about 3 s)".
 **Prototype first.** Not a mock: a headless-session test in `graphty-element` that runs
 Bridges, cuts Top 10, re-runs Bridges with a different seed, and then applies the designed
 inverse. Whether the Top 10 comes back with the old members is the pass condition. This is the
-one place where the UI cannot be evaluated before the element behaviour exists.
+one place where the UI cannot be evaluated before the element behavior exists.
 
 ## 8. Large graphs: 10,000+ nodes and a tree of 200 groups
 
@@ -476,7 +476,7 @@ scale and several of them do not survive 10,000 nodes or a Grouping with 200 gro
    does not enforce (issue #302). Once it does, a Set's members may be partly undrawn and the
    model has no word for it (feature-fit 1, note H).
 6. **Every Fill edit is a repaint of every member.** On 10,000 nodes each paint-row keystroke
-   is a run with progress; the model says fields commit on Enter, which is right, and colour
+   is a run with progress; the model says fields commit on Enter, which is right, and color
    pickers that preview on drag do not.
 7. **The waiting state everywhere.** On a big graph most Rank and Groups variants are over the
    cost gate, so most tools produce a waiting row and a second click. The "row appears
@@ -489,14 +489,14 @@ scale and several of them do not survive 10,000 nodes or a Grouping with 200 gro
 - A. Groups are virtual rows: a Grouping shows the largest N (the overflow policy's N,
   default 8) as rows and one collapsed row "192 more (Other)" that expands to a scrolled list.
   The tree's row count is bounded by N per Grouping.
-- B. Draw every group row, virtualise the list. The scroll is the problem, not the DOM.
+- B. Draw every group row, virtualize the list. The scroll is the problem, not the DOM.
 - C. Hover link degrades: above a member threshold (say 2,000) hovering a row outlines nothing
   and shows a count badge on the row; the canvas hover (node to rows) stays because it is one
   node. The element decides the threshold from its limits.
 - D. Selection on a Set row above the cap is a "soft" selection: the inspector shows the Set,
   the status bar says "12,000 members (not haloed above 5,000)", and no element selection is
   made. Ctrl+G is not offered.
-- E. Raise the cap. It exists because the selection is a materialised list and the halo is a
+- E. Raise the cap. It exists because the selection is a materialized list and the halo is a
   per-node layer; raising it moves the wall.
 
 **Recommendation.** A, C and D. Bound the tree by the overflow policy the element already
@@ -513,7 +513,7 @@ the second click.
 Storybook story of graphty-element (served through servherd), with a Components run that
 yields 300 groups, and measure three things with the element as it is: time to outline
 10,000 nodes with a hover-style layer, time for `selection.statistics` over 12,000 nodes, and
-the frame rate while a colour repaint runs. Those three numbers decide whether A, C and D are
+the frame rate while a color repaint runs. Those three numbers decide whether A, C and D are
 enough or whether the element needs mask-based paths before the tree can be built.
 
 ## 9. 3D and XR, where the tree metaphor strains
@@ -587,7 +587,7 @@ contradiction, the assistant strains the model in ways the tools do not:
    Grouping plus a Measure plus maybe a Top 10 Set. Three rows from one sentence, all at the
    top of the tree, in an order the assistant chose. The reader did not name them and may not
    want all three. Undo should remove them together (section 7).
-2. **The assistant does not know the tree's precedence.** If it creates a colour Measure on
+2. **The assistant does not know the tree's precedence.** If it creates a color Measure on
    top of the reader's carefully ordered stack, it covers everything, exactly as a reader
    would; but the reader chose their order and the assistant did not ask. A "suggest a free
    channel" default (model section 6.2) softens this.
@@ -636,7 +636,7 @@ dialog by another name.
 
 Element side, beyond #337: the assistant's tool schemas become the commands entry point; the
 `ai-stream-tool-result` event must carry the object ids it created so the transcript row can
-link to the tree; cancelling the request must cancel the run it started.
+link to the tree; canceling the request must cancel the run it started.
 
 **Prototype first.** A mock of the Assistant dock with one turn that made three objects
 ("Made: Communities (Louvain), Bridges (Betweenness), Top 10 by Bridges") and the tree showing
@@ -698,7 +698,7 @@ resolved; **major** means a persona workflow or a core promise of the model fail
 | 12 | major | XR is a viewer with no object verbs in this phase (no eye, no Focus, no re-run); the model does not say so plainly, and the element's in-headset UI is a corner button | `feature-fit/6-camera.md` 3.3; `graphty-element/src/ui/XRUIManager.ts` |
 | 13 | minor | Partial cover has no sign in the tree; the covered-chip dimming only handles full cover, and the legend's ramp block does not say "except N nodes" | `mocks/screens.md` screens 4 and 6; `object-model.md` 6.2 |
 | 14 | minor | "Fill" names three row shapes (paint row, encoding block, inherited line); a Measure row click halos nothing while a Set row click halos members. Consider "Encoding" for measures and a transient top-N highlight on click | `object-model.md` 4.2 to 4.5, section 8 |
-| 15 | minor | One-node Sets pile up (ten recolours, ten rows) and the paint door is the last row of the node inspector; move it up, name it "Fill...", and add "Add to [set v]" on the single-node inspector | `object-model.md` 4.8, decision 19; `mocks/screens.md` screen 4 |
+| 15 | minor | One-node Sets pile up (ten recolors, ten rows) and the paint door is the last row of the node inspector; move it up, name it "Fill...", and add "Add to [set v]" on the single-node inspector | `object-model.md` 4.8, decision 19; `mocks/screens.md` screen 4 |
 | 16 | minor | 3D: Select-drag must orbit in 3D and Shift-drag marquee; the slab marquee selects hidden depth; the "100%" readout has no 3D meaning and the header changes shape between modes | `feature-fit/6-camera.md` 2.2, 2.3; `object-model.md` section 8 "Drag on empty canvas" |
 | 17 | minor | Add data while Focus is on: new nodes arrive outside the mask and nothing visible changes except the status bar count | `object-model.md` sections 5 and 7 |
 | 18 | minor | The "live filter" threshold is a shipped default, not a measurement; a rule Set may be live on one machine and stale-with-a-button on another with no visible reason | `graphty-element/src/session/limits.ts`; `object-model.md` decision 9 |
@@ -713,7 +713,7 @@ resolved; **major** means a persona workflow or a core promise of the model fail
 2. **A headless-session undo test** (finding 4): Bridges, Top 10, re-run with a new seed,
    apply the inverse; the Top 10 must come back with its old members.
 3. **A 20,000-node Storybook story** (finding 5) measuring hover outline time over 10,000
-   members, `selection.statistics` over 12,000 members, and frame rate during a colour repaint.
+   members, `selection.statistics` over 12,000 members, and frame rate during a color repaint.
    Three numbers that decide whether the tree's Figma borrowings survive scale.
 4. **Screen 3 with partial cover and an edge Set** (findings 6 and 13): a Path row partly
    covering Group 2 with the half-chip, the "Covered by" line, the legend departure, and a

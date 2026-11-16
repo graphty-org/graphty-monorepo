@@ -153,7 +153,7 @@ const takeOffOriginRequests: BrowserCommand<[]> = (ctx) => offOrigin.get(ctx.con
  * holds every request until this process answers it. Registered in the setup file, those routes
  * covered every test file: each one fetched its whole module graph again, megabytes of dependency
  * bundles included, through the same Node process that carries every click and keystroke of the
- * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * other pages, and on a loaded core one file starting held a neighbor's `userEvent` call for 10 to
  * 15 seconds (issue #3350).
  *
  * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
@@ -291,7 +291,7 @@ const config = defineConfig({
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
-        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // time: run beside the rest, a neighboring file's import of the element bundle
         // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {

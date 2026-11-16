@@ -546,7 +546,7 @@ A uniformly-ish random d-regular simple graph by the pairing algorithm of A. Ste
 
 ### `random-tree`
 
-A uniformly random labelled tree. Also takes `seed` and `weights`.
+A uniformly random labeled tree. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning               |
 | ------ | -------- | -------- | --------------------- |
@@ -718,7 +718,7 @@ property the format cannot hold (`W_STYLE_` codes). See
 | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `gexf`    | yes    | yes    | Gephi's XML format, with node and edge attributes and positions.                                                                                                                                                                                                                                       |
 | `graphml` | yes    | yes    | The XML format of yEd and NetworkX, with typed node and edge attributes.                                                                                                                                                                                                                               |
-| `gml`     | yes    | yes    | Graph Modelling Language text, as NetworkX and igraph write it.                                                                                                                                                                                                                                        |
+| `gml`     | yes    | yes    | Graph Modeling Language text, as NetworkX and igraph write it.                                                                                                                                                                                                                                         |
 | `dot`     | yes    | yes    | Graphviz DOT text.                                                                                                                                                                                                                                                                                     |
 | `pajek`   | yes    | yes    | Pajek `.net` text: a `*Vertices` list, then `*Edges` or `*Arcs` lists.                                                                                                                                                                                                                                 |
 | `csv`     | yes    | yes    | Delimited text. By default an edge table with a header row naming the source and target columns; its other columns become edge data. `table: "nodes"` reads a node table, and `nodes` takes a node table to read with the edges.                                                                       |

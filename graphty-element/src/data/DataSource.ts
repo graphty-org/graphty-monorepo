@@ -81,13 +81,13 @@ export interface BaseDataSourceConfig {
  * All three are `unknown` because registration is handed a class it has no reason to trust. A
  * class that forgot its `static type` used to be filed under the string "undefined", which is a
  * name a consumer can neither type nor debug; a class with no `static descriptor` used to be
- * filed as a format no picker could offer and no dropped file could be recognised as. Both are
+ * filed as a format no picker could offer and no dropped file could be recognized as. Both are
  * now refused at the door, where the author can see them.
  */
 interface FormatStatics {
     /** The name the class registers under, and the name a host asks for the format by. */
     readonly type?: unknown;
-    /** What the catalogue publishes about the format. */
+    /** What the catalog publishes about the format. */
     readonly descriptor?: unknown;
     /** The optional content sniffer, asked after every built-in one. */
     readonly detect?: unknown;
@@ -147,10 +147,10 @@ function refuseRegistration(field: string, message: string): never {
 }
 
 /**
- * Check the description a reader class carries before the catalogue publishes it.
+ * Check the description a reader class carries before the catalog publishes it.
  *
  * Everything checked here is something a consumer would otherwise meet much later and much
- * further away: a format with no extensions is one no dropped file can be recognised as, and a
+ * further away: a format with no extensions is one no dropped file can be recognized as, and a
  * format claiming it can be written is a "Save as" menu entry that saves nothing, because there
  * is no writer seam to register into.
  * @param type - The name the class registers under.
@@ -480,13 +480,13 @@ export abstract class DataSource {
     static readonly DEFAULT_CHUNK_SIZE = 1000;
 
     /**
-     * What the catalogue publishes about this format: its plain name, the extensions and media
+     * What the catalog publishes about this format: its plain name, the extensions and media
      * types its files carry, and the options a host can configure reading it with.
      *
      * REQUIRED OF A REGISTERED FORMAT and refused without it, because a reader filed with no
      * description is one a picker cannot offer, `formatDescriptor` cannot find and a dropped file
-     * cannot be recognised as. It is a static on the class so that one registration is the only
-     * registration: a description filed separately from its reader would be a catalogue entry a
+     * cannot be recognized as. It is a static on the class so that one registration is the only
+     * registration: a description filed separately from its reader would be a catalog entry a
      * consumer can see, select, and then be told does not exist.
      *
      * The element's own seven do not set it -- their descriptions are the frozen built-in table
@@ -726,7 +726,7 @@ export abstract class DataSource {
      * @returns The choice, with only the keys the caller set.
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a `graphIndex` that is not a
      * non-negative integer, a `graphName` that is not a string, both at once, or a choice this
-     * format cannot honour.
+     * format cannot honor.
      */
     protected graphChoice(): GraphChoiceOptions {
         const { graphIndex, graphName } = this.getConfig() as { graphIndex?: unknown; graphName?: unknown };
@@ -779,7 +779,7 @@ export abstract class DataSource {
      * ONE OPTIONS MECHANISM. A format declares its options as `OptionDescriptor[]` on its
      * `static descriptor`, which is the same plain-JSON declaration `session.catalog.formats()`
      * hands a host building an import dialog, and this checks the host's values against that one
-     * declaration. The form a host renders, the catalogue entry it renders from and the values
+     * declaration. The form a host renders, the catalog entry it renders from and the values
      * this accepts therefore cannot disagree, and a failure is reported in the one vocabulary
      * every other extension point uses: `E_UNKNOWN_OPTION` with the declared names and the
      * nearest few, `E_OPTION_RANGE` with the range and the value passed.
@@ -1072,7 +1072,7 @@ export abstract class DataSource {
      * `static descriptor` is what puts it in `session.catalog.formats()`, in `formatDescriptor`,
      * in `formatsForExtension` and in detection. They happen together because a reader with no
      * description is invisible to every picker and to every dropped file, and a description
-     * without its reader is a catalogue entry a consumer can see, select, and then be told does
+     * without its reader is a catalog entry a consumer can see, select, and then be told does
      * not exist.
      *
      * THE ELEMENT'S OWN SEVEN TAKE THE OTHER BRANCH. A class registering under a name that is
@@ -1118,7 +1118,7 @@ export abstract class DataSource {
         const listGraphs = readGraphLister(type, cls.listGraphs);
 
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
-        // reader loadable by name that no catalogue lists is the state this whole seam exists to
+        // reader loadable by name that no catalog lists is the state this whole seam exists to
         // end, and half-succeeding here would recreate it.
         const descriptor = readFormatDescriptor(type, cls.descriptor);
         assertReaderAgreesWithWriter(descriptor);
@@ -1155,7 +1155,7 @@ export abstract class DataSource {
      * Throw the `ImportError` re-exported by `@graphty/graphty-element/extend`, not one from your
      * own copy of graph-io, or the element cannot tell a refusal from a crash.
      * @param importer - the graph-io importer
-     * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
+     * @param descriptor - the format's catalog entry; its `id` is the name the class registers under
      * @param options - fixed importer options, how the file states its direction, and its time
      * @returns a `DataSource` subclass whose `type` is `descriptor.id`
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has

@@ -56,7 +56,7 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "add";
           readonly spec: LayerSpec;
-          /** Which neighbour to sit next to; the top of the stack when absent. */
+          /** Which neighbor to sit next to; the top of the stack when absent. */
           readonly at?: LayerPosition;
       }
     | {
@@ -86,7 +86,7 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "highlight";
           readonly spec: Omit<HighlightSpec, "run"> & { readonly run: RunId };
-          /** Placed beneath the authored layers driving the same colour, as auto-apply places it. */
+          /** Placed beneath the authored layers driving the same color, as auto-apply places it. */
           readonly beneathAuthored?: boolean;
       }
     | {
@@ -122,7 +122,7 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "addRow";
           readonly spec: RowSpec;
-          /** Which neighbour to sit next to; the top of the stack when absent. */
+          /** Which neighbor to sit next to; the top of the stack when absent. */
           readonly at?: LayerPosition;
       }
     | { readonly op: "style.patch"; readonly action: "writeRow"; readonly id: LayerId; readonly write: RowWrite };

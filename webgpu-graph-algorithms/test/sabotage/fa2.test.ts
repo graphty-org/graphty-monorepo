@@ -2,7 +2,7 @@
  * The sabotage matrix of the P3 kernels (spec 11.9 item 1; spec 13 rule f; contract 5.5 fa2.test.ts): every row of
  * SABOTAGE["fa2-stats-finalize"], ["fa2-attraction"] and ["fa2-integrate"] is spliced into its kernel body through
  * setKernelBodyOverride (a FRESH context per mutant: the pipeline key does not include the body) and the SAME check the
- * row's `test` field names -- the stage capture of test/layouts/fa2-inspect.test.ts or the re-synchronised trace
+ * row's `test` field names -- the stage capture of test/layouts/fa2-inspect.test.ts or the re-synchronized trace
  * reports of test/layouts/fa2-trace-parity.test.ts (resyncReports over TRACE_ITERATIONS in paper mode, the leg that
  * test asserts in that mode; P3-T5 PLAN DECISION 17), with the same traced tolerances -- must fail by at least
  * minFactor (10) x the tolerance. The P1 K3 / K4 rows are additionally run against the P3 force report and the P3
@@ -63,7 +63,7 @@ async function stageCheck(ctx: GpuContext, id: KernelId): Promise<CheckReport> {
 }
 
 /**
- * The trace-parity check of fa2-trace-parity.test.ts in paper mode: the re-synchronised legs against the f32 and the
+ * The trace-parity check of fa2-trace-parity.test.ts in paper mode: the re-synchronized legs against the f32 and the
  * f64 oracle over TRACE_ITERATIONS iterations (the same helper, horizon and tolerances that test asserts). Every
  * trace-sensitive row shows within the first iterations: the K4 halving row at iteration 2, where karate's swing /
  * traction is already 2.15 > 2 (the overshoot after the first expansion), the rise and swap rows at iteration 1,

@@ -147,7 +147,7 @@ describe("removing labelled elements", () => {
     });
 
     // Each removed label's material and texture used to leave Babylon's scene and engine lists by
-    // a search of each, one label at a time, so removing labelled nodes cost the scene per label
+    // a search of each, one label at a time, so removing labeled nodes cost the scene per label
     // (issue #2804).
     for (const target of ["node", "edge"] as const) {
         it(`removes half the nodes, then clears, with ${target} labels in proportion to the graph`, async () => {

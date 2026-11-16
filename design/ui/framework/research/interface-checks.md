@@ -195,7 +195,7 @@ network TSV, D3's miserables JSON and a Cytoscape.js elements JSON.
 | **Silent misreadings, total** | **15 of 56** | **3 of 22** |
 | Weight role, counted apart: a weight read and meaning strength, which a path or closeness run reads as a distance with no question | 3 real networks among the fixtures (got-network, lesmiserables GEXF, karate Pajek) | 5 (Newman's lesmis, celegansneural and netscience `value`; Gephi's lesmiserables; graphology's celegans); none of the 22 carries a distance |
 
-Loud failures, which are not misreadings: a `.tsv` (format not recognised), a space-delimited edge
+Loud failures, which are not misreadings: a `.tsv` (format not recognized), a space-delimited edge
 list (no endpoint columns), and Netzschleuder's CSV headers written as `# source` (one error per
 row). **What it shows.** The direction rule is not where the risk is today; key spelling is.
 Every silent loss comes from a key the element does not look for (`links`, `elements`, `Weight`,

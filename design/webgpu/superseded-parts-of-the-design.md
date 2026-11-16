@@ -97,7 +97,7 @@ interface (lines 2954-2955) repeats the two names. The design defines neither ty
 as `sssp`, and `closenessCentrality` takes `HitsOptionsLike` (`maxIterations`, `tolerance`,
 `weighted`), because those are the types the published seam in `@graphty/algorithms` declares
 and the GPU member must be assignable to it. `maxIterations` and `tolerance` are refused with
-`E_UNSUPPORTED { option }` when defined, never silently dropped; `weighted` is honoured. The
+`E_UNSUPPORTED { option }` when defined, never silently dropped; `weighted` is honored. The
 `breadthFirstSearch` and `sssp` signatures on lines 807-808 stand, with one value decided
 against the CPU port: `cutoff: NaN` is `E_INVALID_ARGUMENT { argument: "cutoff" }` on the GPU,
 where the CPU port returns the source alone. The result types on lines 830-832 stand.
@@ -352,7 +352,7 @@ residency so a second PageRank call on the same snapshot reuses it."
 **What is true instead:** `outWeightSum` is leased from the call's scratch, filled by one
 `segmentedReduce` pass, and released with the lease when the call ends. A second PageRank call
 on the same snapshot recomputes it. `GraphResidency.array()` keeps its signature and the
-`reverse()` view stays memoised per snapshot.
+`reverse()` view stays memoized per snapshot.
 
 **Decided by:** [2026-09-19-outweightsum-is-call-scratch.md](../decisions/2026-09-19-outweightsum-is-call-scratch.md)
 
@@ -650,11 +650,11 @@ code, and is the only thing that narrows the 1,000x bracket on Louvain's per-arc
 ## Section 12.1, the "Runs" cell of the GPU lane row (line 3795)
 
 **The design says:** the GPU lane runs on "push to `master`, nightly (skipped when `master` has
-not moved since the last green run, 12.6), `workflow_dispatch`, and same-repo PRs labelled
+not moved since the last green run, 12.6), `workflow_dispatch`, and same-repo PRs labeled
 `gpu`".
 
 **What is true instead:** push to master, `workflow_dispatch`, and same-repo pull requests
-labelled `gpu`. There is no `schedule` trigger, and with it went the `changed` job that existed
+labeled `gpu`. There is no `schedule` trigger, and with it went the `changed` job that existed
 only to skip the cron on a quiet master. The workflow is one job, not three. Everything else in
 the row -- the adapter policy, and the long argument for why the lane is not a job of `CI` --
 stands.
@@ -666,7 +666,7 @@ stands.
 **The design says:** "a 20-minute nightly is ~$1.04, ~$32 per month, plus the labelled PR runs".
 
 **What is true instead:** the $32 a month of nightly runs is not spent. What remains is a run
-per push to master, per dispatch and per labelled pull request. Removing the nightly was the
+per push to master, per dispatch and per labeled pull request. Removing the nightly was the
 point of the decision: it re-ran a commit the lane had already judged, and the release gate
 already blocks a publish on that commit's result.
 
@@ -834,7 +834,7 @@ element's setting, and gate G12 is the thing that measures it.
 nightly GPU lane green for a week; README numbers regenerated from `benchmarks/results/`".
 
 **What is true instead:** there is no nightly GPU lane. `gpu.yml` runs on a push to master, on
-`workflow_dispatch`, and on a same-repo pull request labelled `gpu`, and the decision that
+`workflow_dispatch`, and on a same-repo pull request labeled `gpu`, and the decision that
 removed the cron also removed the `changed` job and the `gpu-nightly-report` job. The middle
 clause of G12 therefore cannot be met by anyone, ever, however the work goes -- there is no run
 that could be green for a week.
@@ -888,7 +888,7 @@ issue only after two consecutive nightly failures".
 **What is true instead:** no nightly runs and no job opens an issue, so the training-people-to-
 ignore-it risk is gone rather than mitigated. The other mitigations stand and are what actually
 hold the noise down: medians of 5 runs, the 3x threshold against the T4's own baseline,
-`gpu-report.js` recording clocks and utilisation, and the T-table targets measured by hand on the
+`gpu-report.js` recording clocks and utilization, and the T-table targets measured by hand on the
 dev box rather than on the T4.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
@@ -917,7 +917,7 @@ is no longer in the repository.
 
 ## The Review log's applied-findings table, row VERIFY-20 (line 4621)
 
-**The design says:** the row records three changes -- a utilisation sample, a skip on a busy GPU,
+**The design says:** the row records three changes -- a utilization sample, a skip on a busy GPU,
 and "two nightly failures before an issue".
 
 **What is true instead:** the first two are in place and unchanged; the third is not, because

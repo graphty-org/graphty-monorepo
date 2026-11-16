@@ -78,7 +78,7 @@ matches strip, the sidebar layer row and the canvas.
 
 ### 1. Major: after Undo or Redo of a filter edit, the layer row keeps the previous count
 
-These steps start in `v`, after the filter card edits were cancelled.
+These steps start in `v`, after the filter card edits were canceled.
 
 - Redo brings back the card that leaves 2 of 24 nodes. Undo returns to 8 of 24. Even 3 seconds
   later, the Layer 1 row in the sidebar still reads 1, the count it had on the 2-node graph. The
@@ -200,7 +200,7 @@ coded description of the rule.
 
 Before the run, the pane reads "Run (about 15 minutes)". After Run and then Cancel, it reads only
 "Run" (`m/03.png`, `m/06.png`). The strip also keeps an empty "Girvan-Newman" column from the
-cancelled run (`m/06.png`).
+canceled run (`m/06.png`).
 
 **Fix:** after a cancel, the step asks again with its estimate. The strip shows no column for a
 run with no values.

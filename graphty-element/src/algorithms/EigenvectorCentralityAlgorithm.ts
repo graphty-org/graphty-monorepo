@@ -67,7 +67,7 @@ const EIGENVECTOR_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 });
 
 /**
- * Eigenvector centrality: how influential a node's neighbours are.
+ * Eigenvector centrality: how influential a node's neighbors are.
  *
  * A node scores highly when it is connected to other nodes that themselves score highly, so a few
  * important connections count for more than many unimportant ones.
@@ -115,7 +115,7 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
     }
 
     /**
-     * Score every node by the influence of its neighbours.
+     * Score every node by the influence of its neighbors.
      * @param context - Where progress goes and where cancellation arrives.
      * @param nodeIds - The nodes to measure.
      * @returns One score per node, scaled as the options asked for.

@@ -146,7 +146,7 @@ CREATE INDEX durations_key_time ON durations (key, run_kind, recorded_at);
   600 rows; a pull request run about 150). `GET /durations/medians?keys=...&kind=master&n=10`.
 - Volume: 4 full runs, about 15 master pushes and 30 pull request runs a day is about 16,000 rows,
   inside the Workers Paid plan the test records already need (results section 9).
-- 120 days of rows, pruned by the Worker's daily cron. Cancelled rows are excluded from medians.
+- 120 days of rows, pruned by the Worker's daily cron. Canceled rows are excluded from medians.
 
 ### 1.6 Trend alarms
 

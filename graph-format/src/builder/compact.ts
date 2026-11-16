@@ -224,7 +224,7 @@ interface WideningStep {
  *
  * A DECLARED column stores values in the storage of its dtype (a growable typed array for the numeric
  * dtypes and dict codes, a growable bitmap for bool, a JS array for string / list / json) plus an
- * optional validity bitmap and, for dict columns, the interning dictionary; rows are materialised
+ * optional validity bitmap and, for dict columns, the interning dictionary; rows are materialized
  * lazily up to `length` and unset rows physically hold the fill (design section 5.3). It never widens
  * and rejects values it cannot hold with E_COLUMN_TYPE at the write.
  *
@@ -238,7 +238,7 @@ export class StagingColumn {
     /** The resolved metadata; replaced when an inferred column widens. */
     meta: ColumnMeta;
 
-    /** Rows materialised so far. */
+    /** Rows materialized so far. */
     length = 0;
 
     /** Declared numeric data (rows * components) or dict codes. */
@@ -323,7 +323,7 @@ export class StagingColumn {
     /**
      * Whether a row holds a value.
      * @param row - the row
-     * @returns true when set (non-nullable columns: when materialised)
+     * @returns true when set (non-nullable columns: when materialized)
      */
     isSet(row: number): boolean {
         if (row >= this.length) {
@@ -337,7 +337,7 @@ export class StagingColumn {
      * except on a declared json column (JSON null imports as unset, design section 5.3). An inferred
      * column widens when the value is wider than its dtype; the widening is returned so the builder
      * can report it.
-     * @param row - the row; rows below it are materialised
+     * @param row - the row; rows below it are materialized
      * @param value - the value
      * @returns the widening that took place, or null
      */
@@ -417,7 +417,7 @@ export class StagingColumn {
     /**
      * The JS value of one cell as the frozen column would hold it: a number (or an array of
      * `components` numbers), a boolean, a string, a list or a json value; undefined for an unset or
-     * unmaterialised row. An inferred column's raw value is coerced to its current dtype.
+     * unmaterialized row. An inferred column's raw value is coerced to its current dtype.
      * @param row - the row
      * @returns the value
      */
@@ -894,8 +894,8 @@ export class StagingColumn {
     }
 
     /**
-     * Store a value on a declared column: validate and normalise it (E_COLUMN_TYPE when the column
-     * cannot hold it), then write the normalised form.
+     * Store a value on a declared column: validate and normalize it (E_COLUMN_TYPE when the column
+     * cannot hold it), then write the normalized form.
      * @param row - the row
      * @param value - the value
      */
@@ -908,7 +908,7 @@ export class StagingColumn {
      * or an array of `components` numbers, a boolean, a string, a copied list, or a JSON value.
      * @param row - the row (error details only)
      * @param value - the value
-     * @returns the normalised value
+     * @returns the normalized value
      */
     private coerce(row: number, value: unknown): unknown {
         const { meta } = this;
@@ -946,7 +946,7 @@ export class StagingColumn {
     /**
      * Write a value `coerce` returned.
      * @param row - the row
-     * @param value - the normalised value
+     * @param value - the normalized value
      */
     private put(row: number, value: unknown): void {
         const { dtype, components } = this.meta;
@@ -1311,7 +1311,7 @@ export class Staging {
     }
 
     /**
-     * Materialise `ids` and `idToIndex` from the anonymous prefix (every node so far has id === index).
+     * Materialize `ids` and `idToIndex` from the anonymous prefix (every node so far has id === index).
      */
     materialiseIds(): void {
         if (this.ids !== null && this.idToIndex !== null) {

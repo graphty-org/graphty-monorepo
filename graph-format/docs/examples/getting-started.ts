@@ -12,7 +12,7 @@ builder.addEdge("bob", "carol", 1); // "carol" is added on first mention
 const snapshot = builder.freeze();
 console.log(snapshot.nodeCount, snapshot.edgeCount, snapshot.arcCount); // 3 2 4
 
-// 3. Walk the neighbours of every node: node u's arcs are rowPtr[u] up to rowPtr[u + 1].
+// 3. Walk the neighbors of every node: node u's arcs are rowPtr[u] up to rowPtr[u + 1].
 const { rowPtr, colIdx, weights } = snapshot;
 const strength = new Float64Array(snapshot.nodeCount);
 for (let u = 0; u < snapshot.nodeCount; u++) {

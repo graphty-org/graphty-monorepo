@@ -20,7 +20,7 @@
  * a change to how layers stack changes both readings, because there is one reading.
  *
  * THIS IS THE ONE CASE THE COLUMNAR REPAINT LEAVES TO A CALLER. Building a 23-key resolved style
- * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materialises a style only
+ * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materializes a style only
  * where something asks about ONE element. This is that ask. It is O(the stack's depth), it
  * allocates one object, and it is a synchronous read like every other question about state the
  * session already holds.
@@ -1890,7 +1890,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
  *
  * The largest group for an encoding that names categories, and the middle of the extent for one
  * that reads numbers. Both are a value the rule actually measured, which is what makes the fixed
- * value a colour from this picture rather than an invented one.
+ * value a color from this picture rather than an invented one.
  * @param prepared - The prepared binding.
  * @returns The value to ask it about, or undefined when it has nothing to be asked about.
  */
@@ -1913,7 +1913,7 @@ function representative(prepared: PreparedBinding): unknown {
 /**
  * Turn what a channel is painted into what a layer is authored with.
  *
- * A colour comes back from the encoding as parsed components with its hex string alongside, and a
+ * A color comes back from the encoding as parsed components with its hex string alongside, and a
  * layer is written with the string: a document that says `"#4b0082"` explains itself, and one
  * that says four numbers does not.
  * @param painted - What the encoding painted.

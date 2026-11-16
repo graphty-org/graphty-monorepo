@@ -30,7 +30,7 @@ async function lesMiserables(): Promise<Harness> {
 /**
  * Check the promise every recommendation has to keep, whatever rule produced it.
  *
- * An arrangement the catalogue does not list cannot be set at all; one that declares a
+ * An arrangement the catalog does not list cannot be set at all; one that declares a
  * structural input refuses without a root, a partition or an ordering nobody supplied, so
  * recommending it hands a consumer a name that throws.
  * @param advice - What was recommended.

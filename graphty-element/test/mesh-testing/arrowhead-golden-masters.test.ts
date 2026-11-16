@@ -22,7 +22,7 @@
  *     same set -- the drift that hid `"open"` for as long as it did.
  *   - 28 of its cases wrapped their assertions in `if (result.mesh) { ... }`, so a null mesh
  *     skipped every assertion and the test still passed. That pattern does not survive here.
- *   - Its vertex count for `dot` was 33. `FilledArrowRenderer.createCircle` pushes a centre plus
+ *   - Its vertex count for `dot` was 33. `FilledArrowRenderer.createCircle` pushes a center plus
  *     `segments + 1` rim points, which is 34. The old assertion was `isAtLeast(..., 32)`, so it
  *     could not have seen the difference in either direction.
  */
@@ -77,7 +77,7 @@ function arrow(type: string, extra: { size?: number; color?: string; opacity?: n
  * same appearance. The geometry, the material and the opacity all live there now: a cap of its
  * own is sixteen floats in that mesh's instance buffer and has none of them.
  * @param type - The arrow type.
- * @param extra - The size, colour and opacity the cap is asked for.
+ * @param extra - The size, color and opacity the cap is asked for.
  * @returns The batch's mesh.
  */
 function arrowCap(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
@@ -257,7 +257,7 @@ describe("Arrowhead Golden Masters", () => {
             const material = arrowCap("normal").material as ShaderMaterial;
             const options = material.options as unknown as { uniforms: string[]; attributes: string[] };
 
-            // Direction, size and colour are PER-INSTANCE attributes: every edge's head is a
+            // Direction, size and color are PER-INSTANCE attributes: every edge's head is a
             // thin instance of one shared mesh per shape, drawn in one call (issues #25, #419).
             // They were per-material uniforms while each head was its own mesh and material. The
             // clip is per instance too: the same shader draws pattern segments, and the last
@@ -408,7 +408,7 @@ describe("Arrowhead Golden Masters", () => {
                 const cap = arrow("sphere-dot", { size });
                 const expected = EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * size * 0.25;
 
-                // The sphere is a unit mesh shared by every cap of its colour, scaled per slot,
+                // The sphere is a unit mesh shared by every cap of its color, scaled per slot,
                 // so its drawn diameter IS the slot's scale and its span is that diameter across
                 // the diagonal of its box.
                 assert.closeTo(cap.size, expected, 1e-3);

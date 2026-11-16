@@ -22,7 +22,7 @@ const CAVEATS: Caveats = {
     notes: [],
 };
 
-/** A field descriptor with the path a catalogue descriptor would have written. */
+/** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `results.$.${spec.name}` };
 }
@@ -73,7 +73,7 @@ function metricResult(values: readonly number[], init?: Partial<RunResultInit>):
     });
 }
 
-/** How big a summary is once it has been serialised. */
+/** How big a summary is once it has been serialized. */
 function summaryBytes(result: RunResult): number {
     return JSON.stringify(result.summary()).length;
 }
@@ -103,8 +103,8 @@ describe("a node-metric result", () => {
     });
 
     it("counts how many elements sit at the lowest value", () => {
-        // The number that says whether a colour ramp is about to paint most of the graph one
-        // colour.
+        // The number that says whether a color ramp is about to paint most of the graph one
+        // color.
         assert.strictEqual(metricResult([0, 0, 0, 0, 7]).graph.tiedAtMin, 4);
         assert.strictEqual(metricResult([0, 0, 0, 0, 7]).summary().tiedAtMin, 4);
     });
@@ -851,7 +851,7 @@ describe("the top of a ranking, cut only between tie groups", () => {
 describe("a quality score's band", () => {
     const louvain = BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain");
 
-    /** A Louvain result carrying the catalogue's own fields and the given modularity. */
+    /** A Louvain result carrying the catalog's own fields and the given modularity. */
     function louvainResult(modularity: unknown): RunResult {
         assert.isDefined(louvain);
 

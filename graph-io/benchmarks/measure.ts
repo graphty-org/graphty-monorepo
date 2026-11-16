@@ -17,7 +17,7 @@ const gc: () => void = ((): (() => void) => {
 })();
 
 /**
- * Collect everything collectable: three full collections, so objects released by finalisers and
+ * Collect everything collectable: three full collections, so objects released by finalizers and
  * weak references of the first pass are gone by the last.
  */
 export function fullGc(): void {

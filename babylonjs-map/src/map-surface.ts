@@ -576,7 +576,7 @@ export abstract class MapSurface {
 
     /**
      * How bright the picture is at a point of the surface, from 0 to 1, multiplied into its
-     * colour; null draws every point at full brightness.
+     * color; null draws every point at full brightness.
      * @returns The shading of a point in the root's own space, or null.
      */
     protected pointShade(): ((x: number, y: number, z: number) => number) | null {

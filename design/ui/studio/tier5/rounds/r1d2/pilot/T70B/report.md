@@ -52,8 +52,8 @@ as "All nodes", 11 (`touched-2/02.png`); Ctrl+Z brings back "installed before 20
 has no filter mark (`touched-2/04.png`).
 
 - Undo after that Cancel is labeled "Undo deleting a filter condition" (tooltip, `touched-2/06.png`),
-  and Ctrl+Z brings back the cancelled card with its tick, "telemetry yes", 7 of 11, notice "Undid
-  deleting a filter condition." (`touched-2/07.png`). A person who cancelled never deleted anything;
+  and Ctrl+Z brings back the canceled card with its tick, "telemetry yes", 7 of 11, notice "Undid
+  deleting a filter condition." (`touched-2/07.png`). A person who canceled never deleted anything;
   the label names an action they did not take. The result is still one card, so the grade is not
   spoiled.
 - The notice "Undid changing the conditions on Layer 1." from the Ctrl+Z is still on screen after

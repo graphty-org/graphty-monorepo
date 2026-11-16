@@ -7,7 +7,7 @@ import { RecordReader, type RecordSyntax, sniffDelimiter } from "../../../src/fo
 import { ImportError } from "../../../src/types.js";
 import { textChunksOf } from "../../helpers/corpus.js";
 
-// Golden outputs of the record tokeniser over every pair of these fragments, under several
+// Golden outputs of the record tokenizer over every pair of these fragments, under several
 // syntaxes and chunkings: the cells, quoted flags and line of every record, the leading comments,
 // the stray-quote line, or the fatal error and its line. The fragments cover quoting, doubled
 // quotes, delimiters, whitespace runs, empty fields, comments and every line ending.

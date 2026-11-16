@@ -1,6 +1,6 @@
 /**
  * @file `definePalette` builds an ordinary palette registration: the same palette registered
- * through the simple tier and through `registerPalette` is indistinguishable in the catalogue
+ * through the simple tier and through `registerPalette` is indistinguishable in the catalog
  * (design/extensions/simple-tier.md sections 3 and 4.5).
  */
 

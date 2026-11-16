@@ -77,7 +77,7 @@ function listerFor(type: string): GraphLister | undefined {
  *     `url`. The format is detected, as a load detects it, when `type` is absent.
  * @returns The graphs in file order, or null for a format whose file holds one graph.
  * @throws A `GraphtyError`: `E_BAD_COMMAND` when the config has no data, file or url;
- *     `E_UNKNOWN_FORMAT` when the format is not recognised or not registered; `E_FETCH_FAILED`
+ *     `E_UNKNOWN_FORMAT` when the format is not recognized or not registered; `E_FETCH_FAILED`
  *     when the URL cannot be read; `E_PARSE_FAILED` when the file cannot be read.
  */
 export async function listGraphs(source: DataSourceInput): Promise<readonly GraphListing[] | null> {

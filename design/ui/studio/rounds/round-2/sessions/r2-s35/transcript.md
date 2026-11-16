@@ -150,9 +150,9 @@ legend, and all 77 influence scores with the note that PageRank made them on Oct
 **Ease: 5 out of 7.** Saving and getting it back was quick -- maybe two minutes. What cost me:
 
 - **Which save?** The menu has Save, Save as... and Save local copy.... I picked Save as because
-  it lets me name it. Only on the start page, in small grey text, did I learn "This browser can
+  it lets me name it. Only on the start page, in small gray text, did I learn "This browser can
   clear projects kept here. Save a local copy of any project you need to keep." The "Saved ... in
-  this browser" message right after saving never warned me. If I had not read that grey line I'd
+  this browser" message right after saving never warned me. If I had not read that gray line I'd
   have gone home thinking it was safe. I went back and did Save local copy as well.
 - **Save local copy said nothing.** No message in the app, no "saved to Downloads". I assume it
   downloaded a .json file; I could not tell from the app. And the start page next morning only

@@ -60,7 +60,7 @@ its own failing check, a second conflict sighting or a visual reject; a `title` 
 unlabeled issues, and a refresh after every 20 merges and a full pass after every 100 (no clock:
 merges count); one issue job for the front of the backlog; a re-land job after a revert; and one
 promotion job per advisory CI check that is due (below). A queued job whose target closed or no
-longer needs work is cancelled.
+longer needs work is canceled.
 
 The queue order is fixed, and every job carries a one-line reason. Three tiers,
 highest first, each finishing work in flight before starting new work:
@@ -82,7 +82,7 @@ session's judgment, never inferred from paths. The owner steers with two labels:
 issue or pull request first in its kind, even an enhancement, `githerd:skip` takes it out. Both count only when the
 owner's account added them.
 
-An issue labelled `blocked`, `research`, `in-progress`, `tracking` or any `needs-*` label (among
+An issue labeled `blocked`, `research`, `in-progress`, `tracking` or any `needs-*` label (among
 others) gets no job. `tracking` is for an issue that only tracks other issues and stays open, such
 as a checklist of stages each filed as its own issue: githerd never makes a job of it, whatever its
 type. The labels of such standing issues are `backlog.notWork` in the config (by default `tracking`,
@@ -203,7 +203,7 @@ the test's package or a package it depends on.
 A test is proven flaky when the same job passes on the same commit (anyone's re-run), when a merge
 batch holding the failing pull request head passes the job, when master passes at the next commit
 and nothing between touched the package, or when it failed on two or more pull requests that do not
-touch its package. Each proven test gets one issue, `Flaky test: <test> (<package>)`, labelled
+touch its package. Each proven test gets one issue, `Flaky test: <test> (<package>)`, labeled
 `bug`, `intermittent`, `effort:medium` and a priority, filed with the owner's account through the
 `owner-items` write group, so the issue queue offers it like any other. Later failures are appended
 to it, and a closed one is reopened rather than filed again. Its priority only goes up: critical
@@ -235,7 +235,7 @@ enforce date (`tools/ci-workflows.test.mjs`). From then githerd makes one job fo
 entry into `required` and removes its `continue-on-error` and warning step from ci.yml, fixing the
 check first if it still fails. The job edits `.github/workflows/`, which a worker may not, so it is
 offered to the owner's sessions only. It is made once per entry, never again after it was done,
-and cancelled once the entry leaves the advisory list.
+and canceled once the entry leaves the advisory list.
 
 **Merge batches.** A Mergify merge-batch commit on master ("Merged #42, #43, #44") names every pull
 request in it as a suspect of a red master, so no one of them is reverted alone; the batch
@@ -244,11 +244,11 @@ tells its session that the batch's tree is exactly what "Queue Checks Pass" pass
 master-only jobs (benchmarks, push-only steps) and the known flaky tests before blaming any one
 pull request.
 
-**Heartbeat.** githerd's first write opens one issue labelled `githerd-heartbeat` and pins it;
+**Heartbeat.** githerd's first write opens one issue labeled `githerd-heartbeat` and pins it;
 after that it rewrites the issue's body, never a comment, every 15 minutes and at once when a line
 changes. Line 1 is `alive: <ISO time>`, then `mode:`, `paused:` while paused, one `stuck:` per job
 githerd could not start, `stopped:` on a clean stop, `fatal:` in fatal mode, and `version:`. An
-open labelled issue is reused; a second is never opened. The writes are the `owner-items` write
+open labeled issue is reused; a second is never opened. The writes are the `owner-items` write
 group, so in dry-run each change is one `would-do` line and GitHub is asked nothing, and only the
 live daemon writes (a development daemon only with `GITHERD_DEV_ACT=1`). The issue is no work:
 githerd makes no job or triage of it. `.github/workflows/githerd-watchdog.yml` reads it to alarm the

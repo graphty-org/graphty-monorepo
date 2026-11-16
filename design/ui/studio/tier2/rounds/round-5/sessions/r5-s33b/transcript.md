@@ -89,7 +89,7 @@ Command: `real.mjs --end <session>` -> session ended.
 - Where it says it used the minutes: the open screen ("Weight: minutes (farther)"), the Overview after loading ("Loaded weight: minutes (farther)"), and the route's "Made with" box ("Weight: minutes (farther)"), plus the shortest-path form's Weight box ("minutes (farther, loaded)").
 - Ease: 6 of 7.
 - What confused me:
-  - The minutes column came in as just "Attribute" with "Weight: none (each edge counts 1)". I only caught it because I was looking for it; if I hadn't read that grey line I'd have loaded it as plain counts. The dropdown sitting over the column wasn't obviously a "what is this column" control until I opened it.
+  - The minutes column came in as just "Attribute" with "Weight: none (each edge counts 1)". I only caught it because I was looking for it; if I hadn't read that gray line I'd have loaded it as plain counts. The dropdown sitting over the column wasn't obviously a "what is this column" control until I opened it.
   - After loading, the Overview said "Direction: Directed" with arrows, though I never chose that ("As the file says"). The route form's "Follow: All" seemed to cover it, but I'm not sure whether a bus can go Harbor to Depot on the same link -- I'd ask a classmate.
   - The dots have no names on the map, so I could only read the route from the side panel, not the picture.
   - Finding the route: the Analyze list opens on ranking; typing "route" found "Shortest path" right away, which was easy.

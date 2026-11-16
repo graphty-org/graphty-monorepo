@@ -6,7 +6,7 @@
  * `vertex` line of every solid, takes normals from the winding, and expands both binary color
  * conventions per vertex:
  * - VisCAM / SolidView: bit 15 set means the face has a color, red in bits 10-14, blue in 0-4;
- * - Materialise Magics (the header holds `COLOR=r g b a`): bit 15 clear means the face has its
+ * - Materialize Magics (the header holds `COLOR=r g b a`): bit 15 clear means the face has its
  *   own color, red in bits 0-4, blue in 10-14; set means the header's color.
  *
  * Babylon-free, so the intake scan reads the same facts the drawing does.
@@ -36,7 +36,7 @@ function isBinaryStlBytes(bytes: Uint8Array): boolean {
 }
 
 /**
- * The Materialise default color in a binary STL header, if any.
+ * The Materialize default color in a binary STL header, if any.
  * @param bytes - The file.
  * @returns r, g, b, a (0 to 255), or undefined when the header names none.
  */
@@ -53,7 +53,7 @@ function materialiseColor(bytes: Uint8Array): number[] | undefined {
 /**
  * Whether a binary STL's faces carry colors.
  * @param bytes - The file.
- * @returns True when the header names a Materialise color or any face sets bit 15.
+ * @returns True when the header names a Materialize color or any face sets bit 15.
  */
 function binaryHasColors(bytes: Uint8Array): boolean {
     if (materialiseColor(bytes) !== undefined) {
@@ -131,7 +131,7 @@ function readBinary(bytes: Uint8Array): Geometry {
 /**
  * One face's color, 0 to 1.
  * @param word - The face's attribute word.
- * @param fallback - The Materialise header color, when the file is a Materialise one.
+ * @param fallback - The Materialize header color, when the file is a Materialize one.
  * @returns r, g, b, a.
  */
 function faceColor(word: number, fallback: number[] | undefined): [number, number, number, number] {

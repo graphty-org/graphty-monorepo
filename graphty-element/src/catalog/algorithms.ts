@@ -1,5 +1,5 @@
 /**
- * @file The built-in algorithm catalogue: one plain-JSON descriptor per algorithm the element
+ * @file The built-in algorithm catalog: one plain-JSON descriptor per algorithm the element
  * actually registers.
  *
  * A descriptor says what an algorithm is called in words a non-expert reads, what it computes,
@@ -16,13 +16,13 @@
  *   component strength -- and they are authored as Zod schemas and emitted through the same
  *   walk, not typed out as descriptors.
  * - **Nothing in the table is a function or a class.** `AlgorithmDescriptor.cost` is optional
- *   and is deliberately left unset on every entry: the catalogue has to survive
+ *   and is deliberately left unset on every entry: the catalog has to survive
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
  * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
  *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
- *   catalogue that advertised it would be lying about what the element can run.
+ *   catalog that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -68,7 +68,7 @@ import type {
 export interface LegacyAlgorithmKey {
     /** The `static type` the class carried in 1.10, without the "graphty:" namespace. */
     readonly key: string;
-    /** The 2.0 parameters that reproduce the 1.10 behaviour. Absent when only the key changed. */
+    /** The 2.0 parameters that reproduce the 1.10 behavior. Absent when only the key changed. */
     readonly params?: Readonly<Record<string, unknown>>;
 }
 
@@ -78,7 +78,7 @@ export interface LegacyAlgorithmKey {
  *
  * `key` is narrowed to {@link KnownAlgorithm} rather than left as the open `AlgorithmKey`, so a
  * built-in whose key is not in the published list fails to compile here instead of appearing in
- * a catalogue nothing else knows about.
+ * a catalog nothing else knows about.
  */
 export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
     readonly key: KnownAlgorithm;
@@ -134,7 +134,7 @@ interface MetricValue {
  * Build the fields every node-metric and edge-metric result publishes.
  *
  * The per-element trio and the graph-level statistics are fixed by the shape, which is what lets
- * a consumer read `results.<run>.value` for any metric without opening the catalogue.
+ * a consumer read `results.<run>.value` for any metric without opening the catalog.
  * @param kind - Whether the metric is measured per node or per edge.
  * @param value - What this metric's primary value is called.
  * @returns The uniform field list for a metric shape.
@@ -338,7 +338,7 @@ function mergeOptions(...lists: readonly (readonly OptionDescriptor[])[]): reado
  * The parameter that replaces the two single-source 1.10 shortest-path keys.
  *
  * The third 1.10 key, floyd-warshall, is NOT an engine choice here: it answers a different
- * question and publishes a different result shape, so it has its own catalogue key.
+ * question and publishes a different result shape, so it has its own catalog key.
  *
  * It is authored as a Zod schema rather than as a descriptor so it goes through the same emitter
  * as every other option, and so the session has a schema to validate a caller's params against
@@ -786,12 +786,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     },
     {
         /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
-           -- `allPairs: true`, engine floyd-warshall -- which made one catalogue key claim two
+           -- `allPairs: true`, engine floyd-warshall -- which made one catalog key claim two
            different result shapes: a route for the single-source engines, and a measurement of
            every node for this one. A run takes its shape from its descriptor once, at creation,
            so the all-pairs run reported "path", found no `onPath` to paint from, and suggested
            nothing; `styles.encode` refused a hand-written encoding for the same reason. Its own
-           key is what makes the shape true, and every consumer that reads the catalogue up front
+           key is what makes the shape true, and every consumer that reads the catalog up front
            right about what a run of it will publish. */
         key: "all-pairs-distance",
         plainName: "How far from everything else",
@@ -1177,7 +1177,7 @@ export function calledAlgorithm(
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */
 export interface LegacyAlgorithmMapping {
     descriptor: BuiltInAlgorithmDescriptor;
-    /** The parameters that reproduce the 1.10 behaviour. Empty when only the key changed. */
+    /** The parameters that reproduce the 1.10 behavior. Empty when only the key changed. */
     params: Readonly<Record<string, unknown>>;
 }
 

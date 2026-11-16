@@ -1,9 +1,9 @@
 import { HOSTED_DATASET_NAMES } from "./hosted-names.js";
 
 /**
- * The small datasets (under about 5,000 nodes), in catalogue order: converted into the repository
+ * The small datasets (under about 5,000 nodes), in catalog order: converted into the repository
  * (data/<name>.ts), each with its own subpath, and published on graphty.app like every other dataset.
- * `DATASETS` (catalog.ts) takes its order from this list, and the compiler refuses a catalogue that
+ * `DATASETS` (catalog.ts) takes its order from this list, and the compiler refuses a catalog that
  * misses one of these names or adds another.
  */
 export const SMALL_DATASET_NAMES = [

@@ -71,7 +71,7 @@ export function emptyGraphSlice(token = 0, epoch = 0): GraphSlice {
 
 /** The `layout` slice: which layout draws the graph, with what, and in how many dimensions. */
 export interface LayoutChoice {
-    /** The catalogue id. */
+    /** The catalog id. */
     readonly id: LayoutId;
     /** The registered engine that draws it; several engines can draw one id. */
     readonly engine: string;

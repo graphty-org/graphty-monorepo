@@ -1,7 +1,7 @@
 /**
  * The `degree` kernel body (contract 4.5; spec 6 row 3, 11.5): the out-degree of every row of `[P.start, P.end)`
  * through the row-walking gather with the USE_PERM dummy pattern, counting the arcs of the bound window whose
- * neighbour index is a valid node; `P.accumulate == 1` adds into `out[i]` instead of overwriting (the P4 windowed
+ * neighbor index is a valid node; `P.accumulate == 1` adds into `out[i]` instead of overwriting (the P4 windowed
  * loop). Bindings, overrides and the `RangeParams` block come from the registry entry (src/kernels.ts); WG,
  * USE_PERM and `linear_id` from the prelude. The text is normative: test/helpers/sabotage.ts mutates it textually,
  * so it is copied from the contract and never re-derived or restyled.

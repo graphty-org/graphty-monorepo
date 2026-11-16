@@ -2,7 +2,7 @@
  * Finds source code that reads a style role column -- a column with the role `color`, `size`,
  * `shape` or `thickness`, or one of the deprecated `yfiles.*` graphics columns -- so a test can
  * fail when such a read appears outside the style readers and writers and the named deprecated
- * paths. Those columns are the old way styles travelled; drawing, node data and style slots come
+ * paths. Those columns are the old way styles traveled; drawing, node data and style slots come
  * from a file's styles now.
  *
  * Shared by graph-io's and graphty-element's guard tests.

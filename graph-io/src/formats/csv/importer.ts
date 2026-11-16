@@ -687,7 +687,7 @@ const ABORT_CHECK_INTERVAL = 64;
 
 /**
  * Header names made unique within the table: a repeated name becomes `<name>#<position>` (1-based,
- * the CSV analogue of the `#<origin.id>` rule of design section 5.6) and is reported.
+ * the CSV analog of the `#<origin.id>` rule of design section 5.6) and is reported.
  * @param names - the header names
  * @param report - the report
  * @param line - the header line

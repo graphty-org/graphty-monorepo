@@ -214,7 +214,7 @@ describe("the Node-safe entry points", () => {
         },
     );
 
-    // The catalogue describes every built-in algorithm and layout from engine-facts.json; the
+    // The catalog describes every built-in algorithm and layout from engine-facts.json; the
     // implementations load only where a run or a layout needs them (#890).
     it.each(["session.ts", "catalog.ts"])("%s reaches no algorithm or layout implementation", (entry) => {
         graphOf(entry);

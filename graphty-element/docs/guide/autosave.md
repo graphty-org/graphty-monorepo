@@ -143,7 +143,7 @@ While a write is outstanding or failing, the element asks the reader before the 
 asks and stays eligible for the browser's back/forward cache.
 
 The same listener keeps Firefox from unloading the tab to save memory while its work is unwritten:
-Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is cancelled, and
+Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is canceled, and
 unloads it once the work is saved; selecting the tab again loads the page and restores the work.
 
 - `unloadGuard: "unexported"` asks whenever the work was never saved to a file.

@@ -87,7 +87,7 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
  * @param store - the workspace store.
  * @param session - the project's session.
  * @returns the choices by address, empty when there is nothing to ask, or null when the reader
- *     cancelled.
+ *     canceled.
  */
 export function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
     if (!nodeModelsOn(session)) {
@@ -306,7 +306,7 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
  * @param newName - the name Save as gives the project, or null to keep its name.
- * @returns false when the reader cancelled the question about files from the web.
+ * @returns false when the reader canceled the question about files from the web.
  */
 async function writeProject(
     { workspace, session }: CommandContext,
@@ -359,7 +359,7 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
     const { workspace, session } = ctx;
     const before = session?.project.name ?? null;
     try {
-        // Cancelled, it returns before naming the project, which keeps the name it had.
+        // Canceled, it returns before naming the project, which keeps the name it had.
         await writeProject(ctx, null, name);
     } catch (error) {
         workspace.set({ notice: { message: saveProblemSentence(name, error), error: true } });

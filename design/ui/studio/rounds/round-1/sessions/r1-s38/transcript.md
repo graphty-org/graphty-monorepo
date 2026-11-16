@@ -1,7 +1,7 @@
 # Session r1-s38 -- Jordan (marketing network analyst), running club ties
 
 Participant: Jordan, a growth-marketing analyst who does "the network stuff" one or two days a
-week. Sceptical, reads labels and legends, skims helper text.
+week. Skeptical, reads labels and legends, skims helper text.
 
 Prompt: "You have never used this program before. A friend's list of who in your running club
 knows whom is already drawn in it. Have the program put the people in order of how much the whole

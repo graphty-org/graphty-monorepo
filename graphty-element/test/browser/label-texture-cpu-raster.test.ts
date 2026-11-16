@@ -1,14 +1,14 @@
 /**
- * @file A label's words are rasterised on the CPU, so the same label draws the same pixels on
+ * @file A label's words are rasterized on the CPU, so the same label draws the same pixels on
  * every load.
  *
  * THE DEFECT. A label's texture is a 2D canvas. Chromium draws an ordinary 2D canvas on the GPU,
  * and on a software GPU (SwiftShader, which is what headless browsers and visual-review services
  * render with) the antialiased edge of large text comes out one alpha level different at a few
  * dozen scattered pixels from one page load to the next -- with the same words, font, size,
- * transform and draw order. Minified onto the screen that is one to three pixels one colour level
+ * transform and draw order. Minified onto the screen that is one to three pixels one color level
  * apart, and `Styles/Label: Declutter` was reported changed on nearly every screenshot build
- * because of it. The same canvas rasterised on the CPU is identical on every load.
+ * because of it. The same canvas rasterized on the CPU is identical on every load.
  *
  * WHAT IS MEASURED. Chromium keeps a 2D canvas on the CPU when its context is created with
  * `willReadFrequently`, and a canvas has one context for life, so the attribute the label's

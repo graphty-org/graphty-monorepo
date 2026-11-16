@@ -79,7 +79,7 @@ source file of the same name at the package root:
 | Subpath      | Source                                 | What it carries                                                                                                                                                        | Node-safe   |
 | ------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
-| `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
+| `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the color helpers  | Yes         |
 | `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
 | `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerFormatWriter`, `registerAccelerator`, `GraphtyError`           | Yes         |
 | `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
@@ -131,7 +131,7 @@ what every change here is measured against.
 
 | Extension point | What a third party brings                                                                                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Palette         | A named set of colour anchors a style layer ramps through                                                                                                                        |
+| Palette         | A named set of color anchors a style layer ramps through                                                                                                                         |
 | File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are, and a writer for it (`registerFormatWriter`), reached by `exportGraph` |
 | Camera          | A way of deciding where the viewer is and what they are looking at                                                                                                               |
 | Layout          | An engine that decides where nodes sit, live or in a single pass                                                                                                                 |
@@ -147,7 +147,7 @@ design choice.
 Concretely, parity means all of these, not only the registration call: appearing in
 `session.catalog` so a picker can offer it; being addressable by the key a consumer types, and by
 the key a saved document records wherever the element reads one back; reporting progress and
-honouring cancellation where its built-in peer does; being configurable through the same options
+honoring cancellation where its built-in peer does; being configurable through the same options
 mechanism; reporting failure as a `GraphtyError` with a code from `src/errors/codes.ts`; and being
 writable in TypeScript against a published entry point without casting or re-declaring a type the
 element already has.
@@ -180,7 +180,7 @@ plugin author who expected otherwise would be misled.
 
 - **Progress and cancellation.** A palette does no work over time; a camera view computes
   synchronously; a log destination's `write` is fire-and-forget. None of those has progress or
-  cancellation to be at parity about. An import cannot be cancelled and a live layout reports no
+  cancellation to be at parity about. An import cannot be canceled and a live layout reports no
   progress, for a built-in as much as for a plugin. The algorithm point has both fully; a
   single-pass layout registered with `registerSnapshotLayout` has both (`report` and `signal`),
   the same contract the element's own single-pass layouts are built on.
@@ -189,7 +189,7 @@ plugin author who expected otherwise would be misled.
   a logging configuration round-trips by name. A camera view is recorded in no saved document at
   all, and a saved `graph.layout` is read back by nothing -- both true of the element's own views
   and layouts too.
-- **A palette takes no options at all.** `PaletteDescriptor` is the only catalogue descriptor with
+- **A palette takes no options at all.** `PaletteDescriptor` is the only catalog descriptor with
   no `options` field, because every knob -- scale, domain, clamp, midpoint, reverse, missing, bins
   -- belongs to the binding rather than to the palette. No built-in palette takes configuration
   either, so giving the point an options surface would be inventing a parity gap rather than
@@ -314,7 +314,7 @@ npm test -- --project=storybook
 
 ## The color helpers in detail
 
-**The colour helpers are total, and do not throw**: in
+**The color helpers are total, and do not throw**: in
 `src/utils/styleHelpers/color/interpolation.ts`, `hexToRgb` returns `null` for anything that is
 not a six-digit hex string, and `interpolatePalette` returns `MISSING_DATA_COLOR` (`#ff00ff`)
 for a value that is `undefined`, `null`, `NaN` or infinite, and for a palette anchor that does
@@ -322,13 +322,13 @@ not parse. They run once per node inside a repaint loop with no try/catch, so a 
 abort the frame and silently leave every later node unstyled. Only an EMPTY palette throws --
 that is a programmer error in the palette definition, caught before anything is painted.
 
-Several older call sites were written around the previous throwing behaviour: a try/catch around
+Several older call sites were written around the previous throwing behavior: a try/catch around
 an interpolation call, or a pre-check for `undefined` before one, is now dead weight and should
 be deleted rather than copied.
 
 Seeing the magenta on screen is a bug report, not a design: it means a style layer asked a ramp
 for an element the algorithm never measured. Fix the layer's selector so the unmeasured element
-is never visited; do not pick a prettier colour.
+is never visited; do not pick a prettier color.
 
 ## A story is a test, and a capability must never lose its last door quietly
 
@@ -337,8 +337,8 @@ rather than inferred because every agent involved in it complied with every inst
 
 - **A story is a test.** Everything the no-weakening rule says about a test applies to a story:
   never delete one, never hollow one out, never leave it named for something it no longer draws.
-  A story that pins behaviour which is deliberately going away is REPLACED by one that pins the
-  new behaviour, and the removal is recorded in `stories/story-roster.json`. Twenty stories were
+  A story that pins behavior which is deliberately going away is REPLACED by one that pins the
+  new behavior, and the removal is recorded in `stories/story-roster.json`. Twenty stories were
   deleted in `ff12a515` under a rule that said "test" three times and "story" never; the commit
   subject is "drive a dummy extension through everything a built-in does", because
   `tools/commit-changes.sh` sorts `stories/` into the tests bucket and no message in the
@@ -347,7 +347,7 @@ rather than inferred because every agent involved in it complied with every inst
 - **A capability that loses its only public route is a blocking finding, recorded in the
   repository before the change lands.** A row in `design/element-api/capability-losses.md`, and
   an entry in `src/catalog/unreachable.ts` so a gate can see it too. Not a comment in the file
-  being gutted, and not a paragraph in an agent's report. The arrow head kept a size, a colour
+  being gutted, and not a paragraph in an agent's report. The arrow head kept a size, a color
   and an opacity through the whole of the 2.0 development -- declared, defaulted, rendered, and
   reachable by nothing. Three agents on three days noticed, wrote it down where they were
   working, and none of those places could reach a person.

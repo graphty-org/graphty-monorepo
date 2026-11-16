@@ -226,7 +226,7 @@ describe("Graphviz layouts in the element", () => {
     });
 
     it("draws a DOT file's clusters as Graphviz draws them: its margin past the members, its label's room on top", async () => {
-        // Graphviz draws a cluster 8 points (1/9 of a one-inch node) past its members, and a labelled
+        // Graphviz draws a cluster 8 points (1/9 of a one-inch node) past its members, and a labeled
         // one taller by its label at the top; a group drawn round its members by itself reaches its
         // largest member's radius (half a node) past them on every side. The label is set after the
         // inner cluster opens, so Graphviz gives the inner cluster none.
@@ -292,7 +292,7 @@ describe("Graphviz layouts in the element", () => {
 
     it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
         // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
-        // 0.5 inch ranksep): each box is twice as wide as the step between their centres.
+        // 0.5 inch ranksep): each box is twice as wide as the step between their centers.
         const session = graph.getSession();
         await session.data.import(
             { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
@@ -583,7 +583,7 @@ describe("Graphviz layouts in the element", () => {
 
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {
         // The file's lengths are kept as points, so Graphviz's half-inch ranksep is 36 scene units:
-        // the boxes' centres are the file's half-inch box (Graphviz sizes the nodes as it does the
+        // the boxes' centers are the file's half-inch box (Graphviz sizes the nodes as it does the
         // file's own) plus 36 apart, 72 as Graphviz draws them.
         const session = graph.getSession();
         await session.data.import(

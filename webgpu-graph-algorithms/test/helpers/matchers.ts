@@ -141,7 +141,7 @@ export function flooredRelError(
 
 /**
  * The whole-field relative error over stride-3 vectors: the Euclidean norm of `gpu - cpu` over the norm of `cpu`,
- * i.e. the error measured against the force scale of the layout rather than per node. A cancelling configuration
+ * i.e. the error measured against the force scale of the layout rather than per node. A canceling configuration
  * (a line, a settled layout, the members of a hub cell near its centroid) has small per-node forces and a large
  * floored per-node error; this number says whether the absolute error is small against the forces that move the
  * layout. The metric of the unbiasedness item (G4 item 2 after G4-F2): the S-seed mean of a sampled force field

@@ -79,7 +79,7 @@ Mara: "Size. Choosing it."
 
 Command: `--step $S --click "Size"` -> 10.png
 Saw: a "Size by attribute" picker: Fixed size; Betweenness group with Betweenness, Betweenness
-rank, Betweenness percentile; greyed id and name ("Holds groups, not amounts").
+rank, Betweenness percentile; grayed id and name ("Holds groups, not amounts").
 Mara: "This is a Gephi ranking on size. Raw betweenness -- I want it to match the color key. Clicking
 Betweenness."
 

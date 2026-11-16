@@ -1,7 +1,7 @@
 /**
  * The Barnes-Hut tree of ForceAtlas2's repulsion (`barnesHutOptimize`): a quadtree in 2D, an octree in 3D, rebuilt
  * each iteration over the f64 LAYOUT-unit positions. A cell far enough from a node (its width over the distance to
- * its centre of mass below `theta`) repels it as one body of the cell's total mass at that centre, as Gephi's
+ * its center of mass below `theta`) repels it as one body of the cell's total mass at that center, as Gephi's
  * ForceAtlas2 does; every nearer body is visited one by one. That makes the repulsion O(n log n) per iteration instead
  * of the O(n^2) of every pair.
  */
@@ -17,12 +17,12 @@ export class BarnesHutTree {
     private readonly dim: 2 | 3;
     private readonly fan: number;
     private capacity = 0;
-    /** Per cell: its centre and half width. */
+    /** Per cell: its center and half width. */
     private midX: Float64Array = new Float64Array(0);
     private midY: Float64Array = new Float64Array(0);
     private midZ: Float64Array = new Float64Array(0);
     private half: Float64Array = new Float64Array(0);
-    /** Per cell: total mass and the mass-weighted position sum (the centre of mass once divided). */
+    /** Per cell: total mass and the mass-weighted position sum (the center of mass once divided). */
     private mass: Float64Array = new Float64Array(0);
     private comX: Float64Array = new Float64Array(0);
     private comY: Float64Array = new Float64Array(0);
@@ -58,7 +58,7 @@ export class BarnesHutTree {
             this.next = new Int32Array(n);
         }
         this.ensure(Math.max(16, 2 * this.fan * n));
-        // z is 0 in 2D, so the box is flat there and its z centre 0
+        // z is 0 in 2D, so the box is flat there and its z center 0
         const lo = [0, 0, 0];
         const hi = [0, 0, 0];
         for (let a = 0; a < 3 && n > 0; a++) {
@@ -133,7 +133,7 @@ export class BarnesHutTree {
     }
 
     /**
-     * Adds an inner cell's force on node i as one body at its centre of mass, when node i lies outside the cell and
+     * Adds an inner cell's force on node i as one body at its center of mass, when node i lies outside the cell and
      * the cell's width over its distance is below theta.
      * @param c - the cell
      * @param i - the node
@@ -219,9 +219,9 @@ export class BarnesHutTree {
 
     /**
      * Adds an empty leaf.
-     * @param x - centre x
-     * @param y - centre y
-     * @param z - centre z
+     * @param x - center x
+     * @param y - center y
+     * @param z - center z
      * @param half - half width
      * @param depth - its depth
      * @returns its index

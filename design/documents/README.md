@@ -40,7 +40,7 @@ open the style:
 const opened = await element.session.data.openDocument(text);
 ```
 
-Every node with a team is coloured by team. On a graph with no `team` column the layer is added
+Every node with a team is colored by team. On a graph with no `team` column the layer is added
 switched off, and `opened.report` says it needs `data.team`. The style stays in force: load
 another graph later and the layer binds again by itself, and `opened.report` is replaced by a fresh
 one, so read the report from `opened`. Files graphty-element writes wrap a style in a
@@ -48,11 +48,11 @@ one, so read the report from `opened`. Files graphty-element writes wrap a style
 
 ### More than eight teams
 
-The colours come from the default palette, largest team first, so on next quarter's data a team can
-change colour when the sizes change. The palette has eight colours; on data with more teams the
+The colors come from the default palette, largest team first, so on next quarter's data a team can
+change color when the sizes change. The palette has eight colors; on data with more teams the
 layer stops painting and the report says why, unless the binding says `"overflow": "other"`, which
-paints the teams past the eighth dark grey. To keep a colour on a team, pin it with `map`
-(`"map": { "sales": "#0b5fff" }`); to use your own colours, name your palette (style.md,
+paints the teams past the eighth dark gray. To keep a color on a team, pin it with `map`
+(`"map": { "sales": "#0b5fff" }`); to use your own colors, name your palette (style.md,
 "Palettes").
 
 ### Saving your look
@@ -65,7 +65,7 @@ const { text, report } = await element.session.data.saveDocument({
 ```
 
 `text` holds only the style: never your data. It keeps the layers you made and the ones you opened,
-and leaves out the colouring your analyses' runs added, because those runs do not exist where the
+and leaves out the coloring your analyses' runs added, because those runs do not exist where the
 file is opened next; `report.leftOut` lists what was not written. To open an edited copy again in
 the same session and replace the earlier one, pass
 `openDocument(text, { onRepeat: { style: "replace" } })`.
@@ -106,14 +106,14 @@ A filter or a scope is a comparison over columns: `confidence >= 0.4`, `type == 
 
 You rarely write a recipe by hand: `session.data.saveDocument({ recipe: { id } })` records the
 analysis of a session as a recipe, beside the look as a style (recipe.md, "Recording"). The
-algorithms, options and layouts a recipe can name are in graphty-element's catalogue (recipe.md,
+algorithms, options and layouts a recipe can name are in graphty-element's catalog (recipe.md,
 "Finding algorithms and their options").
 
 ### When a replay differs
 
 - **A column spelled differently.** `openDocument(text, { run: true, columns: { confidence: "score" } })`
   reads your `score` wherever the recipe says `confidence`.
-- **A run's colouring covering yours.** Each run paints its suggested colouring above your layers;
+- **A run's coloring covering yours.** Each run paints its suggested coloring above your layers;
   write `"style": false` on the run to keep your own on top. The report's `W_PAINTS_OVER` says when
   one would be covered (recipe.md, "Commands" rule 8).
 - **A weight read as a distance.** Betweenness, closeness and shortest paths read a weight as a
@@ -234,7 +234,7 @@ those too, in plain sentences, and changes nothing.
 <!-- prettier-ignore -->
 | Page | Schema | What it specifies |
 | --- | --- | --- |
-| [container.md](container.md) | [container.schema.json](container.schema.json), [data.schema.json](data.schema.json) | The one JSON file: how it is recognised, versioned, extended, applied and written; the data member |
+| [container.md](container.md) | [container.schema.json](container.schema.json), [data.schema.json](data.schema.json) | The one JSON file: how it is recognized, versioned, extended, applied and written; the data member |
 | [style.md](style.md) | [style.schema.json](style.schema.json) | The style member: layers, selectors, encodings, carried palettes |
 | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | The recipe member: its commands, how it binds to a new graph's columns, how it replays and is recorded |
 | [notes.md](notes.md) | [notes.schema.json](notes.schema.json) | The notes member: people's notes about a graph, how they are saved, and how opening them merges |
@@ -253,7 +253,7 @@ changes a live graph session from one. graphty-element is all three.
 
 1. The JSON Schema files (draft 2020-12) are normative for the data model: what a conforming writer
    produces. The TypeScript in the prose is illustrative and MUST agree with them.
-2. The prose is normative for behaviour: what a reader does with any input, conforming or not. A
+2. The prose is normative for behavior: what a reader does with any input, conforming or not. A
    reader does not use a schema as an accept-or-refuse test for the whole file; it checks each
    member, and in a style each layer.
 3. The schemas are published at `https://graphty.app/schema/documents/<kind>/v<major>.json`
@@ -282,8 +282,8 @@ Export is export-mapping.md's; data inside a document is container.md, "The data
 ### What every importer produces
 
 A style and a recipe bind to the columns an import produces, so these rules are what version 1
-requires of every import. The header names an importer recognises by itself (the table below) are
-its own behaviour, not the document format: a recipe for a table names its endpoint and id columns.
+requires of every import. The header names an importer recognizes by itself (the table below) are
+its own behavior, not the document format: a recipe for a table names its endpoint and id columns.
 
 1. **Node ids and edge endpoints** are structure, not columns. The header or field chosen as a node
    id or an endpoint is consumed; every other one stays a column, so a node table headed
@@ -309,7 +309,7 @@ its own behaviour, not the document format: a recipe for a table names its endpo
    whole: no expression tests whether a list holds a value.
 6. **Rows are imported as given**, unless the `repeatedEdges` import option says otherwise
    (recipe.md, "Table data" rule 1): a file listing each pair twice gives two edges. A
-   gzip-compressed file is recognised by its first two bytes, never by its name, and decompressed
+   gzip-compressed file is recognized by its first two bytes, never by its name, and decompressed
    as it is read.
 
 Where each importer finds its structure when no import option says otherwise:
@@ -340,7 +340,7 @@ the caller gives `idColumn`. A node table and an edge list are two imports, the 
 ## The one JSON file
 
 Every graphty document is one JSON file ([container.md](container.md)), saved as
-`<name>.graphty.json` and recognised by its top-level `"kind": "graphty-document"`, never by its
+`<name>.graphty.json` and recognized by its top-level `"kind": "graphty-document"`, never by its
 name. `version` is the container's major version, 1. `members` holds any mix of `graphty-style`,
 `graphty-recipe` and `graphty-data`, each with its own `kind` and `version`; a reader skips a
 member it cannot read and applies the rest. A reader also opens the kindless style file
@@ -362,7 +362,7 @@ This is what the documents are for; style.md and recipe.md point here.
    `edgeColumns` rename on one table only and win there. The map rewrites parsed paths and
    expressions, never text, and each member's report records it. It renames columns, never values:
    `SUPPLIES` and `supplies` are two categories.
-3. **Order.** Data, then recipes, then styles; a run's own colouring is added above every layer when
+3. **Order.** Data, then recipes, then styles; a run's own coloring is added above every layer when
    the run completes (container.md, "Applying a file" rule 2).
 4. **Nothing happens without being asked.** Opening a recipe binds and plans it: the report lists
    every command, whether it can run and its estimated cost. Runs start only when the caller asks
@@ -423,7 +423,7 @@ in a session that draws nothing.
   because it may embed up to 64 MB of model files (assets.md), about 85 MB as base64;
 - no member name `__proto__` and no object with the same member name twice (`E_BAD_DOCUMENT`);
 - at most 64 members; 1,000 style layers in the file; per style 100 carried palettes of at most 256
-  colours; per recipe 1,000 commands;
+  colors; per recipe 1,000 commands;
 - per notes member 10,000 notes; per note 64 targets, 64 cites, 65,536 code points of text and
   262,144 bytes (256 KB) saved as JSON; a note's `extensions` at most 65,536 bytes (64 KB) saved and
   32 levels deep; a session holds at most 10,000 notes (notes.md, "Limits");
@@ -469,7 +469,7 @@ the graphty app can; the app draws the Save and Open controls and calls the elem
 | Replay headless | `createGraphSession({ limits })` from the `./session` entry point |
 | List algorithms, options and layouts | `session.catalog.algorithms()`, `session.catalog.layouts()` |
 
-**Breaking changes in 3.0.0.** These change published 2.x behaviour and ship together in
+**Breaking changes in 3.0.0.** These change published 2.x behavior and ship together in
 graphty-element 3.0.0:
 
 - the edge weight is always the column `weight`, with no legacy `value` fallback;
@@ -497,12 +497,12 @@ Not in version 1; each is a later version's work, and version 1 files stay valid
   `sha256`, `E_DIGEST_MISMATCH`, `W_DATA_DIFFERS`), and saving one;
 - service: replaying other people's documents against private data, with report redaction;
 - results: expected results, result signatures and comparison, dataset fingerprints in the report;
-- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomised null models,
+- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomized null models,
   fetching data, a precision request;
 - style v2: list and text membership tests, quoted path segments holding a dot, edges selected by
   id, splitting a look across style versions, down-conversion;
 - migration: graphty-element 1.x style templates; Cytoscape, CX2 and `.cys` styles;
-- metadata: authors, licences, citations and DOIs (`graphty.provenance`);
+- metadata: authors, licenses, citations and DOIs (`graphty.provenance`);
 - schema publishing: a pinned copy of each release's schemas;
 - project version: views and cameras, annotations, stored results, several graphs in one file;
 - not planned: a graphty document embedded inside another tool's file (export-mapping.md).
@@ -534,7 +534,7 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | `W_TABLE_COLUMNS_DIFFER` | a table was read with options other than the recipe's `table`, or without them |
 | `W_MATCHES_NOTHING` | a style layer's selector bound and matched no element |
 | `W_ID_COLLISION` | a style opened from another place claims the `id` of one already opened; its layers were added |
-| `W_PAINTS_OVER` | a run's colouring, or a file's layer, will paint a channel an enabled layer already paints |
+| `W_PAINTS_OVER` | a run's coloring, or a file's layer, will paint a channel an enabled layer already paints |
 | `W_RELEASE_DIFFERS` | the file or recipe was written by another release of graphty-element |
 | `W_PRECISION_DIFFERS` | a run replays in another precision than its recipe records; names the `acceleration` setting |
 | `W_FEW_VALUES` | fewer than half of the elements a layer or command reads have a value at a path it reads |
@@ -567,17 +567,17 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Match a missing column by other spellings or an author's alias list (raised four times): no -- reported, never guessed; the caller passes `columns`.
 - Declare the attributes a recipe needs as slots: replaced by the journal; the plan lists every column before anything runs.
 - Put the whole session journal in the recipe: no -- analysis commands only (decision 1).
-- Convert a similarity weight to a distance, or add `weightMeaning`: no -- the author's modelling choice; data plan.
-- Restrict colours to hex: no -- 2.x writes CSS colours; the applier parses every colour.
+- Convert a similarity weight to a distance, or add `weightMeaning`: no -- the author's modeling choice; data plan.
+- Restrict colors to hex: no -- 2.x writes CSS colors; the applier parses every color.
 - Refuse `source.by: "run"` on imported layers: no -- stamped, and kept only for a run of this opening.
 - A zip container for large projects: no -- JSON only (decision 2).
 - Must-understand feature names per unit: no -- a new major version, `requires`, and the unknown-command stop cover it.
 - Write every option value, defaults included: only on request (`explicitDefaults`).
-- Authors, licence and citation members now: later version (metadata).
+- Authors, license and citation members now: later version (metadata).
 - A second file as a data member's node table, or a merge key column: no -- joins are the data plan's.
 - Declare column types and ranges: data plan; mismatches are reported.
 - A scope combining a predicate with the largest component: no -- a filter, then a scope.
-- Read `.gz` by an option: no -- gzip is recognised by its first two bytes.
+- Read `.gz` by an option: no -- gzip is recognized by its first two bytes.
 - A quoted path segment holding a dot: no -- 2.x refuses it; `columns` reaches any name.
 - A per-command or per-replay precision request: no -- `acceleration: "off"` does it per session.
 - Expected-result digests, per-run result digests, dataset fingerprints: later version (results).
@@ -587,7 +587,7 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Warn on every identifier-like literal: only for literals compared with run results, and listed on save.
 - Refuse, or plan without running, on a direction mismatch: no -- `W_DIRECTION_DIFFERS` before anything runs.
 - Optional `capacity` and `colorblindSafe` in a carried palette: no -- 2.x requires both.
-- Copy each algorithm's options table here: no -- a catalogue page generated per release.
+- Copy each algorithm's options table here: no -- a catalog page generated per release.
 - Rename category values: data plan; unmatched `map` keys and empty scopes are reported.
 - A worked example on a second dataset: style.md's and recipe.md's worked examples already do it.
 - Rename `blue-orange`: taken as an added id, `blue-white-red`.
@@ -598,9 +598,9 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Stamp layers with a document digest and refuse replacement by default: in part -- only an `id` from the same place replaces.
 - A list membership test in expressions: no -- the language has no functions (style v2).
 - Type CSV cells one at a time: no -- columns are typed whole; comparisons read numeric text.
-- Prescribe the preview interface: its behaviour only ("Opening a file someone sent you").
-- Publish which algorithms take `weight`: taken as the catalogue page.
-- Order ordinal categories by text: no -- it repaints 2.x styles; `map` pins colours.
+- Prescribe the preview interface: its behavior only ("Opening a file someone sent you").
+- Publish which algorithms take `weight`: taken as the catalog page.
+- Order ordinal categories by text: no -- it repaints 2.x styles; `map` pins colors.
 - Split a quick start from this page: no -- the first style and recipe lead it; the guide comes with 3.0.0.
 - A notice when a passthrough label reads numeric ids: no -- a number is a legitimate label.
 - A caller-supplied `href`, or a time budget for referenced data: moot -- referenced data is a later version.
@@ -609,16 +609,16 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Fresh style reports from `data.import`: taken as the opening's report being replaced.
 - `==` on a list as a type mismatch: no -- its cost is charged to the opening budget.
 - Close a recipe's top level: no -- a near-miss guard on `table`, `directed`, `parallelEdges`.
-- A lenient reader schema beside the strict one: no -- the prose governs reader behaviour.
+- A lenient reader schema beside the strict one: no -- the prose governs reader behavior.
 - Let an unknown-type value drop only its channel entry: no -- it refuses its layer; widening needs style v2.
 - Lay out only the kept graph: later -- it needs a new layout input for every engine.
 - Make the session's largest component read the visible graph: no -- it changes existing runs.
-- Skip a command whose randomised path takes no seed: no -- planned with a notice.
-- A colour-and-size example with a recommended size range: no -- style.md covers both.
+- Skip a command whose randomized path takes no seed: no -- planned with a notice.
+- A color-and-size example with a recommended size range: no -- style.md covers both.
 - Raise the load ceilings everywhere: only in a session that draws nothing.
 - An application-built starter recipe for a refused table: no -- read-time filtering is the data plan's.
 - Accept an unknown `params` key whose value is null: no -- it would run another command.
-- Zero at the range end under `log`, negative `sqrt` missing: taken back -- 2.x behaviour kept.
+- Zero at the range end under `log`, negative `sqrt` missing: taken back -- 2.x behavior kept.
 - A recommended default `repeatedEdges`: no -- only the data's author knows.
 - An `if`/`then` on the binding schema: no -- a preview names the misspelt member.
 - Name the GPU layout's `deterministic` option in the recorder: not needed -- every non-default option is written.

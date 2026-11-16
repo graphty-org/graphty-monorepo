@@ -72,7 +72,7 @@ describe("indexed.kCoreDecomposition", () => {
 
     it("counts a parallel edge once and a self-loop not at all", () => {
         // Neither can be built through the legacy Graph, which forbids parallel edges and would count
-        // a self-loop as a neighbour; a core number is defined on the simple graph underneath.
+        // a self-loop as a neighbor; a core number is defined on the simple graph underneath.
         const b = new GraphBuilder({ directed: false });
         for (const id of ["a", "b", "c"]) {
             b.addNode(id);

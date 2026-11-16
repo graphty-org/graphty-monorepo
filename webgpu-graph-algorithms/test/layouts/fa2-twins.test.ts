@@ -12,7 +12,7 @@
  *    -- ten different geometries (the layout expands from the unit square to a radius of ~1e2) through the same
  *    reductions; the states are the oracle's, not a twin's, so the states10 noise member that measures this floor
  *    holds the same inputs on every adapter;
- * 3. the workgroup twin's 50-iteration trajectory against the f32 / f64 oracles re-synchronised to ITS state before
+ * 3. the workgroup twin's 50-iteration trajectory against the f32 / f64 oracles re-synchronized to ITS state before
  *    every iteration (resyncTrace), within fa2-trace-parity.resync.f32 / .f64 -- the full-state per-iteration
  *    correctness of the twin that the feature context's run of fa2-trace-parity.test.ts establishes for the other;
  * 4. the free-running 10-iteration trace, asserted in compat: "networkx" within fa2-twins.trace (the trace10 twin
@@ -22,7 +22,7 @@
  *
  * A recording run writes the `<class>-no-subgroups` fixtures of the P3 noise members that carry a twin row, the
  * networkx trace10 twin, the states10 member (both twins and the f64 reference, ten states of each mode), and the
- * paper-mode re-synchronised members of the twin with its per-adapter oracle references.
+ * paper-mode re-synchronized members of the twin with its per-adapter oracle references.
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
@@ -61,7 +61,7 @@ import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../helpers/sabotage.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
-/** The free-running twin trace and the number of re-synchronised states. */
+/** The free-running twin trace and the number of re-synchronized states. */
 const TRACE_TEN = 10;
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin and the twin axis is vacuous here (a policy skip, not a wrong-result skip). */
@@ -326,7 +326,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
         } finally {
             withoutSubgroups.release(nx.s);
         }
-        // the paper-mode re-synchronised members of the twin, with the oracles that followed ITS states
+        // the paper-mode re-synchronized members of the twin, with the oracles that followed ITS states
         for (const member of ["resync50", "resyncKarate50"] as const) {
             const inputs = noiseInputs(PAPER, member === "resync50" ? "random1k" : "karate");
             try {

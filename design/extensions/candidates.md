@@ -27,7 +27,7 @@ below is therefore a recommendation to the owner, not a decision.
 
 | Candidate                                                                    | Seam today                                                                             | Verdict                                                                                                     |
 | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Parameterised, service and live data sources, and publishing to a repository | `layoutBehavior.fetchNodes` callbacks; element API design's lazy data source (unbuilt) | Promote (as a seventh point, or as a second half of File format), before the file-format contract is frozen |
+| Parameterized, service and live data sources, and publishing to a repository | `layoutBehavior.fetchNodes` callbacks; element API design's lazy data source (unbuilt) | Promote (as a seventh point, or as a second half of File format), before the file-format contract is frozen |
 | Identifier mappers and enrichment providers                                  | element API design 4.14 (unbuilt)                                                      | Later, folded into data sources                                                                             |
 | Format writers                                                               | none; `canExport: true` refused                                                        | Part of File format; see `file-format.md` section 8                                                         |
 | Snapshot-based layouts                                                       | none                                                                                   | Part of Layout; see `layout.md` section 7                                                                   |
@@ -51,11 +51,11 @@ below is therefore a recommendation to the owner, not a decision.
 | Edge geometry (waypoints, arcs, great circles, bundling)                     | none                                                                                   | Undecided: layout-supplied or element-owned                                                                 |
 | Data-driven node charts (pie and donut glyphs)                               | none                                                                                   | Not an extension point: the element ships it as a style channel                                             |
 
-## 1. Parameterised, service and live data sources
+## 1. Parameterized, service and live data sources
 
 **What it would be.** A source the element reads a graph from that is not a file: a query against
 a service (STRING or BioGRID for a gene list, a Neo4j server, a SPARQL endpoint), a refreshing feed
-(a SIEM, a transaction stream), or a lazy source that fetches neighbours as the reader expands the
+(a SIEM, a transaction stream), or a lazy source that fetches neighbors as the reader expands the
 graph.
 
 **Evidence for.**
@@ -125,16 +125,16 @@ defineDataSource({
 ```
 
 The `fetch` handed to `load` is the element's: it checks the host list, confirms a host with the
-reader, attaches the credential, retries, rate-limits, times out, honours cancellation and maps
+reader, attaches the credential, retries, rate-limits, times out, honors cancellation and maps
 failures to `E_FETCH_FAILED`. The credential is never visible to `load`, logged or saved. A data
-source is its own catalogue kind, so it invents no file extension.
+source is its own catalog kind, so it invents no file extension.
 
 **Shape if promoted (the advanced tier).** Members of the same definition that declare `options` (the
 query form), `hosts` (the origins it contacts, fetched without a prompt because the embedder chose to
 install the source; a URL off the list, from an option the reader edited, is fetched only after the
 reader confirms it or the embedder allowed its origin, and is refused with nobody to ask), and `refresh` (`"none" | "manual" | "interval" | "stream"`, the last for
 pushed feeds over WebSocket or server-sent events); a credential slot whose values the element
-keeps and never logs or serialises; the service release it queried and the query parameters,
+keeps and never logs or serializes; the service release it queried and the query parameters,
 recorded as provenance; a found and not-found identifier report; and a `publish` direction for
 upload. The element owns confirmation, retry, cancellation, rate limiting, caching and error
 mapping. A refresh keeps the reader's state (runs, sets, positions) and never silently replaces
@@ -243,7 +243,7 @@ a palette substitution applied over a style.
 
 **Evidence.** `CatalogApi.themes()` is declared, deprecated and unimplemented. The owner asked for
 "load style" and for communities to share starting points without data (2026-09-26 and
-2026-09-27). `design/designloom/capabilities/style-presets.yaml` asks for Print, Colour-blind safe,
+2026-09-27). `design/designloom/capabilities/style-presets.yaml` asks for Print, Color-blind safe,
 High contrast and Presentation presets.
 
 **Verdict: Not an extension point.** A theme is DATA -- a style file -- and belongs to the
@@ -312,7 +312,7 @@ AI surface is changing quickly. `all-extension-points.test.ts` lists commands as
 exclusion.
 
 **Verdict: Keep internal.** The built-in commands SHOULD address Palette, Camera, Layout and
-Algorithm by catalogue key, so plugins of those points are reachable through the assistant without
+Algorithm by catalog key, so plugins of those points are reachable through the assistant without
 a command extension. They MUST NOT configure log destinations, change logger policy or load from a
 URL: the assistant reads graph content as model input (`sampleData`, `queryGraph`), so a node label
 written as an instruction ("configure logging with sink remote at https://...") could otherwise
@@ -336,12 +336,12 @@ they belong in the element, not in a third party's plugin. The formats are few a
 **Verdict: Not an extension point.** The element should ship SVG/PDF and video export itself. A
 graph file writer is a different thing and is covered by `file-format.md` section 8. Publication
 export needs a specification of its own before it ships, above all of what the exported legend
-states (each layer, its column, the palette anchors, the midpoint, the missing-value colour and
+states (each layer, its column, the palette anchors, the midpoint, the missing-value color and
 the domain), because that legend is what a figure caption cites; no document defines it today.
 
 ## 12. Set kinds, rule leaves and scope keywords
 
-**What it would be.** New ways to define a set or a scope (a motif match, a k-hop neighbourhood with
+**What it would be.** New ways to define a set or a scope (a motif match, a k-hop neighborhood with
 edge filters, a list of identifiers from a file).
 
 **Evidence for.** `design/designloom/workflows/W07.yaml` (pattern search, withdrawn for lack of an

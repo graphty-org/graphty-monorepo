@@ -88,7 +88,7 @@ async function retainedHighWater(
 
 /**
  * A builder that records how much heap is live when the first edge arrives: everything the reader
- * materialised before delivering its first row is still reachable at that moment, whatever the
+ * materialized before delivering its first row is still reachable at that moment, whatever the
  * garbage collector did.
  */
 class FirstEdgeProbe extends GraphBuilder {

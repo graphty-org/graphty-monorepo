@@ -10,7 +10,7 @@
  * that quietly drops a key looks exactly like a control that does nothing.
  *
  * Nothing here builds a graph or a renderer: the mapping is a pure function of the options, the
- * behaviour configuration and -- for the iteration rule -- a node count.
+ * behavior configuration and -- for the iteration rule -- a node count.
  */
 import { GraphBuilder } from "@graphty/graph-format";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "@graphty/layout";
@@ -55,7 +55,7 @@ describe("the force layouts' option mapping", () => {
 
     it("accepts a gravity of zero and refuses a gravity below it", () => {
         // Zero gravity is a legal ForceAtlas2 setting -- nothing pulls the graph towards the
-        // centre -- and the Storybook slider has always started there while the schema called it
+        // center -- and the Storybook slider has always started there while the schema called it
         // positive, so the lowest value the control offered was the one value it refused.
         assert.strictEqual(forceAtlas2({ gravity: 0 }).gravity, 0);
         assert.throws(() => forceAtlas2({ gravity: -1 }));

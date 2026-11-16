@@ -2,8 +2,8 @@
  * @file The session: a graph with no view attached.
  *
  * This is the object the rest of the element's model hangs off. It holds the graph data, the
- * coordinates, the style layers, the status, the catalogue, the configuration and what the
- * machine can do, and it holds none of the things two synchronised views of one dataset would
+ * coordinates, the style layers, the status, the catalog, the configuration and what the
+ * machine can do, and it holds none of the things two synchronized views of one dataset would
  * disagree about -- no camera, no canvas, no scene.
  *
  * Nothing here, and nothing it imports, reaches Babylon.js, Lit or the DOM. That is checkable
@@ -410,13 +410,13 @@ const TX_PARTS = [
 /**
  * What the factory hands the session, with the ownership question already answered.
  *
- * The `owned*` members are the same objects as their neighbours when the session built them and
+ * The `owned*` members are the same objects as their neighbors when the session built them and
  * null when a caller did, which is the whole of what `dispose()` needs to know.
  */
 interface SessionParts {
     /** The store to read, whoever built it. */
     readonly store: LaneStore;
-    /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
+    /** The catalog: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
     /** The experiments, settled on first read. */
     readonly features: () => EnabledFeatures;
@@ -1445,7 +1445,7 @@ class Session implements ElementSession {
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
         if (this.disposed) {
             // Nothing fires again; a host that asks too late to hear about the disposal still does.
-            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            // Canceled by the returned function, so an effect cleanup that runs first is not told.
             let live = event === "session:disposed";
 
             if (live) {
@@ -1504,7 +1504,7 @@ class Session implements ElementSession {
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
-        // Style edits are runs the runs list does not hold, so they are cancelled on their own.
+        // Style edits are runs the runs list does not hold, so they are canceled on their own.
         this.stopStyleEdits();
         this.shadersController.dispose();
         // The last event: a host drops the session here, before anything re-reads it.
@@ -2442,7 +2442,7 @@ function componentLabelsOf(data: SessionData): () => ComponentLabels {
  * its value lands in a parsed style, so the element's base layer can be read straight out of
  * `defaultNodeStyle` and `defaultEdgeStyle` through that table. A hand-written list of channel
  * values would be a second copy of the defaults that nothing keeps in step: change the default
- * node colour and the base layer would go on painting the old one, with no test between the two
+ * node color and the base layer would go on painting the old one, with no test between the two
  * to notice.
  *
  * A path that holds an object -- a label's whole rich-text block, a gradient -- is skipped rather
@@ -3455,7 +3455,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return {
             execution: executionOf(run),
-            // With what the run's own fields carry from the catalogue (a field's unstable names).
+            // With what the run's own fields carry from the catalog (a field's unstable names).
             fields: result.fields.map((field) => ({
                 ...runs.get(run)?.fields.find((each) => each.name === field.name),
                 ...field,
@@ -3775,7 +3775,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         onChange: (change) => {
             // The token is minted when the work starts, but the result it stamps is published
-            // later (and a re-run clears it when queued). A signature memoised under the tick in
+            // later (and a re-run clears it when queued). A signature memoized under the tick in
             // between would go on reading the result as it was, so the tick advances again
             // whenever the result a run holds is not the one it last held.
             // Read through the session's run, which a re-run replaces, not the announced object.
@@ -4448,7 +4448,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // ONLY THE READERS. Repainting every kept layer repainted the element's own "Edge defaults"
     // layer, which matches every edge, after every finished run: a community run over 36,906
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
-    // CPU, for a run that colours nodes alone.
+    // CPU, for a run that colors nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
         // By result: an entry that changed only around its columns (a rename) repaints nothing.
         const changed = new Set(

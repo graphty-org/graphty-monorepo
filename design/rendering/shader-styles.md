@@ -969,7 +969,7 @@ or a context restore. It separates CPU time (measured around update and render s
 GPU backlog, and steps down only when the GPU is behind. A frame is GPU-bound when the loop waited
 over the limit between the end of its own work and the next tick, or when the existing
 `fenceFrame` / `gpuBehind` fence held it. The wait is the main signal: Chromium does not run the
-next animation frame until the GPU has caught up, so on a slow GPU the fence has always signalled
+next animation frame until the GPU has caught up, so on a slow GPU the fence has always signaled
 by the next tick (measured on SwiftShader: the fence alone flagged no frame). After a second of
 GPU-bound frames over 50 ms, one quality level; at low, loops run at half rate, then heavy shaders
 turn off, then all shader motion pauses. A GPU-bound frame over 250 ms while a heavy shader is on

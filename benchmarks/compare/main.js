@@ -254,7 +254,7 @@ async function cosmosAdapter({ dpr }) {
     // Our own frame loop: one forced draw per animation frame.
     let running = true;
     // Paced like graphty-element's own loop (RenderManager.gpuBehind): skip a tick while the
-    // previous frame's fence is unsignalled, so the GPU queue never grows past one frame.
+    // previous frame's fence is unsignaled, so the GPU queue never grows past one frame.
     let fence = null;
     const tick = () => {
         if (!running) return;

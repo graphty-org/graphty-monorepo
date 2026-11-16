@@ -70,7 +70,7 @@ describe("detectFormat", () => {
     // An XML document the element cannot read must come back as "I do not know this file", not as
     // a CSV. The CSV sniffer matches any line that reads `word , word` and the GML sniffer matches
     // `graph [` anywhere, and both of those turn up inside ordinary XML element content -- so
-    // without a guard a catalogue export would be handed to the CSV reader and the user would be
+    // without a guard a catalog export would be handed to the CSV reader and the user would be
     // told about a column instead of about the format.
     test("answers nothing for an XML document that is neither GraphML nor GEXF", () => {
         const xml = '<?xml version="1.0"?>\n<rows>\nalpha,beta\n</rows>';
@@ -96,8 +96,8 @@ describe("detectFormat", () => {
         assert.strictEqual(detectFormat("", "source|target\na|b\n"), "csv");
     });
 
-    // The built-in sniffers are graph-io's, so the element recognises what graph-io's importers
-    // recognise -- including the files the element's old regular expressions turned away.
+    // The built-in sniffers are graph-io's, so the element recognizes what graph-io's importers
+    // recognize -- including the files the element's old regular expressions turned away.
     describe("through graph-io's sniffers", () => {
         test("detects DOT behind a leading comment", () => {
             assert.strictEqual(detectFormat("", "// exported by a tool\ndigraph G {\n  A -> B;\n}"), "dot");

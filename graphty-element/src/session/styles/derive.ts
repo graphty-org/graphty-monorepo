@@ -12,19 +12,19 @@
  * WHAT COMES OUT, BY SHAPE:
  *
  * - A node or edge metric measured every element it looked at, so its primary field drives a
- *   colour on that half -- continuous, because the values are a measurement.
+ *   color on that half -- continuous, because the values are a measurement.
  * - A community, a layered grouping or a category table puts each element in a group, so its
- *   primary field drives a colour too -- categorical, because group 7 is not seven of anything.
+ *   primary field drives a color too -- categorical, because group 7 is not seven of anything.
  * - A route, a chosen set of nodes or a chosen set of edges names a subset rather than measuring
  *   everything, so it is a MARK: "these ones", not "this much". A mark is an ordinary layer that
- *   sets real channels on the chosen elements -- a colour on each, and a width on an edge -- with
+ *   sets real channels on the chosen elements -- a color on each, and a width on an edge -- with
  *   values of its own ({@link SUGGESTED_MARK_STYLE}). It is not a highlight: it does not follow
- *   the element's highlight colour, and it is not exclusive, so two algorithms' marks stack.
+ *   the element's highlight color, and it is not exclusive, so two algorithms' marks stack.
  * - A list of scored pairs, a time series and a bare fact publish nothing per element, so they
  *   suggest nothing. A picture would have to invent the thing it painted.
- * - A run whose primary field leaves the node colour free, and which also puts nodes in named
+ * - A run whose primary field leaves the node color free, and which also puts nodes in named
  *   groups -- a node field of type string: the two sides of a pairing or a cut, the source and the
- *   sink of a flow -- also colours those nodes by their group, categorically. Only the nodes
+ *   sink of a flow -- also colors those nodes by their group, categorically. Only the nodes
  *   carrying the group are painted, and every one of them is part of the result.
  *
  * NOTHING HERE WRITES A SELECTOR, A SCALE OR A PALETTE, AND THAT IS THE POINT. A suggestion names
@@ -36,7 +36,7 @@
  *
  * THE RULE THIS EXISTS TO KEEP: a derived layer paints ONLY the elements carrying that run's
  * result. An element the algorithm measured nothing about is not the algorithm's to paint -- not
- * to a default, not to a muted grey, not to full opacity. Dimming what an algorithm did not
+ * to a default, not to a muted gray, not to full opacity. Dimming what an algorithm did not
  * choose is a reader's decision and belongs to whoever is reading, never to the run.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -69,7 +69,7 @@ export interface HighlightSuggestion {
     /** Which verb applies it. */
     readonly as: "highlight";
     /**
-     * The channels it would paint: the colour of each half the run chose.
+     * The channels it would paint: the color of each half the run chose.
      *
      * A route publishes its membership on nodes and on edges, so it names both. Said here rather
      * than left for the caller to work out, because whether a suggestion clashes with a layer
@@ -85,8 +85,8 @@ export interface MarkSuggestion {
     /** Which verb applies it. */
     readonly as: "mark";
     /**
-     * The colour channel of each half the run chose: what a layer somebody wrote by hand is
-     * checked against. The width an edge mark also sets travels with its colour.
+     * The color channel of each half the run chose: what a layer somebody wrote by hand is
+     * checked against. The width an edge mark also sets travels with its color.
      */
     readonly channels: readonly Channel[];
     /** The mark itself, with the channel values it paints. */
@@ -113,8 +113,8 @@ const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
  *
  * It starts at 1, the default node size, so the node the run ranks lowest looks exactly as it did
  * and the encoding only ever makes nodes bigger. It stops at 3 because at the element's default
- * layout spacing a node three times the default still leaves its neighbours and their edges in
- * view; the Combined stories' [1, 5] reads well on 20 nodes and swallows neighbours on a dense
+ * layout spacing a node three times the default still leaves its neighbors and their edges in
+ * view; the Combined stories' [1, 5] reads well on 20 nodes and swallows neighbors on a dense
  * graph.
  */
 export const DEFAULT_SIZE_RANGE: readonly [number, number] = Object.freeze([1, 3]);
@@ -140,8 +140,8 @@ const SIZE_CHANNEL = {
 
 /**
  * What an algorithm's chosen elements are painted: Okabe-Ito vermilion, and an edge three times
- * the default width so a chosen edge reads as chosen whatever its colour. Its own values, not the
- * element's highlight colour, so changing that colour leaves every algorithm's picture alone.
+ * the default width so a chosen edge reads as chosen whatever its color. Its own values, not the
+ * element's highlight color, so changing that color leaves every algorithm's picture alone.
  */
 const SUGGESTED_MARK_STYLE: StaticStyle = Object.freeze({
     "node.color": "#D55E00",
@@ -149,7 +149,7 @@ const SUGGESTED_MARK_STYLE: StaticStyle = Object.freeze({
     "edge.width": EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
 });
 
-/** The colour channel that paints one half of the graph. */
+/** The color channel that paints one half of the graph. */
 const COLOR_CHANNEL = {
     node: "node.color",
     edge: "edge.color",
@@ -191,7 +191,7 @@ function halvesCarrying(fields: readonly FieldDescriptor[], name: string): reado
  *
  * `style` adds to the suggestions and never takes from them: `{ size }` appends a node size over
  * the same field for a node measurement, or an edge width for an edge measurement, and everything else -- `true`, `false`, left off --
- * suggests the colour alone. Whether to paint at all is the auto-apply policy's question.
+ * suggests the color alone. Whether to paint at all is the auto-apply policy's question.
  * @param run - The run, read for its shape and the fields it published.
  * @param style - The run's style option, read for `size` and `name`.
  * @returns What to draw, empty when the run's result is read rather than painted.
@@ -230,9 +230,9 @@ export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonl
  *
  * Only a measurement has an amount to give: a group id is not an amount, and a chosen subset is
  * "these ones", not "this much". Anything else is ignored rather than refused, the same way the
- * colour suggestion depends on the shape. The encoding names the run and the field and nothing
+ * color suggestion depends on the shape. The encoding names the run and the field and nothing
  * else, so `planEncoding` scopes it to exactly the elements carrying the value, as it does the
- * colour.
+ * color.
  * @param run - The run.
  * @param field - Its primary field.
  * @param halves - The halves carrying it.
@@ -281,7 +281,7 @@ function markOf(run: EncodingRun, field: string, halves: readonly SelectorTarget
 }
 
 /**
- * The colour encoding of one field on one half.
+ * The color encoding of one field on one half.
  * @param run - The run.
  * @param field - The field.
  * @param half - The half it is published on.
@@ -298,11 +298,11 @@ function encodingOf(run: EncodingRun, field: string, half: SelectorTarget): Enco
 }
 
 /**
- * The categorical node colour for the group a run put its nodes in, when the node colour is free.
+ * The categorical node color for the group a run put its nodes in, when the node color is free.
  * @param run - The run.
  * @param primaryField - The field its shape declares primary, which is never the group.
  * @param primary - What the primary field already suggests.
- * @returns The encoding, or null when there is no group or the node colour is already taken.
+ * @returns The encoding, or null when there is no group or the node color is already taken.
  */
 function groupingOf(
     run: EncodingRun,

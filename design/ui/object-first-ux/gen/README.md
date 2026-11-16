@@ -35,7 +35,7 @@ from `mocks/kit.html` at render time. A screen contains no `<style>` element.
 | `palettes.mjs` | `OKABE_4`, `OKABE_8`, `TOL_MUTED`, `VIRIDIS`, `TWELVE`, `HIGHLIGHT`, `OVERRIDE`, `OTHER` |
 | `football-state.mjs` | the Conference grouping's fills, tree row, legend block and strip chip; the Dataset row and inspector |
 | `build.mjs` | writes `mocks/v2/screen-N.html`, screenshots `screen-N.png` (the frame plus the 60 px caption; a reference page full-page), writes `index.html` |
-| `screens/screen-14.mjs`, `screen-15.mjs` | the Import dialog and the reload dialog: `overlays.dialog: { title, rows, footer }`, the kit's 480 px dialog centred over a scrim, rows from the row vocabulary |
+| `screens/screen-14.mjs`, `screen-15.mjs` | the Import dialog and the reload dialog: `overlays.dialog: { title, rows, footer }`, the kit's 480 px dialog centered over a scrim, rows from the row vocabulary |
 | `screens/screen-N.mjs` | one spec per screen, `export default {...}`; screen 3 also exports its `STATE` for screen 12 |
 
 Build everything: `node design/ui/object-first-ux/gen/build.mjs`. Build one screen: `node
@@ -55,9 +55,9 @@ bar 24 across the bottom. The canvas column is the stage
 then the dock handle (32); the graph is fitted to whatever stage height is left. The toolbar
 (48 tall) floats 12 px above whatever is under the stage; the secondary bar, a flyout and the command
 palette sit 8 px above it. Below the frame, a 60 px caption bar. The theme
-is set on `<html data-theme>`; the canvas greys, ink and halo are CSS variables, so one HTML
-serves both themes, and a colour given as `"ink"` anywhere (a chip, an outline, a legend line)
-is the theme's outline colour (#1e1e1e light, #ffffff dark).
+is set on `<html data-theme>`; the canvas grays, ink and halo are CSS variables, so one HTML
+serves both themes, and a color given as `"ink"` anywhere (a chip, an outline, a legend line)
+is the theme's outline color (#1e1e1e light, #ffffff dark).
 
 ## The spec, key by key
 
@@ -197,9 +197,9 @@ row is selected; the inspector header carries the same two buttons.
 ### Chips
 
 `{ type: "swatch", color }`, `{ type: "ring", color }` (white with a 2 px ring), `{ type: "locked" }`
-(grey with a lock), `{ type: "ramp", colors: [...] }`, `{ type: "strip", colors: [...] }` (hard
+(gray with a lock), `{ type: "ramp", colors: [...] }`, `{ type: "strip", colors: [...] }` (hard
 bands), `{ type: "size" }` (small-to-large dots), `{ type: "line", color, width, dash }`. Flags:
-`override: true` (a small dot), `faded: true` (50 percent, a covered object). A colour may be
+`override: true` (a small dot), `faded: true` (50 percent, a covered object). A color may be
 `"ink"`.
 
 ### The row-type vocabulary (`inspector.rows`, `popover.rows`)
@@ -246,7 +246,7 @@ true }` (the X). In a spec's own `parts`, `{ ghost: "Options" }` is drawn as the
 "Create and focus" }` folds into the Create split button. `geometry({ time })` gives every
 control's x offset and the bar's width (465, or 505 with Time). A spec naming a tool that left
 the bar (`hand`, `neighbours`, `note`, `ask`) is drawn with its new home (`MOVED`): Hand is
-Select's variant (Select's face shows the hand), Neighbours is Filter's "Around a node". The
+Select's variant (Select's face shows the hand), Neighbors is Filter's "Around a node". The
 reference page (screen 11) draws all of this from the same definition.
 
 ## Adding a screen
@@ -255,7 +255,7 @@ reference page (screen 11) draws all of this from the same definition.
 2. Describe the state from `round-2/screens.md`: the drawing (`canvas.graph`), the tree rows,
    the canvas paint (per node and per edge pair, or a value map), the overlays, the toolbar
    state, the inspector's header block and its rows from the vocabulary above, the status
-   items. Colours and words come from the screen entry; positions come from the graph module
+   items. Colors and words come from the screen entry; positions come from the graph module
    and are never set by a screen.
 3. `node design/ui/object-first-ux/gen/build.mjs N`, then look at `mocks/v2/screen-N.png`.
 4. If a part is missing from the chrome, add it to `render.mjs` as one function and its CSS to
@@ -269,8 +269,8 @@ reference page (screen 11) draws all of this from the same definition.
   the label and "Change..." the longer text is 225 px in a 216 px row at 11 px.
 - The inherited paint row reads "From Communities", not "Inherited from Communities" (151 px in
   a 122 px slot).
-- Screen 7 uses the element's real nine-colour palette ("Nine Soft Colours", tol-muted) with
-  "Show the largest" 8, because the doc's Tol vibrant has seven colours and cannot show eight
+- Screen 7 uses the element's real nine-color palette ("Nine Soft Colours", tol-muted) with
+  "Show the largest" 8, because the doc's Tol vibrant has seven colors and cannot show eight
   groups; the overridden conference is 4, the fifth swatch row.
 - Screen 9 selects BrighamYoung, not FloridaState: by the real betweenness of football.gml
   FloridaState ranks 25th and is not in the top-ten Set the screen shows it in.
@@ -394,6 +394,6 @@ tabs are 450 and the selected one 550; a tree row's weight comes from its level 
 not from selection; flyout rows are 24 px; the left panel's edge is the translucent panel edge.
 
 Screens edited for round 4 (they named something that left the frame): 82 (the dock Assistant,
-now `left.panel: "ai"`), 64 (armed Neighbours, now Filter > Around a node), 30 and 100 (the VR
+now `left.panel: "ai"`), 64 (armed Neighbors, now Filter > Around a node), 30 and 100 (the VR
 segment, now the view-mode menu's VR row), 53 (the Views list's "..." menu, now the Views
 panel), 11 (the reference sheet's words).

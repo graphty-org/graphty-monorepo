@@ -501,7 +501,7 @@ describe("what the element can really draw", () => {
         // than implemented -- the renderer never read either -- so the sentence named two fields
         // a consumer cannot write, which is the same documented lie as a field with no renderer
         // pointing the other way. A caveat is published: a settings panel, a plugin or a model
-        // reading the catalogue sees it.
+        // reading the catalog sees it.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].caveat);
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.labelStyle"].caveat);
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "maxWidth");
@@ -698,7 +698,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.depth",
         // Unset, a border is as wide as `node.borderWidth` says, in the scene's units.
         "node.borderScreenWidth",
-        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        // Unset, a node is drawn where it always was, with no order among its neighbors.
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
@@ -734,7 +734,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
-        // Unset, a node is filled flat with its colour.
+        // Unset, a node is filled flat with its color.
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",

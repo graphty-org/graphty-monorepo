@@ -1595,7 +1595,7 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
         ][]
     )
         .filter(([size]) => size > 0)
-        // yEd paints neighbouring lanes of one color as one band
+        // yEd paints neighboring lanes of one color as one band
         .reduce<[number, string][]>((merged, [size, color]) => {
             const last = merged.at(-1);
             if (last?.[1] === color) {
@@ -2195,7 +2195,7 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * The fill an outline darkens, and the raised and beveled borders it draws round it.
  * @param r - the node realizer element
  * @param outline - the node's outline, or null for a plain shape
  * @param border - its y:BorderStyle

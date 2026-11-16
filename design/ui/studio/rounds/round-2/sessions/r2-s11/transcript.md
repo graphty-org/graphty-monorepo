@@ -151,7 +151,7 @@ Next: Enter.
 ## Step 25 -- Enter on Size by attribute
 
 Command: `--step --key Enter` -> 25.png
-Saw: a "Size by attribute" popup: "Find an attribute" box, then Influence / Influence rank / Influence percentile, and a greyed "id" under "Cannot be used: Holds groups, not amounts". "Influence" row is highlighted (grey), though I see no blue focus ring on the find box or the row -- I am not sure where focus is.
+Saw: a "Size by attribute" popup: "Find an attribute" box, then Influence / Influence rank / Influence percentile, and a grayed "id" under "Cannot be used: Holds groups, not amounts". "Influence" row is highlighted (gray), though I see no blue focus ring on the find box or the row -- I am not sure where focus is.
 Next: Enter, hoping the highlighted Influence is taken.
 
 ## Step 26 -- Enter on Influence (size)
@@ -274,7 +274,7 @@ Next: Enter.
 
 Command: `--step --key Enter` -> 45.png
 Saw: tool reports a file saved: friends_current-view.png, 1806 x 1720 (downloads/friends_current-view.png). The dialog closed, a toast "Exported friends_current-view.png" with a close X appeared, and focus went back to the main menu button (tooltip "Main menu: open, save, export, settings"). Focus return is right.
-I opened the picture: the whole drawing with all 20 names and, in the top-left corner, the key: "Size: Influence 0.04382 to 0.06608" (a grey wedge) and "Color: Influence 0.04382 to 0.06608" (light orange to dark brown). That is pasteable.
+I opened the picture: the whole drawing with all 20 names and, in the top-left corner, the key: "Size: Influence 0.04382 to 0.06608" (a gray wedge) and "Color: Influence 0.04382 to 0.06608" (light orange to dark brown). That is pasteable.
 Part 5 (picture file with its key) DONE: Ctrl+E, Shift+Tab, Enter = 3 presses once I knew the shortcut; about 32 presses including the hunt (15 on the wrong "..." menu, 17 walking back to the main menu and opening it).
 
 ## End

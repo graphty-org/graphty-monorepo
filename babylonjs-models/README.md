@@ -8,7 +8,7 @@ nothing is fetched from a CDN: the Draco decoder and the KTX2 transcoders ship i
 | ---------------- | --------------------------------------------------------------------------------------------------------- |
 | glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures |
 | OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors   |
-| STL              | ASCII and binary, with VisCAM and Materialise colors                                                      |
+| STL              | ASCII and binary, with VisCAM and Materialize colors                                                      |
 | PLY              | ASCII and binary meshes, point clouds and Gaussian splats                                                 |
 | Gaussian splats  | `.splat`, `.spz`, `.sog`                                                                                  |
 | Babylon.js       | `.babylon` (geometry and diffuse materials)                                                               |

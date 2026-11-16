@@ -444,7 +444,7 @@ describe("neo4jExporter (design 8.5)", () => {
                 lines(await neo4jExporter.exportToString(s, { onMixedDirection: "directed", part: "relationships" })),
             ).toEqual([":START_ID,:END_ID,weight:double", "a,b,", "b,c,2", "c,c,"]);
 
-            // "undirected" is honoured as far as Neo4j can: the pairs fold and every relationship is
+            // "undirected" is honored as far as Neo4j can: the pairs fold and every relationship is
             // directed, which the notes say
             const asUndirected = neo4jExporter.check(s, { onMixedDirection: "undirected" });
             expect(codes(asUndirected)).toEqual([LOSS.MIXED_DIRECTION, UNDIRECTED_LOSS]);

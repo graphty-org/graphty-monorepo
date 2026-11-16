@@ -31,9 +31,9 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly jitterTolerance?: number | undefined;
     /** Strength of the repulsion between every pair of nodes; higher spreads the graph out. Default 2. */
     readonly scalingRatio?: number | undefined;
-    /** Pull toward the centre, which keeps disconnected parts from drifting apart. Default 1. */
+    /** Pull toward the center, which keeps disconnected parts from drifting apart. Default 1. */
     readonly gravity?: number | undefined;
-    /** Gravity that grows with the distance from the centre instead of staying constant. Default false. */
+    /** Gravity that grows with the distance from the center instead of staying constant. Default false. */
     readonly strongGravity?: boolean | undefined;
     /** Divide each node's attraction by its mass, so well-connected nodes move less. Default false. */
     readonly distributedAction?: boolean | undefined;
@@ -53,13 +53,13 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly weight?: boolean | string | null | undefined;
     /**
      * Dissuade hubs: divide each node's attraction by its degree + 1, so hubs are pushed to the edge of the drawing
-     * and the nodes around them hold the centre. Applies on top of `distributedAction`. Default false. The GPU
+     * and the nodes around them hold the center. Applies on top of `distributedAction`. Default false. The GPU
      * simulation honors it too.
      */
     readonly dissuadeHubs?: boolean | undefined;
     /**
      * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one
-     * body at its centre of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
+     * body at its center of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
      * nodes settle in a fraction of the time, with a slightly different drawing. The CPU simulation reads it; a
      * GPU simulation computes every pair. Default false.
      */
@@ -73,7 +73,7 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
 
 /** Design 9.3 FruchtermanReingoldOptions. */
 export interface FruchtermanReingoldOptions extends CommonLayoutOptions, SimulationOptions {
-    /** The ideal distance between neighbours; null or absent: `1 / sqrt(n)` of the unit square. */
+    /** The ideal distance between neighbors; null or absent: `1 / sqrt(n)` of the unit square. */
     readonly k?: number | null | undefined;
     /** Iteration budget; default 50. */
     readonly iterations?: number | undefined;

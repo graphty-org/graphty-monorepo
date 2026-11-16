@@ -32,7 +32,7 @@ The flask at the bottom of the picture is the analysis button I used to rank peo
 `node real.mjs --step <s> --type "between"`
 -> 05.png
 
-05.png: four left. Under "Find paths and edge sets": "Shortest path -- Start here -- The fewest steps, or the shortest path by weight, between two nodes." "The fewest steps between two" is my question in their words. There is also "Guided route -- Select 2 nodes first", greyed. I'll take Shortest path, it says Start here.
+05.png: four left. Under "Find paths and edge sets": "Shortest path -- Start here -- The fewest steps, or the shortest path by weight, between two nodes." "The fewest steps between two" is my question in their words. There is also "Guided route -- Select 2 nodes first", grayed. I'll take Shortest path, it says Start here.
 
 ## Step 5
 

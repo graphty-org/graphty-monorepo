@@ -1,6 +1,6 @@
 // Selection-ring and palette-versus-canvas contrast over every palette graphty-element ships.
 // Run from graphty-element/: npx tsx ../design/ui/framework/research/scripts/ring-and-canvas-contrast.ts
-// Reads the palettes through the element's catalogue, so it follows them if they change.
+// Reads the palettes through the element's catalog, so it follows them if they change.
 // WCAG 2 relative luminance and contrast ratio; the maths matches
 // graphty-element/test/catalog/default-palette-quality.test.ts.
 import { PALETTE_DESCRIPTORS } from "../../../../../graphty-element/src/catalog/palettes";
@@ -20,7 +20,7 @@ const f2 = (n: number): string => n.toFixed(2);
 const CANVAS = { light: "#F5F5F5", dark: "#1E1E1E" } as const;
 const ACCENT = { light: "#0D99FF", dark: "#0C8CE9" } as const;
 
-// Every colour, with the palettes it belongs to.
+// Every color, with the palettes it belongs to.
 const owners = new Map<string, string[]>();
 for (const p of PALETTE_DESCRIPTORS) {
     for (const c of p.colors) {
@@ -33,7 +33,7 @@ const ALL = [...owners.keys()];
 console.log(`palettes: ${PALETTE_DESCRIPTORS.length}; distinct colours (with overflow grey): ${ALL.length}`);
 
 // ---- 1. Rings. outer band borders the canvas, inner band borders the node fill. ----
-// "any-band" = the better band against the colour (the colour may sit behind either band when nodes overlap).
+// "any-band" = the better band against the color (the color may sit behind either band when nodes overlap).
 type Ring = { name: string; outer: (t: "light" | "dark") => string; inner: string };
 const RINGS: Ring[] = [
     { name: "neutral black / white", outer: () => "#000000", inner: "#FFFFFF" },
@@ -65,7 +65,7 @@ for (const r of RINGS) {
     }
 }
 
-// ---- 2. Every palette colour against both canvases at 3:1 ----
+// ---- 2. Every palette color against both canvases at 3:1 ----
 console.log("\n== 2. palette colours under 3:1 per canvas ==");
 let total = { light: 0, dark: 0 };
 for (const p of PALETTE_DESCRIPTORS) {
@@ -87,7 +87,7 @@ const hair = "#" + [0x1e, 0x1e, 0x1e].map((b) => mix(255, b, 0.35).toString(16).
 console.log(`\n== 3. menu #1E1E1E on canvas #1E1E1E: body 1.00; 35% white hairline ~${hair} vs canvas ${f2(cr(hair, "#1E1E1E"))}`);
 
 // ---- 4. Outlined-band test: a ring reads as a mark apart from its node only if at least one band
-// has 3:1 against BOTH of its neighbours (inside: the fill or the next band; outside: the next band
+// has 3:1 against BOTH of its neighbors (inside: the fill or the next band; outside: the next band
 // or the canvas). Bands listed inside to outside.
 console.log("\n== 4. outlined-band test (bands inside -> outside) ==");
 const VARIANTS: { name: string; bands: (t: "light" | "dark") => string[] }[] = [
@@ -117,9 +117,9 @@ for (const v of VARIANTS) {
 }
 
 // ---- 5. Two marks on one element: a highlight and the selection ring on the same node, and a
-// highlighted edge inside a coloured edge set. Marks are listed inside to outside, each a list of
-// bands. A combination passes for a colour when (a) every mark has a band with 3:1 against both of
-// its neighbours in the whole sequence, and (b) the two bands where one mark meets the next are 3:1
+// highlighted edge inside a colored edge set. Marks are listed inside to outside, each a list of
+// bands. A combination passes for a color when (a) every mark has a band with 3:1 against both of
+// its neighbors in the whole sequence, and (b) the two bands where one mark meets the next are 3:1
 // apart, otherwise they fuse into one wider band and two marks read as one.
 console.log("\n== 5. two marks on one element ==");
 const oklab = (h: string): number[] => {
@@ -142,7 +142,7 @@ const twoMarks = (fill: string, marks: string[][], canvas: string): "ok" | "unou
     return "ok";
 };
 const PAIR = (t: "light" | "dark"): string[] => (t === "light" ? ["#FFFFFF", "#000000"] : ["#000000", "#FFFFFF"]);
-const HL = "#0072B2"; // the element's highlight colour today: blue-highlight's first colour (StylesApi.ts)
+const HL = "#0072B2"; // the element's highlight color today: blue-highlight's first color (StylesApi.ts)
 const COMBOS: { name: string; marks: (t: "light" | "dark") => string[][] }[] = [
     { name: "highlight as node.outline #0072B2, then selection pair (canvas order)", marks: (t) => [[HL], PAIR(t)] },
     { name: "selection pair, then highlight pair in the same order", marks: (t) => [PAIR(t), PAIR(t)] },
@@ -159,9 +159,9 @@ for (const c of COMBOS) {
     console.log(`${c.name.padEnd(72)} ${parts.join(" | ")}`);
 }
 
-// Edges. A highlight that only widens an edge (edge.width) keeps the edge's colour, so the wider
-// stroke reads only where the edge itself has 3:1 against the canvas. A highlight that recolours
-// the edge to #0072B2 collides with any set colour closer than 15 (OKLab x100) and overwrites it.
+// Edges. A highlight that only widens an edge (edge.width) keeps the edge's color, so the wider
+// stroke reads only where the edge itself has 3:1 against the canvas. A highlight that recolors
+// the edge to #0072B2 collides with any set color closer than 15 (OKLab x100) and overwrites it.
 console.log("\n-- edges --");
 for (const t of ["light", "dark"] as const) {
     const thin = ALL.filter((c) => cr(c, CANVAS[t]) < 3);

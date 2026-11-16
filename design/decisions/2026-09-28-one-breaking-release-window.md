@@ -15,7 +15,7 @@ branch `docs/extension-point-specs`, pull request #574)
     - **graphty-element 3.0.0** carries the migration's element changes, the undo and redo work of
       pull request #553 (whose branch is merged into the migration branch, so both reach 3.0.0
       together instead of 3.0.0 and 4.0.0), and the removal of `Algorithm.algorithmGraph()` and the
-      `AlgorithmGraphView` export in favour of the snapshot accessor.
+      `AlgorithmGraphView` export in favor of the snapshot accessor.
     - **algorithms 3.0.0** removes the legacy `Graph` class, the legacy implementations and the
       Map-of-Maps signatures, and promotes `indexed.*` to the top level.
     - **layout 2.0.0** ships its removals with no 1.x release carrying deprecations first. The owner

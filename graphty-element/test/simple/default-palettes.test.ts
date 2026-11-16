@@ -1,5 +1,5 @@
 /**
- * @file `setDefaultPalettes` resolves a colour binding that names no palette when the layer is
+ * @file `setDefaultPalettes` resolves a color binding that names no palette when the layer is
  * written, so the layer (and a saved document) names the default; a late call logs, or with
  * `reapply` re-resolves, and never touches a layer that named its palette
  * (design/extensions/simple-tier.md section 4.5).
@@ -44,9 +44,9 @@ afterEach(() => {
 });
 
 /**
- * A layer colouring every node from a value.
+ * A layer coloring every node from a value.
  * @param name - The layer's name.
- * @param binding - The colour binding's scale, palette and midpoint.
+ * @param binding - The color binding's scale, palette and midpoint.
  * @returns The layer.
  */
 function colour(name: string, binding: Record<string, unknown>): LayerSpec {
@@ -59,7 +59,7 @@ function colour(name: string, binding: Record<string, unknown>): LayerSpec {
 }
 
 /**
- * The palette each of the caller's layers' colour binding names, by layer name.
+ * The palette each of the caller's layers' color binding names, by layer name.
  * @param session - The session.
  * @returns Layer name to palette id (undefined when it names none).
  */

@@ -1,6 +1,6 @@
 /**
  * @file Ghosts on a real canvas: with the timeline's `outside: "ghost"`, the elements outside the
- * time window stay drawn in the Ghost row's grey at low opacity, the ones inside keep their own
+ * time window stay drawn in the Ghost row's gray at low opacity, the ones inside keep their own
  * look, and moving the window moves which are which. Every look comes from the Ghost style layer.
  */
 

@@ -78,7 +78,7 @@ objects, plus three the authors added: *find adjacent nodes*, *scan*, and *set o
 | Overview | estimate size, see clusters and components, find patterns and outliers -- "sometimes it is more important to be able to estimate the answer than to get an accurate one" | "Estimate the size of the social network." |
 | High-level | compare two graphs; detect duplicate nodes for the same entity; name a group or find its representative; how the graph changed over time | "Identify whether two or more nodes represent the same person." |
 
-**For graphty:** the taxonomy is object-centred -- every task is an operation on a node, an
+**For graphty:** the taxonomy is object-centered -- every task is an operation on a node, an
 edge, a path, a set of nodes, or the whole graph. That is direct support for an object-first
 model whose primary objects are graph objects. It also shows that *set operations* and *revisit*
 are first-class analyst tasks, not power-user extras.
@@ -86,7 +86,7 @@ are first-class analyst tasks, not power-user extras.
 ### 1.2 Saket, Simonetto and Kobourov -- Group-Level Graph Visualization Taxonomy (2014)
 
 Extends Lee et al. with 29 tasks about groups, in four categories by the information needed:
-group-only (group neighbours, groups reachable from a group, how many groups), group-node (which
+group-only (group neighbors, groups reachable from a group, how many groups), group-node (which
 group contains node X; are X and Y in the same group; largest group), group-link (links inside a
 group; most sparsely or densely connected group), and group-network (group containing the node
 with the highest degree; smallest number of groups visited on a path). The authors note their
@@ -94,7 +94,7 @@ tasks assume non-overlapping groups and that "overlapping groups are common in m
 settings, which would need further tasks (evidence).
 
 **For graphty:** a set of nodes is an object analysts ask questions *about* -- its size, its
-internal density, its members' extremes, its neighbours -- not just a filter. Whatever the
+internal density, its members' extremes, its neighbors -- not just a filter. Whatever the
 ontology calls these sets, they need an inspector of their own. Overlap must be allowed, because
 a node can be in a community, a user-defined group and a path at once.
 
@@ -121,7 +121,7 @@ owner's correction that taking notes is a common task. Second, *derive* -- compu
 attributes from existing data, which is what every graph algorithm does -- is named as the key
 design choice; the design of algorithm results is central, not peripheral. Third, the
 lookup / locate / browse / explore split predicts three different entry points: a search box
-(lookup, locate), neighbourhood expansion (browse), and overview plus distributions (explore).
+(lookup, locate), neighborhood expansion (browse), and overview plus distributions (explore).
 Present and discover are distinct *why*s, which supports treating "present" as producing an
 artifact for others, i.e. export.
 
@@ -165,7 +165,7 @@ architecture must support both at equal weight: *overview-first* (Lee's overview
 "First Exploration - Quick Data Assessment" and "Visual Exploration - Overview to Detail"
 workflows) and *search-first* (the "Fraud Ring Investigation", "Hub Investigation",
 "Threat Hunting" and "Gene List to Interaction Network with Expression Overlay" workflows all
-start from a known entity or list). Search and neighbourhood expansion are primary navigation,
+start from a known entity or list). Search and neighborhood expansion are primary navigation,
 not a utility.
 
 ### 1.7 Heer and Shneiderman -- Interactive Dynamics for Visual Analysis (2012)
@@ -269,7 +269,7 @@ The two established desktop tools present these measures the same way (evidence)
   then sort by them, size and label nodes by them, and filter on them.
 - **Cytoscape's NetworkAnalyzer** computes "number of nodes, edges and connected components",
   "network diameter, radius and clustering coefficient, as well as the characteristic path
-  length", plus per-node betweenness, closeness, stress, topological coefficient, neighbourhood
+  length", plus per-node betweenness, closeness, stress, topological coefficient, neighborhood
   connectivity and degree distributions. "Several additional columns are added to the Node Table
   (and an EdgeBetweenness column is added to the Edge Table)." Any column can be plotted as a
   histogram or scatter, and "within either of these charts it is possible to select a section of
@@ -286,7 +286,7 @@ algorithm results as data on graph objects, painted through style layers, alread
 ## 2. The questions graph analysts ask
 
 The questions below are grouped by the *object the question is about*, following Lee et al.'s
-object-centred structure and Munzner's query scope (one, some, all). Each group lists the typical
+object-centered structure and Munzner's query scope (one, some, all). Each group lists the typical
 questions, the standard analysis that answers them, the task categories they come from, and the
 graphty workflows (by title) that depend on them.
 
@@ -322,19 +322,19 @@ Munzner: *identify* one item. Lee: retrieve value, find adjacent nodes, adjacenc
 - What are its attributes?
 - What is its degree (in and out)? Its value on each computed measure, and where that value sits
   in the distribution (rank, percentile)?
-- Who are its neighbours? Which edges connect it, and of what type?
+- Who are its neighbors? Which edges connect it, and of what type?
 - Which sets is it in (component, community, user groups, paths)?
 - For an edge: its endpoints, direction, weight, type; is it a bridge?
 
 Workflows: "Hub Investigation", "Fraud Ring Investigation", "Hub Gene Identification and Ranking"
 ("full attribute row for a clicked node, all columns").
 
-### 2.3 About a neighbourhood -- "What is around this?"
+### 2.3 About a neighborhood -- "What is around this?"
 
 Lee: accessibility; browsing (follow path, revisit). van Ham and Perer: show context, expand on
 demand.
 
-- What is within 1, 2, n hops (the ego network / k-hop neighbourhood)?
+- What is within 1, 2, n hops (the ego network / k-hop neighborhood)?
 - What can this node reach, and what can reach it (directed)?
 - Starting here, follow a chain of connections; then go back and take another branch.
 
@@ -347,7 +347,7 @@ Lee: common connection, connectivity. Munzner target: paths.
 
 - Are A and B connected? How far apart?
 - What is the shortest path, weighted or unweighted? What are the alternatives up to length n?
-- Which nodes do A and B share (common neighbours)?
+- Which nodes do A and B share (common neighbors)?
 - Which intermediate nodes lie on many of the paths (bottlenecks)?
 - Which single node or edge would disconnect them (articulation point, bridge, minimum cut)?
 - How much can flow from A to B (maximum flow)?
@@ -418,7 +418,7 @@ Molecular Network", "Influencer Identification" ("does influencer's audience ali
 
 Lee: find anomalies; overview (patterns and outliers). Munzner: outliers, features.
 
-- Which elements are outliers on a measure, relative to the whole graph or to their neighbours?
+- Which elements are outliers on a measure, relative to the whole graph or to their neighbors?
 - Where does a known pattern occur (a ring, a star, a shared identifier, a small motif)?
 - Which nodes are probably duplicates of the same entity?
 
@@ -458,7 +458,7 @@ Barabasi: network robustness. Link prediction literature.
 
 - If this node or edge is removed, how many components result, how much does the largest
   component shrink, how do paths lengthen?
-- Which unconnected pairs are most likely to be connected (common neighbours, Jaccard,
+- Which unconnected pairs are most likely to be connected (common neighbors, Jaccard,
   Adamic-Adar)?
 
 Workflows: "Supply Chain Risk Assessment", "Criminal Network Analysis" ("where would
@@ -469,7 +469,7 @@ intervention be most effective?"), "Graph-Based Recommendation".
 Three patterns stand out across the twenty-five workflows (recommendation, from reading their
 decision points and information needs):
 
-1. **Whole-graph, one-element, neighbourhood, importance and sets (2.1-2.6) appear in nearly
+1. **Whole-graph, one-element, neighborhood, importance and sets (2.1-2.6) appear in nearly
    every workflow.** They are the intermediate user's core. Paths (2.4) and comparison (2.9) are
    common but not universal. Change over time (2.10) and prediction (2.11) belong to a minority
    of workflows.
@@ -505,8 +505,8 @@ Source abbreviations in the table: **Lee** (Lee et al. 2006), **Newman** (Networ
 | Edge from a node to itself | **self-loop** | loop | Standard. |
 | Several edges between one pair | **parallel edges** / **multi-edges**; the graph is a **multigraph** | repeated edges | graphty-element's statistics call these "repeated edges"; "parallel edges" is the more standard term. |
 | Data on an element | **attribute** | property (property graphs), column (Gephi, Cytoscape tables), field | Use "attribute". Tables show attributes as columns. |
-| Nodes one edge away | **neighbours** (the **neighbourhood**) | adjacent nodes (Lee) | Standard. |
-| A node plus its neighbours, to distance k | **ego network** (k = 1) / **k-hop neighbourhood** | egonet, first-degree network | Standard in SNA and in the "Hub Investigation" workflow. |
+| Nodes one edge away | **neighbors** (the **neighborhood**) | adjacent nodes (Lee) | Standard. |
+| A node plus its neighbors, to distance k | **ego network** (k = 1) / **k-hop neighborhood** | egonet, first-degree network | Standard in SNA and in the "Hub Investigation" workflow. |
 | Node with degree 0 | **isolate** | singleton | Standard. |
 | Node with very high degree | **hub** | -- | Barabasi's term; informal but standard. Not a measure; it is a label for the tail of the degree distribution. |
 
@@ -553,11 +553,11 @@ This is the area where terms collide most and where the ontology must be careful
 | Sum of edge weights at a node | **weighted degree** | Newman and Barabasi call it **strength**; Gephi calls it "weighted degree". Use "weighted degree", which is self-explanatory. |
 | Importance measures | **centrality**: **degree centrality**, **betweenness centrality**, **closeness centrality**, **eigenvector centrality**, **PageRank**, **Katz centrality**, **HITS** (**hub score**, **authority score**) | Keep every name as-is (owner's ruling). "Betweenness" alone is acceptable shorthand. Never substitute "broker", "influencer" or "connector" for a measure; those are interpretations, not measures. |
 | Edge betweenness | **edge betweenness** | The basis of Girvan-Newman; Cytoscape stores it on the edge table. |
-| Fraction of a node's neighbour pairs that are connected | **local clustering coefficient** | -- |
+| Fraction of a node's neighbor pairs that are connected | **local clustering coefficient** | -- |
 | Maximum distance from a node to any other | **eccentricity** | Gephi reports it. |
 | Node's community | **community** (as a node attribute: community ID) | -- |
 | Node's core number | **core number** | -- |
-| Likelihood two unconnected nodes should connect | **link prediction score**: **common neighbours**, **Jaccard coefficient**, **Adamic-Adar index** | -- |
+| Likelihood two unconnected nodes should connect | **link prediction score**: **common neighbors**, **Jaccard coefficient**, **Adamic-Adar index** | -- |
 
 ### 3.5 Measures on the whole graph
 
@@ -567,7 +567,7 @@ This is the area where terms collide most and where the ontology must be careful
 | Edges present over edges possible | **density** | Gephi "Graph Density". |
 | Mean degree | **average degree** | Gephi "Average Degree". graphty-element: `meanDegree`. |
 | How degree values are spread | **degree distribution** | Shown as a **degree histogram**, often on log-log axes; "power law" / "scale-free" / "heavy-tailed" are descriptions of its shape. Gephi reports "Degree Power Law". |
-| Global triangle closure | **global clustering coefficient** (**transitivity**) and **average clustering coefficient** | These are two different numbers; both are standard and must be labelled distinctly. |
+| Global triangle closure | **global clustering coefficient** (**transitivity**) and **average clustering coefficient** | These are two different numbers; both are standard and must be labeled distinctly. |
 | Longest shortest path | **diameter** | -- |
 | Mean shortest path | **average path length** | -- |
 | Quality of a community partition | **modularity** | Keep. Depends on a **resolution** parameter for Louvain and Leiden. |
@@ -622,7 +622,7 @@ one (recommendation). Each step names its sources.
 4. **Derive.** Run an algorithm; its output becomes new attributes on nodes and edges, sets
    (components, communities, paths), or a number about the graph. Sources: Munzner and Heer
    (derive), Gephi and Cytoscape (results as columns).
-5. **Encode and inspect.** Map a result onto colour, size or edge style; look at its
+5. **Encode and inspect.** Map a result onto color, size or edge style; look at its
    distribution; sort by it; select from its histogram; open details on demand. Sources:
    Shneiderman (details-on-demand, relate), Cytoscape (select from a histogram), Munzner
    (distribution, extremes, correlation).
@@ -756,7 +756,7 @@ Ragan's purposes and Heer's record and share):
   their provenance. These are *about* graph objects: they point at them, paint them, hide them,
   or record how their values came to be.
 
-The literature consistently puts the first family at the centre and describes the second as
+The literature consistently puts the first family at the center and describes the second as
 process support (Heer's "process and provenance"; Ragan's provenance types; Munzner's
 "produce"). This supports the owner's instruction that notes and views must not be conflated
 with primary objects.
@@ -825,7 +825,7 @@ same measures as for the whole graph, or different ones?
   Comparison - Disease vs Control Networks" wants "membership counts: nodes and edges in A only,
   B only, both".
 - Cytoscape's NetworkAnalyzer no longer analyses a selected subset; the user must first make a
-  subnetwork "From Selected Nodes, All Edges" and analyse that. That route answers the "set as a
+  subnetwork "From Selected Nodes, All Edges" and analyze that. That route answers the "set as a
   graph" questions and loses every boundary question, because the subnetwork has no outside.
 
 **Answer.** A set is read in two ways, and analysts use both:
@@ -834,14 +834,14 @@ same measures as for the whole graph, or different ones?
    average degree, components, degree distribution, its extremes on any measure. These are
    exactly the whole-graph measures of section 2.1, computed on fewer elements.
 2. **The set as a part of its parent**: edges on the boundary (cut edges), conductance, expansion,
-   the neighbouring nodes outside it (the node boundary), its share of the parent's nodes and
+   the neighboring nodes outside it (the node boundary), its share of the parent's nodes and
    edges, and its attribute profile compared with the parent's (the enrichment question of
    section 2.7).
 
 **Recommendation.** The graph inspector and the set inspector are one template, with the whole
 graph as the set that contains everything. The template has the "as a graph" sections for every
 set, and adds two sections only when the set is a proper subset of its parent: **Boundary** (cut
-edges, conductance, outside neighbours, share of the parent) and **Compared with the graph**
+edges, conductance, outside neighbors, share of the parent) and **Compared with the graph**
 (each attribute's distribution in the set against the parent). For the whole graph those two
 sections have nothing to say and do not appear. The **visible graph** is a set whose parent is
 the loaded graph; its Boundary section is what answers "what did the filter cut" (6.5). All of
@@ -878,7 +878,7 @@ One concept with a flag, or two concepts? How should a stale result be shown?
 - **Sandve et al.'s ten rules for reproducible computational research** include "Record All
   Intermediate Results" and "Connect Textual Statements to Underlying Results". A statement about
   a set is a statement about the members it had when the statement was made.
-- **graphty-element already has both behaviours, unnamed.** A saved scope holding `{ nodes }` is
+- **graphty-element already has both behaviors, unnamed.** A saved scope holding `{ nodes }` is
   fixed; one holding `{ where }` is a rule. A run keeps its old values and reports itself stale
   rather than recomputing silently. The object model drafted earlier for graphty
   (`design/ui/object-first-ux/object-model.md` section 5) proposes that a stale object keeps
@@ -890,10 +890,10 @@ One concept with a flag, or two concepts? How should a stale result be shown?
   per `figma.md` section 2.7) is that the dependent thing keeps its last value and says it is out
   of date; it is never blanked or silently replaced.
 
-**Answer.** Analysts need both behaviours, and which one a set has follows from **what the
+**Answer.** Analysts need both behaviors, and which one a set has follows from **what the
 analyst expressed** when making it:
 
-| How the set was made | What the analyst expressed | Behaviour |
+| How the set was made | What the analyst expressed | Behavior |
 |---|---|---|
 | Hand-picked, or a selection promoted to a set | these members | **fixed**: keeps its members |
 | A query or filter rule ("degree > 10", "type = account") | this rule | **rule**: recomputes when the data or the rule's inputs change |
@@ -934,7 +934,7 @@ together, now in community 5".
 - **"Freeze"** converts a rule set to a fixed one with its current members. The reverse is not
   offered for sets kept from results, since the members are the only definition they have.
 
-This is published element behaviour and a project-file format: a one-way door that should be
+This is published element behavior and a project-file format: a one-way door that should be
 settled before the file ships.
 
 ### 6.3 Are kept sets mostly promoted selections or rules, and how big are they?
@@ -950,7 +950,7 @@ or mainly by rule (a query or a run result)? How large are the kept sets compare
 | Fraud Ring Investigation | 10,000 to 1,000,000 nodes | the flagged entity's ring; related suspicious entities | expansion (1 to 2 hops), then hand judgment | tens |
 | Criminal Network Analysis | 100 to 10,000 | key players; cells | ranking and hand judgment; community run | a handful to tens |
 | Path Investigation | any | a path; alternative paths | run result | a handful of nodes and edges |
-| Hub Investigation | any | hubs; a hub's ego network | threshold rule; neighbourhood rule | 1 to 10 hubs; an ego network up to the hub's degree |
+| Hub Investigation | any | hubs; a hub's ego network | threshold rule; neighborhood rule | 1 to 10 hubs; an ego network up to the hub's degree |
 | Community Analysis | 10 to 100,000 | communities worth deeper investigation | run result | tens to tens of thousands |
 | Cluster and Functionally Annotate a Molecular Network | 100 to 2,000 | clusters (about 15), minus those under 3 or 4 nodes | run result | 3 to a few hundred |
 | Hub Gene Identification and Ranking | 50 to 2,000 | top 10 per method; their intersection | rule (top N) and set operation | 10 |
@@ -970,7 +970,7 @@ communities that have more than 100 customers", covering about 75 percent of all
 - **By count, rules dominate.** Eleven of the thirteen workflows keep at least one set made by a
   rule or a run result. Hand promotion dominates only in the alert-driven investigation
   workflows (Fraud Ring Investigation, Criminal Network Analysis), and even there the hand
-  selection is usually a trimmed result of a neighbourhood expansion.
+  selection is usually a trimmed result of a neighborhood expansion.
 - **Hand-made sets are small** (a handful to a few hundred) and sit far below 5,000. **Rule sets
   routinely exceed it**: a community, an audience, a largest component or a query result on the
   10,000-to-1,000,000-node graphs that five personas describe.
@@ -1048,7 +1048,7 @@ describe? After a filter, do analysts need the loaded and visible numbers side b
   a 15-minute target. "First-Time User Onboarding" asks for "basic statistics after loading".
   Neither asks for diameter, path length, clustering or assortativity at the start; "Anomaly
   Detection" and "Hub Gene Identification and Ranking" ask for clustering later, as a method.
-- **Cost, by standard complexity** (n nodes, m edges; the same figures graphty-element's catalogue
+- **Cost, by standard complexity** (n nodes, m edges; the same figures graphty-element's catalog
   publishes for its own algorithms in `graphty-element/src/catalog/algorithms.ts`):
 
 | Measure | Cost | At 1,000,000 nodes, 5,000,000 edges |
@@ -1085,7 +1085,7 @@ describe? After a filter, do analysts need the loaded and visible numbers side b
   questions.
 - **On demand, as results with provenance** (kept in the project file, stale when the data
   changes; section 6.20 places them as rows of the graph or set inspector with a provenance
-  popover, not as rows of the result list): clustering coefficient (global and average, labelled
+  popover, not as rows of the result list): clustering coefficient (global and average, labeled
   distinctly), diameter, average path length, and degree assortativity. Assortativity is cheap but
   rarely read at first, and it needs an explanation; the others are costly and carry
   "largest component" and "sampled" caveats. **This refines section 5.2**, which classed all graph
@@ -1256,7 +1256,7 @@ communities are normal on the larger graphs; only a few are ever looked at indiv
   thousands of rows where a tree would not.
 - **A community becomes a tree row of its own only when kept** (6.2, 6.3): a fixed set with its
   origin.
-- **Encoding** gives distinct colours to the 8 to 12 largest communities and one "other" colour to
+- **Encoding** gives distinct colors to the 8 to 12 largest communities and one "other" color to
   the rest (graphty-element's binding already has `other` and `overflow`).
 - **In the project file**, the partition is a run with a membership column; a community is
   identified by its group number within that run, and a kept community is a set that records that
@@ -1296,14 +1296,14 @@ reading attribute values in 3D versus 2D? graphty-element defaults to 3D.
 
 **Answer.** On a flat desktop monitor, which is where the intermediate analyst works, graphty's 3D
 mode is monoscopic perspective with motion only while the user orbits. For that setting the
-evidence favours 2D for reading values (size, colour, labels) and for speed on cluster finding, and
+evidence favors 2D for reading values (size, color, labels) and for speed on cluster finding, and
 gives monoscopic 3D no accuracy advantage on cluster finding. The 3D gains in path tracing and
 cluster finding come from stereo and head-coupled or continuous motion, which a headset provides.
 
 **Recommendation.** Analysis should open in 2D, with a layout computed in 2D (a flat layout viewed
 in perspective is not a 3D layout); 3D, VR and AR are choices, with VR and AR the justified 3D
 settings for tracing paths and seeing structure in large graphs. graphty-element's default view
-mode (`DEFAULT_VIEW_MODE = "3d"`) is published behaviour, so changing it is a decision for the
+mode (`DEFAULT_VIEW_MODE = "3d"`) is published behavior, so changing it is a decision for the
 element's owner rather than something the app should override quietly; the app setting 2D through
 element configuration is consuming the element and is allowed. If the element keeps 3D as its
 default, the reason should be written down (for example, that the component's first impression is
@@ -1327,7 +1327,7 @@ and at what width? Is the table used to read one node's full row, or to sort and
 | Gene List to Interaction Network | "full attribute row for a clicked node, all columns, not a five-row preview", from a 10-to-40-column table | yes | one row, many fields |
 | Data Import and Validation, Knowledge Graph Construction | preview, rejected rows, duplicate pairs | not necessarily | wide |
 
-Cytoscape docks its Table Panel below the network, with the selection synchronised between them
+Cytoscape docks its Table Panel below the network, with the selection synchronized between them
 and a mode that shows only selected rows (`graph-tools.md`, section 1).
 
 **Answer.** The table is used overwhelmingly to **sort and compare many rows** while the canvas
@@ -1400,7 +1400,7 @@ hold nodes and edges together, and are alternative paths compared as a family?
 **Evidence.**
 
 - **Node sets are kept far more often.** Every set in the table in 6.3 is a node set except paths
-  and the condition-membership edges. The task taxonomies are node-centred (section 8).
+  and the condition-membership edges. The task taxonomies are node-centered (section 8).
 - **Edge sets are kept in a minority of workflows, and there they are essential.** "Condition
   Comparison": "encode edges by 'in A only / in B only / both'" and "export the merged edge list
   with a membership column". "Criminal Network Analysis": "entity relationships with evidence
@@ -1552,7 +1552,7 @@ it.
     report this as a limitation of Gephi in the paper". The same thread shows the opposite intent
     is real: the reporter *wanted* the value within each of 234 modularity classes, and the
     advised workaround was to export each filtered graph to a new workspace, or compute in R.
-  - Gephi issue 541: the ranking (the size and colour mapping) "uses only the visible graph for
+  - Gephi issue 541: the ranking (the size and color mapping) "uses only the visible graph for
     calculating the bounds. That makes comparaison between views difficult because the scale is
     modified"; Gephi added a local / global switch in response. The silent scope broke
     comparison, and the fix was to make the scope a visible choice.
@@ -1569,7 +1569,7 @@ it.
   values.** "Visual Exploration - Overview to Detail": the filter phase is "Remove uninteresting
   elements to reduce cognitive load", and its information need is "did important nodes
   disappear?", which is only answerable if importance was measured on the whole graph. The
-  workflows that analyse a subset *as its own graph* say so explicitly: "Community Analysis"
+  workflows that analyze a subset *as its own graph* say so explicitly: "Community Analysis"
   ("Input: Connected graph (typically giant component)"), "Gene List to Interaction Network"
   ("Select the largest connected component and make it the working network"), "Drug Target
   Discovery" ("Define the disease-relevant subnetwork"), "Condition Comparison" ("Union,
@@ -1600,7 +1600,7 @@ whether the analyst chose the scope.
   a claim about entities, and its denominator must not move with a display filter; its default is
   the whole graph. Section 20.7 also assumed the element's runs compute over the visible graph,
   which the code does not do.
-- **One-way door:** the default scope of an unscoped run is published element behaviour and
+- **One-way door:** the default scope of an unscoped run is published element behavior and
   decides what every stored result means. It is the owner's call; this is the evidence for it.
 
 ### 6.15 Which inputs must mark a result stale?
@@ -1655,7 +1655,7 @@ mark it stale.
 **Recommendation.**
 
 - **Every algorithm declares what it reads**: topology, and a list of attribute columns. Built-in
-  algorithms already know theirs; the catalogue entry should publish it. A plugin that declares
+  algorithms already know theirs; the catalog entry should publish it. A plugin that declares
   nothing is treated as reading every attribute, so it is flagged stale conservatively rather
   than never.
 - **The snapshot keeps a revision counter per attribute column, plus one for topology and one for
@@ -1757,7 +1757,7 @@ found).**
 | Community Analysis | 2 to 4 partitions (algorithms and resolutions compared), betweenness | a few to 10 communities "worth deeper investigation", bridge nodes | a label or profile per kept community | 1 to 3 | 15 to 30 |
 | Cluster and Functionally Annotate | 1 to 3 clusterings (inflation) | about 15 annotated clusters | a term label per cluster | 1 to 2 | 20 to 40 |
 | Enrichment Map | 1 clustering | a handful to 20 named themes | theme names, the parameter record | 1 to 2 | 15 to 30 |
-| Hub Gene Identification and Ranking | 5 to 6 centralities and a combined score | top 10 per method, their intersection, hub neighbourhoods | why methods disagree | 1 to 2 | 15 to 25 |
+| Hub Gene Identification and Ranking | 5 to 6 centralities and a combined score | top 10 per method, their intersection, hub neighborhoods | why methods disagree | 1 to 2 | 15 to 25 |
 | Gene List to Interaction Network | 0 to 2 | the largest component, driver genes | few | 1 | 5 to 10 |
 | Condition Comparison | 2 to 4 per condition, a difference score | A only, B only, both, the rewired genes | few | 2 | 12 to 20 |
 | Drug Target Discovery | 3 or more centralities | the disease module, the ranked targets | an evidence profile per candidate (tens) | 1 to 2 | 20 to 50 |
@@ -1797,7 +1797,7 @@ rule set whose outcome is "hide", filtering needs no home of its own.
 
 - **Inside one project, the tools treat a filter as a rule with an outcome.** Gephi's queries
   have two outcomes, Filter (hide) and Select (mark), for the same query; Kumu's filters,
-  decorations and focus all use one selector language; Linkurious filters hide or grey
+  decorations and focus all use one selector language; Linkurious filters hide or gray
   (`graph-tools.md`, sections on Gephi, Kumu and Linkurious). A Cytoscape filter is a live rule,
   saved in the session and exportable (section 6.2).
 - **Views reference filters**: the view bookmark stores "active filter configuration at time of
@@ -1824,7 +1824,7 @@ The only distinct use is a personal library of queries reused across projects an
   is controlled, as removable chips, and "Keep as set" turns it into a named rule set.
 - **The cross-project query library is the reader's own**, persisted by the app like any other
   preference, which the architectural principles allow. graphty-element supplies what makes it
-  work for every consumer: a serialisable rule definition and a validation of a definition against
+  work for every consumer: a serializable rule definition and a validation of a definition against
   a graph's attributes that reports what does not bind (the element already reports unbound paths
   for style templates).
 
@@ -1967,11 +1967,11 @@ flag for the whole graph" (`graphty-element/src/session/types.ts`). A run record
 
 **Evidence.**
 
-- **graphology supports mixed graphs and names both readings.** Its neighbour methods come in
+- **graphology supports mixed graphs and names both readings.** Its neighbor methods come in
   pairs: `outNeighbors` and `inNeighbors` follow directed edges only, while `outboundNeighbors`
   and `inboundNeighbors` follow directed edges plus undirected ones in both directions (the
   descriptor table in graphology's `iteration/neighbors.js`). Its algorithms default to the
-  second reading: unweighted shortest paths call `outboundNeighbors`, and the neighbourhood index
+  second reading: unweighted shortest paths call `outboundNeighbors`, and the neighborhood index
   behind PageRank defaults to `method = method || 'outbound'`, sizing it as "directedSize +
   undirectedSize * 2", so each undirected edge counts as two opposite arcs (graphology source,
   `shortest-path/unweighted.js`, `indices/neighborhood.js`). Louvain refuses a truly mixed graph:
@@ -2043,7 +2043,7 @@ with its own headlines such as "Main bridge" and "Most influential" (`graphty-to
   Research*, 2019), and section 3.2 of this document already reserves "bridge" for the cut edge.
   A reader who looks up "bridging" finds a different computation.
 - **The number alone does not carry a scale.** "at 0.4" does not say whether betweenness was
-  normalised or what the next value is, so the sentence invites a reading the number cannot
+  normalized or what the next value is, so the sentence invites a reading the number cannot
   support.
 - **Analysts do want explanation.** "Hub Gene Identification and Ranking" lists as a pain point
   "Names like 'eigenvector centrality' with no plain-language reading". The need is to know what
@@ -2051,14 +2051,14 @@ with its own headlines such as "Main bridge" and "Most influential" (`graphty-to
 - No study was found that compares technical-term readings with interpretive ones directly.
 
 **Answer.** The sentence's numbers help; its interpretive nouns mislead in three documented ways:
-they present a modelling assumption as a finding, one of them contradicts published measurements,
+they present a modeling assumption as a finding, one of them contradicts published measurements,
 and one collides with a different measure's name. The workflows' request is for a plain
 explanation of *what is computed*, which a definition answers without an interpretation.
 
 **Recommendation.**
 
 - **The published reading uses the technical term and gives the number its scale**, for example "X has the
-  highest betweenness centrality, 0.40 (normalised), 3.2 times the median; 12 of 34 nodes are
+  highest betweenness centrality, 0.40 (normalized), 3.2 times the median; 12 of 34 nodes are
   0." That is the element's `technical` audience made the default, plus rank context.
 - **The (i) note carries a plain operational definition and the assumption, in conditional
   form**: "Betweenness counts how many shortest paths between other nodes pass through this node.
@@ -2074,7 +2074,7 @@ explanation of *what is computed*, which a definition answers without an interpr
 ### 6.24 Does 3D with automatic rotation help analysis on a desktop monitor?
 
 **Question.** Is there graph-specific evidence that 3D with automatic rotation helps analysis on a
-flat desktop monitor, compared with 2D, for reading sizes, colours and labels? graphty-element
+flat desktop monitor, compared with 2D, for reading sizes, colors and labels? graphty-element
 publishes 3D as its default view mode (`graphty-element/src/config/ViewMode.ts`,
 `DEFAULT_VIEW_MODE = "3d"`); it does not rotate the scene automatically (no auto-rotation exists
 in its camera controllers).
@@ -2092,20 +2092,20 @@ in its camera controllers).
   "with both motion and depth cues, unskilled observers could see paths between nodes in 333 node
   graphs" at under 10 percent error (abstract).
 - **The benefit is for seeing connectivity, and it is measured with stereo or motion on
-  specialised displays.** Greffard et al. (2014) found no accuracy advantage of monoscopic 3D over
+  specialized displays.** Greffard et al. (2014) found no accuracy advantage of monoscopic 3D over
   2D for community detection, with 2D fastest (section 6.9).
 - **Reading values and labels is what 3D damages.** Munzner: perspective distortion "interferes
   with all size channel encodings", occlusion hides information, and text is "far worse when
   tilted from image plane" (section 6.9). Continuous rotation adds to this: sizes and label
   positions change every frame, so reading a value or clicking a node means stopping the motion
   first.
-- No study was found that measures reading of size, colour or labels under automatic rotation, or
+- No study was found that measures reading of size, color or labels under automatic rotation, or
   that tests automatic rotation for any graph task other than path tracing.
 
 **Answer.** Automatic rotation is a real aid for one task, tracing connections in a dense 3D
 layout, and the evidence for it comes from path tracing only. For the tasks the intermediate
-analyst does most (reading measures through size and colour, reading labels, selecting nodes,
-finding clusters) no evidence favours 3D on a flat monitor, and the perceptual rules predict it
+analyst does most (reading measures through size and color, reading labels, selecting nodes,
+finding clusters) no evidence favors 3D on a flat monitor, and the perceptual rules predict it
 hurts, more so while the scene moves.
 
 **Recommendation.** Unchanged from section 6.9: analysis opens in 2D with a layout computed in
@@ -2243,7 +2243,7 @@ left panel just to write 15 labels.
   applied to the group, including the Boundary section (conductance, bordering groups). It is
   not a row of the left panel (section 6.8 stands).
 - **Group labels belong to the partition result**: one label per group value, shown in the
-  legend, the group table and the inspector, as in Kumu. Labelling does not create a set.
+  legend, the group table and the inspector, as in Kumu. Labeling does not create a set.
 - **A note on a group stores the group's members** (section 6.7), so it survives a re-run without
   a Keep.
 - **Keep remains the step for what must outlive the partition**: a set operand, a scope reused
@@ -2266,23 +2266,23 @@ layers are not counted).**
 
 | Workflow | Layers the workflow describes | Count |
 |---|---|---|
-| Gene List to Interaction Network | colour by logFC (diverging), size by a second column, label by display name, "thicker borders for a few genes of interest", and the same style rebuilt "for the down-regulated list" | 4 to 5 |
-| Enrichment Map | size by gene-set size, colour by direction or FDR, edge width by overlap, searched-gene highlight, theme labels | 4 to 5 |
-| Hub Gene Identification and Ranking | combined-score size or colour, top-10 labels, hub highlight; 5 or 6 measure runs, each of which auto-paints on first completion today | 3 to 4 by intent; 8 to 10 if every run paints |
-| Community Analysis | partition colour, betweenness size for bridge nodes, one community highlighted; a second partition when comparing | 3 to 5 |
-| Cluster and Functionally Annotate | cluster colour, cluster labels, optional term pie charts | 2 to 3 |
-| Condition Comparison | edge colour by "in A only / in B only / both", per-condition logFC, rewired-score size | 3 to 4 |
-| Fraud Ring Investigation | neighbourhood highlight, community colour, risk-score colour or size, paths to known fraud cases | 3 to 5 |
-| Criminal Network Analysis | a centrality size, community colour, key-player highlight, edge type colour | 4 to 5 |
+| Gene List to Interaction Network | color by logFC (diverging), size by a second column, label by display name, "thicker borders for a few genes of interest", and the same style rebuilt "for the down-regulated list" | 4 to 5 |
+| Enrichment Map | size by gene-set size, color by direction or FDR, edge width by overlap, searched-gene highlight, theme labels | 4 to 5 |
+| Hub Gene Identification and Ranking | combined-score size or color, top-10 labels, hub highlight; 5 or 6 measure runs, each of which auto-paints on first completion today | 3 to 4 by intent; 8 to 10 if every run paints |
+| Community Analysis | partition color, betweenness size for bridge nodes, one community highlighted; a second partition when comparing | 3 to 5 |
+| Cluster and Functionally Annotate | cluster color, cluster labels, optional term pie charts | 2 to 3 |
+| Condition Comparison | edge color by "in A only / in B only / both", per-condition logFC, rewired-score size | 3 to 4 |
+| Fraud Ring Investigation | neighborhood highlight, community color, risk-score color or size, paths to known fraud cases | 3 to 5 |
+| Criminal Network Analysis | a centrality size, community color, key-player highlight, edge type color | 4 to 5 |
 | Path Investigation | the path, alternative paths, context | 1 to 3 |
 | Findings Communication | key-finding highlight, dimming of the rest, labels on the few named nodes | 3 |
-| Supply Chain Risk Assessment | tier colour, betweenness size, removal-impact highlight | 3 |
-| Knowledge Graph Construction | node type colour, edge type colour or line style, duplicate-candidate highlight | 2 to 3 |
-| Anomaly Detection, Hub Investigation, Influencer Identification, Threat Hunting | a score encoding, a threshold highlight, a classification or type colour | 2 to 4 |
+| Supply Chain Risk Assessment | tier color, betweenness size, removal-impact highlight | 3 |
+| Knowledge Graph Construction | node type color, edge type color or line style, duplicate-candidate highlight | 2 to 3 |
+| Anomaly Detection, Hub Investigation, Influencer Identification, Threat Hunting | a score encoding, a threshold highlight, a classification or type color | 2 to 4 |
 | First Exploration, Data Import, First-Time User Onboarding | none to one | 0 to 1 |
 
 - **What bounds the count is the channels read at once**, not the length of the investigation.
-  Every layer above writes one or two of colour, size, shape, label, edge colour and edge width,
+  Every layer above writes one or two of color, size, shape, label, edge color and edge width,
   and no workflow describes more than about five data encodings in one picture. Unlike notes
   (section 6.17), layers do not accumulate per alert or per finding; an old encoding is replaced
   or switched off.
@@ -2318,7 +2318,7 @@ three inflations above.
 
 **Question.** After an analyst has named and annotated about 15 communities and re-runs
 clustering with a new resolution (Cluster and Functionally Annotate; Community Analysis), what do
-the workflows expect for the names and colours? Does any tool carry names across re-runs, and what
+the workflows expect for the names and colors? Does any tool carry names across re-runs, and what
 does it show on a split or a merge? The answer decides whether Keep stores a fixed member list with
 its origin or a rule that follows re-runs, and whether a re-run of a partition should default to a
 new result beside the old one.
@@ -2364,11 +2364,11 @@ question by seeding.
   renumbering, silently.
 - **A partition that carries labels, group notes or kept groups is not revised in place by a
   parameter edit**: the edit creates a new partition beside the old one, and the old keeps its
-  labels and colours. This refines section 6.13, whose revision default still holds for a
-  partition nobody has labelled, and it resolves the disagreement with `graph-tools.md` section
+  labels and colors. This refines section 6.13, whose revision default still holds for a
+  partition nobody has labeled, and it resolves the disagreement with `graph-tools.md` section
   20.2 (which adds every re-run beside the old): revise while tuning, add beside once the result
   carries the reader's work.
-- **The element offers a carry-over table, never an automatic carry-over.** For each labelled
+- **The element offers a carry-over table, never an automatic carry-over.** For each labeled
   group of the old partition it lists the new groups holding its members, with shares, and
   classifies the row as continues, split, merged or dissolved; the reader copies labels from the
   rows they accept. This is a query over two stored partitions (the alluvial reading), consistent
@@ -2384,7 +2384,7 @@ question by seeding.
 **Question.** Does any workflow need a rule that reads a result (for example "PageRank above
 0.01") to follow the measure's current run after a parameter edit, or to stay bound to the run it
 was written against? This decides whether stored rules and selectors reference a measure id or a
-`RunId`, which is a one-way door in rule serialisation.
+`RunId`, which is a one-way door in rule serialization.
 
 **Evidence.**
 
@@ -2440,7 +2440,7 @@ projection, meta-paths)? Is the role declared once, like weight and direction, o
 | Drug Target Discovery | a network from "disease genes, PPIs, pathways, drug-target data" |
 | Supply Chain Risk Assessment | "tier information" (an ordered category used like a type) |
 
-Capability records that name type: neighbourhood-expansion ("Filter expansion by edge type", "by
+Capability records that name type: neighborhood-expansion ("Filter expansion by edge type", "by
 node type", and "Too many nodes. Try filtering by type."), ego-network (filter the extracted
 network by node and edge type), filtering ("by edge type"), pattern-search, visual-encoding-edges
 ("Map categorical edge type to color", "to line style"), legend-display, and search
@@ -2472,7 +2472,7 @@ projection uses.
   a set address usable for select, filter, scope and note.
 - **Styling starts from a per-type default**: when a type role is declared, a categorical
   encoding on it is offered as the first user layer, editable and removable, not locked.
-- **Neighbourhood expansion, path search and pattern search take a `types` option**, defaulting
+- **Neighborhood expansion, path search and pattern search take a `types` option**, defaulting
   to all. Bipartite projection reads the node type role instead of asking for a node container.
   Meta-paths are deferred until a workflow beyond these two needs them.
 - **One-way door:** the role names in the published data configuration and the project file.
@@ -2530,15 +2530,15 @@ measure.
 **Question.** On a multigraph, what do NetworkX and igraph do by default with parallel edges for
 degree, PageRank, betweenness and community detection, and what does each graphty-element
 built-in do? The answer sets the default reading each run's caveats publish and whether "degree"
-at rest counts edges or neighbours.
+at rest counts edges or neighbors.
 
 **Evidence.**
 
 | Measure | NetworkX | igraph | graphty-element today |
 |---|---|---|---|
-| Degree | counts edges: "The node degree is the number of edges adjacent to the node" (`MultiGraph.degree`) | "the number of its adjacent edges" (R `degree`; the page does not discuss multi-edges) | the at-rest summary counts edges (`snapshot.degree()` sums arcs); the Degree algorithm counts distinct neighbours, because it runs on the simplified graph |
+| Degree | counts edges: "The node degree is the number of edges adjacent to the node" (`MultiGraph.degree`) | "the number of its adjacent edges" (R `degree`; the page does not discuss multi-edges) | the at-rest summary counts edges (`snapshot.degree()` sums arcs); the Degree algorithm counts distinct neighbors, because it runs on the simplified graph |
 | PageRank | parallel weights summed: "For multigraphs the weight between two nodes is set to be the sum of all edge weights", default `weight="weight"`, missing weights count 1, so unweighted parallels count as multiplicity | each edge becomes its own arc in PRPACK, with no merging in `prpack_igraph_graph.cpp`, so multiplicity counts | simplified with weights summed; when no weight attribute is chosen (the default) the merged edge counts once and the multiplicity is lost |
-| Betweenness, unweighted | parallels ignored: the breadth-first search iterates `for w in G[v]`, the distinct neighbours | parallels multiply path counts: the adjacency list is built with `IGRAPH_MULTIPLE`, and `nrgeo[neighbor] += nrgeo[actnode]` runs once per parallel edge; the R page warns that `edge_betweenness()` "might give false values for graphs with multiple edges" | simplified; parallels ignored (as NetworkX) |
+| Betweenness, unweighted | parallels ignored: the breadth-first search iterates `for w in G[v]`, the distinct neighbors | parallels multiply path counts: the adjacency list is built with `IGRAPH_MULTIPLE`, and `nrgeo[neighbor] += nrgeo[actnode]` runs once per parallel edge; the R page warns that `edge_betweenness()` "might give false values for graphs with multiple edges" | simplified; parallels ignored (as NetworkX) |
 | Shortest paths, weighted as cost | "the minimum edge weight over all parallel edges is returned" (`_weight_function`) | weights "are interpreted as distances" | simplified with weights SUMMED, so two parallel roads of length 5 become one of length 10 (Dijkstra, Bellman-Ford, Floyd-Warshall, Prim, Kruskal all read the simplified graph) |
 | Louvain | weights summed: `G[u][v]["weight"] += wt` | weights summed when multi-edges are removed; undirected only ("works for undirected graphs only") | simplified with weights summed (as both) |
 
@@ -2555,7 +2555,7 @@ and Louvain (weights summed), and disagree on unweighted betweenness (NetworkX i
 multiplicity, igraph multiplies paths). NetworkX reads parallel costs by their minimum. graphty-
 element's single rule, sum before every algorithm, matches both libraries for Louvain and
 weighted PageRank, and departs from both in three places: unweighted PageRank loses multiplicity,
-the Degree algorithm counts neighbours while the at-rest summary counts edges, and cost-reading
+the Degree algorithm counts neighbors while the at-rest summary counts edges, and cost-reading
 algorithms add parallel costs instead of taking the cheapest.
 
 **Recommendation.**
@@ -2621,7 +2621,7 @@ independently loaded conditions and the merged graph built from them.
 
 **Question.** When analysts compare two measures or two partitions (Hub Gene Identification and
 Ranking; Community Analysis), which forms do they trust and cite (top-N overlap, rank
-correlation, scatter, normalised mutual information), and do they keep and cite the comparison
+correlation, scatter, normalized mutual information), and do they keep and cite the comparison
 itself? This decides whether Compare produces a kept result with provenance or is a transient view
 over two selected results.
 
@@ -2642,7 +2642,7 @@ over two selected results.
   degree, betweenness, closeness and eigenvector.
 - **Scatter of two columns** is Cytoscape's paved path (`graph-tools.md`, section 20.2).
 - **Partitions: a similarity score.** igraph's `compare` "assesses the distance between two
-  community structures" by variation of information, normalised mutual information, split-join
+  community structures" by variation of information, normalized mutual information, split-join
   distance, Rand index or adjusted Rand index. Condition Comparison and Network Evolution Analysis
   want which communities "split or merged" (section 6.28), which is the per-group table, not a
   score.
@@ -2715,12 +2715,12 @@ or a number (a similarity score) that must be citable with its inputs.
    histogram or distribution as an information need.
 7. **Search-first and overview-first are equal entry paths.** van Ham and Perer, and the
    investigation workflows, start from an entity; the assessment workflows start from the whole.
-   Search and neighbourhood expansion (k-hop, follow path, revisit) are primary navigation.
+   Search and neighborhood expansion (k-hop, follow path, revisit) are primary navigation.
 8. **Sets need set operations and a set inspector.** Lee adds set operation to the primitive
-   tasks; Saket's group-level tasks ask about a set's size, density, extremes and neighbours; the
+   tasks; Saket's group-level tasks ask about a set's size, density, extremes and neighbors; the
    comparison workflow asks for A-only / B-only / both counts. Sets may overlap. The set
    inspector is the graph inspector's template plus a Boundary section (cut edges, conductance,
-   outside neighbours) and a comparison with the parent (section 6.1).
+   outside neighbors) and a comparison with the parent (section 6.1).
 9. **Notes are common, cheap, and anchored to graph objects.** Brehmer and Munzner put annotate
    in the main analysis vocabulary; Heer requires data-aware annotation so a note survives a
    change of view; Ragan observes that insight is lost unless the user records it. A note
@@ -2805,20 +2805,20 @@ or a number (a similarity score) that must be citable with its inputs.
     bindings, rule conditions and table columns. Readers compare, combine, cut, cite, note, tune
     and delete measures; they never hide or rename one apart from its paint (section 6.25).
 37. **One community is addressable without Keep** by partition plus group value: inspected,
-    selected, labelled, noted and used as "within each group" scope. Group labels belong to the
+    selected, labeled, noted and used as "within each group" scope. Group labels belong to the
     partition result (section 6.26).
 38. **A project holds 3 to 6 style layers, about 10 at worst**, bounded by the channels read at
     once. The resting inspector can hold the stack if tuning, batch runs and per-element overrides
     do not add layers, with a "show all" door for growth; highlights of different results may
     coexist (section 6.27).
-39. **Names stay with the partition they were written on.** A labelled partition is re-run as a
+39. **Names stay with the partition they were written on.** A labeled partition is re-run as a
     new result beside the old; the element offers a carry-over table (continues, split, merged,
     dissolved) and never carries names automatically; Keep stores members plus origin (section
     6.28).
 40. **Rules and selectors reference the measure id**, not the run; pinning is Freeze or a
     separate measure (section 6.29).
 41. **Node and edge type are declared data roles**, with per-type counts at rest, a per-type
-    default layer, and a `types` option on neighbourhood, path and pattern search (section 6.30).
+    default layer, and a `types` option on neighborhood, path and pattern search (section 6.30).
 42. **The time window is visibility**; an unscoped run computes over the whole period, a window
     can be a named scope, and "series" is a result kind (section 6.31).
 43. **Parallel edges are reduced by weight meaning**: summed for strength and multiplicity,
@@ -2838,7 +2838,7 @@ or a number (a similarity score) that must be citable with its inputs.
 - **Overlapping sets.** Saket et al. explicitly exclude overlapping groups; there is no standard
   task list for them, though graphty will need them (a node in a community, a user group and a
   path at once).
-- **Edge-centred analysis.** The taxonomies are node-centred. Edge betweenness, edge types,
+- **Edge-centered analysis.** The taxonomies are node-centered. Edge betweenness, edge types,
   bridges and edge-level results appear, but few tasks treat edge sets as first-class. The
   owner's decision that highlights stack as edge style layers goes beyond the literature here.
   Section 6.12 rests on the workflows, not on an edge-set task literature, and no source read
@@ -2851,7 +2851,7 @@ or a number (a similarity score) that must be citable with its inputs.
 - **How to show a stale result.** No source read here studies it directly. Section 6.2 follows
   the convergent rule of Heer, the W3C annotation model and Figma (keep the last value, say it is
   out of date, never blank or silently replace it).
-- **What proportion of notes is about what.** Mahyar et al. characterise notes by content, scope
+- **What proportion of notes is about what.** Mahyar et al. characterize notes by content, scope
   and usage, but only their abstract was read; the tally in section 6.7 counts the workflows,
   not observed analysts.
 - **Set sizes** in section 6.3 are read from the graph sizes the workflows state and from one
@@ -2879,7 +2879,7 @@ or a number (a similarity score) that must be citable with its inputs.
 - **Names across re-runs.** Kumu's documentation does not say what a split or merge does to a
   community name; section 6.28's inference that seeding carries names is not confirmed.
 - **igraph and multi-edges.** igraph's degree and PageRank pages do not discuss multi-edges;
-  section 6.32 reads the betweenness and PageRank behaviour from igraph's C source, not from
+  section 6.32 reads the betweenness and PageRank behavior from igraph's C source, not from
   documentation.
 - **Multi-method hub agreement in practice.** The two published analyses the hub workflow cites
   used a single method; how often analysts intersect top-N lists across methods was not
@@ -2962,7 +2962,7 @@ Sets, communities and their measures:
 Weights, direction and path measures:
 
 - Opsahl, T., Agneessens, F., Skvoretz, J. "Node centrality in weighted networks: Generalizing
-  degree and shortest paths." Social Networks 32(3), 2010, as summarised by its first author at
+  degree and shortest paths." Social Networks 32(3), 2010, as summarized by its first author at
   https://toreopsahl.com/tnet/weighted-networks/node-centrality/
 - NetworkX `betweenness_centrality`:
   https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
@@ -3034,11 +3034,11 @@ Filtered and sampled measurement:
 
 Mixed directedness:
 
-- graphology neighbour iteration (descriptor table):
+- graphology neighbor iteration (descriptor table):
   https://raw.githubusercontent.com/graphology/graphology/master/src/graphology/src/iteration/neighbors.js
 - graphology unweighted shortest paths:
   https://raw.githubusercontent.com/graphology/graphology/master/src/shortest-path/unweighted.js
-- graphology neighbourhood index:
+- graphology neighborhood index:
   https://raw.githubusercontent.com/graphology/graphology/master/src/indices/neighborhood.js
 - graphology Louvain: https://graphology.github.io/standard-library/communities-louvain.html
 - graphology operators: https://graphology.github.io/standard-library/operators.html
@@ -3139,7 +3139,7 @@ Repository sources:
 
 - Workflows: `design/designloom/workflows/*.yaml` (cited above by title)
 - graphty-element graph statistics: `graphty-element/src/session/types.ts` (`GraphStatistics`)
-- graphty-element algorithms: `graphty-element/src/algorithms/`; algorithm catalogue with cost
+- graphty-element algorithms: `graphty-element/src/algorithms/`; algorithm catalog with cost
   classes and complexities: `graphty-element/src/catalog/algorithms.ts`
 - graphty-element saved scopes: `graphty-element/src/session/scope/ScopeApi.ts` (`SavedScope`)
 - graphty-element selection, its cap, `promote` and `statistics`:
@@ -3203,7 +3203,7 @@ a measure computed over both scopes in adjacent columns.
 
 **Implication.** A summary shows the loaded-graph counts with the restricted counts beside them
 whenever a restriction is active (the element already has the numbers), and shows each measure
-labelled with the one scope it was computed over. A two-column measure comparison is a comparison
+labeled with the one scope it was computed over. A two-column measure comparison is a comparison
 task (Condition Comparison), not the resting summary.
 
 ## Follow-up: whether community evolution needs communities matched across windows
@@ -3217,7 +3217,7 @@ scope is not enough and time needs an object of its own.
   time"; its information need is "Community evolution mapping (which communities merged/split?)".
   Merge, split and form are relations between a community at one time and communities at another.
   They cannot be read from any single window.
-- Greene, Doyle and Cunningham define the object this needs: "each community is characterised by a
+- Greene, Doyle and Cunningham define the object this needs: "each community is characterized by a
   series of significant evolutionary events", and they "motivate a community-matching strategy for
   efficiently identifying and tracking dynamic communities". A dynamic community is distinct from
   the per-step communities it links: it is a chain across time steps, found by matching.
@@ -3262,7 +3262,7 @@ value, not a note.
 - Anomaly Detection, phase 6: "Classification - Label as error, threat, or genuine discovery".
   Its output is a "Prioritized anomaly list with classification and evidence", and its success
   criterion is "Anomalies correctly labeled as error/threat/discovery" -- a criterion that is
-  counted over the set of labelled nodes, so the label must be queryable as a closed set of values.
+  counted over the set of labeled nodes, so the label must be queryable as a closed set of values.
   Phase 4, "Triage - Rank anomalies by severity, group similar ones", groups by a value.
 - The anomaly-detection capability already stores its machine output as attributes: "Store
   anomaly score as node attribute named 'anomaly_score'", "Store anomaly type as node attribute
@@ -3282,7 +3282,7 @@ value, not a note.
   (this note's section on structured judgment).
 
 **Answer.** Yes on all three counts. The triage label is filtered on (show only threats, hide
-false positives), grouped and styled by (colour by classification), and exported (the prioritized
+false positives), grouped and styled by (color by classification), and exported (the prioritized
 list with its classification). It is an attribute value on the node or edge, with a small closed
 set of values the analyst defines, and it lives in the same place as `anomaly_score` and
 `anomaly_type`. The reasoning ("why I called this a threat") is a note attached to the element.
@@ -3296,7 +3296,7 @@ attribute rows the way any value is edited. No separate "label" object is needed
 ## Follow-up: which filter and scoping steps read topology, and when step order matters
 
 Question: in the 25 workflows, which steps narrow or scope the graph, and which of them read
-topology (a component, a k-core, degree or a neighbourhood computed after an earlier step)? This
+topology (a component, a k-core, degree or a neighborhood computed after an earlier step)? This
 decides whether the steps of a filter are always shown numbered, or only once order starts to
 matter.
 
@@ -3307,9 +3307,9 @@ Every filter or scoping step in the task phases of `design/designloom/workflows/
 | First Exploration - Quick Data Assessment | "does it require sampling/filtering?" | size only | no |
 | Visual Exploration - Overview to Detail | "Filter - Remove uninteresting elements" | attributes (unspecified) | no |
 | Community Analysis | input "typically giant component" | component | only if made in-app after a cutoff |
-| Path Investigation | "Show path in context of surrounding network" | neighbourhood of a path result | yes (after path finding) |
-| Fraud Ring Investigation | "1-2 hop neighborhood" of the flagged entity, then "Expand investigation to find all connected suspicious entities" | neighbourhood, then component restricted to suspicious nodes | yes (expansion over the attribute-filtered graph) |
-| Threat Hunting | "filter noise"; "expand or narrow scope" | pattern matches, then neighbourhood | yes |
+| Path Investigation | "Show path in context of surrounding network" | neighborhood of a path result | yes (after path finding) |
+| Fraud Ring Investigation | "1-2 hop neighborhood" of the flagged entity, then "Expand investigation to find all connected suspicious entities" | neighborhood, then component restricted to suspicious nodes | yes (expansion over the attribute-filtered graph) |
+| Threat Hunting | "filter noise"; "expand or narrow scope" | pattern matches, then neighborhood | yes |
 | Drug Target Discovery | "Define the disease-relevant subnetwork (proteins close to disease genes)" | distance from a seed set | yes (after network construction and merge) |
 | Criminal Network Analysis | "Define scope, identify seed entities, establish time frame" | seeds, time attribute | no |
 | Influencer Identification | "Segment" by centrality type | computed metrics | metric, not topology |
@@ -3317,12 +3317,12 @@ Every filter or scoping step in the task phases of `design/designloom/workflows/
 | Anomaly Detection | "z-score outliers, distribution tails" | computed metric | metric, not topology |
 | Findings Communication | "Filter to relevant subset" | unspecified, for drawing | no |
 | Graph-Based Recommendation | restrict to one node type (bipartite projection, per the top-task list) | node-type attribute | no |
-| Hub Investigation | hubs by degree, then "View the hub's immediate neighborhood" | degree, then neighbourhood | yes |
+| Hub Investigation | hubs by degree, then "View the hub's immediate neighborhood" | degree, then neighborhood | yes |
 | Network Evolution Analysis | "Define time windows" | time attribute | no |
 | Gene List to Interaction Network | "confidence cutoff (0.4 default...)", then "Select the largest connected component and make it the working network" | edge attribute, then component | **yes -- the clearest case** |
 | Cluster and Functionally Annotate | "drop clusters below 3 or 4 nodes" after clustering | community size | yes (a result computed after an earlier step) |
 | Enrichment Map | "Slide the node q-value and edge similarity cutoffs to thin the map" | two attributes | no (both are attribute cutoffs) |
-| Hub Gene Identification and Ranking | "Select the top N, expand one step around them" | computed rank, then neighbourhood | yes |
+| Hub Gene Identification and Ranking | "Select the top N, expand one step around them" | computed rank, then neighborhood | yes |
 | Condition Comparison | union, intersection or difference; then "filter to the largest changes" | set operation, then a score computed on the merge | metric after a set operation |
 | Reproducible Session | records "filters" among the saved state | -- | -- |
 
@@ -3354,7 +3354,7 @@ network, so it commutes. The top-task list states that "Always-available propert
 component membership, core number) follow the filter in force". Under that rule a degree
 cutoff is order-dependent, exactly like a component step. So the trigger for numbering is not
 "a topology column appears" but "a step reads a value computed over the output of an earlier
-step" -- degree, component, core number, neighbourhood, or a run whose scope is the filter.
+step" -- degree, component, core number, neighborhood, or a run whose scope is the filter.
 
 **Answer.** Show steps unnumbered (an AND list, as Cytoscape and Gephi's top-level query list do)
 while every step is an attribute cutoff, and switch to a numbered, reorderable list from the first
@@ -3386,9 +3386,9 @@ What graphty-element provides: the `pair-list` shape publishes one graph-level f
 ("One row per scored pair of elements, best first"), no node field and no edge field, and its
 layer role is `"none"` ("read as tables and numbers and drive no layer at all")
 (`graphty-element/src/session/results/types.ts`). No registered algorithm has this shape:
-`link-prediction` is one of four `KNOWN_ALGORITHMS` the catalogue says "are not registered by
+`link-prediction` is one of four `KNOWN_ALGORITHMS` the catalog says "are not registered by
 this package and therefore have no descriptor here" (`graphty-element/src/catalog/algorithms.ts`),
-although `@graphty/algorithms` ships common-neighbours and Adamic-Adar
+although `@graphty/algorithms` ships common-neighbors and Adamic-Adar
 (`algorithms/src/link-prediction/`). The cost gate already refuses a pair list over 2^32 - 1
 candidate pairs (`session/cost/estimate.ts`, `MAX_COLUMN_LENGTH`).
 
@@ -3408,7 +3408,7 @@ table rather than a column, so it takes the pattern already set for a partition'
 path family's paths: rows of a sortable table reached from the result's inspector. Every
 requirement maps onto existing parts: top-N and "within N hops of a seed" are the run's
 parameters and scope; filtering by node-type pair is a table filter; clicking a row is an
-ordinary selection of the two endpoints plus their common neighbours; Keep on that selection
+ordinary selection of the two endpoints plus their common neighbors; Keep on that selection
 makes a set; export is the table's CSV export. A row is addressed by "result plus row", like a
 community. The one thing to rule out is Gephi's move of writing predictions as edges into the
 graph: if a reader wants to draw predicted links, they should be a display of the table (dashed,
@@ -3425,7 +3425,7 @@ re-evaluate something, and (b) points where a list goes silently stale. Then tim
 "the Louvain resolution I used last week".
 
 The rules applied: a measure is revised in place on a tuning re-run, the earlier run kept as
-history; a labelled partition is not revised in place, a re-run lands beside it; counts, degree,
+history; a labeled partition is not revised in place, a re-run lands beside it; counts, degree,
 components, rule sets and style layers follow the data; centrality, communities, paths and
 layouts hold and are marked out of date where their values are read; fixed sets and notes never
 go out of date, only lose members; a scoped result carries a neutral label, not a warning;
@@ -3449,10 +3449,10 @@ Totals: 3 remember points, 3 silent stale lists (one of them an element defect, 
 | Phase | Event | Remember | Silent stale |
 |---|---|---|---|
 | Detection, Validation | Louvain, read modularity | -- | -- |
-| Validation | tune resolution before labelling -- revised in place | -- | **yes**: "within each group" profiles (density, internal hubs) computed on the old partition. Staleness tracks data, not results, so a result that depends on another result is not flagged |
+| Validation | tune resolution before labeling -- revised in place | -- | **yes**: "within each group" profiles (density, internal hubs) computed on the old partition. Staleness tracks data, not results, so a result that depends on another result is not flagged |
 | Characterization | label 15 communities | -- | -- |
-| Validation | tune resolution after labelling -- re-run lands beside | **yes**: which partition carries the paint and the labels; the analyst must move them by choice | -- |
-| Boundary Analysis | bridge nodes as a rule (betweenness plus neighbours in two or more groups) | -- | **yes**: the rule reads whichever partition the stable id names; after a re-run beside it, it silently still reads the old one (or the new one, if the id was rebound) |
+| Validation | tune resolution after labeling -- re-run lands beside | **yes**: which partition carries the paint and the labels; the analyst must move them by choice | -- |
+| Boundary Analysis | bridge nodes as a rule (betweenness plus neighbors in two or more groups) | -- | **yes**: the rule reads whichever partition the stable id names; after a re-run beside it, it silently still reads the old one (or the new one, if the id was rebound) |
 | Inter-community map | collapsed display of the partition | -- | -- (a display follows its partition) |
 
 Totals: 1 remember point, 2 silent stale lists. Both silent cases have the same cause: a result
@@ -3487,7 +3487,7 @@ keystroke about 0.28 s for an average typist). Opening the project is not counte
 | Route to the result record | Steps | Time if last week's run is still current | Time if it was tuned since |
 |---|---|---|---|
 | Left panel: select the Louvain partition, read its parameters in the inspector | M, point-click panel, point-click row | about 4.0 s | plus open the run list, scan, click: about 7.0 s |
-| Canvas: click a community-coloured node, open (i) on its community value | M, point-click node, point-click (i) | about 4.0 s, only if a Louvain layer is painted | not reachable: the canvas shows only the current run |
+| Canvas: click a community-colored node, open (i) on its community value | M, point-click node, point-click (i) | about 4.0 s, only if a Louvain layer is painted | not reachable: the canvas shows only the current run |
 | Command palette: type "louvain", Enter | M, two keys, seven keys, Enter | about 4.2 s | plus the run list: about 7.2 s |
 
 All three routes need the earlier run's **record** to still exist. Today it does not: an
@@ -3500,7 +3500,7 @@ run record is parameters and provenance -- a few hundred bytes -- so keeping eve
 the cost question is only whether the previous run's values are kept too (see the follow-up on
 column size in `graphty-today.md`). The top-task list's wording ("the earlier run stays in the
 tree") and `key-insights.md` 1.5 ("reachable by undo") disagree here, and the ontology should
-settle it in favour of the tree.
+settle it in favor of the tree.
 
 ## Follow-up: whether a threshold feeds a later computation or only thins the display
 
@@ -3530,7 +3530,7 @@ is display-only is on a **value the analysis computed** and comes after that com
 workflow computes a new measure over the survivors of a cut on a computed score. (The hub gene
 protocol cited by Hub Gene Identification thresholds a co-expression edge list at correlation
 above 0.1 before computing degree -- again an imported-edge cut feeding the computation,
-https://pmc.ncbi.nlm.nih.gov/articles/PMC12457846/ as summarised in the workflow's sources.)
+https://pmc.ncbi.nlm.nih.gov/articles/PMC12457846/ as summarized in the workflow's sources.)
 
 EnrichmentMap confirms the building reading for its own cutoffs: "For a gene set to be included
 in the enrichment map it needs to pass both p-value and q-value thresholds", and "Edge specific
@@ -3548,8 +3548,8 @@ Network uses Cytoscape's explicit step for the same thing, "make it the working 
 - A rule that satisfies all nine: a new run reads the graph after the filter steps that cut on
   imported data, and not after steps that cut on a computed value; a step on a computed value is
   display-only unless the analyst turns it into a working set. The run's record line names the
-  steps it honoured. This agrees with the model's "no cycles" rule (a scope may not read the value
-  being computed) and generalises it from "the same result" to "any result".
+  steps it honored. This agrees with the model's "no cycles" rule (a scope may not read the value
+  being computed) and generalizes it from "the same result" to "any result".
 - graphty-element cannot express either default today: every run computes over the whole loaded
   graph whatever scope it records (`graphty-today.md` 7.7).
 
@@ -3652,7 +3652,7 @@ must carry and which can stay on the search result.
 phases, decision points or information needs (`design/designloom/workflows/W11.yaml`,
 `W17.yaml`). Supply Chain's paths are implicit in "Find high-betweenness nodes (bottlenecks)" and
 "What if supplier X fails?", both of which read shortest paths in aggregate and never one path.
-Hub Investigation reads the ego network, which is a neighbourhood, not a path. The supply-chain
+Hub Investigation reads the ego network, which is a neighborhood, not a path. The supply-chain
 persona "Identifies alternative paths and backup suppliers for critical components"
 (`personas/supply-chain-analyst.yaml`), which is a k-shortest or all-paths query answered at
 search time.
@@ -3700,7 +3700,7 @@ Question: the proposed default is that filter steps that cut on imported data ap
 and steps that cut on computed values do not (the follow-up above, "whether a threshold feeds a
 later computation or only thins the display"). Tested against the nine workflows that apply a
 threshold: is the rule right for each, and can the analyst tell from the filter list which steps a
-new run will honour?
+new run will honor?
 
 | Workflow | The step as it would read in the filter list | Origin of what it reads | The rule says | The workflow needs | Match |
 |---|---|---|---|---|---|
@@ -3747,7 +3747,7 @@ model exists to avoid: Gephi's defect was a scope the reader could not see
 of the step, defaulted by the rule, as the working-set kind already is (`conceptual-model.md` 5.2:
 the kind is visible on the row and switched by one checkable menu item):
 - The default by what the step reads: imported, joined or authored attributes, and topology
-  steps (component, k-core, neighbourhood, distance to a set) feed; attributes of origin result or
+  steps (component, k-core, neighborhood, distance to a set) feed; attributes of origin result or
   computed, and every relative cut (top N, percentile, z-score, which read a population), do not.
 - A step that runs do not read looks different on its row (for example a muted row with "Display
   only" as its one-word tag), and its menu has one checkable item to switch it. Degree cuts and
@@ -3798,10 +3798,10 @@ own expansion.
 **Result: rho is far below 0.9, and falls as the graph grows and gets sparser.** At the
 workflow's size the median is 0.1 to 0.25; no 10,000-node expansion reached 0.9. The mechanism is
 structural, not noise: every node on the second ring has lost all of its outward edges, so its
-betweenness inside the expansion is near zero, and the seed sits at the centre of every path in a
+betweenness inside the expansion is near zero, and the seed sits at the center of every path in a
 star-shaped expansion, so it ranks first inside its own expansion in up to 85% of cases whatever
 its real brokerage. For a fraud investigator this is the worst direction: the flagged entity
-looks like the broker because it was chosen as the centre. This matches the sampling literature
+looks like the broker because it was chosen as the center. This matches the sampling literature
 already cited in this file: path-based measures change on a subgraph (Costenbader and Valente
 2003; Borgatti, Carley and Krackhardt 2006, section on path-based measures above).
 

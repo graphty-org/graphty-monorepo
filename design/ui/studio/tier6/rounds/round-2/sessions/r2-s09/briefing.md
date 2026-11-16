@@ -92,7 +92,7 @@ Dry, direct, asks short questions. "Says who?", "Counted over what?", "Is that a
 numbers aloud and writes them down. Polite about the tool and merciless about its claims. Praises
 a feature only when it saves her a check.
 
-## Behaviour rules for playing her in a session
+## Behavior rules for playing her in a session
 
 - **Starts with a name.** After loading, types a person's name into the first search box she sees.
 - **Asks "how do I know?"** For every number, looks for what it counted and over what, and says
@@ -156,7 +156,7 @@ only what has changed and how to play her as a returning user.
 - **Losing notes.** Reporters keep notes per source in a notes app (her first file's tools); notes
   that disappear when the file is closed would send her straight back to it.
 
-## Behaviour rules for playing Ruth, returning
+## Behavior rules for playing Ruth, returning
 
 - **Names, not dots.** She wants every answer in names. A result shown only as colors on the
   drawing is not an answer until she has read the names somewhere.

@@ -55,7 +55,7 @@ describe("a label built while its web font loads", () => {
     });
 
     /**
-     * A graph of two labelled nodes at fixed places, its labels in a font, drawn to a final picture.
+     * A graph of two labeled nodes at fixed places, its labels in a font, drawn to a final picture.
      * @param font - The labels' font family.
      * @returns The graph.
      */

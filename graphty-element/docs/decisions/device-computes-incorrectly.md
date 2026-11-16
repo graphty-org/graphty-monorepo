@@ -22,13 +22,13 @@ numbers the first time it is given a device, check the answer on the host, and r
 that gets it wrong.
 
 Before this change the element had never been told that reason exists. Its five acceleration
-codes covered no WebGPU, no adapter, a software rasteriser, a lost device and a graph too large --
+codes covered no WebGPU, no adapter, a software rasterizer, a lost device and a graph too large --
 every one of them a device that is missing or unsuitable, none of them a device that answers
 and lies.
 
 ## What happened without it, measured
 
-A probe on such a machine succeeds: an adapter is there, it is not a software rasteriser by the
+A probe on such a machine succeeds: an adapter is there, it is not a software rasterizer by the
 element's test, and building an accelerator compiles nothing. So the element attached it and
 published `state: "idle"` with the broken device's vendor and description, and the app's status
 chip read "GPU acceleration: on".

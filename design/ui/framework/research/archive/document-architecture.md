@@ -9,7 +9,7 @@
 > disagree, the framework document wins.
 
 This document is the map of graphty's UX design documentation while it is being rebuilt. It says
-which documents exist, the one job each does, where it stops and its neighbour starts, how to
+which documents exist, the one job each does, where it stops and its neighbor starts, how to
 decide where a sentence goes, the order the documents are written in, and where every section of
 today's documents moves.
 
@@ -53,7 +53,7 @@ missing, and keeping each one small.
 |---|---|
 | Garrett, *The Elements of User Experience* (2nd ed., 2011) | Five planes -- strategy, scope, structure, skeleton, surface -- each resting on the one below. The set is layered on them (section 6) |
 | Johnson and Henderson, "Conceptual models: begin by designing what to design", *interactions* 9(1), 2002 | The model is objects, attributes, operations and relationships, and nothing about screens. It is designed first; its lexicon is the glossary |
-| Rosenfeld, Morville and Arango, *Information Architecture* (4th ed., 2015) | IA is organisation, labelling, navigation and search systems. Faceted classification, which the routing test in section 5 uses |
+| Rosenfeld, Morville and Arango, *Information Architecture* (4th ed., 2015) | IA is organization, labeling, navigation and search systems. Faceted classification, which the routing test in section 5 uses |
 | Brown, "Eight principles of information architecture", 2010 | Front doors (entry points) and growth (rules for adding things), both missing from the old IA |
 | Covert, *How to Make Sense of Any Mess* (2014); Klyn | Ontology, taxonomy and choreography as separate deliverables: the model and glossary, the IA, the flows |
 | Object-oriented UX (Prater and others) | The object map: objects, relationships, calls to action, attributes |
@@ -83,7 +83,7 @@ goes to `one-way-doors.md` as a recommendation.
    (`session/styles/channels.ts`, `catalog/types.ts`, `catalog/palettes.ts`). Strings move to a
    strings module once the app has one. A second copy of a value in a document is the defect this
    rebuild removes.
-2. **Every behaviour and every place has an Owner:** Element (a bare `<graphty-element>` on a
+2. **Every behavior and every place has an Owner:** Element (a bare `<graphty-element>` on a
    third-party page behaves this way), App (chrome only), or Element surfaced by the app (the
    element publishes the state and the operation; the app draws the control). The test: if a
    third party embedding the element would have to rebuild it, the owner is Element. The evidence
@@ -94,9 +94,9 @@ goes to `one-way-doors.md` as a recommendation.
    (`.worktrees/element-undo/design/undo/undo-design.md`) makes every project mutation an undoable
    command with a label. So "control" in the owner's MVC question is already in the model, as
    operations. What the control documents add is only how a command is invoked: the command
-   catalogue in `interaction-patterns.md` (operation, command name, undo-label template with one
+   catalog in `interaction-patterns.md` (operation, command name, undo-label template with one
    example, where it can be invoked, Owner, and the chord's role, whose key lives in the element's
-   default keymap or in `bindings.ts`). The catalogue is checked by name against the element's
+   default keymap or in `bindings.ts`). The catalog is checked by name against the element's
    command definitions (undo design 4.1), not the assistant's `CommandRegistry`, and is replaced by
    generation from them once they exist. It is marked provisional
    until the undo work merges.
@@ -119,7 +119,7 @@ goes to `one-way-doors.md` as a recommendation.
    change the analysis". A Library place on the rail waits until a collection of saved recipes
    exists and a tree test supports it.
 7. **Three representations of the graph, and the accessibility decision lives with them.** The
-   drawing shows an element among its neighbours; the inspector shows one element raw; the table
+   drawing shows an element among its neighbors; the inspector shows one element raw; the table
    shows many elements raw. They share selection and scope. The canvas and the table are peers;
    the inspector follows. A summary of the attributes (type, measurement level, distribution,
    missing values, which encoding uses it) is not a fourth representation: it lives in the
@@ -140,11 +140,11 @@ goes to `one-way-doors.md` as a recommendation.
    crosswalk.
 10. **The visual language has two parts and no token values.** Part A, chrome: when graphty uses
     compact-mantine's tokens and where it departs (the accent means interface state and never
-    data; chrome never borrows a data colour; the high-contrast interface option is not the
+    data; chrome never borrows a data color; the high-contrast interface option is not the
     graph's "High contrast" Look; density rules for the data table). Part B, the graph surface,
     written as requirements on graphty-element: palettes by measurement level, disjointness of the
-    highlight palette, default greys, the selection mark, label contrast, and one data colour drawn
-    identically on the four **colour surfaces** (canvas, legend, table swatch, inspector).
+    highlight palette, default grays, the selection mark, label contrast, and one data color drawn
+    identically on the four **color surfaces** (canvas, legend, table swatch, inspector).
 11. **Scale classes are defined by which mechanism fails, not by node counts.** Small (everything
     drawn, every list browsable); over the selection cap but drawable; over the drawing limit (not
     drawn; the table leads); does not load. Each boundary cites the constant or issue that sets it
@@ -181,15 +181,15 @@ first, so they run ahead of `README.md`'s; cite the README's number.
 | 6 | `conceptual-model.md` | Scope | What exists: objects, attributes, operations, relationships, lifecycles, the object map and the state table | Information architect, with the graphty-element API steward | 4,000 words |
 | 6a | `graph-conventions.md` | Scope | How every analysis reads a graph: declared and detected properties, weight roles, degree, density, normalization, comparison statistics; what every run's record cites | Network scientist, with the graphty-element API steward | 20 KB |
 | 7 | `glossary.md` | Scope | What each concept is called | Content designer | 40 KB |
-| 8 | `element-contract.md` | Scope | What graphty-element publishes and does, including a bare embed's behaviour, and the element-needs ledger | graphty-element API steward (front-end architect) | 60 KB |
+| 8 | `element-contract.md` | Scope | What graphty-element publishes and does, including a bare embed's behavior, and the element-needs ledger | graphty-element API steward (front-end architect) | 60 KB |
 | 9 | `figma-crosswalk.md` | Scope | How graphty's objects map onto Figma's, and the departures ledger | Figma product designer | 15 KB |
 | 10 | `information-architecture.md` | Structure | Where things live and how they are found, and the representation model | Information architect | 45 KB |
-| 11 | `interaction-patterns.md` | Structure | How things behave: composition-level patterns, modes, key ownership and dispatch, the command catalogue | Interaction designer | 80 KB (raised from 50 KB: it now holds the command catalogue, the full object-by-verb matrix and a complete entry form per pattern) |
+| 11 | `interaction-patterns.md` | Structure | How things behave: composition-level patterns, modes, key ownership and dispatch, the command catalog | Interaction designer | 80 KB (raised from 50 KB: it now holds the command catalog, the full object-by-verb matrix and a complete entry form per pattern) |
 | 12 | `options-and-encodings.md` | Structure | How large option spaces are controlled: the one form generated from a schema, for style channels, algorithm and layout options, import mapping and export | Visual designer, with the interaction designer | 30 KB |
 | 13 | `task-flows.md` | Structure | The step sequence of each top task and end-to-end route | Interaction designer | 70 KB (raised from 35 KB: every top task gets a step table, which is the hand-off to implementation; past 70 KB it splits by task tier) |
 | 14 | `state-matrix.md` | Skeleton | What every surface does in every state, concern level, collection count and mode, and the story that proves each | Interaction designer, with the front-end architect | 40 KB |
 | 15 | `interface-specification.md` | Skeleton | Templates as deltas from Figma: regions, row types, which component does which job, with a component status column | Figma product designer | 72 KB (the Figma selection mapping, the load step and the full option vocabulary are its own content) |
-| 16 | `content-design.md` | Skeleton | Voice, copy conventions, word budgets, and the message catalogue until a strings module exists | Content designer | 25 KB |
+| 16 | `content-design.md` | Skeleton | Voice, copy conventions, word budgets, and the message catalog until a strings module exists | Content designer | 25 KB |
 | 17 | `visual-language.md` | Surface | Part A, chrome rules over compact-mantine's tokens; Part B, the graph surface as element requirements | Visual designer | 20 KB |
 | 18 | `implementation-mapping.md` | Beyond the planes | From specification to code: state ownership, data flow, module structure, the shell audit, Storybook structure, traceability | Front-end architect | 30 KB |
 | 19 | `one-way-doors.md` | -- | The owner's expensive-to-undo decisions, with recommendations | Design director; decided by the owner | 60 KB |
@@ -236,7 +236,7 @@ with people who match the journey.
 principles, the conflict ledger, and the fixed rules: WCAG 2.2 AA naming 1.1.1 and 1.4.11,
 "a budget is a test", the marks are closed. Not here: the
 departures list (crosswalk), marks' wording (glossary) and placement (content design), screen
-compositions (interface specification), behaviour at a size (state matrix). Validation: each
+compositions (interface specification), behavior at a size (state matrix). Validation: each
 principle's test applied to the ledger's conflicts.
 
 **`conceptual-model.md`.** Reads: research, top tasks, the sets and undo designs, graphty-element
@@ -252,7 +252,7 @@ about the screen.
 **`glossary.md`.** Reads: the model. Owns: preferred terms, definitions of at most two sentences,
 rejected synonyms, broader and narrower terms (a path is a kind of set), aliases, the tier where a
 word may appear, published names and their changes, and a machine-readable word list. Not here:
-copy conventions (content design), placement or behaviour of interface words. Validation: the word
+copy conventions (content design), placement or behavior of interface words. Validation: the word
 list run over every document; no rejected word appears.
 
 **`element-contract.md`.** Reads: the model, the glossary, graphty-element source. Owns:
@@ -265,28 +265,28 @@ recommendation and says so).
 
 **`figma-crosswalk.md`.** Reads: `research/figma.md`, `design/ui/figma/`. Owns: the object map
 (each Figma object: adopt, adapt or reject, naming the graph fact that forces a departure) and the
-departures ledger. Not here: placements (IA) or behaviour (patterns), which carry their own
+departures ledger. Not here: placements (IA) or behavior (patterns), which carry their own
 "Figma source" field. Validation: completeness walked from Figma's object list.
 
 **`information-architecture.md`.** Reads: the object map, the glossary, top tasks, journeys, the
 crosswalk. Owns: the collection inventory (every object shown as a list, with its size range and
-growth rule per scale class), organisation schemes per collection, the place inventory with Owner,
+growth rule per scale class), organization schemes per collection, the place inventory with Owner,
 Figma source and focus-region order, a structure diagram, the navigation model (global, local,
 contextual, supplemental), the search model per scale class, entry points (including the embedded
 consumer and the two recipe commands), the representation model and its accessibility role,
 output homes, rationale and rejected alternatives, and rules for growth. Not here: sizes, section
 order within a surface, keys, strings, states. Validation: a tree test of the text outline with a
-small-graph and a large-graph script, and a closed card sort of the catalogue families.
+small-graph and a large-graph script, and a closed card sort of the catalog families.
 
 **`interaction-patterns.md`.** Reads: the crosswalk, `design/ui/figma/flows.md`,
 `design/ui/figma/accessibility/` (tab order per region, region cycling, screen-reader captures),
 principles, the undo design. Owns: composition-level patterns across components, surfaces and the
-canvas, each on one screen with Use when, Why, Trigger, Behaviour, Feedback, Undo, Exceptions,
+canvas, each on one screen with Use when, Why, Trigger, Behavior, Feedback, Undo, Exceptions,
 Owner, Outcome, Figma source or departure, Inherits (the compact-mantine component, when one
 applies), Today and Validated by; the list of modes
 with entry, exit and indicator; the commit and cost rules with the response classes (0.1 s, 1 s,
-10 s); keyboard operation of the canvas, key ownership and dispatch; and the command catalogue.
-Component-level behaviour (commit on Enter, scrub) is the compact-mantine story's, not repeated
+10 s); keyboard operation of the canvas, key ownership and dispatch; and the command catalog.
+Component-level behavior (commit on Enter, scrub) is the compact-mantine story's, not repeated
 here. Not here: which surface a pattern appears on, a task's step sequence, chords (code).
 Validation: each element-owned pattern is exercised on a bare embed.
 
@@ -303,7 +303,7 @@ rules through all five option spaces and check none needs its own disclosure rul
 **`task-flows.md`.** Reads: top tasks, journeys, IA, patterns. Owns: one mermaid flow per top task
 and per end-to-end route (comparison, time, import and re-map, replace data, apply a recipe,
 export and report, expand from seeds), with branches, a step table naming the graphty-element call behind each
-step, and the step count from rest. A flow cites patterns and never defines behaviour; a step with
+step, and the step count from rest. A flow cites patterns and never defines behavior; a step with
 no pattern means a pattern is missing. Validation: the link and label check
 (`research/scripts/check-flows.mjs`), cognitive walkthrough against the workflows, and task-based
 tests on a prototype against the success measures in `top-tasks.md`.
@@ -314,7 +314,7 @@ Owns: scale classes and collection-size classes, the mode axis, and a matrix of 
 disconnected source, read-only), each cell naming the pattern that applies. A budget column per
 scale class, each value citing a measurement, saying "unmeasured", or saying "software renderer,
 ratio only". Not here: strings (content design), object lifecycle states (model). A limit caused
-by an element defect is labelled as one: the 5,000 selection cap is one mesh per selected node
+by an element defect is labeled as one: the 5,000 selection cap is one mesh per selected node
 that is never freed, so its row names the defect, not "scale". Validation: every cell points to a
 template and, once built, a story.
 
@@ -331,9 +331,9 @@ code.
 `codes.ts`. Owns: voice and tone, the copy conventions, message types and their caps, numbers and
 dates, where each mark shows and how it is spoken, what counts as app text and the counted-state
 stories, the undo-label grammar (the element's command definitions hold the values and test the
-grammar), and the message catalogue until the strings modules exist. Not here: when a message
+grammar), and the message catalog until the strings modules exist. Not here: when a message
 appears (interaction patterns), the budget numbers (principles), what an error code means
-(`codes.ts`). Validation: reader testing of the catalogue, marks and state lines.
+(`codes.ts`). Validation: reader testing of the catalog, marks and state lines.
 
 **`visual-language.md`.** Reads: compact-mantine's `design/figma-spec.md`, `design/ui/figma/`
 dark-theme and canvas captures, `catalog/palettes.ts`. Owns: Part A and Part B as in section 2,
@@ -389,7 +389,7 @@ the sentence states a value that has a home in code, it becomes a pointer to tha
 | What a concept is called | glossary |
 | A rule that decides between two good designs, or a fixed rule | principles |
 | A correspondence with a Figma object, or a departure from Figma | figma crosswalk |
-| Which place something lives in, how a collection is organised, how it is reached or found | IA |
+| Which place something lives in, how a collection is organized, how it is reached or found | IA |
 | A rule of the generated form, an encoding or a legend | options-and-encodings |
 | What happens in response to an input or a mode, wherever it appears | interaction patterns |
 | An ordered sequence of steps toward one goal | task flows |
@@ -517,13 +517,13 @@ downstream one re-derived.
   channels folding into head and tail pairs, leaving 15 edge rows); the option-schema gaps; the
   default overview recipe; the element-needs ledger; "What a bare embed does".
 - **Element-owned patterns**: selection (click, Shift+click, marquee, the cap, Escape), selection
-  feedback (never changes the colour an encoding produced), commands and undo, long-running work
-  and the response classes, modes, canvas keyboard, linked representations. The command catalogue,
+  feedback (never changes the color an encoding produced), commands and undo, long-running work
+  and the response classes, modes, canvas keyboard, linked representations. The command catalog,
   provisional.
 - **Scale classes** by failing mechanism, numbers "unmeasured"; the IA's collection inventory as
   input.
 - **Visual language**: Part A whole; Part B's selection rules only (the mark never changes a
-  node's fill; it meets 3:1 against both canvas backgrounds and every built-in palette colour,
+  node's fill; it meets 3:1 against both canvas backgrounds and every built-in palette color,
   which only a two-tone ring achieved; the highlight palette is disjoint from every categorical
   palette and the accent).
 - **Principles**: move the departures out; add the accessibility rule (the response classes are `interaction-patterns.md` 3.3, which `state-matrix.md` 4 cites).
@@ -534,20 +534,20 @@ downstream one re-derived.
 large-graph scripts. The implementation map, starting with state ownership and the shell audit.
 User journeys.
 
-**Phase 3: one thin slice.** "Colour nodes by an attribute, read the legend, then run Degree and
+**Phase 3: one thin slice.** "Color nodes by an attribute, read the legend, then run Degree and
 size nodes by it", carried through every document to a Storybook story that exists. It exercises
-palettes, the legend, the table's colour swatch, the halo, `explain` in the table, a run with a
+palettes, the legend, the table's color swatch, the halo, `explain` in the table, a run with a
 cost estimate, progress and cancel, and one undo that reverses the style change and leaves the
 run. If it needs a component or element change, it stops and files the issue; it never grows a
 local workaround. At the end, count the slice's sentences the routing test could not place
 cleanly. If the count is high, merge the documents the failures cluster in.
 
 **Phase 4: breadth.** The remaining patterns, options-and-encodings, task flows, the state matrix
-and interface specification written together, content design, the rest of Part B (greys, label
+and interface specification written together, content design, the rest of Part B (grays, label
 legibility, palette by measurement level, level of detail per scale class). Extend the slice to
 the overview recipe once the recipe's one-way-door entry is written.
 
-**Phase 5: studies.** The top-task vote, the catalogue card sort, first-click tests on the table,
+**Phase 5: studies.** The top-task vote, the catalog card sort, first-click tests on the table,
 the accessibility audit, as scheduled in `research/study-schedule.md`.
 
 ### 7.2 The MVC answer: what the model holds
@@ -561,12 +561,12 @@ each MVC part is a set of documents:
 |---|---|---|
 | Model | Objects, relationships, lifecycles, operations (the element's commands), and state | conceptual model; element contract |
 | View layer | Representations, places, templates, appearance, strings | IA; interface specification; visual language; content design |
-| Control layer | How commands are invoked: patterns, modes, the command catalogue, chords | interaction patterns; task flows; `bindings.ts` |
+| Control layer | How commands are invoked: patterns, modes, the command catalog, chords | interaction patterns; task flows; `bindings.ts` |
 
 Some model objects are about presentation: a style layer, a saved view, a note, stored positions,
 a Look. The analyst creates, names, saves, shares and undoes them, as Figma users do styles and
 comments. Two tests draw the line. **Would a third-party consumer of graphty-element need this
-state to rebuild graphty's behaviour?** If yes, it is model and the element owns it. **If two
+state to rebuild graphty's behavior?** If yes, it is model and the element owns it. **If two
 analysts open the same file with different app themes, does it differ between their screens?** If
 yes, it is not model. The graph's Look, including its canvas background, is model; the app theme is
 a reader preference.
@@ -594,11 +594,11 @@ Each goes to `one-way-doors.md` as a recommendation; none is decided here.
   improves a recipe you applied, should your project be offered the update, or change by itself?"
   Recommendation: offered.
 - **Which state is saved**, row by row from the table above.
-- **The selection mark's default**: form (a ring behind the node), colour (two-tone) and scale are
+- **The selection mark's default**: form (a ring behind the node), color (two-tone) and scale are
   published defaults.
 - **The canvas background belongs to the Look**, saved in the file, not to the app theme. The
   alternative (background follows the app theme, palettes adjusted per theme) breaks the rule that
-  the app theme never changes data colours.
+  the app theme never changes data colors.
 - **Palette identifiers**, and any change to the default categorical palette if its black entry
   fails against the default dark Look.
 - **The default canvas input map**, published as configurable defaults.
@@ -611,7 +611,7 @@ Each goes to `one-way-doors.md` as a recommendation; none is decided here.
 These are examples of the depth every document must reach, not a checklist.
 
 - **Large and small graphs** (state matrix). Classes by failing mechanism (section 2, item 11).
-  For each class, what changes on every surface and what never changes: behaviour never depends
+  For each class, what changes on every surface and what never changes: behavior never depends
   on size; only presentation may. Beyond the drawing limit, the table leads and search replaces
   browsing (IA).
 - **How many style controls** (options-and-encodings). 13 node channels and 15 edge rows once
@@ -678,16 +678,16 @@ Done. Where each section of the long form landed is the one migration map, in th
 |---|---|
 | 1, 2 | keep; the review procedure of 1 becomes the word-list check |
 | 3 | content design, whole |
-| 4-9, 11, 12 | keep; definitions trimmed to two sentences, behaviour moved to the model |
+| 4-9, 11, 12 | keep; definitions trimmed to two sentences, behavior moved to the model |
 | 10 | keep definitions; the "Where" column and state-line rule to content design; triggers to the state matrix |
-| 13 | keep words and definitions; placement to the specification; behaviour to patterns |
+| 13 | keep words and definitions; placement to the specification; behavior to patterns |
 | 14-17 | keep |
 
 ### 8.4 `principles.md`
 
 | Section | Destination |
 |---|---|
-| 0-4, 6, ranking, worked conflicts, ledger | keep; worked-conflict drafts labelled as examples |
+| 0-4, 6, ranking, worked conflicts, ledger | keep; worked-conflict drafts labeled as examples |
 | 5 | keep the principle and budgets; empty-screen and canvas composition to the specification and state matrix |
 | Departures from Figma | the crosswalk's departures ledger |
 | How every skill level is served | keep |
@@ -710,9 +710,9 @@ Done. Where each section of the long form landed is the one migration map, in th
 | `element-contract.md` | keep; receives IA 12, channels, option schema, events, limits, the ledger, "What a bare embed does"; section 10's name list becomes a pointer to `glossary.md` 17 |
 | `one-way-doors.md` | keep; receives section 7.3 |
 | `design/ui/object-first-ux/interaction-patterns.md` | Part 3 (the 27 patterns) and Part 4 (review checklist) to patterns; Parts 1, 2 and 5 not carried |
-| `design/ui/object-first-ux/visual-language.md` | 4.3 to 4.8 (accent, selection, data colour, canvas) to the visual language, Part A or B; token values in 3 to 6 and 8 are replaced by pointers to compact-mantine's specification; 2 (grid, row heights) is already rule 3 of that specification, so it becomes a pointer; 7 (which component does which job) to the interface specification; 9 to content design; 10 to patterns; 11 to principles (the target) and the IA (the representation decision) |
+| `design/ui/object-first-ux/visual-language.md` | 4.3 to 4.8 (accent, selection, data color, canvas) to the visual language, Part A or B; token values in 3 to 6 and 8 are replaced by pointers to compact-mantine's specification; 2 (grid, row heights) is already rule 3 of that specification, so it becomes a pointer; 7 (which component does which job) to the interface specification; 9 to content design; 10 to patterns; 11 to principles (the target) and the IA (the representation decision) |
 | `research/design-method.md` 10 | the review checklist to the study schedule |
-| `interface-specification.md`, content from its earlier draft | Merge nodes pair by pair, Re-run on CPU, Update and Revert view, delete never asks, Esc and non-modal behaviour to patterns; Fit power law, degree variants, preset bands and per-edge "directed" to graph conventions; toast and button strings and the chip's width budget to content design; heights, target counts, caps and the dock over the drawing limit to the state matrix; Preferences and menu contents to the IA outline; end-to-end routes to task flows; import and restore report contents and "a note never targets a result" to the conceptual model; build order, state flow and performance budgets to `implementation-mapping.md`. The full text is kept in `research/archive/information-architecture-long-form.md` |
+| `interface-specification.md`, content from its earlier draft | Merge nodes pair by pair, Re-run on CPU, Update and Revert view, delete never asks, Esc and non-modal behavior to patterns; Fit power law, degree variants, preset bands and per-edge "directed" to graph conventions; toast and button strings and the chip's width budget to content design; heights, target counts, caps and the dock over the drawing limit to the state matrix; Preferences and menu contents to the IA outline; end-to-end routes to task flows; import and restore report contents and "a note never targets a result" to the conceptual model; build order, state flow and performance budgets to `implementation-mapping.md`. The full text is kept in `research/archive/information-architecture-long-form.md` |
 
 ### 8.7 `task-flows.md`
 
@@ -723,7 +723,7 @@ sentences that were not steps belong elsewhere; the full text is kept in
 
 | Sentence kind | Example | Goes to |
 |---|---|---|
-| behaviour | "dragging and playing edit that step and record no undo entries"; "closing the slider removes the step"; Carry over to new run | `interaction-patterns.md` 7.3 and 6 |
+| behavior | "dragging and playing edit that step and record no undo entries"; "closing the slider removes the step"; Carry over to new run | `interaction-patterns.md` 7.3 and 6 |
 | presentation | "top 5 then N more"; A, B and difference columns; sorted by the change | `interface-specification.md`, `options-and-encodings.md` |
 | model rule | a different scope is not out of date; Cut off is a count; key matching | `conceptual-model.md` 4.5 and 4.7; `element-contract.md` |
 | a reason | why the Path tool keeps a toolbar slot | `information-architecture.md` 11 |

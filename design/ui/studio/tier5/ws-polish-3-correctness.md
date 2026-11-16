@@ -50,7 +50,7 @@ sidebar layer row and the canvas.
     - Except on A gives A 53, B 1 drawn and a total of 54 (networkx 53, 1, 54) (`lm/13.png`).
     - On 4,000 nodes, team green reads "811, under A" (`m/03.png`).
 - **Cancel** after two edits (B min 20, A Except) restores 28 with A 24 and B 7 (`lm/14.png`).
-  Mod+Z brings back the cancelled 54, and redo returns to 28 (`lm/16.png`, `lm/17.png`).
+  Mod+Z brings back the canceled 54, and redo returns to 28 (`lm/16.png`, `lm/17.png`).
 - **Save and reopen.**
     - Les Miserables, saved to browser storage, reopens at 28 of 77. The step's tooltip still reads
       "Core depth 3 to 5, Edges: shared_chapters min 2" (`lm/19.png`, `lm/20.png`).
@@ -112,7 +112,7 @@ sidebar layer row and the canvas.
     - The sidebar layer row reads 2.
     - The outline's title row reads "0 of 8", and its step reads "Run".
 - A second Mod+Z undoes the filter, which returns to 24 of 24 (`v/07.png`).
-- One Mod+Shift+Z restores the filter. The element reruns Louvain, and Redo goes grey with one redo
+- One Mod+Shift+Z restores the filter. The element reruns Louvain, and Redo goes gray with one redo
   still owed (`v/08.png`).
 - The next Mod+Z again says "Undid running Louvain." (`v/09.png`, `crop-v09.png`).
 

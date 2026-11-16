@@ -238,7 +238,7 @@ function KeepAssetsDialog(): React.JSX.Element {
         }
         setChoices({});
         // Closed without an answer (another dialog took the slot, as Save as pressed while it
-        // asks): the save waiting on it is cancelled, never left waiting.
+        // asks): the save waiting on it is canceled, never left waiting.
         return () => {
             assetQuestion(store)?.answer(null);
         };

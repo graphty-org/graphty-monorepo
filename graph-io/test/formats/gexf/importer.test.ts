@@ -756,7 +756,7 @@ describe("gexfImporter: sink precedence (design 8.4)", () => {
         );
         const sinkIssues = report.issues.filter((i) => i.code === SINK_OPTION_CODE).map((i) => i.element);
         expect(sinkIssues).toEqual(["addMissingNodes", "duplicateEdges", "selfLoops", "weightDtype"]);
-        // addMissingNodes: false is enforced by the importer itself, so it is honoured on any sink;
+        // addMissingNodes: false is enforced by the importer itself, so it is honored on any sink;
         // options left undefined are defaults, never requests
         const lenient = new GraphBuilder({ directed: false, weightDtype: "f32", addMissingNodes: true });
         const silent = await load(readCorpusText("gexf", "minimal.gexf"), { addMissingNodes: false }, lenient);

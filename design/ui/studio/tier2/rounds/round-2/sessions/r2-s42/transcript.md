@@ -25,7 +25,7 @@ from data...".
 ### Step 2
 `--click "New from data..."` -> 03.png
 
-03.png: "Open as a new graph", a "Tables" list on the left with a +, and a tiny grey line "Drop a
+03.png: "Open as a new graph", a "Tables" list on the left with a +, and a tiny gray line "Drop a
 file here, or choose a file..." -- I had to lean in to read it. "Tables" plural is promising: maybe
 I can put both sheets in. I'll start with the squad list, players.csv, via "choose a file...".
 
@@ -161,4 +161,4 @@ one click away, is what earns my trust.
   if that matters later when I rank players.
 - I wanted to see the loaded rows as a table after Load (who has which name) -- the Data place
   shows columns and percentages, not the rows.
-- Small grey text ("Drop a file here, or choose a file...", "Each row is") is hard to read.
+- Small gray text ("Drop a file here, or choose a file...", "Each row is") is hard to read.

@@ -29,7 +29,7 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 The most common custom-camera request, a slow orbit, needs no extension: the element ships an
 "orbit" motion (`playCameraMotion("orbit")`, README section 12, item 36). A custom still view or
 motion is written with `defineCameraView` or `defineCameraMotion` (`simple-tier.md` section 4.6),
-from a frame that already carries the centre and the distance at which the graph fits:
+from a frame that already carries the center and the distance at which the graph fits:
 
 ```ts
 import { defineCameraMotion, defineCameraView } from "@graphty/graphty-element/extend";
@@ -94,7 +94,7 @@ or the current camera state.
    `position` and `target` are not documented here yet; a view that relies on it SHOULD set it
    together with `position` and `target`. The units of `zoom` and `pan` are not stated either: the
    worked example assumes CSS pixels per scene unit and the scene coordinates of the viewport
-   centre, and a view written with another reading frames the graph wrongly. Whether
+   center, and a view written with another reading frames the graph wrongly. Whether
    `pivotRotation` becomes the documented orientation route or is deprecated for a new `up` member
    (`CameraStateUp` in `camera.d.ts`), and the units, are open decision 27 -- ONE route, never two
    with no stated precedence.
@@ -120,7 +120,7 @@ or the current camera state.
 | One registration, different result per mode                            | `input.mode`                                                                                                                               | "computes a different view in two dimensions than in three..." |
 | Frames a subset                                                        | `applyCameraView(id, { scope })`; the box covers only the scope                                                                            | "frames a named subset..."                                     |
 | Options defaulted, validated, and refused when unknown or out of range | `params`                                                                                                                                   | "being configured" block                                       |
-| Animated, and settles when cancelled                                   | `CameraAnimationOptions`                                                                                                                   | "being animated to" block                                      |
+| Animated, and settles when canceled                                    | `CameraAnimationOptions`                                                                                                                   | "being animated to" block                                      |
 | Frames a screenshot and restores the camera afterwards                 | `captureScreenshot`                                                                                                                        | "can be the view a screenshot is framed from..."               |
 | Its name cannot be taken by a saved camera snapshot                    | `saveCameraPreset`                                                                                                                         | "cannot have its name taken..."                                |
 
@@ -129,7 +129,7 @@ or the current camera state.
 1. A registered view MUST be reachable by every route in the table with the same arguments a
    built-in takes.
 2. Progress is vacuous (a view is synchronous). Cancellation applies to the ANIMATION, which the
-   element owns, and a registered view gets it exactly as a built-in does: a cancelled animation
+   element owns, and a registered view gets it exactly as a built-in does: a canceled animation
    settles rather than rejecting.
 3. **(not yet met)** A screenshot cannot pass options or a scope to a view: `captureScreenshot`
    resolves `options.camera.preset` with neither. The missing options affect only plugin views (no
@@ -229,12 +229,12 @@ Run by `checkCameraView(registration)` in the proposed kit. All run in Node exce
 
 | Check                            | Passes when                                                                                                                                                                                |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| registers                        | `registerCameraView` accepts it and the catalogue lists the descriptor                                                                                                                     |
+| registers                        | `registerCameraView` accepts it and the catalog lists the descriptor                                                                                                                       |
 | descriptor is valid              | validates against `#/$defs/CameraDescriptor`                                                                                                                                               |
 | id is not reserved               | not in `KNOWN_CAMERA_IDS`                                                                                                                                                                  |
 | computes in every declared mode  | for each mode, on the kit's standard boxes (unit cube, flat slab, single point, far-off-origin box), `compute` returns a state with only finite numbers                                    |
 | is pure                          | two calls with deep-equal input return deep-equal output, `input` is unchanged, and no DOM, timer or fetch access occurs (the kit runs `compute` with those globals trapped)               |
-| frames what it is given          | for a 3D view, `target` lies within the box expanded by its largest dimension; for a 2D view, `pan` lies within the box (a warning, not a failure: a view may frame off-centre on purpose) |
+| frames what it is given          | for a 3D view, `target` lies within the box expanded by its largest dimension; for a 2D view, `pan` lies within the box (a warning, not a failure: a view may frame off-center on purpose) |
 | options default and validate     | declared defaults reach `input.options`; an undeclared or out-of-range option is refused before `compute` is called                                                                        |
 | is applied by every route        | `applyCameraView`, `loadCameraPreset`, `setCameraState({ preset })` and `captureScreenshot({ camera: { preset } })` each move the camera to the computed state (browser)                   |
 | is refused in an undeclared mode | in a mode not in `modes`, the route rejects with `E_UNSUPPORTED` and `compute` is not called (browser)                                                                                     |

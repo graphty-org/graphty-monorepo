@@ -226,7 +226,7 @@ describe("Operation Cancellation", () => {
         );
         const waiting = queueManager.queueOperationAsync("camera-update", () => undefined);
 
-        // The camera update is queued behind the running one; cancelling it settles its caller
+        // The camera update is queued behind the running one; canceling it settles its caller
         await started.promise;
         assert.equal(queueManager.cancelByCategory("camera-update"), 1);
         await waiting;

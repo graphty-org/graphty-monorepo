@@ -28,7 +28,7 @@ export interface OverviewRect {
 /**
  * What `getOverview()` returns: the graph laid flat along the current view, in a unit frame
  * where x runs right and y runs down from 0 to 1. The frame is the box around every placed node,
- * scaled the same on both axes so the longer side spans 0 to 1 and the shorter one is centred.
+ * scaled the same on both axes so the longer side spans 0 to 1 and the shorter one is centered.
  */
 export interface GraphOverview {
     /** `"points"` up to `maxPoints` placed nodes, `"density"` above it. */
@@ -66,7 +66,7 @@ export interface OverviewFrame {
     midZ: number;
     /** View units per frame unit. */
     size: number;
-    /** Frame-unit offsets that centre the shorter side. */
+    /** Frame-unit offsets that center the shorter side. */
     offX: number;
     offY: number;
 }

@@ -23,7 +23,7 @@ something from my own data, so I'll try that."
 Command: `node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s37 --click "New from data..."`
 
 Screenshot 03.png. A page "Open as a new graph" with a "Tables" list on the left that has a plus,
-"Drop a file here, or choose a file...", a Direction dropdown ("As the file says"), and Load greyed
+"Drop a file here, or choose a file...", a Direction dropdown ("As the file says"), and Load grayed
 out ("Choose a file first"). Elena: "'Tables', plural, with a plus -- that looks like I can give it
 more than one. I'll start with the people list and choose a file."
 

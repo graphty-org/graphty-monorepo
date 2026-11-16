@@ -164,7 +164,7 @@ describe("the XR tracking-glitch guard", () => {
  * up relative to where the drag began. Each offset is one update; a step of 5 cm or less is within
  * a hand's reach in a single frame at any frame rate, so the guard never takes it for a glitch.
  * @param zAxisAmplification - `xr.input.zAxisAmplification`, or the default.
- * @param offsets - Hand offsets from where the drag began, in metres, one per frame.
+ * @param offsets - Hand offsets from where the drag began, in meters, one per frame.
  * @returns The node's movement.
  */
 async function headsetDrag(zAxisAmplification: number | undefined, ...offsets: Vector3[]): Promise<Vector3> {
@@ -215,7 +215,7 @@ async function headsetDrag(zAxisAmplification: number | undefined, ...offsets: V
  * 2^-23 m (1.2e-7 m); composing the pose (reference space, wrist, joints) rounds a few times, so the
  * hand is known to about 4 steps, and amplification multiplies that error along with the move.
  * @param amplification - `xr.input.zAxisAmplification` in effect.
- * @returns The tolerance, in metres.
+ * @returns The tolerance, in meters.
  */
 function headsetWithin(amplification: number): number {
     return 4 * 2 ** -23 * amplification;
@@ -250,7 +250,7 @@ describe("a headset drag", () => {
             snapped,
             ...steps(new Vector3(0.1, 0, 0), 2, snapped),
         );
-        // The headset reports poses in 32-bit floats, a few millionths of a metre apart at 50 m.
+        // The headset reports poses in 32-bit floats, a few millionths of a meter apart at 50 m.
         assertNear(moved, new Vector3(0.2, 0, 0), "the jump is ignored; the moves either side of it count", 1e-5);
     });
 

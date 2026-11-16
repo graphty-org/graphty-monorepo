@@ -1,5 +1,5 @@
 /**
- * A position-matched drawing places the nodes the program's drawing does not show among their neighbours
+ * A position-matched drawing places the nodes the program's drawing does not show among their neighbors
  * (`placeUndrawn`), not where graphty's own layout left them.
  */
 import { assert, describe, it } from "vitest";
@@ -24,7 +24,7 @@ describe("placeUndrawn", () => {
         const out = placeUndrawn(placed, ["a", "b", "c", "hidden", "behind", "leaf", "alone"], edges);
         assert.deepEqual(out.get("hidden"), [5, 10 / 3]);
         assert.deepEqual(out.get("behind"), [5, (10 / 3 + 10) / 2]);
-        // one placed neighbour or none: left without a place (on its one neighbour it would cover it), and the placed
+        // one placed neighbor or none: left without a place (on its one neighbor it would cover it), and the placed
         // nodes are not moved
         assert.deepEqual([...out.keys()].sort(), ["behind", "hidden"]);
     });

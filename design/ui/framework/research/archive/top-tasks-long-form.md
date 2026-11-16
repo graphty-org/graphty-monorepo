@@ -1,6 +1,6 @@
 # top-tasks, long form (superseded 2026-09-27)
 
-This is the long form of `top-tasks.md` as it stood before it was split by the document architecture. It is kept read-only as the record of the reasoning, and its section numbers are the ones older citations use. Where it disagrees with the current `top-tasks.md` or with the documents that received its sections, those documents win. The ranked tasks, frequencies and evidence stay in `top-tasks.md`. Inspector contents per selection and the rows at rest moved to `interface-specification.md`; filter-step behaviour and the weight-role rules to `conceptual-model.md` and `graph-conventions.md`; the paint and "covered" rules to `conceptual-model.md` 4.1, where the covered states are withdrawn; the per-task reasons for contested rankings are kept here and summarized in `top-tasks.md`.
+This is the long form of `top-tasks.md` as it stood before it was split by the document architecture. It is kept read-only as the record of the reasoning, and its section numbers are the ones older citations use. Where it disagrees with the current `top-tasks.md` or with the documents that received its sections, those documents win. The ranked tasks, frequencies and evidence stay in `top-tasks.md`. Inspector contents per selection and the rows at rest moved to `interface-specification.md`; filter-step behavior and the weight-role rules to `conceptual-model.md` and `graph-conventions.md`; the paint and "covered" rules to `conceptual-model.md` 4.1, where the covered states are withdrawn; the per-task reasons for contested rankings are kept here and summarized in `top-tasks.md`.
 
 ---
 
@@ -353,7 +353,7 @@ prominence.
   the full graph; filtering does not. Joining a second table is Join, its own data operation. Serves "Knowledge Graph Construction", "Criminal Network Analysis".
 - **Structural roles**: bridges and articulation points.
 - **Motifs, pattern search and link prediction** ("Graph-Based Recommendation").
-- **The rest of the algorithm catalogue**, all reachable through one door.
+- **The rest of the algorithm catalog**, all reachable through one door.
 - **Save a view** (a camera position and what is shown). A view is a secondary object, not a
   graph object; it serves "Visual Exploration - Overview to Detail", "Iterative Analysis Cycle",
   "Threat Hunting" and "Reproducible Session and Network Publication".
@@ -560,7 +560,7 @@ results are shown plus task 10; degree is a property of every node.
 ## Limits of this evidence
 
 - Every workflow and persona file is marked `validated: false`. They describe imagined use, not
-  observed use, and the phase coding is one reader's judgement.
+  observed use, and the phase coding is one reader's judgment.
 - The order of tasks 2 to 7 is the least certain part. A top-task vote or first-click test with
   even five real weekly analysts would settle it better. Until then, the design should make tasks
   2 to 7 about equally reachable.
@@ -579,7 +579,7 @@ results are shown plus task 10; degree is a property of every node.
   path, comparison, subgraph restriction and autosave cost
 - `design/ui/framework/research/graph-analysis.md`, section 4.1 (the analysis loop) and follow-ups
   on scope, time and triage status
-- `design/ui/framework/research/graph-tools.md` (Gephi and Cytoscape behaviour)
+- `design/ui/framework/research/graph-tools.md` (Gephi and Cytoscape behavior)
 - `design/ui/framework/research/figma.md`, section 1.2 ("Selection drives the inspector"), the
   create-and-change table ("Mixed" values), and "Follow-up: How Figma reads
   existing objects"

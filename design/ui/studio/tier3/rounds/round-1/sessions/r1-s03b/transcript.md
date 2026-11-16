@@ -19,22 +19,22 @@ Notes: "Sample library". First card: "Who holds the novel together -- Les Misera
 ## Step 5 -- open Les Miserables
 Command: `--step <folder> --click "Who holds the novel together"`
 Screenshot: 05.png
-Notes: It opened. "Les Miserables", 77 nodes, 254 edges -- matches the card. All the dots are blue-purple. "Local only" at the top, good. There's a black bar about the browser clearing things; I'll leave it. On the right there's "Style" next to "Values". Colour sounds like Style. Trying that.
+Notes: It opened. "Les Miserables", 77 nodes, 254 edges -- matches the card. All the dots are blue-purple. "Local only" at the top, good. There's a black bar about the browser clearing things; I'll leave it. On the right there's "Style" next to "Values". Color sounds like Style. Trying that.
 
 ## Step 6 -- Style tab
 Command: `--step <folder> --click "role=tab:Style"`
 Screenshot: 06.png
-Notes: This is "Canvas" -- background colour, lighting. That's the background, not the dots. Not what I want. On the left there's a list with "Everything 77". 77 is the number of characters, so "Everything" must be all of them. I'll click that.
+Notes: This is "Canvas" -- background color, lighting. That's the background, not the dots. Not what I want. On the left there's a list with "Everything 77". 77 is the number of characters, so "Everything" must be all of them. I'll click that.
 
 ## Step 7 -- "Everything"
 Command: `--step <folder> --click "Everything"`
 Screenshot: 07.png
-Notes: Right side now says "Everything styles all 77 nodes". Under "Fill" there's "Color" with a blue box and "6366F1". That's the colour of the dots. I'll click the little colour box and hope there's a picker.
+Notes: Right side now says "Everything styles all 77 nodes". Under "Fill" there's "Color" with a blue box and "6366F1". That's the color of the dots. I'll click the little color box and hope there's a picker.
 
-## Step 8 -- the colour box
+## Step 8 -- the color box
 Command: `--step <folder> --click-at 1268,483` (button "Pick node color")
 Screenshot: 08.png
-Notes: A colour picker. The little swatches at the bottom are blue, grey, blue, yellow, black -- no green. There's a rainbow bar. I'll click where the green is on the bar, then go darker in the big square.
+Notes: A color picker. The little swatches at the bottom are blue, gray, blue, yellow, black -- no green. There's a rainbow bar. I'll click where the green is on the bar, then go darker in the big square.
 
 ## Step 9 -- green on the rainbow bar
 Command: `--step <folder> --click-at 1052,760` (slider "Hue")
@@ -49,15 +49,15 @@ Notes: Now it's a proper green (6FF163) but light, like a highlighter. The big s
 ## Step 11 -- darker in the square
 Command: `--step <folder> --click-at 1170,680` (slider "Saturation and brightness")
 Screenshot: 11.png
-Notes: Every dot is dark green now (0B4A05). That's it. I'll close the colour box with the X and make sure it stays.
+Notes: Every dot is dark green now (0B4A05). That's it. I'll close the color box with the X and make sure it stays.
 
-## Step 12 -- close the colour box
+## Step 12 -- close the color box
 Command: `--step <folder> --click-at 1179,496` (button "Close panel")
 Screenshot: 12.png
-Notes: Box closed, colour stayed: 0B4A05, every dot dark green, "Everything styles all 77 nodes", top says "Autosave: saved". That's the job. I'm done. (I did not touch the black bar about saving a copy, or anything else.)
+Notes: Box closed, color stayed: 0B4A05, every dot dark green, "Everything styles all 77 nodes", top says "Autosave: saved". That's the job. I'm done. (I did not touch the black bar about saving a copy, or anything else.)
 
 ## Wrap-up (in character)
 - Did I finish? Yes. Les Miserables opened from Samples, and all 77 characters are dark green.
 - Ease: 5 out of 7.
-- What went fine: the sample was easy to find and opened with no install or sign-in, and "Local only" at the top was reassuring. Once I found the colour box, the whole picture changed at once, and "Everything styles all 77 nodes" told me it was all of them -- I read that number and it matched the 77 on the card.
-- What confused me: the "Style" tab on the right first showed "Canvas" and "Background color" -- I thought that was where the dot colour would be and it wasn't. I only found the dot colour because "Everything 77" on the left looked like "all of them"; "Style layers" means nothing to me. The colour picker had no green in its little swatches, so I had to fiddle with the rainbow bar: the first click gave me a lime/yellow green, which I could easily have printed by mistake, especially with my eyes. I'd have liked to just say "dark green". I'm also not sure whether "Everything" is the lab's file or just my copy -- it says autosaved, but I didn't save anything myself. She could have just sent me a PNG.
+- What went fine: the sample was easy to find and opened with no install or sign-in, and "Local only" at the top was reassuring. Once I found the color box, the whole picture changed at once, and "Everything styles all 77 nodes" told me it was all of them -- I read that number and it matched the 77 on the card.
+- What confused me: the "Style" tab on the right first showed "Canvas" and "Background color" -- I thought that was where the dot color would be and it wasn't. I only found the dot color because "Everything 77" on the left looked like "all of them"; "Style layers" means nothing to me. The color picker had no green in its little swatches, so I had to fiddle with the rainbow bar: the first click gave me a lime/yellow green, which I could easily have printed by mistake, especially with my eyes. I'd have liked to just say "dark green". I'm also not sure whether "Everything" is the lab's file or just my copy -- it says autosaved, but I didn't save anything myself. She could have just sent me a PNG.

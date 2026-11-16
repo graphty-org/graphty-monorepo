@@ -12,12 +12,12 @@ Command: `node tool/real.mjs --start rounds/round-3/sessions/r3-s55 empty` -> 01
 Saw: a dark page. Top left "graphty". Three columns: "Start" (Open project or file..., New from
 data..., "or drop a file anywhere in this window", "Files are read on this computer and never
 uploaded."), "Recent projects" (empty), "Samples" (Les Miserables, Zachary's karate club,
-College football, Florentine families, each with a line of grey description). Top right a lock
+College football, Florentine families, each with a line of gray description). Top right a lock
 and "Local only". A box at the bottom: "Your data is yours, but please help us." with "Share usage
 data" and "No thanks".
 
 Tom: "Files are read on this computer and never uploaded. Good, that's the first thing I'd want
-to know. And 'Local only' up top. The grey text is small, I had to lean in. The box at the bottom
+to know. And 'Local only' up top. The gray text is small, I had to lean in. The box at the bottom
 wants to collect something -- I'm not sharing anything, no thanks."
 
 ## Step 2 -- dismiss the usage box
@@ -35,7 +35,7 @@ isn't anything sensitive, so I'll just drag it in from Downloads, that's what I 
 Command: `--step --drop friends.csv` -> 03.png
 
 Saw: straight to a drawing, no questions asked. Title top left "friends". Light canvas with 20
-blue balls joined by grey arrows, in a loose ring. Left panel: "Graph friends.csv", a find box,
+blue balls joined by gray arrows, in a loose ring. Left panel: "Graph friends.csv", a find box,
 "Selection", "Everything", and at the bottom "Analyze (flask) in the toolbar (Shift+A) to add
 results here". Right panel: "Graph / From friends.csv", tabs "Style" and "Values", "Overview":
 Nodes 20, Edges 41, Direction Directed, Density 0.1079, Components 1, Edges per node "3 to 6,
@@ -67,7 +67,7 @@ Command: `--step --click-at 680,864` -> 05.png (tool: button "Analyze")
 Saw: a list popped up over the drawing, "Filter analyses" box at the top, heading "Rank nodes and
 edges", then Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here"
 tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a
-grey line under it.
+gray line under it.
 
 Hesitation: this is the list of names I said would end it. Katz, HITS, Eigenvector -- no idea.
 "Start here" is on PageRank, which I've heard of from Google and that's all.
@@ -138,7 +138,7 @@ list of who's got what. There's a 'Values' tab next to Style; values is numbers.
 
 Command: `--step --click "Values"` -> 11.png
 
-Saw: "Values": a small grey bar chart from 3 to 6, under it in tiny grey "20 of 20 have a value,
+Saw: "Values": a small gray bar chart from 3 to 6, under it in tiny gray "20 of 20 have a value,
 3 to 6, median 4". "Top 10": Ava 6, Ivan 5 -- and nothing else. "Made with": Analysis Degree,
 Ran Oct 7.
 
@@ -226,7 +226,7 @@ it should.
 - Ava's people had a "weight" (Chloe 5, Ben 3). Nothing told me what weight meant.
 - Clicking the Degree result on the left took me to Style (fill, shape, effects) when I wanted
   the list of who has what; the list was under the other tab, "Values".
-- Small grey text everywhere (the sample descriptions, "20 of 20 have a value", "20 labels, 1
+- Small gray text everywhere (the sample descriptions, "20 of 20 have a value", "20 labels, 1
   hidden"); some name labels were tiny, two overlapped, and one was hidden.
 - "Density 0.1079" and "Edges per node 3 to 6, mean 4.1" -- I didn't know what I'd do with those.
 

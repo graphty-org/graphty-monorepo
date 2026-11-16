@@ -45,7 +45,7 @@ export interface TemplateOptions {
     readonly turn: number;
     readonly center: "bounds" | "origin";
     readonly fit: "contain" | "stretch";
-    /** Paint every material flat, in the node's colour. */
+    /** Paint every material flat, in the node's color. */
     readonly replace: boolean;
     /** `node.modelTint: "untextured"`: a part with no picture and no vertex colors draws flat. */
     readonly untextured?: boolean;
@@ -110,7 +110,7 @@ export interface ModelUser {
     isDisposed(): boolean;
     /** Draw the node again from its current paint. */
     updateStyle(): void;
-    /** What the node draws now: its template, whether it is tinted, and whether a layer coloured it. */
+    /** What the node draws now: its template, whether it is tinted, and whether a layer colored it. */
     modelDrawn(): {
         readonly template: ModelTemplate | null;
         readonly tinted: boolean;
@@ -485,7 +485,7 @@ export class ModelCache {
     }
 
     /**
-     * The layers a reader added that colour nodes, for `W_MODEL_COLOR_IGNORED`.
+     * The layers a reader added that color nodes, for `W_MODEL_COLOR_IGNORED`.
      * @returns Their ids.
      */
     private colorLayers(): LayerId[] {
@@ -733,7 +733,7 @@ export class ModelCache {
     /**
      * The nodes drawing an entry now.
      * @param entry - The entry.
-     * @returns How many, and whether a coloured one is untinted.
+     * @returns How many, and whether a colored one is untinted.
      */
     private drawing(entry: Entry): { nodes: number; colorIgnored: boolean; clips: Set<string> } {
         let nodes = 0;
@@ -915,7 +915,7 @@ export class ModelCache {
 
     /**
      * After a style change: count which templates some layer still names, and say again what is
-     * worth saying about every drawn model (a layer may have coloured it, or tinted it).
+     * worth saying about every drawn model (a layer may have colored it, or tinted it).
      */
     private recount(): void {
         // The nodes take the change on the frame that drains it, so the report waits for that frame.

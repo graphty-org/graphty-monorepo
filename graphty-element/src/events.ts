@@ -134,7 +134,7 @@ export type GraphtyForwardedEventMap = {
  * go out: a public DOM event name is prefixed and kebab-case, and its `detail` must survive
  * structured cloning. `snapshot-replaced` fails both. Its name carries no prefix, and its payload
  * is a `Graph` plus two `GraphSnapshot`s built on typed arrays, which a listener cannot clone,
- * post to a worker or serialise -- so the event would reach consumers as a name they must not rely
+ * post to a worker or serialize -- so the event would reach consumers as a name they must not rely
  * on carrying a value they cannot use.
  *
  * To keep a new internal event off the DOM, add its type to this set. Nothing else changes: the
@@ -585,12 +585,12 @@ export interface OperationCancelledEvent {
     id: string;
     /**
      * Why it was aborted: `"queue-cleared"` when the whole queue was cleared, `"cancelled"` when
-     * this one operation was cancelled. Write the reader-facing words from this code.
+     * this one operation was canceled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
     /**
      * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was cancelled.
+     * cleared, `"Manual cancellation"` when this one operation was canceled.
      * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
      * in the next major release.
      */
@@ -847,7 +847,7 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
 // nothing could emit one, and the type that used to be declared here described a detail carrying a
 // live `Edge` -- a Babylon mesh -- which cannot be structure-cloned and so could never have left
 // the element. A declared event that never fires is a documented lie; it comes back, with a
-// serialisable detail, when edge picking lands.
+// serializable detail, when edge picking lands.
 //
 // The same fact took the edge TOOLTIP with it in 2.0. A tooltip is drawn when the pointer lands
 // on the thing it belongs to, so an unpickable edge can never show one, and `edge.tooltip` was
@@ -927,7 +927,7 @@ export interface AiCommandErrorEvent {
     canRetry: boolean;
 }
 
-/** Emitted when an AI command is cancelled */
+/** Emitted when an AI command is canceled */
 interface AiCommandCancelledEvent {
     type: "ai-command-cancelled";
     input: string;
@@ -1141,7 +1141,7 @@ export interface AiCapabilityUnavailableEvent {
 /**
  * Something the assistant waited on the reader for ended: an approval was answered, superseded
  * by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`),
- * cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+ * canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
  */
 export interface AiPendingResolvedEvent {
     /** The event's name. */

@@ -71,7 +71,7 @@ Notes: A "Color" box appeared, empty. Click the little square in it.
 
 ## Step 17
 Command: --step $S --click-at 1269,435 (button "Pick node color") -> 17.png
-Notes: A color picker with a big square, a rainbow strip, "Hex 6366F1" and six little squares: purple, two greys, blue, yellow, black. No orange square. I'll click where the rainbow strip is orange.
+Notes: A color picker with a big square, a rainbow strip, "Hex 6366F1" and six little squares: purple, two grays, blue, yellow, black. No orange square. I'll click where the rainbow strip is orange.
 
 ## Step 18
 Command: --step $S --click-at 1027,712 (slider "Hue") -> 18.png
@@ -115,7 +115,7 @@ Answer (Tom, after looking at 05.png, 10.png, 11.png and 14.png again):
 
 3. Mostly I knew the next step: the filter was where I'd left it, and the "Which nodes" screen used the same column list, so I wasn't lost. It never got near walking away.
 
-Least sure: the color, steps 17 and 18. On screen was a color box with a big shaded square, a rainbow strip, "Hex 6366F1" and six little squares -- purple, two greys, blue, yellow, black. No orange. I didn't know whether I was supposed to type something in "Hex", pick a square, or aim at the strip. I aimed at the strip, it closed on me after one click, and my dots went salmon. Then I had to open it again and guess twice more. That was the only part where I was poking rather than doing.
+Least sure: the color, steps 17 and 18. On screen was a color box with a big shaded square, a rainbow strip, "Hex 6366F1" and six little squares -- purple, two grays, blue, yellow, black. No orange. I didn't know whether I was supposed to type something in "Hex", pick a square, or aim at the strip. I aimed at the strip, it closed on me after one click, and my dots went salmon. Then I had to open it again and guess twice more. That was the only part where I was poking rather than doing.
 
 The drawing while I chose the gauges: once I'd typed 1990 to 1999, two dots stayed green and the other five went pale lilac, almost see-through. The table under it showed the same two, Upper Falls and Lake Inlet, and "No match 5". I took it to mean "these two get the orange, these five don't". But that pale is exactly what the drawing did a few minutes earlier when I made the filter and four gauges went out of the picture. So for a second I thought: am I hiding these five as well? I checked the top bar, it still said 7 of 11, so I decided no, it was only showing me which ones I'd picked. I'd probably ask her about that bit.
 

@@ -1,5 +1,5 @@
 /**
- * @file The sample model catalogue: the 3D models graphty-element ships, which a style layer can
+ * @file The sample model catalog: the 3D models graphty-element ships, which a style layer can
  * name in `node.model` without adding a file.
  *
  * A sample is resolved from the package when a layer first names it, never stored in a session:

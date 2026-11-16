@@ -44,7 +44,7 @@ How easy, 1 (very difficult) to 7 (very easy): 6.
 
 What confused me:
 - On the first page there are two things called "Samples" (a link at the top and a button in the box). I just clicked the big button, fine, but for a second I wasn't sure they were the same.
-- The sample card title is "Conferences fall out of who played whom" -- the words "College football" are only in the small grey line under it, so I had to read every card to find it.
+- The sample card title is "Conferences fall out of who played whom" -- the words "College football" are only in the small gray line under it, so I had to read every card to find it.
 - I was looking for "Appearance" / "color nodes" like in the tutorial. Here it's "Style layers" and a layer called "Everything". I guessed Everything meant all the teams because it said 115, and the panel then explained it ("styles all 115 nodes"), which helped -- but I only learned that after clicking.
 - The color box shows a code (6366F1) and no picker opened when I clicked it. I didn't know the code for orange, so I just typed the word, and luckily it worked. Nothing on screen told me I could type a color name.
 - The notice "This browser may clear what it keeps for this site. Save a copy to a file to be sure." made me a little nervous about losing work, even though it also says "Autosave: saved".

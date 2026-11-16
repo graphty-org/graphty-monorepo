@@ -1,5 +1,5 @@
 /**
- * @file The AI catalogue: the assistant's providers, their models and keys, and the stages its
+ * @file The AI catalog: the assistant's providers, their models and keys, and the stages its
  * status reports, as plain data.
  *
  * The provider classes need a DOM and three LLM SDKs, so they live behind
@@ -7,7 +7,7 @@
  * providers exist, whether one needs a key and what that key looks like, which models it offers
  * and whether each can call the assistant's tools -- and those live here, where Node can read
  * them. The providers read the same tables (`VercelAiProvider`'s default models,
- * `WebLlmProvider`'s model list), and `ProviderType` is {@link AiProviderId}, so the catalogue
+ * `WebLlmProvider`'s model list), and `ProviderType` is {@link AiProviderId}, so the catalog
  * and the providers cannot disagree.
  *
  * Neutral facts only: no placeholder text, no labels, no display order. An application writes its
@@ -589,7 +589,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   when the provider answered with an HTTP status. `{ cause }` when the provider said why:
  *   `"quota"` (the account has no credit, quota or spend left; asking again will not help),
  *   `"rate-limit"` (too many requests for now), `"live-closed"` (a live voice session closed).
- * - `AI_CANCELLED` -- the command was cancelled (`cancelAiCommand()`); what it changed is taken back.
+ * - `AI_CANCELLED` -- the command was canceled (`cancelAiCommand()`); what it changed is taken back.
  * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
  * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.
  * - `AI_TOOL_INVALID_ARGUMENTS` -- the model called a tool with arguments it refused. `{ tool }`.

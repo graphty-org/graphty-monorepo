@@ -213,7 +213,7 @@ function benchImports(runTs) {
  * The groups benchmarks/run.ts declares, in order, and the bench file of each. Parses the GROUPS object literal:
  * `name: runFn` or `[NAME_CONST]: runFn`, with runFn and NAME_CONST imported from "./x.bench.js".
  * @param {(path: string) => string} read - reads a package-relative file
- * @returns {{ name: string, benchFile: string }[]} the groups; throws when the shape is not recognised
+ * @returns {{ name: string, benchFile: string }[]} the groups; throws when the shape is not recognized
  */
 export function declaredGroups(read = (p) => readFileSync(join(PACKAGE_DIR, p), "utf8")) {
     const runTs = read("benchmarks/run.ts");

@@ -481,10 +481,10 @@ async function repoRuns(c: Cycle, gh: GitHub, repo: string, out: Collected[]): P
 }
 
 /**
- * Cancel class and hangs of every cancelled run in `xs`, from one GraphQL query per 20 runs.
+ * Cancel class and hangs of every canceled run in `xs`, from one GraphQL query per 20 runs.
  * @param gh - the GitHub client
  * @param xs - the collected runs
- * @returns each cancelled run's cancel class and timed-out job names, by run id
+ * @returns each canceled run's cancel class and timed-out job names, by run id
  */
 async function classify(
     gh: GitHub,
@@ -515,7 +515,7 @@ async function classify(
  * @param c - the cycle
  * @param gh - the GitHub client
  * @param xs - the collected runs with their jobs
- * @param cancels - the cancel class and hangs of the cancelled runs
+ * @param cancels - the cancel class and hangs of the canceled runs
  */
 async function writeRuns(
     c: Cycle,
@@ -560,7 +560,7 @@ async function writeRuns(
  * @param r.run - the job's run
  * @param r.repo - owner/name of the repository
  * @param r.workflow - the run's workflow file
- * @param r.hung - true when the job timed out in a cancelled run
+ * @param r.hung - true when the job timed out in a canceled run
  * @param j - the job
  * @returns the job's items
  */
@@ -820,7 +820,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
  * Master's state (4.1) from the newest ci.yml push runs on master.
  * @param c - the cycle
  * @param masterRuns - master's newest ci.yml push runs
- * @param cancels - the cancel class of the cancelled runs
+ * @param cancels - the cancel class of the canceled runs
  * @param elapsed - ms since the last cycle, at most 5 minutes
  */
 async function master(

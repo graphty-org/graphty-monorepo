@@ -757,7 +757,7 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
-        // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
+        // A 2D simulation never initializes or moves z, so it starts, and stays, at 0.
         this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
@@ -931,7 +931,7 @@ export class D3GraphEngine extends LayoutEngine {
         super.setHoldMask(mask, rows);
         this.refresh();
         // A group following its members pushes nothing; d3 reads a strength once per node at
-        // initialisation, so the accessor is set again whenever the followers change.
+        // initialization, so the accessor is set again whenever the followers change.
         const followers = new Set<NodeIdType>();
         for (const node of this.nodeMapping.keys()) {
             if (this.isFollower(node.index)) {

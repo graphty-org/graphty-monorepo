@@ -452,7 +452,7 @@ describe("ForceSimulation (fake model)", () => {
         s.load(gB, posB); // resizes: gA's buffers are destroyed while gA's bind is still running
         fake.bindGate = null;
         releaseBind();
-        await s.step(1); // waits for the serialised chain: gA's bind completes, THEN gB's bind runs and binds
+        await s.step(1); // waits for the serialized chain: gA's bind completes, THEN gB's bind runs and binds
         expect(fake.calls.bind).toBe(2);
         expect(fake.boundN).toBe(12);
         expectRows(posB, 12, 1, 1, 1);

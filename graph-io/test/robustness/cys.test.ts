@@ -81,7 +81,7 @@ function networkFile(
     return `${DECL}<graph ${rootAttrs} cy:registered="0" cy:documentVersion="3.0" ${NS}><att>${subs.join("")}</att></graph>`;
 }
 
-/** The entries of a one-network 3.x session (network SUID 2, labelled Net) around a body. */
+/** The entries of a one-network 3.x session (network SUID 2, labeled Net) around a body. */
 function sessionEntries(body: string, root = ROOT): ZipInput[] {
     return [
         { name: `${root}3.0.0.version`, data: "" },

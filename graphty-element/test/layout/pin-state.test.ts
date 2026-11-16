@@ -224,7 +224,7 @@ describe("a pin outlives the engine that was told about it", () => {
         // The replay is two steps, and both are load-bearing. It PLACES the node in the new engine
         // and only then tells that engine to hold it, because d3 fixes a node at its CURRENT
         // simulated position -- a bare pin replayed into a fresh simulation would nail the node to
-        // whatever coordinates d3's own initialisation invented.
+        // whatever coordinates d3's own initialization invented.
         //
         // The element's array alone will not catch a missing replay, because it refuses a layout
         // write onto a pinned row either way. What a reader SEES is the edges: d3 answers

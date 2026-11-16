@@ -44,7 +44,7 @@ reconciled when the round is tallied.
 - **Silent commit (bar 4):** none. Load drew the graph and the Overview named the loaded weight;
   Find path drew the route, its key and the run's Values.
 - **Numbers that disagree (bar 5):** one label disagrees in kind, not in value: the left panel's
-  run row says "4 hops" beside a result totalled in km (problem 2). The hop count is true (4
+  run row says "4 hops" beside a result totaled in km (problem 2). The hop count is true (4
   edges), so this is not a wrong number.
 - **Wrong weight reading without a sign (bar 7b):** no.
 - **Broken habit:** none. Her history's first moves (Open project or file, the analysis button)

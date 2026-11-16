@@ -64,4 +64,4 @@ Command: `--step --click-at 1320,415 --key Control+a --type "FF0000" --key Enter
 - In the Louvain folder's style panel the six little swatches under "<<Layer>>" look like a palette I can click; they aren't. "<<Layer>>" and "Which nodes / Louvain: <<Layer>>" read like developer-speak.
 - The real answer was hidden behind a tiny expand arrow next to the "Louvain" folder in Style layers. Once open it was fine: one row per group with counts, click one, change the hex. But I only found it on my third guess. That's 4 clicks for something I'd do every week.
 - Groups are just "Group 1..6" -- I'd have to rename them for a deck, and I didn't see whether a rerun keeps the same numbering, or any seed setting (maybe behind the little gear in the Louvain panel).
-- Colour: the new red sits next to Group 5's dark orange; with my eyes those two are close. Fine for the task, but I'd probably pick a different contrast for a slide.
+- Color: the new red sits next to Group 5's dark orange; with my eyes those two are close. Fine for the task, but I'd probably pick a different contrast for a slide.

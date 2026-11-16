@@ -533,9 +533,9 @@ function makeIssue(
 }
 
 /**
- * Whether a thrown value means the load was cancelled rather than failed: the DOMException or Error
+ * Whether a thrown value means the load was canceled rather than failed: the DOMException or Error
  * named "AbortError" that an aborted signal throws, or the "TimeoutError" of AbortSignal.timeout().
- * Use it in a `catch` block to say nothing to the user when they cancelled. A custom reason passed
+ * Use it in a `catch` block to say nothing to the user when they canceled. A custom reason passed
  * to `abort(reason)` is not recognized: compare it with `signal.reason`. A format plugin uses it to
  * let a cancellation through untouched.
  * @param err - the thrown value

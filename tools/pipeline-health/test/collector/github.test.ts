@@ -86,7 +86,7 @@ describe("GitHub App", () => {
 });
 
 describe("runJobs", () => {
-    // Modelled on release.yml run 40476709992 (2026-10-27, 223 jobs over two attempts): GitHub answered 502 every
+    // Modeled on release.yml run 40476709992 (2026-10-27, 223 jobs over two attempts): GitHub answered 502 every
     // time to a page of 25 or more jobs holding one particular job and served pages of 10, so the LLM regression job
     // on a later page was never read and its paid step was lost from the Costs page.
     function bigRun(failFrom = 25) {

@@ -19,7 +19,7 @@ then legibility, then polish.
 ### 1. Map that cannot run says why, before and after Apply
 
 - **What:**
-    - Before Apply, the layout list greys out Map with a reason when the graph has no location data,
+    - Before Apply, the layout list grays out Map with a reason when the graph has no location data,
       the same way "Needs groups" works for the grouping layouts.
     - When a run fails anyway, nothing changes: the previous layout stays ticked, the form never says
       "Applied", and the refusal is shown inside the Map form.
@@ -155,7 +155,7 @@ then legibility, then polish.
 - **What:** Restoring a layout through history publishes the geographic frame again: the basemap,
   the edge routes and the camera facing. "Applied" is true only while the frame the form describes
   is drawn.
-- **Why:** Ctrl+Z after a second Apply removed the map and the arcs, left Map ticked, and greyed
+- **Why:** Ctrl+Z after a second Apply removed the map and the arcs, left Map ticked, and grayed
   out Apply, so the reader could not recover.
 - **Owner:** graphty-element.
 - **Done when:** a real-input test applies Map twice with different settings, presses Ctrl+Z, and

@@ -23,7 +23,7 @@
  * implementation was designed and costed, and rejected because it would ship unverified on the only platform it
  * exists for.
  *
- * WHERE IT RUNS. Lazily, at the first compute entry point a caller reaches, memoised per GPUDevice: the
+ * WHERE IT RUNS. Lazily, at the first compute entry point a caller reaches, memoized per GPUDevice: the
  * algorithms (degree, connectedComponents, the power-iteration family) and calibrateLayout await it on entry, and
  * a layout simulation awaits it in the compile-and-bind promise `load()` starts -- the promise every batch and
  * every debug run already awaits before it may submit. So a caller is covered whether the context was created,

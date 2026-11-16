@@ -1,5 +1,5 @@
 /**
- * @file The format catalogue: the graph file formats the element can read and write.
+ * @file The format catalog: the graph file formats the element can read and write.
  *
  * A descriptor says what a format is called, what its files are called, what a server calls it,
  * whether the element can read it, whether the element can write it, and what can be configured
@@ -9,7 +9,7 @@
  * Every built-in format but CX version 1, Cytoscape sessions and OBO can be written:
  * `exportGraph(format)` hands the graph to the graph-io exporter of that format. A Neo4j
  * admin-import file is written as `csv` with `{ variant: "neo4j" }`, the same name the CSV reader
- * recognises it under; `exportVariants` lists each such kind of file with the options that fix it.
+ * recognizes it under; `exportVariants` lists each such kind of file with the options that fix it.
  * "graphty" is the project file: it can be written but not imported (`session.project.open` reads
  * it). XGMML and CX2 are written with the graph's structure and attribute columns,
  * never its style layers.
@@ -34,7 +34,7 @@ export interface UnservedFormat {
 }
 
 /**
- * The CSV shapes the reader recognises, with the label each one is offered under. Keyed by the
+ * The CSV shapes the reader recognizes, with the label each one is offered under. Keyed by the
  * reader's own union, so a shape that is added or renamed there stops compiling here rather than
  * becoming a choice that selects nothing.
  */
@@ -77,7 +77,7 @@ const csvOptions: readonly OptionDescriptor[] = [
 /**
  * The endpoint options EVERY format accepts, under one pair of names.
  *
- * The catalogue used to publish `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/
+ * The catalog used to publish `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/
  * `targetColumn` for CSV, and nothing at all for the other five -- three names for one fact, and
  * five formats whose endpoints a reader could not name from a picker even though the element was
  * perfectly able to read them. Unset means the element decides for itself: it reads
@@ -698,7 +698,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = withEachDescripti
 
 /**
  * The built-in format names no registered data source reads. Listed rather than omitted, so a
- * consumer learns the gap from the catalogue instead of from a failed load, and a load that names
+ * consumer learns the gap from the catalog instead of from a failed load, and a load that names
  * one fails with the reason given here.
  *
  * "sif" is deprecated (issue #306): it is removed from `FormatId` at the next major release unless

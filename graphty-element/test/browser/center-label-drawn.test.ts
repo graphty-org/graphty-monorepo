@@ -11,7 +11,7 @@
  * label plane over the node wrote the ordinary mark there, so the outline was painted across the
  * words. Graphviz, Cytoscape and yEd all outline their nodes, so their center labels were black.
  *
- * WHAT IS MEASURED. One red node with a green-panelled label at its center. The pixels at the
+ * WHAT IS MEASURED. One red node with a green-paneled label at its center. The pixels at the
  * node's projected center must be the label's green, not the node's red, from the default view,
  * from the opposite side of the node, and with a black outline around it.
  */

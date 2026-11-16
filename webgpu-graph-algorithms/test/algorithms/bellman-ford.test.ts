@@ -5,7 +5,7 @@
  * non-negative ones, cross-checked bitwise against `sssp`), a directed DAG with negative arcs, a planted negative
  * cycle reachable from the source (the gate's item), the same cycle unreachable (the flag must be FALSE: the case a
  * naive implementation gets wrong), a zero-weight cycle (false), an undirected graph with a negative edge (a
- * negative cycle of length two: TRUE), `cutoff` on the non-negative fixtures exactly as P8-T9 normalises it (`NaN`
+ * negative cycle of length two: TRUE), `cutoff` on the non-negative fixtures exactly as P8-T9 normalizes it (`NaN`
  * refused before any device work, -1 the source alone, Infinity no cap, an integer attained exactly), the `weights`
  * override on an unweighted snapshot (never dropped, PD-22) and an asymmetric override on an undirected snapshot
  * (refused before any device work, because the kernel reads one weight per logical edge), the directed identity

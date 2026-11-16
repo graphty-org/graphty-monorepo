@@ -184,7 +184,7 @@ graphs named:
 - **Order.** `stronglyConnectedComponents` lists components in Tarjan's order, where `findStronglyConnectedComponents`
   used Kosaraju's; `connectedComponents` lists members in node order, where `connectedComponentsDFS` used depth-first
   order; `isBipartite` returns an unordered side mask where `bipartitePartition` listed the sides in search order. Pass
-  `arcOrder` to a traversal to try neighbours in insertion order.
+  `arcOrder` to a traversal to try neighbors in insertion order.
 - **Edge betweenness.** On an undirected graph `edgeBetweennessCentrality` gives each edge twice the value 2.x gave it:
   2.x stored every undirected edge under both `"u-v"` and `"v-u"` and put half the edge's score on each key, where 3.0
   returns one score per edge, the whole sum (on the edges `1-2, 2-3, 3-1, 3-4, 4-5`, 2.x gave `0.5, 1.5, 1.5, 3, 2`
@@ -199,7 +199,7 @@ graphs named:
   now reaches modularity 0.4188 against 0.3404).
 - **Label propagation.** For the same `randomSeed`, communities differ on any graph with more than one valid partition
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
-  graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
+  graphs converge; in-neighbors vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
   throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels, and since the fix of
   issue #959 its free nodes start unlabeled instead of in a community of their own, so seed labels spread to every node
   connected to a seed rather than stopping where the free nodes outvote them.
@@ -268,7 +268,7 @@ graphs named:
   list nodes in node order and cut edges by their source-side node, where 2.x followed the order its search met them.
 - **Matching and isomorphism.** The matchings join a left node to a right one whichever way the arc points. The greedy
   matching visits left nodes in node order, so it can differ in size. The maximum matching keeps the 2.x tie order --
-  left nodes in the order a breadth-first walk reaches them, neighbours in the order their edges were added -- so it
+  left nodes in the order a breadth-first walk reaches them, neighbors in the order their edges were added -- so it
   picks the same pairs as 2.x on a graph whose edges were added in the same order; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
   graphs are checked on in-arcs too. An isomorphism's mapping and a matching's pairs come as arrays indexed by node, so
   code that walks them meets the pairs in node order; 2.x returned a Map filled in the order its search found them.

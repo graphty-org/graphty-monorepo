@@ -1,6 +1,6 @@
-# Colour checks for the graph surface
+# Color checks for the graph surface
 
-Measurements behind `visual-language.md` Part B: the selection ring, the unstyled greys, the
+Measurements behind `visual-language.md` Part B: the selection ring, the unstyled grays, the
 default palettes on both canvas backgrounds, and the menu surface over a dark canvas. It is
 evidence, not authority. The scripts that produced the numbers are reproduced in full in section
 8, so every table here can be regenerated.
@@ -16,10 +16,10 @@ Status of each question, in one place:
 | Does the size channel default to a square-root scale | answered from the source: no, it defaults to linear (section 7) |
 | Timed table tasks at the size where the table takes over | not run; conditional (section 7) |
 | Does a reader who hides the legend still need the drawn count | not run; the task is written (section 7) |
-| The ring against all 18 palettes (116 colours, ramps included), band order, an accent outer band | measured (section 9): the neutral pair holds, but only with the band order set by the canvas, or a third band |
-| Every palette colour against both canvases at 3:1 | measured (section 9): 67 slots fail on light, 33 on dark |
+| The ring against all 18 palettes (116 colors, ramps included), band order, an accent outer band | measured (section 9): the neutral pair holds, but only with the band order set by the canvas, or a third band |
+| Every palette color against both canvases at 3:1 | measured (section 9): 67 slots fail on light, 33 on dark |
 | First-click ring study, set-kind glyph recognition, menu review, XR calibration, table timing | protocols written, none run (section 10): each needs people or a running scene |
-| A highlight and the selection ring on one node; a width-only or recoloured highlight in a coloured edge set | measured (section 9.5): two neutral pairs in the same order pass everywhere; a colour outline under the ring and a width-only edge highlight do not |
+| A highlight and the selection ring on one node; a width-only or recolored highlight in a colored edge set | measured (section 9.5): two neutral pairs in the same order pass everywhere; a color outline under the ring and a width-only edge highlight do not |
 
 ## 1. Inputs
 
@@ -29,20 +29,20 @@ Status of each question, in one place:
   4.6) and is also Figma's menu and tooltip surface (`--color-bg-menu`, `--color-bg-tooltip`,
   `design/ui/figma/right-sidebar-selection/README.md`; compact-mantine's `design/figma-spec.md`
   `--cm-bg-menu`; the page-themed menu uses it in dark mode only).
-- **Palette colours.** Every categorical and binary palette the element ships
+- **Palette colors.** Every categorical and binary palette the element ships
   (`graphty-element/src/config/palettes/categorical.ts` and `binary.ts`: okabe-ito, tol-vibrant,
   tol-muted, pastel, carbon, and the blue, green and orange highlight pairs) plus the overflow
-  grey `OTHER_GROUP_COLOR` `#505050`: 39 distinct colours. Ramps from `sequential.ts` and
+  gray `OTHER_GROUP_COLOR` `#505050`: 39 distinct colors. Ramps from `sequential.ts` and
   `diverging.ts`.
 - **Accent.** Figma's brand blue, `#0D99FF` in the light theme and `#0C8CE9` in the dark
   (compact-mantine `figma-spec.md`, `--cm-bg-brand`).
-- **Tol's YlOrBr**, nine colours `#FFFFE5 #FFF7BC #FEE391 #FEC44F #FB9A29 #EC7014 #CC4C02
+- **Tol's YlOrBr**, nine colors `#FFFFE5 #FFF7BC #FEE391 #FEC44F #FB9A29 #EC7014 #CC4C02
   #993404 #662506`. Tol's guidance: for other counts, interpolate the continuous version and pick
-  equidistant points (Paul Tol's colour schemes, as reproduced in the khroma package documentation).
+  equidistant points (Paul Tol's color schemes, as reproduced in the khroma package documentation).
 
 ## 2. Formulas
 
-The colour science is the same as in `graphty-element/test/catalog/default-palette-quality.test.ts`,
+The color science is the same as in `graphty-element/test/catalog/default-palette-quality.test.ts`,
 so a number here and a number in that test mean the same thing.
 
 - **sRGB to linear.** `c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4`, per channel in 0..1.
@@ -51,26 +51,26 @@ so a number here and a number in that test mean the same thing.
 - **Delta E.** Euclidean distance in OKLab, times 100. On this scale the element's test treats 15
   as "apart for normal vision" and 6 as "apart under colour blindness, given a second cue" (in a
   graph the second cue is position: a group's nodes sit together).
-- **Colour-blindness simulation.** Machado, Oliveira and Fernandes (2009), severity 1.0,
+- **Color-blindness simulation.** Machado, Oliveira and Fernandes (2009), severity 1.0,
   protanopia and deuteranopia, applied as a 3x3 matrix in linear RGB with each channel clamped to
   0..1, before the conversion to OKLab. "CVD Delta E" below is the smaller of the protan and the
   deutan distance.
 - **Contrast.** WCAG 2 relative luminance `Y = 0.2126 R + 0.7152 G + 0.0722 B` on linear channels,
   and the ratio `(Y_light + 0.05) / (Y_dark + 0.05)`. WCAG 1.4.11 asks 3:1 for the parts of a
   graphic needed to understand it.
-- **Two-colour indicators.** WCAG technique C40: if the two bands of an indicator have at least 9:1
+- **Two-color indicators.** WCAG technique C40: if the two bands of an indicator have at least 9:1
   contrast with each other, at least one band has 3:1 against any solid background, provided each
-  band is at least 2 CSS pixels thick. The worst case against any solid colour is the square root of
+  band is at least 2 CSS pixels thick. The worst case against any solid color is the square root of
   the band-to-band ratio (the background whose luminance sits at the geometric middle of the two).
 
 ## 3. First round: results
 
 ### 3.1 The selection ring
 
-Accent-based two-tone rings, checked against the canvas and against each of the 39 palette colours.
-"Fails" counts palette colours where neither band reaches 3:1.
+Accent-based two-tone rings, checked against the canvas and against each of the 39 palette colors.
+"Fails" counts palette colors where neither band reaches 3:1.
 
-| Canvas | Outer / inner | Band ratio | Best band vs canvas | Palette colours failing |
+| Canvas | Outer / inner | Band ratio | Best band vs canvas | Palette colors failing |
 |---|---|---|---|---|
 | light | accent `#0D99FF` / white | 2.99:1 | 2.74:1 | 18 of 39, worst 1.76:1 |
 | light | accent / black | 7.02:1 | 19.26:1 | 5 of 39, worst 2.69:1 |
@@ -79,27 +79,27 @@ Accent-based two-tone rings, checked against the canvas and against each of the 
 | dark | accent / black | 5.94:1 | 4.72:1 | 5 of 39, worst 2.47:1 |
 | dark | accent / `#1A1A1A` | 4.93:1 | 4.72:1 | 5 of 39, worst 2.25:1 |
 
-The five colours an accent-and-black ring cannot separate are the dark ones: `#882255`, `#6929C4`,
+The five colors an accent-and-black ring cannot separate are the dark ones: `#882255`, `#6929C4`,
 `#005D5D`, `#9F1853` and `#505050`. No accent-based pair reaches C40's 9:1. Black and white
-(21:1) and `#1A1A1A` and white (17.4:1) do, and pass against all 39 colours on both canvases
+(21:1) and `#1A1A1A` and white (17.4:1) do, and pass against all 39 colors on both canvases
 (weakest 4.82:1 against `#0077BB` with a black outer band; `research/document-set-trials.md`
 section 2 has the full comparison with today's gold halo).
 
-A search of 4,096 colours (every sRGB channel in steps of 17) for a single reserved hue that clears
-3:1 on both canvases and stays Delta E 15 from all 39 palette colours and 6 under colour blindness
+A search of 4,096 colors (every sRGB channel in steps of 17) for a single reserved hue that clears
+3:1 on both canvases and stays Delta E 15 from all 39 palette colors and 6 under color blindness
 found three, all violet (`#AA33FF`, `#BB00FF`, `#BB11FF`), each barely over the floors. Against
-Okabe-Ito alone, 139 pass. A single-colour selection mark is therefore possible only if the
-reserved colour is checked against every palette a reader can pick, and it would still fail 3:1
+Okabe-Ito alone, 139 pass. A single-color selection mark is therefore possible only if the
+reserved color is checked against every palette a reader can pick, and it would still fail 3:1
 against some node fills; the two-tone ring does not have that dependency.
 
-### 3.2 Greys for unstyled nodes and edges
+### 3.2 Grays for unstyled nodes and edges
 
-3:1 against both canvases needs a luminance between 0.14 and 0.27, which is the greys `#6A6A6A` to
+3:1 against both canvases needs a luminance between 0.14 and 0.27, which is the grays `#6A6A6A` to
 `#8E8E8E`.
 
-| Grey | Light | Dark | Delta E from `#505050` | Nearest categorical colour (Delta E) | CVD Delta E to nearest |
+| Gray | Light | Dark | Delta E from `#505050` | Nearest categorical color (Delta E) | CVD Delta E to nearest |
 |---|---|---|---|---|---|
-| `#6366F1` (today's unstyled node, not a grey) | 4.10 | 3.73 | 25.6 | 11.8 (`#1192E8`) | 7.0 |
+| `#6366F1` (today's unstyled node, not a gray) | 4.10 | 3.73 | 25.6 | 11.8 (`#1192E8`) | 7.0 |
 | `#FFFFFF` (today's unstyled edge) | 1.09 | 16.67 | 56.9 | 12.0 (`#FFF099`) | 11.7 |
 | `#8A8A8A` | 3.17 | 4.83 | 20.2 | 10.6 (`#44AA99`) | 2.0 |
 | `#808080` | 3.62 | 4.22 | 16.9 | 11.1 (`#009988`) | 1.4 |
@@ -107,16 +107,16 @@ against some node fills; the two-tone ring does not have that dependency.
 | `#707070` | 4.54 | 3.37 | 11.4 | 12.9 (`#009988`) | 3.2 |
 | `#6B6B6B` | 4.89 | 3.13 | 9.7 | 12.0 (`#005D5D`) | 2.5 |
 
-Every grey tested that clears 3:1 on both canvases is under Delta E 13 from some shipped categorical colour
-and under 3.2 under colour blindness. An unstyled grey node will read as "a desaturated group"
-next to some palette. That is acceptable only because an unstyled node and a coloured group are
-never meant to be the same thing; the legend must list the unstyled grey when a colour encoding
+Every gray tested that clears 3:1 on both canvases is under Delta E 13 from some shipped categorical color
+and under 3.2 under color blindness. An unstyled gray node will read as "a desaturated group"
+next to some palette. That is acceptable only because an unstyled node and a colored group are
+never meant to be the same thing; the legend must list the unstyled gray when a color encoding
 leaves nodes unmatched. `#7C7C7C` to `#808080` sits closest to equal contrast on both canvases
 (3.6 to 4.2).
 
 ### 3.3 Palettes on each canvas
 
-Categorical: the lowest contrast any colour of the palette has against the canvas, and the colours
+Categorical: the lowest contrast any color of the palette has against the canvas, and the colors
 under 1.5:1 (the element's test floor, which exempts a palette's last slot).
 
 | Palette | Light: lowest | Under 1.5:1 on light | Dark: lowest | Under 1.5:1 on dark |
@@ -124,7 +124,7 @@ under 1.5:1 (the element's test floor, which exempts a palette's last slot).
 | okabe-ito (default) | 1.21 | yellow `#F0E442` (last slot, exempt) | 1.26 | **black `#000000` (slot 7 of 8, not exempt)** |
 | tol-vibrant | 1.76 | none | 3.21 | none |
 | tol-muted | 1.48 | `#DDCC77` | 1.37 | `#332288` |
-| pastel | 1.06 | four colours | 5.84 | none |
+| pastel | 1.06 | four colors | 5.84 | none |
 | carbon | 3.06 | none | 2.16 | none |
 
 Ramps: contrast of the step closest to the canvas, and anchors under 2:1 (the element's floor for
@@ -147,7 +147,7 @@ value.
 
 ### 4.1 YlOrBr trimmed for both canvases
 
-Tol's nine colours were interpolated linearly in OKLab (1,001 samples), the stretch where every
+Tol's nine colors were interpolated linearly in OKLab (1,001 samples), the stretch where every
 sample clears a floor on both canvases was kept, and five equidistant anchors were taken from it.
 
 | Version | Anchors, low to high | Light | Dark | Adjacent Delta E (normal / protan / deutan) | Hue spread |
@@ -160,8 +160,8 @@ sample clears a floor on both canvases was kept, and five equidistant anchors we
 **Choice: the 2:1 trim.** It passes every rule the element's test applies to the default ramp
 (palest step at least 2:1 and darkest at most 12:1 on the light canvas, lightness falling
 monotonically, hue spread under 40 degrees) and adds the same 2:1 floor on the dark canvas. Adjacent
-steps stay about as far apart as today's, including under colour blindness, because the ramp is
-carried by lightness. The stricter floors squeeze the ramp: at 3:1 on both, neighbouring steps are
+steps stay about as far apart as today's, including under color blindness, because the ramp is
+carried by lightness. The stricter floors squeeze the ramp: at 3:1 on both, neighboring steps are
 3 to 4 Delta E apart and the scale stops reading as "how much".
 
 **What the trim does not fix.** The ramp darkens as the value grows. On the light canvas the top
@@ -175,8 +175,8 @@ review in section 5 before it is settled.
 ### 4.2 A replacement for Okabe-Ito's black
 
 The black slot is 1.26:1 on the dark canvas and is not the exempt last slot. Candidates were checked
-against the other seven Okabe-Ito colours, the overflow grey `#505050` and the accent, with the
-element test's floors (Delta E 15 normal, 6 under colour blindness) and 2:1 on both canvases.
+against the other seven Okabe-Ito colors, the overflow gray `#505050` and the accent, with the
+element test's floors (Delta E 15 normal, 6 under color blindness) and 2:1 on both canvases.
 
 | Candidate | Light | Dark | Delta E to other seven (normal / CVD) | To `#505050` (normal / CVD) | To accent | To trimmed ramp (normal / CVD) | Result |
 |---|---|---|---|---|---|---|---|
@@ -184,28 +184,28 @@ element test's floors (Delta E 15 normal, 6 under colour blindness) and 2:1 on b
 | `#999999` (an older copy) | 2.61 | 5.85 | 11.8 / 1.9 | 25.2 / 25.2 | 17.9 | -- | fails |
 | `#882255` wine | 8.00 | 1.91 | 23.7 / 14.9 | 14.5 / 0.7 | 31.8 | -- | fails |
 | `#7B61FF` violet | 3.86 | 3.97 | 16.9 / 11.7 | 28.4 / 27.1 | 13.4 | -- | too near the accent |
-| `#BBBBBB` light grey | 1.76 | 8.68 | 13.1 / 8.9 | 36.1 / 36.1 | 22.0 | -- | fails |
+| `#BBBBBB` light gray | 1.76 | 8.68 | 13.1 / 8.9 | 36.1 / 36.1 | 22.0 | -- | fails |
 | `#AA0000` dark red | 7.11 | 2.15 | 16.9 / 15.8 | 19.3 / 10.5 | 37.6 | 7.0 / 1.7 | passes, but collides with the default ramp |
 | `#992200` brick | 7.46 | 2.05 | 17.8 / 17.3 | 16.0 / 10.1 | 36.2 | 3.2 / 0.9 | passes, but collides with the default ramp |
 | `#5E35B1` deep purple | 7.35 | 2.08 | 16.0 / 8.3 | 18.6 / 16.9 | 21.9 | 25.9 / 25.7 | passes |
 | **`#6929C4` purple** | 7.09 | 2.16 | 18.2 / 8.0 | 22.2 / 19.3 | 22.5 | 28.6 / 28.0 | **passes** |
 
-Of the 4,096-colour grid, 287 colours pass every floor. The ones with the largest colour-blind
+Of the 4,096-color grid, 287 colors pass every floor. The ones with the largest color-blind
 margin are dark reds, but a dark red category is under 2 Delta E from the default ramp's upper
-steps under colour blindness, so a graph that colours groups on nodes and a measurement on edges
-would show the two as one. **Choice: `#6929C4`**, which is already a shipped colour (the first
-colour of the element's carbon palette), has the largest normal-vision margin among the passing
-purples, and is a hue no other Okabe-Ito colour takes (reddish purple `#CC79A7` reads as pink, 18.2
-apart). Its colour-blind margin (8.0) is the smallest in the palette but clears the element's
+steps under color blindness, so a graph that colors groups on nodes and a measurement on edges
+would show the two as one. **Choice: `#6929C4`**, which is already a shipped color (the first
+color of the element's carbon palette), has the largest normal-vision margin among the passing
+purples, and is a hue no other Okabe-Ito color takes (reddish purple `#CC79A7` reads as pink, 18.2
+apart). Its color-blind margin (8.0) is the smallest in the palette but clears the element's
 floor. The palette would no longer be "Okabe-Ito as published", so it needs a new id or a documented
-departure (see `one-way-doors.md`, the default palette colours).
+departure (see `one-way-doors.md`, the default palette colors).
 
-The overflow grey `#505050` is 2.07:1 on the dark canvas: over a 2:1 floor, but only just.
+The overflow gray `#505050` is 2.07:1 on the dark canvas: over a 2:1 floor, but only just.
 
 ## 5. The dark canvas against the menu surface
 
 In dark mode the menu surface is `#1E1E1E` (menus follow the page theme, so in light mode they are
-white), the same colour as the proposed dark canvas, so a dark menu open over the canvas has no
+white), the same color as the proposed dark canvas, so a dark menu open over the canvas has no
 background step at all. What separates it is the dark theme's elevation
 (`--cm-elevation-400`, dark column: two black drop shadows, which do not show on a near-black
 canvas, and an inset 1 px white hairline at 35% opacity with a 1 px blur).
@@ -222,10 +222,10 @@ The hairline composites to about `#6D6D6D` over `#1E1E1E`.
 
 No single step gives the menu body a visible contrast from the canvas (every value is under 1.2:1).
 The edge carries the separation, and the edge is best on a darker canvas: moving LIGHTER, towards
-`#2C2C2C`, drops the hairline under 3:1 and makes the canvas the same colour as the side panels.
+`#2C2C2C`, drops the hairline under 3:1 and makes the canvas the same color as the side panels.
 If the review shows a menu merging into the canvas, the step to take is darker (`#181818` or
 `#141414`), and every dark-canvas number in sections 3 and 4 must be re-run, because the ramp's top
-value and the palette's darkest colour get closer to the background.
+value and the palette's darkest color get closer to the background.
 
 **Not run.** The review this table cannot replace: a bare graphty-element embed in the dark theme,
 a dense graph (several thousand nodes, edges crossing behind the menu's edge, the default group
@@ -237,20 +237,20 @@ a Storybook story in graphty-element and run the review twice, with the canvas a
 ## 6. The two-tone ring in 3D, XR and passthrough
 
 **Derived.** By C40, a black and white ring keeps at least 4.58:1 (the square root of 21) against
-ANY solid colour behind it, and a `#1A1A1A` and white ring at least 4.17:1. An accent-and-black
+ANY solid color behind it, and a `#1A1A1A` and white ring at least 4.17:1. An accent-and-black
 ring guarantees only 2.65:1 (light accent) or 2.44:1 (dark accent), under 3:1. So over an AR
-passthrough background, which can be any colour, only the black and white pair (or `#1A1A1A` and
+passthrough background, which can be any color, only the black and white pair (or `#1A1A1A` and
 white) holds 3:1 without knowing the background.
 
 **What the derivation does not cover, and what the calibration must measure.**
 
 - **Band thickness on screen.** C40's guarantee needs each band at least 2 CSS pixels thick. In 3D
   a ring drawn at a fixed world size thins with distance; a node far from the camera gets bands
-  under 2 px, and at 1 px or less anti-aliasing mixes the two bands into a mid-grey that fails.
+  under 2 px, and at 1 px or less anti-aliasing mixes the two bands into a mid-gray that fails.
   Measure, in a 3D scene, the camera distance at which each band reaches 2 px, and whether the ring
   needs a screen-space minimum width.
 - **Passthrough is not solid.** A camera image has texture and edges under the ring, so "against
-  any solid colour" is the best case. Measure over photographs with high-frequency texture
+  any solid color" is the best case. Measure over photographs with high-frequency texture
   (foliage, text, a patterned floor) as well as flat walls.
 - **XR headsets.** Pixels per degree are lower than a desktop monitor's, so 2 CSS pixels is not the
   right unit; the band should be stated in angular size (arc-minutes) and measured in the
@@ -263,19 +263,19 @@ white) holds 3:1 without knowing the background.
 
 **Not run.** The calibration needs a running 3D scene and the `xr` test project; the browser
 automation server did not connect in this session. Until it runs, the ring's thickness and scale are
-unmeasured, and only its colours (black and white, or `#1A1A1A` and white) are supported by numbers.
+unmeasured, and only its colors (black and white, or `#1A1A1A` and white) are supported by numbers.
 
 ## 7. Other open questions
 
 **Does the size channel default to a square-root scale? No.** When a caller binds `node.size` to a
 number and names no scale, the element uses a linear scale: `defaultScaleFor` returns `"linear"` for
-any number or colour channel (`graphty-element/src/session/styles/encoding.ts`, line 942), and
+any number or color channel (`graphty-element/src/session/styles/encoding.ts`, line 942), and
 `defaultScale` returns `"linear"` for a numeric field unless the result shape makes it a group
-(`session/styles/EncodingSpec.ts`, line 187). A square-root scale exists (`"sqrt"`, labelled "By
+(`session/styles/EncodingSpec.ts`, line 187). A square-root scale exists (`"sqrt"`, labeled "By
 Area" in `catalog/scales.ts`) but is used only when named. Node size is a length, so a linear default
 makes a node with twice the value cover four times the area on screen (and eight times the volume
 in 3D). Whether the default
-should become square root is a published default behaviour (`one-way-doors.md`, the size default).
+should become square root is a published default behavior (`one-way-doors.md`, the size default).
 
 **Timed table tasks at the size where the table takes over from the canvas.** Not run, and run
 only if a compact row density is reopened for the data table. If it is, time a
@@ -291,10 +291,10 @@ drawn count must live somewhere other than the legend (the canvas status line), 
 drawing budget is never silent" (`visual-language.md`) has to hold with the legend closed.
 
 **How many highlights can be told apart at once? About four, unverified.** An earlier draft of the
-state matrix reported the smallest CIEDE2000 difference between any two of the first colours of
+state matrix reported the smallest CIEDE2000 difference between any two of the first colors of
 graphty's categorical palettes (`graphty-element/src/config/palettes/categorical.ts`) under
-Machado 2009 simulation at full severity: Okabe-Ito falls to 13 at five colours under
-deuteranopia, and Tol vibrant to 9 at three colours under tritanopia, below the usual comfort
+Machado 2009 simulation at full severity: Okabe-Ito falls to 13 at five colors under
+deuteranopia, and Tol vibrant to 9 at three colors under tritanopia, below the usual comfort
 level of about 10. It also reported Okabe-Ito black against the dark canvas at a difference of 7,
 and the gold halo default beside Okabe-Ito orange and yellow as too close. The script was not kept,
 and these checks use OKLab, not CIEDE2000, so the figures are unverified until a script in section
@@ -303,7 +303,7 @@ and these checks use OKLab, not CIEDE2000, so the figures are unverified until a
 ## 8. The scripts
 
 All three run from `graphty-element/` with `npx tsx <file>`. The first imports the palette files, so it
-follows them if they change; the others copy the colours they test.
+follows them if they change; the others copy the colors they test.
 
 ### 8.1 First round
 
@@ -556,24 +556,24 @@ for (const [a, b] of [["#000000", "#FFFFFF"], ["#1A1A1A", "#FFFFFF"], ["#0D99FF"
 - `design/ui/object-first-ux/visual-language.md` 4.5 and 4.6 (the proposed canvases)
 - `research/document-set-trials.md` section 2 (today's halo), `research/graphty-today.md` 7.17
 - W3C, WCAG 2.2 Technique C40, https://www.w3.org/WAI/WCAG22/Techniques/css/C40
-- Paul Tol's colour schemes (YlOrBr), as reproduced at https://cran.r-project.org/web/packages/khroma/vignettes/tol.html
+- Paul Tol's color schemes (YlOrBr), as reproduced at https://cran.r-project.org/web/packages/khroma/vignettes/tol.html
 - Ottosson, "A perceptual color space for image processing" (2020), and Machado, Oliveira and Fernandes, "A Physiologically-based Model for Simulation of Color Vision Deficiency" (2009), as implemented in the element's test
 
 ## 9. Second round: every shipped palette
 
-The first round checked 39 colours (the categorical and binary palettes). This round reads all 18
+The first round checked 39 colors (the categorical and binary palettes). This round reads all 18
 palettes through `PALETTE_DESCRIPTORS` in `graphty-element/src/catalog/palettes.ts`, ramps and
-diverging schemes included, plus the overflow grey: 116 distinct colours. Script:
+diverging schemes included, plus the overflow gray: 116 distinct colors. Script:
 `research/scripts/ring-and-canvas-contrast.ts` (run from `graphty-element/` with `npx tsx`); it
-imports the catalogue, so it follows the palettes if they change.
+imports the catalog, so it follows the palettes if they change.
 
 ### 9.1 The ring, band by band
 
-"Any band" is the first round's measure: the better of the two bands against a colour, which is the
-right measure when the colour could sit behind either band (an overlapping node). The C40 floor is
-the worst case against any solid colour.
+"Any band" is the first round's measure: the better of the two bands against a color, which is the
+right measure when the color could sit behind either band (an overlapping node). The C40 floor is
+the worst case against any solid color.
 
-| Ring (outer / inner) | Canvas | Band ratio | C40 floor | Colours where neither band reaches 3:1 | Weakest |
+| Ring (outer / inner) | Canvas | Band ratio | C40 floor | Colors where neither band reaches 3:1 | Weakest |
 |---|---|---|---|---|---|
 | black / white | both | 21.00 | 4.58 | 0 of 116 | 4.60 (`#CF4446`) |
 | `#1A1A1A` / white | both | 17.40 | 4.17 | 0 of 116 | 4.31 (`#D94801`) |
@@ -585,7 +585,7 @@ the worst case against any solid colour.
 
 Okabe-Ito's two blues, the ones most likely to be confused with a blue accent: the accent outer band
 measures 1.73:1 (light) and 1.47:1 (dark) against `#0072B2`, and 1.30:1 and 1.53:1 against
-`#56B4E9`. On a node of either colour an accent band is carried entirely by its partner band. The
+`#56B4E9`. On a node of either color an accent band is carried entirely by its partner band. The
 ramps widen the first round's result: the accent-and-black failures now include the dark ends of
 blues, plasma, viridis, purple-green and the default ramp (`#08519C`, `#8B0AA5`, `#3E4989`,
 `#762A83`, `#8E3104`).
@@ -593,11 +593,11 @@ blues, plasma, viridis, purple-green and the default ramp (`#08519C`, `#8B0AA5`,
 ### 9.2 The ring as a mark apart from its node
 
 "Any band" hides a real failure. A band marks the node only if it has 3:1 against BOTH of its
-neighbours: the inner band against the node fill and the outer band, the outer band against the
+neighbors: the inner band against the node fill and the outer band, the outer band against the
 inner band and the canvas. If neither band is outlined that way, the inner band merges with the fill
 and the outer band merges with the canvas, and the selected node just looks larger.
 
-| Bands, inside to outside | Light canvas: colours failing | Dark canvas: colours failing |
+| Bands, inside to outside | Light canvas: colors failing | Dark canvas: colors failing |
 |---|---|---|
 | white, black (the ring as `canvas-drawing.md` 2 states it) | 0 | **54 of 116**, `#56B4E9` among them |
 | white, `#1A1A1A` | 0 | 54 |
@@ -611,9 +611,9 @@ and the outer band merges with the canvas, and the selected node just looks larg
 | black, white, accent | 25 | 0 |
 
 The mechanism: on the dark canvas a black outer band is 1.26:1 against `#1E1E1E` and disappears, so
-the ring rests on white against the fill, and white is under 3:1 against the 54 light colours (every
+the ring rests on white against the fill, and white is under 3:1 against the 54 light colors (every
 pastel, the pale half of each ramp, Okabe-Ito's sky blue, orange and yellow). On the light canvas
-the mirror case fails the dark colours.
+the mirror case fails the dark colors.
 
 **Recommendation for B2.** Keep the neutral pair and set the band order by the canvas: the dark band
 outermost on a light canvas, the light band outermost on a dark one. "Light" and "dark" canvas
@@ -624,9 +624,9 @@ only outside a white-then-black pair (white, black, accent): the black band is t
 white (21:1) and the accent (7.02 and 5.94:1). The accent adds nothing to the contrast; it only
 ties the mark to the chrome's accent, at the cost of a third band, and on a blue node (`#0072B2`,
 `#56B4E9`, the blues ramp) it reads as part of the fill. The existing C40 argument in B2 is correct about solid
-backgrounds of one colour, not about a band between two different colours.
+backgrounds of one color, not about a band between two different colors.
 
-### 9.3 Every palette colour against each canvas at 3:1
+### 9.3 Every palette color against each canvas at 3:1
 
 | Palette | Under 3:1 on light `#F5F5F5` | Under 3:1 on dark `#1E1E1E` |
 |---|---|---|
@@ -649,13 +649,13 @@ backgrounds of one colour, not about a band between two different colours.
 | green-highlight | 1 of 2 (`#999999` 2.61) | 0 |
 | orange-highlight | 2 of 2 | 0 |
 
-67 slots fail on the light canvas and 33 on the dark. Only 26 of the 116 colours reach 3:1 on both.
+67 slots fail on the light canvas and 33 on the dark. Only 26 of the 116 colors reach 3:1 on both.
 The expected failures hold -- pastel fails the light canvas entirely and Okabe-Ito's black is the
 default group palette's only failure on dark -- but they are not the only ones: Okabe-Ito also has
-four colours under 3:1 on light, carbon fails dark three times, and every sequential and diverging
+four colors under 3:1 on light, carbon fails dark three times, and every sequential and diverging
 scheme fails one canvas or the other at its pale or dark end, which is inherent in a ramp that
 spans lightness. 3:1 is therefore a floor for marks that must be found (the selection ring, the
-unstyled grey), not for data fills; the element's test keeps its 1.5:1 and 2:1 floors for fills,
+unstyled gray), not for data fills; the element's test keeps its 1.5:1 and 2:1 floors for fills,
 and a palette's picker entry should say which canvas it suits.
 
 ### 9.4 Checks to add to the element's palette-quality test
@@ -695,7 +695,7 @@ describe("the default group palette on the dark canvas", () => {
 ```
 
 A second block checks two marks on one element: every mark must have a band outlined by both of
-its neighbours, and the two bands where one mark meets the next must be 3:1 apart, or they fuse
+its neighbors, and the two bands where one mark meets the next must be 3:1 apart, or they fuse
 into one wider band and two marks read as one.
 
 ```ts
@@ -734,18 +734,18 @@ describe("a highlighted edge in a coloured edge set", () => {
 });
 ```
 
-The ring test should read its colours from the element once the marks are published (door 47);
+The ring test should read its colors from the element once the marks are published (door 47);
 until then the hex values are the proposal, and the dark-canvas test documents the known
 Okabe-Ito failure rather than skipping it.
 
 ### 9.5 Two marks on one element
 
-Script: section 5 of `research/scripts/ring-and-canvas-contrast.ts`, over the same 116 colours. A
-combination fails for a colour when a mark has no band with 3:1 against both neighbours
+Script: section 5 of `research/scripts/ring-and-canvas-contrast.ts`, over the same 116 colors. A
+combination fails for a color when a mark has no band with 3:1 against both neighbors
 ("unoutlined"), or when the bands where two marks meet are under 3:1 apart ("fused": the two marks
 merge into one wider band). The selection pair uses the canvas-set order from 9.2 (white then
-black on light, black then white on dark). `#0072B2` is the element's highlight colour today
-(the first colour of `blue-highlight`, read by `StylesApi.ts`).
+black on light, black then white on dark). `#0072B2` is the element's highlight color today
+(the first color of `blue-highlight`, read by `StylesApi.ts`).
 
 | Node, marks inside to outside | Light: unoutlined / fused | Dark: unoutlined / fused |
 |---|---|---|
@@ -755,24 +755,24 @@ black on light, black then white on dark). `#0072B2` is the element's highlight 
 | selection pair, then a one-band `#0072B2` outline outside it | 0 / 0 | 0 / 0 |
 | selection pair, then a white, black, white highlight | 0 / 0 | 25 / 91 |
 
-| Edge in a coloured set | Light | Dark |
+| Edge in a colored set | Light | Dark |
 |---|---|---|
-| highlight by `edge.width` only: edge colours under 3:1 against the canvas, where the added width is not seen | 58 of 116 | 32 of 116 |
-| highlight by recolouring to `#0072B2`: shipped colours within 15 of it | 11 of 115 (both canvases; `#2171B5` at 1.2, `#0077BB` at 1.9, `#2166AC` at 3.3) | same |
-| two-tone casing around the coloured edge; selection casing plus highlight casing | 0; 0 | 0; 0 |
+| highlight by `edge.width` only: edge colors under 3:1 against the canvas, where the added width is not seen | 58 of 116 | 32 of 116 |
+| highlight by recoloring to `#0072B2`: shipped colors within 15 of it | 11 of 115 (both canvases; `#2171B5` at 1.2, `#0077BB` at 1.9, `#2166AC` at 3.3) | same |
+| two-tone casing around the colored edge; selection casing plus highlight casing | 0; 0 | 0; 0 |
 
-What it means. A highlight drawn as a colour outline at the silhouette disappears as soon as the
+What it means. A highlight drawn as a color outline at the silhouette disappears as soon as the
 node is also selected: the ring's inner band sits against it, and blue against white or black is
 not a band with 3:1 on both sides for most fills. Two neutral pairs nest safely only when the
 highlight repeats the selection's order, so the neutral dark and light bands alternate; reversing
 the order fuses the two middle bands, and a three-band highlight must start with the band opposite
 the selection's outer band. A single `#0072B2` band outside the selection pair passes, because the
 pair outlines it on the inside and it clears 3:1 against both canvases (4.76 and 3.21); this is
-the only colour result here, and it holds only while the neutral pair sits inside it.
-For edges, width alone is not a highlight in a coloured set: half the shipped colours cannot show
-their own width on the light canvas. Recolouring to the element's blue collides with the blues,
-viridis and carbon slots and overwrites the analyst's colour, which is the collision B5 forbids.
-A two-tone casing passes on every colour, alone or nested with the selection casing. Contrast
+the only color result here, and it holds only while the neutral pair sits inside it.
+For edges, width alone is not a highlight in a colored set: half the shipped colors cannot show
+their own width on the light canvas. Recoloring to the element's blue collides with the blues,
+viridis and carbon slots and overwrites the analyst's color, which is the collision B5 forbids.
+A two-tone casing passes on every color, alone or nested with the selection casing. Contrast
 cannot say whether readers see a width step or a dash as a second mark: that is the timed
 discrimination task in section 10.
 

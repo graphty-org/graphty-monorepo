@@ -288,7 +288,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         expectBitwiseEqual(second.predArc, first.predArc, `${label}: predArc (the pred buffer), run twice`);
         expect(second.reachedCount).toBe(first.reachedCount);
         // the near-far route's round count and pile counts follow the schedule (a near vertex relaxed before or
-        // after a same-round neighbour improves it settles one round earlier or later), so of the counters block only
+        // after a same-round neighbor improves it settles one round earlier or later), so of the counters block only
         // the words that are functions of the settled state are held bitwise: done and the seeded delta
         const unit = options?.weights === undefined ? s.flags.allWeightsOne : options.weights.every((w) => w === 1);
         if (!unit) {

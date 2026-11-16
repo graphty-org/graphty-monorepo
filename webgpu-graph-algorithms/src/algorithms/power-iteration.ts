@@ -5,7 +5,7 @@
  * records `firstConverged`, `pr-scale` at NORM_MODE 3 writes `xNorm[u] = x[u] / partials[0].norm` (skipped at
  * mode 4, the identity, where the first scale pass already wrote `xNorm[u] = x[u]`), and `spmv-pull` writes the
  * next iterate. Four dispatches (three for Katz), all on the device, NO readback inside the batch: the scalar
- * normaliser the host cannot supply without a readback is exactly what stays on the device, so these three batch
+ * normalizer the host cannot supply without a readback is exactly what stays on the device, so these three batch
  * eight iterations per submit like PageRank does.
  *
  * The ping-pong is TWO buffers alternated through two cached bind groups (PD-7 / DEP-M8B-G), and `rankPrev` is the
@@ -44,7 +44,7 @@ const RING_SLOTS = 4 * BATCH + 8;
  */
 export interface PowerIterationConfig {
     /**
-     * 1 = L1 (sum) normalise, 2 = L2 normalise, 4 = identity (Katz: no normaliser). Never 0 or 3 here: 0 is
+     * 1 = L1 (sum) normalize, 2 = L2 normalize, 4 = identity (Katz: no normalizer). Never 0 or 3 here: 0 is
      * PageRank's per-node divisor and 3 is the internal scale pass this driver issues itself.
      */
     readonly normMode: 1 | 2 | 4;
@@ -228,7 +228,7 @@ function runIfDone(
  * Runs the power iteration of `config` over `n` nodes from x(0) = `config.seed` (1 / n by default), in batches of eight iterations with ONE
  * readback per batch (the header and the iterate together), stopping at the first batch whose header records a
  * converged iteration or at `maxIterations`. The returned iterate is RAW: the last `spmv-pull` output, which the
- * caller normalises once on the host. The iterate travels with the header in EVERY batch, not once after the loop:
+ * caller normalizes once on the host. The iterate travels with the header in EVERY batch, not once after the loop:
  * whether a batch terminates the run is known only from its header, and a second readback for the iterate would
  * be a second mapAsync (the plan's case 8 counts exactly one). The cost is 4n bytes (8n on an alternating run) of
  * staging per batch of 8 that the loop then discards when it continues -- 40 MB per 8 iterations at 10M nodes;

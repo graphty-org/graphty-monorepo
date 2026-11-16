@@ -68,7 +68,7 @@ describe("PageRank, connected components, BFS, sssp and betweenness in the brows
         expect(result.visitedCount).toBe(expected.visitedCount);
         expectOrderGroupedByLevel(result);
         // issue #391: m_f is the out-degree sum of the frontier the boundary is ABOUT to expand, so karate switches
-        // once -- at the boundary that rotates in vertex 0's 16 neighbours, whose 69 out-arcs clear
+        // once -- at the boundary that rotates in vertex 0's 16 neighbors, whose 69 out-arcs clear
         // max(17 unvisited vertices, floor(71 unvisited in-arcs / BEAMER_ALPHA 2)) = 35 -- and never switches back. The host
         // replay of Beamer's rule over the oracle's levels is the same check test/algorithms/bfs.test.ts makes.
         const { sizes, degreeSums, inDegreeSums } = levelStatsOf(karate, expected.depth);

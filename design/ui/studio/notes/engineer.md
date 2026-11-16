@@ -101,7 +101,7 @@ Decided (standing fixes):
   places: graphty-element.ts, Graph.ts, AiManager, AiController.
 - reply-end-in-view: ResizeObserver on turns AND the log box (the composer shrinks the log); only an
   upward scroll stops following.
-- composer-says-its-scope: words from scope.kind; Chromium hides a labelled textarea's placeholder, so
+- composer-says-its-scope: words from scope.kind; Chromium hides a labeled textarea's placeholder, so
   set aria-description too.
 - question-at-body-size: ink var(--cm-text), one label element for radio and checkbox cards.
 - undo-notice: undoOrRedo posts its words, covering Redo and the keys; the turn's own Undo does NOT go

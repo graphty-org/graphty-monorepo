@@ -26,7 +26,7 @@ of the usage box.
 
 A page "Open as a new graph". Left side says "Tables" with a plus, right side "Drop a file here, or
 choose a file...". A "Direction: As the file says" box, and Load is greyed ("Choose a file first").
-The grey labels are small, but "Tables" with a plus looks like I can add more than one sheet. Good.
+The gray labels are small, but "Tables" with a plus looks like I can add more than one sheet. Good.
 I'll start with the staff list, people.csv, via "choose a file...".
 
 ## Step 3
@@ -87,7 +87,7 @@ List: From, To, Weight, Date or time, Edge id, Attribute (ticked). "Weight" -- y
 `node real.mjs --step $S --click "Weight"` -> 09.png
 
 "Weight: emails", and a new row "Higher means: Not set | Closer | Farther | Capacity" with a long
-grey sentence about paths and PageRank -- I read the first bit: "Choose what a higher weight
+gray sentence about paths and PageRank -- I read the first bit: "Choose what a higher weight
 means." More emails means two people work closer together. "Closer" it is. (Capacity sounds like
 a truck or a warehouse, not email.) The Direction box still says "As the file says" -- emails go
 from one person to another, so that's fine; I'm leaving it.
@@ -164,13 +164,13 @@ dropping it. That last part is what earns my trust. My supplier sheets are full 
 - The emails column came in as a plain "Attribute" with "Weight: none". If I hadn't noticed, every
   ranking afterwards would treat 2 emails the same as 18. I'd want it to at least ask about a
   number column like that. Then the "Higher means: Closer / Farther / Capacity" choice had a long
-  grey sentence about PageRank and paths. "Closer" with its example sentence was clear. I don't
+  gray sentence about PageRank and paths. "Closer" with its example sentence was clear. I don't
   know what "Capacity" would have done.
 - After loading, the dots have no names on them, so the picture alone can't tell me who anyone
   is. I had to use the search box and read the side panel to check people one at a time. A plain
   table of the rows that loaded, side by side with my sheet, would let me tick them off the way I
   check things in Excel.
-- The grey labels on the import page ("Each row is", "Direction", "Higher means", "text", "whole
+- The gray labels on the import page ("Each row is", "Direction", "Higher means", "text", "whole
   number") are tiny and low-contrast. I'd need my glasses.
 - "Direction: As the file says" -- I left it. I'm not sure what else it would have done.
 

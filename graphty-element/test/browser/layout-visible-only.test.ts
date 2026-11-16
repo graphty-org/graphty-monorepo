@@ -58,7 +58,7 @@ function positionsOf(graph: Graph): Map<string, [number, number, number]> {
 }
 
 /**
- * The angles of some nodes about the centre of the circle they lie on, sorted, in degrees.
+ * The angles of some nodes about the center of the circle they lie on, sorted, in degrees.
  * @param at - Every node's position.
  * @param ids - The nodes.
  * @returns The angles.
@@ -71,7 +71,7 @@ function anglesOf(at: Map<string, [number, number, number]>, ids: readonly strin
 }
 
 /**
- * The smallest gap between two neighbouring angles, in degrees.
+ * The smallest gap between two neighboring angles, in degrees.
  * @param angles - The sorted angles.
  * @returns The gap.
  */
@@ -139,7 +139,7 @@ describe("a layout over only what the filter shows", () => {
         await show(five);
         await graph.setLayout("circular", { dim: 2, scale: 1.5 });
 
-        // Five neighbouring nodes of a twenty-slot circle are 18 degrees apart.
+        // Five neighboring nodes of a twenty-slot circle are 18 degrees apart.
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 18, 0.5);
     });
 
@@ -255,7 +255,7 @@ function farthest(a: number[][], b: number[][]): number {
 }
 
 describe("a force layout over only what the filter shows", () => {
-    // ngraph and d3 pull a node toward its neighbours: moving the hidden ones must not move it.
+    // ngraph and d3 pull a node toward its neighbors: moving the hidden ones must not move it.
     for (const layout of ["ngraph", "d3"]) {
         it(`does not let hidden neighbours pull a shown node under ${layout}`, async () => {
             const pull = async (visibleOnly: boolean): Promise<number> =>

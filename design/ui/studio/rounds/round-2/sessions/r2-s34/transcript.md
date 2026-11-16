@@ -37,7 +37,7 @@ Command: `--step ... --click "Analyze"`
 Saw (03.png): a popover with a "Filter analyses" search box and a list under "Rank nodes and
 edges": Degree, Betweenness ("Which nodes sit on the most shortest paths between others"), Edge
 betweenness, Closeness, PageRank (with a "Start here" badge), Eigenvector, Katz, HITS, All-pairs
-distance, Depth-first order (greyed, "Select a node first"), Most flow...
+distance, Depth-first order (grayed, "Select a node first"), Most flow...
 
 Hesitation: the "Start here" badge on PageRank pulls me a bit, but "which families the network
 depends on" is a broker question, and the sample card even said "who brokers between groups".
@@ -118,9 +118,9 @@ Alex: "Attribute" -- that's the Gephi "Ranking" thing. Click it.
 Command: `--step ... --click "Size by attribute"`
 
 Saw (11.png): a "Size by attribute" picker: search box, group "Bridges" with Bridges, Bridges rank,
-Bridges percentile; then greyed "Cannot be used: Holds groups, not amounts" -- id, name.
+Bridges percentile; then grayed "Cannot be used: Holds groups, not amounts" -- id, name.
 
-Alex: Nice that it tells me why id and name are greyed. Plain "Bridges" -- the raw score -- so the
+Alex: Nice that it tells me why id and name are grayed. Plain "Bridges" -- the raw score -- so the
 size matches the color legend.
 
 ## Step 12 -- pick Bridges for size
@@ -129,7 +129,7 @@ Command: `--step ... --click-at 1188,372` (option "Bridges")
 
 Saw (12.png): the dots now differ in size. One very big, dark-brown dot in the middle, two
 mid-size dark ones to its right, several small light-orange ones. Size row reads "1 to 3". Legend
-now has two rows: "Size: Bridges 0 ... 47.5" (a grey wedge) and "Color: Bridges 0 ... 47.5". The
+now has two rows: "Size: Bridges 0 ... 47.5" (a gray wedge) and "Color: Bridges 0 ... 47.5". The
 legend still covers the top-left corner where a dot used to be.
 
 Alex: That's the picture. Sizing part done. But I can't tell my director which family the big one

@@ -1219,7 +1219,7 @@ export function deriveSimplified(
 // ============================================================ contract
 
 /**
- * Renumber an arbitrary u32 labelling to dense 0..k-1 in first-seen order (design section 7.5; what
+ * Renumber an arbitrary u32 labeling to dense 0..k-1 in first-seen order (design section 7.5; what
  * `contract()` does with non-dense labels). INVALID_INDEX is not a legal label (E_PARTITION).
  * @param labels - the labels
  * @param out - an optional destination of the same length (may be `labels` itself)
@@ -1295,7 +1295,7 @@ function renumberByMap(labels: U32, result: U32): number {
 
 /**
  * The dense block labels of a contract partition (design section 7.3): labels already forming the
- * set 0..k-1 are kept, any other labelling is renumbered in first-seen order. E_PARTITION for a wrong
+ * set 0..k-1 are kept, any other labeling is renumbered in first-seen order. E_PARTITION for a wrong
  * length or an INVALID_INDEX label.
  * @param partition - the caller's labels
  * @param nodeCount - the node count
@@ -1510,7 +1510,7 @@ function contractEdgeColumns(
  * indices as labels, ids 0..k-1), every source edge contributes once: an inter-block edge becomes an
  * edge block(u) -> block(v), an intra-block edge one self-loop with weight w, kept or dropped per
  * `selfLoops`; parallels merge per `parallel` with the `weights` reducer (default "sum"; on an
- * unweighted source "sum" materialises multiplicities). Node and edge columns are kept only through
+ * unweighted source "sum" materializes multiplicities). Node and edge columns are kept only through
  * `nodeReducers` / `edgeReducers`.
  * @param source - the source snapshot
  * @param list - the source edge list

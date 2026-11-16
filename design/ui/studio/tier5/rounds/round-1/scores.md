@@ -180,7 +180,7 @@ different task halves (pointer sessions; the coding is in "Measures", below):
    the column's span while it reads "0 so far", and the preview switching to group colors; people
    could not tell a second way into the same filter from a new filter, or a waiting step from a
    broken one. r1-s05 (T71 A), r1-s06 (T71 B), r1-s07 (T71 A), r1-s25 (T77 A); r1-s26 (T77 B) read
-   the grey bounds as set values. Figma finding 4 shows the same range.
+   the gray bounds as set values. Figma finding 4 shows the same range.
 6. **Condition... and Or... say nothing of "and" or "or else".** r1-s08 (T71 B), r1-s21 (T72 A),
    r1-s24 (T75 B); r1-s22 picked Condition... by elimination. Figma's watch item: Condition... adds
    a narrowing step in group A and a widening "Add" step in an Or group.

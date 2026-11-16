@@ -238,7 +238,7 @@ pattern to avoid (research, "Patterns to avoid").
 ```
 
 - Send becomes Stop in place, with its key on the button. Esc in the composer stops, only while a
-  run can be cancelled.
+  run can be canceled.
 - The working line names real activity from `status.stage` and the running tool, and shows only
   after one second. `status.stageMessage` is English from the element and is never shown.
 - Text streams as text, never HTML, into the turn's foot. The log follows only a reader who is at

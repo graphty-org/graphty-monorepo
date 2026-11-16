@@ -172,7 +172,7 @@ Command: `--end <S>`
 
 - I typed "chain" into the analysis list first and got "No analysis matches". I only found it
   because the descriptions above kept saying "shortest paths" and I borrowed their word. If I hadn't
-  read those little grey lines I'd have been stuck reading friends lists by hand.
+  read those little gray lines I'd have been stuck reading friends lists by hand.
 - The analysis list opens on a long column of ranking things (Betweenness, Katz, HITS...). The one I
   needed was further down, under a heading I never saw until I filtered.
 - The From box was already filled with Milo because I'd clicked him last. Handy, but backwards for

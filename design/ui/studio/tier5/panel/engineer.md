@@ -58,7 +58,7 @@ One shared picker component for both surfaces (fix the two-picker split in the s
     4. Added -- user-registered algorithms (catalog "custom").
     5. Structure -- within k hops of, connected to, on a path between, linked to at least N of,
        shares a value with, edges within / leaving, largest component, data source, time window,
-       "while ... is not empty". Unsupported value kinds greyed, reason in the tooltip.
+       "while ... is not empty". Unsupported value kinds grayed, reason in the tooltip.
 - **Test**: chosen by kind, not a menu. Number / time / ordered: histogram brush above the approved
   range card (added, not restyled) with a By value | By position segment; category: counted
   checklist; flag: Is | Is not segment.

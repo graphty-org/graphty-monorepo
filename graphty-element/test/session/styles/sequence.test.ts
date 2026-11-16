@@ -12,7 +12,7 @@ import { createGraphSession } from "../../../src/session";
 import { OVERFLOW_SHAPES } from "../../../src/session/styles/encoding";
 
 /**
- * A painted colour as a lower-case hex.
+ * A painted color as a lower-case hex.
  * @param paint - What the sequence painted.
  * @returns The hex.
  */

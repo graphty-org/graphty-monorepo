@@ -4,7 +4,7 @@
  * subtraction and a multiply, both correctly rounded on every IEEE device, so the keys are BITWISE the GPU's when the
  * oracle reads the GPU's own `gridMin` / `invCellSize`), the STABLE order by key (key, then index: what the radix sort
  * produces), `cellHist` and its exclusive scan `cellStart` over `histWords` entries (the 2^dim outside pseudo-cells
- * from index `cells`, one per orthant about the grid centre, issue #90, and one more so `cellStart[histWords - 1] ===
+ * from index `cells`, one per orthant about the grid center, issue #90, and one more so `cellStart[histWords - 1] ===
  * n`). Pure; no device. T9 extends it with the pyramid.
  */
 

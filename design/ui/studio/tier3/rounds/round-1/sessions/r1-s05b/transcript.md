@@ -86,7 +86,7 @@ Saw: focus ring (green) on the Les Miserables card. Pressing Enter.
 ## Step 21
 Command: --step --key Enter
 Saw: Les Miserables is open - 77 nodes, 254 edges, all purple-blue. Part 1 (open the sample) done. Count: about 38 key presses plus typing "Les", and I lost my place once (the header "Samples" link and the card "Samples" button both only scroll the page and leave focus behind).
-Now the colour. Left panel has "Style layers" with Hovered, Selected and "Everything 77" - that last one sounds like the layer for all nodes. Right panel has Style / Values tabs. I cannot see a focus ring anywhere. Pressing Tab to find focus.
+Now the color. Left panel has "Style layers" with Hovered, Selected and "Everything 77" - that last one sounds like the layer for all nodes. Right panel has Style / Values tabs. I cannot see a focus ring anywhere. Pressing Tab to find focus.
 
 ## Step 22
 Command: --step --key Tab
@@ -98,7 +98,7 @@ Saw: focus on the "Values" tab. ArrowLeft to move to "Style", the standard tab-l
 
 ## Step 24
 Command: --step --key ArrowLeft
-Saw: Style tab is open, but it is only Canvas (background, lighting, outline) and Labels. No node colour here. The node colour must live in the "Everything" style layer on the left. Getting there: Shift+Tab back through the panel. Trying Shift+Tab three times.
+Saw: Style tab is open, but it is only Canvas (background, lighting, outline) and Labels. No node color here. The node color must live in the "Everything" style layer on the left. Getting there: Shift+Tab back through the panel. Trying Shift+Tab three times.
 
 ## Step 25
 Command: --step --key Shift+Tab x3
@@ -130,7 +130,7 @@ Saw: green focus border on the Fill Color box (6366F1). Selecting the text and t
 
 ## Step 32
 Command: --step --key Control+a --type "006400" --key Enter
-Result: that went wrong. The colour box was not a text field. Ctrl+A was taken by the app as "select everything in the graph": 77 nodes and 254 edges are now selected (yellow rings, blue edges), the right panel changed to "77 nodes, 254 edges selected", and focus jumped to the "Values" tab. Nothing typed. I lost my place in the right panel - second time focus was thrown somewhere I did not ask for. The box looked exactly like the Size text box above it and had a focus border like a text field.
+Result: that went wrong. The color box was not a text field. Ctrl+A was taken by the app as "select everything in the graph": 77 nodes and 254 edges are now selected (yellow rings, blue edges), the right panel changed to "77 nodes, 254 edges selected", and focus jumped to the "Values" tab. Nothing typed. I lost my place in the right panel - second time focus was thrown somewhere I did not ask for. The box looked exactly like the Size text box above it and had a focus border like a text field.
 Next: Escape, expecting it to clear the selection.
 
 ## Step 33
@@ -139,7 +139,7 @@ Saw: "Selection cleared: 77 nodes, 254 edges" notice - good, Escape undid it. Bu
 
 ## Step 34
 Command: --step --key Shift+Tab x7 --key Enter
-Saw: Everything layer open again, row focused. Same walk as before: 18 Tabs to the Colour box. This time I will press Enter on it instead of Ctrl+A, to see what kind of control it is.
+Saw: Everything layer open again, row focused. Same walk as before: 18 Tabs to the Color box. This time I will press Enter on it instead of Ctrl+A, to see what kind of control it is.
 
 ## Step 35
 Command: --step --key Tab x18 --key Enter
@@ -147,7 +147,7 @@ Saw: Enter opened a "Color" picker popup. Focus went straight into its Hex box w
 
 ## Step 36
 Command: --step --type "006400" --key Enter
-Saw: every one of the 77 nodes is now dark green. The popup closed by itself on Enter, and focus came back to the Colour box, which now reads 006400 with a dark green swatch. Edges are still light grey, which suits a printed handout. Task done. I stop here.
+Saw: every one of the 77 nodes is now dark green. The popup closed by itself on Enter, and focus came back to the Color box, which now reads 006400 with a dark green swatch. Edges are still light gray, which suits a printed handout. Task done. I stop here.
 
 ## Wrap-up (Sam, in character)
 
@@ -157,17 +157,17 @@ Ease: 3 out of 7 (somewhat difficult). Every step could be done from the keyboar
 
 Key counts:
 - Opening the sample: about 38 keys plus typing "Les". Should have been about 6.
-- Making nodes dark green: about 70 keys plus typing. Without the Ctrl+A accident it would have been about 40 - still a lot for changing one colour.
+- Making nodes dark green: about 70 keys plus typing. Without the Ctrl+A accident it would have been about 40 - still a lot for changing one color.
 
 What confused me or cost me:
 1. "Samples" (header link and the big card button) only scrolls down to a library on the same page. Focus stays behind on the button. Typing went nowhere, and the next Tab from the header went to the 3D demo drawing, past the library, and the page scrolled back up to the top. I thought the library had closed. Focus should move to the library's search box.
-2. Long Tab walks: five demo buttons in the landing toolbar, nine separate category chips (Any..Generated) before the first sample card, the whole bottom toolbar between the left and right panels, and 9 stops inside the layer panel before Fill > Color (each property has its own link and minus buttons). There is no key to jump between panels that I could find. From choosing the "Everything" layer to its Colour box was 18 Tabs.
+2. Long Tab walks: five demo buttons in the landing toolbar, nine separate category chips (Any..Generated) before the first sample card, the whole bottom toolbar between the left and right panels, and 9 stops inside the layer panel before Fill > Color (each property has its own link and minus buttons). There is no key to jump between panels that I could find. From choosing the "Everything" layer to its Color box was 18 Tabs.
 3. Choosing a layer on the left opens its settings on the right, but focus stays on the left. I expected focus to go to the panel that just opened.
-4. The Fill Colour box looks and focuses exactly like the Size text box above it, but it is a button that opens a picker. I pressed Ctrl+A to select its text; the app took Ctrl+A as "select all 77 nodes and 254 edges", changed the right panel and threw focus to the Values tab. Escape undid the selection (good, and the notice said so), but it also closed the layer I had open, so I had to walk back: 8 more keys plus 18 Tabs. That is the kind of shortcut that makes me wary.
-5. The Graph's own Style tab only has Canvas and Labels - no node colour - so I went there first and had to back out. It was not obvious that node colour lives in a layer called "Everything".
+4. The Fill Color box looks and focuses exactly like the Size text box above it, but it is a button that opens a picker. I pressed Ctrl+A to select its text; the app took Ctrl+A as "select all 77 nodes and 254 edges", changed the right panel and threw focus to the Values tab. Escape undid the selection (good, and the notice said so), but it also closed the layer I had open, so I had to walk back: 8 more keys plus 18 Tabs. That is the kind of shortcut that makes me wary.
+5. The Graph's own Style tab only has Canvas and Labels - no node color - so I went there first and had to back out. It was not obvious that node color lives in a layer called "Everything".
 
 What worked well:
 - Focus rings are visible on almost everything (green ring), and tooltips show the shortcuts (Settings Ctrl+, ; Analyze Shift+A).
-- Enter on the Colour box opened the picker with the hex text already selected, so I could type straight over it; Enter applied it, closed the popup and put focus back on the box. That part was right.
+- Enter on the Color box opened the picker with the hex text already selected, so I could type straight over it; Enter applied it, closed the popup and put focus back on the box. That part was right.
 - Search in the sample library filtered as I typed.
 - Escape clearing the selection, with a notice saying what it did.

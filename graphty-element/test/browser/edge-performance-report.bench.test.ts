@@ -40,7 +40,7 @@ const CONFIG = {
         PHASE2: [500],
         PHASE3: [500],
         PHASE4: [1000],
-        // Each doubles the last, so a linear load shows a ratio of 2 between neighbours
+        // Each doubles the last, so a linear load shows a ratio of 2 between neighbors
         LOAD_SCALING: [500, 1000, 2000],
     },
 
@@ -168,7 +168,7 @@ function calculatePercentile(values: number[], percentile: number): number {
  * Resolve once the graph's scene has drawn its next frame.
  *
  * The benchmark is paced on FRAMES, not on a timer. The render loop draws on every animation
- * frame, and a frame of 1000 edges on a software rasteriser keeps the main thread busy from one
+ * frame, and a frame of 1000 edges on a software rasterizer keeps the main thread busy from one
  * frame to the next; Chrome runs rendering ahead of timer tasks, so a `setTimeout(16)` there
  * waited through many frames instead of one. Paced on a timer, the 31 steps of one scenario took
  * about six seconds locally and past fifteen on a slower CI runner, and what was recorded as a

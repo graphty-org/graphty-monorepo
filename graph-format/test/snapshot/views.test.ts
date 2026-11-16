@@ -263,7 +263,7 @@ describe("sharing and aliasing rules (I17, section 7.2)", () => {
         const s = makeSnapshot(spec);
         const r = s.reverse();
         expect(r.directed).toBe(true);
-        // in-neighbours: 0 <- {2}; 1 <- {0}; 2 <- {0 (e1), 0 (e4), 1}
+        // in-neighbors: 0 <- {2}; 1 <- {0}; 2 <- {0 (e1), 0 (e4), 1}
         expect(Array.from(r.rowPtr)).toEqual([0, 1, 2, 5]);
         expect(Array.from(r.colIdx)).toEqual([2, 0, 0, 0, 1]);
         const fwd = r.fwdArc;

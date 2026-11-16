@@ -30,7 +30,7 @@
  *    owner item of G3-F3 (2) carries the re-derivation option (the seeds10 rows as the basis -> the cap).
  *
  * A recording run writes the unscaled random1k networkx traces (10 and 50 iterations) and the karate networkx trace
- * (50) with their f32 / f64 references, and the paper-mode re-synchronised traces of random1k and karate with their
+ * (50) with their f32 / f64 references, and the paper-mode re-synchronized traces of random1k and karate with their
  * per-adapter oracle references, as noise fixtures (PLAN DECISIONS 6, 7, 17).
  */
 
@@ -76,7 +76,7 @@ const ITERATIONS = TRACE_ITERATIONS;
 /** 10 .. 1,000 nodes (spec 11.4): the path of 10, karate, the grid and random1k (scaled on software adapters). */
 const GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10", "random1k"];
 const MODES = [PAPER, NETWORKX];
-/** The seeds of the free-running sweep (G3-F3 item 2): the pinned parity seed 7 and its seven neighbours. */
+/** The seeds of the free-running sweep (G3-F3 item 2): the pinned parity seed 7 and its seven neighbors. */
 const SWEEP_SEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 /** The sweep's graphs: the three small fixtures of GRAPHS (random1k's oracle at 8 seeds would cost the lavapipe budget). */
 const SWEEP_GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10"];
@@ -105,7 +105,7 @@ async function oracleTraces(
     return { f32: await run("f32"), f64: await run("f64") };
 }
 
-/** The GPU's free-running trace of `iterations` x step(1) from `start` (no oracle, no re-synchronisation). */
+/** The GPU's free-running trace of `iterations` x step(1) from `start` (no oracle, no re-synchronization). */
 async function freeRunningTrace(
     ctx: GpuContext,
     s: GraphSnapshot,
@@ -156,7 +156,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
                         `${label}: trace run 1 vs run 2`,
                     );
                     expectBitwiseEqual(a.positions, b.positions, `${label}: positions run 1 vs run 2`);
-                    // the re-synchronised leg (both modes)
+                    // the re-synchronized leg (both modes)
                     const resync = resyncReports(a, label);
                     console.warn(
                         `[fa2-trace-parity] ${label}: re-synchronised ${ITERATIONS} iterations: ratio vs f32 ${resync.f32.worst.toExponential(3)}, vs f64 ${resync.f64.worst.toExponential(3)}; per-node positions after one step differ by at most ${Math.max(...a.positionError.f32).toExponential(2)} (f32) / ${Math.max(...a.positionError.f64).toExponential(2)} (f64)`,

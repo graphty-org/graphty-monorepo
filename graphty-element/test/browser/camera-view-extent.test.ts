@@ -1,7 +1,7 @@
 /**
  * @file The `extent` option of the camera views (issue #2668): `"drawn"` frames each node out to the
  * box it is drawn in, for `zoomToNodes`, `applyCameraView` and `resolveCameraPreset`, and for a third
- * party's view the same way as a built-in one. A subset is measured by centres by default; the whole
+ * party's view the same way as a built-in one. A subset is measured by centers by default; the whole
  * graph by its drawn nodes (issue #6804), so Fit never cuts off a node at the rim.
  */
 

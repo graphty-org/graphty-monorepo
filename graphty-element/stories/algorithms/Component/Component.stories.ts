@@ -123,8 +123,8 @@ export const ConnectedComponents: Story = {
  * In a directed graph, an SCC is where every node can reach every other node
  *
  * This fixture has ten of them, which is more than any of the element's categorical palettes can
- * name -- the largest holds nine colours -- so the element falls back to a continuous palette
- * sampled once per piece rather than wrapping two pieces onto one colour. Every other community
- * story here is under that ceiling and keeps the eight-colour default.
+ * name -- the largest holds nine colors -- so the element falls back to a continuous palette
+ * sampled once per piece rather than wrapping two pieces onto one color. Every other community
+ * story here is under that ceiling and keeps the eight-color default.
  */
 export const SCC: Story = createAlgorithmStory("graphty:scc", { paints: "node", paintsAtLeast: 20 });

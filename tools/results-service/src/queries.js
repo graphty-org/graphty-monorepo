@@ -283,7 +283,7 @@ const latestVerdict = (db, sha) =>
 export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
     // every commit's latest verdict of the last 30 days: the pick walks master's first parents through them for a
-    // restart's own commit, a judgement by inheritance and the bisect's last green commit
+    // restart's own commit, a judgment by inheritance and the bisect's last green commit
     const recent = await all(
         db,
         `SELECT v.sha, v.state, v.lane, v.issue, v.run_id AS runId, v.at FROM verdict v
@@ -464,7 +464,7 @@ function judgeTrend(rows, budgetSeconds) {
 /**
  * Master's median seconds per key (budgets 1.5), for a pull request's "slower than master" comment: over the
  * last `n` runs (10, at most 50) of `kind` (full: master's own ci.yml and release.yml runs) of the asked
- * workflows in 30 days, cancelled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
+ * workflows in 30 days, canceled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
  * more than a URL holds.
  * @param query `workflows` (comma list), `kind`, `n`
  * @param _who the caller
@@ -568,7 +568,7 @@ export async function summariesReady(db) {
 /**
  * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
  * key that stops getting samples (its job or step was renamed or removed) has an alarm the trend never judges
- * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, cancelled rows
+ * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, canceled rows
  * left out; a key with no sample in the window is not named at all.
  * @param db the D1 database
  * @param kind the run kind

@@ -1,6 +1,6 @@
 /**
  * @file Counted-work scaling of the calls that repaint or dispose ONE node or edge: a node
- * repainted onto a new mesh, a node disposed and an edge repainted with a new line colour. Each
+ * repainted onto a new mesh, a node disposed and an edge repainted with a new line color. Each
  * touches one element, so each is run on the middle element of a graph of n and of 4n nodes and
  * the elements it visits (Map, Set and Array iterator steps and array scans, see `visitsDuring`)
  * may grow at most 2x, never 4x (issue #2894). Counted, never timed (issue #1643).

@@ -62,7 +62,7 @@ checking; `validate()` re-checks I1-I13. Changing any of them is a data-model ma
   snapshot's indices are a prefix of the later one's; `freezeWithReport` says exactly when a remap
   happened.
 - **I17** After `freeze()` no core array, count, flag, id-map entry or immutable column changes; views
-  are memoised once and shared; only the column SET and the CONTENTS of `mutable` columns may change.
+  are memoized once and shared; only the column SET and the CONTENTS of `mutable` columns may change.
 - **I18** No core array, view array or column aliases memory a builder can still write.
 
 ## On the GPU

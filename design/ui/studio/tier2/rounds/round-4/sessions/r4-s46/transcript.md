@@ -36,7 +36,7 @@ Oh nice -- "Medici and 6 connections", the six names listed, and a "Hops 1 2 3" 
 
 ### 08
 `--step <session> --click "Filter to neighbors"` -> 08.png
-The three unlit dots are gone; the top bar now says "12 of 15 nodes", and every dot left has the yellow ring. The button went grey, so I guess it's on. The PageRank legend now says "full graph" -- fine, I didn't touch that. That's it, I'm done.
+The three unlit dots are gone; the top bar now says "12 of 15 nodes", and every dot left has the yellow ring. The button went gray, so I guess it's on. The PageRank legend now says "full graph" -- fine, I didn't touch that. That's it, I'm done.
 
 ### 09 -- end
 `--end <session>` -> session ended.
@@ -48,5 +48,5 @@ The three unlit dots are gone; the top bar now says "12 of 15 nodes", and every 
 - **What confused me:**
   - I didn't remember where "show the connected ones" lived. The find box listed the six direct marriages but not the next ring, and the neighborhood option is tucked behind the little "..." next to the name -- I only found it by guessing.
   - Clicking "Medici" in the find list did nothing the first time because the marriage lines also contain the word Medici (a session tool refusal, not something the app showed me; as a person I'd have clicked the top row).
-  - After "Filter to neighbors" the button went grey. I assume that means it's on, but nothing says so near it, and I'm not sure how to undo it besides the arrow at the top. The "12 of 15 nodes" at the top did reassure me.
+  - After "Filter to neighbors" the button went gray. I assume that means it's on, but nothing says so near it, and I'm not sure how to undo it besides the arrow at the top. The "12 of 15 nodes" at the top did reassure me.
   - The legend changed to "PageRank, full graph" -- I don't know what that means but I ignored it.

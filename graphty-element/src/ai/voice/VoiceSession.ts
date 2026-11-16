@@ -119,7 +119,7 @@ export class VoiceSession {
     private listening = false;
     /** Counts presses, so a press that ended before it started does nothing. */
     private press = 0;
-    /** Presses up to this number were cancelled: what they hear is never sent. */
+    /** Presses up to this number were canceled: what they hear is never sent. */
     private cancelledThrough = 0;
     /** The press listening now. */
     private input: SpeechInput | undefined;
@@ -624,7 +624,7 @@ export class VoiceSession {
             this.endPointing();
         }
 
-        // A press cancelled while it was still being transcribed sends nothing.
+        // A press canceled while it was still being transcribed sends nothing.
         const cancelled = press <= this.cancelledThrough;
         const code = cancelled && end.code === "AI_COMPLETED" ? "AI_CANCELLED" : end.code;
         const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELLED";

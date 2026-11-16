@@ -89,7 +89,7 @@ export function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor 
 /** Callback for voice input start/error events */
 export type VoiceStartCallback = (started: boolean, error?: string) => void;
 
-/** Why a voice session ended: stopped by the caller, ended by the recogniser, or failed. */
+/** Why a voice session ended: stopped by the caller, ended by the recognizer, or failed. */
 type VoiceEndReason = "user" | "timeout" | "error";
 
 /** Callback for a voice session starting (`active` true) or ending (`active` false, with a reason). */
@@ -241,7 +241,7 @@ export class VoiceInputAdapter implements InputAdapter {
      */
     stop(): void {
         if (this.recognition) {
-            // Ended here, so the recogniser's own end is not reported a second time.
+            // Ended here, so the recognizer's own end is not reported a second time.
             this.recognition.onend = null;
 
             try {

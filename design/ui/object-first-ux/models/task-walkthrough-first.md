@@ -16,7 +16,7 @@ Issue numbers (`#149`) are graphty-org/graphty-monorepo issues.
 
 ## 0. Terms
 
-- **Object.** A thing the reader made from the data and can select, name, colour, hide, lock,
+- **Object.** A thing the reader made from the data and can select, name, color, hide, lock,
   reorder and delete: a group, a path, a filter, a ranking. Nodes and edges are NOT objects
   in this sense; they are the **material** the objects are made of, as pixels are the material
   of a Figma layer.
@@ -24,16 +24,16 @@ Issue numbers (`#149`) are graphty-org/graphty-monorepo issues.
 - **Inspector.** The panel on the right. It always shows the properties of the selected object,
   or of the dataset when nothing is selected. Figma calls it the properties panel.
 - **Toolbar.** The floating bar at the bottom of the canvas holding the creation verbs.
-- **Fill.** An object's appearance: which colours, sizes, shapes and labels its members get. It
+- **Fill.** An object's appearance: which colors, sizes, shapes and labels its members get. It
   is stored as a graphty-element style layer; the reader never sees the layer, only the Fill
   rows of the object.
-- **Precedence.** When one node belongs to two objects that both set colour, which colour wins.
+- **Precedence.** When one node belongs to two objects that both set color, which color wins.
   In this model the answer is always the tree order: the object nearer the top wins, exactly as
   a Figma layer nearer the top of the Layers list paints on top.
 - **Set.** An object that is a collection of nodes and/or edges (a group, a path, a filter
-  result, a neighbourhood, a picked list).
+  result, a neighborhood, a picked list).
 - **Measure.** An object that is one value per node or per edge (degree, PageRank, log fold
-  change, a custom score). Its Fill is a scale (a colour ramp or a size range), not one colour.
+  change, a custom score). Its Fill is a scale (a color ramp or a size range), not one color.
 - **Partition.** An object that is one label per node (community 3, component 2, type "person")
   and therefore also a family of Sets, one per label. It shows in the tree as a parent row with
   one child row per group.
@@ -43,12 +43,12 @@ Issue numbers (`#149`) are graphty-org/graphty-monorepo issues.
   or the members of an object. "Within Group 2" means scope = the members of Group 2.
 - **Selection.** The transient set of nodes and edges currently picked on the canvas or in the
   table. It is not an object until the reader saves it as one.
-- **Paint row.** Figma's 32 px row for one fill: a colour chit, a hex field, an opacity field,
+- **Paint row.** Figma's 32 px row for one fill: a color chit, a hex field, an opacity field,
   an eye, and a minus. Reused here for every appearance channel.
 - **Section.** A titled block of inspector rows with a 40 px header (title at 11 px weight 550)
   and optional action icons at the right ("+", settings).
 - **Popover.** A 240 px light panel that opens to the left of the inspector, flush with it,
-  for a control that does not fit in a row (a colour picker, a rule composer).
+  for a control that does not fit in a row (a color picker, a rule composer).
 - **Flyout.** The dark menu that opens above a toolbar group to pick which tool in the group.
 - **Two-way hover link.** Hovering a tree row highlights its members on the canvas, and
   hovering a node on the canvas highlights the rows of the objects it belongs to.
@@ -81,7 +81,7 @@ Issue numbers (`#149`) are graphty-org/graphty-monorepo issues.
   and **Objects** (the tree). The dataset is the root row; every object nests under it.
 - Right, 240 px: the inspector. It has exactly two identities: the selected object (or node,
   or "N selected"), or the dataset.
-- Bottom centre: the toolbar. Two tool groups plus the comment tool and the 2D/3D switch. Tools
+- Bottom center: the toolbar. Two tool groups plus the comment tool and the 2D/3D switch. Tools
   are the only task-first surface, and, as in Figma, the tool snaps back to Move when its
   object exists.
 - Top bar: the dataset name (the file menu behind it), the palette (Ctrl+K), the zoom menu
@@ -118,15 +118,15 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Filter | **Filter** tool opens the rule composer; the resulting Filter set appears in the tree; its eye hides non-members ("Hide the rest" is a property of a Filter, off by default) | good |
 | Details on demand | Click a node: the node inspector shows Attributes, Belongs to, Values, Connections | good |
 | Orientation, return to a view | Views > "+ Save view" remembers camera and which objects are visible | good |
-| Hover highlight | Two-way hover link; hovering a node also outlines its neighbours | ok; the element has no hover highlight yet (inventory section 2) |
+| Hover highlight | Two-way hover link; hovering a node also outlines its neighbors | ok; the element has no hover highlight yet (inventory section 2) |
 
 ### W03 Iterative analysis cycle (Alex, Emma, Dr Chen)
 
 | Step | Under the object model | Fit |
 |---|---|---|
 | Question | Nothing to build; a Note on the dataset ("Question: ...") records it | ok |
-| Explore encodings | Make Measures with Rank; switch which one paints by reordering or by toggling eyes; drag "Influence" above "Connections" and colour follows Influence | good; the tree IS the encoding switch |
-| Hypothesise | Note on an object | ok |
+| Explore encodings | Make Measures with Rank; switch which one paints by reordering or by toggling eyes; drag "Influence" above "Connections" and color follows Influence | good; the tree IS the encoding switch |
+| Hypothesize | Note on an object | ok |
 | Test with algorithms | Rank, Find groups; each run is an object with parameters and caveats in **Made by** | good |
 | Refine and document | **Made by** > "Copy as methods text"; the object tree is the analysis record | good for the record; the replayable journal is element work (#145) |
 | Compare results | Two Measures side by side: the Table dock with both value columns; the node inspector's **Values** lists every Measure's value for the node | ok; a true comparison view is section 9, fit 5 |
@@ -137,8 +137,8 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 |---|---|---|
 | Detect | **Find groups** tool (Louvain default; flyout for Leiden, Label propagation, Girvan-Newman, Separate pieces) creates the Partition "Communities" with child Groups | good |
 | Validate modularity | Partition inspector **Summary**: "6 groups, modularity 0.36"; the "?" reveals the plain reading | good |
-| Characterise each group | Select "Group 2": **Members** (12 nodes, density), **Profile** (dominant values per column) | good for size and density; the per-group attribute profile is element work (#193) |
-| Bridge nodes | Rank > Bridges (betweenness) over the whole graph, then "Top 10" child set; nodes in the top 10 that sit in two groups' neighbourhoods are visible because the path and group fills overlap | ok |
+| Characterize each group | Select "Group 2": **Members** (12 nodes, density), **Profile** (dominant values per column) | good for size and density; the per-group attribute profile is element work (#193) |
+| Bridge nodes | Rank > Bridges (betweenness) over the whole graph, then "Top 10" child set; nodes in the top 10 that sit in two groups' neighborhoods are visible because the path and group fills overlap | ok |
 | Inter-community structure | Not expressible as an object today: needs a "group graph" (one node per community) | no; flag |
 
 ### W05 Path investigation (Sarah, Marcus, Alex)
@@ -148,7 +148,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Pick source and target | **Path** tool: click A, click B (or Ctrl+F to find A by name, then P from its inspector "Path from here") | good; a drawing tool with two clicks |
 | Path finding | The Path object appears, selected; **Steps** section lists each hop with the edge type | good |
 | Compare alternative paths | Path inspector **Rule**: "Shortest" or "All paths up to N hops" (element #329); the latter creates a Path per route, nested under "Paths: A -> B" | ok |
-| Show in context | Neighbourhood tool on the path's members ("+ Neighbourhood" in the Path inspector) creates a child set; its eye hides the rest | good |
+| Show in context | Neighborhood tool on the path's members ("+ Neighbourhood" in the Path inspector) creates a child set; its eye hides the rest | good |
 | Interpret intermediates | Click each hop in **Steps** to select the node | good |
 | Not connected | Path object with state failed and reason "No route" | good |
 
@@ -156,9 +156,9 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 
 | Step | Under the object model | Fit |
 |---|---|---|
-| Contextualise the alert | Ctrl+F the account id; **Neighbourhood** tool with depth 2 makes "Around acct-4471"; "Hide the rest" on | good |
+| Contextualize the alert | Ctrl+F the account id; **Neighborhood** tool with depth 2 makes "Around acct-4471"; "Hide the rest" on | good |
 | Pattern recognition | Filter by rule within that set (shared device, same address); a **Pattern** tool (motif search) is proposed, not built | ok for rule filters; pattern search is no |
-| Ring identification | Increase the Neighbourhood depth in its inspector (live object, re-evaluates) | good |
+| Ring identification | Increase the Neighborhood depth in its inspector (live object, re-evaluates) | good |
 | Risk scoring | A Measure of kind formula ("computed attribute") combining degree, velocity, shared ids | awkward: computed attributes are proposed |
 | Evidence documentation | Notes on nodes, on the Path, on the set; **Export** > "Members as CSV", image of the object | good |
 | Timeline | A **Time window** set (section 3.9) with the transport in the status bar | ok |
@@ -179,8 +179,8 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Step | Under the object model | Fit |
 |---|---|---|
 | Build the disease network | Import; join drug-target and expression tables (**Data** > "Join a table") | ok; join is #298 |
-| Module definition | Neighbourhood of the disease gene set ("within N steps of Set X") | good |
-| Prioritise | Several Measures; a formula Measure combines them; "Top 20" child set | awkward: formula measures proposed |
+| Module definition | Neighborhood of the disease gene set ("within N steps of Set X") | good |
+| Prioritize | Several Measures; a formula Measure combines them; "Top 20" child set | awkward: formula measures proposed |
 | Validate | Notes and joined columns in the table | ok |
 | Candidate selection | Save the selection as a Picked set "Candidates"; Export members CSV | good |
 
@@ -188,7 +188,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 
 | Step | Under the object model | Fit |
 |---|---|---|
-| Case initialisation | New dataset; Notes on the dataset | ok |
+| Case initialization | New dataset; Notes on the dataset | ok |
 | Data integration | Import several files with "Add to current"; join tables | ok; merge-capable load is element work |
 | Resolve duplicates | Select two nodes > "Merge" | no: node merging is a data edit, not an object; proposed, needs an inverse for undo |
 | Structural analysis | Rank (degree, betweenness, eigenvector), Find groups | good |
@@ -213,7 +213,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Network mapping | Import; Partition by the "tier" column (Find groups > "By column") | good |
 | Dependency analysis | Filter by region; Partition by region | good |
 | Bottlenecks | Rank > Bridges | good |
-| Scenario modelling | "Without X" scenario | awkward; section 9 fit 5 |
+| Scenario modeling | "Without X" scenario | awkward; section 9 fit 5 |
 | Hierarchical layout | Dataset > **Arrangement** > Tree, root = a picked node | good |
 
 ### W12 Anomaly detection (Sarah, Priya S, Alex)
@@ -224,7 +224,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Statistical outliers | Filter "Connections value > mean + 3 sd" (the rule composer offers "above N standard deviations") | good with #149 |
 | Structural outliers | Clustering coefficient Measure (#330) | ok when built |
 | Triage | Table of the Filter's members | good |
-| Investigate | Neighbourhood per anomaly | good |
+| Investigate | Neighborhood per anomaly | good |
 | Classify | A Picked set per label ("Errors", "Threats") built by adding selected nodes to a set | good |
 
 ### W13 Knowledge graph construction (Dr Kim)
@@ -243,9 +243,9 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 |---|---|---|
 | Arrival | Welcome sheet over the empty canvas: one primary button, a drop zone, samples | good (kept from today) |
 | Load | Import dialog with a preview | good |
-| First visualisation | Graph drawn; dataset inspector reads "34 nodes, 78 edges"; the tree shows only the root | good |
+| First visualization | Graph drawn; dataset inspector reads "34 nodes, 78 edges"; the tree shows only the root | good |
 | Guided tries | The empty Objects group shows three suggestion rows in place of "no objects yet": "Find groups", "Rank by connections", "Search"; each is the same as pressing the tool | good: guidance in one place, on the empty state only |
-| First analysis | Click "Find groups": the Partition appears, coloured, selected; the inspector's "?" gives the plain reading | good |
+| First analysis | Click "Find groups": the Partition appears, colored, selected; the inspector's "?" gives the plain reading | good |
 | Next steps | Help menu > "Show suggestions" restores the rows; the tool tooltips carry one sentence each | good |
 
 ### W15 Findings communication (Alex, Emma, Sarah, Marcus)
@@ -272,8 +272,8 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Step | Under the object model | Fit |
 |---|---|---|
 | Identify hubs | Rank > Connections; Top 10 child set | good |
-| Ego network | Select a hub; Neighbourhood tool depth 1; "Hide the rest" | good |
-| Attribute analysis | Neighbourhood inspector **Profile** (selection statistics: mean, median against the whole graph) | good; `selection.statistics()` ships |
+| Ego network | Select a hub; Neighborhood tool depth 1; "Hide the rest" | good |
+| Attribute analysis | Neighborhood inspector **Profile** (selection statistics: mean, median against the whole graph) | good; `selection.statistics()` ships |
 | Temporal growth | Time window | ok |
 | Role classification | Note or a Picked set per role | ok |
 | Radial layout around the hub | Arrangement > Rings by distance, root = the hub (layout declared, unserved) | ok when built |
@@ -302,7 +302,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Get the network | Import edge list (STRING fetch is outside scope) | ok |
 | Trim to the connected part | Find groups > Separate pieces; select "Part 1 (largest)"; **Focus** on it (section 4.6) so it is the working network | good |
 | Join the data table | Dataset > **Data** > "Join a table": key column picker, then "412 matched, 38 unmatched (list)" | ok; #298 |
-| Encode measurements | Columns > logFC "..." > "Colour by": creates the Measure "logFC" whose Fill is a diverging ramp centred on 0, Missing = grey; "Size by" a second column | good; this is the direct-manipulation win |
+| Encode measurements | Columns > logFC "..." > "Colour by": creates the Measure "logFC" whose Fill is a diverging ramp centered on 0, Missing = gray; "Size by" a second column | good; this is the direct-manipulation win |
 | Driver genes thicker | Picked set "Drivers" with Fill: Outline 2 px; placed above the Measure in the tree | good |
 | Lay out and read | Arrangement; click nodes | good |
 | Save the figure | Share > Export image with legend; Export node table | good when #292 lands |
@@ -321,7 +321,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 
 | Step | Under the object model | Fit |
 |---|---|---|
-| Build the map | Import as edge list; Measures from columns (size by set size, colour by NES, edge width by overlap) | good |
+| Build the map | Import as edge list; Measures from columns (size by set size, color by NES, edge width by overlap) | good |
 | Explore | Ctrl+F a gene finds every pathway node whose gene list contains it (text search over a column) | good with #149 |
 | Tune thresholds | Filter set with two range rules; live count in the row | good |
 | Name themes | Find groups; rename groups; collapse a group into one node | rename good; collapse no (data edit) |
@@ -334,7 +334,7 @@ Jordan (marketing), David (supply chain), Chris (recommender), Dr Kim (knowledge
 | Several rankings | Rank > "Several..." batch: five Measures | good |
 | Distributions | Each Measure's histogram | good |
 | Combine | Each Measure gets a "Top 10" child set; a **Combination** object "In all of..." (intersect) of those sets | good; the combination is Figma's boolean operation |
-| In context | Select the Combination; Neighbourhood depth 1 | good |
+| In context | Select the Combination; Neighborhood depth 1 | good |
 | Report | Combination Fill: Label on; Export the table with every Measure as a column | good |
 
 ### W24 Condition comparison (Priya R, Dr Chen)
@@ -393,12 +393,12 @@ What it is: nodes and/or edges. Five sub-kinds, differing only in their **Rule**
 | Sub-kind | Definition | Created by | Live? |
 |---|---|---|---|
 | Filter | A rule: range, categories, degree band, expression, "above N standard deviations" of a Measure, top N of a Measure, combinators | Filter tool; a column's "Filter by"; a Measure's "+ Top N" | yes, re-evaluates on data change |
-| Neighbourhood | Seeds plus depth plus direction | Neighbourhood tool; a node's "Neighbourhood" action | yes |
+| Neighborhood | Seeds plus depth plus direction | Neighborhood tool; a node's "Neighbourhood" action | yes |
 | Path | Source, target, method (shortest, all up to N hops), weighted or not | Path tool | no: a run; goes stale |
 | Result set | An algorithm whose answer is a set: cheapest network (MST), weakest link (min cut), best pairing, bridges (#311) | Path tool flyout ("connecting" tools) | no: a run |
 | Picked | An explicit list of ids | "Save as set" on a selection (Ctrl+G); "Add to set" | not live; stale only if members leave the data |
 
-Extra properties: "Hide the rest" (a Filter, Neighbourhood or Path can hide non-members: it
+Extra properties: "Hide the rest" (a Filter, Neighborhood or Path can hide non-members: it
 writes the element's visibility filter, so the status bar reads "showing 12 of 34"); member
 counts; for a Path, the ordered **Steps**.
 
@@ -408,7 +408,7 @@ What it is: one value per node or per edge. Created by the Rank tool (an algorit
 "Colour by" or "Size by" (an imported attribute promoted to an object), or "New score" (a
 formula over other Measures and columns; proposed as computed attributes).
 Properties: field (value, rank, percentile), min, max, mean, median, histogram, top 5, missing
-count; **Fill** is a scale: colour by value (palette, scale type, domain, centre, missing colour),
+count; **Fill** is a scale: color by value (palette, scale type, domain, center, missing color),
 size by value (range), label the top N. Child rows: "Top N" Filter sets made with the "+" on the
 Measure row.
 State: a run; stale when the visible scope changes ("ran on 34, now 12").
@@ -425,7 +425,7 @@ A Group is a real Set: selectable, renamable (#191), with its own **Members**, *
 **Fill**. Its Fill reads "From Communities" until the reader overrides a channel, which then
 shows in the row as its own swatch. A Group's Fill row sits above its Partition's in
 precedence by definition (a child paints over its parent's default), so no drag is needed to
-recolour one group.
+recolor one group.
 State: the Partition is the run; its Groups share its state.
 
 ### 3.5 Combination
@@ -477,18 +477,18 @@ another to re-scope it (the row's state goes stale and it re-runs if cheap); dra
 re-scope to the whole graph. Drop zones are Figma's: top quarter before, middle into, bottom
 quarter as first child.
 
-**Precedence** is the tree order, top wins, per channel. If "Path: A -> B" (Fill: colour gold,
-size 2x) sits above "Communities" (Fill: colour per group) then path nodes are gold and 2x and
-everything else keeps its group colour. Drag Communities above the Path and the path nodes
-take their group colour but stay 2x, because Communities never sets size. Objects with no Fill
+**Precedence** is the tree order, top wins, per channel. If "Path: A -> B" (Fill: color gold,
+size 2x) sits above "Communities" (Fill: color per group) then path nodes are gold and 2x and
+everything else keeps its group color. Drag Communities above the Path and the path nodes
+take their group color but stay 2x, because Communities never sets size. Objects with no Fill
 row for a channel do not compete for it. The dataset's **Default look** is the bottom of the
 stack and cannot be moved. The mapping to the element is direct: the tree order is
 `session.styles.move()` order, one layer per Fill channel group, `source.by` = the object id.
 
 **State** is shown as a 6 px dot at the right of the row (Figma's badge slot): no dot when
-current; grey ring when stale; a 12 px progress ring when computing; red when failed. Hovering
+current; gray ring when stale; a 12 px progress ring when computing; red when failed. Hovering
 the dot gives the reason ("Data changed: ran on 34 nodes, now 46"). Live objects (Filters,
-Neighbourhoods, Combinations, column Measures) re-evaluate without asking. Runs (algorithm
+Neighborhoods, Combinations, column Measures) re-evaluate without asking. Runs (algorithm
 Measures, Partitions, Paths, Result sets) go stale and wait; the inspector's **Made by** section
 then starts with a "Re-run" button, and the row menu offers "Re-run" and "Re-run all stale".
 A stale object keeps painting its old values, dimmed 50 percent in the tree row name so the
@@ -517,7 +517,7 @@ last-used variant, Escape leaves the tool, and the tool returns to Move when its
 | Move | V | - | Click, shift-click, marquee, drag a node (pins it) | the selection |
 | Hand | H | - | Pan | - |
 | Filter | F | By rule, By column, Top N of a Measure, Time window | A rule composer popover opens beside the tree; the row appears at the top of the tree as soon as one rule is valid, with a live count | a Filter set (a Time window when that variant) |
-| Neighbourhood | N | depth 1, 2, 3; in / out / all | Click a node (or use the selection as seeds); scroll or the popover changes depth live | a Neighbourhood set |
+| Neighborhood | N | depth 1, 2, 3; in / out / all | Click a node (or use the selection as seeds); scroll or the popover changes depth live | a Neighborhood set |
 | Find groups | G | Communities (Louvain), Communities refined (Leiden), Communities fast (Label propagation), By cutting bridges (Girvan-Newman), Separate pieces, Steps away from a node, By column | One click; Steps away and By column ask for a node or a column first | a Partition with Groups |
 | Path | P | Shortest route, All routes up to N hops, Cheapest connecting network, Cheapest network from a node, Best pairing, Most that can flow, Weakest link | Click A, click B (sources and sinks); network tools need no clicks | a Path, a "Paths" parent, or a Result set (plus a Partition for the two-sided ones) |
 | Rank | R | Connections, Bridges, Reach, Influence, Influence by association, Influence at a distance, Hubs and authorities, How far from everything, Exploration order, New score (formula), Several... | One click; "Several..." opens a checklist and runs a batch | a Measure (a batch: several) |
@@ -534,7 +534,7 @@ Rules that hold for every tool:
   the inspector switches to it and shows progress and Cancel in **Made by**. The status bar
   shows the same progress. Cancel leaves a failed row the reader can re-run or delete.
 - The run's suggested style becomes the object's Fill, so the picture changes when the run
-  completes, exactly as drawing a rectangle gives it a default grey fill.
+  completes, exactly as drawing a rectangle gives it a default gray fill.
 - Every tool is also a palette command (Ctrl+K) and a right-click menu row where a node is
   under the pointer ("Path from here", "Neighbourhood").
 
@@ -549,19 +549,19 @@ type row: type icon, name (rename in place), then the eye, lock and "..." at the
 Sections appear only when they have content; an empty section that can gain content is its
 header with a "+". Below, sections are listed top to bottom, with their rows.
 
-### 5.1 Set (Filter, Neighbourhood, Path, Result set, Picked, Combination)
+### 5.1 Set (Filter, Neighborhood, Path, Result set, Picked, Combination)
 
 - **Members**: "12 nodes, 30 edges" with "of 34 visible"; row actions Select members, Show in
   table. A Path shows **Steps** instead: one row per hop ("Mr. Hi -> John A. (friend)"), click
   selects.
 - **Rule** (Filter): one row per rule ("degree > 10", "type is person") each with a "-",
   and a "+ Rule" header action; "Hide the rest" checkbox row; "Within" row when scoped.
-  **Seeds** (Neighbourhood): the seed list, Depth (24 px scrubbable number), Direction
+  **Seeds** (Neighborhood): the seed list, Depth (24 px scrubbable number), Direction
   segmented control. **Route** (Path): From, To (node pickers), Method select, "Use weights"
   checkbox. **Operands** (Combination): Operation select, the operand rows. A Picked set has
   no rule; its Members section has "+ Add selected" and per-row "-".
-- **Fill**: paint rows, one per channel the set writes. Default for a new set: one Colour row
-  (a highlight palette colour) and nothing else. "+" adds Size, Shape, Outline, Glow, Opacity,
+- **Fill**: paint rows, one per channel the set writes. Default for a new set: one Color row
+  (a highlight palette color) and nothing else. "+" adds Size, Shape, Outline, Glow, Opacity,
   Label, or for edge members Width, Style, Arrows, Animation. Each row is Figma's paint row:
   chit, value, opacity, eye, minus. A set's Label row can be "node label" (each member's own)
   or "set name" (proposed; see section 10).
@@ -575,15 +575,15 @@ header with a "+". Below, sections are listed top to bottom, with their rows.
 
 ### 5.2 Measure
 
-- **Values**: the histogram (linear / log toggle), min, max, mean, median as a labelled
+- **Values**: the histogram (linear / log toggle), min, max, mean, median as a labeled
   two-column row, missing count; "Top 5" rows (name and value, click selects); "Show in table";
   header "+" adds a "Top N" child set (opens a 24 px number field, default 10).
 - **Parameters**: the algorithm's options (damping 0.85, iterations, tolerance...), "Use
   weights", "Treat as undirected" (per-run weight and direction are #313), "Within" row.
   For a column Measure: the column name and "Field: value / rank / percentile".
-- **Fill**: a Colour-by-value row (palette chit and select, scale select: Even steps, By order
-  of magnitude, Equal counts...), a Domain row (min, max, centre for a diverging palette, with
-  "from data" reset), a Missing row (chit, default grey), a Size-by-value row (min px, max px),
+- **Fill**: a Color-by-value row (palette chit and select, scale select: Even steps, By order
+  of magnitude, Equal counts...), a Domain row (min, max, center for a diverging palette, with
+  "from data" reset), a Missing row (chit, default gray), a Size-by-value row (min px, max px),
   a Label row ("Label the top N"). Rows are added with "+" like paints.
 - **Made by**, **Notes**, **Export** ("Values as CSV").
 
@@ -621,8 +621,8 @@ Title row: "Node" and its label; "Copy id"; "Locate" (camera to it); Pin toggle.
   `session.styles.explain()`. Click a row to select that object. This is the answer to "why is
   this node gold".
 - **Values**: one row per Measure: "Connections 17 (rank 1)".
-- **Connections**: neighbour rows (label, edge type, weight), In / Out / All tabs on directed
-  graphs; "Select these", "Show in table"; header "+" makes a Neighbourhood object.
+- **Connections**: neighbor rows (label, edge type, weight), In / Out / All tabs on directed
+  graphs; "Select these", "Show in table"; header "+" makes a Neighborhood object.
 - **Fill**: one paint-row group headed "This node only". Editing it creates a Picked set of one
   named after the node at the top of the tree and edits that set's Fill. So "make this one red"
   is three clicks and still lives in a layer.
@@ -652,7 +652,7 @@ Two different things can be selected, and the inspector always says which:
 
 | Action | Result |
 |---|---|
-| Click a node on the canvas | Selects that node (gold halo). Any object selection is dropped. The tree highlights, with the secondary selected fill, the rows the node belongs to (child-of-selected colour), scrolling the first into view |
+| Click a node on the canvas | Selects that node (gold halo). Any object selection is dropped. The tree highlights, with the secondary selected fill, the rows the node belongs to (child-of-selected color), scrolling the first into view |
 | Shift+click a node | Toggles it in the element selection |
 | Drag on empty canvas | Marquee; nodes inside preview as selected live; release keeps them. The element has no marquee today; it is new element work (the app must not compute hits itself) |
 | Click empty canvas, or Escape | Clears the element selection; a second Escape clears the object selection; the inspector returns to the dataset |
@@ -660,17 +660,17 @@ Two different things can be selected, and the inspector always says which:
 | Shift+click rows / Ctrl+click rows | Range / toggle multi-select of rows; the inspector shows "N objects" with Combine and Delete actions and a Fill section that edits all (with "Mixed") |
 | Double-click a row, or Enter with a row selected | Drills in: selects the object's MEMBERS as the element selection (Figma's Enter selects a container's children). Shift+Enter goes back to the object |
 | Hover a row | Members highlighted on the canvas (the two-way hover link, instant) |
-| Hover a node | Its rows get the hover fill; its neighbours outline on the canvas |
+| Hover a node | Its rows get the hover fill; its neighbors outline on the canvas |
 | Table row click | Selects the node or edge (the table and the canvas share `session.selection`) |
 | Ctrl+F (Find) | Replaces the tree with a search field, as Figma's Find does: typing filters objects by name AND nodes by label or attribute (`{text}` selection targets, #149); Enter selects the highlighted result and locates it; Escape restores the tree |
 | Ctrl+A | Selects every visible node |
 | Ctrl+G (with elements selected) | "Save as set": a Picked set at the top of the tree, selected, named "Set 1", rename field open |
-| Right-click a node | Context menu: Path from here, Neighbourhood, Select neighbours, Select connected part, Pin, Note, Copy id |
+| Right-click a node | Context menu: Path from here, Neighborhood, Select neighbors, Select connected part, Pin, Note, Copy id |
 | Right-click a row | Rename, Duplicate, Re-run, Combine (when 2+ rows), Show in table, Export, Delete |
 
 Rule-based selection is never a separate mode: a rule makes a Filter object, and "Select
 members" (or double-click) turns its members into the element selection. Relational selection
-(neighbours, connected part, the top N of a Measure) works the same way through the
+(neighbors, connected part, the top N of a Measure) works the same way through the
 right-click rows, which apply `session.selection.apply()` targets directly without making an
 object when the reader only wants a quick selection; Ctrl+G promotes it if they want to keep
 it.
@@ -689,14 +689,14 @@ The tree shows the dataset root and its objects. The inspector shows the dataset
   Density, Average connections; "Import report" row (kept, rejected, repeated); header actions
   "+ Add data", "Join a table".
 - **Columns**: one row per attribute: icon for type, name, completeness bar, unique count;
-  each row's "..." offers Colour by, Size by, Filter by, Group by, Set as label, Set as time,
+  each row's "..." offers Color by, Size by, Filter by, Group by, Set as label, Set as time,
   Set as type. This is where "put my data on the map" starts.
 - **Arrangement**: Layout select (Spread Out, Ring, Tree, ...), the layout's options behind a
   settings icon (a popover), Dimensions 2D / 3D, a transport row (play, pause, step, stop; the
   element's transport is #144), "Pinned: 3 nodes" with Unpin all. The status bar chip is a
   shortcut to this section.
-- **Default look**: the element's base fills as read-only paint rows (node colour, size, edge
-  colour, width) with "Edit" that opens them as an ordinary Fill; Labels row ("label the N most
+- **Default look**: the element's base fills as read-only paint rows (node color, size, edge
+  color, width) with "Edit" that opens them as an ordinary Fill; Labels row ("label the N most
   connected", the label budget); Background chit.
 - **Canvas**: Legend (on / off, placement), Minimap (on / off), Tooltips.
 - **Notes**: notes anchored to the dataset (the case notes).
@@ -712,7 +712,7 @@ it picks a layout (the element's recommendation) and fits the camera, and that i
 
 | Capability | Home | Shortcuts to it |
 |---|---|---|
-| 8.1 Data table | The bottom dock (Shift+T). Tabs Nodes / Edges. Its rows are the members or values of the selected object, or everything when nothing is selected; columns include every Measure. Row selection is the element selection. Column headers sort; a column's "..." has the same Colour by / Filter by verbs as the Columns section | "Show in table" on every object; the status bar counts |
+| 8.1 Data table | The bottom dock (Shift+T). Tabs Nodes / Edges. Its rows are the members or values of the selected object, or everything when nothing is selected; columns include every Measure. Row selection is the element selection. Column headers sort; a column's "..." has the same Color by / Filter by verbs as the Columns section | "Show in table" on every object; the status bar counts |
 | 8.2 Import | The import dialog (file, URL, paste; format; mapping; preview) opened from the Welcome sheet, File > Open, or **Data** > "+ Add data". Join a table is the same dialog's Join tab. This is the one guided flow, and it stays modal | Drag-and-drop anywhere; Ctrl+O |
 | 8.3 Layout process | Dataset inspector **Arrangement** (section 7) | The status bar chip ("Spread Out: settled") with play / pause; the palette |
 | 8.4 Camera, 3D, XR | The zoom menu in the top bar (Figma's "100%" menu): Zoom in / out / to fit / to selection, Reset, From above / side / front / Isometric, 2D / 3D, Enter VR / AR, Save view. Saved views are the Views group in the left panel | Keys 0, F, 1, 3, 7, 5; the toolbar's 2D / 3D switch |
@@ -731,13 +731,13 @@ Filter and have three Measures at once; Figma layers never overlap in membership
 precedence is only ever the tree order, per channel (section 3.10), so there is one rule to
 learn and one gesture (drag) to change it; the node inspector's **Belongs to** section says
 which object won each channel, so the picture is always explainable; and objects that do not
-set a channel do not compete for it, so a Path that only sets colour never disturbs a
-Measure's sizes. What stays awkward: two Measures that both colour cannot blend; the lower one
+set a channel do not compete for it, so a Path that only sets color never disturbs a
+Measure's sizes. What stays awkward: two Measures that both color cannot blend; the lower one
 is simply hidden, and the tree shows this only through the state of its swatch (dimmed when
-fully overridden). Accept it; blending two colour scales is not readable anyway.
+fully overridden). Accept it; blending two color scales is not readable anyway.
 
 **Fit 2: a Partition is one run but many things.** The reader wants to rename one group,
-recolour one group, hide the small ones, yet the groups are one result. Resolution: the
+recolor one group, hide the small ones, yet the groups are one result. Resolution: the
 Partition row expands to Group rows that are real Sets with their own inspector; a Group's Fill
 reads "From Communities" until overridden and then shows its own swatch; rename is per group
 (#191); "Hide groups smaller than N" is a Partition property; groups cannot be deleted, only
@@ -755,7 +755,7 @@ at a glance.
 
 **Fit 4: a Measure is both a picture and a source of sets.** "Colour by PageRank" is a Fill,
 but "the top 10 by PageRank" is a set the reader wants to intersect with other top 10s (W23).
-Resolution: a Measure's Fill is a scale (colour ramp, size range, top-N labels); its "+" makes
+Resolution: a Measure's Fill is a scale (color ramp, size range, top-N labels); its "+" makes
 "Top N" child Filter sets; sets combine through the Combination object, which is Figma's
 boolean operation with the same shortcuts. A custom score is a Measure of kind formula, made
 with Rank > New score, which needs the element's computed attributes (proposed). The ranked
@@ -808,7 +808,7 @@ capabilities inventory:
 
 1. The query engine for expressions and text search (#149): the Filter tool's "By rule" and
    Ctrl+F over node labels both depend on it. Range, categories, degree, component and
-   neighbourhood filters ship today, so the Filter tool can start without it.
+   neighborhood filters ship today, so the Filter tool can start without it.
 2. Result-field filters (#192) and group names (#191): Top N sets and renamable Groups.
 3. A marquee and an edge pick (#319): canvas selection parity with the tree.
 4. The layout transport (#144): the Arrangement section's play / pause / stop.

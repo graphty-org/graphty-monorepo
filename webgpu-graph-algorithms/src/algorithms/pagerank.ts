@@ -1,6 +1,6 @@
 /**
  * PageRank and personalized PageRank on the device (spec 8.2, 3.3): a pull over the reverse adjacency with the
- * out-weight normaliser folded into `xNorm` by `pr-scale`, the dangling mass and the L1 delta folded by
+ * out-weight normalizer folded into `xNorm` by `pr-scale`, the dangling mass and the L1 delta folded by
  * `pr-finalize` into the header at `partials[0]`, and `spmv-pull` writing the next iterate. Iterations run in
  * batches of PR_BATCH per submit, ONE readback per batch (the header and the iterate together), and the device
  * records `firstConverged` the first time the delta falls below `tolerance` (the scores sum to 1, so a threshold scaled
@@ -36,7 +36,7 @@ import { algorithmScope } from "./scope.js";
 
 /** Iterations per submit (spec 8.2: k = 8). */
 const PR_BATCH = 8;
-/** Params slots of one batch: per iteration one PrParams (shared by pr-scale and pr-finalize) and one SpmvParams, plus the normaliser's RangeParams and the last batch's convergence check; a smaller ring wraps onto a slot the same batch still reads. */
+/** Params slots of one batch: per iteration one PrParams (shared by pr-scale and pr-finalize) and one SpmvParams, plus the normalizer's RangeParams and the last batch's convergence check; a smaller ring wraps onto a slot the same batch still reads. */
 const RING_SLOTS = 2 * PR_BATCH + 2;
 
 /**
@@ -147,7 +147,7 @@ function throwIfAborted(options: GpuRunOptions | undefined, algorithm: string, b
 /**
  * The teleport vector: the personalization, or the uniform 1 / n.
  * @param n - the node count
- * @param personalization - the normalised personalization, or null
+ * @param personalization - the normalized personalization, or null
  * @param dest - the caller's destination, if any
  * @returns the vector
  */
@@ -209,7 +209,7 @@ function resultIfDone(
 }
 
 /**
- * The cores the run reads: weighted: false runs the unweighted algorithm on BOTH sides, so the normaliser sums 1 per
+ * The cores the run reads: weighted: false runs the unweighted algorithm on BOTH sides, so the normalizer sums 1 per
  * arc and the pull folds 1.
  * @param useWeights - whether the run reads the weights
  * @param core - the forward core
@@ -232,11 +232,11 @@ function weightingOf(
 }
 
 /**
- * The shared driver: `personalization` is the normalised vector of personalizedPageRank or null for the uniform
+ * The shared driver: `personalization` is the normalized vector of personalizedPageRank or null for the uniform
  * 1 / n of pageRank.
  * @param ctx - the context
  * @param s - the snapshot
- * @param personalization - the normalised personalization (sum 1), or null
+ * @param personalization - the normalized personalization (sum 1), or null
  * @param options - the PageRank and run options
  * @param algorithm - the public name, for messages and labels
  * @returns the result
@@ -429,7 +429,7 @@ export function pageRank(
 
 /**
  * Personalized PageRank on the device (spec 3.3, 8.2): the personalization vector replaces the uniform 1 / n in
- * the teleport and the dangling redistribution; it is normalised to sum 1 on the host.
+ * the teleport and the dangling redistribution; it is normalized to sum 1 on the host.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param personalization - one finite non-negative mass per node, not all zero

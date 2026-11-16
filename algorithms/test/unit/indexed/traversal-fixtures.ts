@@ -107,7 +107,7 @@ export function directedTraversalFixtures(): FacadeFixture[] {
 /**
  * The same graph with every adjacency Map in node-index order: nodes re-added in their original
  * order (or sorted by `nodeOrder`), then edges sorted by (lower index, higher index) -- (source,
- * target) when directed -- so each node meets its neighbours in ascending index order, which is how
+ * target) when directed -- so each node meets its neighbors in ascending index order, which is how
  * a snapshot row and a legacy `CSRGraph` row are sorted.
  * @param graph - A legacy fixture
  * @param nodeOrder - Re-add the nodes sorted by this comparator instead of in their original order
@@ -165,7 +165,7 @@ export function doubledSnapshot(graph: Graph): GraphSnapshot {
 /**
  * The order the legacy `CSRGraph` numbers nodes in (`src/optimized/csr-graph.ts`, `buildCSR`):
  * numbers numerically, anything else by `localeCompare`. Pass it to `inIndexOrder` to give a
- * snapshot the index space the legacy direction-optimised BFS works in.
+ * snapshot the index space the legacy direction-optimized BFS works in.
  * @param a - A node id
  * @param b - A node id
  * @returns The comparison

@@ -1,7 +1,7 @@
 // Screen 75: choosing what part of the graph a run covers (round-3/
 // analysis-results.md, "Run on a Set or the selection"). Karate Club. An
 // earlier run, Connections scoped to Group 2, paints only Group 2's eleven
-// members (the rest keep their plain grey: no Focus, nothing hidden); its
+// members (the rest keep their plain gray: no Focus, nothing hidden); its
 // Record tab says so. Rank is armed again and the scope select "on [Group 2]"
 // in the secondary bar is open above the bar. The within-group connection
 // counts are computed from karate.mjs.

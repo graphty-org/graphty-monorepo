@@ -106,4 +106,4 @@ After 12.png (the table click that opened "Add to Les Miserables") answers got s
       table.
     - Clicking "Selection 18" emptied the right panel instead of listing the 18.
     - No names on the dots and no name when I hover one, so the picture can't tell me who they are.
-    - The search box's own label is just its grey hint text.
+    - The search box's own label is just its gray hint text.

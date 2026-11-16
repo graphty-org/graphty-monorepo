@@ -2,7 +2,7 @@
  * @file The records and direction the GEXF and GraphML sources build from what graph-io read, for
  * the inputs the corpus does not cover: keyword case, key precedence, declaration order, a
  * headerless GEXF file with mixed edge types, date attributes, open spells, mutual edges and
- * yFiles colours.
+ * yFiles colors.
  */
 import { assert, describe, it } from "vitest";
 

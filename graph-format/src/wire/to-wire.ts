@@ -1,6 +1,6 @@
 /**
  * The wire encoder (design sections 4.5, 5.9, 9.1 and 12.2): `toWire()` turns a snapshot into a
- * JSON-serialisable manifest plus a list of ArrayBuffers, `transferables()` lists the exclusively
+ * JSON-serializable manifest plus a list of ArrayBuffers, `transferables()` lists the exclusively
  * owned buffers a worker hand-off may transfer, and the segment collector shared with the GSNP
  * container writer of bytes.ts lays every typed array out as a WireBufferRef.
  *
@@ -10,7 +10,7 @@
  * CONTAINER mode (toBytes / toByteChunks) every array is placed at a 256-byte-aligned offset of one
  * buffer region in manifest order, core arrays first so the region's prefix is the arena.
  *
- * toWire allocates nothing for typed data except the first materialisation of a lazily kept
+ * toWire allocates nothing for typed data except the first materialization of a lazily kept
  * representation: the Utf8 store of string ids and string columns and the f64 / tag arrays of a
  * numeric or mixed id map are cached by their owners, the encoded dictionaries and the JSON text of
  * json columns are cached here. Non-finite numbers and -0 inside metadata are carried as the tagged
@@ -424,7 +424,7 @@ function encodeColumnMeta(meta: ColumnMeta): ColumnMeta {
 /**
  * Encode one column (design section 9.1): the buffers its dtype uses, null for the rest. A column
  * held by more than one table (or belonging to a table held by more than one snapshot) has every
- * buffer recorded as shared, including the ones it materialises lazily while being encoded.
+ * buffer recorded as shared, including the ones it materializes lazily while being encoded.
  * @param layout - the collector
  * @param column - the column
  * @param tableShared - whether the table holding the column is shared
@@ -498,7 +498,7 @@ function encodeTable(layout: WireLayout, table: AttributeTable): WireColumn[] {
 // ============================================================ id map, meta, views
 
 /**
- * Encode the id map (design section 4.5), materialising its typed form on first use.
+ * Encode the id map (design section 4.5), materializing its typed form on first use.
  * @param layout - the collector
  * @param snapshot - the snapshot
  * @returns the wire id map
@@ -550,7 +550,7 @@ function encodeGraphMeta(meta: GraphMeta): GraphMeta {
 }
 
 /**
- * The cached, non-scalar views named by includeViews, each as its materialised member arrays
+ * The cached, non-scalar views named by includeViews, each as its materialized member arrays
  * (design section 9.1). A view that is not resident is skipped: the receiver recomputes it.
  * @param layout - the collector
  * @param snapshot - the snapshot
@@ -729,7 +729,7 @@ function encodeArena(
 // ============================================================ public entry points
 
 /**
- * The plain-object wire form of a snapshot (design section 9.1): a JSON-serialisable manifest plus
+ * The plain-object wire form of a snapshot (design section 9.1): a JSON-serializable manifest plus
  * the distinct backing ArrayBuffers of the core, the id map, the columns and the extension tables.
  * Without `transfer` every buffer is a plain reference and postMessage clones; with `transfer: true`
  * every buffer held by more than one snapshot, table or column (design section 9.1, tracked by

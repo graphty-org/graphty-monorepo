@@ -2,7 +2,7 @@
 // "Keyboard on the canvas"). Screen 3's Karate Club with nothing selected.
 // The reader pressed F6 to move into the canvas and then ] twice: node 34
 // has the keyboard focus ring (blue, outside any outline, never the gold
-// selection halo), the edge to the neighbour ] would go to next is drawn
+// selection halo), the edge to the neighbor ] would go to next is drawn
 // dashed blue, and the live caption above the toolbar reads the node aloud
 // to a screen reader and shows it to everyone else. The inset is the canvas
 // section of Help > Keyboard shortcuts.

@@ -3,7 +3,7 @@
  * border is drawn as, and the convex hull of a solid seen from the front.
  *
  * Plain arithmetic on [x, y] pairs, with no Babylon.js, so the geometry is tested on its own. Every
- * outline is counter-clockwise and centred on the origin.
+ * outline is counter-clockwise and centered on the origin.
  */
 
 /** A point in the plane a flat shape is drawn in. */
@@ -301,7 +301,7 @@ function roundRectangle(
 }
 
 /**
- * Stretch an outline so it exactly fills a box centred on the origin.
+ * Stretch an outline so it exactly fills a box centered on the origin.
  * @param unit - The outline at any size.
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
@@ -682,7 +682,7 @@ function polygonOutline(points: string | undefined, halfWidth: number, halfHeigh
 }
 
 /**
- * The outline of one flat shape, filling a box centred on the origin.
+ * The outline of one flat shape, filling a box centered on the origin.
  * @param shape - A flat shape name.
  * @param width - The box's width.
  * @param height - Its height.

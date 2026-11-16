@@ -1,7 +1,7 @@
 /**
  * Shared vocabulary of every graphty-element extension point.
  *
- * NORMATIVE for the shapes it declares. Behaviour is specified in design/extensions/README.md.
+ * NORMATIVE for the shapes it declares. Behavior is specified in design/extensions/README.md.
  * Everything in the "Published" section exists in graphty-element 2.6.1 and is described here as
  * it is built. It is exported by @graphty/graphty-element/extend unless its comment says "NOT
  * EXPORTED BY NAME" (the type exists, but a plugin cannot import it; exporting it from ./extend
@@ -215,8 +215,8 @@ export interface GraphtyErrorInit {
 
 /**
  * The one failure type of the extension contracts. AS BUILT, isGraphtyError and GraphtyError.wrap
- * recognise an error by `instanceof` this copy's class, so an error built by another copy of the
- * element on the same page (a plugin bundling a newer ./extend) is not recognised and is wrapped,
+ * recognize an error by `instanceof` this copy's class, so an error built by another copy of the
+ * element on the same page (a plugin bundling a newer ./extend) is not recognized and is wrapped,
  * losing its code, recoverable flag and details (README section 9.3, not yet met).
  */
 export declare class GraphtyError extends Error {
@@ -277,7 +277,7 @@ export interface ExtensionCompatibility {
      */
     readonly package?: string;
     /**
-     * TOP-LEVEL members of this descriptor an element MUST understand to honour it (preconditions,
+     * TOP-LEVEL members of this descriptor an element MUST understand to honor it (preconditions,
      * egress declarations). An element that knows mustUnderstand and does not know a listed member
      * refuses the registration with E_UNSUPPORTED naming it. An element that predates
      * mustUnderstand ignores it like any unknown member, so an extension relying on it MUST also

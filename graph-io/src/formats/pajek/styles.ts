@@ -1,7 +1,7 @@
 /**
  * Pajek styles: each vertex's shape keyword and drawing parameters (`ic`, `bc`, `bw`, `x_fact`, `y_fact`, `lc`, `fos`)
  * and each line's `c`, `w` and `p`, read the way Pajek 6.02 draws them (parameters carried from line to line, `CARRIED`),
- * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, grey arcs with an arrow at the target,
+ * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, gray arcs with an arrow at the target,
  * teal edges). Colors are Pajek's: the dvips names and the ten Pajek adds, `GrayNN`, `RGBrrggbb`, `RGB(r,g,b)` and the
  * CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG export, where the drawing's [0,1] square
  * is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 20 times its `x_fact` and `y_fact`,
@@ -1428,7 +1428,7 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
 
 /**
  * The styles of a Pajek file, read the way Pajek draws them, with Pajek's own defaults beneath: a labeled #ffd9bc
- * ellipse with a #660000 border, teal edges, and grey arcs with an arrow at the target. A file graphty wrote gives back its `graphty.styles` block.
+ * ellipse with a #660000 border, teal edges, and gray arcs with an arrow at the target. A file graphty wrote gives back its `graphty.styles` block.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles
@@ -1542,7 +1542,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge }, labels, runOf, endsOf);
     }
-    // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
+    // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn gray and thinner, an edge not
     const rules: StyleRule[] = [];
     const columns = new Map<string, StyleColumn>();
     if (directed.some(Boolean)) {
@@ -1956,7 +1956,7 @@ function lineDefaults(directed: boolean): {
 }
 
 /**
- * A line's parameters from its values, leaving out the solid line Pajek draws by default (grey and 1 wide for an arc,
+ * A line's parameters from its values, leaving out the solid line Pajek draws by default (gray and 1 wide for an arc,
  * teal and 2 wide for an edge; `w` is half an edge's width). Arrows are Pajek's own: an arc has one at its target and
  * an edge none, so any other arrow is noted.
  * @param get - the line's values

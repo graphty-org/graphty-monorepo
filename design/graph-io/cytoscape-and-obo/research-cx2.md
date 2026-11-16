@@ -461,7 +461,7 @@ permissive, and spanning 161 to 10,251 nodes.
 
 ### 6.1 Fixtures to author (no real file shows these)
 
-Small hand-written files, each checked by the oracle (section 7) and labelled `oracle: "spec"`
+Small hand-written files, each checked by the oracle (section 7) and labeled `oracle: "spec"`
 where the spec overrules it:
 
 1. `fragments.cx2`: `hasFragments: true`, `nodes` in three blocks interleaved with `edges`, and

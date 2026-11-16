@@ -21,9 +21,9 @@ export default meta;
 /**
  * Size the nodes by PageRank, 1 to 5, the way these stories drew it in 1.x.
  *
- * A node metric suggests a colour and nothing else, so PageRank's size is asked for by name --
- * and asked for AFTER the suggestions, because a size and a colour are different channels and
- * neither run's colour is touched by it.
+ * A node metric suggests a color and nothing else, so PageRank's size is asked for by name --
+ * and asked for AFTER the suggestions, because a size and a color are different channels and
+ * neither run's color is touched by it.
  * @param graphtyElement - The element the story drew.
  * @param story - The story's name, for the failure message.
  */
@@ -39,9 +39,9 @@ async function sizeByPageRank(graphtyElement: Graphty, story: string): Promise<v
 }
 
 /**
- * Colour is the degree, size is the influence, as 1.x drew it.
+ * Color is the degree, size is the influence, as 1.x drew it.
  *
- * Both are node metrics, so both suggest `node.color` and only the one named LAST wins the colour:
+ * Both are node metrics, so both suggest `node.color` and only the one named LAST wins the color:
  * Degree is named last here. Size is a separate channel that no suggestion writes, so PageRank's
  * picture is asked for there -- node size, 1 to 5 -- and the two show at once: a well-connected
  * node is dark, an influential one is large, and a node that is one without the other stands out.
@@ -93,9 +93,9 @@ export const DegreeAndPageRank: Story = {
 };
 
 /**
- * The colour is Degree's, not PageRank's: nodes of one degree share one colour, and there are as
- * many colours as degrees. PageRank separates nearly every node, so had it won the colour there
- * would be more colours than degrees.
+ * The color is Degree's, not PageRank's: nodes of one degree share one color, and there are as
+ * many colors as degrees. PageRank separates nearly every node, so had it won the color there
+ * would be more colors than degrees.
  * @param scene - What the story drew.
  */
 async function assertColourFollowsDegree(scene: Drawn): Promise<void> {
@@ -120,9 +120,9 @@ async function assertColourFollowsDegree(scene: Drawn): Promise<void> {
 }
 
 /**
- * Centrality against community: colour is the community, size is the influence.
+ * Centrality against community: color is the community, size is the influence.
  *
- * A community suggests a colour per group and a node metric suggests a colour along a ramp, so
+ * A community suggests a color per group and a node metric suggests a color along a ramp, so
  * the two compete for `node.color` and Louvain, named last, wins it. PageRank's picture is then
  * asked for on the channel nobody else is using -- node size, 1 to 5 -- which picks out the
  * influential nodes inside each community.
@@ -164,7 +164,7 @@ export const CentralityVsCommunity: Story = {
         await assertAlgorithmPainted(scene, "graphty:louvain", { paints: "node", atLeast: 20 });
         await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
 
-        // Louvain is applied last and wins the colour, so the picture holds one colour per
+        // Louvain is applied last and wins the color, so the picture holds one color per
         // community rather than one per PageRank score.
         await assertDrawnVariety(scene, "hex", 2);
         // And PageRank, on the size channel, separates the nodes inside each community.
@@ -177,10 +177,10 @@ export const CentralityVsCommunity: Story = {
  * Four runs, and the two kinds of picture they make.
  *
  * Degree, PageRank and Louvain all suggest `node.color`, so Louvain -- named last of the three --
- * is the colour a reader sees. Dijkstra is a route rather than a measurement, so it suggests a
+ * is the color a reader sees. Dijkstra is a route rather than a measurement, so it suggests a
  * HIGHLIGHT over the nodes and edges on the path and leaves every other element exactly as the
  * layers beneath it painted them. PageRank is also asked for on node size, which no suggestion
- * writes, so influence stays visible under the community colours.
+ * writes, so influence stays visible under the community colors.
  */
 export const CommunityStructureWithPath: Story = {
     args: {
@@ -205,9 +205,9 @@ export const CommunityStructureWithPath: Story = {
 
         // Order matters: the last algorithm named wins every channel it writes.
         const applied = graph.applySuggestedStyles([
-            "graphty:degree", // Colour by degree, and then painted over twice
-            "graphty:pagerank", // Colour by influence, and then painted over once
-            "graphty:louvain", // Colour by community, which is the colour that survives
+            "graphty:degree", // Color by degree, and then painted over twice
+            "graphty:pagerank", // Color by influence, and then painted over once
+            "graphty:louvain", // Color by community, which is the color that survives
             "graphty:dijkstra", // Highlight the path, over the nodes and edges on it and no others
         ]);
 
@@ -235,11 +235,11 @@ export const CommunityStructureWithPath: Story = {
 
 /**
  * A route over a ranking: the picture a reader gets when they find the shortest path on a graph
- * already coloured by a score.
+ * already colored by a score.
  *
- * PageRank colours every node along the default measurement palette, orange to brown, and sizes
+ * PageRank colors every node along the default measurement palette, orange to brown, and sizes
  * it; Dijkstra, applied last, highlights the route over the nodes and edges on it and no others.
- * The highlight is drawn in a colour outside that palette, so the route's nodes read as the route
+ * The highlight is drawn in a color outside that palette, so the route's nodes read as the route
  * rather than as more low- or high-ranked nodes.
  */
 export const RouteOverRanking: Story = {
@@ -286,11 +286,11 @@ export const RouteOverRanking: Story = {
  * A route over an unranked graph: the picture a reader gets when they find the shortest path
  * before measuring anything.
  *
- * Every other node keeps the default node colour, so the route's nodes have to stand apart from
- * THAT colour as lit spheres a few pixels across, not only as swatches. The route is drawn in the
- * element's own highlight colour, indigo, which differs from the default node mostly in lightness;
+ * Every other node keeps the default node color, so the route's nodes have to stand apart from
+ * THAT color as lit spheres a few pixels across, not only as swatches. The route is drawn in the
+ * element's own highlight color, indigo, which differs from the default node mostly in lightness;
  * a consumer that wants more separation sets `session.styles.setHighlightColor()`. Beside
- * `RouteOverRanking`, which draws the same route over PageRank's colours.
+ * `RouteOverRanking`, which draws the same route over PageRank's colors.
  */
 export const RouteOverUnranked: Story = {
     args: {
@@ -329,9 +329,9 @@ export const RouteOverUnranked: Story = {
 /**
  * Combined Edge Flow - edge color and width based on relationship strength
  * Demonstrates multi-dimensional edge styling where:
- * - Edge colour follows the value along viridis (dark purple = weak, yellow = strong)
+ * - Edge color follows the value along viridis (dark purple = weak, yellow = strong)
  * - Edge width scales with the value, 0.2 to 20
- * - The arrow head takes the same colour as its line, and grows with the same strength (1x to 3x)
+ * - The arrow head takes the same color as its line, and grows with the same strength (1x to 3x)
  *
  * All three channels read the same field, `data.value`, which every edge in this dataset carries
  * with a strength from 1 to 10, read against 0 to 10 as the 1.x story read `value / 10`.

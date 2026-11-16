@@ -4,7 +4,7 @@
  *
  * `options: { tier: { type: "attribute", default: "tier" }, spacing: 2 }` is expanded into the
  * ordinary `OptionDescriptor[]` every advanced extension declares, so the reader's form, the
- * validation, the defaults and the catalogue entry work exactly as for a built-in.
+ * validation, the defaults and the catalog entry work exactly as for a built-in.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

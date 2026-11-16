@@ -87,7 +87,7 @@ Nadia: "There it is -- Size, hiding under Shape. Click Size."
 Command: `--step $S --click "Size"` -> 08.png
 
 Saw: a "Size by attribute" picker: Fixed size; under "PageRank": PageRank, PageRank rank, PageRank
-percentile; greyed "id" ("Cannot be used: Holds groups, not amounts").
+percentile; grayed "id" ("Cannot be used: Holds groups, not amounts").
 
 Nadia: "Size by PageRank -- that's exactly what they asked. 'Rank' and 'percentile' I'd skip, plain
 PageRank. Click it."
@@ -97,7 +97,7 @@ PageRank. Click it."
 Command: `--step $S --click-at 1195,416` -> 09.png. Tool: `option "PageRank"`.
 
 Saw: dots now different sizes; two big dark ones near the bottom middle. Size row says "1 to 3". The
-key top left now has two rows: "Size: PageRank 0.04382 -- 0.06608" (a grey wedge getting thicker)
+key top left now has two rows: "Size: PageRank 0.04382 -- 0.06608" (a gray wedge getting thicker)
 and "Color: PageRank 0.04382 -- 0.06608".
 
 Nadia: "Bigger dots for the ones that matter more -- done. Both size and color are the same thing,
@@ -155,7 +155,7 @@ Command: `--step $S --click "Export"` -> 14.png. Tool: `ambiguous: "Export" matc
 `a file was saved: friends_current-view.png, 1806 x 1720` (downloads/friends_current-view.png).
 
 Saw: the dialog closed; a toast at the bottom: "Exported friends_current-view.png". Opening the file:
-the drawing with every name, and the key in the top left in a white box: "Size: PageRank" with a grey
+the drawing with every name, and the key in the top left in a white box: "Size: PageRank" with a gray
 wedge, 0.04382 to 0.06608, and "Color: PageRank" with the light-to-dark orange bar, same numbers.
 Arrows and names are readable except at the bottom, where Chloe's dot sits in front of the big dark
 dot and her name is half covered; Farah's name is small above it. Dev and Eli overlap a bit too.

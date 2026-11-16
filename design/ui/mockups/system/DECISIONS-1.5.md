@@ -56,7 +56,7 @@ Apply in this order. The first that fires wins.
 
 **Decision.** A panel action that is not its section's primary action is a
 _subtle action row_: transparent at rest, no border, 24 px tall, full panel
-width, 4 px radius, a 14 px leading icon in the dimmed colour, an 11 px label
+width, 4 px radius, a 14 px leading icon in the dimmed color, an 11 px label
 at weight 500, hover as its only chrome. Its trailing slot carries data about
 the action or nothing -- never its key. A binding appears in exactly four
 places: the control's tooltip, a menu row, a palette row, and the shortcuts
@@ -87,7 +87,7 @@ were the only places.
 >
 > Action shapes. A panel action that is not its section's primary action is a
 > subtle action row: transparent at rest, no border, 24 px tall, full panel
-> width, 4 px radius, a 14 px leading icon in the dimmed colour, an 11 px label
+> width, 4 px radius, a 14 px leading icon in the dimmed color, an 11 px label
 > at weight 500, hover as its only chrome. Its trailing slot carries data about
 > the action or nothing -- never its key. An action drawn as a bordered box
 > with a trailing chip reads as a text field with a suffix and is never used.
@@ -137,7 +137,7 @@ invented a third place, a card-title pill.
 > dimmed trailing number ("Find groups 4"), because the count is the only
 > thing a collapsed group can tell you; its tooltip reads "4 questions in this
 > group". Cost classes are an internal cost model: they select each card's
-> estimate and its ask, warn, sampling and time-box behaviour, and they gate
+> estimate and its ask, warn, sampling and time-box behavior, and they gate
 > which cards the Insights strip may offer (7.3). No class name ever appears in
 > the interface: not on a group header, not on a card, not in a tooltip, not in
 > the palette, not in a caveats line. What the user sees of cost is an estimate
@@ -161,7 +161,7 @@ ExplorerLargeGraph, IpadPanel.
 once, in a one-line summary. The memory estimate and the render ceiling appear
 once, in the warning line. The subset arithmetic appears once, inside the
 chosen Load option. The dialog carries no Large badge -- a badge separates one
-row from its neighbours in a list, and a dialog is about one file. A sample or
+row from its neighbors in a list, and a dialog is about one file. A sample or
 recent row shows its size only when the size is the decision.
 
 **Why.** ImportLargeFile stated the file name twice, the render ceiling three
@@ -208,7 +208,7 @@ form, status bar slot, filter chip, track ticks, step tooltip, playback speed,
 attribute select groups, and the Load control's window option.
 
 **Why.** The Time role's Format list already admitted "plain number", and
-nothing downstream honoured it: every surface was written in days and dates. A
+nothing downstream honored it: every surface was written in days and dates. A
 simulation step counter, an ontology version sequence, a training epoch and an
 experiment round all satisfy the Time role and break every one of those
 strings. This narrows the temporal-navigation capability's stated requirement
@@ -274,7 +274,7 @@ loaded.
 
 **Artboards.** ImportOptions, ImportRecognised, ImportLargeFile,
 ImportAddToGraph, CommandPalette. Canvas titles become "Import options --
-delimited file, nothing loaded", "-- recognised export, nothing loaded",
+delimited file, nothing loaded", "-- recognized export, nothing loaded",
 "-- above the render ceiling, nothing loaded", "-- second file, data already
 loaded". Each file's leading comment carries the same two-line STATE block.
 
@@ -631,7 +631,7 @@ circle, one hover, focus or tap away, and is still the control's accessible
 description. On, every info circle in the application draws its sentence inline
 under its control and the circle is hidden. The switch changes where a sentence
 is read, never whether it exists. Density goes back to being about row scale
-only: Compact no longer hides card descriptions, because one behaviour has one
+only: Compact no longer hides card descriptions, because one behavior has one
 owner.
 
 **Why.** The mechanism the user is asking for already existed, with its default
@@ -639,7 +639,7 @@ pointing the text-heavy way and a question-mark glyph that reads "I am
 confused" rather than "here is more". Flipping the default is what makes the
 pass land; keeping the switch is what keeps it principle-1 safe, because one
 click restores every sentence at once. Leaving density as a second owner of the
-same behaviour would give one decision two controls.
+same behavior would give one decision two controls.
 
 **Spec text.** 5.3 Settings > Appearance:
 
@@ -845,7 +845,7 @@ editing VOCAB, never by drawing a glyph in one artboard. Consolidations: the
 pushpin adopts the ExplorerAfterCard upright form (currently drawn ten ways
 across eighteen instances), the gear adopts the rail form, the funnel one path,
 the bookmark the ViewsMenu ribbon, and the zoom-to-selection target the
-corner-bracket form with a centre dot (the concentric-circle variant reads as
+corner-bracket form with a center dot (the concentric-circle variant reads as
 the gear at 12 px).
 
 **Deliberately not drawn:** save (there is no project save; saving is Export
@@ -960,7 +960,7 @@ artboard.
 
 **Decision.** SettingsShortcuts loses its 37 Rebind buttons: the key chip
 becomes the click target, the row reveals a pencil on hover or focus, a
-customised row also reveals a refresh icon, and the header gains "Click a key
+customized row also reveals a refresh icon, and the header gains "Click a key
 to rebind it." Note rows join style layers, filter rules and selection sets in
 carrying the row-hover triple (pencil, eye where applicable, trash). The trash
 is icon-only only when the row names the object it deletes, the object is a
@@ -1116,7 +1116,7 @@ Main, AiPanel, PresentPanel, TimeSlider, IpadPanel, IpadInspector.
 
 **Also fixed here.** ViewsMenu's Top / Front / Side rows carry key chips beside
 a Coming tag while ShortcutsDialog lists the same bindings as live. Resolve in
-favour of the bindings being live: delete the Coming tags from those three rows
+favor of the bindings being live: delete the Coming tags from those three rows
 and keep the chips. Cancel on ExplorerLoading must never carry a Coming tag
 either -- 5.1 and principle 6 both require a cancel; if the abort path has not
 shipped, draw Cancel disabled with the spec's own reason tooltip.
@@ -1157,7 +1157,7 @@ chips are for Running, Queued, Failed and Stale.
 **Why.** CategoryTable renders one enrichment result twice in full at the same
 moment, about twenty duplicated items; AnalyzeSweep renders sixteen table cells
 plus the NMI trio twice, and the two copies behave differently (Keep links in
-one, click-to-colour in the other), so the reader cannot tell which is
+one, click-to-color in the other), so the reader cannot tell which is
 authoritative.
 
 **Spec sections.** 5.3 Analyze (Result shapes, Run as sweep).
@@ -1240,7 +1240,7 @@ the table, and 6.5 removes the cost for the analyst who wants it open.
 it; drop the id row when the displayed label equals the id (the id-type
 annotation moves to the copy-id tooltip); drop the rank sub-row that the
 reading states; fold the directional degree breakdown onto the In / Out / All
-tabs, which carry their own counts; drop the neighbour-type prose line where
+tabs, which carry their own counts; drop the neighbor-type prose line where
 type filter chips already carry the same numbers; drop the "Both N" line when
 it equals the section header count; render a long text value as its shape
 ("sequence 393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline
@@ -1381,7 +1381,7 @@ fixing a flagged data problem (two).
 
 **Decision.** 7.1's sample manifest already defines a "suggested first card"
 field that nothing consumes, and every blurb already ends in an imperative the
-design cannot honour ("Try finding the groups."). That sentence becomes a link:
+design cannot honor ("Try finding the groups."). That sentence becomes a link:
 clicking the row loads the sample and stops; clicking the hint loads it and
 then runs the manifest's suggested first card exactly as an Insights card click
 would -- size-aware defaults, home panel opened with the control highlighted for
@@ -1390,7 +1390,7 @@ undoable history entry, that card retired. A sample with no suggested card
 renders its blurb as plain text. Above the large-graph threshold the suggested
 card must respect the 7.3 above-threshold set (Connected parts, not Groups).
 
-**Why.** Cold start to a coloured graph goes from two interactions to one, and
+**Why.** Cold start to a colored graph goes from two interactions to one, and
 it hits three of W14's four criteria at once without a wizard, which principle
 1 forbids.
 
@@ -1411,7 +1411,7 @@ form reads "Encoded as node color" with "Change encoding" beside it, the legend
 updates, the reading's last clause names the change, and the application is one
 undoable step separate from the result.
 
-**Why.** 7.3 makes an Insights card click colour the graph and nothing said the
+**Why.** 7.3 makes an Insights card click color the graph and nothing said the
 same capability does so from its panel, the palette or the assistant, so one
 capability produced two pictures depending on which of principle 3's three
 routes the user took -- and the palette route cost an extra click plus a panel
@@ -1464,7 +1464,7 @@ activity memory.
 ## NAV-5 (rule) Copy reading is drawn on every reading
 
 **Decision.** 7.5 already says readings offer Copy reading and the artboards
-honour it in exactly one file. Every reading renders the affordance in its
+honor it in exactly one file. Every reading renders the affordance in its
 header row, including the graph summary; on the graph summary it copies the
 reading plus the caveats line plus the Counts rows and the legend's channel
 lines, so one click produces a paragraph a user can paste to a colleague.
@@ -1516,7 +1516,7 @@ the "@a > @b" hint row).
 **Decision.** Every AI step row and every History row title is a link that does
 what an Insights card click does in 7.3 item 2 -- opens the step's home panel,
 scrolls to the control or result it produced, and highlights it for two seconds
--- and never re-runs anything. On History rows the new behaviour is confined to
+-- and never re-runs anything. On History rows the new behavior is confined to
 the row title, because the row body already carries click-to-preview and
 double-click-to-restore; the title must be visually distinct. Undo becomes a
 split button: the main half undoes, a caret opens the History popover, and
@@ -1550,7 +1550,7 @@ across every dataset, silently removed the entire novice guidance layer;
 undo does not catch it because panel state is not undoable; the stated recovery
 lived in a Help menu no artboard draws; and the strip -- the most important
 affordance on the novice path -- was not in the F6 ring at all, which is a flat
-6.4 violation, since a card's run-plus-open-plus-read behaviour is not
+6.4 violation, since a card's run-plus-open-plus-read behavior is not
 equivalent to running the same capability from the palette.
 
 **Spec sections.** 7.3, 5.3 Help, 5.6 (keyboard table).
@@ -1576,13 +1576,13 @@ CommandPalette.
 ## NAV-10 (rule) Selection says something on the canvas, and narrow screens hand off
 
 **Decision.** A single-node selection draws its incident edges in the selection
-colour at full opacity and outlines its immediate neighbours; nothing is dimmed.
+color at full opacity and outlines its immediate neighbors; nothing is dimmed.
 Below the large-graph threshold every incident edge is drawn and the top ten
-neighbours by weight are labelled regardless of the label cap, capped further
+neighbors by weight are labeled regardless of the label cap, capped further
 where one node's degree alone would exceed the hover-highlight cap of 500;
 above the threshold the rule matches hover-highlight exactly. A multi-node
 selection highlights edges between selected nodes only. Below 1280 px,
-activating a row whose defined behaviour is "selects and centers the target and
+activating a row whose defined behavior is "selects and centers the target and
 shows it in the inspector" -- a search result, a result-table row, a path step,
 a note row, a Matches row -- closes the panel overlay and opens the inspector
 overlay on that target, with a back affordance returning to the panel with its
@@ -1670,7 +1670,7 @@ FilterBuilderExpert, CompareSplit, ExplorerAfterCard, InsightsWide.
 4. **A drawable default threshold.** "Filter above threshold" opens at the
    lowest threshold whose match count falls under the render ceiling, stated as
    a drawability sentence and never as an analytical recommendation, with a
-   live count and a warning-coloured "still above the render ceiling". Community
+   live count and a warning-colored "still above the render ceiling". Community
    results carry the same rule as "Filter to the top N groups". The "Narrow the
    view" insight card's description becomes "Filter by type, attribute, or a
    result you have already run." and its Try it preselects the most recent
@@ -1745,7 +1745,7 @@ removal of a technical name that is not a canonical pair ("Search").
 
 **G4. Hover-revealed icons never take a first-visit label.** IK-4 confines
 hover-revealed icons to second-visit verbs. Where a traced path enters through
-a labelled control, the label stays even if the icon rule would allow a glyph.
+a labeled control, the label stays even if the icon rule would allow a glyph.
 
 **G5. The reading always survives.** Four readings are shortened by the
 minimalization passes and none is deleted. Each keeps a count, a named subject

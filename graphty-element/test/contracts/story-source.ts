@@ -66,7 +66,7 @@ const LAYER_STYLE_KEYS = new Set(["set", "encode"]);
 /** A story argument whose value is a list of layers, for a story file with args of its own. */
 const LAYERS_KEY = "layers";
 
-/** A hex colour, which is how a story writes a colour into a label style field. */
+/** A hex color, which is how a story writes a color into a label style field. */
 const HEX_COLOUR = /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i;
 
 /** Anything spelled like a channel: the two targets, a dot, and one name. */
@@ -96,7 +96,7 @@ export interface StoryDeclaration {
      * Arrays are not walked, which is what keeps a graph's node data out of this list.
      */
     readonly configPaths: readonly string[];
-    /** Whether any `labelStyle` field is set to a hex colour, which is a colour demonstrated. */
+    /** Whether any `labelStyle` field is set to a hex color, which is a color demonstrated. */
     readonly writesColour: boolean;
     /** Everything in this story's setup the reader could not evaluate, in plain words. */
     readonly unreadable: readonly string[];
@@ -142,7 +142,7 @@ interface Written {
     readonly configPaths: Set<string>;
     /** Constructs the reader met and could not evaluate. */
     readonly unreadable: string[];
-    /** Whether a `labelStyle` field was set to a hex colour. */
+    /** Whether a `labelStyle` field was set to a hex color. */
     colour: boolean;
 }
 
@@ -358,7 +358,7 @@ function readChannelMap(expr: ts.Expression, values: Map<string, ts.Expression>,
         // WHICH CHANNELS CARRY A LABEL STYLE COMES FROM THE CHANNEL TABLE, not from the shape of
         // the name. `node.tooltipStyle` takes exactly the value `node.labelStyle` takes -- the
         // same `LabelStyle`, through the same branch of the painter -- and a reader that matched
-        // on the suffix "labelStyle" read a tooltip's colours as nothing at all, so a story
+        // on the suffix "labelStyle" read a tooltip's colors as nothing at all, so a story
         // demonstrating them failed the gate that exists to protect it. Asking the table means a
         // channel published later is read here with nothing edited.
         if (channelDescriptor(channel)?.accepts !== "labelStyle" || !ts.isPropertyAssignment(member)) {

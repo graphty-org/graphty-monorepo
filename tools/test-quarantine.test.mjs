@@ -389,7 +389,7 @@ describe("runShard", () => {
     });
 
     // #5255: a test whose wait never came true failed after the 900 s wait guard, and its retry waited the guard out
-    // again until GitHub cancelled the 30-minute job, with no result recorded. It fails once instead.
+    // again until GitHub canceled the 30-minute job, with no result recorded. It fails once instead.
     it("does not retry a test that waited out the hang guard, and fails it", async () => {
         const c = checkout({ retryFails: false, firstSeconds: WAIT_GUARD_MS / 1000 + 3 });
         const { code, result } = await run(c);
@@ -411,7 +411,7 @@ describe("runShard", () => {
         assert.equal(code, 0);
     });
 
-    // #5845: a browser run hung until GitHub cancelled the job, which keeps no log, so nothing named the test.
+    // #5845: a browser run hung until GitHub canceled the job, which keeps no log, so nothing named the test.
     it("stops a stuck run at its deadline, names the test still running and does not retry it", async (t) => {
         const c = checkout({ retryFails: false });
         const log = t.mock.method(console, "log", () => {});

@@ -1,6 +1,6 @@
 /**
  * @file What a refused or stopped load looks like: a service the browser blocks, a plain http
- * endpoint a login is never sent to, a load cancelled by its signal, and a source that needs a
+ * endpoint a login is never sent to, a load canceled by its signal, and a source that needs a
  * login given none. Each prints the error's `code` and `details` (or, for a cancel, the signal's
  * own AbortError), as an application would read them before choosing its words. None draws a
  * graph, on purpose.
@@ -146,7 +146,7 @@ try {
 );
 
 /**
- * A load cancelled as its first request starts: it rejects at once with the signal's reason, an
+ * A load canceled as its first request starts: it rejects at once with the signal's reason, an
  * AbortError, and leaves no load record and no rows behind.
  */
 export const Cancelled = errorStory(

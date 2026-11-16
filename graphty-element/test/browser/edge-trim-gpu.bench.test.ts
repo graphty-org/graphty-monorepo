@@ -36,7 +36,7 @@ function seeded(): () => number {
     };
 }
 
-/** Rows on a 2D plane, the harness's lean scene, with one edge in a hundred between near neighbours. */
+/** Rows on a 2D plane, the harness's lean scene, with one edge in a hundred between near neighbors. */
 function scene(): { rowBounds: Float32Array; ends: Int32Array } {
     const random = seeded();
     const rowBounds = new Float32Array(ROWS * 4);

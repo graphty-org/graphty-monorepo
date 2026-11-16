@@ -1574,7 +1574,7 @@ describe("GET /v1/durations/medians", () => {
             token: pr(),
         });
         assert.equal(status, 200);
-        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        // runs 7 to 10 (107..110 s): 11 is canceled, 0 and 1 are older than the last 4
         assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
         assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
         assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);

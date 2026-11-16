@@ -1,4 +1,4 @@
-# graphty today: what is modelled, what is published, and where the words disagree
+# graphty today: what is modeled, what is published, and where the words disagree
 
 This is an inventory, not a design. It records what graphty-element 2.0.0 and the graphty app
 model today, which names are already a published contract, which concepts exist only in the app
@@ -18,7 +18,7 @@ not a type break, but a consumer that displays or matches on it would notice.
 Paths below are relative to `/home/apowers/Projects/graphty-monorepo/`.
 
 **Which version.** Sections 1 to 6 were first written against graphty-element 2.0.0. The
-behaviour recorded in section 7 was checked against the source of 2.3.1, the current release on
+behavior recorded in section 7 was checked against the source of 2.3.1, the current release on
 the remote `master` branch; where 2.3.1 differs from 2.0.0 the earlier sections now say so. Line
 numbers cite 2.3.1. Sections 7.19 to 7.29 were also checked by running the published 2.3.1
 package from npm, in Node and in headless Chromium; those measurements say so where they appear.
@@ -67,7 +67,7 @@ package from npm, in Node and in headless Chromium; those measurements say so wh
   (Compare), #197, #297, #299 (node type role), #301 (project file), #319, #337 (command
   vocabulary), #427 (undo and redo on the session), #405 and its measurement comment (the render
   ceiling), #412 (per-edge ray tests), #419 (edges as instances), #25 (arrowhead draw calls).
-- For sections 7.11, 7.12 and 7.14 (identity, picking and undo coverage), 7.17 (colours) and 7.18
+- For sections 7.11, 7.12 and 7.14 (identity, picking and undo coverage), 7.17 (colors) and 7.18
   (size), all at 2.3.1 on the remote `master`: `src/session/runs/runId.ts` (file header,
   `deriveRunId`), `src/session/styles/StylesApi.ts` (`toDocument`, `DEFAULT_HIGHLIGHT`),
   `src/config/GraphStyle.ts` (`GraphSelectionStyle`), `src/config/palettes/{categorical,sequential,diverging,binary}.ts`,
@@ -117,7 +117,7 @@ by a test to stay free of Babylon.js, Lit and the DOM so they run in Node.
 |---|---|---|
 | `.` | the custom element, the `Graph`, `Node` and `Edge` classes, style config classes and defaults, palettes, event types, managers, screenshot and video types, errors | no |
 | `./session` | `createGraphSession`, the session types, runs, results, scope, selection, visibility, cost and plan, styles, capabilities, errors, `recommendLayout` | yes |
-| `./schema` | the style vocabulary as data: identity types, `Channel`, `LayerSpec`, `StyleDocument`, node shapes, style defaults, palettes, colour-blind helpers | yes |
+| `./schema` | the style vocabulary as data: identity types, `Channel`, `LayerSpec`, `StyleDocument`, node shapes, style defaults, palettes, color-blind helpers | yes |
 | `./catalog` | every descriptor table: algorithms, layouts, formats, palettes, cameras, log sinks, scales, channels | yes |
 | `./extend` | the six registration points and the option-descriptor mechanism | yes |
 | `./format` | read-only graph snapshot vocabulary re-exported from `@graphty/graph-format` | yes |
@@ -235,7 +235,7 @@ There is no identity for an object, a set, a group, a view, a note or a project.
 - **Run**: `id, label, algorithm, params, scope, status, progress, determinate, cancellable,
   queuePosition, startedAt, durationMs, partial, stale, engine, fields, shape, caveats, result,
   error, record, journalId, cancel(), rerun(), suggestEncodings()`. `RunRecord` is its
-  serialisable form.
+  serializable form.
 - **Run status** (`RUN_STATUSES`): `queued, running, succeeded, failed, canceled`. **Run phase**:
   `queued, start, progress, end`. **Queue policy**: `append, replace, now`.
 - **Staleness**: `StaleNote { ranOn, nowVisible, scopeSpec }`. **Caveats**: `exact, sampleSize,
@@ -323,7 +323,7 @@ list and no run-result arm, so an edge set (a path, a spanning tree) cannot be s
   (`src/session/styles/StylesApi.ts` lines 32 to 35 and 311; `src/session/results/types.ts`
   `ResultLayerRole`; `src/session/styles/autoApply.ts` line 28).
 
-### 1.9 The catalogue
+### 1.9 The catalog
 
 Descriptor types, each with `plainName` and `technicalName` beside the key:
 `AlgorithmDescriptor` (`key, category, shape, fields, options, costClass, complexity,
@@ -350,7 +350,7 @@ correcting them is a content change in the element, not a breaking type change.
   are unserved.
 - **Engine names** (16): `ngraph, d3, forceatlas2, spring, kamada-kawai, arf, circular, shell,
   spiral, spectral, planar, bfs, bipartite, multipartite, fixed, random`.
-- **The element's `layout` property and registry answer to ENGINE names**, while the catalogue
+- **The element's `layout` property and registry answer to ENGINE names**, while the catalog
   publishes arrangement ids; the property's own doc comment lists `ngraph`, `d3-force`,
   `grid`, `hierarchical`. The app keys its picker by engine for this reason
   (`graphty/src/data/layoutMetadata.ts`).
@@ -411,8 +411,8 @@ or copies of element facts, which the root `CLAUDE.md` forbids; they are marked.
 | Canvas legend blocks | `canvas/legendChannels.ts` | `styles.legend()` | now reads the element; keeps a five-category cap |
 | Time slider | `canvas/TimeSlider.tsx` | `visibility.setWindow` | chrome over the element's window |
 | Views menu, three view presets, zoom | `toolbar/ViewsMenu.tsx`, `graphCommands.ts` | camera methods | uses 1.x `selectNode`/`deselectNode` |
-| Neighbour list in the node inspector | `analysis/graphShape.ts` | none: "the element's data surface still publishes no neighbour verb" | app reads endpoints off its own record copy: a workaround |
-| Layout picker keyed by engine; hard-coded `grid` (enabled), `radial` and `sugiyama` ("Coming") | `panel/StylePanel.tsx` lines 75 to 78 | catalogue says `grid` and `radial` are unserved; no `sugiyama` engine | hard-coded list outside the catalogue; offers a layout the element refuses |
+| Neighbor list in the node inspector | `analysis/graphShape.ts` | none: "the element's data surface still publishes no neighbour verb" | app reads endpoints off its own record copy: a workaround |
+| Layout picker keyed by engine; hard-coded `grid` (enabled), `radial` and `sugiyama` ("Coming") | `panel/StylePanel.tsx` lines 75 to 78 | catalog says `grid` and `radial` are unserved; no `sugiyama` engine | hard-coded list outside the catalog; offers a layout the element refuses |
 | Algorithm list expanded back over legacy keys | `components/algorithmCatalog.ts` | `BUILT_IN_ALGORITHMS` | workaround for the run registry not folding keys |
 | Data export targets (CSV, CX2, GEXF, GraphML, JSON) | `panel/PresentPanel.tsx` | `canExport: false` everywhere | handlers are wired to no-ops |
 | Case notes ("Add a case note") and a note count in the status bar | `inspectorConstants.ts`, `StatusBarNotes` | layer source reason `"notes"` and a `node.marker` channel only | no note model anywhere |
@@ -433,7 +433,7 @@ says whether the concept would become a published contract if built.
 | **Object tree** (`session.objects`: list, create, move, rename, setVisible, setLocked, setScope, rerun, remove, focus, `objects:changed`) with kinds Dataset, Set, Group, Measure, Grouping | `object-model.md` sections 2 and 11 | yes; the owner has decided the element owns it |
 | **Project file** (`objects.save({ data: "include" \| "link" })`, `openProject(doc)`, a `.graphty` file, include or link the data, restore report) | `round-3/file-project.md` section 4 | yes; the file shape is the largest one-way door |
 | **One set vocabulary**: `Scope` gains filters, top-N, above-threshold, a group, an edge list, a run-result set and combinators; a layer selector accepts a scope | `round-2/decisions.md` (settled decision 2), `object-model.md` section 11 | yes; the owner has decided it |
-| **Stacking highlights** (a path is an edge layer that stacks) | `round-2/decisions.md` (settled decision 3) | a behaviour change in the element (today exclusive) |
+| **Stacking highlights** (a path is an edge layer that stacks) | `round-2/decisions.md` (settled decision 3) | a behavior change in the element (today exclusive) |
 | **Object states**: current, computing, waiting, stale, failed, frozen | `object-model.md` section 5 | yes; runs have only five statuses and a stale note |
 | **Nesting means "computed within the parent"**; **linked** derived objects (Top N, Above, Combine); frozen on deleted input | `object-model.md` section 6 | yes, as tree semantics |
 | **Precedence per channel**, "Covered by X on N of M" | `object-model.md` section 6.2 | partly exists: `styles.explain` |
@@ -444,7 +444,7 @@ says whether the concept would become a published contract if built.
 | **Journal, undo and redo, recipes, methods text** | `round-2/decisions.md` S1 puts undo in the element; `element-api-design.md` 9.2 puts the undo stack with the consumer and the journal and inverses in the element; issue #427 puts `session.undo()`, `redo()` and `history` in the element | yes; element-owned by #427 (section 6, finding 5) |
 | **Commands** (plain-JSON form of every verb) | `element-api-design.md` 3.4 | yes; the entry point is reserved and empty |
 | **Session layout transport** (play, pause, step, settle) | `element-api-design.md` 3.2 | yes |
-| **Neighbour verb** `session.data.neighbours(id, { direction })` | `round-2/decisions.md` R1 | yes (small) |
+| **Neighbor verb** `session.data.neighbours(id, { direction })` | `round-2/decisions.md` R1 | yes (small) |
 | **Selection by value band** `{ between: { run, field, min, max } }` | `round-2/decisions.md` R2 | yes |
 | **`scope.statistics(spec)`**, **graph-level `statistics().reading()`** | `round-2/decisions.md` I8, I9 | yes |
 | **`backend` on runs and estimates** (GPU or CPU) | `round-2/decisions.md` T9 | yes |
@@ -502,15 +502,15 @@ overwhelming options and unclear terms (Elena).
 | Fraud Ring Investigation | from one flagged entity, find its ring and document evidence | Fraud |
 | Threat Hunting | query for suspicious patterns before an alert exists | Cybersecurity |
 | Drug Target Discovery | find proteins central to disease pathways and druggable | Bioinformatics |
-| Criminal Network Analysis | map an organisation's key players, hierarchy and weak points | Intelligence |
+| Criminal Network Analysis | map an organization's key players, hierarchy and weak points | Intelligence |
 | Influencer Identification | find people who amplify messages, by several kinds of influence | Marketing |
 | Supply Chain Risk Assessment | find single points of failure and model what-if removals | Supply Chain |
 | Anomaly Detection | find entities that deviate from expected structure | Fraud, Cybersecurity, Alex |
 | Knowledge Graph Construction | integrate sources into one graph and validate it | Knowledge Engineer |
 | First-Time User Onboarding | load a first graph and accomplish something meaningful | Elena |
 | Findings Communication | produce pictures, legends and reports for non-experts | Alex, Emma, Fraud, Intelligence |
-| Graph-Based Recommendation | use link prediction and neighbourhoods to recommend | ML Engineer |
-| Hub Investigation | decide whether high-degree nodes are important, problematic or artefacts | Alex, Fraud, Intelligence |
+| Graph-Based Recommendation | use link prediction and neighborhoods to recommend | ML Engineer |
+| Hub Investigation | decide whether high-degree nodes are important, problematic or artifacts | Alex, Fraud, Intelligence |
 | Data Import and Validation | get data in and catch quality problems | Elena, Alex, Emma |
 | Network Evolution Analysis | track how a network changes over time | Alex, Emma, Bioinformatics |
 | Gene List to Interaction Network with Expression Overlay | turn a gene list into a network and paint measurements on it | Genomics, Bioinformatics |
@@ -569,9 +569,9 @@ data export, data import, image export, betweenness, algorithm progress, analysi
 | Edge endpoints | `source`, `target` (records); `edgeSrcIdPath`, `edgeDstIdPath` (config) | src/dst beside source/target |
 | Repeated edges | `repeatedEdges`, `repeatedEdgeCount` (element); "Parallel edges" (app) | |
 | Group of a partition | shape `community`; field `group`; option type `partition`; `layered-grouping`; `components` has shape `community` and category `structure` | `components` is a community-shaped result |
-| Neighbourhood | `neighborsOf` (selection), `neighborhood` (filter kind); prose and design docs spell "neighbours" | source counts: "neighbour" 43, "neighbor" 49 in `src/` |
+| Neighborhood | `neighborsOf` (selection), `neighborhood` (filter kind); prose and design docs spell "neighbours" | source counts: "neighbour" 43, "neighbor" 49 in `src/` |
 | Cancel | run status `canceled`; `AnimationCancelledError`, `animation-cancelled` event | American and British in one API |
-| Colour | identifiers `color`; prose `colour` | consistent by layer (code vs prose), but visible in plain names |
+| Color | identifiers `color`; prose `colour` | consistent by layer (code vs prose), but visible in plain names |
 | Result shape count | 11 values; comments say "ten" | `src/catalog/types.ts`, `src/session/results/types.ts` |
 | The word "view" | a renderer bound to a session ("a view"); `ViewMode`; a camera view (`CameraDescriptor`, `registerCameraView`); a camera preset (`saveCameraPreset`); `DrawingMode`; `layout-2d` | one word, four meanings; the design rounds add a fifth (a saved View) |
 | Camera view ids | `fitToGraph, topView, sideView, frontView, isometric` (code); `top, side, front, isometric` (element API design 4.8) | camelCase with a "View" suffix vs short ids |
@@ -625,7 +625,7 @@ describes `algorithmResults` only as what was replaced.
    measures (`node-metric`, `edge-metric`), partitions (`community`, `layered-grouping`,
    `category-table`), subsets (`path`, `node-set`, `edge-set`) and tables or facts
    (`pair-list`, `temporal`, `fact`). An ontology that matches this sorting costs no rename.
-3. **Two owner decisions contradict shipped element behaviour.** Highlights are exclusive in
+3. **Two owner decisions contradict shipped element behavior.** Highlights are exclusive in
    code (`styles.highlight()` removes every highlight layer first, and `ResultLayerRole` says so
    in a published doc comment); the owner has decided they stack. And the "one set vocabulary"
    does not exist: four grammars do. Both are element changes, not app changes.
@@ -643,7 +643,7 @@ describes `algorithmResults` only as what was replaced.
 7. **Understanding the whole graph** (an owner-named key task) is well served by
    `data.statistics()` except for a degree distribution, which needs a `degree` run, and a
    graph-level reading, which the app writes itself.
-8. **The app still works around the element** in five places: the neighbour list, the layout
+8. **The app still works around the element** in five places: the neighbor list, the layout
    picker keyed by engine with a hard-coded `grid` the element cannot draw, the algorithm list
    expanded over legacy keys, 1.x single-node selection calls, and its own reading templates.
    Each points at an element defect or gap.
@@ -693,9 +693,9 @@ describes `algorithmResults` only as what was replaced.
     library can pick instances and thin instances on the GPU, so the cost of edge picking hangs
     on the edge renderer rewrite (#419). Until then an edge can be selected only by script; the
     app has no pointer, table or menu route that selects one, and a selected edge is not drawn.
-20. **The selection colour is not reserved** (7.17): the default halo gold `#FFD700` is 2.8 to
-    3.8 OKLab units from the brightest colour of Okabe-Ito, viridis and inferno, and the default
-    highlight colour IS Okabe-Ito vermilion. The app's accent is a different colour again (blue).
+20. **The selection color is not reserved** (7.17): the default halo gold `#FFD700` is 2.8 to
+    3.8 OKLab units from the brightest color of Okabe-Ito, viridis and inferno, and the default
+    highlight color IS Okabe-Ito vermilion. The app's accent is a different color again (blue).
 21. **The 50,000-node / 100,000-edge ceiling is a temporary renderer limit, not a session limit**
     (7.18). The requirements base's own ceiling is 200,000 nodes / 500,000 edges drawn, with a
     "Graph too large" warning above 200,000 nodes; millions appear only in persona frustrations.
@@ -711,7 +711,7 @@ describes `algorithmResults` only as what was replaced.
 24. **Filters and style layers are session state by design, and two views cannot differ in them**
     (7.21). A second canvas with a different mask is a second session over shared data, which is
     unbuilt. A headless session can hold positions, visibility, styles and saved scopes, but not a
-    camera or a view mode; only styles have a serialiser.
+    camera or a view mode; only styles have a serializer.
 25. **An author-assigned run id can serve as a stable measure name, but rebinding it is
     remove-then-start** (7.22): the old result is lost, owned layers go, readers of
     `results.<id>` follow the new run. Nothing evicts runs; one metric result is about 38 MB of
@@ -734,7 +734,7 @@ describes `algorithmResults` only as what was replaced.
 
 ---
 
-## 7. Behaviour behind the published names (graphty-element 2.3.1)
+## 7. Behavior behind the published names (graphty-element 2.3.1)
 
 Section 1 lists names. This section records what the element DOES with them in the cases a
 project file, an analysis tree and an undo history depend on. Each subsection states the fact,
@@ -746,7 +746,7 @@ unless stated.
 Four facts decide every case below.
 
 - **A run id is derived from the run's definition.** An id the author did not assign is
-  `<algorithm>_<digest>`, where the digest is taken over the algorithm key, the canonicalised
+  `<algorithm>_<digest>`, where the digest is taken over the algorithm key, the canonicalized
   parameters, the scope SPECIFICATION (not its membership), the seed, the sample size and the
   `exact` flag (`session/runs/runId.ts`, `deriveRunId` and `canonicalIdentity`). Starting the
   same definition again returns the run that already exists (`RunsApi.reuse`, line 696); an
@@ -906,7 +906,7 @@ element counterpart; `Exclude` would be the symmetric difference the comparison 
   (`session/visibility/VisibilityApi.ts` file header).
 - **What the run records**: `run.scope` is a `ResolvedScope` (the specification, node and edge
   counts, the membership digest and when it was resolved), and `run.record.scope` is its
-  serialisable form. So the scope CAN be shown beside a result: "visible, 120 nodes".
+  serializable form. So the scope CAN be shown beside a result: "visible, 120 nodes".
 - **What the run computes over: the whole loaded graph.** The executor receives the resolved
   scope in `RunExecutionContext.scope` and never reads it: `managers/AlgorithmManager.ts`
   `execute` uses only the algorithm, parameters, run id, signal, progress channel and seed, and
@@ -952,7 +952,7 @@ element counterpart; `Exclude` would be the symmetric difference the comparison 
 | Louvain | no random draw in `algorithms/src/algorithms/community/louvain.ts`; the result depends only on node order, which graph-format keeps as order of first appearance | no seed, correctly |
 | Leiden | seeded by its own `randomSeed` parameter, default 42 (`algorithms/LeidenAlgorithm.ts` line 29) | the parameter is in `run.params`; `caveats.seed` is not set from it |
 | Label propagation | seeded by `randomSeed`, default 42 | yes, `caveats.seed`, with `converged` and `iterations` |
-| Min cut by Karger's method | unseeded `Math.random` (`algorithms/src/flow/min-cut.ts` line 393) | `exact: false` and a note that it is randomised; no seed, so not reproducible |
+| Min cut by Karger's method | unseeded `Math.random` (`algorithms/src/flow/min-cut.ts` line 393) | `exact: false` and a note that it is randomized; no seed, so not reproducible |
 | PageRank, eigenvector, Katz, HITS | deterministic power iteration with a convergence limit | `converged` and `iterations` on PageRank (the delta method reports neither honestly; see `PageRankAlgorithm.ts` line 329) |
 | Force layout positions | not a run at all; the ngraph engine ignores its seed (issue #114), so a force layout is not reproducible | not recorded anywhere |
 | GPU versus CPU | PageRank, shortest path, BFS, components and Kruskal can run on the optional WebGPU accelerator | `precision: "f32"` on the GPU, `"f64"` on the CPU |
@@ -1053,14 +1053,14 @@ examples on the remote `master`.
   `element.run("degree")`, and `styling.md` lines 69 and 71 show `results.degree.value` -- a path
   that only resolves if the run was started with `as: "degree"`, which the example does not show
   (a derived degree id is `degree_<digest>`). That is a docs defect.
-- **`styles.toDocument()` writes those paths verbatim.** It serialises every unlocked layer's
+- **`styles.toDocument()` writes those paths verbatim.** It serializes every unlocked layer's
   spec (`StylesApi.ts` line 1778), so any `StyleDocument` a consumer saved from 2.0 onward
   carries `results.<derived id>` text inside selectors and bindings.
 - **The derived id is designed to be persisted, and does not depend on the data.** The file
   header of `session/runs/runId.ts` says an id minted from an execution counter "would mean a
   saved style layer, recipe or template resolves to a different run ... and changing that
-  afterwards is a behavioural break in everything already persisted". The digest is taken over
-  the algorithm, the canonicalised parameters (declared defaults dropped), the scope
+  afterwards is a behavioral break in everything already persisted". The digest is taken over
+  the algorithm, the canonicalized parameters (declared defaults dropped), the scope
   SPECIFICATION, the seed, the sample size and `exact` -- not over the data. So the same
   definition on a different dataset gets the SAME id, and a saved style re-binds to it.
 
@@ -1105,7 +1105,7 @@ have to follow the object rather than a run path, or be rewritten on each edit.
   observer calls `scene.pick` over the whole scene to ask whether the pointer is over IT
   (`NodeBehavior.ts` lines 379 to 400; the click path at line 297 does the same). One pointer
   move therefore makes one full-scene pick per node. No issue records this; #412 records the
-  neighbouring per-frame cost of every edge ray-testing its endpoint meshes to trim its line.
+  neighboring per-frame cost of every edge ray-testing its endpoint meshes to trim its line.
   Adding edge hover the same way would multiply the same pattern.
 - **How an edge can be selected today, other than by pointer.**
   - By script: `session.selection` is two sets, so `selection.apply({ ids })`, `{ where }` over
@@ -1119,7 +1119,7 @@ have to follow the object rather than a run path, or be rewritten on each edit.
     `currentNodeId` (`AppShell.tsx` line 2700). The edge inspector has a component and no
     producer: nothing in the app creates an inspector selection of kind `"edge"`.
 - **A selected edge is not drawn.** `Edge.setSelected` records the state and draws nothing: "a
-  per-edge colour or alpha is not available without giving the selected edge a mesh of its own"
+  per-edge color or alpha is not available without giving the selected edge a mesh of its own"
   (`Edge.ts` lines 907 to 915). So an edge selected by script is invisible as selected. The same
   instancing change (#419) is what would let a selected edge be drawn.
 - **`Scope` has no edge arm and no run-result arm** (`catalog/types.ts` line 716). The owner's
@@ -1137,7 +1137,7 @@ edge highlight chosen by pointing has no route at all.
 
 **Only globally, and only for nodes.** `visibility.showContext` (a boolean on the session) makes
 the renderer draw HIDDEN nodes as a faint, low-alpha point layer instead of removing them
-(`session/visibility/VisibilityApi.ts` lines 230 to 238; honoured through `Graph.ts` and
+(`session/visibility/VisibilityApi.ts` lines 230 to 238; honored through `Graph.ts` and
 `Node.ts`). The masks do not change: a context node is still hidden, still outside every run's
 default scope, and its own mesh is not drawn (a point stands in its place, `Node.ts` `NodeRenderState`). It is one flag for the whole mask, not an outcome chosen per
 filter, and hidden edges are not drawn faintly. There is no "dim but keep in scope" outcome, and
@@ -1233,7 +1233,7 @@ and REMINTS every edge id on load.
 order, under the same repeated-edge policy, into a fresh store. The id is the decimal printing of
 a counter taken at `addEdge` time (`data/GraphStore.ts` line 213; `data/edgeIdentity.ts`), and the
 counter restarts at 0 when the store is replaced. A file's own edge id (`edgeIdPath`) is used only
-to recognise a repeated record (`managers/DataManager.ts`, `knownEdgeFor`); it never becomes the
+to recognize a repeated record (`managers/DataManager.ts`, `knownEdgeFor`); it never becomes the
 `EdgeId`. So an edge inserted earlier in an edited file, a changed repeat policy, or edges added
 after load in a different order shift the ids of later edges, and anything keyed by `EdgeId` (an
 edge-set or path result, a future saved edge set, a note on an edge) re-attaches to a different
@@ -1253,7 +1253,7 @@ edge without any error.
   random draw and depends only on node order, while Leiden and label propagation are seeded with a
   default of 42 (7.9).
 - `figma.md` describes "graphty-element's journal" as recording data edits, style layers, runs,
-  visibility and pinning. That is a proposal consistent with issue #427, not existing behaviour:
+  visibility and pinning. That is a proposal consistent with issue #427, not existing behavior:
   there is no journal (issue #145), and most data, layout and camera changes do not pass through
   the session at all (7.14).
 - `design-method.md` section 3.5 says "a tree node is a graph state reached by an action" and
@@ -1295,15 +1295,15 @@ edge without any error.
 - The published 2.3.1 `session.d.ts` header still says `{ where }`, `text` and `expression` are
   refused with `E_UNSUPPORTED`. They work (1.3); the header is stale documentation in the element.
 
-### 7.17 Selection, hover and highlight colours against the data palettes
+### 7.17 Selection, hover and highlight colors against the data palettes
 
 **What the element draws.**
 
-| Mark | Colour | How it is drawn | Source |
+| Mark | Color | How it is drawn | Source |
 |---|---|---|---|
 | A selected node | halo `#FFD700` (gold) at opacity 0.4, 1.45 times the node's drawn radius | an unlit translucent sphere, one shared material, outside the style stack; configurable through `element.selectionStyle` / `graph.setSelectionStyle()` (`color`, `scale`, `opacity`) | `config/GraphStyle.ts` lines 41 to 53; `Node.ts` `paintHalo` |
 | A selected edge | nothing | the state is recorded and not drawn (7.12) | `Edge.ts` line 907 |
-| A hovered node | no colour at all | hover shows the node's tooltip and emits `node-hover`; nothing is painted | `NodeBehavior.ts` lines 379 to 426 |
+| A hovered node | no color at all | hover shows the node's tooltip and emits `node-hover`; nothing is painted | `NodeBehavior.ts` lines 379 to 426 |
 | A hidden node with context on | `#8A8A8A` at alpha 0.18 | a small point | `Node.ts` `CONTEXT_POINT_COLOR` |
 | A highlight (a path, a chosen set) with no style named | `#D55E00` (Okabe-Ito vermilion); edges three times as wide | an ordinary layer in the stack | `StylesApi.ts` `DEFAULT_HIGHLIGHT`, line 608 |
 | An encoding group past the palette's capacity | `#505050` | an ordinary layer | `config/palettes/categorical.ts` `OTHER_GROUP_COLOR` |
@@ -1312,11 +1312,11 @@ The default categorical palette, Okabe-Ito, is ordered orange `#E69F00`, sky blu
 bluish green `#009E73`, blue `#0072B2`, vermilion `#D55E00`, reddish purple `#CC79A7`, black
 `#000000`, yellow `#F0E442` (yellow last because it is faint on the light background).
 
-**Distance from the selection gold to the nearest colour of each palette**, in OKLab units times
+**Distance from the selection gold to the nearest color of each palette**, in OKLab units times
 100 (the same scale the element's own palette-quality test uses: it quotes `#505050` as 16.5
 from `#0072B2`, which this computation reproduces), computed from the palette files above:
 
-| Palette | Nearest colour to `#FFD700` | Distance |
+| Palette | Nearest color to `#FFD700` | Distance |
 |---|---|---|
 | okabe-ito (default categorical) | `#F0E442` yellow | 3.5 |
 | inferno (sequential) | `#f7d13d`, the top | 2.8 |
@@ -1328,27 +1328,27 @@ from `#0072B2`, which this computation reproduces), computed from the palette fi
 
 The element's own threshold for "measurably apart" is about 15 to 16 on this scale (the
 `OTHER_GROUP_COLOR` comment). So the selection gold is effectively the same hue as the eighth
-Okabe-Ito colour and as the HIGHEST value of the viridis and inferno scales: on a node coloured by
+Okabe-Ito color and as the HIGHEST value of the viridis and inferno scales: on a node colored by
 a metric, a selected low-value node and an unselected top-value node can read alike. The halo is a
-ring at 0.4 opacity rather than a fill, which separates it by shape, but not by colour.
+ring at 0.4 opacity rather than a fill, which separates it by shape, but not by color.
 
 The default highlight is worse for a "reserved colour" rule: `#D55E00` is not near a palette
-colour, it IS the fifth Okabe-Ito colour, 1.0 from the `ylorbr` sequential scale's second step and
+color, it IS the fifth Okabe-Ito color, 1.0 from the `ylorbr` sequential scale's second step and
 5.5 from inferno's `#ed6925`. A route highlighted with defaults over a community encoding with
-five or more groups shares a colour with one community.
+five or more groups shares a color with one community.
 
-**The app's accent is a third colour.** The graphty app's accent (the Mantine primary colour,
+**The app's accent is a third color.** The graphty app's accent (the Mantine primary color,
 `#228be6` light / `#1971c2` dark, `compact-mantine/src/constants/panel.ts`) is a RESERVED role in
 the chrome ("a checked box, the highlighted bin, a filled micro-bar, the Run button",
-`shell/panel/panelButtons.tsx` header). It is not the canvas selection colour, and in the dark scheme it is
+`shell/panel/panelButtons.tsx` header). It is not the canvas selection color, and in the dark scheme it is
 2.7 from Okabe-Ito blue `#0072B2` (10.1 in the light scheme), so there the chrome's "selected"
-blue is also a data colour.
+blue is also a data color.
 
 So Figma's "one accent means selected" does not hold today in any of its three parts: the canvas
-selection colour differs from the chrome's selection colour, it is not excluded from the data
-palettes, and the default highlight is a data-palette colour. Reserving one colour would be an
+selection color differs from the chrome's selection color, it is not excluded from the data
+palettes, and the default highlight is a data-palette color. Reserving one color would be an
 element change (the halo default, `DEFAULT_HIGHLIGHT`, and a palette-quality test that measures
-the reserved colour against every shipped palette), not an app change. Changing the halo's
+the reserved color against every shipped palette), not an app change. Changing the halo's
 DEFAULT is a visual change, not a type break; `DEFAULT_HIGHLIGHT` and `DEFAULT_SELECTION_STYLE`
 are exported values, so their numbers are data a consumer may read.
 
@@ -1401,7 +1401,7 @@ are exported values, so their numbers are data a consumer may read.
   switch to "approximate" above 5,000 for betweenness); a Louvain run on such a graph routinely
   returns hundreds of communities (`graph-analysis.md` section 6.8 cites 261 communities above
   100 members on 2.6 million nodes), so a partition must be browsable as a list, not only as
-  eight colours; kept sets from rules routinely exceed 5,000 and must not pass through the
+  eight colors; kept sets from rules routinely exceed 5,000 and must not pass through the
   selection. For the file, 4 to 8 bytes per node per stored column is 0.4 to 0.8 MB per column at
   100,000 nodes (`graph-analysis.md` section 6.11's arithmetic): a JSON text file of a few stored
   columns is still workable at the target, while a file meant for a million nodes, or for edge
@@ -1497,7 +1497,7 @@ first, which do not exist (1.4).
 ### 7.21 Who owns visibility and style layers, and what a saved view can hold
 
 **Ownership: the session, and two views of one session cannot differ.** The element API design
-states one placement rule: "If two synchronised views of one dataset would disagree about it, it
+states one placement rule: "If two synchronized views of one dataset would disagree about it, it
 belongs to the view. Otherwise it belongs to the session." Views disagree about "the camera, the
 pointer, the hovered element, the view mode, the viewport, the screenshot and the XR session";
 they "must agree about the data, the runs, the selection, the filter, the layers and the
@@ -1510,7 +1510,7 @@ style layers are session state by design.
 
 **What exists in 2.3.1:** one element, one session. The element's `session` is a getter only
 (`graphty-element.ts` line 113), so two elements cannot share a session, and `shareDataWith` and
-`createComparison` appear nowhere in the source. Neither the synchronised nor the divergent form
+`createComparison` appear nowhere in the source. Neither the synchronized nor the divergent form
 of two views is buildable today.
 
 **A contradiction to resolve in the IA.** The object-first decisions let "Compare's second canvas
@@ -1524,12 +1524,12 @@ canvas.
 
 **What a headless `createGraphSession()` can hold today**, per saved-view part:
 
-| Part | Held by a headless session? | Serialisable today? | Published type |
+| Part | Held by a headless session? | Serializable today? | Published type |
 |---|---|---|---|
 | Camera | no: camera lives on the element's `Graph` (`getCameraState`, presets) | the element's `getCameraState()` returns plain data; presets export as `Record<string, CameraState>` | `CameraState` in `.` (renderer entry) |
 | View mode (2D, 3D, VR, AR) | no: element only (`setViewMode`) | as a string | `ViewMode` in `.` |
-| Positions | yes: `session.positions` (`read`, `write`, `isPinned`, `setPinned`, `placedCount`) | readable per node as numbers; no session serialiser | `ElementPositions` (type only) in `./session` |
-| Visibility | yes: `visibility.filter` and `visibility.window` read back as plain `Filter` / `TimeWindow` specs | the specs are plain JSON; no session serialiser | `Filter`, `TimeWindow` in `./session` |
+| Positions | yes: `session.positions` (`read`, `write`, `isPinned`, `setPinned`, `placedCount`) | readable per node as numbers; no session serializer | `ElementPositions` (type only) in `./session` |
+| Visibility | yes: `visibility.filter` and `visibility.window` read back as plain `Filter` / `TimeWindow` specs | the specs are plain JSON; no session serializer | `Filter`, `TimeWindow` in `./session` |
 | Style layers | yes | yes, the only one: `styles.toDocument()` gives `StyleDocument` version 1 | `./session`, `./schema` |
 | Saved scopes | yes: `scope.list()` gives `SavedScope { id, name, spec, bound }` | the specs are plain JSON; no document type | `./session` |
 
@@ -1574,7 +1574,7 @@ new namespace is needed for READING. What the element lacks is a verb that rebin
 (swap the definition under an author id, keep the reference, record the old run for undo).
 
 **Undo of a parameter change.** There is no undo (issue #427 is open; section 7.14). #427 states
-the intended behaviour: "undo removes an analysis result and redo restores the stored result";
+the intended behavior: "undo removes an analysis result and redo restores the stored result";
 "an algorithm run that adds a result, a style and a legend is one step"; "the history is capped
 by memory, not by step count". So the designed answer is one step restoring both the previous
 values and the previous style layers, from stored results rather than a recompute. Nothing
@@ -1742,11 +1742,11 @@ quarter of a second on the CPU, and the slow ones have no GPU route.
   the algorithms exist (#310, #330). When they do, the sizes above say they must be SAMPLED above
   a few thousand nodes, so "estimated (sampled)" has to be a value state with the sample size and
   seed in the caveats (the `Caveats.sampleSize` and `seed` fields already exist), and the element
-  needs a sampler that honours `StartOptions.sample` (published, unused today).
+  needs a sampler that honors `StartOptions.sample` (published, unused today).
 
 ### 7.24 Weak or strong components on a directed graph
 
-- **The `components` run computes WEAKLY connected components by default.** Its catalogue entry
+- **The `components` run computes WEAKLY connected components by default.** Its catalog entry
   merges the old `connected-components` and `scc` keys behind one parameter, `strength`,
   `"weak" | "strong"`, default `"weak"`, described as "Weak follows an edge in either direction.
   Strong needs a directed path each way, and only differs from weak on a directed graph"
@@ -1769,7 +1769,7 @@ quarter of a second on the CPU, and the slow ones have no GPU route.
   `isolatedCount`, `truncatedSizes`, `componentOf`) carries no field naming its kind.
 
 For the vocabulary: weakly and strongly connected components are two distinct measures on a
-directed graph, and the element already treats them as two parameterisations of one run. An at-rest
+directed graph, and the element already treats them as two parameterizations of one run. An at-rest
 component count on a directed graph must name its kind ("3 weakly connected pieces"), because the
 statistics object does not; the words can come from the run's caveat note or from a field the
 element adds to `ComponentStatistics` (an additive change).
@@ -1832,7 +1832,7 @@ carries a reversible decision to "build it when scheduled" with names that "foll
 API's existing verbs".
 
 **What is designed:** `session.data.apply({ kind: "set-attributes", scope, values, target })`
-returning a `MutationReceipt` whose `inverse` is a serialisable command (`element-api-design.md`
+returning a `MutationReceipt` whose `inverse` is a serializable command (`element-api-design.md`
 section 4.3.3). #427 would route it through the one dispatcher and make it an undo step; #301
 would save the result.
 
@@ -1843,15 +1843,15 @@ writes and notes need the journal of #145 to be undoable. Attribute storage adds
 headless session has no attribute columns at all (issue #147), so a written value has nowhere to
 live except the renderer's record objects until attributes move into the store.
 
-Reading: recording a judgement ("reviewed", "confirmed fraud") as an attribute depends on three
+Reading: recording a judgment ("reviewed", "confirmed fraud") as an attribute depends on three
 unbuilt pieces (#297, #147 and the journal). If notes ship first, the note schema is the only
-place a structured judgement can go, and whatever fields it carries become published format. The
+place a structured judgment can go, and whatever fields it carries become published format. The
 lower-risk order for the file is: attribute writes through the session, then notes as free text
-plus targets, so the note schema does not have to carry judgement fields.
+plus targets, so the note schema does not have to carry judgment fields.
 
 ### 7.27 Declaring what an algorithm reads, and per-column revisions
 
-- **The catalogue does not declare inputs.** `AlgorithmDescriptor` has `key`, names,
+- **The catalog does not declare inputs.** `AlgorithmDescriptor` has `key`, names,
   `description`, `category`, `shape`, `fields`, `options`, `costClass`, `complexity`,
   `approximable` and `requires { directed, weighted, accelerator, connected }`
   (`catalog/types.ts` lines 529 to 562). No member lists attribute columns read.
@@ -1942,13 +1942,13 @@ Reading: until picking exists, the table's Edges tab is the only practical canon
 edge, and it is buildable now. Edge-targeted notes can be DESIGNED into the first file format (the
 designed `Note.target` already has an `{ edge }` arm), but only once edge identity is stable across
 reloads -- either by keying on the file's own edge id when it has one (`edgeIdPath`, used today
-only to recognise repeats) or by an endpoint-plus-ordinal key -- because a note that silently
+only to recognize repeats) or by an endpoint-plus-ordinal key -- because a note that silently
 moves to another edge is worse than no edge note.
 
 ## Follow-up: what the figure-producing phases encode
 
 Question: when a workflow in the requirements base (`design/designloom/workflows/*.yaml`) puts
-colour, size or a highlight on the canvas, is the value an imported data column or an algorithm's
+color, size or a highlight on the canvas, is the value an imported data column or an algorithm's
 result? The answer decides whether "colour or size by attribute" should be reached from the data
 or from a result.
 
@@ -1958,8 +1958,8 @@ Only five workflows name the encoding in words; the rest were coded from what th
 
 | Encoding source | Workflows | Count |
 |---|---|---|
-| Imported column only | Gene List to Interaction Network with Expression Overlay (fill by logFC, size by a second column); Enrichment Map (size by gene-set size, colour by FDR or NES from the imported enrichment table) | 2 |
-| Algorithm result only | Iterative Analysis Cycle (centralities, communities); Community Analysis; Path Investigation (the path highlighted); Criminal Network Analysis (leaders by centrality, subgroups); Influencer Identification; Anomaly Detection (anomaly scores); First-Time User Onboarding (first community run); Hub Investigation; Network Evolution Analysis; Cluster and Functionally Annotate (colour by cluster); Hub Gene Identification and Ranking (size or colour by combined score); Condition Comparison (edges by "in A only / in B only / both", computed by the merge) | 12 |
+| Imported column only | Gene List to Interaction Network with Expression Overlay (fill by logFC, size by a second column); Enrichment Map (size by gene-set size, color by FDR or NES from the imported enrichment table) | 2 |
+| Algorithm result only | Iterative Analysis Cycle (centralities, communities); Community Analysis; Path Investigation (the path highlighted); Criminal Network Analysis (leaders by centrality, subgroups); Influencer Identification; Anomaly Detection (anomaly scores); First-Time User Onboarding (first community run); Hub Investigation; Network Evolution Analysis; Cluster and Functionally Annotate (color by cluster); Hub Gene Identification and Ranking (size or color by combined score); Condition Comparison (edges by "in A only / in B only / both", computed by the merge) | 12 |
 | Both | Fraud Ring Investigation (the imported alert flag, plus community and risk scores); Drug Target Discovery (centrality, plus imported expression and druggability); Supply Chain Risk Assessment (betweenness, plus imported tier and geography) | 3 |
 | Source not stated | Visual Exploration - Overview to Detail; Findings Communication ("highlight key findings"); Reproducible Session (re-exports what is already encoded) | 3 |
 | No figure-producing phase | First Exploration, Threat Hunting, Knowledge Graph Construction, Graph-Based Recommendation, Data Import and Validation | 5 |
@@ -1969,18 +1969,18 @@ and 5 encode an imported column (3 of those encode both). Counting only the five
 name the encoding in words, 3 encode a result and 2 an imported column. Either way, encoding a
 result is the common case.
 
-**What it means for ranking.** Colour or size by a value is a top task, but it usually follows a
+**What it means for ranking.** Color or size by a value is a top task, but it usually follows a
 run: the analyst computes something and then wants to see it. The paved route is therefore from
-the result ("colour by this"), with colour by an imported column as the same control reached from
+the result ("colour by this"), with color by an imported column as the same control reached from
 the data. Ranking "colour by attribute" as a data-first task would serve the two expression and
 enrichment workflows and make the other fifteen take the longer way.
 
 ## Follow-up: how many frequent users need shortest path in most sessions
 
 Source: `design/designloom/personas/*.yaml`, field `context.frequency`, plus each persona's
-quote, behaviours, goals and assigned workflows. No persona records how often a single task
+quote, behaviors, goals and assigned workflows. No persona records how often a single task
 recurs within its sessions, so "most sessions" was judged from whether paths are the persona's
-stated way of working (quote, bio, first behaviours), not one tool among several.
+stated way of working (quote, bio, first behaviors), not one tool among several.
 
 Eleven of twelve personas use graphty weekly or daily (Explorer Elena is "as-needed").
 
@@ -1994,7 +1994,7 @@ Eleven of twelve personas use graphty weekly or daily (Explorer Elena is "as-nee
 | Supply Chain Network Analyst | weekly | sometimes | "Identifies alternative paths and backup suppliers"; his one workflow does not require a path capability |
 | Bioinformatics Researcher | weekly | rarely | Drug Target Discovery uses proximity to disease genes; 1 of 11 workflows |
 | Marketing Network Analyst | weekly | rarely | "information flow paths for campaign presentations" |
-| Expert Emma, Genomics Cytoscape User, Knowledge Graph Engineer | daily or weekly | no | no path in quote, behaviours or workflows |
+| Expert Emma, Genomics Cytoscape User, Knowledge Graph Engineer | daily or weekly | no | no path in quote, behaviors or workflows |
 
 **Result: 3 of 11** frequent users need shortest path in most sessions (fraud, cybersecurity,
 intelligence), all daily users and all investigators; 3 more use it sometimes. A mismatch worth
@@ -2003,7 +2003,7 @@ Anomaly Detection) require no path capability although her persona is built arou
 
 ## Follow-up: paths reached from a node versus a dedicated path entry
 
-Two workflows walked through with only three tools: find (which selects a node), neighbourhood
+Two workflows walked through with only three tools: find (which selects a node), neighborhood
 expansion on the selected node, and a "Path to..." command on the selected node whose target is
 chosen by clicking a node on the canvas or typing in the command's own search field. The
 comparison is a dedicated path entry: a path tool with a source field, a target field and Run.
@@ -2029,15 +2029,15 @@ the path produced, identically.
 | Step | From the node | Dedicated entry |
 |---|---|---|
 | reach the alert | Ctrl+F, type, pick (3) | Ctrl+F, type, pick (3) |
-| 1-2 hop context | expand neighbourhood (1-2) | expand neighbourhood (1-2) |
+| 1-2 hop context | expand neighborhood (1-2) | expand neighborhood (1-2) |
 | paths to known fraud | "Path to..." on the selected node, choose the set "known fraud" as target (2) | open the path tool, re-enter the alert as Source (2-3), then the target (2), Run (1) |
 | total for the path part | 2 | 5-6 |
 
 The dedicated entry makes the analyst restate a source that is already selected, and a
 two-field dialog has no natural slot for a set of targets.
 
-**Neighbourhood expansion alone** is not a substitute: finding a path of length k takes k
-expansions and shows every neighbour on the way, which is unusable beyond two or three hops in the
+**Neighborhood expansion alone** is not a substitute: finding a path of length k takes k
+expansions and shows every neighbor on the way, which is unusable beyond two or three hops in the
 10,000 to 1,000,000 node graphs Fraud Ring Investigation starts from.
 
 **Result.** Reached from the node, a path costs the same as a dedicated entry in Path
@@ -2099,7 +2099,7 @@ graph.
 | Clear | Enrichment Map | "Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout", then cluster | computed |
 | Clear | Condition Comparison | union, intersection or difference, then "Node and edge counts, density, component count and community count for each network and for the merged one" | computed |
 | Partial | Community Analysis (input "typically giant component"), Threat Hunting ("expand or narrow scope"), Cluster and Functionally Annotate ("lay out each cluster as its own subnetwork"), Criminal Network Analysis (case scope and time frame), First Exploration ("does it require sampling/filtering?") | a scope set once, or a local view | mixed |
-| Local, not an overview | Fraud Ring Investigation (1-2 hop neighbourhood), Hub Gene Identification ("expand one step around them") | a neighbourhood | drawn |
+| Local, not an overview | Fraud Ring Investigation (1-2 hop neighborhood), Hub Gene Identification ("expand one step around them") | a neighborhood | drawn |
 | Drawing only | Findings Communication ("Filter to relevant subset" for the figure) | a filter | drawn |
 
 **Result.** 7 of 25 workflows show the full pattern and 5 more show part of it. In 6 of the 7
@@ -2197,7 +2197,7 @@ deletes the old result and its layers (section 7.22). Selectors, scopes and note
    earlier run's record, or every tuning re-run destroys the history the analyst needs.
 2. A group value is not an identity across re-runs (community 3 at resolution 1.0 is not
    community 3 at 1.5). A rule "communities.group == 3" is correct only for the run it was
-   written against. That is why a labelled or kept community must be stored as a fixed member
+   written against. That is why a labeled or kept community must be stored as a fixed member
    list with its origin, or matched by overlap on re-run -- the selector cannot solve that, and it
    should not try.
 
@@ -2420,10 +2420,10 @@ engine it ran on?
 
 | Measure | How the element computes it | What the estimate charges | Measured? |
 |---|---|---|---|
-| Betweenness | catalogue key `betweenness`, class "heavy", "O(n * m)" (`graphty-element/src/catalog/algorithms.ts` line 371) | the heavy class term n * m at 5,000,000 pairs per second (`session/cost/estimate.ts`, `DEFAULT_COST_RATES`) | yes, held to a stopwatch in `test/session/cost/estimate-against-measured-runs.test.ts` |
-| Exact closeness | catalogue key `closeness`, class "heavy" | its own model, n(n + m) at 3x the heavy rate, because it is one BFS per source (`OWN_COST_MODELS.closeness`, `estimate.ts` line 435) | yes, 20M to 57M n(n + m) per second over eight graph shapes; the class model was 2.2x to 9.3x pessimistic |
+| Betweenness | catalog key `betweenness`, class "heavy", "O(n * m)" (`graphty-element/src/catalog/algorithms.ts` line 371) | the heavy class term n * m at 5,000,000 pairs per second (`session/cost/estimate.ts`, `DEFAULT_COST_RATES`) | yes, held to a stopwatch in `test/session/cost/estimate-against-measured-runs.test.ts` |
+| Exact closeness | catalog key `closeness`, class "heavy" | its own model, n(n + m) at 3x the heavy rate, because it is one BFS per source (`OWN_COST_MODELS.closeness`, `estimate.ts` line 435) | yes, 20M to 57M n(n + m) per second over eight graph shapes; the class model was 2.2x to 9.3x pessimistic |
 | Diameter (and radius) | only as graph fields of `all-pairs-distance`, which runs Floyd-Warshall and writes eccentricity (`catalog/algorithms.ts` line 581; `algorithms/FloydWarshallAlgorithm.ts`) | the cubic class term n^3 at a placeholder 20,000,000 per second: "The cubic rate has never been measured and is a placeholder" (`estimate.ts` line 126) | no |
-| Average path length | not computed anywhere: no catalogue key, and no function in `@graphty/algorithms` (`algorithms/src` has no diameter, eccentricity or average-path function besides `floydWarshall`) | nothing; `session.estimate` cannot be asked | -- |
+| Average path length | not computed anywhere: no catalog key, and no function in `@graphty/algorithms` (`algorithms/src` has no diameter, eccentricity or average-path function besides `floydWarshall`) | nothing; `session.estimate` cannot be asked | -- |
 
 **Readings.**
 - **Closeness is covered well; diameter is covered badly; average path length not at all.** The
@@ -2467,7 +2467,7 @@ re-exported by `webgpu-graph-algorithms/src/types/accelerator.ts`), but the GPU 
 Every all-pairs run is on the CPU, and its record line can say so only as a difference from the
 default once a GPU path exists.
 
-## Follow-up: whether the algorithm catalogue already carries the family, cost band and (i) text the catalogue panel needs
+## Follow-up: whether the algorithm catalog already carries the family, cost band and (i) text the catalog panel needs
 
 Read from `graphty-element/src/catalog/types.ts` (`AlgorithmDescriptor`, lines 503 to 536;
 `COST_CLASSES`, line 197; `MetricAvailability`, lines 675 to 691),
@@ -2478,10 +2478,10 @@ Read from `graphty-element/src/catalog/types.ts` (`AlgorithmDescriptor`, lines 5
 |---|---|---|
 | **Algorithm family** (the bare headings: centrality, community, path, flow, structure, prediction) | `AlgorithmDescriptor.category`, typed as exactly those six plus any string, set on every built-in | Present. The rename `category` to `family` is already an item of the published-names list (`glossary.md` section 17, item 6), so it is not a new contract item |
 | **(i) text** | `description` (one plain sentence, e.g. degree: "Counts how many edges each node has, incoming, outgoing and in total."), `technicalName`, `plainName`, `complexity` ("O(n + m)") | Present. `glossary.md` section 17, item 6 already turns `plainName` into (i) text and adds `displayName` for the row label; no new item |
-| **Cost band** ("under a minute" ... "over a day", or a clock time once measured on this device) | No band anywhere. `costClass` is a complexity class ("instant", "iterative", "heavy", "cubic", "unbounded"), not a time band. `session.estimate(command)` returns `seconds` and `confidence` ("measured", "calibrated", "modelled", "unknown"), which together decide band or clock time. The catalogue listing `MetricAvailability` carries `costClass` and `estimateSeconds` but drops `confidence` | Partly present. The band itself is already a contract item ("The cost estimate comes from graphty-element ... a band ... and a time only when a run of that algorithm on the same engine was measured. The app shows it and never computes it": `element-contract.md`, the cost estimate item). What the catalogue adds to that item: the band (or its inputs, `confidence` beside `estimateSeconds`) must also appear on each `MetricAvailability` entry, so the panel lists every algorithm with its band without calling `estimate` per row and without mapping seconds to band words in the app |
+| **Cost band** ("under a minute" ... "over a day", or a clock time once measured on this device) | No band anywhere. `costClass` is a complexity class ("instant", "iterative", "heavy", "cubic", "unbounded"), not a time band. `session.estimate(command)` returns `seconds` and `confidence` ("measured", "calibrated", "modelled", "unknown"), which together decide band or clock time. The catalog listing `MetricAvailability` carries `costClass` and `estimateSeconds` but drops `confidence` | Partly present. The band itself is already a contract item ("The cost estimate comes from graphty-element ... a band ... and a time only when a run of that algorithm on the same engine was measured. The app shows it and never computes it": `element-contract.md`, the cost estimate item). What the catalog adds to that item: the band (or its inputs, `confidence` beside `estimateSeconds`) must also appear on each `MetricAvailability` entry, so the panel lists every algorithm with its band without calling `estimate` per row and without mapping seconds to band words in the app |
 
 **Result: no new contract item.** Family and (i) text exist and are already scheduled for renaming;
-the cost band extends the existing cost-estimate item to the catalogue listing. Mapping `seconds`
+the cost band extends the existing cost-estimate item to the catalog listing. Mapping `seconds`
 to a band word in the app would compute something every consumer needs, which the architectural
 principles in `CLAUDE.md` place in graphty-element.
 

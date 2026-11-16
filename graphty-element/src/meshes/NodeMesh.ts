@@ -74,7 +74,7 @@ const THIN_DEPTH_RATIO = 0.02;
 const SHADOW_LAYERS = 4;
 
 /**
- * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
+ * How far apart along the 2D camera's view, in scene units, the front faces of two neighboring
  * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
  * and far below anything a reader could see in an orthographic view.
  */
@@ -107,7 +107,7 @@ function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolea
 }
 
 /**
- * How far apart along the 2D camera's view the front faces of two neighbouring `drawOrder`
+ * How far apart along the 2D camera's view the front faces of two neighboring `drawOrder`
  * levels are drawn: about ten times the depth buffer's resolution at the 2D camera's range, so
  * the 101 levels together stay well under a unit deep.
  */
@@ -186,7 +186,7 @@ const GRADIENT_TEXTURE_SIZE = 128;
  * `NodeMesh.getGradientTexture`: a `calculatedStyle` expression produces a distinct style value,
  * and therefore a distinct material, per node, so a gradient computed per node would otherwise
  * allocate a texture per node. At 32 the worst case is about 2 MB, which is affordable; past the
- * ceiling the material falls back to the gradient's first stop as a flat colour rather than
+ * ceiling the material falls back to the gradient's first stop as a flat color rather than
  * allocating without bound. It counts gradients some material still draws: a texture is disposed
  * and its slot freed when the last material using it is disposed.
  */
@@ -217,7 +217,7 @@ interface ColorObject {
 }
 
 /**
- * A gradient colour normalised out of the `AdvancedColorStyle` discriminated union.
+ * A gradient color normalized out of the `AdvancedColorStyle` discriminated union.
  *
  * `radial` distinguishes the two gradient members of that union. `direction` is meaningless for
  * the radial form and is pinned to 0 there so the cache key below stays canonical -- two radial
@@ -1083,9 +1083,9 @@ export class NodeMesh {
     }
 
     /**
-     * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
+     * The border's material: its color, unlit, so a border reads as the color a file gave it in
      * 2D and 3D alike, the way an edge's line does.
-     * @param color - The border colour.
+     * @param color - The border color.
      * @param opacity - The border's opacity, 0..1.
      * @param scene - The scene.
      * @returns The frozen material.
@@ -1121,17 +1121,17 @@ export class NodeMesh {
     /**
      * Builds the StandardMaterial for a node mesh.
      *
-     * THE DEFECT THIS FIXES: `extractColor` answers only two of the three colour forms the zod
+     * THE DEFECT THIS FIXES: `extractColor` answers only two of the three color forms the zod
      * schema accepts -- a bare hex string and `{colorType: "solid"}`. For `"gradient"` and
      * `"radial-gradient"` it returns undefined, and this function used to read
      * `if (color3) { ... }` with NO else branch. The consequence was not a wrong gradient: the
-     * StandardMaterial kept its stock colour, so a gradient node rendered flat white/grey with no
-     * colour applied at all. That is the product owner's report, "gradient color strips don't
+     * StandardMaterial kept its stock color, so a gradient node rendered flat white/gray with no
+     * color applied at all. That is the product owner's report, "gradient color strips don't
      * currently work", and it was made more galling by the fact that the schema accepted the
      * value (see config/common.ts `AdvancedColorStyle`), so `Styles.getNodeIdForStyle` interned a
      * fresh style id and `NodeMesh.create` allocated a whole cached mesh for it. The user paid the
-     * full interning cost and got no pixels back. Every colour form the schema accepts must now
-     * produce a visible colour, or the schema and the renderer have drifted again.
+     * full interning cost and got no pixels back. Every color form the schema accepts must now
+     * produce a visible color, or the schema and the renderer have drifted again.
      *
      * HOW A GRADIENT IS PAINTED: a canvas-drawn ramp in a `DynamicTexture`, assigned to
      * `diffuseTexture` in 3D and to `emissiveTexture` in 2D (2D sets `disableLighting`, so only
@@ -1150,7 +1150,7 @@ export class NodeMesh {
      * That is a real difference in appearance, it needs a screenshot review rather than a unit
      * test, and the alternative (a second, pre-dimmed texture per gradient) doubles the GPU memory
      * discussed on `getGradientTexture`.
-     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param createOptions - Creation options carrying the texture color and effects
      * @param is2D - Whether the scene is rendering in 2D mode
      * @param scene - Babylon.js scene, required to allocate a gradient texture
      * @returns The material to attach to the cached node mesh
@@ -1172,7 +1172,7 @@ export class NodeMesh {
     /**
      * Write a new node material's properties; see {@link NodeMesh.createMaterial}.
      * @param mat - The material, which no mesh draws yet.
-     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param createOptions - Creation options carrying the texture color and effects
      * @param is2D - Whether the scene is rendering in 2D mode
      * @param scene - Babylon.js scene, required to allocate a gradient texture
      */
@@ -1192,8 +1192,8 @@ export class NodeMesh {
         if (gradient && !gradientTexture) {
             // The ramp could not be allocated -- no scene, no 2D canvas in this environment, or
             // the per-scene texture budget is spent. Fall back to the first stop so the node still
-            // carries a colour. This mirrors what Node.ts already does for rich-text label
-            // backgrounds, and it is strictly better than the old behaviour of drawing nothing:
+            // carries a color. This mirrors what Node.ts already does for rich-text label
+            // backgrounds, and it is strictly better than the old behavior of drawing nothing:
             // a flat approximation of a gradient is legible, an unstyled default is not.
             const [firstStop] = gradient.colors;
             if (firstStop) {
@@ -1202,7 +1202,7 @@ export class NodeMesh {
             }
         }
 
-        // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
+        // `node.unlit` draws a 3D node the way 2D draws every node: its own color, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
 
         if (hasPicture) {
@@ -1224,7 +1224,7 @@ export class NodeMesh {
      * @param createOptions - Creation options carrying the shape
      * @param picture - The picture the node draws
      * @param is2D - Whether the scene is rendering in 2D mode
-     * @param unlit - Whether the node draws its own colour with no light
+     * @param unlit - Whether the node draws its own color with no light
      */
     private static setUpPictureMaterial(
         mat: StandardMaterial,
@@ -1254,11 +1254,11 @@ export class NodeMesh {
     }
 
     /**
-     * Write a node material's gradient or flat colour; see {@link NodeMesh.setUpMaterial}.
+     * Write a node material's gradient or flat color; see {@link NodeMesh.setUpMaterial}.
      * @param mat - The material, which no mesh draws yet.
      * @param gradientTexture - The gradient ramp, when the style has one that could be allocated
-     * @param color3 - The flat colour, when the style has one
-     * @param unlit - Whether the node draws its own colour with no light
+     * @param color3 - The flat color, when the style has one
+     * @param unlit - Whether the node draws its own color with no light
      * @param scene - Babylon.js scene, whose lighting a lit node material follows
      */
     private static setUpColorMaterial(
@@ -1295,11 +1295,11 @@ export class NodeMesh {
                 lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
-                // colour share this material and carry their own colour in a per-instance buffer
+                // color share this material and carry their own color in a per-instance buffer
                 // instead. Babylon multiplies that buffer in after it clamps the light term, which
-                // flattens every surface lit past four fifths into one patch of unshaded colour --
+                // flattens every surface lit past four fifths into one patch of unshaded color --
                 // so the plugin moves the multiply inside the clamp and the node looks round
-                // again. On a material whose instances carry no colour it changes nothing.
+                // again. On a material whose instances carry no color it changes nothing.
                 //
                 // BEFORE freeze(): a frozen material stops re-evaluating its shader defines, and a
                 // plugin is a define.
@@ -1324,19 +1324,19 @@ export class NodeMesh {
     }
 
     /**
-     * Normalises the two gradient members of `AdvancedColorStyle` into one shape.
+     * Normalizes the two gradient members of `AdvancedColorStyle` into one shape.
      *
      * Kept separate from `extractColor` on purpose: `extractColor` answers "is there a single flat
-     * colour here", and several callers rely on it returning undefined for a gradient. Widening it
+     * color here", and several callers rely on it returning undefined for a gradient. Widening it
      * to also mean "or a gradient" would change what undefined means at every call site.
      *
      * A gradient with a single stop is still returned. It cannot be PAINTED -- the stop offsets are
      * `i / (colors.length - 1)`, which is a division by zero for one stop, and a one-stop ramp is a
-     * flat colour anyway -- so `getGradientTexture` refuses it and `createMaterial` falls back to
+     * flat color anyway -- so `getGradientTexture` refuses it and `createMaterial` falls back to
      * that one stop. Returning undefined here instead would send the node back to the unstyled
      * default, which is the exact defect this whole change removes.
      * @param color - The `texture.color` value taken straight off the parsed style
-     * @returns The normalised gradient, or undefined if this is not a paintable gradient
+     * @returns The normalized gradient, or undefined if this is not a paintable gradient
      */
     private static extractGradient(color: unknown): GradientColor | undefined {
         if (typeof color !== "object" || color === null) {
@@ -1391,7 +1391,7 @@ export class NodeMesh {
      *      style ids that differ only in shape or size share one texture, and a per-node
      *      calculated gradient that happens to repeat a value shares one too.
      *   2. A hard ceiling of MAX_GRADIENT_TEXTURES_PER_SCENE. Beyond it this returns undefined and
-     *      `createMaterial` falls back to the first stop as a flat colour. A graph with more than
+     *      `createMaterial` falls back to the first stop as a flat color. A graph with more than
      *      that many genuinely distinct gradients is a calculated gradient in disguise, and a flat
      *      approximation is a far better outcome than exhausting GPU memory. The ceiling is the
      *      reason this code does not need to know whether a gradient came from a calculated value:
@@ -1402,7 +1402,7 @@ export class NodeMesh {
      * disposes a source mesh's material (never its textures), and the last material's disposal
      * disposes the texture and frees its slot, so the ceiling counts gradients in use rather than
      * every gradient the scene has ever seen (issue #7122).
-     * @param gradient - The normalised gradient to paint
+     * @param gradient - The normalized gradient to paint
      * @param mat - The material that will draw the texture, holding it until disposed
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated
@@ -1457,7 +1457,7 @@ export class NodeMesh {
      * WHY THE CANVAS IS SQUARE RATHER THAN A 256x1 STRIP: a one-pixel-tall strip cannot represent
      * a gradient whose direction has any vertical component. At direction 90 the endpoint maths
      * below reduces to y1 = 0, y2 = 1, so the entire ramp is squeezed into a single row of pixels
-     * and the node renders as one flat colour -- exactly the defect this whole change exists to
+     * and the node renders as one flat color -- exactly the defect this whole change exists to
      * remove, reintroduced for half the directions. A square canvas costs more memory per texture,
      * which is why the count is capped in `getGradientTexture` rather than the size shaved here.
      *
@@ -1470,7 +1470,7 @@ export class NodeMesh {
      * `OffscreenCanvas`, which Node does not define). Throwing there would take down node creation
      * for a style that the schema says is valid; returning undefined lets `createMaterial` paint
      * the first stop instead.
-     * @param gradient - The normalised gradient to paint
+     * @param gradient - The normalized gradient to paint
      * @param scene - Babylon.js scene that will own the texture
      * @param key - The interning key, reused as the texture name so it is identifiable in the
      * Babylon inspector
@@ -1522,7 +1522,7 @@ export class NodeMesh {
      *
      * Lifted verbatim from the rich-text label background painter so node fills and label fills
      * agree on what "direction 45" means. Zero degrees runs left to right; the angle sweeps the
-     * endpoints around the canvas centre.
+     * endpoints around the canvas center.
      * @param ctx - The DynamicTexture's 2D context
      * @param direction - Gradient direction in degrees, 0 to 360
      * @param size - Width and height of the square canvas

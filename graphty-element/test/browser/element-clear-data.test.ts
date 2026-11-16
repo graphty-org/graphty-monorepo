@@ -49,7 +49,7 @@ const SECOND_GRAPH = JSON.stringify({
 let mounted: Graphty | null = null;
 
 /**
- * Mounts a graphty-element and waits for it to initialise.
+ * Mounts a graphty-element and waits for it to initialize.
  * @returns the element.
  */
 async function createGraphtyElement(): Promise<Graphty> {
@@ -211,7 +211,7 @@ describe("graphty-element.clearData", () => {
 
         await loadInline(element, FIRST_GRAPH);
 
-        // Both setters call the initialiser; the guard is what stops the second call
+        // Both setters call the initializer; the guard is what stops the second call
         // loading the same data again on top of the first.
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 2);
         assert.strictEqual(element.graph?.getDataManager().edges.size, 1);

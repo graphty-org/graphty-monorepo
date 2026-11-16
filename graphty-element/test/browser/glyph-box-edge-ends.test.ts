@@ -111,12 +111,12 @@ describe("a polygon drawn against its box", () => {
         const target = edge.dstNode;
         const side = target.mesh.position.x - 2 * per - target.borderReach;
         assert.isAtMost(drawnEnds(edge)[1].x, side + 1e-3);
-        // where the ray from centre to centre meets each node, which misses the pieces: the box, not nothing
+        // where the ray from center to center meets each node, which misses the pieces: the box, not nothing
         const { srcPoint, dstPoint } = edge.getInterceptPoints();
         assert(srcPoint && dstPoint, "the line meets both nodes");
         assert.approximately(srcPoint.x, 2 * per + node.borderReach, 1e-3);
         assert.approximately(dstPoint.x, side, 1e-3);
-        // and where the line leaves the box placing the arrow from the centres, when the ray finds nothing
+        // and where the line leaves the box placing the arrow from the centers, when the ray finds nothing
         const reach = (Edge as unknown as { boxReachOf(n: unknown, d: Vector3): number }).boxReachOf(
             node,
             new Vector3(1, 0, 0),

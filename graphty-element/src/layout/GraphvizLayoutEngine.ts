@@ -157,7 +157,7 @@ export function graphvizError(reason: GraphvizFailureCode, params: Readonly<Reco
 }
 
 /**
- * The options of one engine, as its catalogue entry publishes them.
+ * The options of one engine, as its catalog entry publishes them.
  * @param engine - the engine
  * @returns the schema
  */
@@ -512,7 +512,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          * line between the two centers Graphviz laid them at (`dx, dy`), which those ends hold for.
          */
         private lineEnds = new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
-        /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
+        /** Where Graphviz put each labeled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
         private xlabelPlaces = new Map<string, readonly [number, number] | null>();

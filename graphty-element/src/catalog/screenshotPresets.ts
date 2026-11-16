@@ -1,6 +1,6 @@
 /**
  * @file The screenshot presets as plain data: what each preset sets when `captureScreenshot({
- * preset })` names it. The capture code reads this table, and the catalogue publishes it
+ * preset })` names it. The capture code reads this table, and the catalog publishes it
  * (`session.catalog.screenshotPresets()`, and `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog`
  * entry), so an export dialog can show what a preset sets without copying it.
  *

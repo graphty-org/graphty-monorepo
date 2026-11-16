@@ -145,9 +145,9 @@ export function resolveSources(
 
 /**
  * Brandes' accumulation from every source, into `node` and/or `edge` (raw sums, before halving or
- * normalising).
+ * normalizing).
  *
- * A pair joined by parallel edges is ONE neighbour relation (graph-format design 3.5, the adjacent-skip idiom),
+ * A pair joined by parallel edges is ONE neighbor relation (graph-format design 3.5, the adjacent-skip idiom),
  * so path counts are the simple graph's and equal the legacy function's. The pair's share of an edge score goes
  * to the first alive parallel edge in row order; the others score 0. Removing that edge hands the whole share to
  * the next parallel, so the scores of a pair's parallels always sum to the simple graph's edge score.
@@ -209,12 +209,12 @@ interface BrandesScratch {
 }
 
 /**
- * Whether arc `a` is skipped: a repeat of the neighbour before it in the row (a parallel edge), or a dead edge.
+ * Whether arc `a` is skipped: a repeat of the neighbor before it in the row (a parallel edge), or a dead edge.
  * @param colIdx - The snapshot's arc targets
  * @param arcToEdge - The snapshot's arc -> edge map
  * @param alive - Kept edges, or null for all
  * @param a - The arc
- * @param prev - The neighbour of the last arc kept in this row, or -1
+ * @param prev - The neighbor of the last arc kept in this row, or -1
  * @returns True when the arc takes no part
  */
 function skipArc(colIdx: U32, arcToEdge: U32, alive: EdgeMask | null, a: number, prev: number): boolean {
@@ -329,11 +329,11 @@ function clearScratch(scratch: BrandesScratch, tail: number): void {
 
 /**
  * What betweenness sums are divided by: 2 on an undirected snapshot (each unordered pair was counted from both ends)
- * and 1 on a directed one, or `factor` when normalising and it is positive. The dispatcher reports it for an
+ * and 1 on a directed one, or `factor` when normalizing and it is positive. The dispatcher reports it for an
  * accelerator's scores too, which follow the same rule.
  * @param s - The snapshot
- * @param normalized - Whether to normalise
- * @param factor - The directed pair count to normalise by
+ * @param normalized - Whether to normalize
+ * @param factor - The directed pair count to normalize by
  * @returns The divisor
  * @internal
  */
@@ -347,11 +347,11 @@ export function pairDivisor(s: GraphSnapshot, normalized: boolean | undefined, f
 
 /**
  * Halve on an undirected snapshot (each unordered pair was counted from both ends) and divide by `factor` when
- * normalising and it is positive.
+ * normalizing and it is positive.
  * @param s - The snapshot
  * @param scores - The raw sums, scaled in place
- * @param normalized - Whether to normalise
- * @param factor - The directed pair count to normalise by
+ * @param normalized - Whether to normalize
+ * @param factor - The directed pair count to normalize by
  * @returns The divisor applied
  */
 function scale(s: GraphSnapshot, scores: F64, normalized: boolean | undefined, factor: number): number {
@@ -367,7 +367,7 @@ function scale(s: GraphSnapshot, scores: F64, normalized: boolean | undefined, f
  * `betweennessCentrality`, whose scores this equals on every graph it can hold. A sampled run (`sources` or `k`)
  * is the UNSCALED sum over the sources run, as the WebGPU accelerator reports it.
  * @param s - The snapshot
- * @param options - Normalisation, endpoints and sampling
+ * @param options - Normalization, endpoints and sampling
  * @returns One score per node index; `iterations` is the number of sources run
  * @throws RangeError for a bad `sources` or `k`
  * @public
@@ -390,7 +390,7 @@ export function betweennessCentrality(s: GraphSnapshot, options: BetweennessOpti
  * either direction, which is the SUM of the two values the legacy function reports under `"u-v"` and `"v-u"`
  * (each of those holds half), and is the score the WebGPU accelerator returns.
  * @param s - The snapshot
- * @param options - Normalisation, sampling and the alive-edge mask
+ * @param options - Normalization, sampling and the alive-edge mask
  * @returns One score per logical edge
  * @throws RangeError for a bad `sources` or `k`, or an `alive` mask shorter than the edge count
  * @public

@@ -19,7 +19,7 @@ Result: A "Sample library" page with cards. First card: "Who holds the novel tog
 ## Step 4
 Notes: Clicking the Les Miserables card.
 Command: --step --click-at 183,480
-Result: Les Miserables opened: 77 nodes, 254 edges, all purple-blue balls with grey lines. Left panel "Style layers": Hovered, Selected, Everything, with a "+" next to it. Right panel Graph overview.
+Result: Les Miserables opened: 77 nodes, 254 edges, all purple-blue balls with gray lines. Left panel "Style layers": Hovered, Selected, Everything, with a "+" next to it. Right panel Graph overview.
 
 ## Step 5
 Notes: Okay, so I need to change only some of the ties. Wait, "Style layers" -- I think that's where I make a new look. Let me hover the "+" first to see what it says.
@@ -78,12 +78,12 @@ Result: Menu: Color, Width, Pattern, Pattern count, Curved.
 ## Step 16
 Notes: Color first, for blue.
 Command: --step --click-at 1340,376
-Result: A Color row appeared with a grey swatch and the code "A9A9A9" highlighted. Wait, I don't know color codes. Maybe the little grey square opens a picker.
+Result: A Color row appeared with a gray swatch and the code "A9A9A9" highlighted. Wait, I don't know color codes. Maybe the little gray square opens a picker.
 
 ## Step 17
-Notes: Clicking the grey swatch to get a color picker.
+Notes: Clicking the gray swatch to get a color picker.
 Command: --step --click-at 1268,374
-Result: A Color picker popup with a gradient, hue bar, Hex A9A9A9, and five little swatches at the bottom: purple-ish, grey, blue, yellow, black.
+Result: A Color picker popup with a gradient, hue bar, Hex A9A9A9, and five little swatches at the bottom: purple-ish, gray, blue, yellow, black.
 
 ## Step 18
 Notes: The third swatch looks like a proper blue. Hovering it first to check what it's called.
@@ -108,7 +108,7 @@ Result: A Width row with "8" highlighted. But wait, the blue lines don't look an
 ## Step 22
 Notes: I want them clearly thick, so I'll type a bigger number, 20, and press Enter.
 Command: --step --key Control+a --type "20" --key Enter
-Result: Oh nice, that's it -- the 51 strong ties are now clearly thicker and blue; all the other lines are still thin grey and the characters are still the same purple-blue balls. Width row shows 20, Color 0077BB. Layer "Strong ties" shows 51. Autosave says saved.
+Result: Oh nice, that's it -- the 51 strong ties are now clearly thicker and blue; all the other lines are still thin gray and the characters are still the same purple-blue balls. Width row shows 20, Color 0077BB. Layer "Strong ties" shows 51. Autosave says saved.
 
 Stopping here: the task is done. (Not ending the session; the facilitator ends it.)
 

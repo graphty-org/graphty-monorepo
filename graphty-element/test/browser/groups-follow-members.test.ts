@@ -105,7 +105,7 @@ describe("a group with no stored position follows its members", () => {
     /**
      * Load a file, then step the force layout a counted number of times: the layout never moves a
      * group (its row is where the element last put it after every step), and once the element
-     * places it, the group sits at the centre of its members' box and its box holds every member.
+     * places it, the group sits at the center of its members' box and its box holds every member.
      * @param type - The data source.
      * @param data - The file.
      * @param groups - Each group and the nodes inside it, an inner group's included.

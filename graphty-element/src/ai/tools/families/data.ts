@@ -247,8 +247,8 @@ export const editDataTool: ToolDefinition = {
                 }
 
                 const id = resolveNode(tx, ids[0]);
-                // The neighbourhood comes from the reader's application, through the fetchers its
-                // layout behaviour supplies; with none, there is nothing to expand from.
+                // The neighborhood comes from the reader's application, through the fetchers its
+                // layout behavior supplies; with none, there is nothing to expand from.
                 const renderer = graph as unknown as Partial<Graph> & Parameters<typeof canExpand>[0];
                 const node = typeof renderer.getNode === "function" ? renderer.getNode(id) : undefined;
                 if (node === undefined || !canExpand(renderer)) {

@@ -4,7 +4,7 @@
  * One plain definition -- an id, options in short form, and ONE function (`node`, `edge`, `nodes`
  * or `groups`) -- becomes an ordinary `DeclaredAlgorithm` subclass registered through
  * `DeclaredAlgorithm.register`. Everything the element does for an advanced algorithm (the
- * catalogue entry, option validation, the run record, derived rankings and styles, progress,
+ * catalog entry, option validation, the run record, derived rankings and styles, progress,
  * cancellation, the cost estimate) it therefore does for this one, and parity holds by
  * construction.
  *
@@ -231,7 +231,7 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
 }
 
 /**
- * The catalogue entry the element fills in for a definition.
+ * The catalog entry the element fills in for a definition.
  * @param algorithm - The checked definition.
  * @returns The descriptor.
  */
@@ -318,7 +318,7 @@ interface HoldClock {
 }
 
 /**
- * Call a whole-graph function once, timed, and await what it returns. A cancelled run's abort and
+ * Call a whole-graph function once, timed, and await what it returns. A canceled run's abort and
  * an element error pass through; anything else it throws is the author's failure.
  * @param algorithm - The checked definition.
  * @param view - The graph view the run reads.
@@ -340,7 +340,7 @@ async function callWholeGraph(
         clock.longest = Math.max(clock.longest, performance.now() - clock.resumed);
         return await pending;
     } catch (error) {
-        // A cancelled run's abort passes through as it is: it is not the author's failure.
+        // A canceled run's abort passes through as it is: it is not the author's failure.
         if (run.signal.aborted || isGraphtyError(error)) {
             throw error;
         }

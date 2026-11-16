@@ -116,11 +116,11 @@ card, writing `step.ends`, shown short on the row.
 After the filter changed from 15 to 7 nodes, the style picker lists "Betweenness 0 to 22.62" and
 "Betweenness 0 to 22.07" (`n1/38.png`). The first is the old filtered-graph run (its maximum is
 the 15-node graph's Joy), the second the filter card's full-graph run; nothing tells them apart.
-In the import filter the filtered-graph run is listed as an ordinary entry, not greyed and with no
+In the import filter the filtered-graph run is listed as an ordinary entry, not grayed and with no
 tooltip (`n1/33.png`, `n1/34.png`; hover prints `tooltip: null`). Round 1 finding 3 in another form.
 
 Fix: name Results by the run's exact title with its scope ("Betweenness, Filtered graph" /
-"Full graph"), grey filtered-graph runs in the filter host with the element's reason, and rerun a
+"Full graph"), gray filtered-graph runs in the filter host with the element's reason, and rerun a
 stale run in place so its summary is never the old graph's.
 
 ### 8. Minor: the legend's denominator is the full graph (round 1 finding 6, unfixed)

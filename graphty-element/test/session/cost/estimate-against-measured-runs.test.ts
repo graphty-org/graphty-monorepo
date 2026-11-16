@@ -83,7 +83,7 @@ const MAX_PESSIMISM = 4;
 
 /** One algorithm the element gates on cost, and how the element runs it. */
 interface Row {
-    /** The catalogue key the estimate is made for. */
+    /** The catalog key the estimate is made for. */
     readonly key: AlgorithmKey;
     /** Node counts to measure at, smallest first. */
     readonly sizes: readonly number[];

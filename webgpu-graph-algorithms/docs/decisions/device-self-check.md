@@ -11,7 +11,7 @@ caller can read first), `E_DEVICE_INCORRECT` in `src/errors.ts`, `test/primitive
 
 On the Windows leg of the host matrix -- Dawn's D3D12 backend over the Microsoft Basic Render Driver, the
 software renderer built into Windows, adapter description `D3D12 driver version 10.0.26100.33296` -- compute
-shaders that synchronise across a workgroup return wrong answers. A two-block exclusive prefix sum of 257 ones
+shaders that synchronize across a workgroup return wrong answers. A two-block exclusive prefix sum of 257 ones
 produced block totals of 1 instead of 256, or 256 and then a block nothing wrote at all, and two runs of
 identical code in the same job disagreed. Everything above that scan was wrong with it: the histogram, the radix
 sort, the grid build and every layout over them -- eighteen test files. Every single-block scan and every earlier
@@ -58,9 +58,9 @@ already plumbs -- makes every barrier trivially correct and needs no edit at all
 self-contained ones need about fifty lines of rewrite; the grid build already has a barrier-free sort that only
 wants a correct scan under it. It is a smaller change than it sounds.
 
-Speed was not the obstacle. Measured over 4,194,304 words in 16,384 blocks on the software rasteriser here, the
+Speed was not the obstacle. Measured over 4,194,304 words in 16,384 blocks on the software rasterizer here, the
 barrier-free exclusive scan was 9.5x FASTER than the cooperative one (3.0 ms against 28.4 ms) and the barrier-free
-block reduction 4.3x faster -- barriers are real thread synchronisation on a processor-backed renderer. On the
+block reduction 4.3x faster -- barriers are real thread synchronization on a processor-backed renderer. On the
 card the barrier-free scan was 2.6x slower.
 
 It was rejected for three reasons:
@@ -117,7 +117,7 @@ block total of 1 the Windows job produced -- and refuses.
   `NodeGpuOptions.dawnFeatures` in `src/node/index.ts` already emits the toggle, so the Node path could be
   repair-then-verify: create, check, and on failure re-create once with the toggle and re-check. Honest limits:
   one sample; only the four scan and probe files ran under it, not the eighteen that fail; Dawn defaults it off
-  because FXC miscompiles in other cases with optimisations on; and a browser cannot set instance toggles, so the
+  because FXC miscompiles in other cases with optimizations on; and a browser cannot set instance toggles, so the
   refusal stands there regardless.
 - `graphty-element` must add `E_DEVICE_INCORRECT` to its `AccelerationErrorCode` union and decide the sentence a
   reader sees. "This browser's GPU driver returns incorrect results, so the graph is being computed on the

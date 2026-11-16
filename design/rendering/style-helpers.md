@@ -986,7 +986,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 1. **[Color Palettes Specification](./color-palettes-specification.md)** - Complete color research and palette definitions
 2. **[StyleHelpers Framework](./style-helpers-framework.md)** - Detailed algorithm analysis and mapping strategy
 3. **Okabe, M., & Ito, K. (2008)**. Color Universal Design
-4. **Tol, P. (2021)**. Colour Schemes (SRON/EPS/TN/09-002)
+4. **Tol, P. (2021)**. Color Schemes (SRON/EPS/TN/09-002)
 5. **Nuñez et al. (2018)**. Optimizing colormaps for color vision deficiency (PLOS ONE)
 6. **Smith & van der Walt (2015)**. A Better Default Colormap for Matplotlib
 7. **Harrower & Brewer (2003)**. ColorBrewer.org (The Cartographic Journal)

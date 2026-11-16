@@ -41,14 +41,14 @@
  * away needs the value the layers beneath it painted, and an element keeps no per-layer history
  * to read that out of; keeping one means a merged snapshot per layer, 23 columns times the stack
  * depth, to save a walk over a set that is already small. The ELEMENT bound, which is the one
- * that decides the budget, is honoured exactly in every case: an element outside the dirty set is
+ * that decides the budget, is honored exactly in every case: an element outside the dirty set is
  * never visited by any layer.
  *
- * STYLE IDENTITY IS A HASH, NOT A SCAN. See `./intern`. Colour and opacity are per-instance GPU
+ * STYLE IDENTITY IS A HASH, NOT A SCAN. See `./intern`. Color and opacity are per-instance GPU
  * state and do not key a source mesh, so a viridis ramp over 50,000 nodes still needs one mesh.
  *
  * NOTHING HERE THROWS PER ELEMENT. A binding that cannot be prepared -- a palette with fewer
- * colours than the encoding has groups, a scale nobody registered -- disables its layer for the
+ * colors than the encoding has groups, a scale nobody registered -- disables its layer for the
  * pass and is reported through {@link RepaintEngine.problems}. One layer the session cannot paint
  * must not cost every other layer its paint, which is exactly what `calculatedStyle` did.
  *
@@ -256,7 +256,7 @@ export interface ElementPaint {
      * How many distinct source meshes one kind of element needs.
      *
      * This is the number a structural hash exists to keep small: it must follow the distinct
-     * SHAPES and SIZES in the picture, never the element count, and a colour encoding must not
+     * SHAPES and SIZES in the picture, never the element count, and a color encoding must not
      * move it. A mesh no element is drawn from any more is not counted: its key is released and
      * never handed out again.
      * @param target - Nodes or edges.
@@ -558,7 +558,7 @@ type ChannelColumn =
  * Which column shape a channel's values pack into.
  *
  * Numbers and switches go into typed arrays, so a column of 50,000 sizes is 400 KB of contiguous
- * memory with no per-element object in it. Everything else -- a colour, a word from a closed
+ * memory with no per-element object in it. Everything else -- a color, a word from a closed
  * list, a label, a label style -- is held by reference, which costs nothing extra because the
  * encoding hands back a bounded set of shared values rather than a new one per element. A label
  * style is held by reference too, but merged with what the layers beneath painted: see
@@ -802,20 +802,20 @@ function clearColumn(column: ChannelColumn, index: number): void {
  * announces its own kind and therefore its own length, so a sequence decodes one way only however
  * many tokens each channel contributed -- see NUMBER_TOKEN in `./intern`.
  *
- * A COLOUR IS ITS FOUR COMPONENTS, AND LEAVING IT OUT WAS A SILENT DEFECT. A resolved colour
+ * A COLOUR IS ITS FOUR COMPONENTS, AND LEAVING IT OUT WAS A SILENT DEFECT. A resolved color
  * arrives here as a `ColorValue` object, so until this branch existed it fell past the
- * three `typeof` tests and was pushed as ABSENT: every colour folded into the key as "nothing
- * painted this", which made every colour equal to every other colour and to no colour at all.
+ * three `typeof` tests and was pushed as ABSENT: every color folded into the key as "nothing
+ * painted this", which made every color equal to every other color and to no color at all.
  * The two channels that suffered were `edge.arrowHeadColor` and `edge.arrowTailColor` -- the only
- * colours whose role is `mesh` -- and the symptom was exact: a cap was drawn in the right colour
- * on the first paint, because the first paint builds every mesh anyway, and a colour written to a
+ * colors whose role is `mesh` -- and the symptom was exact: a cap was drawn in the right color
+ * on the first paint, because the first paint builds every mesh anyway, and a color written to a
  * graph already on screen changed nothing at all, because the key it should have changed could
- * not see it. Writing a cap SIZE afterwards rebuilt the cap and the colour appeared, which is how
+ * not see it. Writing a cap SIZE afterwards rebuilt the cap and the color appeared, which is how
  * the resolved value was shown to have been right the whole time.
  *
  * THE COMPONENTS RATHER THAN THE HEX STRING, because {@link StyleInterner.pushText} mints a token
  * per distinct word into a table that is never emptied. That is the right trade for a word from a
- * closed list -- a node shape, a line pattern -- and the wrong one for a colour, where a
+ * closed list -- a node shape, a line pattern -- and the wrong one for a color, where a
  * continuous encoding would put one string per element in it. The components are already parsed
  * and cost nothing to read.
  * @param meshes - The interner mid-sequence.
@@ -1233,7 +1233,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     let problems: RepaintProblem[] = [];
     /**
      * The problems already handed to `onProblem`, by layer and code. `problems()` is internal, so
-     * without this a layer the pass refused -- a palette with fewer colours than the groups --
+     * without this a layer the pass refused -- a palette with fewer colors than the groups --
      * would paint nothing and tell no one why.
      */
     const reported = new Set<string>();
@@ -1513,9 +1513,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
             }
 
-            // A colour that cycles a second cue past its palette draws that cue too, whether or
+            // A color that cycles a second cue past its palette draws that cue too, whether or
             // not the layer stores it: a layer the cue's own binding was never written into
-            // (its colour binding edited to "shape") must not repeat colours with nothing else
+            // (its color binding edited to "shape") must not repeat colors with nothing else
             // to tell the groups apart. A stored binding of the cue's channel wins.
             for (const [name, binding] of Object.entries(layer.encode ?? {})) {
                 const half = binding === undefined ? null : overflowHalf(name as Channel, binding);
@@ -1711,7 +1711,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param context - The signal to stop on.
      * @param deadline - When this slice runs out.
      * @returns The next slice's deadline.
-     * @throws The signal's reason when the pass has been cancelled.
+     * @throws The signal's reason when the pass has been canceled.
      */
     const breathe = async (context: RepaintContext, deadline: number): Promise<number> => {
         if (now() < deadline) {
@@ -1917,7 +1917,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 const held = store.meshKeys[index];
 
                 // Counted only when an element MOVES to another mesh, so an edit that leaves
-                // every mesh where it was -- a colour, a label -- costs no bookkeeping at all.
+                // every mesh where it was -- a color, a label -- costs no bookkeeping at all.
                 // Key zero is the default mesh and is never released.
                 if (key !== held) {
                     if (key !== 0) {
@@ -2078,7 +2078,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         hideHidden(store);
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
-        // mesh, which is the ordinary case: a colour encoding moves no element to another mesh.
+        // mesh, which is the ordinary case: a color encoding moves no element to another mesh.
         if (store.meshWritten) {
             slice = await internDirty(store, context, slice);
         }
@@ -2097,7 +2097,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param mark - Puts the elements this pass repaints into the dirty sets.
      * @param skipBelow - The lowest layer that has to be applied, or null for the whole stack.
      * @returns How much was painted.
-     * @throws The signal's reason when the pass is cancelled part way through.
+     * @throws The signal's reason when the pass is canceled part way through.
      */
     const runPass = async (
         stack: readonly CompiledLayer[],
@@ -2148,7 +2148,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * of its twenty nodes -- it had been handed the third pass's dirty set halfway through -- and
      * the nodes it was painting kept the appearance the element gives an unstyled node.
      *
-     * A waiter runs whether the pass in front of it finished or threw: a cancelled edit must not
+     * A waiter runs whether the pass in front of it finished or threw: a canceled edit must not
      * take the pass behind it down, and a pass that never starts is a picture that never arrives.
      * @param body - The pass.
      * @returns What it painted.
@@ -2177,7 +2177,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param request - What changed, and the stack to paint from.
      * @param context - The signal to stop on and the progress channel.
      * @returns How much was painted.
-     * @throws The signal's reason when the edit is cancelled part way through.
+     * @throws The signal's reason when the edit is canceled part way through.
      */
     const repaint = async (request: RepaintRequest, context: RepaintContext): Promise<RepaintReport> =>
         exclusively(async () =>

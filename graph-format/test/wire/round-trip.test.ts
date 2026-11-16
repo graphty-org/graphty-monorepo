@@ -384,7 +384,7 @@ describe("transfer", () => {
         const back = fromWire(clone, { validate: "full" });
         expect(equalsTopology(back, s)).toBe(true);
         expect(back.nodes.has("score")).toBe(true);
-        // a string column materialised AFTER the sibling was created is still recognised as shared
+        // a string column materialized AFTER the sibling was created is still recognized as shared
         expect(s.toWire({ transfer: true }).manifest.copied.length).toBe(s.toWire().buffers.length);
     });
 

@@ -88,7 +88,7 @@ describe("collector with the GitHub App", () => {
         expect(homes(store, "npm").some((n) => n.pkg === "@graphty/graph-format" && n.publishedAt)).toBe(true);
         expect(new Set(homes(store, "cost").map((c) => c.line))).toEqual(new Set(["github", "cloudflare", "aws"]));
 
-        // Master: the newer cancelled build timed out, so it is red (classified from its annotations).
+        // Master: the newer canceled build timed out, so it is red (classified from its annotations).
         expect(observed(store, "master.red_builds")).toBe(1);
         expect(observed(store, "master.red_span_ms")).toBe(NOW - Date.parse("2026-10-26T00:13:00Z"));
         expect(observed(store, "master.red_ms")).toBe(5 * MIN);

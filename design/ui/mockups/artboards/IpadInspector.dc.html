@@ -31,7 +31,7 @@
   Above the large-graph threshold and under the iPad render ceiling: Performance mode is on (labels capped, hover off,
   note markers clustered, positions from file, minimap hidden on iPad). The selected node is the hub host DC01 with
   12,412 neighbors, so the inspector shows the capped neighbor section and the actions that warn and confirm.
-  Revision 1.7: TB-1/TB-2/TB-5 (the narrow 274 x 40 canvas toolbar at bottom 12, centred on 1132, Zoom to selection
+  Revision 1.7: TB-1/TB-2/TB-5 (the narrow 274 x 40 canvas toolbar at bottom 12, centered on 1132, Zoom to selection
   enabled because DC01 is selected; tapping it does not close the inspector), TB-3 (the legend rises 48px to bottom 60
   -- the shifted legend is the one case in the set where the two-line rule fires), POP-13c/POP-0 (resident openers;
   a pop-out is a full-width sheet over its panel here), SAV-7 (row verbs resident on touch).
@@ -57,10 +57,10 @@
   Every number now belongs to the path that spends it. The button keeps the scope it acts on. The line under it
   opens with that button's own cost, "Adds 50 nodes.", and the warning, its consequence and its "anyway" belong
   to the other path alone: "All 12,412 may slow the canvas down. Expand all anyway". After this, 12,412 on this
-  board is only ever the pool of neighbours and the estimate for expanding all of them, never what the drawn
+  board is only ever the pool of neighbors and the estimate for expanding all of them, never what the drawn
   button will add.
   The ring caption is reconciled instead of being left to be read against 12,412: "3 rings hold 29,300; 11,900
-  collapsed". 29,300 + 11,900 is the 41,200 the status bar carries, and this node's 12,412 neighbours are ring 1,
+  collapsed". 29,300 + 11,900 is the 41,200 the status bar carries, and this node's 12,412 neighbors are ring 1,
   inside the 29,300 -- so the caption is a drawn-and-collapsed split of the whole graph and cannot be taken for
   a second estimate of this node's expansion.
   Cost: nothing. No row changed type, nothing moved behind a door or into a title, and the block is the same
@@ -722,7 +722,7 @@
                its note marker draws individually (selected elements always draw, 5.7) while the other markers are clustered
                into a clustered "Notes" pill.
                NAV-10: this graph is above the large-graph threshold, so a single-node selection draws exactly what
-               hover-highlight draws -- DC01's incident edges in the selection colour and its immediate neighbours
+               hover-highlight draws -- DC01's incident edges in the selection color and its immediate neighbors
                outlined, capped by the 500-node hover-highlight cap. Nothing is dimmed by the selection itself. -->
                                 <svg
                                     width="100%"
@@ -3072,7 +3072,7 @@
                                 <!-- INSIGHTS STRIP, iPad variant (5.2): one row of chips. Above the large-graph threshold the set is the fixed cheap
                set from 7.3: Find connected parts, Who is most connected, Search (no validation warnings, nodes under 50,000). -->
                                 <!-- Both names on one line per chip, technical half muted, truncating with a title at chip width.
-               The strip is centred on the canvas left of the inspector overlay so no chip runs under it. -->
+               The strip is centered on the canvas left of the inspector overlay so no chip runs under it. -->
                                 <div
                                     style="
                                         position: absolute;
@@ -3191,8 +3191,8 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-5). This replaces the 56px navigation cluster that stood at
-               left 12, bottom 12: the same fixed item set, rotated and moved to the bottom centre of the live canvas rect,
-               centred with left: 50% and translateX(-50%) on the 1132 canvas, never on the window. Bottom is 12 because
+               left 12, bottom 12: the same fixed item set, rotated and moved to the bottom center of the live canvas rect,
+               centered with left: 50% and translateX(-50%) on the 1132 canvas, never on the window. Bottom is 12 because
                nothing else rides the canvas floor on this board -- no time slider, no Data table drawer (the stack is
                12 / 82 / 272 / 342, TB-4).
                Narrow variant (6.8 point 3, below 1280px, so it is mandated rather than invented here): items 32 x 32 with a
@@ -3205,7 +3205,7 @@
                magnitude increases rightward; vertically, in-above-out was already correct. No persistent tool modes: there
                are no pointer, hand or zoom tool toggles (TB-6 rejected). The zoom percentage is not in the bar -- the status
                bar owns it and sits 12px below, so the number is already adjacent to the buttons that change it (TB-7).
-               The item set is FIXED: nothing appears or disappears with selection, because a centred container that changes
+               The item set is FIXED: nothing appears or disappears with selection, because a centered container that changes
                width moves every item under the pointer. Zoom to selection is therefore permanently drawn and merely disables
                -- here it is drawn ENABLED at #a3a8b1 because DC01 is selected, which makes this the one iPad board where that
                item is live and the pair with IpadPanel (where it is disabled and keeps its reason, floor 4) that proves the
@@ -3479,7 +3479,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3488,7 +3488,7 @@
                travels inside an exported image where no one can hover a glyph.
                No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
                channel that is not encoded.
-               THIS BOARD: security-events-41k.csv on iPad, where DC01 holds 12,412 neighbours (FIXTURES 4). The cap is
+               THIS BOARD: security-events-41k.csv on iPad, where DC01 holds 12,412 neighbors (FIXTURES 4). The cap is
                200 (C6 / VOCAB 14.5), not the 40%-of-canvas 302 it was derived from; the box is still shifted left of the
                inspector overlay so it stays inside the remaining canvas width (5.1). This legend is floor item 5 and may
                not be covered -- but under B1 a transient now buys clearance by sliding rather than by rising, which is
@@ -3717,7 +3717,7 @@
          openers to that list: a door's opener -- a section gear, a Details chevron, a library row's verbs -- is drawn
          resident on this board, never hover-revealed (POP-13c). And a pop-out itself is not a floating box here:
          below 1280px and on iPad it opens as a second sheet over its panel at full panel width with a back chevron,
-         honouring 5.2's one-overlay-at-a-time rule (POP-0). -->
+         honoring 5.2's one-overlay-at-a-time rule (POP-0). -->
                     <div
                         style="
                             flex: 1 1 auto;
@@ -4138,7 +4138,7 @@
                         <!-- Notes (5.4, 5.7): "Add a note..." input, then existing notes newest first (author, relative time, color chip,
            text, Done). No count on the header: a header count of 0 or 1 is not drawn.
            XR-E: a note dictated in a headset carries a "Dictated" chip beside its time in this list; "Flag this" writes
-           a note whose body reads "Flagged in VR 14:32" in the placeholder colour. Edit, Delete and Done do not exist
+           a note whose body reads "Flagged in VR 14:32" in the placeholder color. Edit, Delete and Done do not exist
            in a session. -->
                         <div style="display: flex; flex-direction: column">
                             <div style="height: 1px; background: #495057"></div>
@@ -4209,7 +4209,7 @@
                                 </div>
                                 <!-- The note body is the user's own string (floor 6), so it wraps instead of ellipsing: this board used
                to truncate it. "Done" becomes the checkbox's title -- RT-5's lone boolean is the trailing control
-               of the row it modifies, not a labelled row of its own. Edit and Delete stay resident: R4 forbids
+               of the row it modifies, not a labeled row of its own. Edit and Delete stay resident: R4 forbids
                hover-only actions on a touch board. SAV-7 uses the same fixed triple on
                every saved-thing row -- rename, an empty visibility slot, delete -- hover-revealed on the desktop boards
                and resident on the two iPad boards, which is the treatment this section already draws. The full set is
@@ -4891,8 +4891,8 @@
          which no static board draws, so the only subset-drawn statement on this screen was invisible. Floor 2
          admits no such move and Rule 0 vetoes RT-7's two-rows-plus-a-More count, so the row is resident again
          and the caption rides under it as the RT-10 departure line it always was, cut from ten words to six.
-         It is paid for in the neighbour list above, not in words: 45px of pinned block against two of the five
-         drawn neighbour rows.
+         It is paid for in the neighbor list above, not in words: 45px of pinned block against two of the five
+         drawn neighbor rows.
          Coming (5.8): the three dimmed rows below are one contiguous run, so the tag and the info circle are
          drawn once above them (register section 3) rather than once per row.
          The Select neighbors confirm popover is drawn beside the block as the reported confirm shape the row will
@@ -5093,7 +5093,7 @@
              and D4's veto list names every departure line by kind. 6.10's separation clause binds it to the
              drawing it describes rather than to the button that was beside it, so the button could travel and
              this could not. Reconciled, not a second estimate: 29,300 + 11,900 is the 41,200 in the status bar,
-             and this node's 12,412 neighbours are ring 1, inside the 29,300. Same amber mark and same 11px
+             and this node's 12,412 neighbors are ring 1, inside the 29,300. Same amber mark and same 11px
              #a3a8b1 as the line above it, because they are the same kind of sentence -- what is true of the
              drawing before anything else is spent. 2px under the box where every other row in this block is
              4px apart, which is the binding gap it carried before it moved. -->
@@ -5294,9 +5294,9 @@
        B1 / VOCAB 14.2, the caret: 236 is narrower than 280, so this surface carries an 8px CARET at the anchored
        edge instead of an edge line -- nothing aligns meaningfully to a 14px control. It is mirrored to the RIGHT
        edge, because the surface opens left and its leading edge is the one pointing back at the inspector, and it
-       is centred on the opener chip's vertical centre at root y 425. It is filled #2a3035, this pop-out's own
+       is centered on the opener chip's vertical center at root y 425. It is filled #2a3035, this pop-out's own
        ground rather than 14.2's #1f2428; that is a state difference, named here, not a second treatment. Its
-       centre lands 8px below the pop-out's top corner rather than 12: the shared edge line is what carries the
+       center lands 8px below the pop-out's top corner rather than 12: the shared edge line is what carries the
        meaning and B1 surrenders the anchor last, so the clamp yields to it here and the deviation is recorded
        rather than quietly split.
        The four generations of re-anchoring arithmetic that stood here -- bottom 132, then 90, then 136, then 180,
@@ -5417,7 +5417,7 @@
                     <span style="cursor: pointer">Zoom 100%</span>
 
                     <!-- MODE CHIP: renders only while an XR session is active. There is no 3D chip -- the canvas 2D/3D control is
-         always visible in the canvas toolbar at the bottom centre of the canvas (5.6, TB-1). -->
+         always visible in the canvas toolbar at the bottom center of the canvas (5.6, TB-1). -->
                     <div style="width: 1px; height: 12px; background: #48525c"></div>
 
                     <!-- LAYOUT SLOT (name drops 3rd): "Positions from file" (above the threshold with positions in the file, 7.2),

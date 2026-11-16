@@ -64,7 +64,7 @@ Notes: Color row with hex box "A9A9A9" selected for typing. I know hex. Next: ty
 
 ## Step 16
 Command: --step --type "FF0000" --key Enter -> 16.png
-Notes: Family ties now red; a legend popped up top-left "Edge color: Family ties, 8 of 30 edges". Other edges still grey. Still thin though. Next: Line "+" again -> Width.
+Notes: Family ties now red; a legend popped up top-left "Edge color: Family ties, 8 of 30 edges". Other edges still gray. Still thin though. Next: Line "+" again -> Width.
 
 ## Step 17
 Command: --step --click-at 1404,340 (Add to edge line) -> 17.png
@@ -76,11 +76,11 @@ Notes: Width row shows "8", selected. No units. The red lines look exactly as th
 
 ## Step 19
 Command: --step --key Enter -> 19.png
-Notes: Nothing changed. Width still "8", red lines still hairline-thin like the grey ones. Is 8 already the normal width? No units, no hint. Next: try a bigger number, 30, to see if anything moves.
+Notes: Nothing changed. Width still "8", red lines still hairline-thin like the gray ones. Is 8 already the normal width? No units, no hint. Next: try a bigger number, 30, to see if anything moves.
 
 ## Step 20
 Command: --step --type "30" --key Enter -> 20.png
-Notes: Now the 8 family ties are clearly thick and red. Neighbor and coworker ties are still thin grey, the people (blue balls) are unchanged, and the layer says "Nodes: not styled". Layer "Family ties" sits in the list, autosave says saved. Done -- stopping here.
+Notes: Now the 8 family ties are clearly thick and red. Neighbor and coworker ties are still thin gray, the people (blue balls) are unchanged, and the layer says "Nodes: not styled". Layer "Family ties" sits in the list, autosave says saved. Done -- stopping here.
 
 ## Wrap-up (in character)
 - Finished: yes. neighbors.csv loaded (16 nodes, 30 edges, shown before and after load -- matched), and the 8 family ties are thick red; everything else left alone.
@@ -91,4 +91,4 @@ Notes: Now the 8 family ties are clearly thick and red. Neighbor and coworker ti
   - A new layer starts as "Node and edge layer" with "Style nodes" ticked, which made me worry it would touch the people too; it only switched to "Edge layer / Nodes: not styled" once I set the edge condition.
   - The legend that popped up only says "Edge color: Family ties" -- nothing about the thickness.
   - Good: "It never leaves your computer" right under the open button and "Local only" in the header answered my data question before I asked. The per-value counts in the condition (family, 8 edges) are exactly the check I want.
-  - Red on grey is fine for my eyes; red against green would not have been.
+  - Red on gray is fine for my eyes; red against green would not have been.

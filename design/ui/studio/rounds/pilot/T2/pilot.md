@@ -51,7 +51,7 @@ should know about them before round 1.
    sample removes the start-screen question without an answer; usage data stays off. The only way
    back is the header chip "Local only", which has no tooltip (step 3) and whose name says nothing
    about privacy or usage data. The measure's right answer (the chip, or Settings > Privacy) is
-   reachable and matches the screen, but a participant has to guess that a lock labelled "Local
+   reachable and matches the screen, but a participant has to guess that a lock labeled "Local
    only" is where it lives.
 5. **"Edges per ..." is truncated with no tooltip (app, minor).** The full name, "Edges per node",
    is only in the accessible name (step 6).

@@ -1,6 +1,6 @@
 /**
  * @file The Graphviz layouts' Node-side pieces: the DOT the element writes, the json it reads back,
- * the options, the error codes, the catalogue entries, each engine on a small graph through the real
+ * the options, the error codes, the catalog entries, each engine on a small graph through the real
  * WebAssembly library, and every branch of the recommendation for a Graphviz file.
  */
 
@@ -553,7 +553,7 @@ describe("options and failures", () => {
     });
 });
 
-/** The plain name each Graphviz engine's catalogue entry carries. */
+/** The plain name each Graphviz engine's catalog entry carries. */
 const GRAPHVIZ_NAMES: Readonly<Record<(typeof GRAPHVIZ_ENGINES)[number], string>> = {
     dot: "Layered",
     neato: "Stress",

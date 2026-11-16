@@ -476,7 +476,7 @@ describe("oracle vs NetworkX (compat networkx, f64, raw positions)", () => {
                     }
                 }
                 if (f.options.gravity === 0) {
-                    // with no gravity the centre does not matter: the default paper mode (centroid) agrees too
+                    // with no gravity the center does not matter: the default paper mode (centroid) agrees too
                     const centroidPaper = new ForceAtlas2Oracle(
                         snapshotFrom(f),
                         layoutOf(f.initialPositions, dim),

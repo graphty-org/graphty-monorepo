@@ -2,7 +2,7 @@
  * The upload contract of spec 11.3 ported from graph-format's test/audit/gpu-upload.test.ts lines 254-666 onto
  * GraphResidency (contract 3.8, 5.5): arena bindings equal the CPU views byte for byte; per-array on fromCsr and
  * transpose(); cold segments on demand; arena.byteOffset !== 0 from fromBytes (rich-v1.gsnp); packed u8 / bool
- * columns through column(); identity permutations never materialised (a getter spy plus byteLength({ views: true }));
+ * columns through column(); identity permutations never materialized (a getter spy plus byteLength({ views: true }));
  * the same array object uploads once; a column version bump re-uploads in place; ctx.release destroys every buffer
  * and trims the pool; E_RELEASED / isReleased; release idempotent and safe on an unknown snapshot; withColumns
  * siblings share one record; the once-only warning; views, ad hoc arrays, the windowed plan's shape (executed since
@@ -995,7 +995,7 @@ describe("the P7 views (spec 4.3 lines 1180-1190)", () => {
             const s = directedWeighted();
             const plain = ctx.residency.view(s, "reverse");
             const packed = ctx.residency.view(s, "reverse", { packViews: true });
-            // Both builders upload through this.upload(), which memoises on the KEY object and does NOT compare
+            // Both builders upload through this.upload(), which memoizes on the KEY object and does NOT compare
             // byte lengths (src/memory/residency.ts upload()). s.reverse() is cached (graph-format
             // graph-snapshot.ts:600-601), so both builders see the SAME rev.rowPtr object: keying the packed
             // buffer on it would hand one of the two views the other's buffer.

@@ -12,7 +12,7 @@ The set is only useful if a writer can tell, for any sentence, which document ow
 trials put real sentences through the routing test.
 
 **Sample.** Every sentence of `conceptual-model.md` 5.2 (filters) and 6.1 (style layers), split
-at periods and semicolons (57 units), plus 14 sentences about "colour nodes by an attribute, read
+at periods and semicolons (57 units), plus 14 sentences about "color nodes by an attribute, read
 the legend, size nodes by Degree" taken from `information-architecture.md` (lines 566, 866-867,
 940-941), `element-contract.md` (line 326) and `top-tasks.md` (line 116).
 
@@ -24,12 +24,12 @@ the legend, size nodes by Degree" taken from `information-architecture.md` (line
 **Why the ordered list failed.** The first "yes" wins, so an early question captures sentences
 that belong later. The question "does it name an operation?" sent step sequences ("start from a
 few source nodes, Filter to selection, and Select neighbors grows the working set") to the model
-instead of task flows. The principles question captured behaviour at scale ("never samples
+instead of task flows. The principles question captured behavior at scale ("never samples
 silently") before the state-matrix question was asked. Precedent from tools other than Figma had
 no home at all.
 
 **What the faceted test fixed.** Step sequences went to task flows, precedent went to research,
-behaviour over the drawing limit went to the state matrix, and rows of the style-layer list went
+behavior over the drawing limit went to the state matrix, and rows of the style-layer list went
 to the interface specification.
 
 **Why the faceted test still failed.** Five gaps in its list of kinds, and compound sentences:
@@ -47,34 +47,34 @@ The other 13 two-home units each held two facts, usually a model fact plus a scr
 five gaps closed and compound sentences split, one unit stays unclear ("The kind is visible
 because it changes what searches cross").
 
-## 2. The default selection halo against data colour
+## 2. The default selection halo against data color
 
 **Setup.** The element's default halo is `#FFD700` at opacity 0.4 and scale 1.45
 (`graphty-element/src/config/GraphStyle.ts`), drawn as a tint over the node. It was drawn over the
 element's "okabe-ito" categorical palette on 50 nodes, on the light canvas (`#F5F5F5`) and the
 dark canvas (`#1E1E1E`), and contrast was computed with the WCAG relative-luminance formula.
-39 palette colours were checked: every built-in categorical palette in
-`graphty-element/src/catalog/palettes.ts` plus the "other" grey `#505050`.
+39 palette colors were checked: every built-in categorical palette in
+`graphty-element/src/catalog/palettes.ts` plus the "other" gray `#505050`.
 
 **Today's halo.**
 
 - Light canvas: the ring blends to `#F9E993`, 1.13:1 against the background (WCAG 1.4.11 asks
   3:1), and 1.08:1 against the yellow category.
 - Dark canvas: 3.01:1 against the background, 1.07:1 to 2.46:1 against individual categories.
-- The tint changes the node's colour. Blue `#0072B2` becomes `#669A6B` (CIE delta-E 19 from the
-  green category, 67 from its own colour); vermilion becomes `#E68E00` (10 from orange); black
+- The tint changes the node's color. Blue `#0072B2` becomes `#669A6B` (CIE delta-E 19 from the
+  green category, 67 from its own color); vermilion becomes `#E68E00` (10 from orange); black
   becomes olive. A selected node reads as a different category.
 - The palette's black category is nearly invisible on the dark canvas even when nothing is
   selected.
 
-**Remedies, each drawn as a ring behind the node so the node keeps its colour.**
+**Remedies, each drawn as a ring behind the node so the node keeps its color.**
 
 | Remedy | Result |
 |---|---|
-| Any single colour, either theme | Impossible: no luminance clears 3:1 against both black and the palettes' mid-tones, even for Okabe-Ito alone |
-| Outline only, today's gold | Fails: 1.29:1 on the light canvas; 27 of 39 palette colours under 3:1 |
-| Best reserved colour per theme | Fails: light `#002244` leaves 8 of 39 under 3:1; dark `#FFFFFF` leaves 18 of 39 |
-| Two-tone ring, dark outer (`#000000` or `#1A1A1A`) and white inner | Passes under WCAG technique C40 (at least one tone clears 3:1 against each neighbour); weakest case 4.82:1 (`#0077BB`, black outer) or 4.45:1 (`#EE3377`, `#1A1A1A` outer). Under a stricter reading (inner tone alone against the node) 18 of 39 fail |
+| Any single color, either theme | Impossible: no luminance clears 3:1 against both black and the palettes' mid-tones, even for Okabe-Ito alone |
+| Outline only, today's gold | Fails: 1.29:1 on the light canvas; 27 of 39 palette colors under 3:1 |
+| Best reserved color per theme | Fails: light `#002244` leaves 8 of 39 under 3:1; dark `#FFFFFF` leaves 18 of 39 |
+| Two-tone ring, dark outer (`#000000` or `#1A1A1A`) and white inner | Passes under WCAG technique C40 (at least one tone clears 3:1 against each neighbor); weakest case 4.82:1 (`#0077BB`, black outer) or 4.45:1 (`#EE3377`, `#1A1A1A` outer). Under a stricter reading (inner tone alone against the node) 18 of 39 fail |
 
 ## 3. What a large selection costs
 
@@ -135,7 +135,7 @@ There is no project file (issue #301) and the app never calls `toDocument()`. So
 | Topology, direction, attributes, import report, coordinates, pins, layout choice, runs, result values | No |
 | Style stack, including automatic layers | Element export only (`session.styles.toDocument()` / `applyTemplate()`) |
 | Filter, time window, show-context | No (undoable in the undo design) |
-| Saved scopes | No (the sets branch plans one serialiser) |
+| Saved scopes | No (the sets branch plans one serializer) |
 | Camera presets (saved views) | Element export only (`exportCameraPresets()`) |
 | Configuration document (id paths, background, view mode, selection style) | No (read, never written back) |
 | Selection | No |
@@ -149,14 +149,14 @@ a Library place on the nav rail, and recipes reached only through Open and New. 
 failed "apply a colleague's overview recipe to the loaded graph" and "swap the overview recipe on
 a 500,000-node graph without reloading", because a recipe keeps the data and changes the
 analysis, and New means reloading. The Library place was premature: no collection of saved
-recipes exists yet, and the Results panel already uses "library" for the algorithm catalogue.
+recipes exists yet, and the Results panel already uses "library" for the algorithm catalog.
 The walk suggests two commands, "New from recipe" and "Apply recipe", and no rail place.
 
 **Canvas facts.** Every fact group in `design/ui/figma/canvas-selection/README.md` found a home in
 interaction patterns, a fixed rule, the visual language, the interface specification or the
 element contract. Rejected: resize and rotate handles, the size badge, Alt measurement, auto-layout
 handles, vector editing, the pixel grid, multiplayer. Nothing Figma shows covers edge hit-testing,
-labels on dense graphs, or halo legibility over data colour; those belong to the state matrix
+labels on dense graphs, or halo legibility over data color; those belong to the state matrix
 and the visual language.
 
 ## 8. Rule sets and Figma's component and instance

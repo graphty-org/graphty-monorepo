@@ -54,7 +54,7 @@ console.log(graph.ids.toMap(labels).get("x")); // 0.5
 
 `requireIndex` throws for an unknown id; `indexOf` returns `INVALID_INDEX` instead.
 
-## Neighbours, Degrees and Weights
+## Neighbors, Degrees and Weights
 
 <!-- doc-check -->
 
@@ -82,7 +82,7 @@ console.log(graph.inDegree()); // [1, 1, 1]
 console.log(graph.hasArc(a, graph.ids.requireIndex("b"))); // true
 ```
 
-An undirected snapshot stores each edge as two arcs, one in each direction, so `outArcs` lists every neighbour.
+An undirected snapshot stores each edge as two arcs, one in each direction, so `outArcs` lists every neighbor.
 
 ## Loading Edges in Bulk
 

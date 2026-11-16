@@ -18,7 +18,7 @@
  *
  * This file drives the real pointer. It moves the mouse onto a node and off it again, and asks
  * the scene what is drawn. What a tooltip LOOKS like -- the channel that carries its typeface,
- * its panel and its colours -- is read in `test/browser/node-tooltip-style-draws.test.ts`.
+ * its panel and its colors -- is read in `test/browser/node-tooltip-style-draws.test.ts`.
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";

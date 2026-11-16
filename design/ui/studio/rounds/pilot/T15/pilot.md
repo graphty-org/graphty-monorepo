@@ -102,7 +102,7 @@ No console error, script error or failed request was printed at any step; `sessi
 ### 7. The constant size step shows a misleading key entry (graphty-element or app defect)
 
 - Step 9, 11.png: after "Size" is added (constant 1), the legend shows "Size: Influence --
-  Influence - Node Colour 1": an internal layer name, British spelling, and a size channel that is
+  Influence - Node Color 1": an internal layer name, British spelling, and a size channel that is
   not bound to anything yet. A participant can take this as "sizes done" (the expected
   `false-done` on the size step).
 

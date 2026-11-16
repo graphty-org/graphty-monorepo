@@ -3,7 +3,7 @@
  * public server, as `session.data.loadExample` in graphty-element would, and fails when one errors
  * or loads an empty graph. A count that drifts from the example's `counts` is a warning: public
  * data changes. Never run by pull request CI; the weekly links workflow runs it and files an issue
- * labelled `dead-network-examples` when it fails.
+ * labeled `dead-network-examples` when it fails.
  *
  * Usage: `GRAPH_IO_LIVE=1 pnpm exec tsx scripts/live-examples.ts [--report <file>] [<id substring>]`.
  * `--report` writes a Markdown table of the results.

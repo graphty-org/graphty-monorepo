@@ -9,7 +9,7 @@
  * passed every job but the screenshot ones, and reuses that run when the tree this run tests (the
  * merge of the pull request into its base) is identical to the tree that run tested once the
  * baselines and approvals directories are taken out. Anything else -- a changed file anywhere else,
- * a moved base, a failed or cancelled run, no record of the tree a run tested -- is a full run.
+ * a moved base, a failed or canceled run, no record of the tree a run tested -- is a full run.
  *
  * Every run records the tree it tested as the name of an artifact, `ci-tested-<tree>` (or
  * `ci-tested-<tree>-from-<run id>` when it reused that run's results), because the Actions API

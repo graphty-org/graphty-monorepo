@@ -241,7 +241,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                 {/*
                     The vocabulary draws this dot as an r=0.75 circle stroked
                     1.5 wide, which leaves the stroke an inner edge of radius
-                    exactly 0. Chromium covers that zero-size hole's centre
+                    exactly 0. Chromium covers that zero-size hole's center
                     pixel differently from one paint to the next, so the same
                     dot is drawn here as the disc it looks like: filled, r=1.5.
                 */}

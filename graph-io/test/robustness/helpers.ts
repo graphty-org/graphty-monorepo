@@ -113,7 +113,7 @@ export function cappedSink(limit: number): GraphBuilder {
 
 /**
  * A ReadableStream that delivers the given chunks and then never delivers again nor closes (a
- * stalled network body), recording how it was cancelled.
+ * stalled network body), recording how it was canceled.
  * @param chunks - the chunks delivered first
  * @returns the stream and its cancellation record
  */

@@ -136,7 +136,7 @@ function makeHarness(rows: readonly Row[] = NODES, extra: Partial<RepaintSources
     };
 }
 
-/** The colour one node is painted, as a hex string, or "unpainted". */
+/** The color one node is painted, as a hex string, or "unpainted". */
 function colorOf(engine: RepaintEngine, index: number): string {
     const style: ResolvedStyle = engine.styleOf("node", index);
 

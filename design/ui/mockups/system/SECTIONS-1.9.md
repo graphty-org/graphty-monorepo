@@ -47,7 +47,7 @@ instances of the product. It now asks: of the readers who open THIS section, is
 this among the two or three things they commonly adjust or consult? The second
 clause, the stub obligation, is unchanged, and the two still conjoin.
 
-**The licence for a section that is only a door is withdrawn.** Three documents
+**The license for a section that is only a door is withdrawn.** Three documents
 carry it in the same words -- 6.9's RT-8 row (about line 4472: "A section that
 has become a door keeps its chevron in the closed right-pointing form
 permanently and never renders the open form"), VOCAB's door-stub snippet (about
@@ -89,7 +89,7 @@ DECISIONS-1.8 A1 was right about the shape of the test and wrong about one
 word in it, and the failure is systematic rather than a matter of taste.
 
 **The test was written to decide one control against its siblings.** Layer
-opacity against font size; a dash style against a stroke colour. Applied that
+opacity against font size; a dash style against a stroke color. Applied that
 way the global denominator works, because the siblings share it and the test
 discriminates between them. Applied to a whole section it stops discriminating,
 because every row in the section shares the same denominator -- and for any
@@ -113,7 +113,7 @@ Now ask the local question. Edge length is rare across the product -- one
 Parameters section against 48 boards, and most sessions never touch a layout
 parameter at all. Inside the section it is not rare; it is the point. **Nobody
 opens the Layout section to do nothing.** They open it because the arrangement
-is wrong, and edge length and pull to centre are the two dials that make it
+is wrong, and edge length and pull to center are the two dials that make it
 right. Stiffness, theta, damping, time step and random seed are the ones they
 will not touch, and those are what the gear is for. Three rows resident, six
 behind the gear, which is the owner's sentence verbatim: "a couple common
@@ -238,7 +238,7 @@ The second of the two decisions that changes the most drawn pixels, because it
 governs 17 sections x every board that draws them, and because the marks are
 what a reader reads at rest.
 
-**Closed, a section summarises.** The mark is the one fact that says what is
+**Closed, a section summarizes.** The mark is the one fact that says what is
 inside without opening it, and 6.11's stub obligation already names the
 vocabulary: a count, the highest severity glyph, an On switch, a progress
 string, the active member's own name. Nothing here is new; what is new is that
@@ -266,7 +266,7 @@ mark that restates a resident row is exactly that. So:
   dot stays for the same reason; its model name goes, because the resident model
   row prints it.
 
-That is the answer to the audit's sixth open question, and it generalises: **the
+That is the answer to the audit's sixth open question, and it generalizes: **the
 mark survives if it is the section's own control or the section's own state; it
 dies if it is a precis of rows now on screen.**
 
@@ -285,7 +285,7 @@ what the gear is for.
 
 This also confirms the audit's first open question and its corollary, which is D7.
 
-### D7. Two artefacts keep a 480 pop-out
+### D7. Two artifacts keep a 480 pop-out
 
 **Schema's edges-by-type-pair matrix** and **the sweep's NMI agreement block.**
 Neither can be drawn honestly in the 256 px band -- one is two-dimensional, the
@@ -298,7 +298,7 @@ permitted shape and is exactly the owner's "advanced gear for the rest". A4's
 discriminator is satisfied by both on its first clause: they buy width beyond the
 256 px band.
 
-No third artefact qualifies. Selection statistics' four-column table, Categories'
+No third artifact qualifies. Selection statistics' four-column table, Categories'
 four-column table and the validation cards all reduce honestly (5.10, 5.11, 5.14),
 and the audit says so in each case.
 
@@ -464,7 +464,7 @@ Stiffness (springCoefficient), Speed vs accuracy (theta), Damping
 StyleDiverging's opener is the row; StylePanel's and StyleFromAnalysis's is a gear.
 RampPopout's trailing slot is an empty div -- the stub reports nothing at all.
 
-**Resident:** **Edge length 30**, **Pull to centre -1.2**, and the **Edge weight**
+**Resident:** **Edge length 30**, **Pull to center -1.2**, and the **Edge weight**
 attribute field. This is a restoration, not a new claim: StylePanel's own comment
 at line 511 records those three rows being deleted into the gear.
 
@@ -511,7 +511,7 @@ default -- and the gear keeps everything else.
 
 **Boards:** RampPopout (nested in Outline), StyleFromAnalysis (nested in Color).
 
-**Today:** a 280 per-value colour table, the categorical twin of the ramp pop-out,
+**Today:** a 280 per-value color table, the categorical twin of the ramp pop-out,
 from the same trailing slot and the same one click. Six values on both boards, all
 at their Okabe-Ito defaults, which is why the count is drawn dimmed.
 
@@ -546,7 +546,7 @@ item 4. Drawing them also retires the 11 px section name that Main and ExplorePa
 both had to invent to fit name plus stub into 255 px.
 
 **Behind the gear:** direction (followed / ignored / reversed), the max-nodes cap,
-and the per-type checkbox list that the "3 types" field summarises.
+and the per-type checkbox list that the "3 types" field summarizes.
 
 **Closed mark:** "2 steps, 3 types". Deleted when open, because the two fields say
 it (D5, Rule 8).
@@ -939,7 +939,7 @@ section with a chevron, and D1 does not touch any of them:**
   question 2 owns these and A5 licenses the repeated control at member scope.
 - **A report read once and not returned to.** The run record's Details chevron on
   eleven boards, the History popover, the Table join match reports.
-- **A picker.** The "+ Analysis" catalogue, the Settings nav list (D9), the attribute
+- **A picker.** The "+ Analysis" catalog, the Settings nav list (D9), the attribute
   and encoding pickers.
 - **A menu.** The Select split button's menu, every section overflow, the Views menu,
   the column header menu, the context menu.

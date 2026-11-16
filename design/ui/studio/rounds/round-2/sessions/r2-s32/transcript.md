@@ -11,7 +11,7 @@ Elena: "OK, there it is -- Florentine families, right in the samples list. I'll 
 ## Step 2
 
 Command: `--step --click "No thanks" --click "Florentine families"`
-Saw (02.png): 15 blue dots joined by grey lines on a light canvas, no names on them. Right panel "Graph / From Florentine families", Style and Values tabs, Overview: Nodes 15, Edges 20, Density 0.1905, Components 1. Left panel: a search box, Selection, Everything; at the bottom "Analyze (flask) in the toolbar (Shift+A) to add results here". A toolbar at the bottom of the canvas with a flask, a chart icon, "3D" and a magnifier.
+Saw (02.png): 15 blue dots joined by gray lines on a light canvas, no names on them. Right panel "Graph / From Florentine families", Style and Values tabs, Overview: Nodes 15, Edges 20, Density 0.1905, Components 1. Left panel: a search box, Selection, Everything; at the bottom "Analyze (flask) in the toolbar (Shift+A) to add results here". A toolbar at the bottom of the canvas with a flask, a chart icon, "3D" and a magnifier.
 Elena: "Ooh, OK, it's small, that's nice. The dot at the top left already looks bigger -- is that the important family? No names though. Let me click it and see who it is."
 
 ## Step 3
@@ -42,7 +42,7 @@ Elena: "Spring length, gravity... no. That's how it's laid out, not sizes. Not h
 ## Step 7
 
 Command: `--step --click-at 680,864` (the flask in the bottom toolbar)
-Saw (07.png): a pop-up list "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order (greyed, "Select a node first"), Most flow...
+Saw (07.png): a pop-up list "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order (grayed, "Select a node first"), Most flow...
 Elena: "Whoa, a lot of words. Betweenness, Eigenvector, Katz... I don't know these. 'Which nodes sit on the most shortest paths'? No idea. But PageRank says 'Start here' -- that's Google, right? Importance. I'll take the one it tells me to."
 (Hesitation: long list of unfamiliar names; the "Start here" tag decided it for her.)
 
@@ -86,13 +86,13 @@ Elena: "'Size by attribute'. Attribute... whatever that is, 'size by' something 
 ## Step 14
 
 Command: `--step --click-at 1381,264`
-Saw (14.png): a pop-up "Size by attribute" with a search box and a list: under "Influence": Influence, Influence rank, Influence percentile; then "Cannot be used: Holds groups, not amounts" with id and name greyed.
+Saw (14.png): a pop-up "Size by attribute" with a search box and a list: under "Influence": Influence, Influence rank, Influence percentile; then "Cannot be used: Holds groups, not amounts" with id and name grayed.
 Elena: "Influence -- same as the color. Pick that."
 
 ## Step 15
 
 Command: `--step --click-at 1193,372` (Influence in the Size by attribute list)
-Saw (15.png): the dots now differ in size. The middle one is much bigger and darkest; a couple of others are medium; the ones at the edges are small and light. Size row reads "1 to 3". Legend box now has two rows: "Size: Influence 0.03066 -- 0.1458" (a grey wedge) and "Color: Influence 0.03066 -- 0.1458".
+Saw (15.png): the dots now differ in size. The middle one is much bigger and darkest; a couple of others are medium; the ones at the edges are small and light. Size row reads "1 to 3". Legend box now has two rows: "Size: Influence 0.03066 -- 0.1458" (a gray wedge) and "Color: Influence 0.03066 -- 0.1458".
 Elena: "Ooh, there we go! The big dark one in the middle is the one everybody depends on. That part's done. Who IS that? Let me click it."
 PART 1 DONE (dots sized by the program's importance measure).
 

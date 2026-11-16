@@ -11,12 +11,12 @@
  * depends on it.
  *
  * It also means this entry point carries the renderer, so it needs a DOM and a 3D engine. The
- * parts of the package that do not are published separately, and a consumer that wants a colour
+ * parts of the package that do not are published separately, and a consumer that wants a color
  * ramp, a palette, an options list or a plugin base class should import one of those instead of
  * this:
  *
  * - `@graphty/graphty-element/schema` -- palettes, shapes, style defaults, the style document
- *   vocabulary and the colour helpers, the colour-vision simulators among them.
+ *   vocabulary and the color helpers, the color-vision simulators among them.
  * - `@graphty/graphty-element/catalog` -- the algorithms, layouts, formats, palettes and scales
  *   the element offers, as plain JSON descriptors.
  * - `@graphty/graphty-element/extend` -- the registration surface for a plugin.
@@ -31,7 +31,7 @@
  *
  * TWO GROUPS OF NAMES USED TO BE HERE AND ARE NOT ANY MORE, because each was published from two
  * addresses at once and a consumer reading two import lines for one symbol has no way to tell
- * they are the same object. The logging vocabulary is at `/logging`. The seven colour-vision
+ * they are the same object. The logging vocabulary is at `/logging`. The seven color-vision
  * simulators are at `/schema`, beside the palettes they exist to check. Reaching either through
  * this file cost a 3D engine for code that never draws anything.
  */

@@ -25,8 +25,8 @@
  * The dense loop counts DOWN (`left` from the row's arc count to 1, `arc = hi - left`) so that Dawn 0.6.x does not
  * add its infinite-loop guard to it; the reason and the measurement are in `spmv-pull.wgsl.ts`.
  *
- * An inert neighbour (mass 0 in `pos.w`, `setInert`, issue #3075) pulls nothing: its term is masked to 0 by a
- * `select` on the neighbour's mass, never skipped by a `continue`. A `continue` that waits on the `pos[j]` load sits in
+ * An inert neighbor (mass 0 in `pos.w`, `setInert`, issue #3075) pulls nothing: its term is masked to 0 by a
+ * `select` on the neighbor's mass, never skipped by a `continue`. A `continue` that waits on the `pos[j]` load sits in
  * the loop's control flow and cost 1.55x the whole pass at 1M-4M nodes on the T4 (issue #5539); the select keeps the
  * loop's only branch on `colIdx`, so the next arcs' loads stay in flight.
  */

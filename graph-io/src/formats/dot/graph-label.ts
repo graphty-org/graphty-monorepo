@@ -126,7 +126,7 @@ export function dotGraphLabel(snapshot: GraphSnapshot): TextAnnotation[] {
 
 /**
  * An HTML-like label's font runs, as Graphviz draws them on one line: each piece in the font its tags give it
- * (`htmlRunFont`), neighbours in the same font joined, the blanks at the ends dropped.
+ * (`htmlRunFont`), neighbors in the same font joined, the blanks at the ends dropped.
  * @param raw - the label, with its outer brackets
  * @param own - the label's own font
  * @param scheme - the graph's color scheme

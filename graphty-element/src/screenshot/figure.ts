@@ -52,7 +52,7 @@ type FigureShape = ({ circle: { x: number; y: number; r: number } } | { points: 
     opacity: number;
 };
 
-/** One line of text, centred on its point. */
+/** One line of text, centered on its point. */
 interface FigureText {
     x: number;
     y: number;
@@ -366,7 +366,7 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
     return (width * 10) / Math.max(clipW, 1e-6);
 }
 
-/** A visible node as the figure reads it: where it is on screen, and its centre in the world. */
+/** A visible node as the figure reads it: where it is on screen, and its center in the world. */
 interface ShownNode {
     readonly at: NodeScreenPosition;
     readonly centre: Vector3;
@@ -408,7 +408,7 @@ function* drawnEdges(graph: Graph): Generator<FigureEdge> {
 }
 
 /**
- * Every visible edge as a straight line between its ends' centres, its label added to `texts`.
+ * Every visible edge as a straight line between its ends' centers, its label added to `texts`.
  * @param graph - The graph.
  * @param shown - Where each visible node is drawn, by row.
  * @param camera - The camera.

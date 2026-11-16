@@ -3,7 +3,7 @@
  *
  * Three things live behind this entry point and they answer three different questions. `./types`
  * says what the ten result shapes must publish and what each field name means, so a path is
- * guessable without the catalogue. `./RunResult` turns what an algorithm produced into an object
+ * guessable without the catalog. `./RunResult` turns what an algorithm produced into an object
  * carrying its own ranking, distribution, range and bounded summary, so no consumer writes
  * statistics code. `./ResultsApi` builds the `results.<runId>.<field>` path and answers "did you
  * mean" for the ones that do not resolve.

@@ -63,7 +63,7 @@ describe("the background and starting camera distance attributes", () => {
         const applied = element.graph.getStyles().config.graph.background;
 
         assert.strictEqual(applied.backgroundType, "color");
-        // Normalised by the schema on the way in, which is how a CSS colour name becomes a hex
+        // Normalized by the schema on the way in, which is how a CSS color name becomes a hex
         // string: proof the value reached the parser rather than being stored raw.
         assert.strictEqual(applied.backgroundType === "color" ? applied.color : null, "#000000");
     });

@@ -6,7 +6,7 @@ name: PR Issue Link
 #
 # Its own workflow, like pr-title.yml, so that editing the description re-runs it with no push:
 # `edited` fires for body edits, and a re-run of a job would reuse the event's old body. No
-# concurrency group, for pr-title.yml's reason: a cancelled required check dequeues a batch.
+# concurrency group, for pr-title.yml's reason: a canceled required check dequeues a batch.
 on:
     pull_request:
         types: [opened, edited, synchronize, reopened]

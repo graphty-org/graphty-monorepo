@@ -18,7 +18,7 @@ import { isDeprecated } from "./check-legacy-use.mjs";
 
 const root = process.cwd();
 const ALG_SRC = join(root, "algorithms/src");
-// Exported from the algorithms barrel as functions but not algorithms: the optimisation settings and CSR helpers.
+// Exported from the algorithms barrel as functions but not algorithms: the optimization settings and CSR helpers.
 const CSR_HELPERS = new Set([
     "configureOptimizations",
     "getOptimizationConfig",

@@ -265,7 +265,7 @@ export interface StartingRow {
 export const GHOST_ROW_ID = "graphty:timeline-ghost";
 
 /**
- * The look a ghost starts with: grey at low opacity, so the elements outside the time window stay
+ * The look a ghost starts with: gray at low opacity, so the elements outside the time window stay
  * on screen as context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {

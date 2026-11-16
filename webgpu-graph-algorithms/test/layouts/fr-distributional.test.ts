@@ -82,7 +82,7 @@ function optionsOf(dim: 2 | 3): FruchtermanReingoldOptions {
     return { ...FR_BASE_OPTIONS, dim, iterations: ITERATIONS };
 }
 
-/** The f64 oracle's layout-unit positions after ITERATIONS from a scene start at scale 1 / zero centre. */
+/** The f64 oracle's layout-unit positions after ITERATIONS from a scene start at scale 1 / zero center. */
 function oracleLayout(s: GraphSnapshot, start: F32, options: FruchtermanReingoldOptions): Float64Array {
     const oracle = new FruchtermanReingoldOracle(
         s,

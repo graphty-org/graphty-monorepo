@@ -1176,7 +1176,7 @@ describe("design 5.1 / 8.4: untyped cells, option reporting, the children helper
                 behaviour[format] = `refused with ${err instanceof GraphFormatError ? err.code : "?"}`;
             }
         }
-        // 8.4: "the importer reports every option it could not honour"; one behaviour, one category
+        // 8.4: "the importer reports every option it could not honour"; one behavior, one category
         const distinct = new Set(Object.values(behaviour).filter((b) => b !== "honoured"));
         expect(distinct.size, JSON.stringify(behaviour)).toBe(1);
         expect([...distinct][0], JSON.stringify(behaviour)).toMatch(/^reported as/);

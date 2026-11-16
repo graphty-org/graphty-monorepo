@@ -675,7 +675,7 @@ describe("a freeze that renumbers the rows", () => {
 describe("wired to the selector engine it was written for", () => {
     it("answers a has selector and the expression form of it with the same elements", async () => {
         // The two spellings of one question: a "has" selector compiles to the presence test, and
-        // an expression comparing the path against a null literal is recognised as the same test.
+        // an expression comparing the path against a null literal is recognized as the same test.
         // A source whose presence test disagreed with its value reader would paint two different
         // sets from one intent.
         const { harness, source } = fixture({

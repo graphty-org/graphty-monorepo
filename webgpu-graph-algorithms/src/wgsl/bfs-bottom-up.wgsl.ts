@@ -4,9 +4,9 @@
  * read-only `sweepIn` buffer, the frontier bitset its second at `P.bitsBase`), over the REVERSE core bound in group 0
  * (`coreOfView(residency.view(s, "reverse"))`: the forward arrays on an undirected snapshot, which P7's residency
  * aliases at zero upload cost). A lane whose vertex is still at `INVALID_INDEX` -- the list is up to 32 levels
- * stale, and an entry claimed since the rebuild is skipped on that test -- walks its in-neighbours until the FIRST
+ * stale, and an entry claimed since the rebuild is skipped on that test -- walks its in-neighbors until the FIRST
  * one whose bit is set and breaks: that early exit is the whole point of the direction (a vertex with one frontier
- * neighbour among thousands costs one read), and `arcsScanned` (word 16, one `atomicAdd` per workgroup of the lanes'
+ * neighbor among thousands costs one read), and `arcsScanned` (word 16, one `atomicAdd` per workgroup of the lanes'
  * reads through `wg_reduce_u32`) is the counter the sabotage row that removes the exit is pinned to, never a timing.
  * The winners are packed into the output vertex queue by `bfs-contract`'s workgroup scan and one `atomicAdd` per
  * workgroup on `nextFrontierCount`, and claim with a plain `atomicStore`: the list holds every vertex once and the

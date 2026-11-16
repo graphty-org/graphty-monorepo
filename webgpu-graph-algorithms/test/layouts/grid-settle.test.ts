@@ -3,9 +3,9 @@
  * 7.16, 7.7 R-24; P4-T12): (1) the settle test on the isolated-node fixture -- run until `settled` under the
  * default settleThreshold / settleWindow; at the iteration the shared rule fired, the GIANT COMPONENT's mean
  * displacement over the last settleWindow iterations is below settleThreshold x rmsRadius (the rule held for the
- * core, not only for the strays), and a bbox-radius normaliser (settleThreshold x layoutRadius, replayed over the
+ * core, not only for the strays), and a bbox-radius normalizer (settleThreshold x layoutRadius, replayed over the
  * per-iteration record) would have fired at least 20 iterations earlier (7.17's claim); the core's own displacement
- * at that point against the RMS-normalised threshold is MEASURED and printed for the G4 record, not asserted: on
+ * at that point against the RMS-normalized threshold is MEASURED and printed for the G4 record, not asserted: on
  * this fixture the core is already under it there and it is the strays' motion that holds the RMS rule back (the
  * 2026-09-20 measurement on the RTX 4070 SUPER: bbox at 134, RMS at 341, core 0.76 vs 1.00 at 134); (2) `deterministic: true`: two `run({ maxIter: 100 })` on
  * rmat14 bitwise identical in positions, stats and trace; (3) the software saturation case `gridMax2D: 32` on
@@ -37,7 +37,7 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 const GRID: GpuLayoutTuning = Object.freeze({ repulsion: "grid", compat: "paper", deterministic: true });
 /** The budget of the settle run; the rule, not the budget, must stop it. */
 const SETTLE_BUDGET = 3000;
-/** The bbox normaliser must fire at least this many iterations before the RMS one (7.17) at scale 1; the margin scales with the fixture (1 at lavapipe's 1/50, where the fixture is 71 nodes with one stray and the measured gap is 13). */
+/** The bbox normalizer must fire at least this many iterations before the RMS one (7.17) at scale 1; the margin scales with the fixture (1 at lavapipe's 1/50, where the fixture is 71 nodes with one stray and the measured gap is 13). */
 const EARLIER_BY = 20;
 /** The R-24 budget. */
 const R24_BUDGET = 3000;
@@ -52,9 +52,9 @@ interface IterationRecord {
     readonly dispAll: number;
     /** The mean displacement of the giant component's nodes. */
     readonly dispGiant: number;
-    /** The RMS radius about the centroid after the iteration (the rule's normaliser). */
+    /** The RMS radius about the centroid after the iteration (the rule's normalizer). */
     readonly rms: number;
-    /** The bounding-box radius max |p - c| after the iteration (the rejected normaliser). */
+    /** The bounding-box radius max |p - c| after the iteration (the rejected normalizer). */
     readonly radius: number;
 }
 
@@ -123,9 +123,9 @@ function recordOf(before: F32, after: F32, inGiant: Uint8Array): IterationRecord
 
 /**
  * The iteration at which the 7.17 counter (`settleWindow` consecutive iterations with `disp <= threshold x
- * normaliser`) would have reached the window, replayed over a record; null when it never does.
+ * normalizer`) would have reached the window, replayed over a record; null when it never does.
  * @param records - the per-iteration record (index t - 1 is iteration t)
- * @param normaliser - the normaliser of an iteration
+ * @param normalizer - the normalizer of an iteration
  * @returns the iteration at which the rule fires (K1 of the following iteration reads the count), or null
  */
 function firesAt(records: readonly IterationRecord[], normaliser: (r: IterationRecord) => number): number | null {

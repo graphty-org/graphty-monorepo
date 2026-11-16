@@ -374,7 +374,7 @@ describe("Label Golden Masters - Advanced Features", () => {
         test("the animation vocabulary is the five the animator implements, plus none", () => {
             // The retired mock's animation list was fade, slide, bounce, pulse and rotate. Only
             // bounce and pulse exist. `RichTextAnimator`'s AnimationType is
-            // none | pulse | bounce | shake | glow | fill, and an unrecognised name falls through
+            // none | pulse | bounce | shake | glow | fill, and an unrecognized name falls through
             // the animator's switch to no animation at all -- so three of the five cases the mock
             // ran were asserting that a typo behaved like a feature.
             const implemented = ["none", "pulse", "bounce", "shake", "glow", "fill"] as const;
@@ -496,7 +496,7 @@ describe("Label Golden Masters - Advanced Features", () => {
             // texture and draws -- and the reader sees nothing.
             //
             // The fix belongs in label rendering, which a concurrent pass owns, so this asserts the
-            // behaviour as it stands today. It is written to FAIL the moment the defect is fixed,
+            // behavior as it stands today. It is written to FAIL the moment the defect is fixed,
             // which is the point: the fixer sees this case and updates it.
             const built = build({ text: "Zero Size", fontSize: 0 });
 

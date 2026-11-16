@@ -19,7 +19,7 @@ export interface SelectionMenuItem {
     readonly group: "edit" | "view" | "remove";
     readonly key?: string;
     readonly reason?: string | null;
-    /** Whether the reason is drawn under the label; false greys the item and only says why to a screen reader. */
+    /** Whether the reason is drawn under the label; false grays the item and only says why to a screen reader. */
     readonly reasonDrawn?: boolean;
     readonly onRun: () => void;
 }

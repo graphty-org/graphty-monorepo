@@ -10,7 +10,7 @@ export interface GridLayoutOptions extends CommonLayoutOptions {
 }
 
 /**
- * Lattice rows: node i at column `i % columns`, row `floor(i / columns)`, centred, the longer side spanning
+ * Lattice rows: node i at column `i % columns`, row `floor(i / columns)`, centered, the longer side spanning
  * `[-scale, scale]`.
  * @param n - node count
  * @param columns - the column count, or null for a square grid
@@ -41,7 +41,7 @@ function gridRows(n: number, columns: number | null, scale: number, center: read
 }
 
 /**
- * Nodes on a regular lattice, row by row in node-index order. In 3D the lattice lies in the plane of the centre's z.
+ * Nodes on a regular lattice, row by row in node-index order. In 3D the lattice lies in the plane of the center's z.
  * @param s - the snapshot; only its node count is read
  * @param options - `scale` is half the length of the lattice's longer side
  * @returns the layout

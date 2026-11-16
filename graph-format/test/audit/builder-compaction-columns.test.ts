@@ -277,7 +277,7 @@ describe("audit: refersTo rewriting agrees with the report's remap", () => {
         b.setNodeValue("firstEdge", 0, 3); // a -> e3 (merges into e0 -> new 0)
         b.setNodeValue("firstEdge", 1, 2); // b -> e2 (merges into e1 -> new 1)
 
-        // the reference behaviour: the same merge through simplified() keeps every reference
+        // the reference behavior: the same merge through simplified() keeps every reference
         const keep = b.freeze();
         const simplified = keep.simplified({ weights: "sum" });
         expect(list(simplified.edgeRemap)).toEqual([0, 1, 1, 0]);

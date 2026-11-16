@@ -3,7 +3,7 @@
  * driven by real clicks (the owner's review, 2026-11-07): the tabs come first; Sources holds the
  * sources with Filters directly under Data sources, and Calculated the results, with no "Runs"
  * heading; the tab chosen is kept; a result's row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
- * its "..." holds Apply style, greyed once it is styled, and Remove result; a filter's row says its
+ * its "..." holds Apply style, grayed once it is styled, and Remove result; a filter's row says its
  * steps in one structured line.
  */
 

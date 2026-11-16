@@ -48,7 +48,7 @@ describe("the fake accelerator's simulation", () => {
         assert.isTrue(simulation.settled, "the layout ran to its own iteration budget");
         assert.strictEqual(fake.calls.resolved, 1, "the batch landed on the accelerator");
 
-        // A ring drawn by a force layout is a ring: every neighbour is nearer than the average
+        // A ring drawn by a force layout is a ring: every neighbor is nearer than the average
         // pair, which a translated seed scatter has no reason to be.
         const at = (i: number): [number, number] => [positions[3 * i], positions[3 * i + 1]];
         const gap = (i: number, j: number): number => Math.hypot(at(i)[0] - at(j)[0], at(i)[1] - at(j)[1]);

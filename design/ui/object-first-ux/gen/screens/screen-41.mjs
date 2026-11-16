@@ -5,7 +5,7 @@
 // asmith@corp.example). The reader selected both and chose "Merge into one
 // node..." in the several-elements inspector (the verb drawn on screen 40).
 // The dialog says which id survives, resolves each attribute that differs,
-// says what happens to the edges (counted from email.mjs: shared neighbours
+// says what happens to the edges (counted from email.mjs: shared neighbors
 // become repeated edges, which follow the dataset's repeat rule), and offers
 // the same merge for every pair that shares the attribute, with a dry-run
 // count.

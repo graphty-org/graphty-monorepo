@@ -103,8 +103,8 @@ reaches readers only as a file on graphty.app.
    `fetchDataset("<name>", options)`), add the name to `names.ts` and the meta to `catalog.ts`, add
    its fixture to `test/helpers/datasets.ts`, and the dataset to `NOTICE` and README.md.
 3. `npm run build:all`, then `npm run datasets:pack` (rewrites `src/datasets/packed.ts`), then
-   build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalogue,
-   `test/datasets/packed.test.ts` the packed file against the catalogue and `data/`; add a content
+   build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalog,
+   `test/datasets/packed.test.ts` the packed file against the catalog and `data/`; add a content
    test for what the dataset is known for.
 4. The `./datasets/*` export pattern and `scripts/entries.js` pick the new directory up by themselves.
 

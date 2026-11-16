@@ -74,7 +74,7 @@ describe("provider transcription on the real microphone", () => {
         const cancels = vi.spyOn(window, "cancelAnimationFrame");
         talk.stop();
         const atRelease = levels.length;
-        // The level's pending frame is cancelled on release, so no frame can report another one.
+        // The level's pending frame is canceled on release, so no frame can report another one.
         assert.isAtLeast(cancels.mock.calls.length, 1, "release cancelled the level's frame");
         assert.strictEqual(trackStops.mock.calls.length, 1, "release stopped the microphone's track");
 

@@ -193,7 +193,7 @@ describe("spring-electrical distributional parity: 100 iterations, metrics withi
                         samples: Object.keys(oracleMetrics).length,
                     });
                 }
-                // the layout expanded from the unit square toward the rest length 10 (spec 7.18: no normalisation)
+                // the layout expanded from the unit square toward the rest length 10 (spec 7.18: no normalization)
                 expect(gpuMetrics.spread).toBeGreaterThan(2);
             } finally {
                 ctx.release(s);

@@ -29,7 +29,7 @@ deliberate decision from 258 to 4.
 
 **How to read a leaf count.** A leaf is one settable field in a parsed node or edge style,
 counted by walking the schema to the bottom. A rich-text block -- the thing behind a label, a
-tooltip and an arrow caption -- declares 57 fields and counts as 64 leaves, because a colour
+tooltip and an arrow caption -- declares 57 fields and counts as 64 leaves, because a color
 that may be written as a word or as an object contributes both spellings and a position
 contributes three axes.
 
@@ -57,7 +57,7 @@ middle label instead.
   label fields with their two offsets, a builder (`createArrowText`, 49 lines), a rebuild pass
   inside `syncContent` (31 lines), nine lines of positioning inside `update`, and disposal.
 
-- **The builder honours 7 of the block's 64 leaves.** It reads the words (as `text` or as a
+- **The builder honors 7 of the block's 64 leaves.** It reads the words (as `text` or as a
   `textPath` into the row's data), `fontSize`, `textColor`, `backgroundColor`, `cornerRadius`
   and `attachOffset`. `attachPosition` is pinned to "top". Every other field of the block is
   dropped -- not only by a layer, but by a caller assembling the configuration by hand.
@@ -77,7 +77,7 @@ middle label instead.
 - **In 1.x it is reachable.** A 1.x style template carried a raw edge style, so a consumer could
   write `arrowHead.text` directly, and the 1.x version of the arrow story does exactly that with
   the words "start label" and "end label". It was never written up in `docs/guide/styling.md`,
-  whose arrow table lists type, size and colour and stops there.
+  whose arrow table lists type, size and color and stops there.
 
 ### The options
 
@@ -137,7 +137,7 @@ wrong -- keeping a caption correct when a layer is added to a graph that is alre
 already built and already right. The API addition reuses a type that is already public, so the
 permanent surface grows by four names and nothing else. And captions at the ends of an edge are
 a standard graph-drawing feature that both of the tools this element's arrow vocabulary was
-modelled on publish under names of their own.
+modeled on publish under names of their own.
 
 Spend the first hour on the test. If it turns out a caption does not draw, the decision flips to
 delete and there is evidence behind it rather than an assumption.
@@ -165,15 +165,15 @@ those placeholders is part of what this section is asking for.
 
 ### The six groups
 
-| Block                                    | Leaves | Share | What it is                                                                                                                                                                                                                                                      | Effort to close                          | Recommendation                      |
-| ---------------------------------------- | ------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
-| Arrow captions                           | 128    | 44%   | Item 1 above: 64 leaves at each end of an edge                                                                                                                                                                                                                  | half a day to a day                      | publish (item 1)                    |
-| Node tooltip appearance                  | 62     | 21%   | A node's tooltip is drawn on hover and only its WORDS have a channel. The typeface, the panel, the colours and the rest are the element's defaults and a consumer cannot say otherwise                                                                          | one to two hours plus a story and a test | publish                             |
-| Edge tooltip                             | 62     | 21%   | No edge tooltip has ever been drawn, in any version. The whole block is declared and dead, the words included                                                                                                                                                   | days, and it is a different feature      | withdraw                            |
-| Label residue                            | 32     | 11%   | 16 per target, already recorded as deliberate: the label's world position, the canvas resolution and auto-size, the Babylon billboard constant, a second spelling of the panel colour, and a few switches superseded by a field that says the same thing better | none                                     | affirm as permanent                 |
-| Gradient node fills                      | 4      | 1.4%  | Linear and radial gradient fills. The renderer builds them, interns the ramps and has tests; the paint path overwrites the colour with a neutral solid so a per-node colour can show, so no gradient survives                                                   | one to two days                          | publish, least certain of the seven |
-| `enabled` on a node and on an edge style | 2      | 0.7%  | Two flags superseded by the session's visibility mask. Only the label's own `enabled` is ever read                                                                                                                                                              | minutes                                  | delete the two fields               |
-| A node icon                              | 1      | 0.3%  | Already handled honestly: the channel is published with a value type of `never`, so asking for it is a compile error rather than a silent no-op                                                                                                                 | none                                     | affirm as permanent                 |
+| Block                                    | Leaves | Share | What it is                                                                                                                                                                                                                                                     | Effort to close                          | Recommendation                      |
+| ---------------------------------------- | ------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
+| Arrow captions                           | 128    | 44%   | Item 1 above: 64 leaves at each end of an edge                                                                                                                                                                                                                 | half a day to a day                      | publish (item 1)                    |
+| Node tooltip appearance                  | 62     | 21%   | A node's tooltip is drawn on hover and only its WORDS have a channel. The typeface, the panel, the colors and the rest are the element's defaults and a consumer cannot say otherwise                                                                          | one to two hours plus a story and a test | publish                             |
+| Edge tooltip                             | 62     | 21%   | No edge tooltip has ever been drawn, in any version. The whole block is declared and dead, the words included                                                                                                                                                  | days, and it is a different feature      | withdraw                            |
+| Label residue                            | 32     | 11%   | 16 per target, already recorded as deliberate: the label's world position, the canvas resolution and auto-size, the Babylon billboard constant, a second spelling of the panel color, and a few switches superseded by a field that says the same thing better | none                                     | affirm as permanent                 |
+| Gradient node fills                      | 4      | 1.4%  | Linear and radial gradient fills. The renderer builds them, interns the ramps and has tests; the paint path overwrites the color with a neutral solid so a per-node color can show, so no gradient survives                                                    | one to two days                          | publish, least certain of the seven |
+| `enabled` on a node and on an edge style | 2      | 0.7%  | Two flags superseded by the session's visibility mask. Only the label's own `enabled` is ever read                                                                                                                                                             | minutes                                  | delete the two fields               |
+| A node icon                              | 1      | 0.3%  | Already handled honestly: the channel is published with a value type of `never`, so asking for it is a compile error rather than a silent no-op                                                                                                                | none                                     | affirm as permanent                 |
 
 ### The node tooltip is the cheapest win on the list
 
@@ -205,17 +205,17 @@ comes back with edge picking, on the same terms as the click event.
 
 This one is small in leaves and not small in substance. `NodeMesh` builds linear and radial
 gradient fills, interns each distinct ramp as a texture, caps the scene at 32 of them and falls
-back to the gradient's first colour past the cap. All of that is written and tested. It is
+back to the gradient's first color past the cap. All of that is written and tested. It is
 unreachable because the paint path pins a node's material to a neutral solid so that the node's
-own per-instance colour can show, which is what keeps a continuous colour encoding from minting
+own per-instance color can show, which is what keeps a continuous color encoding from minting
 one mesh per node.
 
-Publishing it means a channel whose value is a colour object rather than a colour word, which
+Publishing it means a channel whose value is a color object rather than a color word, which
 widens the published union of what a channel value may be, and it means answering a question
 nobody has answered yet: what `node.color` means on a node that is filled with a gradient. The
 32-ramp ceiling would become a published caveat.
 
-Two defensible answers -- publish one narrow channel carrying the advanced colour, or delete the
+Two defensible answers -- publish one narrow channel carrying the advanced color, or delete the
 schema arm and the renderer branch. The one answer that is not defensible is the current state,
 where the most carefully built renderer path on this list is reachable by nobody.
 
@@ -223,8 +223,8 @@ The recommendation is to publish, and it is the least certain one in this memo. 
 away more built and tested work per leaf than anything else here, and the question about
 `node.color` has a clean answer available: a gradient fill is part of a node's mesh identity, not
 per-instance state, so a node drawn with a gradient is drawn from its own source mesh and its
-per-instance colour is not drawn at all -- the same rule that already governs an outline colour
-and a glow colour. Publishing it means saying that out loud in the channel's caveat, along with
+per-instance color is not drawn at all -- the same rule that already governs an outline color
+and a glow color. Publishing it means saying that out loud in the channel's caveat, along with
 the 32-ramp ceiling. If a gradient-filled node is not a thing the product wants, delete it
 instead; what must not happen is a third release in which it is built, tested and unreachable.
 
@@ -263,7 +263,7 @@ publishing a field the renderer ignores is the defect the rest of this memo is a
 - **Two sentences the element still publishes describe them.** The channels `node.labelStyle`
   and `edge.labelStyle` each carry the caveat "The renderer sizes a label to its text, so
   maxWidth and wrap are not drawn." A channel's caveat is part of what the element publishes
-  about itself: a settings panel, a plugin or a model reading the catalogue sees it. Both
+  about itself: a settings panel, a plugin or a model reading the catalog sees it. Both
   sentences now name two fields the type does not have, which is the same kind of documented lie
   as a field with no renderer, pointing the other way.
 
@@ -273,7 +273,7 @@ Hard line breaks. The label parser splits text on a newline and measures, aligns
 resulting line independently, so a consumer who wants two lines writes a newline into the label
 text -- as a literal, or through a data column bound to the label channel. `textAlign`,
 `lineHeight` and the four margins all already apply across those lines. The parser also reads
-inline markup per line, so a run of words can be made bold, italic, coloured, resized or given a
+inline markup per line, so a run of words can be made bold, italic, colored, resized or given a
 different typeface inside one label.
 
 What is missing is only the automatic case: a consumer who does not know how long the words will

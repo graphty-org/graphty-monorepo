@@ -764,7 +764,7 @@
                Notes -- is applied on the ten boards D4 names (Main, ExplorePanel, MultiSelection, TimeSlider,
                ExploreNotesList, ExplorerNotes, ExplorerExpert, FilterBuilderExpert, InspectorGenomics, IpadInspector).
                This board is not one of them and its panel is a background state, not an Explore study. It is now read
-               without a wash, which is a difference worth recording; it is not a licence to invent seven sections
+               without a wash, which is a difference worth recording; it is not a license to invent seven sections
                here. The four rows below are unchanged. -->
                                 <div
                                     style="
@@ -1798,15 +1798,15 @@
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-3, TB-4), verbatim from VOCAB.md section 12. The 56px
                navigation cluster that stood on the canvas's left edge above the minimap is deleted; its contents are
-               now a bar centred on the live canvas rect, 246 x 36 at desktop, riding 12px above the canvas floor,
+               now a bar centered on the live canvas rect, 246 x 36 at desktop, riding 12px above the canvas floor,
                items 28 x 28 on a 3px pad with a concentric 7px radius, and the only canvas overlay carrying the
-               tooltip shadow. Centred with left: 50%; transform: translateX(-50%) -- on the canvas, never on the
+               tooltip shadow. Centered with left: 50%; transform: translateX(-50%) -- on the canvas, never on the
                window.
                Order, left to right, by how long the effect lasts (TB-1): [2D | 3D] segmented (5 toggles it, 3D
                selected here); divider; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F); divider;
                Views (cube plus an UP caret; the menu opens upward, bottom edge 4px above the bar, clamped 12px
                inside the canvas edges). Zoom out precedes Zoom in because horizontally magnitude increases rightward.
-               TB-1: the item set is FIXED -- nothing appears or disappears with selection, because a centred bar that
+               TB-1: the item set is FIXED -- nothing appears or disappears with selection, because a centered bar that
                changes width moves every item under the pointer. Nothing is selected on this board, so Zoom to
                selection is drawn permanently and merely disables at #5f6873 with the register's exact disabled title
                "Zoom to selection (F). Select something first", which is floor item 4's reason. No persistent tool
@@ -2145,7 +2145,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -2338,7 +2338,7 @@
                header carries the section's verbs, so no row inside it spends width on one); "Add a case note" ->
                RT-8's empty-section form, a dimmed name and one "+".
                Added: the RT-9 chart row under the five ranked rows -- nodes per link count, drawn rather than
-               written, each bar's count in its own title and both axis ends labelled, so it degrades into a
+               written, each bar's count in its own title and both axis ends labeled, so it degrades into a
                picture of the table it replaces. The exact numbers stay one click away through Show in table and
                Export (R6). -->
                                 <div
@@ -2678,7 +2678,7 @@
                                             </div>
                                         </div>
                                         <!-- RT-9 chart row, two pitches: nodes per link count (2 links: 5, 3 links: 12, 4 links: 3). Each bar
-                   carries its own count in its title and the two axis ends are labelled, so the picture degrades
+                   carries its own count in its title and the two axis ends are labeled, so the picture degrades
                    into the table it replaced. -->
                                         <div
                                             style="
@@ -2882,7 +2882,7 @@
                     <div style="width: 1px; height: 12px; background: #48525c"></div>
 
                     <!-- ZOOM (drops last, TB-7). Fit extent over current extent; click opens Fit, Zoom to selection, 50%, 100%, 200% (5.6).
-         The percentage stays here and never enters the canvas toolbar: a numeric readout would change a centred bar's
+         The percentage stays here and never enters the canvas toolbar: a numeric readout would change a centered bar's
          width as the graph is zoomed. Now that zoom is the only camera fact in the bar it drops last. -->
                     <span style="cursor: pointer">Zoom 100%</span>
 
@@ -2955,15 +2955,15 @@
        it -- the ? key, the Help menu row, or the palette. Nothing else on the Escape ladder changes: with no scrim and
        no focus trap there is no trapped rung to unwind. The overlay joins the palette index under both of its names,
        "Keyboard shortcuts" and "Keyboard shortcuts reference" (E4 measure 1).
-       GEOMETRY, RE-ANCHORED (DECISIONS-1.8 B1, B2). This card used to centre itself inside the canvas rect at
+       GEOMETRY, RE-ANCHORED (DECISIONS-1.8 B1, B2). This card used to center itself inside the canvas rect at
        [364,151 760x614]. B1 forbids that: "a transient surface never chooses its own position; it inherits one
-       from its opener on both axes", and the centred form is only reached after sliding along the shared-edge
+       from its opener on both axes", and the centered form is only reached after sliding along the shared-edge
        axis, flipping the edge line and dropping a width rung have all failed -- which none of them had, because
-       the rail lane fits this card whole. Centred also left the surface saying nothing about where it came
+       the rail lane fits this card whole. Centered also left the surface saying nothing about where it came
        from, on a board whose opener was not even lit. ShortcutsOverlay.dc.html draws the same surface anchored,
        and two boards drawing one surface in two places is the inconsistency the anchor rule exists to end, so
        this board now takes ShortcutsOverlay's geometry exactly.
-         opener      the rail Help button, [0,828 47x44], bottom edge 872, vertical centre 850, drawn lit.
+         opener      the rail Help button, [0,828 47x44], bottom edge 872, vertical center 850, drawn lit.
          family      activity rail (B2 row 2): opens right, left = 56, gap horizontal 8, shared edge line
                      "button bottom to menu bottom".
          gap axis    horizontal. Rail right edge 48, card left edge 56. GAP = 8, the shell-region constant
@@ -2972,7 +2972,7 @@
          shared edge bottom to bottom. Opener bottom 872, card bottom 872, OFFSET 0 against B4's review clause
                      of 8. Drawn as bottom: 28px from the 900 root, the status bar's 24 plus the rail's own
                      4px bottom padding.
-         caret       6px on the leading (left) edge at the opener's vertical centre y 850, which is 22px above
+         caret       6px on the leading (left) edge at the opener's vertical center y 850, which is 22px above
                      the card's own bottom, so bottom: 16px, well inside B3's 12px corner clamp. The card is
                      760 wide, so it carries both a caret and an edge line; only a surface under 280 takes the
                      caret INSTEAD of an edge line (B1).

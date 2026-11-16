@@ -7,7 +7,7 @@
 #
 # Dispatch only: the pipeline-health collector starts it when the runners are quiet (plan step 5), or a person by
 # hand: gh workflow run story-slices.yml --ref master -f mode=base -f post=false
-# One concurrency group without cancel-in-progress: a running slice is never cancelled, but a dispatch while one runs
+# One concurrency group without cancel-in-progress: a running slice is never canceled, but a dispatch while one runs
 # replaces a waiting one (GitHub keeps one pending run per group), which is why the dispatcher never dispatches while
 # a slice is in flight. A slice never saves a cache entry (it only restores the
 # LFS baselines) and uses only the Storybook artifacts of exactly X's green ci.yml push build: when they are gone,

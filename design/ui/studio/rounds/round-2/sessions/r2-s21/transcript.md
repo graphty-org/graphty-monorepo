@@ -17,7 +17,7 @@ Next: click the Find box and type Javert.
 ## Step 3 -- try the Find box by its words
 
 Command: `--step --click "Find nodes, edges, values" --type "Javert"`
-Result: the tool said nothing on screen is called that (the grey text inside the box is only a hint, not its name), so nothing was typed. Tooling miss, not an app problem I would notice as a person -- for me I'd just click into the box.
+Result: the tool said nothing on screen is called that (the gray text inside the box is only a hint, not its name), so nothing was typed. Tooling miss, not an app problem I would notice as a person -- for me I'd just click into the box.
 Next: click right on the box at 176,90 and type Javert.
 
 ## Step 4 -- type Javert

@@ -44,7 +44,7 @@ interface Bend {
 }
 
 /**
- * Every test bend, as screen-pixel points (x right, y down), each centred in its own cell.
+ * Every test bend, as screen-pixel points (x right, y down), each centered in its own cell.
  * @returns The bends.
  */
 function bends(): Bend[] {
@@ -152,7 +152,7 @@ afterEach(() => {
 });
 
 /**
- * Coverage of the line's colour at each pixel, read from the red channel over white.
+ * Coverage of the line's color at each pixel, read from the red channel over white.
  * @param data - RGBA bytes.
  * @returns Coverage per pixel.
  */
@@ -351,7 +351,7 @@ describe("a bent edge's corners", () => {
     test("draw no pixel twice on a translucent line", async () => {
         const drawn = await draw(0);
         // The U whose middle is shorter than the line is wide included: its two arms are not
-        // neighbours, and the later one gives the overlap to the earlier (issue #3096).
+        // neighbors, and the later one gives the overlap to the earlier (issue #3096).
         const twice = report(drawn, (d) => d.overlap);
         assert.deepEqual(twice, [], "pixels drawn twice, per bend");
     });
@@ -388,7 +388,7 @@ describe("a bent edge's corners", () => {
             for (const bend of sweep.filter((b) => b.width === width)) {
                 const p = bend.points;
                 const { m } = miterClip([p[0], p[1]], [p[2], p[3]], [p[4], p[5]], hw);
-                // How far a point reaches along the miter direction: the furthest pixel centre at
+                // How far a point reaches along the miter direction: the furthest pixel center at
                 // least half covered, within the line's width of the miter's axis. Measured the
                 // same way in the line's frame and in the reference's.
                 const reachOf = (frame: Float32Array): number => {

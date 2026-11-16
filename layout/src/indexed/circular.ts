@@ -10,7 +10,7 @@ import { type CommonLayoutOptions, resolve, result } from "./common.js";
  * @param dim - components per row, 2 or 3
  * @param scale - the radius
  * @param center - `dim` components
- * @returns `n * dim` values; a single node sits on the centre
+ * @returns `n * dim` values; a single node sits on the center
  */
 function circularRows(n: number, dim: 2 | 3, scale: number, center: readonly number[]): F64 {
     const rows = new Float64Array(n * dim);

@@ -31,11 +31,11 @@ Command: `--step --click "Layout"` -> 04.png
 ## Step 4 (04.png)
 
 Sees: a menu of layouts. Force (checked, "Recommended"), Circle, Rings around a node (needs a selected
-node), Grid, Rings by group (needs a node attribute), Spiral, Spectral, No crossings (greyed, with the
+node), Grid, Rings by group (needs a node attribute), Spiral, Spectral, No crossings (grayed, with the
 raw message 'the layout "planar" cannot draw this graph without crossings: G is not planar.'), Random,
 Tree, Two columns, Columns by group, Keep positions.
 Hesitation: "No ForceAtlas2 by name. 'Force' -- which force? Fruchterman-Reingold? ForceAtlas2? Can I
-set gravity, scaling, LinLog? And that greyed planar line reads like a Python traceback leaking through."
+set gravity, scaling, LinLog? And that grayed planar line reads like a Python traceback leaking through."
 Next: hover "Force" to see if it says what algorithm it is.
 
 Command: `--step --hover-at 594,446` -> 05.png. Printed: option "Force Recommended", tooltip null.
@@ -82,7 +82,7 @@ Command: `--step --click "Layout" --click "Force"` -> 09.png
 
 Sees: Force card. "Pulls connected nodes together and pushes unconnected ones apart until the shape
 stops moving, in three dimensions or, with 'dim: 2', flat." Shape 3D / 2D toggle (3D selected),
-Spring length 30, Gravity -1.2, Advanced, and a greyed "Applied" button.
+Spring length 30, Gravity -1.2, Advanced, and a grayed "Applied" button.
 Hesitation: "'with dim: 2' -- that's a config key, not a sentence. And gravity is negative? In
 ForceAtlas2 gravity pulls toward the center and is positive; a negative gravity means this is some
 other model, probably a d3-style charge. Still no algorithm name. It is not ForceAtlas2, I'd bet."
@@ -126,7 +126,7 @@ Printed: nothing on screen is called "Apply".
 
 ## Step 13 (13.png)
 
-Sees: Gravity now reads -4, but the button still says "Applied" and is greyed.
+Sees: Gravity now reads -4, but the button still says "Applied" and is grayed.
 Hesitation: "I changed a number and the button still claims it's applied. Is it waiting for me to
 leave the field? Did it reject the minus sign?" This is the first real friction.
 Next: press Enter in the field (what I'd do in Gephi's property sheet).
@@ -165,7 +165,7 @@ Command: `--end`
       drag, time step, negative gravity) tell me it is a spring-electrical model, not ForceAtlas2, and
       there is no LinLog, prevent overlap or dissuade hubs. I could not cite it in a methods section
       without a name.
-    - The Force description contains the config key "with 'dim: 2'", and the greyed "No crossings"
+    - The Force description contains the config key "with 'dim: 2'", and the grayed "No crossings"
       option shows a raw error ("the layout 'planar' ... G is not planar."). Implementation text leaking.
     - Typing a new Gravity value left the button reading "Applied" until I pressed Enter.
     - After undoing the Spectral layout the view stayed pointed where the blob had been; the graph was

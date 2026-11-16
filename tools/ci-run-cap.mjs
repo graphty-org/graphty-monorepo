@@ -20,13 +20,13 @@
 // (the job name before " (", as "Story tests" in "CI / Story tests (layout)") runs fewer legs than its
 // full-run max-parallel (FULL_RUN_MAX_PARALLEL; a job not listed there counts whenever it is queued). The
 // release run is waiting when it has such a job and holds fewer than RELEASE_SHARE in-progress hosted jobs.
-// Only earlier runs count, so the oldest waiting run always proceeds: no deadlock. A cancelled or superseded
+// Only earlier runs count, so the oldest waiting run always proceeds: no deadlock. A canceled or superseded
 // run is completed and frees its place at once.
 //
 // It never fails the pull request: an API error lets the run proceed, and so does a GITHUB_TOKEN with under
 // MIN_RATE_LEFT requests left this hour (the token's 1,000 an hour are shared by every workflow). Waiting its
 // turn is long (giving up early let the slowest runs join the backlog exactly when it was longest), but it ends
-// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml: a job that reaches its timeout is cancelled, which
+// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml: a job that reaches its timeout is canceled, which
 // continue-on-error does not cover, so Build and every job after it were skipped and the pull request went red
 // (#8219: a 2-hour backlog on 2026-11-14 failed #7878 that way). Past the limit the run proceeds. A run k
 // places from its turn checks every k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.

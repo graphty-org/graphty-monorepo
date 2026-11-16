@@ -1,11 +1,11 @@
 /**
  * Differential tests against the legacy `Graph` class, part 6 (design sections 14.2 and 16.2):
  * the worked ports of section 14.2 -- breadthFirstSearch (port 1, over the snapshot and over
- * `reverse()` for the in-neighbour walk), dijkstra (port 2, an O(n^2) selection instead of the
+ * `reverse()` for the in-neighbor walk), dijkstra (port 2, an O(n^2) selection instead of the
  * indexed heap; the relaxation loop is the design's), connectedComponents (port 4, union-find over
  * `edgeList()`) and commonNeighborsScore (port 6, the sorted-row merge) -- run over snapshots and
  * compared with straightforward implementations over the legacy class on the same random graphs.
- * Depths, distances, component partitions and common-neighbour counts are order-independent, so
+ * Depths, distances, component partitions and common-neighbor counts are order-independent, so
  * they must be equal exactly; BFS parents and visiting order are allowed to differ (rows are sorted
  * by index, the legacy visits in insertion order; design 3.9 declares that change).
  */

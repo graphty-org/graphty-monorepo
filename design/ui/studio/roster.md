@@ -35,7 +35,7 @@ studio files: `S/` = `design/ui/studio/personas/` (this worktree).
 The studio files for Dev, Grace and Ruth (2026-10-06) strengthen the round 8 files of the same
 names (about 4.5 KB each) with more public sources, a voice, abandonment triggers and fuller rules
 for playing them (about 8 KB each). Sam's file is new. Nadia's 9 KB file was checked and kept: it
-has a voice, counterweights, behaviour rules and sources. None of the four new files has had the
+has a voice, counterweights, behavior rules and sources. None of the four new files has had the
 skeptic review the older files had. Because they are still the thinnest first-time files, Dev,
 Grace and Ruth carry 6 sessions each and Elena and Tom 7.
 

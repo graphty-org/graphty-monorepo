@@ -1,7 +1,7 @@
 /**
  * The Arrow Utf8 string store (design sections 4.2 and 5.1): `Uint32Array(rows + 1)` offsets plus one
  * `Uint8Array` of concatenated UTF-8 bytes, kept next to a decoded JS-string representation. The two
- * are caches of one logical value and are materialised lazily in either direction:
+ * are caches of one logical value and are materialized lazily in either direction:
  *
  * - a store built from strings (`Utf8Store.fromStrings`, what the builder has) shares the source
  *   array by reference and encodes on the first read of `offsets` / `utf8` (toWire / toBytes /
@@ -364,7 +364,7 @@ export function checkUtf8Layout(offsets: Uint32Array, utf8: Uint8Array, rows: nu
     }
 }
 
-/** The encoded representation of a store: offsets plus bytes, always materialised together. */
+/** The encoded representation of a store: offsets plus bytes, always materialized together. */
 export interface EncodedUtf8 {
     /** rows + 1 non-decreasing offsets. */
     readonly offsets: U32;
@@ -373,7 +373,7 @@ export interface EncodedUtf8 {
 }
 
 /**
- * An Arrow Utf8 string store with lazily materialised encoded and decoded representations (design
+ * An Arrow Utf8 string store with lazily materialized encoded and decoded representations (design
  * sections 4.2 and 5.1). Immutable once built; every lazily computed representation is cached.
  */
 export class Utf8Store {
@@ -430,7 +430,7 @@ export class Utf8Store {
     }
 
     /**
-     * Whether the encoded representation exists (adopted or already materialised).
+     * Whether the encoded representation exists (adopted or already materialized).
      * @returns true when `offsets` / `utf8` can be read without encoding
      */
     get encoded(): boolean {
@@ -584,7 +584,7 @@ export class Utf8Store {
         if (enc === null) {
             enc = encodeUtf8Rows(this.source as ArrayLike<string>, this.length);
             this.encodedArrays = enc;
-            // the store is the first holder of the buffers it materialises (design section 9.1)
+            // the store is the first holder of the buffers it materializes (design section 9.1)
             claimHolder(enc.offsets.buffer);
             claimHolder(enc.utf8.buffer);
         }

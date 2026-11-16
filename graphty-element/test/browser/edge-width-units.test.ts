@@ -80,10 +80,10 @@ describe("edge width units", () => {
     });
 
     /**
-     * The lit height of a horizontal line through the canvas centre, in pixels.
+     * The lit height of a horizontal line through the canvas center, in pixels.
      * @param width - The style's line width.
      * @param depth - The line's distance in front of the camera.
-     * @returns The pixels lit in the centre column.
+     * @returns The pixels lit in the center column.
      */
     async function drawnThickness(width: number, depth: number): Promise<number> {
         camera.position = new Vector3(0, 0, -depth);
@@ -140,7 +140,7 @@ interface LineInternals {
 /**
  * One world-space line through a point, as pixels across the screen.
  * @param scene - The scene whose camera projects it.
- * @param centre - The middle of the span, in world units.
+ * @param center - The middle of the span, in world units.
  * @param across - The span, a world-space vector.
  * @returns Its projected length in pixels.
  */
@@ -216,7 +216,7 @@ function drawnThicknessPx(graph: Graph, edge: Edge): number {
     const { floats } = material.serialize() as { floats: Record<string, number> };
     const worldWidth = material.options.defines.includes("#define WORLD_WIDTH");
 
-    // A pulled piece runs between its two node centres; a placed line's slots carry their ends.
+    // A pulled piece runs between its two node centers; a placed line's slots carry their ends.
     const ends = pulled
         ? [[edge.srcNode.mesh.position, edge.dstNode.mesh.position]]
         : lineSlots.map((slot) => {
@@ -228,7 +228,7 @@ function drawnThicknessPx(graph: Graph, edge: Edge): number {
             const centre = Vector3.TransformCoordinates(from.add(to).scale(0.5), mesh.getWorldMatrix());
             const clip = Vector4.TransformCoordinates(centre, scene.getTransformMatrix());
             // The shader's own arithmetic (edgeJoinShader): a world width projected at the
-            // centre's depth, or the 3D line's screen width, which tapers with clip w.
+            // center's depth, or the 3D line's screen width, which tapers with clip w.
             const projectionY = scene.getProjectionMatrix().m[5];
             return worldWidth
                 ? (floats.width * projectionY * scene.getEngine().getRenderHeight()) / (2 * clip.w)

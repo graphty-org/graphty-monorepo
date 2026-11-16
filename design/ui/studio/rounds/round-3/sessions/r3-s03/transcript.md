@@ -75,7 +75,7 @@ A small menu: "Size" and "Shape". There it is. Clicking Size.
 `node tool/real.mjs --step $S --click "Size"` -> 08.png
 
 A box "Size by attribute": Fixed size, then under Betweenness: Betweenness, Betweenness rank,
-Betweenness percentile; greyed out id and name ("Cannot be used: Holds groups, not amounts").
+Betweenness percentile; grayed out id and name ("Cannot be used: Holds groups, not amounts").
 I want the plain number, so Betweenness. ("Rank" vs "percentile" I'd have to look up.)
 
 ## Step 9 -- size by Betweenness

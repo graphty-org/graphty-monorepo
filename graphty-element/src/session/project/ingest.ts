@@ -898,7 +898,7 @@ export class Ingest<K extends KnownEdge> {
      * is loaded.
      * @param command - The import.
      * @param writer - The command's writer.
-     * @param signal - Fires when the import is cancelled; it stops before the next chunk.
+     * @param signal - Fires when the import is canceled; it stops before the next chunk.
      * @returns Settles once the last chunk is written.
      */
     async importSource(
@@ -1994,7 +1994,7 @@ export class Ingest<K extends KnownEdge> {
 
         // "the repeat's weight and attributes replace the existing edge's" under `last`. The other
         // three reducers keep the survivor's attributes, because there is no reading of `sum`
-        // under which the last record's colour is the group's colour.
+        // under which the last record's color is the group's color.
         writer.mergeEdge(known.edgeIndex, decision.weight, decision.replaceRecord ? record : null);
         if (decision.replaceRecord) {
             this.host.replaceEdgeRecord(known, record);
@@ -2167,7 +2167,7 @@ export class Ingest<K extends KnownEdge> {
      * @param reader - The source
      * @param load - The format, the cancel signal, the graph primitives and how records name their ids and endpoints
      * @param load.type - The format
-     * @param load.signal - Fires when the load is cancelled
+     * @param load.signal - Fires when the load is canceled
      * @param load.writer - The graph primitives to write through
      * @param load.nodeIdPath - Where a node record holds its id, or undefined for the default
      * @param load.endpointOverrides - Where an edge record names its endpoints and weight
@@ -2193,7 +2193,7 @@ export class Ingest<K extends KnownEdge> {
         let directionSettled = false;
 
         for await (const chunk of untilAborted(reader.getData(), signal)) {
-            // Nothing is written once the load has been cancelled: its writes are being
+            // Nothing is written once the load has been canceled: its writes are being
             // taken back, and a chunk written after that would outlive them.
             signal?.throwIfAborted();
             // BEFORE this chunk's edges, every time: the builder accepts a direction only
@@ -2205,7 +2205,7 @@ export class Ingest<K extends KnownEdge> {
             }
 
             this.addNodeRows(chunk.nodes, load.nodeIdPath, writer);
-            // The endpoint names a caller passed to the SOURCE are honoured here rather
+            // The endpoint names a caller passed to the SOURCE are honored here rather
             // than inside each of the seven importers: whatever shape a source produces,
             // the consumer who named the columns named them for the records that come out.
             this.addEdgeRows(chunk.edges, load.endpointOverrides, writer);
@@ -2231,11 +2231,11 @@ export class Ingest<K extends KnownEdge> {
      * @param error - What the read threw
      * @param signal - The load's cancel signal
      * @param progress - How far the load got
-     * @throws The error itself when the load was cancelled or the error is coded; otherwise an
+     * @throws The error itself when the load was canceled or the error is coded; otherwise an
      *     Error naming the source and how many chunks it read
      */
     private failLoad(type: string, error: unknown, signal: AbortSignal | undefined, progress: LoadProgress): never {
-        // A cancelled load did not fail: whoever cancelled it says why.
+        // A canceled load did not fail: whoever canceled it says why.
         if (signal?.aborted === true) {
             throw error;
         }
@@ -2273,7 +2273,7 @@ export class Ingest<K extends KnownEdge> {
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
      * @param writer - the graph primitives to write through
-     * @param signal - Fires when the load is cancelled; it stops at once, even while the source
+     * @param signal - Fires when the load is canceled; it stops at once, even while the source
      *     is still waiting for its next chunk
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
@@ -2552,7 +2552,7 @@ export class Ingest<K extends KnownEdge> {
      * the renderer process and produces no further frame -- measured for issue #405 at 18,000
      * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
      * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
-     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
+     * behavior at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
      * the number the element enforces rather than a number it merely publishes.
      *
      * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
@@ -2582,11 +2582,11 @@ export class Ingest<K extends KnownEdge> {
 const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 
 /**
- * What a load that failed before or around its read throws: a coded or cancelled failure
+ * What a load that failed before or around its read throws: a coded or canceled failure
  * unchanged, anything else wrapped in a coded one.
  * @param error - what was thrown
  * @param type - the source type
- * @param signal - fires when the load is cancelled
+ * @param signal - fires when the load is canceled
  * @returns the error to throw
  */
 function initFailure(error: unknown, type: string, signal: AbortSignal | undefined): unknown {
@@ -2736,7 +2736,7 @@ interface ChunkReader {
 
 /**
  * A source's chunks, ending with the signal's reason as soon as it aborts, rather than when the
- * source next yields: a cancelled load must let go of the queue even when its source is waiting
+ * source next yields: a canceled load must let go of the queue even when its source is waiting
  * on a slow network or a stalled reader.
  * @param chunks - The source's chunks.
  * @param signal - The load's signal.

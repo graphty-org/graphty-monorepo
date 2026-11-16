@@ -77,4 +77,4 @@ Result: session ended.
 - Clicking "minutes" hit two things (the column header and the dropdown); I had to aim for the dropdown.
 - The dots on the map have no stop names, so the picture alone tells me nothing; the "Nodes in order" list is what I actually used. 
 - "Follow: Out / All" -- I left it on All and don't really know what Out would have changed. For buses I assumed both directions.
-- Still small grey text on the load screen ("whole number", "Higher means") -- hard on the laptop.
+- Still small gray text on the load screen ("whole number", "Higher means") -- hard on the laptop.

@@ -182,7 +182,7 @@ function modularity(sc: Scorer, groups: readonly ArrayLike<number>[]): number {
 }
 
 /**
- * The cut point between 20% and 80% of the sorted members that maximises modularity.
+ * The cut point between 20% and 80% of the sorted members that maximizes modularity.
  * @param sc - The scorer
  * @param sorted - The members sorted by Fiedler value
  * @returns The cut and its modularity
@@ -275,7 +275,7 @@ function leafLabels(clusters: readonly MutableCluster[], n: number): U32 {
 /**
  * GRSBM over a snapshot: recursive spectral bisection. Each cluster's Laplacian (over the arcs
  * between its members, self-loops left out) gives an approximate Fiedler vector; members are sorted
- * by it and cut at the point between 20% and 80% that maximises modularity; the split is kept only
+ * by it and cut at the point between 20% and 80% that maximizes modularity; the split is kept only
  * when it raises the modularity of the whole partition (every other cluster held as it is). The
  * change is the two halves' community terms minus the cluster's, so scoring a cut costs the arcs of
  * the cluster alone. Clusters are split breadth first. The cut and the modularity arithmetic are the
@@ -397,7 +397,7 @@ interface Laplacian {
 }
 
 /**
- * Append member p's Laplacian row: off-diagonal -w per member neighbour, diagonal their sum.
+ * Append member p's Laplacian row: off-diagonal -w per member neighbor, diagonal their sum.
  * @param lap - The Laplacian being built
  * @param p - The member's position
  * @param u - The member's node index
@@ -485,7 +485,7 @@ function shiftedProduct(lap: Laplacian, shift: number, vector: F64, next: F64): 
 }
 
 /**
- * A seeded random start vector, re-centred and normalised.
+ * A seeded random start vector, re-centered and normalized.
  * @param size - Its length
  * @param random - The generator
  * @returns The vector
@@ -507,10 +507,10 @@ function randomStart(size: number, random: () => number): F64 {
 
 /**
  * The approximate Fiedler vector of a cluster's Laplacian L: a seeded random start orthogonal to
- * the all-ones vector, then repeated multiplication by (c I - L), re-centred and normalised, until
+ * the all-ones vector, then repeated multiplication by (c I - L), re-centered and normalized, until
  * it stops moving. c is twice the largest weighted degree in the cluster, an upper bound on L's
  * largest eigenvalue, so every eigenvalue c - lambda of (c I - L) is non-negative and the largest
- * left after re-centring, c - lambda_2, belongs to the Fiedler vector. (Legacy multiplied by -L,
+ * left after re-centering, c - lambda_2, belongs to the Fiedler vector. (Legacy multiplied by -L,
  * which converges to the eigenvector of L's LARGEST eigenvalue instead.)
  * @param members - The cluster's node indices
  * @param position - Scratch, -1 everywhere on entry and exit

@@ -3,7 +3,7 @@
  *
  * Every run record carries the versions of the three packages that could have changed its result,
  * because "this value disagrees with the one in my saved document" has no answer without them. A
- * centrality that was normalised differently two releases ago, a layout whose seeding changed, a
+ * centrality that was normalized differently two releases ago, a layout whose seeding changed, a
  * convergence threshold that moved -- each is invisible in the number itself and obvious beside a
  * version.
  *

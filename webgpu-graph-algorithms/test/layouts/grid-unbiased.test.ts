@@ -8,7 +8,7 @@
  *
  * Why it is not in grid-exact.test.ts with the rest of the gate's items (G4-F13): the two ladders submit
  * 2 x UNBIASED_SEEDS grid iterations, and a Dawn process does not return the memory an iteration takes --
- * measured at roughly 0.67 MB per iteration on Mesa's software rasteriser, reclaimed neither by disposing the
+ * measured at roughly 0.67 MB per iteration on Mesa's software rasterizer, reclaimed neither by disposing the
  * simulation nor by destroying the device, so it is the driver's to keep. Together with the rest of that suite it
  * put one worker over 6 GB, and two such workers over a 16 GB runner: the continuous integration shard lost a
  * worker three times with no test having failed. Vitest gives every FILE its own process, so this split is what

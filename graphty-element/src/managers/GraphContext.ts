@@ -28,7 +28,7 @@ import type { UpdateManager } from "./UpdateManager";
 export interface GraphContext {
     /**
      * Get the element's configuration document: the id paths, the view mode, the background, the
-     * layout and its options, the run-on-load algorithms and the behaviour settings.
+     * layout and its options, the run-on-load algorithms and the behavior settings.
      *
      * It carries no style layers. Layers live in `session.styles`, and what one element is
      * painted is answered by {@link GraphContext.getStylePainter}.

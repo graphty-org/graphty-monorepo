@@ -6,7 +6,7 @@
  * The scene digest has two parts. The first is structural: the node and edge render objects by
  * id, the skybox domes in the scene, `scene.metadata.twoD` and the dimension the graph draws in.
  * The second is what was painted, read back from the render side for every node and edge in id
- * order: instance colour and scale, source mesh, enabled and visible flags, and label bounds.
+ * order: instance color and scale, source mesh, enabled and visible flags, and label bounds.
  * Without the second part a derivation hook that skipped a repaint after undo would leave stale
  * paint on the meshes while every state digest matched.
  *

@@ -2,7 +2,7 @@
  * Differential tests against the legacy `Graph` class, part 3 (design section 16.2): random
  * removal sequences (`removeNode` by id, `removeEdge` by endpoint pair) applied to both structures,
  * followed by a freeze, must leave the same node set in the same order (I14 compaction preserves
- * relative order), the same neighbour sets, the same `hasEdge` answers and the same weights; the
+ * relative order), the same neighbor sets, the same `hasEdge` answers and the same weights; the
  * `freezeWithReport` remaps must map every surviving old index to the index of the same id (P3).
  * The one documented divergence -- reviving a removed id before the next freeze keeps its OLD index
  * (design 6.6, NetworKit restoreNode semantics) where the legacy Map re-inserts it at the END -- is

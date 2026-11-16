@@ -5,7 +5,7 @@
 // generator has no 200,000-node drawing; the point is the chrome). The state
 // is said in three places: the status bar's amber limit chip, the Overview
 // section with its two ways out, and what Performance mode turns off; the VR
-// segment is greyed with its reason in its tooltip.
+// segment is grayed with its reason in its tooltip.
 import { DEGREE } from "../email.mjs";
 
 export default {

@@ -1,8 +1,8 @@
 // Screen 72: groups collapsed into a summary graph (round-3/
 // analysis-results.md, "How groups connect"). Communities on Karate Club,
 // "Collapse groups" chosen, then Group 2 expanded again in place: three
-// collapsed groups are one large node each (sized by members, labelled with
-// the name and count, at its members' centre), edges between them and to
+// collapsed groups are one large node each (sized by members, labeled with
+// the name and count, at its members' center), edges between them and to
 // Group 2's members are merged into one line per pair (width by count).
 // Counts are computed from karate.mjs.
 
@@ -14,7 +14,7 @@ for (const [g, ids] of Object.entries(COMMUNITIES)) for (const id of ids) groupO
 const EXPANDED = 2;
 const COLLAPSED = [1, 3, 4];
 const key = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
-// Summary nodes, one per collapsed group, drawn at the members' centre.
+// Summary nodes, one per collapsed group, drawn at the members' center.
 const meta = COLLAPSED.map((g) => ({ members: COMMUNITIES[g], label: `Group ${g}  ${COMMUNITIES[g].length}`, fill: OKABE_4[g - 1], r: 8 + COMMUNITIES[g].length * 1.4 }));
 const endOf = (id) => (groupOf[id] === EXPANDED ? id : `m${COLLAPSED.indexOf(groupOf[id])}`);
 // Merged edges: every edge that leaves a collapsed group, one line per pair of ends.

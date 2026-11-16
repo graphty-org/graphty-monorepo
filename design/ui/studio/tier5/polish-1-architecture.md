@@ -102,15 +102,15 @@ Fix: key `CardField` and the picker glyph off `ReadableValue.valueKind`; for a f
 untouched form the element reads as `test-unset` (if none exists for flags, add it to the element:
 for example `categories` with `values: []` on the flag path, which is already inert).
 
-### 5. The import filter's picker cannot grey filtered-graph runs; a pick silently binds another run
+### 5. The import filter's picker cannot gray filtered-graph runs; a pick silently binds another run
 
-Spec section 4 and acceptance 10: in the import filter, filtered-graph runs are greyed with the
+Spec section 4 and acceptance 10: in the import filter, filtered-graph runs are grayed with the
 element's reason, and picking the algorithm starts a full-graph run. Verified otherwise:
 
 - The app never calls `scope.checkStep` (`grep checkStep graphty/src` finds nothing). In the
   filter card the Results entry "Louvain" (an Analyze run on the filtered graph, the Analyze
   default) is listed normally with no tooltip (`s1/23.png`; hover printed `tooltip: null`).
-- Even called, `checkStep` could not grey it: the app writes a Results pick as
+- Even called, `checkStep` could not gray it: the app writes a Results pick as
   `{ kind: "measure", algorithm, params, field }` without the run's scope (`values.ts:111-147`;
   `runFieldOf` computes `scope` and drops it), and `checkStep` returns `null` for that measure in a
   filter, while it returns `circular-scope` only for the run's path form (probe P5).
@@ -121,12 +121,12 @@ element's reason, and picking the algorithm starts a full-graph run. Verified ot
   run's numbering, which a non-deterministic community method need not share.
 - Separately, the Analyze categories hide any algorithm with a succeeded run on any scope
   (`values.ts:164-176`), so in the filter host, once Louvain ran on the filtered graph, the only
-  Louvain entry is the un-greyed Results one.
+  Louvain entry is the un-grayed Results one.
 
 Fix (graphty-element first): give `checkStep` (or the readable value) the fact the picker needs --
 for a run field, whether a step on this host and base can read that run, and which run a measure
 of it would read -- and let `measure` name the run it was picked from when its scope matches the
-base. The app then greys by that fact and lists the algorithm under its Analyze heading for the
+base. The app then grays by that fact and lists the algorithm under its Analyze heading for the
 host's base, instead of filtering by "has any run".
 
 ### 6. `DEFAULT_BRANCH_PALETTE` is published `@public`, not `@beta`

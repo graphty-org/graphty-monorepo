@@ -81,7 +81,7 @@ matches strip, the sidebar layer row and the canvas.
 - New this round:
     1. Two undos (the Louvain run, then the filter edit) go back to 24 of 24.
     2. One redo restores the filter, and the element reruns Louvain on the 8 nodes at once.
-    3. That rerun writes a new history entry. The Redo button goes grey with one redo still owed
+    3. That rerun writes a new history entry. The Redo button goes gray with one redo still owed
        (`v/18.png`).
     4. The next Mod+Z again says "Undid running Louvain." (`v/19.png`).
 - The reader's own redo chain is lost to a computation they never asked for. Spec 6 says

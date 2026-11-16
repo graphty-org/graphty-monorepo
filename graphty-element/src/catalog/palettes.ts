@@ -1,7 +1,7 @@
 /**
- * @file The palette catalogue: the colour ramps the element paints with, anchors included.
+ * @file The palette catalog: the color ramps the element paints with, anchors included.
  *
- * A palette descriptor carries its colours. That is the whole reason the catalogue exists in
+ * A palette descriptor carries its colors. That is the whole reason the catalog exists in
  * this form: a consumer drawing a legend needs the same ten hexes the renderer used, and the
  * only ways to get them today are to import the renderer or to copy them. One consumer copied
  * the viridis anchors into its own source, which means a palette edited in the element repaints
@@ -9,18 +9,18 @@
  *
  * So every descriptor below points at the element's own palette constant. Nothing here retypes a
  * hex, and a palette edited in `config/palettes` travels to every consumer that reads the
- * catalogue.
+ * catalog.
  *
  * `capacity` says how many distinct values a palette can carry, or null when the palette is a
- * continuous ramp whose colours are anchors to interpolate between rather than a fixed set.
+ * continuous ramp whose colors are anchors to interpolate between rather than a fixed set.
  *
  * `colorblindSafe` lists only what the palette itself declares. An empty list means the palette
  * makes no claim, which is not the same as a palette known to fail -- and the one palette known
  * to fail, red to blue, is kept anyway, because a temperature metaphor sometimes outranks the
- * general rule and a catalogue that hides it just gets it reinvented.
+ * general rule and a catalog that hides it just gets it reinvented.
  *
- * The last three are highlight pairs: the first colour is the highlighted state and the second
- * is everything else. Which elements get the second colour is a reader's decision, never an
+ * The last three are highlight pairs: the first color is the highlighted state and the second
+ * is everything else. Which elements get the second color is a reader's decision, never an
  * algorithm's.
  */
 
@@ -46,7 +46,7 @@ import {
 import { registeredPaletteById, registeredPaletteDescriptors } from "./paletteRegistry";
 import type { PaletteDescriptor, PaletteId } from "./types";
 
-/** Safe for every form of colour blindness a descriptor can name. */
+/** Safe for every form of color blindness a descriptor can name. */
 const ALL_TYPES = ["deuteranopia", "protanopia", "tritanopia"] as const;
 
 /**
@@ -56,7 +56,7 @@ const ALL_TYPES = ["deuteranopia", "protanopia", "tritanopia"] as const;
  * answers "what does the element ship", which has to stay a different question from "what can
  * this page paint with" -- a consumer reading it is reading the element's own list, and a plugin
  * appended to it would silently change what that list means. The two are joined at the lookups
- * below and at the catalogue door, never in the table.
+ * below and at the catalog door, never in the table.
  */
 export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     {
@@ -241,7 +241,7 @@ export function paletteDescriptor(id: PaletteId): PaletteDescriptor | undefined 
  * The element's own first, then the registered ones in registration order, so a picker's list
  * does not reshuffle when a page imports one more plugin.
  * @param kind - The kind of palette wanted.
- * @returns Every palette of that kind, in catalogue order.
+ * @returns Every palette of that kind, in catalog order.
  */
 export function palettesOfKind(kind: PaletteDescriptor["kind"]): readonly PaletteDescriptor[] {
     const builtIn = PALETTE_DESCRIPTORS.filter((descriptor) => descriptor.kind === kind);

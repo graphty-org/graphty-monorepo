@@ -1,7 +1,7 @@
 /**
  * @file On-demand expansion, reached the way a consumer reaches it.
  *
- * Double-clicking a node asks the consumer for that node's neighbourhood and adds what comes
+ * Double-clicking a node asks the consumer for that node's neighborhood and adds what comes
  * back. The two functions that answer -- `fetchNodes` and `fetchEdges` -- are declared in
  * `GraphBehaviorOpts`, so `element.layoutBehavior = { fetchNodes, fetchEdges }` parses and is
  * stored in the configuration. `NodeBehavior` then looks for them somewhere else entirely: on

@@ -74,7 +74,7 @@ describe("Graph.loadFromFile", () => {
             // A CODE RATHER THAN A SENTENCE. This used to be a plain Error whose message named a
             // hard-coded list of the element's own seven formats, so a consumer whose format WAS
             // registered could still be told the element does not have it. `details.available` is
-            // read from the catalogue, so it names whatever this page actually has.
+            // read from the catalog, so it names whatever this page actually has.
             assert.isTrue(isGraphtyError(error), "a failure the element reports carries a code");
             assert.strictEqual((error as GraphtyError).code, "E_UNKNOWN_FORMAT");
             assert.include(

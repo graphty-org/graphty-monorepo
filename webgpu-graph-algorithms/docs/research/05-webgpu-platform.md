@@ -48,7 +48,7 @@ Playwright 1.54.1 with Chromium build 1181 (Chromium 139)
    creation, never as requirements (sec. 5).
 6. CI: two runner classes. A default `ubuntu-latest` job runs everything on
    lavapipe (Node) plus SwiftShader (Chromium); a GPU job runs on a
-   self-hosted runner labelled e.g. `graphty-gpu` (the cuda-ffi pattern:
+   self-hosted runner labeled e.g. `graphty-gpu` (the cuda-ffi pattern:
    `runs-on: <label>` + `container: { options: "--gpus all" }`) or on a
    GitHub-hosted `gpu-t4-4-core` larger runner if the org plan allows it
    (sec. 10).
@@ -127,7 +127,7 @@ constants inside functions or uses numeric literals with a comment
 `create(options)` string options, from the installed README and verified by
 probe `dawn-select.mjs` (each option is one string in the array):
 
-| option                                                   | verified behaviour on this box                                                                                                                                                                                                                                                                                                     |
+| option                                                   | verified behavior on this box                                                                                                                                                                                                                                                                                                      |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `backend=vulkan`                                         | selects the Vulkan backend; `null`, `webgpu`, `d3d11`, `d3d12`, `metal`, `opengl`, `opengles` are the documented names. `backend=bogus` throws "unrecognised backend 'bogus'" at `create()`.                                                                                                                                       |
 | `backend=null`                                           | Dawn's null backend: `requestAdapter()` returns an adapter with empty vendor/architecture and device "null-backend". Useful for validation-only tests (creates pipelines, never executes).                                                                                                                                         |
@@ -197,7 +197,7 @@ never a skip" (line 16).
 ### 2.4 Adapters visible to Dawn-node on the dev box (probe `dawn-probe.mjs`)
 
 Without `libEGL.so.1` on `LD_LIBRARY_PATH` the NVIDIA ICD fails to
-initialise ("loader_scanned_icd_add: Could not get 'vkCreateInstance' ...
+initialize ("loader_scanned_icd_add: Could not get 'vkCreateInstance' ...
 for ICD libGLX_nvidia.so.0") and the ONLY adapter is Mesa llvmpipe. With
 `LD_LIBRARY_PATH=tmp/egl/root/usr/lib/x86_64-linux-gnu`
 (HEADLESS_GPU_REPORT.md appendix D) the default adapter is the RTX 4070
@@ -302,12 +302,12 @@ Chrome feature timeline (Chrome for Developers blog posts):
   `maxStorageBuffersPerShaderStage` raised from 8 to 10 in Chrome (the SPEC
   default remains 8 -- our probe shows Chromium 139 giving a default device
   8 and the adapter 10, so "10" is an adapter maximum you must request).
-- `timestamp-query`: shipped Chrome 121, quantised to 100 microseconds
-  (https://developer.chrome.com/blog/new-in-webgpu-121); the quantisation can
+- `timestamp-query`: shipped Chrome 121, quantized to 100 microseconds
+  (https://developer.chrome.com/blog/new-in-webgpu-121); the quantization can
   be disabled with chrome://flags/#enable-webgpu-developer-features for local
   profiling. Consequence: browser timestamp queries cannot resolve kernels
   shorter than ~100 us; per-kernel profiling belongs in Node/Dawn where the
-  quantisation toggle is not applied (unverified whether Dawn-node quantises
+  quantization toggle is not applied (unverified whether Dawn-node quantizes
   -- sec. 12).
 - `subgroups`: experimental in 125, origin trial 128-131, shipped Chrome 134
   (https://developer.chrome.com/blog/new-in-webgpu-134,
@@ -321,7 +321,7 @@ Firefox 141 post lists gaps only in IPC overhead, GPU completion latency via
 interval timers, and `importExternalTexture`
 (https://mozillagfx.wordpress.com/2025/07/15/shipping-webgpu-on-windows-in-firefox-141/).
 Design rule: every optional feature is probed at runtime; nothing in the
-library's public behaviour depends on them.
+library's public behavior depends on them.
 
 ### 3.2 Headless Chromium on the dev box (probe `chromium-latency.mjs`, Chromium 139 build 1181)
 
@@ -355,7 +355,7 @@ adapter with an explicit `powerPreference` (HEADLESS_GPU_REPORT.md line 177,
 233-235): always pass `{ powerPreference: "high-performance" }` in the
 browser entry point.
 
-SwiftShader is the browser analogue of lavapipe: a real, spec-conformant CPU
+SwiftShader is the browser analog of lavapipe: a real, spec-conformant CPU
 implementation, subgroup size 4, present on every GitHub runner without
 setup. The subgroup-size spread we can test is therefore 4 (SwiftShader), 8
 (lavapipe), 32 (NVIDIA) -- good coverage for "never assume the subgroup
@@ -407,13 +407,13 @@ not verified (sec. 12).
 | compute shaders / storage buffers  | yes (verified)                         | yes (verified)             | yes (verified)                              | yes (verified)           | yes (docs: shipped 141+)                                 | yes (docs: "adds compute shaders") |
 | `subgroups`                        | yes, 32 (verified)                     | yes, 8 (verified)          | yes, 32 (verified; shipped Chrome 134 docs) | yes, 4 (verified)        | ?                                                        | ?                                  |
 | `shader-f16`                       | NO (verified)                          | yes (verified)             | NO (verified)                               | ? (not in printed list)  | ?                                                        | ?                                  |
-| `timestamp-query`                  | yes (verified)                         | yes (verified)             | yes, 100 us quantised (docs)                | yes (verified)           | ?                                                        | ?                                  |
+| `timestamp-query`                  | yes (verified)                         | yes (verified)             | yes, 100 us quantized (docs)                | yes (verified)           | ?                                                        | ?                                  |
 | `indirect-first-instance`          | yes                                    | yes                        | yes                                         | yes                      | ?                                                        | ?                                  |
 | `core-features-and-limits`         | yes                                    | yes                        | yes                                         | yes                      | ?                                                        | ?                                  |
 | `adapter.isFallbackAdapter`        | undefined (bug)                        | undefined (bug)            | false                                       | true                     | ?                                                        | ?                                  |
 | `adapter.info.vendor/architecture` | nvidia / lovelace                      | mesa / software            | nvidia / lovelace                           | google / swiftshader     | ?                                                        | ?                                  |
 | `adapter.info.device/description`  | filled                                 | filled                     | empty strings                               | empty strings            | ?                                                        | ?                                  |
-| `forceFallbackAdapter`             | ignored                                | n/a                        | honoured (Chrome docs)                      | n/a                      | ?                                                        | ?                                  |
+| `forceFallbackAdapter`             | ignored                                | n/a                        | honored (Chrome docs)                       | n/a                      | ?                                                        | ?                                  |
 | `powerPreference` effect           | none                                   | none                       | needed on Chrome 145 to get NVIDIA (report) | n/a                      | ?                                                        | ?                                  |
 | `wgslLanguageFeatures` count       | 9 incl. uniform_buffer_standard_layout | 9                          | 4                                           | 4                        | ?                                                        | ?                                  |
 | uncaptured errors                  | stderr + event                         | stderr + event             | console + event                             | console + event          | event (spec)                                             | event (spec)                       |
@@ -443,7 +443,7 @@ From the WGSL spec (https://gpuweb.github.io/gpuweb/wgsl/, fetched
    (WGSL 11.4). Barnes-Hut tree traversal must be iterative with an explicit
    stack in registers/workgroup memory or use a stackless (Karras/Burtscher
    style) traversal; a linked "rope" octree is the standard answer.
-3. `override` constants (WGSL 7.2.2) can parameterise `@workgroup_size`
+3. `override` constants (WGSL 7.2.2) can parameterize `@workgroup_size`
    (WGSL 12.15) and are set at `createComputePipeline({ compute: {
 constants: { WG: 256, USE_PERM: 1 } } })`. Each distinct constant set is
    a separate pipeline object: the PipelineCache key must include the
@@ -464,7 +464,7 @@ u32, iter: u32, _pad: u32, k: f32, gravity: f32, dt: f32, _pad2: f32 }`.
 6. Runtime-sized arrays only as the last member of a storage struct or as
    the whole binding; dynamic indexing with runtime indices is allowed.
    Out-of-bounds accesses are clamped/discarded by the implementation
-   (spec-defined "invalid memory reference" behaviour), which silently hides
+   (spec-defined "invalid memory reference" behavior), which silently hides
    bugs: tests must compare against CPU results, not just "no error".
 7. `enable subgroups;` and `enable f16;` are per-module directives that
    fail compilation when the device lacks the feature, so a kernel with a
@@ -504,7 +504,7 @@ WG)` and clamps/splits into 2D. This is what removes the CPU round trip
   flag every k levels.
 - Multiple dispatches inside one compute pass are ordered with implicit
   storage barriers between them; one command buffer per `step()` batch is
-  the unit of submission. There is no cross-dispatch synchronisation within
+  the unit of submission. There is no cross-dispatch synchronization within
   a dispatch (no grid barrier), so iterative algorithms are one dispatch per
   iteration phase.
 
@@ -809,7 +809,7 @@ export default defineConfig({
 Vitest 4 changes the provider to a factory from a separate package:
 `import { playwright } from "@vitest/browser-playwright"` and
 `provider: playwright({ launchOptions: { args: GPU_ARGS } })`, with
-per-instance `launch` removed in favour of a per-instance `provider:
+per-instance `launch` removed in favor of a per-instance `provider:
 playwright({...})` that does NOT merge with the parent (Vitest 4 blog and
 `docs/config/browser/playwright.md`). The monorepo pins `@vitest/browser`
 overrides for both `<3.2.7 -> ^3.2.7` and `>=4.0.0 <4.1.10 -> ^4.1.10`
@@ -954,7 +954,7 @@ matrix.shard }})` matrix on `ubuntu-latest` with `pnpm exec vitest run
 - `fileParallelism: false` (browser) and `poolOptions.forks.singleFork`
   (node) on the GPU job: one device at a time per GPU avoids VRAM contention
   between forked workers and makes benchmark numbers stable. The software
-  job can parallelise freely.
+  job can parallelize freely.
 - Self-hosted runner on the dev box: the runner agent needs Docker access
   and the NVIDIA container toolkit (already present: CUDA works in the
   container, HEADLESS_GPU_REPORT.md line 39). Register it with labels
@@ -998,7 +998,7 @@ matrix.shard }})` matrix on `ubuntu-latest` with `pnpm exec vitest run
 2. Dawn-node default device limits without `requiredLimits` were not
    separately captured (the probe requested raised limits); assumed spec
    defaults per the requestDevice algorithm.
-3. Whether Dawn-node quantises `timestamp-query` results (Chromium does, to
+3. Whether Dawn-node quantizes `timestamp-query` results (Chromium does, to
    100 us). Needs a probe with `requiredFeatures: ["timestamp-query"]`.
 4. Firefox (wgpu) and Safari 26 exposure of `subgroups`, `shader-f16`,
    `timestamp-query`, and their default/adapter limits: no primary source
@@ -1009,9 +1009,9 @@ matrix.shard }})` matrix on `ubuntu-latest` with `pnpm exec vitest run
    runner has not been executed; the local container's lavapipe run is the
    evidence.
 7. The spec sentence that an over-limit indirect dispatch "does nothing" came
-   from a summarised fetch of the spec; re-read
+   from a summarized fetch of the spec; re-read
    https://gpuweb.github.io/gpuweb/#dom-gpucomputepassencoder-dispatchworkgroupsindirect
-   before relying on it (the safe design -- clamp in the finalise kernel --
+   before relying on it (the safe design -- clamp in the finalize kernel --
    does not depend on it).
 8. Whether Node's `worker_threads` pool (`pool: "threads"`) works with the
    Dawn addon is untested; `forks` is verified by graph-format's suite.
@@ -1054,7 +1054,7 @@ URLs:
 - https://github.com/gpuweb/gpuweb/wiki/Implementation-Status (browser matrix, last updated 2026-08-13)
 - https://mozillagfx.wordpress.com/2025/07/15/shipping-webgpu-on-windows-in-firefox-141/
 - https://webkit.org/blog/17333/webkit-features-in-safari-26-0/
-- https://developer.chrome.com/blog/new-in-webgpu-120 (shader-f16, maxStorageBuffersPerShaderStage 10, timestamp quantisation)
+- https://developer.chrome.com/blog/new-in-webgpu-120 (shader-f16, maxStorageBuffersPerShaderStage 10, timestamp quantization)
 - https://developer.chrome.com/blog/new-in-webgpu-121 (timestamp-query shipped, Android)
 - https://developer.chrome.com/blog/new-in-webgpu-128 (adapter.info in 127, requestAdapterInfo removed in 131, subgroups origin trial)
 - https://developer.chrome.com/blog/new-in-webgpu-134 and https://github.com/mdn/content/issues/38416 (subgroups shipped in 134)

@@ -85,7 +85,7 @@ export function allPairsCeiling(limits: Pick<GPUSupportedLimits, "maxStorageBuff
 
 /**
  * The blocked sweep itself, shared with closeness's all-pairs route: the `n x n` matrix leased from `scope`, filled,
- * initialised from the arcs and swept to the shortest distances, every submit awaited; the matrix stays on the device.
+ * initialized from the arcs and swept to the shortest distances, every submit awaited; the matrix stays on the device.
  * The caller has checked the ceiling and the weights.
  * @internal
  * @param ctx - the context

@@ -53,7 +53,7 @@ comes up -- the message goes between two families."
 
 07.png: "Oh, here: 'Find paths and edge sets -- Shortest path, Start here: The fewest steps ... between
 two nodes.' 'The fewest steps' is exactly what I want. There's also 'Guided route -- Select 2 nodes
-first', greyed out. I'll take Shortest path since it says start here."
+first', grayed out. I'll take Shortest path since it says start here."
 
 ## Step 8
 
@@ -158,7 +158,7 @@ Follow-up answer given: Peruzzi -> Bischeri -> Guadagni -> Albizzi -> Ginori.
     linked". I only found Shortest path because I typed "between" in the filter. "Shortest path"
     sounds like a map app, but the line under it -- "The fewest steps ... between two nodes" -- is
     what told me it was right.
-  - "Guided route -- Select 2 nodes first" sat right under it, greyed out; I didn't know how it
+  - "Guided route -- Select 2 nodes first" sat right under it, grayed out; I didn't know how it
     differs from Shortest path and left it alone.
   - The left list says "4 hops"; the right side says "5 nodes, 4 edges". Neither is the word I'd
     use (three families in between, four handoffs), but I could work it out.

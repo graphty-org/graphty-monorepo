@@ -3,7 +3,7 @@
  * per iteration the out-weight sum per node (the out-degree when unweighted), the dangling mass over the nodes
  * whose sum is not positive, x'[v] = (1 - alpha) pv + alpha (sum over the in-arcs of w x[u] / outWeightSum[u] +
  * dangling pv), err = sum |x' - x|, converged when err < tolerance. `iterations` is the 1-based index of the first
- * converged iteration. The reverse adjacency is walked the way graph-format materialises it, never the device.
+ * converged iteration. The reverse adjacency is walked the way graph-format materializes it, never the device.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -35,10 +35,10 @@ interface Prepared {
 }
 
 /**
- * The out-weight sums, the reverse arrays and the normalised personalization of one run.
+ * The out-weight sums, the reverse arrays and the normalized personalization of one run.
  * @param s - the snapshot
  * @param weighted - whether the snapshot's weights are folded (false folds 1 per arc)
- * @param personalization - the personalization vector, normalised here to sum 1; omitted, pv is 1 / n everywhere
+ * @param personalization - the personalization vector, normalized here to sum 1; omitted, pv is 1 / n everywhere
  * @returns the prepared pieces
  */
 function prepare(s: GraphSnapshot, weighted: boolean, personalization?: ArrayLike<number>): Prepared {
@@ -104,7 +104,7 @@ function step(
  * PageRank with NetworkX's semantics in f64, stopping at the first iteration whose L1 error is below tolerance.
  * @param s - the snapshot
  * @param options - alpha, tolerance, maxIterations, weighted
- * @param personalization - the per-node personalization (normalised to sum 1); omitted, 1 / n everywhere
+ * @param personalization - the per-node personalization (normalized to sum 1); omitted, 1 / n everywhere
  * @returns the scores, the 1-based first converged iteration (maxIterations when it never converged), converged, and the dangling mass of the last iteration
  */
 export function pageRankOracle(
@@ -134,7 +134,7 @@ export function pageRankOracle(
  * @param s - the snapshot
  * @param options - alpha and weighted (tolerance and maxIterations are ignored: the run is exactly k long)
  * @param k - the iteration count
- * @param personalization - the per-node personalization (normalised to sum 1); omitted, 1 / n everywhere
+ * @param personalization - the per-node personalization (normalized to sum 1); omitted, 1 / n everywhere
  * @returns the iterate x(k)
  */
 export function pageRankOracleTo(

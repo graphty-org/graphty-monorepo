@@ -5,9 +5,9 @@ import { NodeStyle } from "../../src/config/NodeStyle";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor, CHANNELS } from "../../src/session/styles/channels";
 
 /**
- * A style object holding `value` at the channel's style path. A colour's opacity sits beside the
- * colour it qualifies, and a gradient's direction or circle beside its stops, so those paths are given a
- * colour to sit beside.
+ * A style object holding `value` at the channel's style path. A color's opacity sits beside the
+ * color it qualifies, and a gradient's direction or circle beside its stops, so those paths are given a
+ * color to sit beside.
  * @param descriptor - The channel.
  * @param value - The number to put there.
  * @returns The style object.

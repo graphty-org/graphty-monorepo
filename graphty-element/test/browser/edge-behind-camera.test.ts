@@ -2,11 +2,11 @@
  * @file An edge with one end behind the 3D camera draws only what is in front of the camera.
  *
  * The line shaders divide clip coordinates by w. A point behind the camera has a negative w, so
- * dividing by it mirrors the point through the screen's centre (issue #7126). The GPU's own clipping
- * still draws a lone straight piece right, but a corner in front of the camera whose neighbour is
+ * dividing by it mirrors the point through the screen's center (issue #7126). The GPU's own clipping
+ * still draws a lone straight piece right, but a corner in front of the camera whose neighbor is
  * behind it was joined as if the line arrived from the mirrored side, a wedge of wrong pixels at the
  * corner. The camera here sits between connected nodes and looks along +z; the edges run at
- * x > 0, so every point of them that is in front of the camera is right of the screen's centre.
+ * x > 0, so every point of them that is in front of the camera is right of the screen's center.
  */
 
 import { Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/core";
@@ -48,7 +48,7 @@ describe("an edge with one end behind the camera", () => {
     });
 
     /**
-     * Render and count the drawn pixels left of the screen's centre and in its right-most column.
+     * Render and count the drawn pixels left of the screen's center and in its right-most column.
      * @returns The two counts.
      */
     async function drawn(): Promise<{ left: number; rightEdge: number }> {

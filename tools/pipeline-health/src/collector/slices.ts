@@ -230,7 +230,7 @@ export function sliceMode(run: GhRun): SliceMode | undefined {
 }
 
 /**
- * Master's newest green build in a newest-first list of ci.yml push runs, skipping red, cancelled and running ones.
+ * Master's newest green build in a newest-first list of ci.yml push runs, skipping red, canceled and running ones.
  * @param runs - ci.yml push runs, newest first
  * @returns the green build's commit, or undefined
  */
@@ -240,7 +240,7 @@ export function newestGreen(runs: GhRun[]): { sha: string } | undefined {
 }
 
 /**
- * Runner-minutes of a finished attempt: every job's started-to-completed time (failed and cancelled ones too).
+ * Runner-minutes of a finished attempt: every job's started-to-completed time (failed and canceled ones too).
  * @param jobs - the attempt's jobs
  * @returns the summed runner-minutes
  */

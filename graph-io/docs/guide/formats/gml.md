@@ -1,6 +1,6 @@
 # GML
 
-GML, the [Graph Modelling Language](https://networkx.org/documentation/stable/reference/readwrite/gml.html),
+GML, the [Graph Modeling Language](https://networkx.org/documentation/stable/reference/readwrite/gml.html),
 is a text format of nested `key value` records. graph-io reads and writes it the way NetworkX and
 igraph do.
 

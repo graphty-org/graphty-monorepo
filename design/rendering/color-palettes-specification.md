@@ -881,7 +881,7 @@ StyleHelpers.setTheme("muted"); // Low saturation
 
 1. **Okabe, M., & Ito, K. (2008)**. Color Universal Design. _How to make figures and presentations that are friendly to Colorblind people_.
 
-2. **Tol, P. (2021)**. Colour Schemes. _SRON Technical Note SRON/EPS/TN/09-002_.
+2. **Tol, P. (2021)**. Color Schemes. _SRON Technical Note SRON/EPS/TN/09-002_.
 
 3. **Nuñez, J.R., Anderton, C.R., & Renslow, R.S. (2018)**. Optimizing colormaps with consideration for color vision deficiency. _PLOS ONE_, 13(7).
 

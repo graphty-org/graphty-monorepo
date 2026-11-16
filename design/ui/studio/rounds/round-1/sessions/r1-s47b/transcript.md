@@ -38,11 +38,11 @@ Think-aloud: "There's Save. Like any program. Good."
 
 Command: `--step ... --click Save` -> `03.png`
 
-Saw: a dialog "Save Les Miserables as", Name field filled with "Les Miserables", small grey line
+Saw: a dialog "Save Les Miserables as", Name field filled with "Les Miserables", small gray line
 "Choose where the file goes next. Later saves write the same file.", Cancel and Save.
 
 Think-aloud: "It wants a name. I'll put my own name on it so I don't mix it up with the sample.
-I didn't read the grey line."
+I didn't read the gray line."
 
 ### 4. Type a name
 
@@ -123,6 +123,6 @@ Command: `--end rounds/round-1/sessions/r1-s47b`
       with numbers) instead of what I was looking at. Not wrong, just not where I left it.
     - "Influence" -- I'm told it is which characters matter most. Nothing on the screen said that
       in plain words; I took it on trust.
-    - The grey line in the save box about choosing where the file goes -- I didn't read it, and
+    - The gray line in the save box about choosing where the file goes -- I didn't read it, and
       I couldn't tell you now where the file actually is on my computer. It found it again, so I
       didn't need to know today.

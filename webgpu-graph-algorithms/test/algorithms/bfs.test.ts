@@ -6,7 +6,7 @@
  * equality with the oracle) and bitwise against the host's spelling of that rule; `order` grouped by depth and
  * ascending by index within a depth (PD-14), bitwise against the host's sort of the oracle's depths and equal to the
  * oracle's level sets; `visitedCount`, `levels` and `switches` (0: top-down only until P8-T8); `maxDepth` as the CPU
- * port reads it and the normalisation cases (0, 2.5, -1, Infinity, NaN) compared with the oracle called with the
+ * port reads it and the normalization cases (0, 2.5, -1, Infinity, NaN) compared with the oracle called with the
  * SAME raw value; run-twice bitwise on the four arrays and on the counters block after every submit; the device's
  * rowPtr / colIdx unchanged and the snapshot's checksums intact after a run; the inspect seam (`levelsPerSubmit: 1`,
  * `onLevel`) handing back every level's frontier as the oracle's set; the one-workgroup `sssp-pred` case that proves
@@ -358,7 +358,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(grid);
     });
 
-    // The maxDepth normalisation cases on the grid, each compared with the oracle under the SAME raw value; none
+    // The maxDepth normalization cases on the grid, each compared with the oracle under the SAME raw value; none
     // throws. One case per raw value, and the reference (no cap, or 3) is the oracle's, which checkRun already holds
     // the GPU to: run as one case the seven differentials took 11 s on CI's lavapipe (issue #1809).
     it("maxDepth 0 and -1 on the grid are the source alone, each compared with the oracle under the SAME raw value; neither throws", async (t) => {

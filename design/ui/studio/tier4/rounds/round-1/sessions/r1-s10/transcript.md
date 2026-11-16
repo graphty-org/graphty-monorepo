@@ -14,7 +14,7 @@ Command: --step --click "telemetry" -> ambiguous, nothing happened (03.png). Ret
 Command: --step --click "role=option:telemetry" -> 04.png
 
 ## Step 3 (04.png)
-A small box appeared under Filters: telemetry, "Is any of", with yes 7, no 4, (no value) 1. Small grey text, but I can read it. I want the ones that send by themselves, so I tick "yes".
+A small box appeared under Filters: telemetry, "Is any of", with yes 7, no 4, (no value) 1. Small gray text, but I can read it. I want the ones that send by themselves, so I tick "yes".
 Command: --step --click-at 85,500 (input "yes, 7 nodes") -> 05.png
 
 ## Step 4 (05.png)
@@ -52,7 +52,7 @@ That's it. Top bar back to "5 of 12 nodes", the table shows the five again, and 
 - Finished: yes. 5 gauges are still in the picture (send by themselves, 70 cm or deeper), and 3 of them are marked (put in before 2005: G01, G02, G09).
 - Ease: 5 of 7.
 - What confused me:
-  - When I typed 2005 in the second box, it took two of my five gauges out of the picture straight away. I hadn't asked for that; I had to notice the count drop to 3 and find the small "Select / Hide" switch, which is pale grey and tiny. If I hadn't been counting I'd have told the council 3.
+  - When I typed 2005 in the second box, it took two of my five gauges out of the picture straight away. I hadn't asked for that; I had to notice the count drop to 3 and find the small "Select / Hide" switch, which is pale gray and tiny. If I hadn't been counting I'd have told the council 3.
   - The second box showed "5 of 12" while it was hiding things down to 3, then "3 of 5" after I switched to Select. I wasn't sure which number to believe until I looked at the top bar and the table.
   - Clicking the word "telemetry" was ambiguous at first; I just wanted the one in the list.
   - "2 nodes have no value and are left out" under depth - fine, but I had to read it twice. One gauge had no depth (Stone Weir); I assume it's correct that it's out, but I'd probably ask her about that bit.

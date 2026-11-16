@@ -105,7 +105,7 @@ export interface SeedEntry {
  *
  * One byte per node, 1 while the reader has fixed that node in place. The OWNER is
  * `positions.pinnedView()`, the lane beside the coordinates; this column is that lane attached to
- * the snapshot, exactly as the position column is, so anything that reads or serialises a snapshot
+ * the snapshot, exactly as the position column is, so anything that reads or serializes a snapshot
  * carries the pins with the coordinates they pin rather than losing them at the freeze.
  */
 const PINNED_COLUMN = "graphty.pinned";
@@ -1645,7 +1645,7 @@ export class GraphStore {
     }
 
     /**
-     * Queue a structural change, cancelling it against the one before when they undo each other.
+     * Queue a structural change, canceling it against the one before when they undo each other.
      * @param change - The change.
      */
     private defer(change: Structural): void {

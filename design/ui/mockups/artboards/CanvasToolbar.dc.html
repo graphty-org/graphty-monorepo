@@ -41,7 +41,7 @@
   Everything on it is 1:1. Nothing is scaled.
 
   THE THREE SLICES. Each is a crop of a real canvas rect, bounded by a 1px #48525c rule that is the crop mark
-  and not shell chrome. Each obeys the rule that any board drawing a canvas draws the bottom-centre toolbar and
+  and not shell chrome. Each obeys the rule that any board drawing a canvas draws the bottom-center toolbar and
   the settled bottom stack:
    1. Two 330 x 134 plates, one per size, cropped at the canvas floor (no status bar below them: bottom: 12 is
       measured from the canvas rect, and the plate ends where the rect ends).
@@ -86,7 +86,7 @@
 
   TB-7, recorded here so the next agent does not re-add it: the zoom percentage is NOT in the bar. The status
   bar owns it, it renders about 12 below the Zoom in and Zoom out buttons, and a numeric readout would change
-  the bar's width between 10% and 1000% -- the one thing a centred bar cannot tolerate. Both slices draw
+  the bar's width between 10% and 1000% -- the one thing a centered bar cannot tolerate. Both slices draw
   "Zoom 100%" in the status bar and neither draws a percentage in the bar. TB-7's other consequence, moving
   zoom later in the status bar's right-to-left drop order (AI status, layout name, zoom, Viewing), is a 5.1
   edit and is not visible at this width.
@@ -95,11 +95,11 @@
   TB-8: the Views menu opens upward from this trigger, its bottom edge 4 above the bar's top edge, and a checked
   Toolbar row joins its Show group. The menu is drawn open on ViewsMenu.dc.html and is not drawn here, because
   a second drawing of the same menu would make this sheet a menu board.
-  TB-5: on iPad the rect stays 1132 wide, the 274 bar centres on it with 149 clear of a 280 overlay a side, and
+  TB-5: on iPad the rect stays 1132 wide, the 274 bar centers on it with 149 clear of a 280 overlay a side, and
   tapping the bar is not tapping the canvas. IpadPanel and IpadInspector draw that; the numbers are theirs.
-  A1: when Graph / Table maximises the drawer to the full canvas height the whole bar leaves with the minimap
+  A1: when Graph / Table maximizes the drawer to the full canvas height the whole bar leaves with the minimap
   and the legend and returns when the drawer is restored. That is the last row of the Bottom offset table, and
-  it is the only condition under which the bar is not drawn. Graph / Table stays at top centre and never enters
+  it is the only condition under which the bar is not drawn. Graph / Table stays at top center and never enters
   the bar; it is out of frame in slice 2, which is a bottom crop.
 
   REVISION 1.8, THE DOOR TEST, ANSWERED FOR THIS SHEET. A1 asks two things of a control before it may go
@@ -107,7 +107,7 @@
   leaves behind still report whether this instance left it. Nothing on this board is a candidate. The bar's
   eight items are a fixed item set (TB-1) and every one of them is an action, not a setting; a component
   sheet of RT-6 measurement rows has no properties to hide. So this board draws no gear and no door, A6's
-  dimmed-versus-primary stub ink has nothing to colour, and A3's one-click depth obligation has nothing to
+  dimmed-versus-primary stub ink has nothing to color, and A3's one-click depth obligation has nothing to
   count. Do not add a gear to this sheet to "apply" 1.8. It draws no transient surface open either -- the
   Views menu is ViewsMenu.dc.html's (TB-8) -- so B1's anchor rule is recorded here in words, in the
   Clearance section that owns the sliding case, and is measured on the boards that draw one. What 1.8
@@ -2004,7 +2004,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -2653,12 +2653,12 @@
                                 <!-- SLICE 2: a 698-wide canvas rect, cropped at the top. The drawer is a dock and shortens the rect
                to its top 218; the slider is an overlay on the bottom edge of what remains; the bar rides 12
                above the slider. Two objects, 12 apart -- the bar is never merged into the slider bar, because
-               the slider exists only when a Time role is assigned. Graph / Table stays at top centre and is
+               the slider exists only when a Time role is assigned. Graph / Table stays at top center and is
                out of frame. The minimap and the legend are hidden while the drawer is open (5.1).
                The drawer-open compact legend stops being a separately specified component in 1.8 (C6): it is
                this board's legend with the swatch rows and the ramps subtracted and the header lines kept,
                same 256 width, same right edge, no scroll. It is not drawn in this slice because at a 698
-               canvas the centred 246 bar runs x 226 to 472 and a right-anchored 256 legend runs x 430 to
+               canvas the centered 246 bar runs x 226 to 472 and a right-anchored 256 legend runs x 430 to
                686, which overlap -- the slice would have to draw the two-line reflow that SLICE 3 exists to
                show. The compact form is drawn on DataTableDrawer and ValidationPopout, which are the two
                boards C6 names. -->

@@ -386,7 +386,7 @@ function widensLine(style: EdgeStyleConfig | null): boolean {
 }
 
 /**
- * A style with the colour and the opacity of its line and its end caps left out: what two looks
+ * A style with the color and the opacity of its line and its end caps left out: what two looks
  * that share their batches' geometry have in common. See `Edge.restyleInPlace`.
  * @param style - The resolved style.
  * @returns A shallow copy without those six values.
@@ -453,7 +453,7 @@ function sameStyle(a: EdgeStyleConfig, b: EdgeStyleConfig | null): boolean {
 }
 
 /**
- * Whether two looks differ at most in the colour and the opacity of their line and end caps.
+ * Whether two looks differ at most in the color and the opacity of their line and end caps.
  * @param a - One look.
  * @param b - The other.
  * @returns True when nothing else differs.
@@ -527,12 +527,12 @@ export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
 }
 
 /**
- * How far a line through a node's centre runs before it leaves the node's bounding box, in the
+ * How far a line through a node's center runs before it leaves the node's bounding box, in the
  * node's own (graph-root) space: the exact surface of a box, and a tight bound for any other
- * built-in shape, all of which are built centred on their origin.
+ * built-in shape, all of which are built centered on their origin.
  * @param mesh - The node's mesh.
  * @param direction - The line's unit direction.
- * @returns The distance from the centre to the box's surface along the line.
+ * @returns The distance from the center to the box's surface along the line.
  */
 function boxReach(mesh: AbstractMesh, direction: Vector3): number {
     const { extendSize } = mesh.getBoundingInfo().boundingBox;
@@ -718,7 +718,7 @@ export class Edge {
     }
 
     /**
-     * Where one end is drawn: its row's centre for an end drawn with no `Node`, else its `Node`'s.
+     * Where one end is drawn: its row's center for an end drawn with no `Node`, else its `Node`'s.
      * @param end - Which end.
      * @returns The position.
      */
@@ -880,7 +880,7 @@ export class Edge {
         run: number[] | null;
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
-        /** A curve's last span and the centres it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
+        /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
         path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
         /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
         route?: { at: number; points: readonly number[] } | null;
@@ -1015,7 +1015,7 @@ export class Edge {
     /**
      * The source mesh this edge is currently drawn from.
      *
-     * The interner's key with the colour put back in, because the edge renderer has no
+     * The interner's key with the color put back in, because the edge renderer has no
      * per-instance state to carry one. See `EdgePaint`.
      */
     private meshKey: string;
@@ -1716,13 +1716,13 @@ export class Edge {
      * Where a line with no cap at an end starts: its node's gap past the outline where the end has one (no node hides
      * that stretch, Cytoscape.js `source-distance-from-node`), else as {@link groupEnd} says.
      * @param end - Which end.
-     * @param centre - Its node's center.
+     * @param center - Its node's center.
      * @param toward - The other end's center.
      * @returns The point.
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
         const gap = this.gapAt(end);
-        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
+        // an end drawn in front of edges hides the line's start at its center, and asks nothing of its node
         if (gap <= 0 && !this.endBehindEdges(end)) {
             return centre;
         }
@@ -1736,7 +1736,7 @@ export class Edge {
      * node hides, or, for a node drawn behind every edge (a group region, or a 2D node below z-index 0:
      * `Node.isDrawnBehindEdges`), its outline, which is where Cytoscape.js and yEd end an edge to a compound node.
      * @param node - The end's node.
-     * @param centre - Its center.
+     * @param center - Its center.
      * @param toward - The other end's center.
      * @returns The point.
      */
@@ -1837,7 +1837,7 @@ export class Edge {
      * so). Null without one, for the caption to hang beside the cap as before.
      * @param arrow - The end's arrow block.
      * @param node - The end's node.
-     * @param centre - That node's center.
+     * @param center - That node's center.
      * @param other - The other node's center.
      * @returns The point, where the caption hangs from it and how far, or null.
      */
@@ -1944,15 +1944,15 @@ export class Edge {
     }
 
     /**
-     * Draw, move or drop the band of the configured edge selection colour, at the configured
+     * Draw, move or drop the band of the configured edge selection color, at the configured
      * opacity, along this edge's line: the edge's halo.
      *
      * THE SELECTION STYLE'S THREE EDGE SETTINGS (`edgeColor`, `edgeScale`, `edgeOpacity`). The
      * band is `edgeScale` times twice the line's width and is drawn BEHIND the line, pushed back
      * in depth, so the line keeps its own paint down the middle and the band shows on both sides
      * as a casing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
-     * beside a one-pixel line, which on a dense drawing could not be told from the grey edges.
-     * Before that it recoloured the line itself, darkened until it stood 3:1 from the canvas: on
+     * beside a one-pixel line, which on a dense drawing could not be told from the gray edges.
+     * Before that it recolored the line itself, darkened until it stood 3:1 from the canvas: on
      * a light canvas that turned gold into a dark olive nobody had configured.
      * @param style - The line's resolved style; the band follows its width and its curve.
      */
@@ -2032,9 +2032,9 @@ export class Edge {
         const meshDisposed = this.mesh.isDisposed();
 
         // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
-        // role is `mesh`, with the colour and the opacity folded back into the string by
+        // role is `mesh`, with the color and the opacity folded back into the string by
         // `StylePainter.edgePaintOf` because an edge has no per-instance state to write them
-        // into -- so an unchanged key means the line, its caps and its colour are all unchanged.
+        // into -- so an unchanged key means the line, its caps and its color are all unchanged.
         // The `content` channels are keyed by nothing, so they are applied here. See
         // `drawnLabelText` for the defect that reached a consumer.
         // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
@@ -2046,7 +2046,7 @@ export class Edge {
         // children, so that rebuild cost the size of the scene per element and the load grew as
         // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
         // deep-equal to the one the current mesh was built from means the same geometry, the same
-        // colour and the same content by construction, so the key is adopted and nothing is
+        // color and the same content by construction, so the key is adopted and nothing is
         // touched.
         // A line that moves between pattern elements and a joined line in a batch
         // (`EdgeMesh.drawsAsPattern`) takes a different mesh.
@@ -2206,10 +2206,10 @@ export class Edge {
 
     /**
      * Move a plain line and its end caps to the batches of a look that differs from the one they
-     * are drawn with only in colour and opacity, copying where each is drawn rather than building
+     * are drawn with only in color and opacity, copying where each is drawn rather than building
      * and placing them again.
      *
-     * WHY THIS EXISTS (#6026). Colour and opacity are a batch's, folded into the mesh key, so a
+     * WHY THIS EXISTS (#6026). Color and opacity are a batch's, folded into the mesh key, so a
      * look that changes only them -- the Ghost row, as a time window slides past thousands of
      * edges a frame -- took the whole rebuild in `paintFrom` for every edge: release the line,
      * dispose and rebuild every cap, rebuild the content, and place everything again on the next
@@ -2763,9 +2763,9 @@ export class Edge {
     /**
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
-     * between two node centres -- no cap, gap, group, bend, label, band or any other line
+     * between two node centers -- no cap, gap, group, bend, label, band or any other line
      * key -- in 3D, or in 2D when it is not a curve, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
+     * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centers' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
      * over both, and pulls a straight line as a curve too, `EdgeMesh.pullsCurve`), its height
@@ -2780,7 +2780,7 @@ export class Edge {
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
             pulledLook(style) &&
-            // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
+            // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its center
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
@@ -2898,14 +2898,14 @@ export class Edge {
     }
 
     /**
-     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
+     * Write a pulled curve's span for its two centers, as `placeRoute` would cut the curve there -- a lone
      * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), its circle (`line.arcRadius`), or its raised arc (`line.route`
      * "arc"), the quadratic through its support point (`line.supportModel`), or a self-loop's teardrop round its node -- taking pieces while the cut
      * needs more than it holds, each node grown by its gap (`line.nodeGap`). A curve no point of which clears both nodes is drawn as the lone
      * curve between its bare ends ({@link Edge.bareEnd}), uncut, as the object path draws it (`placeCurve`); one it would draw another way
-     * (`curveSpan` null: a centre outside its own node, or bare ends that meet) draws nothing.
-     * @param src - The source node's centre.
-     * @param dst - The target node's centre.
+     * (`curveSpan` null: a center outside its own node, or bare ends that meet) draws nothing.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
      */
     private pullCurve(src: Vector3, dst: Vector3): void {
         if ((this.pulled?.run ?? null) === null) {
@@ -2977,8 +2977,8 @@ export class Edge {
     /**
      * Write a pulled curve's span to its pieces, taking more while the span needs more than they hold.
      * @param span - The span, or null to draw nothing.
-     * @param src - The source centre it was cut between.
-     * @param dst - The target centre.
+     * @param src - The source center it was cut between.
+     * @param dst - The target center.
      */
     private pullSpan(span: CurveSpan | null, src: Vector3, dst: Vector3): void {
         const { pulled } = this;
@@ -3465,7 +3465,7 @@ export class Edge {
      * THE DEFECT THIS CLOSES, and it was visible on screen: no Edge.dispose existed at all.
      * `DataManager.clear()` emptied its maps and called `meshCache.clear()`, which disposes the
      * cached SOURCE meshes -- and Babylon disposes a source mesh's instances with it. That is why
-     * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty grey
+     * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty gray
      * ARROWHEADS stayed on the canvas, in rosettes where the previous dataset's edges had
      * converged. Arrowheads are not in the MeshCache (today each is an instance of a per-scene
      * batch that `FilledArrowRenderer.instanceOf` frees with its last head): they are parented
@@ -3888,7 +3888,7 @@ export class Edge {
     }
 
     /**
-     * How far a self-loop runs from its node's centre: the usual radius, or far enough out to
+     * How far a self-loop runs from its node's center: the usual radius, or far enough out to
      * clear a node too big for it -- the loop is a circle in the x-y plane, so the node's reach
      * there is its radius when round, and its box's half-diagonal in that plane otherwise.
      * @returns The radius.
@@ -4073,7 +4073,7 @@ export class Edge {
     }
 
     /**
-     * How far a line through a node's centre runs before it leaves the node's bounding box ({@link boxReach}), or its
+     * How far a line through a node's center runs before it leaves the node's bounding box ({@link boxReach}), or its
      * box when its surface is its box ({@link Node.surfaceIsBox}).
      * @param node - The node.
      * @param direction - The line's unit direction.
@@ -4134,7 +4134,7 @@ export class Edge {
     /**
      * A test of whether a point lies outside a node's drawn shape.
      * @param node - The node.
-     * @param centre - The node's center.
+     * @param center - The node's center.
      * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
@@ -4520,7 +4520,7 @@ export class Edge {
     /**
      * Where a segment from a node's center toward a point crosses the node's surface and border.
      * @param node - The node.
-     * @param centre - Its center.
+     * @param center - Its center.
      * @param toward - The point the segment runs to.
      * @param gap - How far past the outline the line stops (`line.nodeGap`).
      * @returns The crossing, or the center when the point is the center.
@@ -4910,7 +4910,7 @@ export class Edge {
     }
 
     /**
-     * Place the arrow head from the node centres and bounding radii, for when the line's ends on
+     * Place the arrow head from the node centers and bounding radii, for when the line's ends on
      * the node surfaces could not be found, and say where the line runs.
      * @param arrowCap - This edge's arrow head.
      * @returns The line's ends, stopping short of the arrow head.
@@ -4920,7 +4920,7 @@ export class Edge {
         const fallbackDst = this.endPosition("target");
 
         // Hide the arrow when the nodes are at the same position or overlap: walking out to each node's wall would
-        // cross the other's centre, and the line would run from wall to far wall, longer than the gap (#7759).
+        // cross the other's center, and the line would run from wall to far wall, longer than the gap (#7759).
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01) || this.endsOverlap(fallbackSrc, fallbackDst)) {
             arrowCap.setDrawn(false);
             return {
@@ -4945,7 +4945,7 @@ export class Edge {
                 // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
                 // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
                 // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
-                // (graph-root) space, the space the centres above are in.
+                // (graph-root) space, the space the centers above are in.
                 const dstNodeRadius = this.boxReachAt("target", direction);
                 const srcNodeRadius = this.boxReachAt("source", direction);
                 return { arrowLength, dstNodeRadius, srcNodeRadius };
@@ -5111,7 +5111,7 @@ export class Edge {
                 cap.dispose();
             }
         }
-        // a row of caps behind an end cap, each part in the end cap's colour and opacity
+        // a row of caps behind an end cap, each part in the end cap's color and opacity
         const stack = (
             arrow: EdgeStyleConfig["arrowHead"],
             suffix: string,
@@ -5233,7 +5233,7 @@ export class Edge {
 
         if (srcRadius !== null && dstRadius !== null) {
             // WORKED OUT RATHER THAN SEARCHED FOR. Where a straight line crosses a sphere is one
-            // multiply away from the centre and the radius, and this is the answer for the shapes
+            // multiply away from the center and the radius, and this is the answer for the shapes
             // the element draws by default. The search it replaces -- two ray-against-mesh
             // intersections per edge, each walking the triangles of a node's geometry -- measured
             // 137 ms of a 151 ms frame on a graph of two thousand nodes with a live layout, which
@@ -5306,8 +5306,8 @@ export class Edge {
         freshenWorldMatrix(dstMesh);
 
         // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
-        // meshes' world geometry, so the ray runs between their world centres; the line is
-        // drawn under graph-root, so each hit is carried back as how far along the centre
+        // meshes' world geometry, so the ray runs between their world centers; the line is
+        // drawn under graph-root, so each hit is carried back as how far along the center
         // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
         const srcWorld = srcMesh.getAbsolutePosition();
         const dstWorld = dstMesh.getAbsolutePosition();
@@ -5328,7 +5328,7 @@ export class Edge {
             // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
             const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
             if (hit) {
-                // signed, so a wall met behind the source's centre (one node inside the other) stays behind it
+                // signed, so a wall met behind the source's center (one node inside the other) stays behind it
                 return Vector3.Lerp(
                     srcMesh.position,
                     dstMesh.position,
@@ -5443,8 +5443,8 @@ export class Edge {
                 return TRIM_NO_HIT;
             }
 
-            // a wall met behind the centre (the ray started inside this node) is no end: the nodes overlap, and
-            // reaching the far centre leaves `trimEnds` no line between them (#7759)
+            // a wall met behind the center (the ray started inside this node) is no end: the nodes overlap, and
+            // reaching the far center leaves `trimEnds` no line between them (#7759)
             const toward = Vector3.Dot(hit.subtract(to), from.subtract(to)) / worldSpan;
             return toward < 0 ? span : (toward / worldSpan) * span;
         };
@@ -5530,8 +5530,8 @@ export class Edge {
     }
 
     /**
-     * Whether a line's two ends are out of order: the source's end lies behind its centre, the target's past its
-     * centre, or the source's at or past the target's, as they do when two nodes overlap.
+     * Whether a line's two ends are out of order: the source's end lies behind its center, the target's past its
+     * center, or the source's at or past the target's, as they do when two nodes overlap.
      * @param srcPoint - Where the line leaves the source.
      * @param dstPoint - Where it meets the target.
      * @param srcCentre - The source's center.
@@ -5547,7 +5547,7 @@ export class Edge {
     }
 
     /**
-     * Whether the two end nodes' boxes, measured along the line between their centres, reach each other.
+     * Whether the two end nodes' boxes, measured along the line between their centers, reach each other.
      * @param src - The source's center.
      * @param dst - The target's center.
      * @returns True when they overlap.
@@ -5696,9 +5696,9 @@ export class Edge {
     /**
      * The text this edge's label draws, which is the empty string when nothing configured one.
      *
-     * There used to be a fallback to `this.id`, so an unlabelled edge read `"alice:bob"` on
+     * There used to be a fallback to `this.id`, so an unlabeled edge read `"alice:bob"` on
      * screen. Under an element-assigned counter that same fallback would read `"17"` -- an
-     * internal number with no meaning to a reader -- so it is gone: an unlabelled edge draws no
+     * internal number with no meaning to a reader -- so it is gone: an unlabeled edge draws no
      * label at all.
      * @param labelConfig - the label block of the resolved edge style, if there is one
      * @returns the text, or "" for an edge nothing named
@@ -5718,7 +5718,7 @@ export class Edge {
      *
      * WHAT THIS REPLACED FOR A CAPTION. The captions used to be built by a mapping of their own
      * that read seven fields of the block -- the words, the font size, the text and background
-     * colours, the corner radius and the offset -- and dropped the other fifty. A caption could
+     * colors, the corner radius and the offset -- and dropped the other fifty. A caption could
      * not be given a typeface, a border, a shadow, a badge or a margin by any route at all, not
      * even by a caller writing the style out by hand, and nothing said so.
      * @param labelText - The words to draw.

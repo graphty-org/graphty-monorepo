@@ -37,7 +37,7 @@ Items `decided.md` already carries are listed once at the end, not re-argued.
 
 - **Evidence.** `side-add-vs-placeholder-vs-inert.png`, top to bottom: the add button at rest (the
   Keep glyph, a caret, the word "Keep" in dimmed ink), the new step waiting for its value (the Keep
-  glyph and dimmed "Keep" on a grey row), an inert step ("role No test", dimmed), and the add button
+  glyph and dimmed "Keep" on a gray row), an inert step ("role No test", dimmed), and the add button
   of group B. The button's glyph is the same glyph, at the same x, as the step row above it
   (`crop-03-editor.png`), so the foot of each group reads as one more unfinished Keep step. Nothing on
   screen says "add"; only its tooltip and name do (`s1/04.png`).
@@ -54,7 +54,7 @@ Items `decided.md` already carries are listed once at the end, not re-argued.
 - **Evidence.** In both hosts the list draws a horizontal scrollbar under its rows, and long entries
   are cut with no ellipsis: "Depth-first order: Exploration or", "Clustering coefficient: How tigh"
   (`crop-12-picker.png`, `crop-13-picker.png`, `crop-11-picker.png`; filter host `s1/27.png`). The
-  scrollbars are the browser's own (arrows, grey thumb), where every Select in the app (the card's
+  scrollbars are the browser's own (arrows, gray thumb), where every Select in the app (the card's
   "Between" list, `crop-30-select.png`) has the themed overlay scrollbar.
 - **Why it matters.** Figma's listbox (figma-spec 6.5) truncates a row with an ellipsis and never
   scrolls sideways; figma-spec 8.7 gives every scroll container the overlay scrollbar. The picker is

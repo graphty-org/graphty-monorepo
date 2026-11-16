@@ -336,12 +336,12 @@ This priority system ensures:
 - When a new data source is specified while previous data is still loading, the system automatically cancels the in-progress load.
 - This prevents race conditions where old data might arrive after new data has been requested.
 - The cancellation is implemented using RxJS's `switchMap` operator on a dedicated data loading stream.
-- Any dependent operations (layout, render) associated with the cancelled data load are also cancelled.
+- Any dependent operations (layout, render) associated with the canceled data load are also canceled.
 
 **Layout Cancellation:**
 
 - Layout calculations can be expensive and long-running, especially for force-directed layouts.
-- When new data arrives or a different layout is requested, any in-progress layout calculation is immediately cancelled.
+- When new data arrives or a different layout is requested, any in-progress layout calculation is immediately canceled.
 - This ensures responsive UI where users don't have to wait for old layouts to complete before seeing new ones.
 - Cancellation scenarios:
     - New data load → cancels current layout (data has changed, layout needs recalculation)
@@ -475,7 +475,7 @@ export class CancellationTester {
 **Verification:**
 
 - Run each cancellation pattern
-- Verify correct operations are cancelled
+- Verify correct operations are canceled
 - Test with actual graph operations
 
 **Testing:**

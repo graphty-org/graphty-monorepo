@@ -61,7 +61,7 @@ weights (`value`, 1 to 31) and options.
 - **Random 3D**: the same positions rounded to float32 (largest move 9e-6 scene units).
 - **Arf** never converges on this graph: after the story's 1000 iterations the summed force is
   still about 27000 (the stopping tolerance is 1e-6), and the iteration is chaotic. Moving one
-  start coordinate by 1e-12 moves nodes by 1.07 units, where the nodes lie about 0.3 units from their centre on average. The new
+  start coordinate by 1e-12 moves nodes by 1.07 units, where the nodes lie about 0.3 units from their center on average. The new
   layout also draws its start from the layout package's shared seeding rather than the legacy
   `randomLayout`, so the two sides start from different points and end in different drawings. Both
   are what ARF gives for these options; neither is more correct. The before drawing is a band 4.3
@@ -102,7 +102,7 @@ graphty-element's fixed layout now works like this:
 
 A test in `graphty-element/test/layout/pin-state.test.ts` switches from the circular layout to
 the fixed one and checks every node's data position, then drags a node, adds another and checks
-that the drag held. With this behaviour 8 of 8 renders of the story are byte-identical to the
+that the drag held. With this behavior 8 of 8 renders of the story are byte-identical to the
 before build ([element-layout-stories](../element-layout-stories/README.md), "Switching to the
 fixed layout kept the previous layout's coordinates"), so the story no longer differs from before
 the migration. `probes/fixed-probe.mjs` reports the largest distance of any node from its data

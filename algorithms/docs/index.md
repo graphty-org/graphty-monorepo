@@ -22,7 +22,7 @@ features:
       link: ./guide/getting-started
       linkText: Start here
     - title: Traversal & Search
-      details: BFS, direction-optimised BFS, DFS, topological sort and cycle detection.
+      details: BFS, direction-optimized BFS, DFS, topological sort and cycle detection.
       link: ./guide/traversal
       linkText: Learn more
     - title: Shortest Path
@@ -38,7 +38,7 @@ features:
       link: ./guide/community
       linkText: Learn more
     - title: Link Prediction
-      details: Common neighbours and Adamic-Adar scores, predictions and evaluation.
+      details: Common neighbors and Adamic-Adar scores, predictions and evaluation.
       link: ./guide/link-prediction
       linkText: Learn more
 ---

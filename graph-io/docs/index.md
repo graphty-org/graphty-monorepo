@@ -33,7 +33,7 @@ Start with the [Quick start](./guide/quick-start.md).
 | [GraphML](./guide/formats/graphml.md)       | The XML format of yEd, NetworkX, igraph and Gephi                                          |
 | [GEXF](./guide/formats/gexf.md)             | Gephi's XML format, with visual attributes and dynamic graphs                              |
 | [CSV and TSV](./guide/formats/csv.md)       | Edge lists, node tables and adjacency lists from spreadsheets and scripts                  |
-| [GML](./guide/formats/gml.md)               | The Graph Modelling Language, as NetworkX and igraph write it                              |
+| [GML](./guide/formats/gml.md)               | The Graph Modeling Language, as NetworkX and igraph write it                               |
 | [DOT](./guide/formats/dot.md)               | Graphviz graphs                                                                            |
 | [Pajek](./guide/formats/pajek.md)           | Pajek `.net` networks and `.paj` projects                                                  |
 | [Neo4j CSV](./guide/formats/neo4j.md)       | The CSV files `neo4j-admin import` reads                                                   |
@@ -49,7 +49,7 @@ one keeps.
 ## Where to go next
 
 - [Loading graphs](./guide/loading.md): every kind of input, format options, files with several
-  graphs, cancelling, keeping a browser bundle small.
+  graphs, canceling, keeping a browser bundle small.
 - [Reading the graph](./guide/reading.md): nodes, attributes, labels, edges, weights.
 - [Saving graphs](./guide/saving.md): checking a save, streaming, downloads, ids a format cannot hold.
 - [Styles](./guide/styles.md): a file's colors, sizes, shapes and labels, read and written in every

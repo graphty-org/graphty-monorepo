@@ -2,7 +2,7 @@
 // these..." on Group 2's menu; the Dataset's Layout tab opened with Apply to
 // [Group 2] and the Ring arrangement, and the eleven members were placed on a
 // ring around where they were, while the other 23 nodes stayed put. The ring
-// is computed here from karate.mjs's positions (centre = the members'
+// is computed here from karate.mjs's positions (center = the members'
 // centroid). The row's menu is drawn beside its row, tagged as the moment
 // before, with the chosen row highlighted.
 import { NODES, COMMUNITIES } from "../karate.mjs";

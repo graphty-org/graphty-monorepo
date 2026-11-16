@@ -25,7 +25,7 @@ with a plus. Edges have a "weight" column. That's what I want. Clicking the plus
 `--step $S --click-at 275,197` (prints: button "Add filter step") -> 03.png
 
 Alex: Right panel now says "New filter step", Keep: "an attribute's value", Attribute: empty dropdown,
-"Add step" greyed out. Fine, pick the attribute -- should be weight.
+"Add step" grayed out. Fine, pick the attribute -- should be weight.
 
 ## Step 4
 

@@ -17,7 +17,7 @@ graphty app gets one consuming change, its style-layer panel naming the new `sco
   changed since.
 - **One branch, one pull request.** Everything lands on `feat/element-sets` and merges to master
   once, after phase 28 (merging to master releases). Between phases the branch is never released,
-  so a type may be declared a phase before everything that honours it, but no phase leaves a
+  so a type may be declared a phase before everything that honors it, but no phase leaves a
   public member that throws "not implemented".
 - **Every phase is one engineer session** and ends with the phase gate (1.3) green. A phase that
   runs long is split at a test boundary, never left red.
@@ -32,12 +32,12 @@ graphty app gets one consuming change, its style-layer panel naming the new `sco
   `Filter` gains `scope` in phase 9, `Filter` gains `item` and `threshold` in phase 11, `Selector`
   gains `scope` in phase 16. No exhaustive switch in the element ever needs a "not yet" branch.
 - **Commits** are conventional commits made with `tools/commit-changes.sh` (dry run first). Each
-  behaviour change to a published verb or value gets its own `fix(graphty-element):` commit whose
+  behavior change to a published verb or value gets its own `fix(graphty-element):` commit whose
   body is the changelog entry, and only that commit may edit the pre-existing tests the change
   breaks. The commit belongs to the phase whose code first changes observable output, so the
   changelog and the code change land together:
 
-    | Behaviour change (design 15.3 item)                                          | Phase | Pre-existing tests it may edit                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+    | Behavior change (design 15.3 item)                                           | Phase | Pre-existing tests it may edit                                                                                                                                                                                                                                                                                                                                                                                                                                      |
     | ---------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
     | `scope.save` freezes `"selection"` and `"visible"` (15)                      | 10    | `ScopeApi.test.ts` "reports a set as unbound..." (the `chosen` row: saving `"selection"` without a selection now refuses `E_UNSUPPORTED`)                                                                                                                                                                                                                                                                                                                           |
     | `scope.save` never reissues a removed id (17)                                | 10    | `ScopeApi.test.ts` "catches a ring of saved sets..." (the ring is closed by a redefine instead)                                                                                                                                                                                                                                                                                                                                                                     |
@@ -56,7 +56,7 @@ graphty app gets one consuming change, its style-layer panel naming the new `sco
 The design's section 20 has two columns. Every row in "Built now" is built by some phase below
 (section 3 maps them). For a "Kept possible" row, only the extension point is built: the reserved
 name or field exists in the types or the validator, the doors refuse it with `E_BAD_COMMAND` in
-door mode, load mode keeps it opaque (design 12.5), and a test pins both behaviours.
+door mode, load mode keeps it opaque (design 12.5), and a test pins both behaviors.
 
 ### 1.3 The phase gate
 
@@ -221,7 +221,7 @@ and 10% with retained bytes.
 
 ### Phase 2. Definition types, canonical form and the door-mode validator
 
-**Goal.** The runtime-free types and the one function that canonicalises every definition
+**Goal.** The runtime-free types and the one function that canonicalizes every definition
 (design 4.1, 4.3 types, 5.1, 12.1, 15.1). Nothing is wired into the session yet.
 
 **Tests first.**
@@ -241,7 +241,7 @@ and 10% with retained bytes.
   refused as such.
 - `test/catalog/sets/parse.load.test.ts`, internal load mode: an unknown leaf, a known leaf with an
   unknown field (`range.op`), and a definition with an unknown top-level field each load, are
-  flagged opaque with the first unknown kind or field named, and canonicalise value-identical.
+  flagged opaque with the first unknown kind or field named, and canonicalize value-identical.
   (`ItemKey.op` is pinned in phase 11 with the `item` leaf; unknown top-level fields of the
   stored record, such as `meta`, are carried through by the store and pinned in phase 6.)
 - `test/catalog/sets/canonical.property.test.ts`: over generated definitions (fixed, rule trees to
@@ -285,7 +285,7 @@ goldens; the element's timing runner.
   reference FNV-1a-32 loop over a literal `Uint8Array`:
     - the reference loop gives the published FNV-1a-32 vectors ("" is 0x811c9dc5, "a" is
       0xe40c292c);
-    - the reference loop is parameterised by basis and multiplier; for an ASCII string id, lane A
+    - the reference loop is parameterized by basis and multiplier; for an ASCII string id, lane A
       of `hashNodeId` equals it with lane A's basis and multiplier over `0x24` followed by the
       characters, and lane B equals it with lane B's basis and multiplier;
     - a numeric id equals the reference over its tag and eight hand-written little-endian float64
@@ -459,7 +459,7 @@ Constructed by the session, not yet exposed as `session.sets` (phase 10).
   set holding more than 1M edge members (`E_TOO_LARGE`).
 - A door given a session `EdgeId` stores the stable `EdgeMember`; `get()` never returns a counter id.
 - Work count: `addMembers` of 3 members makes 3 hash calls and 3 `addToSum` calls on a 500-member
-  set and on a 500,000-member set, and the memoised revision equals a from-scratch `revisionOf`.
+  set and on a 500,000-member set, and the memoized revision equals a from-scratch `revisionOf`.
 - Tombstones: removing writes `{ id, name, record }`; an undo-shaped `put` of the record makes the
   tombstone non-authoritative; the record store is byte-capped (by its own accounting) and drops
   oldest first while keeping id and name.
@@ -471,11 +471,11 @@ Constructed by the session, not yet exposed as `session.sets` (phase 10).
   only grows.
 
 **Code.** `session/sets/store.ts` (`put`, `delete`, the register, tombstones, a committed-diff
-listener), `session/sets/prepare.ts` (pure: validate, clone, canonicalise, deep-freeze, carry
+listener), `session/sets/prepare.ts` (pure: validate, clone, canonicalize, deep-freeze, carry
 unknown fields; one function per operation `set.create`, `set.rename`, `set.redefine`,
 `set.members`, `set.remove`), `session/sets/types.ts`, and the synchronous half of
 `session/sets/SetsApi.ts`. A fixed set's edge members are held in typed arrays with interned ids
-(design 6.1) and `definition.edges` is materialised on first read. The binding side table
+(design 6.1) and `definition.edges` is materialized on first read. The binding side table
 (`WeakMap` from record to `{ store, counterIds }`) is created here, empty until phase 7b.
 
 **Done when.** Tests pass; a test fails if anything outside `session/sets/` imports `store.put` or
@@ -503,7 +503,7 @@ pass; the public doors that resolve (`createFrom`, `combine`, `createPath`) wrap
   for every legacy `Scope` form and fixed induced definitions.
 - `test/session/scope/digest.test.ts`: `digest` is `d1:<hex>`, equal for equal memberships reached
   by different specs, distinct for the distinct memberships the oracle generates, not built until
-  read, memoised on the resolution.
+  read, memoized on the resolution.
 - `ResolvedScope.nodes` / `.edges` are built on first read only (getter spy) with the same
   contents as before (every existing `ScopeApi.test.ts` case passes unmodified).
 
@@ -518,7 +518,7 @@ missingEdges }`, `resolveScope(scope, context)` where `context` carries the cont
   over the hash columns (`digestOf` in `resolve.ts`, `membershipDigestOf` in `catalog/sets/hash.ts`).
   The run staleness reads (`RunsApi.ts` `shouldReexecute` and `staleOf`) need no change: the
   resolver's frame serves the same resolution until the snapshot or a mask version moves, and the
-  digest is memoised on the resolution, so they sum only when the serial or signature changed.
+  digest is memoized on the resolution, so they sum only when the serial or signature changed.
   `{ where }` still re-resolves on every read until phase 8's signatures replace the frame.
   `ResolvedScope` TSDoc says `nodes` and `edges` are lazy.
 - The camera path (`applyCameraView(view, { scope })` in `Graph.ts`) reads the bitmap through
@@ -633,7 +633,7 @@ proof that a stored record survives JSON into a fresh session.
   resolution, and no entry from an older serial is ever served.
 - `test/session/sets/record-roundtrip.property.test.ts`: build a random session (records including
   opaque ones: an unknown leaf, an unknown field, a `meta`), export them with the store's
-  `toLogicalRecords()` (id, name, order, definition with materialised edges, createdFrom, unknown
+  `toLogicalRecords()` (id, name, order, definition with materialized edges, createdFrom, unknown
   fields, the register and tombstones), `JSON.stringify`, `JSON.parse`, and load them with
   `loadLogicalRecords()` (load-mode validation, then `put`) into a new session over the same
   graph loaded with node order and the order of id-bearing edges shuffled by a seeded permutation
@@ -645,14 +645,14 @@ proof that a stored record survives JSON into a fresh session.
 
 **Code.** `session/sets/signature.ts`, `session/sets/cache.ts`; `resolveScope` consults both. The
 old frame cache in `ScopeApi.ts:510-555` and its `isPredicate` bypass are deleted. The internal
-`toLogicalRecords()` / `loadLogicalRecords()` on the sets store: the one serialiser the round trip
+`toLogicalRecords()` / `loadLogicalRecords()` on the sets store: the one serializer the round trip
 proves, and the one a project file or an undo slice must use (phase 28 names it in design 13.4).
 
 **Done when.** Every row the audit table has by this phase is filled and every test passes.
 
 **As built.**
 
-- `session/sets/signature.ts` builds `<store>|<serial>|<parts>` and memoises the parts of named
+- `session/sets/signature.ts` builds `<store>|<serial>|<parts>` and memoizes the parts of named
   referents per epoch (store, serial, input tick, and the identity of the saved-scope map and the
   kept-set list). `session/sets/cache.ts` holds `SetsCache` (resolutions, summaries, the memo),
   `resolveSet` (the cached resolver of a kept record) and `countsOf` (counts from the summary).
@@ -759,10 +759,10 @@ SetDefinition }` (declared open) and `ScopeInput`; every `switch` over `Scope` h
 - `ScopeInput` is accepted by `scope.resolve` and `scope.count`, which turn session `EdgeId`s in
   an inline definition into stable members. Run options, selection targets, camera framing and
   `visibility.set` accept `{ define }` in stable form (their types say `Scope`); each is widened to
-  `ScopeInput` by the phase that normalises its getter: layer selectors in 16, `visibility.set` in
+  `ScopeInput` by the phase that normalizes its getter: layer selectors in 16, `visibility.set` in
   17, run options in 18, `setLayout` and `layoutScope` in 25, selection targets and camera
   framing in 27.
-- `legacyScope` in `runId.ts` canonicalises `{ define }` before hashing, so equal inline
+- `legacyScope` in `runId.ts` canonicalizes `{ define }` before hashing, so equal inline
   definitions share an id and the two older-form equivalents keep theirs.
 
 ---
@@ -783,7 +783,7 @@ SetDefinition }` (declared open) and `ScopeInput`; every `switch` over `Scope` h
   design 16 definition (`"graph"`, `"largest-component"` and `{ set }` to a rule with one `scope`
   leaf); `scope.list()` projects back to `SavedScope` including `bound`; `scope.remove` removes. A
   standalone `createScopeApi({ snapshot })` creates its own sets store when none is passed.
-- The three behaviour changes of section 1.1 assigned to this phase, each in its own commit with
+- The three behavior changes of section 1.1 assigned to this phase, each in its own commit with
   exactly the listed test edits: saving `"selection"` or `"visible"` freezes current members;
   saving after a remove never reissues the removed id (the ring test now closes its ring by
   redefining `first` and still expects `E_BAD_COMMAND`); `selection.promote` keeps the selected
@@ -849,7 +849,7 @@ commits exist with changelog bodies.
 - The phase 9 identity property extended to `item` and `threshold`.
 - `dependencies.test.ts` extended: follow versus hold recorded for `item`.
 
-**Code.** The two leaves in `catalog/types.ts` and `compileOne`. `ResultItem` normalisation: a door
+**Code.** The two leaves in `catalog/types.ts` and `compileOne`. `ResultItem` normalization: a door
 passed a `Run` or `RunResult` stores its `RunId`. `within`, `percentile`, `z`, `population` are
 reserved: refused in door mode, opaque in load mode.
 
@@ -930,7 +930,7 @@ sequences.
 
 ---
 
-### Phase 13. Set algebra and the materialising doors
+### Phase 13. Set algebra and the materializing doors
 
 **Goal.** `combine`, `createFrom` of a scope, and `createPath("selection")` (design 7, 13.3,
 15.2).
@@ -1010,7 +1010,7 @@ filled.
 
 - `session/sets/offers.ts` holds `createOffering` (offers, the edge-count pass, the path order
   and Memberships); the session builds one and hands it to `session.sets` and to the
-  materialiser. `SetOffer.nodes` became optional (design 8.2): a `listed` offer's nodes include
+  materializer. `SetOffer.nodes` became optional (design 8.2): a `listed` offer's nodes include
   its edges' endpoints, so they come from the edge-count pass like its edges. Node counts come
   from one cached pass over the node values, not the summary groups, which stop at ten.
 - The offer counts are one `SetsCache.offers` entry per run, valid for one (execution, store,
@@ -1102,8 +1102,8 @@ with an injectable frame source (production uses the render loop's frame callbac
   `results.pr` repaints after a re-run of `pr` with no data change.
 - Pins: a live layer's resolution is pinned and survives budget pressure.
 - `usedBy` lists the layer; held items named by a layer are captured on re-run.
-- Browser: `test/browser/sets/style-layer.test.ts` renders a graph, adds a layer colouring
-  `{ set }`, redefines the set, and reads node colours back through the element to check only the
+- Browser: `test/browser/sets/style-layer.test.ts` renders a graph, adds a layer coloring
+  `{ set }`, redefines the set, and reads node colors back through the element to check only the
   XOR changed.
 
 **Code.** The two `Selector` declarations; `CompiledSelector.match` gets a bit test by index; the
@@ -1112,7 +1112,7 @@ style manager subscribes to the notification with each scope's signature.
 **Story.** `stories/Sets.stories.ts`, title `Sets/Kept Sets`: `ColorASet`, `CombineTwoSets` (union,
 intersection and difference, each painted) and `RuleSetFollowsData` (the play function updates the
 attribute and the paint follows). Ids added to `stories/story-roster.json`; play functions assert
-colours through the element.
+colors through the element.
 
 **Done when.** Tests, the browser test and the storybook project for `Sets.stories.ts` pass; new
 Chromatic snapshots are left for the owner to accept.
@@ -1132,14 +1132,14 @@ Chromatic snapshots are left for the owner to accept.
   subscribes), pins its cache key (the kept set's definition, else the canonical scope, re-pinned
   on each resolution), and is dropped on the next style change that leaves no layer naming it.
   On the same snapshot `ready` repaints the XOR through the new `RepaintEngine.repaintElements`
-  (outside the op queue; the engine's own pass chain serialises it). Across a freeze it carries
+  (outside the op queue; the engine's own pass chain serializes it). Across a freeze it carries
   its old members to the new rows by id, once per snapshot, and repaints the carried bitmap XOR
   the new resolution; until its frame, the same carry answers every pass, so the element's
   whole-graph pass after a removal keeps the paint.
 - `SetsDependencies.users` feeds `usedBy` (layers today); the run capture holders include every
   layer scope.
 - Defect found and fixed: the input tick advanced when a token was minted, at the start of the
-  work, but not when the result it stamps was published or cleared, so a signature memoised in
+  work, but not when the result it stamps was published or cleared, so a signature memoized in
   between kept reading "no result" and a kept rule over `results.<run>` resolved one execution
   behind. The session now advances the tick whenever a run's result is not the one it last
   announced (design 6.2 updated); `input-tick.test.ts` pins the new counts.
@@ -1203,7 +1203,7 @@ cycle safety already hold from phase 9.
 existing seams routed through it, and the per-algorithm declaration that decides what the seams
 hand over. No run's output changes in this phase.
 
-**Why a declaration.** Whether an algorithm honours its scope is a fact about the algorithm at
+**Why a declaration.** Whether an algorithm honors its scope is a fact about the algorithm at
 runtime, not about which file reads what. 25 files under `src/algorithms/` read topology through
 the two seams (`Algorithm.algorithmGraph`, which calls `toAlgorithmGraph`, and
 `Algorithm.accelerated`), all eight `MetricAlgorithm` subclasses among them, while most of them
@@ -1263,7 +1263,7 @@ them.
 
 **Goal.** Every published value outside the scope reads missing, whatever path computed it; an
 algorithm that does not declare `scopeInput` says it computed on the whole graph. This is the
-phase where scoped runs first change observable output, so it carries that behaviour change's
+phase where scoped runs first change observable output, so it carries that behavior change's
 commit.
 
 **Tests first.**
@@ -1292,7 +1292,7 @@ commit.
 `Algorithm.ts:465`; `DeclaredAlgorithm.publishResult`, `results/DeclaredAlgorithm.ts:154`;
 `MetricAlgorithm.publishResult`, `metrics/MetricAlgorithm.ts:70`); the caveat; the planner model.
 
-**Behaviour change.** The `fix(graphty-element): scoped runs compute over their scope` commit
+**Behavior change.** The `fix(graphty-element): scoped runs compute over their scope` commit
 (design 10.5, 15.3 item 14), editing only the tests listed in phase 18, with a changelog body
 stating that runs over a scope smaller than the graph, including default runs over `"visible"`
 with a filter active, now report values for the scope only. Phases 20 to 23 change only how
@@ -1318,7 +1318,7 @@ graph until phase 20.
   subgraph of N nodes and the M edges in scope." The reading comes from the scope resolver, which
   now records it beside the bitmaps it hands a run.
 - The node-option check runs in `AlgorithmManager.compute` before any work, against every option
-  of catalogue type `node-id` or `node-set`. An id the graph does not hold is left to the
+  of catalog type `node-id` or `node-set`. An id the graph does not hold is left to the
   algorithm's own `E_OPTION_RANGE`.
 - The planner learns which classes declare `scopeInput` through an internal session hook the
   element fills (`declareScopedInputs`), because the Node-safe session cannot see the classes.
@@ -1348,7 +1348,7 @@ list from the input and `measured` from the resolution; `DeclaredAlgorithm`'s `m
 
 **Tests first.**
 
-- `test/algorithms/scoped/registry.test.ts`, behavioural, over every registered algorithm from
+- `test/algorithms/scoped/registry.test.ts`, behavioral, over every registered algorithm from
   this phase on. An expected table in the test gives each algorithm's declaration; it only moves
   from off to on, and the test fails if the runtime declaration differs from it. One shared
   discriminating fixture: a scope that cuts a component, where a shortest path through a
@@ -1365,9 +1365,9 @@ list from the input and `measured` from the resolution; `DeclaredAlgorithm`'s `m
        node or edge enumeration, `getSnapshot()` topology) that goes around `input()`, and the test
        fails on one. Metadata reads such as `getSnapshot().directed` are not topology.
        For partition-shaped results (Louvain, Leiden, label propagation, components), checks 2 and 3
-       compare after canonicalising labels by first appearance in row order; a test shows a pure
-       relabelling is judged equal, and the fixture is one where the scoped and whole-graph partitions
-       still differ after canonicalising. An algorithm the shared fixture cannot discriminate gets its
+       compare after canonicalizing labels by first appearance in row order; a test shows a pure
+       relabeling is judged equal, and the fixture is one where the scoped and whole-graph partitions
+       still differ after canonicalizing. An algorithm the shared fixture cannot discriminate gets its
        own fixture in the table. Every algorithm declared off must carry the caveat.
 - One `test/algorithms/scoped/<Name>.scoped.test.ts` per adapter for the cases the registry test
   does not cover: a listed-scope run equals a run on a hand-built graph of exactly the listed
@@ -1402,7 +1402,7 @@ never had one); the registry test and the device-release tests pass locally.
   multigraph caveat, which now names the policy ("keeping the lowest weight" for Dijkstra) where it
   said "with weights summed" for every algorithm. Phase 24 decides whether it joins the descriptor.
   The fix commit's subject is lower case (`dijkstra uses ...`), because commitlint refuses a
-  capitalised subject.
+  capitalized subject.
 - Undirected adapters derive through a declared intermediate that is cached beside their input and
   released with it, though never uploaded. The real accelerator's `release` is a no-op for a
   snapshot it never saw, so the adapter device-release test asserts every upload is released
@@ -1658,7 +1658,7 @@ projection.
   (`{ define }`); using a set in a run, a layout, a style layer, the visibility filter, the
   selection and the camera; counting and reading members; status and each freshness; algebra;
   paths and `pathKind`; `set:changed`; the deprecations and their replacements.
-- Updates: `algorithms.md` (scoped runs, the caveat, the behaviour change), `layouts.md`,
+- Updates: `algorithms.md` (scoped runs, the caveat, the behavior change), `layouts.md`,
   `styling.md`, `events.md`, `javascript-api.md`, `web-component.md` (`layout-scope`),
   `extending/custom-algorithms.md` (`context.input`, `scopeInput`), `extending/custom-layouts.md`
   (`static scoped` and the hold contract).
@@ -1688,14 +1688,14 @@ for `Sets.stories.ts` pass.
   open, CI green on every shard, the device-release test included.
 - Write the undo port notes into design 13.4 as a checklist against the final code: the five
   `prepare` functions, the store's `put` / `delete`, `toLogicalRecords()` / `loadLogicalRecords()`
-  as the only serialiser of set state, the register and pending list, the execution
+  as the only serializer of set state, the register and pending list, the execution
   token location, the captures location, the layout scope in `LayoutManager`. No undo code is
   imported.
 - Confirm with the owner that no phase 0 answer changed and that the studio glossary has not moved
   under a published name since phase 0; any difference is decided before merge.
 
 **Done when.** Every gate is green, locally and in CI, and the pull request is open with the
-behaviour-change commits of section 1.1 named in its description.
+behavior-change commits of section 1.1 named in its description.
 
 ---
 
@@ -1721,7 +1721,7 @@ behaviour-change commits of section 1.1 named in its description.
 | Comparison                                                                       | 1 (bitmaps, popcount)                                                                                                                             | --                                                                                                                                     |
 | Faster scoped simulation, static layouts                                         | 25 (hold mask, native pinning; static engines refuse)                                                                                             | --                                                                                                                                     |
 | Collapse, library across projects                                                | 6 (stable ids; namespaced id grammar accepted in load mode)                                                                                       | --                                                                                                                                     |
-| Neighbourhood of a set, groups of an attribute                                   | existing `neighborhood.seeds`, `categories` rules                                                                                                 | --                                                                                                                                     |
+| Neighborhood of a set, groups of an attribute                                    | existing `neighborhood.seeds`, `categories` rules                                                                                                 | --                                                                                                                                     |
 | Live combinations                                                                | 9, 13 (rules over `scope` leaves)                                                                                                                 | --                                                                                                                                     |
 | External codec                                                                   | 2 (internal load mode), 8 (record round trip)                                                                                                     | --                                                                                                                                     |
 | Cross-session digests                                                            | 7a (`d1:`)                                                                                                                                        | --                                                                                                                                     |

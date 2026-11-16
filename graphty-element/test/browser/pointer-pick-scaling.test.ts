@@ -64,7 +64,7 @@ async function mounted(size: number): Promise<Graphty> {
 /**
  * Where node `t` is drawn.
  * @param element - The element.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function target(element: Graphty): Point {
     const position = element.nodeScreenPosition("t");

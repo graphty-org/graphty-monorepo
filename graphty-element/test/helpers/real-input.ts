@@ -24,7 +24,7 @@ export interface Point {
  * Where a node is drawn, as a point to send the pointer to.
  * @param target - The graph or the element, whose `nodeScreenPosition` places the node.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the canvas's top-left corner.
+ * @returns Its center in CSS pixels from the canvas's top-left corner.
  */
 export function nodePoint(
     target: { nodeScreenPosition(id: string | number): { x: number; y: number; visible: boolean } | undefined },

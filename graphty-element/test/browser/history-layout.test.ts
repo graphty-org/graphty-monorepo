@@ -2,7 +2,7 @@
  * @file The layout and the dimension as undoable steps, on a real `Graph`.
  *
  * Choosing a layout keeps the engine that was chosen and its options, so undo brings back d3, not
- * the catalogue's default engine for the same layout. Switching between 2D and 3D, and undoing
+ * the catalog's default engine for the same layout. Switching between 2D and 3D, and undoing
  * the switch, leaves every reading of the dimension agreeing with the `layout` slice: the graph
  * context, the engine, the scene's record and the merged configuration. A layout whose pre-steps
  * are still computing when it is undone or replaced publishes nothing, and the nodes go back to

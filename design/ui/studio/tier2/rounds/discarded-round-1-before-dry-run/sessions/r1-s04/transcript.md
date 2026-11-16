@@ -296,7 +296,7 @@ data...", which I had never used, was a different door, and that cost me my firs
 
 - "Open project or file..." and "New from data..." both take a CSV, but only one asks how to read
   it. Nothing tells me the first one guessed, or how to go back and fix the guess.
-- After the quick open, km is labelled "Amount" with no way to change it. If I hadn't run a path I
+- After the quick open, km is labeled "Amount" with no way to change it. If I hadn't run a path I
   would never have known the numbers were being ignored.
 - In the Shortest path box, the Weight list did offer "km (farther)" even on the quick open, so the
   program clearly knew km could be a length -- then why was the default "None"?

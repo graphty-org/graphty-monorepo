@@ -2,7 +2,7 @@
 //
 // The two routes are plausible, not computed: 12 -> 30 runs 12-1-3-33-24-30 (5 hops) and
 // 1 -> 34 runs 1-2-3-33-34 (4 hops), so they share exactly one edge, 3-33. Karate Club node
-// 12's only neighbour is 1, so node 1 is on both routes as well as 3 and 33.
+// 12's only neighbor is 1, so node 1 is on both routes as well as 3 and 33.
 import { COMMUNITIES } from "../karate.mjs";
 import { OKABE_4, HIGHLIGHT } from "../palettes.mjs";
 
@@ -25,8 +25,8 @@ const purpleEdge = { stroke: PURPLE, width: 3, dash: "6 4" };
 const byPair = {
   "1-2": magentaEdge, "2-3": magentaEdge, "33-34": magentaEdge,
   "1-12": purpleEdge, "1-3": purpleEdge, "24-33": purpleEdge, "24-30": purpleEdge,
-  // The shared edge: the higher row (12 -> 30) wins Colour, Width and Pattern; it writes no
-  // Arrows, so the lower row's arrowhead still shows, drawn in the winning colour.
+  // The shared edge: the higher row (12 -> 30) wins Color, Width and Pattern; it writes no
+  // Arrows, so the lower row's arrowhead still shows, drawn in the winning color.
   "3-33": { ...purpleEdge, arrow: true },
 };
 

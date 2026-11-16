@@ -1,5 +1,5 @@
 /**
- * The behaviour pins of spec 11.4 applied to the Fruchterman-Reingold model (P5-T3; mirroring
+ * The behavior pins of spec 11.4 applied to the Fruchterman-Reingold model (P5-T3; mirroring
  * test/layouts/fa2-behaviour.test.ts): the empty graph, a single node, two coincident nodes separating (PD-10), the
  * `fixed` option at creation with the output NOT rescaled (design 13 row P5: an analytic box, no tolerance), the
  * `iterations` budget, the temperature trace across a reheat and the settle after the temperature reaches 0

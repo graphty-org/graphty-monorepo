@@ -29,7 +29,7 @@ search summary.
 2. **Every concept has exactly one purpose.** Daniel Jackson's overloading rule is the precise test
    for the owner's instruction "don't overload the object-first model". A concept that serves two
    purposes (a "view" that is both a saved camera and a filter, a "set" that is both a selection
-   and a style) is a design flaw that shows up later as confusing behaviour.
+   and a style) is a design flaw that shows up later as confusing behavior.
 3. **Separate primary from secondary objects by a written test, not by feel.** A primary object
    is something the reader's analytical question is about (a node, an edge, a path, a component).
    A secondary object exists to annotate, present, record or configure primary ones (a note, a
@@ -133,12 +133,12 @@ search summary.
     run", "a note about", "a view showing" and "a layer painting from" all fail it: they are
     many-to-many or must survive deletion. So the object list is a list grouped by kind with
     reference links, not a tree nested by scope. Section 3.7.
-20. **Colour must follow the category, not its position in a sorted list.** d3 and Observable
-    Plot assign colours by position (order of first use, or sorted order), so adding or removing
-    one category shifts the colour of others; Gephi Lite stores a value-to-colour map and gives a
-    new value no colour rather than reshuffling. graphty-element today colours categories by size
-    rank, so an edit that swaps two groups' sizes swaps their colours. Inconsistent encodings make
-    reading "slow and error-prone" (Qu and Hullman). Named categories need a stored colour per
+20. **Color must follow the category, not its position in a sorted list.** d3 and Observable
+    Plot assign colors by position (order of first use, or sorted order), so adding or removing
+    one category shifts the color of others; Gephi Lite stores a value-to-color map and gives a
+    new value no color rather than reshuffling. graphty-element today colors categories by size
+    rank, so an edit that swaps two groups' sizes swaps their colors. Inconsistent encodings make
+    reading "slow and error-prone" (Qu and Hullman). Named categories need a stored color per
     value; algorithm partitions, whose raw ids mean nothing, need canonical labels assigned by the
     element (by size first, then matched by overlap on every re-run). Section 3.8.
 21. **By task phase, the long neck is Run, the whole-graph summary and reading results.** Coding
@@ -150,7 +150,7 @@ search summary.
     only two start from one kept set and two from chosen nodes. A set's inspector can offer "run
     within this set" as a door, but the home is one run dialog with a scope field, and "each
     group of a partition" is a first-class scope, not a later extension. Section 6.6.
-23. **Add note needs a global entry; labelling is not a note.** Six of the eleven note-writing
+23. **Add note needs a global entry; labeling is not a note.** Six of the eleven note-writing
     steps cite several targets, and only one of those could start from one canvas selection; the
     rest mix elements with kept objects (runs, states, sets). So Add note is a toolbar tool (as
     Figma's Comment tool is) that starts from whatever is selected and adds further targets by
@@ -195,13 +195,13 @@ Henderson note that problems discovered in UI design prompt refinement of the mo
 - **Norman's three models.** The designer's model, the system image (everything the product shows)
   and the user's model. The designer reaches the user only through the system image, so the
   conceptual model has to be visible in the UI's structure, not only in documentation.
-- **Concept design (Daniel Jackson).** A concept is a reusable unit of behaviour with one purpose
-  and an operational principle: a short "if you do this, then that happens, which fulfils the
+- **Concept design (Daniel Jackson).** A concept is a reusable unit of behavior with one purpose
+  and an operational principle: a short "if you do this, then that happens, which fulfills the
   purpose" story. Rules: one purpose per concept (overloading is a flaw), concepts independent of
   each other, and reuse familiar concepts rather than inventing new ones. Jackson also argues,
-  against Norman, that in software the concept IS the behaviour, not a psychological picture of
-  it: relabelling cannot fix a concept whose behaviour is wrong. For graphty this means the
-  ontology is also a statement about graphty-element's behaviour, and a flaw found here is an
+  against Norman, that in software the concept IS the behavior, not a psychological picture of
+  it: relabeling cannot fix a concept whose behavior is wrong. For graphty this means the
+  ontology is also a statement about graphty-element's behavior, and a flaw found here is an
   element defect.
 - **OOUX and ORCA (Sophia Prater).** Objects before actions. ORCA runs four passes -- Objects,
   Relationships, Calls to action, Attributes -- producing an object guide, a nested-object matrix
@@ -262,7 +262,7 @@ Henderson note that problems discovered in UI design prompt refinement of the mo
 
 ### 3.3 Artifacts
 
-- Object catalogue: one concept card per object, grouped primary, secondary, attribute kinds.
+- Object catalog: one concept card per object, grouped primary, secondary, attribute kinds.
 - Type hierarchy and containment hierarchy (text diagrams, ASCII only).
 - Nested-object matrix.
 - Object-by-task operation matrix, with the universal verbs listed separately.
@@ -361,12 +361,12 @@ weight change) each derived object must do one of two things:
 - **hold** -- keep the value it had, say that it is out of date, and wait for the reader to
   re-run it.
 
-This is published behaviour of the element (it decides what a consumer sees after
+This is published behavior of the element (it decides what a consumer sees after
 `data.add`), and it fixes the set of states the vocabulary must name. It is a one-way door.
 
 **What the tools do.**
 
-| Tool | Default | How the other behaviour is reached | What an out-of-date value looks like |
+| Tool | Default | How the other behavior is reached | What an out-of-date value looks like |
 |---|---|---|---|
 | Excel | Follow: automatic mode recalculates "all dependent formulas every time you make a change to a value, formula, or name" | Manual mode, "for very large workbooks" where "recalculation time might be so long that users must limit when this happens"; and "Automatic except for data tables", which holds one expensive KIND of object while everything else follows | A single word, "Calculate", in the status bar. Internally every direct and indirect dependent of a change is marked dirty ("if B1 depends on A1, and C1 depends on B1, when A1 is changed, both B1 and C1 are marked as dirty"). Manual mode switches on "Recalculate workbook before saving" by default |
 | marimo | Follow ("autorun"): running a cell re-runs every cell that reads its variables | "Lazy": running a cell "marks affected cells as stale but doesn't automatically run them"; the documented reason is expensive cells "which may call APIs or take a long time to run". Running a cell whose ancestors are stale runs the ancestors first, "to make sure your cell doesn't use stale inputs"; one command runs every stale cell | Stale cells are marked; the page read does not describe the mark. Deleting a cell removes its variables, and cells that read them are re-run or marked stale |
@@ -395,7 +395,7 @@ analysis itself:
    exponential number of distinct high-scoring solutions" that "can fundamentally disagree on
    ... the composition of the largest modules", so the output "should be interpreted cautiously".
    A community run that follows a one-node edit can return a differently shaped partition, and
-   every set, note and colour that meant "community 3" now means something else. This holds even
+   every set, note and color that meant "community 3" now means something else. This holds even
    for graphty's Louvain, which has no random draw (graphty-today.md, reproducibility table):
    its result depends on node order, and an edit changes node order. Kumu's answer, seeding the
    re-run from the previous result, is itself a held re-run, not a following one.
@@ -425,11 +425,11 @@ analysis itself:
 stale mark on a computed value, or compares a mark on the value with one in a summary line; the
 one provenance-in-notebooks tool read (Loops, Eckelt et al., abstract only) visualizes "the
 impact of changes" but reports use cases and feedback, not a measure of noticing. The nearest
-evidence is from neighbouring problems, and it agrees:
+evidence is from neighboring problems, and it agrees:
 
 | Source | What it shows | How close to graphty's question |
 |---|---|---|
-| marimo (source, `Output.tsx` and `Cell.css`) | The mark is on the output itself: a stale output is drawn at 80% opacity and 50% greyscale with the hover title "This output is stale"; each stale cell also gets a yellow run button, and one global "run stale" control has a shortcut | A tool's design, not a measurement; marks both the value and a global action |
+| marimo (source, `Output.tsx` and `Cell.css`) | The mark is on the output itself: a stale output is drawn at 80% opacity and 50% grayscale with the hover title "This output is stale"; each stale cell also gets a yellow run button, and one global "run stale" control has a shortcut | A tool's design, not a measurement; marks both the value and a global action |
 | Tableau Desktop, paused auto updates | "the view is desaturated and invalid commands are disabled"; Run Update on the toolbar or F9 | Same shape: the mark is on the picture, the action is global |
 | Excel, manual calculation | The only mark is "Calculate" in the status bar, away from the cells (section 3.6 table) | The counter-example: a reader looking at a number cannot tell |
 | NN/g, indicators | Indicators "should be shown in close proximity to that element"; a cart message at the top of the page, far from the button, was missed and users added items several times; "passive notifications can easily be missed" | Guidance with an observed failure of a distant status message |
@@ -440,15 +440,15 @@ evidence is from neighbouring problems, and it agrees:
 
 **What this settles.** The evidence supports the placement rule below and adds three details:
 the summary line must link to each out-of-date value (GOV.UK); the mark must use the same words
-in both places; and the mark must not rely on colour or dimming alone. marimo and Tableau can
-desaturate their outputs because the output's colour is not the data; in graphty, colour on the
+in both places; and the mark must not rely on color or dimming alone. marimo and Tableau can
+desaturate their outputs because the output's color is not the data; in graphty, color on the
 canvas usually IS the data (a community or a centrality ramp), and desaturating it would change
 what the reader reads. So the mark is a symbol plus words on the rows where the value is read,
 and the canvas is left as painted. Whether readers notice and correctly interpret the mark on a
 legend row remains untested, and the first usability test of this policy should still ask it.
 
 **The rule** (recommendation). Liveness is a property of the KIND of derived object, fixed in
-graphty-element's catalogue, not a runtime decision from the size of the graph. Excel's
+graphty-element's catalog, not a runtime decision from the size of the graph. Excel's
 "automatic except data tables" is the precedent: one expensive kind holds, everything else
 follows, and the reader can predict which is which. Deciding by estimated cost instead would
 make the same betweenness run follow on a 50-node graph and hold on a 50,000-node one -- the
@@ -503,9 +503,9 @@ aggregate line ("3 results out of date") whose action is "update all". That is o
 state (on the object) and one door to the bulk action (the summary), not two homes. Following
 the GOV.UK pattern, the aggregate line expands to name each out-of-date result, each name selects
 that result, and the reason text ("weights changed") is word for word the text on the value.
-The legend row counts as a place where the value is read: a reader decoding a colour reads the
+The legend row counts as a place where the value is read: a reader decoding a color reads the
 legend, not the result row, so a legend painting from an out-of-date result carries the mark.
-The canvas itself is not dimmed or desaturated, because its colour is the data.
+The canvas itself is not dimmed or desaturated, because its color is the data.
 
 **Contradictions with the other notes, resolved.**
 
@@ -557,8 +557,8 @@ classes. A **set** is a kept, named subset, fixed (stored members) or rule (a st
 | A run reads another run | bridge nodes between communities (Community Analysis); a custom score from several rankings (Hub Gene Identification and Ranking); a difference score from two conditions (Condition Comparison) | many to many | yes, with "out of date" propagating (section 3.6, rule 1) | reference |
 | A note about a target | the ring (Fraud Ring Investigation, determination); a query that found nothing (Threat Hunting); an evidence chain (Fraud Ring Investigation); an evidence summary (Iterative Analysis Cycle) | a note has zero or more targets of any kind; a target has many notes | yes: the note keeps its stored copy (graph-analysis.md section 6.7) | reference |
 | A view showing a set or filter | "filter to relevant subset" (Findings Communication); one view per condition (Condition Comparison); collapsed themes for the summary figure (Enrichment Map) | many to many | yes: a view with its set gone says so | reference |
-| A style layer painting from a measure, set or column | encode logFC (Gene List to Interaction Network); encode the combined score (Hub Gene Identification and Ranking); colour clusters (Cluster and Functionally Annotate); the three-state edge legend (Condition Comparison) | one input per layer; an input feeds many layers | yes: the layer keeps its last paint and says its input is gone | reference |
-| A set inside a set | candidates within the module (Drug Target Discovery); top N within the largest component (Hub Gene Identification and Ranking); the ring within the neighbourhood (Fraud Ring Investigation) | many to many; membership overlaps | yes | reference, and only implied by the scope and origin links above; no workflow acts on it |
+| A style layer painting from a measure, set or column | encode logFC (Gene List to Interaction Network); encode the combined score (Hub Gene Identification and Ranking); color clusters (Cluster and Functionally Annotate); the three-state edge legend (Condition Comparison) | one input per layer; an input feeds many layers | yes: the layer keeps its last paint and says its input is gone | reference |
+| A set inside a set | candidates within the module (Drug Target Discovery); top N within the largest component (Hub Gene Identification and Ranking); the ring within the neighborhood (Fraud Ring Investigation) | many to many; membership overlaps | yes | reference, and only implied by the scope and origin links above; no workflow acts on it |
 
 **What this means for graphty** (recommendation):
 
@@ -605,26 +605,26 @@ classes. A **set** is a kept, named subset, fixed (stored members) or rule (a st
   versions. That is the second containment above; a history step that produced a run refers to
   it, so a run has one container (its measure), not two.
 
-### 3.8 Stable category colours when a partition or a category recomputes
+### 3.8 Stable category colors when a partition or a category recomputes
 
 When a community detection is re-run, or a following partition such as connected components
-recomputes after an edit, or an imported category gains a value, the colours on the canvas
+recomputes after an edit, or an imported category gains a value, the colors on the canvas
 either stay with the categories or shuffle. Shuffling means a reader who learned "the blue
 group" is now reading a different group in blue, and every note, legend screenshot and
 exported figure disagrees with the screen. The question is whether graphty-element must give
-partitions canonical labels and assign palette colours stably.
+partitions canonical labels and assign palette colors stably.
 
 **What the tools do.**
 
-| Tool | How a category gets its colour | What happens when categories change |
+| Tool | How a category gets its color | What happens when categories change |
 |---|---|---|
-| d3 ordinal scale (the base of most web charts) | "the value is implicitly added to the domain and the next-available value in the range is assigned", so colour follows order of first use | Stable for the life of one scale; a new scale built after a recompute assigns by the new order of arrival |
-| Observable Plot | "For ordinal scales, the default domain is the set of all distinct values associated with the scale in natural ascending order"; the page read does not state the assignment rule, but the d3 ordinal scale it builds on maps "the first element in domain ... to the first element in the range, the second domain value to the second range value, and so on" | A value added or removed shifts the colour of every value sorted after it; the documented remedy is an explicit **domain** |
+| d3 ordinal scale (the base of most web charts) | "the value is implicitly added to the domain and the next-available value in the range is assigned", so color follows order of first use | Stable for the life of one scale; a new scale built after a recompute assigns by the new order of arrival |
+| Observable Plot | "For ordinal scales, the default domain is the set of all distinct values associated with the scale in natural ascending order"; the page read does not state the assignment rule, but the d3 ordinal scale it builds on maps "the first element in domain ... to the first element in the range, the second domain value to the second range value, and so on" | A value added or removed shifts the color of every value sorted after it; the documented remedy is an explicit **domain** |
 | Tableau Desktop | "Tableau uses a categorical palette and assigns a color to each value of the field" | The pages read do not say whether assignments persist when members appear or disappear; not established here |
-| Gephi Lite (source, `useColorHistoric.ts`, `appearance/index.ts`, `color/utils.ts`) | A stored map from value to colour per attribute, kept in the user's preferences and reused when the same attribute is chosen again | A new value is added to the map with no colour and draws in the "missing" colour rather than reshuffling; regenerating the palette keeps every colour already assigned. But its Louvain writes an arbitrary integer (`modularityClass`), so after a re-run colour stays with the NUMBER while the number now names a different community |
-| Gephi | Partition colours by value | "the id is 'a random number given to communities'" (`graph-tools.md` section 20.3), so no identity across re-runs |
-| Kumu | -- | A re-run "uses existing communities to seed the algorithm", so communities, and with them their names and colours, carry over (`graph-tools.md` section 20.3) |
-| graphty-element today (`session/styles/encoding.ts`, `settleCategories`; `session/styles/palettes.ts`) | Categories are ordered "largest group first", ties by name, and the palette is taken in that order; community ids "are handed out in discovery order" | Colour follows SIZE RANK. That makes a partition's colours independent of the algorithm's arbitrary ids, which is right, but an edit that makes one group larger than another swaps their colours, and a named imported category (a department, a species) changes colour whenever its rank changes |
+| Gephi Lite (source, `useColorHistoric.ts`, `appearance/index.ts`, `color/utils.ts`) | A stored map from value to color per attribute, kept in the user's preferences and reused when the same attribute is chosen again | A new value is added to the map with no color and draws in the "missing" color rather than reshuffling; regenerating the palette keeps every color already assigned. But its Louvain writes an arbitrary integer (`modularityClass`), so after a re-run color stays with the NUMBER while the number now names a different community |
+| Gephi | Partition colors by value | "the id is 'a random number given to communities'" (`graph-tools.md` section 20.3), so no identity across re-runs |
+| Kumu | -- | A re-run "uses existing communities to seed the algorithm", so communities, and with them their names and colors, carry over (`graph-tools.md` section 20.3) |
+| graphty-element today (`session/styles/encoding.ts`, `settleCategories`; `session/styles/palettes.ts`) | Categories are ordered "largest group first", ties by name, and the palette is taken in that order; community ids "are handed out in discovery order" | Color follows SIZE RANK. That makes a partition's colors independent of the algorithm's arbitrary ids, which is right, but an edit that makes one group larger than another swaps their colors, and a named imported category (a department, a species) changes color whenever its rank changes |
 
 **Is reshuffling documented to harm reading?** Directly, for one view across a recompute, no
 study was found. The closest evidence is Qu and Hullman's study of multiple views: following
@@ -632,8 +632,8 @@ single-view guidelines "can lead to effective yet inconsistent views ... making 
 slow and error-prone", and Tableau users in their study spontaneously kept encodings consistent
 or, when warned, either fixed the inconsistency or stated a reason to keep it (abstract read).
 A recompute is the same picture seen twice, so this is the relevant finding, but it is
-cross-view evidence, not a measurement of reshuffled colours. Archambault and Purchase's result
-on positions (section 3.6) is the analogue for layout: jumps cost the reader their place. The
+cross-view evidence, not a measurement of reshuffled colors. Archambault and Purchase's result
+on positions (section 3.6) is the analog for layout: jumps cost the reader their place. The
 matching problem itself is well defined: pairing old groups with new groups to maximize shared
 members is Kuhn's assignment problem (the Hungarian method), and Rosvall and Bergstrom's
 alluvial diagrams show community identity carried across network states by connecting each
@@ -641,33 +641,33 @@ clustering to the next.
 
 **The rule** (recommendation):
 
-1. **Separate display order from colour assignment.** The legend may list categories largest
-   first; the colour is keyed to the category's identity, never to its position in that list.
+1. **Separate display order from color assignment.** The legend may list categories largest
+   first; the color is keyed to the category's identity, never to its position in that list.
    This is the defect in graphty-element today.
-2. **Named categories keep a stored colour per value.** For a column whose values are names (an
-   imported category, a label the reader applied), the style layer stores the value-to-colour map
-   once it first paints, as Gephi Lite does. A new value takes the next unused colour; a value
-   that disappears keeps its colour reserved while the layer exists; nothing already painted
-   changes colour. The map is part of the style layer in the project file.
+2. **Named categories keep a stored color per value.** For a column whose values are names (an
+   imported category, a label the reader applied), the style layer stores the value-to-color map
+   once it first paints, as Gephi Lite does. A new value takes the next unused color; a value
+   that disappears keeps its color reserved while the layer exists; nothing already painted
+   changes color. The map is part of the style layer in the project file.
 3. **Algorithm partitions get canonical labels from graphty-element.** An algorithm's raw ids
    mean nothing, so the element relabels: on a first run, groups are numbered by size (largest
    is 1), ties broken by the smallest member id, so the same data gives the same labels. On a
    re-run of the same measure, each new group is matched to the previous version's group with
    the largest member overlap (an assignment, so no two new groups claim one old one), and
-   inherits its label, the reader's name for it and its colour; unmatched new groups get fresh
-   labels and unused colours; the measure reports how many matched ("5 of 6 groups matched").
+   inherits its label, the reader's name for it and its color; unmatched new groups get fresh
+   labels and unused colors; the measure reports how many matched ("5 of 6 groups matched").
    This is the matching the earlier object model already proposed
    (`design/ui/object-first-ux/object-model.md` section 5) and the identity graph-analysis.md
    section 6.8 assumes when it says a community "is identified by its group number within that
    run".
 4. **Connected components follow the same rule.** They follow the data (section 3.6), and their
-   numbers change on any edit; labelled by size and matched by overlap, "component 1" stays the
-   largest component and keeps its colour across an edit, which is also what makes "the largest
+   numbers change on any edit; labeled by size and matched by overlap, "component 1" stays the
+   largest component and keeps its color across an edit, which is also what makes "the largest
    component" a stable scope.
 5. **No matching across different measures.** Two different community detections are compared
-   by the reader, not silently aligned; only versions of one measure inherit labels and colours.
+   by the reader, not silently aligned; only versions of one measure inherit labels and colors.
 
-**One-way door.** Canonical labels and the stored colour map are published element behaviour
+**One-way door.** Canonical labels and the stored color map are published element behavior
 and project-file content: they decide what "community 3" means in a saved file and in the API.
 
 ---
@@ -768,7 +768,7 @@ and project-file content: they decide what "community 3" means in a saved file a
   interaction", "match purpose and feel familiar", "guide mastery for greater value" -- products
   that "gracefully reveal depth over time"). Apple's long-standing clarity, deference and depth,
   where deference means the UI steps back so content leads -- the same idea as Figma's UI3 north
-  star of putting the user's work at the centre.
+  star of putting the user's work at the center.
 
 ### 5.2 Steps
 
@@ -816,7 +816,7 @@ and project-file content: they decide what "community 3" means in a saved file a
   are grouped), labeling (what they are called), navigation (how people move) and search (how they
   find by query). In an application the search system is the command palette.
 - **Dan Brown's eight principles** (ASIS&T Bulletin, 2010): objects (content has a lifecycle,
-  behaviours and attributes), choices (meaningful choices focused on a task), disclosure (show only
+  behaviors and attributes), choices (meaningful choices focused on a task), disclosure (show only
   enough to tell what lies deeper), exemplars (describe categories by examples), front doors
   (assume people arrive anywhere but the home), multiple classification (several ways to browse),
   focused navigation (do not mix apples and oranges), growth (today's content is a small fraction of
@@ -927,7 +927,7 @@ four findings that agree:
    graph, how many components, is it filtered, what share remains). Shown permanently, in
    compact form, wherever it is the answer to "what am I looking at?". Depth zero.
 2. **Entry to a top task** -- a command that starts a top task. Its *entry* is permanently
-   visible (a field or labelled control, with the shortcut in its tooltip); its *working
+   visible (a field or labeled control, with the shortcut in its tooltip); its *working
    surface* (results list, options) opens only when invoked and closes on Escape. Entry at depth
    zero, surface at depth one.
 3. **Tail command** -- palette, menu or context menu only.
@@ -982,7 +982,7 @@ re-cut.
 The tasks: **run** (compute an algorithm or measure), **summary** (read whole-graph facts:
 counts, structure, distributions, data quality), **read result** (read, rank or compare what a
 run produced), **load** (import, map fields, preview), **inspect** (read one element or a few in
-detail), **export** (save, export, share), **navigate** (pan, zoom, look at a neighbourhood),
+detail), **export** (save, export, share), **navigate** (pan, zoom, look at a neighborhood),
 **note** (write a note or annotation), **label** (classify elements or name groups), **keep**
 (make a kept set), **find** (locate a known entity or run a query), **clean** (edit, merge,
 resolve, join), **filter**, **style**, **time** (time windows), **history** (read what was
@@ -1083,8 +1083,8 @@ value to many elements or names one group, and each starts from one selection or
    a multi-selection that mixes canvas elements and list rows. Such a mixed selection would
    exist for this one verb only, Figma has no equivalent, and every other verb would then have
    to define what it does to a mixed selection. It stays out.
-5. **Labelling is not a note.** A classification is a user-set attribute on the elements, so it
-   can be filtered, coloured and exported, as Anomaly Detection's "prioritized anomaly list with
+5. **Labeling is not a note.** A classification is a user-set attribute on the elements, so it
+   can be filtered, colored and exported, as Anomaly Detection's "prioritized anomaly list with
    classification" requires; a group name is a property of the group. Neither is free text
    pinned to a target. This keeps the note concept to one purpose (section 3.4) and agrees with
    graph-analysis.md section 6.21, which puts judgments on the object judged.
@@ -1128,7 +1128,7 @@ run scope where a phase runs something. The number is how many personas the work
 
 **Limits.** The persona lists and phases come from the workflow files, which are marked
 `validated: false`; the weights are a proxy for a vote, not a vote. A second coder would move
-some half-phases between neighbouring tasks (inspect and read result, keep and label), which
+some half-phases between neighboring tasks (inspect and read result, keep and label), which
 changes shares by a point or two but not the order of the top three, nor the run-scope and
 note-target counts, which rest on the phase text directly.
 
@@ -1182,7 +1182,7 @@ public API, an exported type, a data format, a package name. Applying that to th
 
 | Document | Mostly | One-way parts |
 |---|---|---|
-| Ontology | two-way on paper | the object kinds that graphty-element's session API exposes and that the project file saves (the file is a published data format), including what a node of the analysis tree is (section 3.5) and which derived objects follow the data or hold their value, with the states that result (section 3.6); which relationships are stored as containment and which as references (section 3.7); canonical group labels, their matching across re-runs and the stored category colours (section 3.8) |
+| Ontology | two-way on paper | the object kinds that graphty-element's session API exposes and that the project file saves (the file is a published data format), including what a node of the analysis tree is (section 3.5) and which derived objects follow the data or hold their value, with the states that result (section 3.6); which relationships are stored as containment and which as references (section 3.7); canonical group labels, their matching across re-runs and the stored category colors (section 3.8) |
 | Vocabulary | one-way where published | preferred terms that become element API names, event names, project-file keys or documented concepts; renaming them later is a breaking change |
 | Principles | two-way | none; they can be re-ranked by an edit |
 | IA | two-way | keyboard shortcuts and URLs only if published and documented |
@@ -1199,7 +1199,7 @@ else is decided by the team, with the reason stated in one line.
 | Principles | Figma's nine, especially biased toward simplicity, predictable, natural mental models; UI3's "work at the centre"; the evidence that panels which slow people down get reverted | Standard graph terminology over friendliness; element owns graph logic; analysis stacks as style layers |
 | Conceptual model | the interaction grammar: select an object, then act on it (noun-verb, as in object-oriented UIs per Raskin and Collins); the inspector scoped to the selection; undo as the safety net | the objects themselves: graph, node, edge, path, component, community, group, and the secondary notes, views, layouts, style layers |
 | Vocabulary | chrome terms (toolbar, inspector, palette, undo) | graph terms, and the collision table where Figma's words mean something else |
-| IA | place scheme: left rail and panel, bottom-centre toolbar, right inspector, menus, palette; scope-based placement | what each place holds, decided by the ontology and top tasks |
+| IA | place scheme: left rail and panel, bottom-center toolbar, right inspector, menus, palette; scope-based placement | what each place holds, decided by the ontology and top tasks |
 
 ---
 
@@ -1540,11 +1540,11 @@ Run betweenness over
 - "1 filter step": true; the element holds exactly one `filter` plus an optional time `window`
   (`VisibilityApi`, `graphty-element/src/session/visibility/VisibilityApi.ts`). A window would
   add "1 time window" to the line.
-- "Graph in force 1,204 nodes": the COUNT is true, but the run would not honour it. Every
+- "Graph in force 1,204 nodes": the COUNT is true, but the run would not honor it. Every
   element algorithm builds its graph from the whole data manager (for example
   `StronglyConnectedComponentsAlgorithm.compute` reads `getDataManager().nodes`), and
   `element-contract.md` ("Migration") records that every run executes over the whole loaded
-  graph whatever scope it records. The row is false until the element honours scope -- an element
+  graph whatever scope it records. The row is false until the element honors scope -- an element
   defect, not something the app may paper over.
 - "Largest component" alone would be FALSE: the element's `largest-component` scope resolves
   from the loaded graph's components, not the graph in force, so under a degree filter it names
@@ -1575,7 +1575,7 @@ Strings that share the panel, checked for "strength":
 | String | Meaning | Clash? |
 |---|---|---|
 | Weighted degree -- sum of the affinity column over a node's edges | node sum | none. Network science calls this a node's **strength** (Barrat et al. 2004; igraph `strength()`: "Summing up the edge weights of the adjacent edges for each vertex"; NetworkX `degree(weight=)`: "the sum of the edge weights adjacent to the node"). Using "Strength" as a role name would give the word two meanings on one panel; "Affinity" avoids it |
-| Components, "Connection: Weak / Strong" | directed reachability | none once renamed. Today the element's parameter is `strength: "weak" \| "strong"`, labelled "Strength", with record note "Strength: weak." -- it would sit beside "Meaning: Strength" with an unrelated sense. SciPy names the same switch `connection` ("weak" or "strong"); igraph names it `mode` |
+| Components, "Connection: Weak / Strong" | directed reachability | none once renamed. Today the element's parameter is `strength: "weak" \| "strong"`, labeled "Strength", with record note "Strength: weak." -- it would sit beside "Meaning: Strength" with an unrelated sense. SciPy names the same switch `connection` ("weak" or "strong"); igraph names it `mode` |
 | Modularity | partition quality | the element's catalog labels it "Community strength" (`catalog/algorithms.ts`), a third sense of the word |
 
 So the row itself is clean, and the clash is entirely in published element names, listed next.
@@ -1709,16 +1709,16 @@ Investigation"; "minimum audience size" in "Influencer Identification"). The lon
 
 | Workflow | Conditions combined |
 |---|---|
-| Fraud Ring Investigation | 2-hop neighbourhood of the flagged entity, a time window on transactions, a risk-score threshold (the community is a fourth when "expand to community" is chosen): **3 to 4** |
+| Fraud Ring Investigation | 2-hop neighborhood of the flagged entity, a time window on transactions, a risk-score threshold (the community is a fourth when "expand to community" is chosen): **3 to 4** |
 | Cluster and Functionally Annotate a Molecular Network | a log2FC threshold on nodes, a confidence threshold on edges (inside the app only when the network is loaded as an edge list; with a STRING query it is a query parameter), clusters of fewer than 3 or 4 nodes dropped: **2 to 3** |
 | Enrichment Map - Pathway Similarity Network | node q-value at most a cutoff and edge similarity at least a cutoff: **2** |
 | Condition Comparison - Disease vs Control Networks | the largest changes in a difference score; the A-only / B-only / both split is an encoding, not a filter: **1 to 2** |
 
-The longest is four conditions, mixing nodes, edges, a neighbourhood and time. In Figma's popover
+The longest is four conditions, mixing nodes, edges, a neighborhood and time. In Figma's popover
 geometry (240 px wide, 208 px content, rows 32 px apart; `design/ui/figma/popovers-and-menus/README.md`
 lines 229 to 240), four conditions as one row each plus a 24 px range slider for the numeric
 ones take about 40 + 4 x 56 + 32 (add condition) + 32 (the count) = **328 px**, under the 537 px
-colour picker. App text: "Filter" 1, "and" between conditions 3 (or one "Match all / any" switch
+color picker. App text: "Filter" 1, "and" between conditions 3 (or one "Match all / any" switch
 as Cytoscape's composite filters use, `graph-tools.md` Cytoscape section), "hops of" 2, a
 Node/Edge word per condition when not shown as an icon up to 4, "Clear" 1, "of" and "nodes" on
 the count 2: **about 9 to 13**. It fits. The one width limit: the label column holds about 13
@@ -1730,7 +1730,7 @@ characters of 11 px text, so an attribute such as "logFC_tumor_vs_normal" needs 
 |---|---|---|
 | Findings Communication | Visualization Design: "highlight key findings" | clear |
 | Gene List to Interaction Network with Expression Overlay | "Which genes deserve a bypass highlight for the figure?", "thicker borders for a few genes" | clear |
-| Cluster and Functionally Annotate a Molecular Network | Annotate each cluster: "For the selected cluster ..."; Show terms: colour clusters, label with the top term | clear |
+| Cluster and Functionally Annotate a Molecular Network | Annotate each cluster: "For the selected cluster ..."; Show terms: color clusters, label with the top term | clear |
 | Hub Gene Identification and Ranking | Report: "label the top 10" | clear |
 | Fraud Ring Investigation | "Entity's immediate connections highlighted" | plausible |
 | Criminal Network Analysis | Intelligence Production: visualizations of the key players | plausible |
@@ -1755,7 +1755,7 @@ graph; "Network Evolution Analysis" slices one graph into time windows; the subn
 "Gene List to Interaction Network with Expression Overlay", "Drug Target Discovery" and
 "Cluster and Functionally Annotate a Molecular Network" are subsets of one graph, which
 `key-insights.md` 1.18 models as sets; "Reproducible Session and Network Publication" saves
-whatever the session holds. A rail labelled "Graph" holds for 24 of 25 workflows. For the one
+whatever the session holds. A rail labeled "Graph" holds for 24 of 25 workflows. For the one
 exception Figma's precedent is the Pages list: the file holds many pages, the rail button names
 the container ("File"), and the list of pages appears only inside it
 (`design/ui/figma/left-sidebar/00-left-default.png`), which matches "a graph switcher appears only
@@ -1776,7 +1776,7 @@ information needs are quoted from `design/designloom/workflows/` (the two files 
 | Fraud Ring Investigation, Determination (confirm, clear or escalate) | the flagged entity's risk score, its community, the shared identifier, the path to a known fraud case (the path is a target of its own) | (a) a known fraud case confirmed after the note was written, which creates a "path to known fraud cases" the note cannot contain; (b) new transactions on the entity, which the information need "Transaction timeline (velocity, sequence patterns)" reads; (c) the risk scores of related entities that were not targets of this note | No. Two of the three are values that did not exist at writing, and the live-differs mark on a pinned value catches neither (they are new rows and new attributes, not changed ones) |
 | Criminal Network Analysis, Data Integration and Network Building ("how to handle uncertain or conflicting information", entity resolution) | the source attribute and the identifying attributes of both candidate entities (the note targets both) | the conflicting value from a source integrated after the note ("Collect and merge records" arrives source by source); after a merge, the merged entity's attributes | No. A conflict note written at source A cannot pin source B's column, which is the conflict itself |
 | Criminal Network Analysis, Vulnerability Assessment ("single points of failure, critical brokers, weak links") | betweenness and degree, pinned during Structural Analysis where the broker suspicion is written | the removal-impact result (components or reach after removing the node; the workflow lists `removal-impact-analysis`) and whether the node is a cut vertex, both computed in this phase, after the note | No, for notes written in the earlier phase. Yes for notes written in this phase |
-| Criminal Network Analysis, Intelligence Production (key player profiles, chain of custody) | the centrality scores and community that make the person a key player | the rank among all nodes after later merges and re-runs; pins hold the raw value, and "Hierarchy understood" is a relative judgement | Mostly. The pinned value plus its live-differs mark is the evidence trail the step needs; the rank is readable only from the live result |
+| Criminal Network Analysis, Intelligence Production (key player profiles, chain of custody) | the centrality scores and community that make the person a key player | the rank among all nodes after later merges and re-runs; pins hold the raw value, and "Hierarchy understood" is a relative judgment | Mostly. The pinned value plus its live-differs mark is the evidence trail the step needs; the rank is readable only from the live result |
 
 **Result: three of the four steps need at least one value the writer could not have pinned.**
 The unpinnable values fall into two kinds, and neither is a changed value of a pinned attribute:
@@ -1854,7 +1854,7 @@ value", and paths between named endpoints (`conceptual-model.md` 5.3), plus the 
 widen a data step ("12 more beyond filter 'amount < 10'"). So depth on Select neighbors saves
 Select neighbors clicks (one click for two hops instead of two), but does not change the Include
 count at all. This matches the expand-from-seeds tools graphty borrows from: Bloom's and
-Linkurious's Expand add the neighbours to the view directly (`graph-tools.md` 20.21).
+Linkurious's Expand add the neighbors to the view directly (`graph-tools.md` 20.21).
 
 | Case | Searches that reach past the working set | Include clicks |
 |---|---|---|
@@ -1897,7 +1897,7 @@ than in the result's editor popover.
 first minute. By the check's own rule the fallback applies to this workflow: open the dock on
 the first run of a partition, on its Groups tab. This agrees with the earlier finding that the
 table is used "overwhelmingly to sort and compare many rows" in seven workflows, and with
-Cytoscape, whose Table Panel is docked below the network with selection synchronised
+Cytoscape, whose Table Panel is docked below the network with selection synchronized
 (`graph-analysis.md`, the section on what the table is for; `graph-tools.md` 1). Gephi puts the
 same reading in the Data Laboratory, a separate screen (`graph-tools.md` 20.22), which is the
 switching cost a docked table avoids. Phase count is a proxy for time; the check as written asks

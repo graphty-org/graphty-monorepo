@@ -11,7 +11,7 @@
 #   not a test result. A workflow_call's jobs belong to the CALLER's run, so the train's T4 is seen through "Release".
 # - a Release run whose verdict decided (not red) and then only the Verdict job failed (the screenshot gate, the
 #   promotion decision or the hold errored): that job is re-run once.
-# - a Release run's second attempt that ended cancelled with no verdict of its own (a newer dispatch replaced it while
+# - a Release run's second attempt that ended canceled with no verdict of its own (a newer dispatch replaced it while
 #   pending): attempt 1's deferred red is filed, as a red second attempt would have.
 #
 # Only attempt 1 is ever re-run, so a run is re-run at most once.
@@ -32,7 +32,7 @@ permissions: { actions: write, checks: read, contents: read, issues: write, id-t
 jobs:
     rerun:
         name: Re-run once on the same commit
-        # a job that hits its timeout-minutes ends cancelled, and so does its run; a second attempt that ended cancelled
+        # a job that hits its timeout-minutes ends canceled, and so does its run; a second attempt that ended canceled
         # (replaced while pending) may leave attempt 1's deferred red to file
         if: github.event_name == 'workflow_dispatch' || (contains(fromJSON('["failure","cancelled","timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt == 1) || (github.event.workflow_run.conclusion == 'cancelled' && github.event.workflow_run.run_attempt == 2)
         runs-on: ubuntu-24.04

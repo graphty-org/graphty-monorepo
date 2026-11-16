@@ -1,5 +1,5 @@
 /**
- * @file The colour, size, opacity and label helper namespace, rebuilt for the tests that cover it.
+ * @file The color, size, opacity and label helper namespace, rebuilt for the tests that cover it.
  *
  * `StyleHelpers` used to be a published namespace object whose only job was to be in scope for a
  * `calculatedStyle` expression -- `StyleHelpers.color.sequential.viridis(arguments[0])` and its
@@ -7,7 +7,7 @@
  * exported from the package.
  *
  * THE FUNCTIONS THEMSELVES ARE NOT GONE. They live where they always did, in
- * `src/utils/styleHelpers/`, and the 2.0 palettes and scales read the same colour maths. This
+ * `src/utils/styleHelpers/`, and the 2.0 palettes and scales read the same color maths. This
  * file gathers them back into the shape the unit tests below `test/style-helpers/` are written
  * against, so that coverage of the maths survives the deletion of the namespace.
  *

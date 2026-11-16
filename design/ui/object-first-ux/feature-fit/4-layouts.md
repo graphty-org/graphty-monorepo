@@ -24,10 +24,10 @@ here:
 
 - **Layout** (or **arrangement**): the rule that gives every node a position. The element
   publishes twelve arrangements by plain name ("Spread out", "Ring", "Tree") in
-  `graphty-element/src/catalog/layouts.ts`; which engine draws each one is catalogue data.
+  `graphty-element/src/catalog/layouts.ts`; which engine draws each one is catalog data.
 - **Engine**: one implementation of an arrangement. "Spread out" is drawn by ngraph by default
   and can be drawn by d3-force, ForceAtlas2, Fruchterman-Reingold (called "Spring" in the
-  catalogue) or Kamada-Kawai. A reader picks an arrangement; an engine is an option of it.
+  catalog) or Kamada-Kawai. A reader picks an arrangement; an engine is an option of it.
 - **Live layout**: a simulation that moves nodes every frame until it settles (ngraph, d3).
   **Batch layout**: one placement, then done (everything else). A batch layout can still take
   seconds (Kamada-Kawai solves over every pair of nodes).
@@ -44,7 +44,7 @@ here:
   (`pinOnDrag` in `graphty-element/src/config/GraphBehavior.ts`). A pin survives a layout
   change, a 2D/3D switch and a style template.
 - **Structural input**: something a layout needs beyond the graph: a root node (Tree), a
-  grouping (Concentric Rings, Two Columns, Columns by Group). The catalogue names them in
+  grouping (Concentric Rings, Two Columns, Columns by Group). The catalog names them in
   `structuralInputs`; an engine refuses to run without one.
 - **Layout dimension** versus **view mode**: the dimension is whether the layout computes a z
   coordinate (2 or 3); the view mode is how the camera draws it (2D, 3D, VR, AR). The design
@@ -52,7 +52,7 @@ here:
 - **Acceleration**: running a layout on the GPU through `@graphty/webgpu-graph-algorithms`
   when it is installed. The policy is auto, off or required; the state is probing, active, idle,
   unavailable, error or off (`graphty-element/src/acceleration/types.ts`).
-- **Size rating**: the catalogue's largest graph an arrangement is recommended for ("any", or
+- **Size rating**: the catalog's largest graph an arrangement is recommended for ("any", or
   2,000 for Kamada-Kawai, Natural Grouping, No Crossings and Spread out Flat).
 
 ## 1. The homes
@@ -74,7 +74,7 @@ Every capability below lands in one of these places. The names are the object mo
 | **Automatic** | done by the element with no control on screen | 9 (after a load) |
 
 Fit words: **natural** (the paradigm has an obvious place and the capability behaves like
-its neighbours there), **awkward** (it fits, but only with a rule or an exception explained in
+its neighbors there), **awkward** (it fits, but only with a rule or an exception explained in
 section 6), **does not fit** (the paradigm has no honest place for it; section 7).
 
 The last column answers three yes/no questions the task asks of every capability: does it
@@ -84,7 +84,7 @@ changes precedence; the column says so once per table and then lists only the ex
 
 ## 2. The arrangements, one row each
 
-Status is from the catalogue on 2026-09-25. "Input row" is the extra row the Arrangement
+Status is from the catalog on 2026-09-25. "Input row" is the extra row the Arrangement
 section shows only while that arrangement is selected. Every arrangement is a row of the Layout
 select, whose rows show three things like every flyout in the model: the plain name, the
 technical name in secondary text, and at the right the size note ("any size", "slow above
@@ -94,7 +94,7 @@ element's reason (`recommendLayout`, `graphty-element/src/session/layout.ts`).
 
 | Arrangement (technical) | Status | Live / batch, dims | Input row in Arrangement | Fit | Element API and gaps | Precedence / state / tree |
 |---|---|---|---|---|---|---|
-| Spread out (force-directed; ngraph default, d3, ForceAtlas2, Spring, Kamada-Kawai alternates) | shipped | live, 3 (ForceAtlas2, Spring, Kamada-Kawai are batch) | none; Engine [ngraph v] in the gear popover, each engine with the catalogue's one-sentence reason as its secondary text | natural | `el.setLayout`, `catalog.layouts()`, `LayoutCatalogEntry.implementations`; gap: `session.layout.set(id, params)` by arrangement name (#144), since `setLayout` takes engine names today | none; the arrangement has a state (section 4) |
+| Spread out (force-directed; ngraph default, d3, ForceAtlas2, Spring, Kamada-Kawai alternates) | shipped | live, 3 (ForceAtlas2, Spring, Kamada-Kawai are batch) | none; Engine [ngraph v] in the gear popover, each engine with the catalog's one-sentence reason as its secondary text | natural | `el.setLayout`, `catalog.layouts()`, `LayoutCatalogEntry.implementations`; gap: `session.layout.set(id, params)` by arrangement name (#144), since `setLayout` takes engine names today | none; the arrangement has a state (section 4) |
 | Spread out, flat (ARF) | shipped | batch, 2 | none | natural | as above | none |
 | Ring (circular) | shipped | batch, 3 | proposed: Order by [Load order v], the list being Load order plus every Measure in the tree | natural; the ordering input is a proposal (section 6.4) | gap: no layout takes an ordering today; `structuralInputs: "ordering"` exists in the type and nothing declares it | an Order-by row links the arrangement to a Measure (state, section 6.3) |
 | Concentric rings (shell) | shipped | batch, 2 | Group by [Communities v]: every Grouping in the tree; "Find groups first (G)" when none exists | awkward: depends on an object (section 6.3) | gap: `layout.set` must accept a partition as a result path (`results.<run>.group`) or a Grouping id, not an `nlist` of raw ids the app would have to build | links the arrangement to a Grouping: stale when it is re-run, frozen when it is deleted |
@@ -103,10 +103,10 @@ element's reason (`recommendLayout`, `graphty-element/src/session/layout.ts`).
 | No crossings (planar) | shipped | batch, 2, rated 2,000; fails on a non-planar graph | none; on failure the transport reads "Failed: this graph cannot be drawn without crossings [Try Spread out]" | natural | gap: the failure must arrive as a `layout:changed` state "failed" with a reason (#144), not an exception inside the queue | state failed |
 | Scattered (random) | shipped | batch, 3 | none; Seed in the gear | natural; it is also the large-graph default (section 5) | none | none |
 | Tree (layered; BFS engine) | shipped | batch, 2 | Root [pick a node]: clicking the field arms a canvas pick like the Path tool ("Pick the root node" in the secondary bar); Direction [Down v] (vertical / horizontal, the engine's `align`) | natural | `start`, `align` options; gap: the pick needs the same pick event the tools use (object model section 11, marquee and pick) | none |
-| Two columns (bipartite) | shipped | batch, 2 | Group by [Grouping v] where the grouping must have two groups (the catalogue says "partition"; the engine takes one side's node list); a Best pairing (matching) run produces exactly this Grouping | awkward, as Concentric rings | gap: partition by result path | links to a Grouping |
+| Two columns (bipartite) | shipped | batch, 2 | Group by [Grouping v] where the grouping must have two groups (the catalog says "partition"; the engine takes one side's node list); a Best pairing (matching) run produces exactly this Grouping | awkward, as Concentric rings | gap: partition by result path | links to a Grouping |
 | Columns by group (multipartite) | shipped | batch, 2 | Group by [Grouping v]; column order is the Grouping's group order | awkward, as Concentric rings | gap: partition by result path | links to a Grouping |
 | Keep positions (fixed) | shipped | batch, 3 | none; the select row reads "Keep positions  from karate.gml (34 of 34 placed)" from `session.seededNodeCount`; absent from the select when the file placed nothing | natural; recommended automatically when every node arrived placed | `seededNodeCount`, `el.positionScale` (the scale is an Import option, not an Arrangement row) | none |
-| Rings from a node (radial) | declared, unserved (`UNSERVED_LAYOUT_IDS`); designloom `layout-radial` | batch, 2 | Root [pick a node]; Rings [5]; Ring spacing; the context menu's "Rings from here" | natural once it exists: the Tree row shape with a different picture; the ego-network variant ("only within N hops") is the Neighbours tool plus Focus plus this layout, not a layout option | gap: an engine (design 9.3 "ego-radial", a 2.0 implementation item) | none |
+| Rings from a node (radial) | declared, unserved (`UNSERVED_LAYOUT_IDS`); designloom `layout-radial` | batch, 2 | Root [pick a node]; Rings [5]; Ring spacing; the context menu's "Rings from here" | natural once it exists: the Tree row shape with a different picture; the ego-network variant ("only within N hops") is the Neighbors tool plus Focus plus this layout, not a layout option | gap: an engine (design 9.3 "ego-radial", a 2.0 implementation item) | none |
 | Grid | declared, unserved | batch | none | natural; also the "Quick grid (Performance mode)" state the app's chip already names | gap: an engine | none |
 | Sugiyama (layered with crossing reduction) | proposed (design 9.3; designloom `layout-hierarchical`) | batch, 2 | as Tree, plus Orientation [Top-down v] (four), Layer spacing, Node spacing; a caveat line "Contains cycles: 12 edges reversed" | natural for the layout; the reversed-edge set is section 6.5 | gap: an engine; a layout that reports a set | may create a Set (6.5) |
 | A plugin layout (`defineLayout`) | shipped | as declared | its declared structural inputs draw the same rows | natural: it appears in the Layout select from `catalog.layouts()` with no app change | `docs/guide/extending/custom-layouts.md` | none |
@@ -119,7 +119,7 @@ element's reason (`recommendLayout`, `graphty-element/src/session/layout.ts`).
 | Engine options (iterations, gravity, scaling ratio, jitter tolerance, k, alpha and decay, dissuade hubs, linlog, strong gravity, scale, center, align, cooling) | shipped, from each engine's Zod schema through `optionsFromZod` | the gear popover: one row per option descriptor, in declaration order, with the descriptor's label and tooltip; fields commit on Enter, Tab or blur; a change re-runs or marks stale by the cost rule (object model section 5) | natural | `LayoutDescriptor.options`; gap: bounds resolved for a scope (#336) | state |
 | `dim` and `scalingFactor` options | shipped; the app hides them from its form (`graphty/src/data/layoutMetadata.ts` `MODAL_OWNED_OPTIONS`) | not drawn: `dim` is the Dimensions row (section 5); `scalingFactor` is the element's world-space multiplier and stays a Settings > Defaults value | natural | none | none |
 | Recommend a layout, with a reason | shipped (`recommendLayout`) | automatic after a load (the app does nothing else unasked); the "Recommended" mark and its tooltip in the Layout select | natural | `recommendLayout(statistics, {placedNodes})`; gap: `session.layout.recommend()` on the session (#144) | none |
-| Use edge weights | shipped for ForceAtlas2 and Kamada-Kawai (`honoursWeights`) | the gear popover: Weights [switch], drawn only when the engine honours weights AND the data is weighted (`statistics.weighted`); the Dataset's Summary row "Weighted Yes" says why it is there | natural | `weighted` option, `LayoutDescriptor.honoursWeights` | state |
+| Use edge weights | shipped for ForceAtlas2 and Kamada-Kawai (`honoursWeights`) | the gear popover: Weights [switch], drawn only when the engine honors weights AND the data is weighted (`statistics.weighted`); the Dataset's Summary row "Weighted Yes" says why it is there | natural | `weighted` option, `LayoutDescriptor.honoursWeights` | state |
 | Seed | shipped for six engines (`type: "seed"` descriptors) | the gear popover: Seed [42] with a 24 px dice button (new random seed); Re-run keeps the seed; Made by records it | natural | gap: the element must report the seed it actually used when the option was null (as `run.caveats` does for algorithms), or a Re-run cannot reproduce the picture and the methods text cannot cite it | state |
 | Pace the simulation (`preSteps`, `stepMultiplier`, `minDelta`, `zoomStepInterval`) | shipped (`el.layoutBehavior.layout`) | Settings > Performance: "Steps before the first frame", "Steps per frame", "Stop when movement is below", "Re-frame every N steps"; not on the everyday screen | natural | `GraphBehavior.layout`; design lists them as `ConfigValues` keys | none |
 | Wait for settle / settled event | shipped (`waitForSettled`, `graph-settled`) | the transport row's state word ("Settled", "Settling 62%", "Stopped after 1,000 steps") and the layout chip | natural | gap: `layout:changed` with state and step (#144); today only `graph-settled` and `layout-initialized` exist | state |
@@ -127,7 +127,7 @@ element's reason (`recommendLayout`, `graphty-element/src/session/layout.ts`).
 | Re-run (fresh) versus continue (warm start) | shipped in part: transitions warm-start; `start: "current" \| "fresh" \| "positions"` is design 4.7 | Re-run restarts from a fresh seeded start; Play after Pause continues; changing the arrangement warm-starts from the current positions by default, so the picture glides; a "Start from scratch" checkbox in the gear popover for a reader who wants the jump | natural | gap: `start` on `layout.set` (#144) | state |
 | Cancel a long batch layout | partial: the operation queue has cancel; nothing public | the transport row reads "Computing Kamada-Kawai 42% [Cancel]"; the chip reads the same; the Dataset tree row does NOT take the progress ring (a live layout would ring forever; the ring means a load) | natural | gap: `layout.settle()` as a cancellable `Run` (#144) | state computing |
 | Layout cost and the size rating | partial: `sizeRating` is published; there is no `session.estimate` for a layout command | the Layout select's right-hand note; over the rating the row is still enabled and the transport shows the estimate before the click, as flyouts do; no confirmation dialog, ever | natural | gap: `session.estimate({op: "layout.set"})` and `plan` for layouts (#337 lists `layout.set` as a command kind); calibration (#146, #159) | none |
-| Layout on load (`algorithmsOnLoad` has no layout equivalent) | shipped as behaviour: the element lays out on load with the configured layout | automatic: the recommendation runs, the camera fits once on the first settle | natural | none | state |
+| Layout on load (`algorithmsOnLoad` has no layout equivalent) | shipped as behavior: the element lays out on load with the configured layout | automatic: the recommendation runs, the camera fits once on the first settle | natural | none | state |
 | Animated transitions between layouts (`transitionMs`, `animate`, `duration`) | shipped for layout changes | automatic; Settings > Appearance: Reduce motion [switch] (sets every duration to zero, the designloom `animated-transitions` requirement); no per-change control | natural | `RunOptions.transitionMs`, `setLayout(..., {animate, duration})` | none |
 | Custom layout plugin | shipped | the Layout select, automatically | natural | `defineLayout` | none |
 | The layout chip's states | shipped in the app (`layoutStates.ts`): Positions from file; Quick grid (Performance mode); Random (seeded); stepping with Stop; settled; stopped after N steps; scoped "on 37 of 200"; computing with Cancel | the status bar; the chip's caret opens the Layout list, Re-run, Pause; its body click selects the Dataset row and scrolls the inspector to Arrangement (the one navigation the chip does) | natural; the five states are the Arrangement state vocabulary made small | gap: every one of these needs `layout:changed` (#144) | none |
@@ -182,7 +182,7 @@ follow, and each is a small exception to a rule of the object model:
 - **It has a Fill.** This is the reason to make it a row at all: a pinned node should look
   pinned, and the only way to paint anything in this model is a layer on an object. The default
   Fill is a 1 px outline. A reader who wants pins invisible clicks the eye; a reader who wants
-  them loud picks a colour. Because it is a row, it has a place in precedence like any other.
+  them loud picks a color. Because it is a row, it has a place in precedence like any other.
 
 The alternative was no row: "Pinned 2 [Unpin all] [Select]" in Arrangement only. It loses the
 Fill, the hover link (hover the row, the pinned nodes outline) and the Members section, all
@@ -233,7 +233,7 @@ resolving group membership into id lists itself, which the root `CLAUDE.md` forb
 Ring and Spiral place nodes in load order, which is arbitrary. The obvious improvement in this
 model is "Order by [Connections v]" listing every Measure in the tree, so a ring sorted by
 degree is two clicks after a Rank. It is proposed here, not in any issue: the `ordering`
-structural input exists in the catalogue type and no arrangement declares it. It brings the
+structural input exists in the catalog type and no arrangement declares it. It brings the
 same link rules as 6.3 (stale on re-run of the Measure, frozen on delete). It is listed as
 awkward only because the dependency is new; the rows themselves are natural.
 
@@ -292,8 +292,8 @@ The object model's 4.1 lists the section in one line. Expanded, in order, with t
 | Row | Control | Drawn when |
 |---|---|---|
 | Layout | [Spread out v] with the gear; select rows as section 2 describes; "Recommended" mark | always |
-| Engine (in the gear popover) | [ngraph v]: every implementation, the default first, each with the catalogue's reason as secondary text; below it the read-only acceleration line | the arrangement has more than one engine, or an accelerated one |
-| Options (in the gear popover) | one row per option descriptor; Seed [42] [dice] where the engine takes one; Weights [switch] where it honours them and the data is weighted; "Start from scratch" [checkbox] | per descriptor |
+| Engine (in the gear popover) | [ngraph v]: every implementation, the default first, each with the catalog's reason as secondary text; below it the read-only acceleration line | the arrangement has more than one engine, or an accelerated one |
+| Options (in the gear popover) | one row per option descriptor; Seed [42] [dice] where the engine takes one; Weights [switch] where it honors them and the data is weighted; "Start from scratch" [checkbox] | per descriptor |
 | Dimensions | read-only "3D, follows the view", or "2D, flat layout: shown in 3D as a plane" | always |
 | Transport | [Pause / Play] [Step] [Re-run] then the state word: "Settling 62%", "Settled", "Stopped after 1,000 steps", "Computing 42% [Cancel]", "Stale: Communities changed [Re-run]", "Failed: <reason> [Retry] [Run on the CPU]" | always; Pause and Step are disabled for a batch layout |
 | Group by | [Communities v] listing every Grouping in the tree, or "Find groups first (G)" | the arrangement declares a partition input |

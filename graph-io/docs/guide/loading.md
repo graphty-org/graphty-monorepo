@@ -186,7 +186,7 @@ Every function takes one options object, which holds three kinds of option:
 
 - The [options every importer takes](./options.md#every-importer): how ids are read
   (`ids`), which attribute is the edge weight (`weightFrom`), the direction of a file that does not
-  say (`defaultDirected`), the error limit, cancelling, progress and the text encoding.
+  say (`defaultDirected`), the error limit, canceling, progress and the text encoding.
 - The [options of the load functions](./options.md#importgraph-and-importallgraphs) themselves:
   `format`, `filename`, `mimeType`, `builder`, `freeze` and `maxEmptyCells`, and `graphIndex` and
   `graphName` for [files that hold several graphs](#files-that-hold-several-graphs).
@@ -344,12 +344,12 @@ The listing above says Alpha has 2 edges, and the snapshot has 3: Alpha has one 
 undirected edge, and under the default `onMixedDirection: "expand"` the undirected edge is stored as
 two directed edges, one each way. `report.counts.expandedMixed` counts such edges.
 
-## Cancelling and progress
+## Canceling and progress
 
 Pass an `AbortSignal` as `signal` to stop a load. The import stops promptly and the promise
 rejects with the signal's reason: a `DOMException` named `"AbortError"`, or `"TimeoutError"` for
 `AbortSignal.timeout()`. `isAbortError(err)` is true for both, so a `catch` block can stay quiet
-when the user cancelled.
+when the user canceled.
 
 `onProgress(bytesDone, bytesTotal)` is called as the input is read. For a string or a
 `Uint8Array`, `bytesTotal` is known from the first call. For a stream, including `loadFromUrl()` and

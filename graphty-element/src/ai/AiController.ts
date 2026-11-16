@@ -751,7 +751,7 @@ export class AiController {
     private readonly emitEvent: AiEventEmitter | undefined;
     private lastInput: string | null = null;
     private lastError: Error | null = null;
-    /** The messages `cancel()` ended, so their results say cancelled, not undone. */
+    /** The messages `cancel()` ended, so their results say canceled, not undone. */
     private readonly cancelled = new WeakSet<AbortController>();
     /** Who hears that an open live connection no longer knows the conversation. */
     private readonly liveWatchers = new Set<() => void>();
@@ -941,7 +941,7 @@ export class AiController {
     }
 
     /**
-     * What a cancelled message ends with: `AI_DISPOSED` once `dispose` ended it under the `assistant`
+     * What a canceled message ends with: `AI_DISPOSED` once `dispose` ended it under the `assistant`
      * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
      * @returns The code.
      */
@@ -1476,7 +1476,7 @@ export class AiController {
     }
 
     /**
-     * A tool threw, the message was cancelled or undone, or the model failed: what the message's
+     * A tool threw, the message was canceled or undone, or the model failed: what the message's
      * earlier batches recorded is taken back, as one transaction's rollback was.
      * @param error - What the loop threw.
      * @param session - The session.
@@ -1737,7 +1737,7 @@ export class AiController {
     /**
      * Why a message that was aborted ended.
      * @param run - The message.
-     * @returns Cancelled when `cancel()` ended it, undone otherwise.
+     * @returns Canceled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
         return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };

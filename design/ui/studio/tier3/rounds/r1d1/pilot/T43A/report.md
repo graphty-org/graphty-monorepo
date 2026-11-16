@@ -22,7 +22,7 @@ the page.
 | 1 | No thanks | Card gone | `pointer/02.png` |
 | 2 | Open project or file..., volunteers.graphml | "Open as a new graph": "volunteers: 24 nodes, 63 edges"; line 9 Hannah Weiss, hours 52, visible before Load | `pointer/03.png` |
 | 3 | Load | Drawing; Graph inspector on Values: Nodes 24, Edges 63; layers Hovered, Selected, Everything | `pointer/04.png` |
-| 4 | Everything | Style > Node: "Everything styles all 24 nodes"; Size line already there at 1; Shape "+" greyed | `pointer/05.png` |
+| 4 | Everything | Style > Node: "Everything styles all 24 nodes"; Size line already there at 1; Shape "+" grayed | `pointer/05.png` |
 | -- | Hover the link icon beside Size | tooltip "Node size by attribute"; the pointer stays the arrow, not the hand | `pointer/06.png` |
 | 5 | The link icon beside Size | Popover "Node size by attribute": Find an attribute, Fixed size, Data: hours "2 to 52", Does not fit: "5 attributes, Show why" | `pointer/07.png` |
 | 6 | hours | Popover closes by itself; Size box shows a chip "hours", "From 1 to 3" under it; key "Size: hours 2 -- 52" over the drawing; dots vary | `pointer/08.png` |
@@ -39,7 +39,7 @@ Style tree at the end (`pointer/styles.json`): Everything's node layer encodes `
 
 ### Answer key against the screen
 
-- Matches: Size line already there at 1 and Shape "+" greyed; the link icon's tooltip and name
+- Matches: Size line already there at 1 and Shape "+" grayed; the link icon's tooltip and name
   "Node size by attribute"; the popover title, Fixed size, the number column and "Does not fit";
   the popover closing itself; the chip with "From 1 to 3"; the key "Size: hours 2 -- 52"; Hannah
   Weiss, hours 52; v09 and v02 about the same size in 3D; the sorted table; the read-the-file page

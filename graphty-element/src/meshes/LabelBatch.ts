@@ -147,7 +147,7 @@ export function deferLabelRelease(resources: LabelResources): boolean {
 
 /**
  * Run some work that disposes many labels -- a repaint that takes a label off every node, or
- * rebuilds every labelled node -- and release everything those labels owned once it ends, in one
+ * rebuilds every labeled node -- and release everything those labels owned once it ends, in one
  * pass over each scene list instead of one search per label. Nothing outside the work sees a
  * disposed label: the work is synchronous and the release happens before this returns.
  * @param work - The work.

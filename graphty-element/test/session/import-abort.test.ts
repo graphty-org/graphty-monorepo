@@ -1,5 +1,5 @@
 /**
- * @file `session.data.import()` honours its signal for inline data, a file and a URL (#7914):
+ * @file `session.data.import()` honors its signal for inline data, a file and a URL (#7914):
  * aborting it before the load starts, while the file is read or the URL fetched, or between two
  * chunks rejects with the caller's own reason and leaves the graph and the history as they were.
  */

@@ -3,7 +3,7 @@
 // selected. The browser took the WebGL context back (a driver reset, the
 // machine waking from sleep, too many tabs drawing). The session still holds
 // the data, the runs and the layers, so only the picture is gone: the canvas
-// is blank and greyed with a card in its middle; the tree, the inspector, the
+// is blank and grayed with a card in its middle; the tree, the inspector, the
 // table and the status bar keep working. The card's Details are open.
 import { STATE } from "./screen-3.mjs";
 

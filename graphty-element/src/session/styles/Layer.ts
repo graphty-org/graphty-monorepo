@@ -109,8 +109,8 @@ import { compileSelector, type Selector } from "./selector";
 /**
  * One layer of the style stack: what it paints, where it paints it, and who put it there.
  *
- * Data, not an object with behaviour. Everything that happens to a layer happens through the
- * styles API, so a layer handed to a consumer can be read, kept, diffed and serialised without
+ * Data, not an object with behavior. Everything that happens to a layer happens through the
+ * styles API, so a layer handed to a consumer can be read, kept, diffed and serialized without
  * any of it being able to change the picture behind the element's back.
  */
 export interface Layer {
@@ -184,7 +184,7 @@ export interface Layer {
 }
 
 /**
- * Where a layer goes when it is added, said as a neighbour rather than as a number.
+ * Where a layer goes when it is added, said as a neighbor rather than as a number.
  *
  * Exactly one of the two, or neither for the top of the stack. A position expressed as an index
  * is a position that goes wrong the moment anything else moves.
@@ -417,7 +417,7 @@ export interface RepaintRequest {
 
 /** The live handles a repaint needs, kept out of the request so the request stays plain data. */
 export interface RepaintContext {
-    /** Aborted when the edit is cancelled. Stop and throw; do not finish quietly. */
+    /** Aborted when the edit is canceled. Stop and throw; do not finish quietly. */
     readonly signal: AbortSignal;
     /**
      * Report how far along the pass is, so a large graph shows progress rather than a freeze.
@@ -446,7 +446,7 @@ export interface RepaintReport {
  * hands none in, and that is not a degraded mode: the stack is the session's, the paint is the
  * renderer's, and a headless session legitimately has nothing to paint. What the styles API
  * guarantees is the order -- a repaint is awaited BEFORE the new stack is committed, so a
- * cancelled or failed repaint leaves the model exactly as it was rather than leaving the list
+ * canceled or failed repaint leaves the model exactly as it was rather than leaving the list
  * saying one thing and the screen showing another.
  * @param request - What changed, and what to paint from.
  * @param context - The signal to stop on, and where to report progress.
@@ -648,7 +648,7 @@ function channelsWritten(spec: LayerSpec): readonly string[] {
 }
 
 /**
- * A colour value as {@link toColorValue} takes one, or null when the value is not a colour at all.
+ * A color value as {@link toColorValue} takes one, or null when the value is not a color at all.
  * @param value - Whatever the specification carried.
  * @returns The string or components, or null.
  */
@@ -1162,7 +1162,7 @@ function checkBindingOptions(
        layer naming a palette nothing registered was accepted at the edit, written onto the layer,
        and then failed one repaint later as a layer that paints nothing -- with the failure
        arriving somewhere a settings form is not listening. The list of candidates is read from
-       the catalogue, so a reader who registered their own palette and mistyped it is shown their
+       the catalog, so a reader who registered their own palette and mistyped it is shown their
        own palette among the near misses rather than only the element's seventeen. */
     if (binding.palette !== undefined && paletteDescriptor(binding.palette) === undefined) {
         report(log, {

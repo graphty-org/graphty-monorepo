@@ -15,7 +15,7 @@ const predict = (graph: Graph): LinkPredictionAlgorithm => new LinkPredictionAlg
 describeScopedAdapter("link-prediction", predict);
 
 describe("link prediction over a scope", () => {
-    /** a and c share b in the scope; x, outside it, is a neighbour a and c share with d too. */
+    /** a and c share b in the scope; x, outside it, is a neighbor a and c share with d too. */
     const build = (): InputGraph =>
         new InputGraph(
             ["a", "b", "c", "x", "d"],

@@ -13,7 +13,7 @@
  * PRESENCE IS SUPPLIED RATHER THAN DERIVED. `{match:"has", path}` compiles to `nodeHas`, and so
  * does ``<path> != `null` `` -- they are the two spellings of one question, and an element that
  * answered them differently would paint two different sets from one intent. A column answers
- * presence from its validity bitmap without materialising the value, which is the whole reason
+ * presence from its validity bitmap without materializing the value, which is the whole reason
  * the interface offers the member; leaving it out would throw that away and read the value anyway.
  * Present means NEITHER ABSENT NOR NULL, exactly as the contract states it, so an unset row of a
  * column that declares a default is PRESENT: that row reads the default, and a reader who gets a
@@ -35,7 +35,7 @@
  *
  * NOTHING IS ALLOCATED PER ELEMENT. These readers run once per element per layer inside the
  * repaint, where the compiled selector costs single-digit nanoseconds, so one object per read
- * would cost more than everything it was measuring. A path is parsed once and memoised; a column
+ * would cost more than everything it was measuring. A path is parsed once and memoized; a column
  * is resolved once per freeze; an edge id is minted once per row per freeze and then read from an
  * array; and the snapshot check that keeps all of it honest is one call and one identity compare.
  *
@@ -312,7 +312,7 @@ const NOTHING: PathEntry = Object.freeze({ kind: "none", key: "", runId: "", fie
 /**
  * Work out what a path names.
  *
- * Called once per path and memoised, because the alternative is splitting a string per element.
+ * Called once per path and memoized, because the alternative is splitting a string per element.
  *
  * A `results.*` path that is not exactly `results.<run>.<field>` is refused into
  * {@link NOTHING} rather than guessed at. `results.<run>` on its own addresses the run's whole
@@ -491,7 +491,7 @@ function cellValue(reader: ColumnReader, index: number): unknown {
 /**
  * Whether one cell of a column holds a value.
  *
- * The validity bit answers it without materialising anything, which is the reason a source
+ * The validity bit answers it without materializing anything, which is the reason a source
  * supplies presence rather than letting it be derived. A set row never holds null -- writing null
  * unsets the row -- so a set bit IS a present value.
  * @param reader - The column.

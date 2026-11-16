@@ -2,7 +2,7 @@
  *
  * Every value here is taken from the measured Figma study in
  * design/ui/figma/ (components.md for sizes and states, tokens/tokens.json
- * for colours). The chrome is: one 11px body size, 24px controls, 32px
+ * for colors). The chrome is: one 11px body size, 24px controls, 32px
  * rows, 40px section headers, 240px panels, a 56px rail, radii 2 / 5 / 13,
  * one accent blue, dark menus and tooltips in both themes.
  *
@@ -62,12 +62,12 @@
   --k-tree-indent: 24px;
   --k-statusbar-h: 24px;
 
-  /* Motion: the chrome is instant except a 100ms colour ease on hover-revealed
+  /* Motion: the chrome is instant except a 100ms color ease on hover-revealed
      bits and the switch knob. */
   --k-duration-sm: 100ms;
 
-  /* Colours, light. Text and icons are translucent black so they sit on
-     white, grey and blue alike. */
+  /* Colors, light. Text and icons are translucent black so they sit on
+     white, gray and blue alike. */
   --k-bg: #fff;
   --k-bg-secondary: #f5f5f5;          /* field fill, track, tab selected */
   --k-bg-hover: #f5f5f5;              /* row hover, rail hover, tool hover */
@@ -388,7 +388,7 @@
 }
 .k-row > .k-span-2 { grid-column: span 2; width: 184px; }   /* a 184-wide control */
 .k-row > .k-span-3 { grid-column: span 3; width: 216px; }   /* full 216 */
-.k-row-2 { height: 50px; }                         /* two labelled columns: 9px caption, 3 gap, 24 control */
+.k-row-2 { height: 50px; }                         /* two labeled columns: 9px caption, 3 gap, 24 control */
 .k-field { display: flex; flex-direction: column; gap: 3px; }
 .k-row-flex { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
 .k-row-flex > .k-grow { flex: 1; min-width: 0; }
@@ -490,7 +490,7 @@
 .k-paint-opacity input { width: 100%; height: 24px; background: none; border: 0; outline: none !important; padding: 0; line-height: 24px; }
 .k-paint .k-name { flex: 1; padding-left: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-/* Swatch (chit): 14 x 14, radius 2, half-pixel inner border. --swatch sets the colour. */
+/* Swatch (chit): 14 x 14, radius 2, half-pixel inner border. --swatch sets the color. */
 .k-swatch {
   width: 14px; height: 14px; flex: none;
   border-radius: var(--k-radius-sm);
@@ -521,7 +521,7 @@
 .k-seg.is-disabled .k-seg-opt { color: var(--k-text-disabled); }
 
 /* Checkbox: 16px face, radius 2, label 8px right, 24 tall (32 in a panel row).
-   Neutral variant stays grey when checked; .k-check-blue fills brand. */
+   Neutral variant stays gray when checked; .k-check-blue fills brand. */
 .k-check { display: inline-flex; align-items: center; gap: 8px; height: 24px; position: relative; }
 .k-check input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
 .k-check-box {
@@ -954,7 +954,7 @@
 .k-empty p { margin: 0; color: var(--k-text-secondary); }
 
 /* Status chip: 16 tall, padding 0 4, radius 5, 1px outline; tinted
-   variants use the tertiary background with the strong text colour.
+   variants use the tertiary background with the strong text color.
    .k-chip-md is the 24-tall version for a status bar or a row. */
 .k-chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -977,7 +977,7 @@
 /* Notification dot: 5px brand with a 2px surface ring, top right of an icon */
 .k-dot { position: absolute; top: 3px; right: 3px; width: 9px; height: 9px; border-radius: 50%; background: var(--k-bg-brand); box-shadow: inset 0 0 0 2px var(--k-bg); }
 
-/* Progress bar: 4px track on the pressed grey, brand fill. --value sets the width. */
+/* Progress bar: 4px track on the pressed gray, brand fill. --value sets the width. */
 .k-progress {
   width: 100%; height: 4px; border-radius: var(--k-radius-full);
   background: var(--k-bg-tertiary); overflow: hidden; position: relative;
@@ -1046,7 +1046,7 @@
 .k-panel-type .k-title2 .k-secondary { line-height: 14px; }
 
 /* Property row: | 16 | label 68 | 8 | control 140 | 8 | = 240. One layout for
-   every labelled row of the Dataset inspector. A lone select fills the 140;
+   every labeled row of the Dataset inspector. A lone select fills the 140;
    a select beside a note is 90 wide (k-fixed); beside an icon button it
    takes what is left. */
 .k-prop { display: grid; grid-template-columns: 68px minmax(0, 140px); column-gap: 8px; align-items: center; height: var(--k-row-h); padding: 0 8px 0 16px; }
@@ -1097,7 +1097,7 @@
 /* one function each; no screen adds a <style> of its own.              */
 /* ================================================================== */
 
-/* Canvas colours per theme: the default node and edge grey, the ink that
+/* Canvas colors per theme: the default node and edge gray, the ink that
    outlines and labels use, and the selection halo (the same in both). */
 :root {
   --k-canvas-node: #b3b3b3;
@@ -1114,7 +1114,7 @@
   --k-canvas-ink: #ffffff;
 }
 
-/* Mock page chrome: a 1440 x 900 frame on a grey page and a 60px dark
+/* Mock page chrome: a 1440 x 900 frame on a gray page and a 60px dark
    caption under it. */
 .k-mockpage { margin: 0; background: #d9d9d9; }
 .k-frame { width: var(--k-frame-w, 1440px); height: var(--k-frame-h, 900px); position: relative; overflow: hidden; }
@@ -1159,7 +1159,7 @@
 .k-ring .k-ring-track { stroke: var(--k-bg-tertiary); }
 .k-ring .k-ring-bar { stroke: var(--k-bg-brand); stroke-linecap: butt; transform: rotate(-90deg); transform-origin: 50% 50%; }
 
-/* Style chips (14 x 14): a swatch, a ring, a ramp, a strip of group colours,
+/* Style chips (14 x 14): a swatch, a ring, a ramp, a strip of group colors,
    a size glyph, a line sample. An override dot; a faded (covered) chip. */
 .k-chip-swatch { width: 14px; height: 14px; border-radius: var(--k-radius-sm); background: var(--swatch, #d9d9d9); box-shadow: inset 0 0 0 .5px var(--k-border); display: block; position: relative; }
 .k-chip-swatch.is-ring { background: var(--k-bg); box-shadow: inset 0 0 0 2px var(--swatch, #1e1e1e); }
@@ -1220,7 +1220,7 @@
 .k-disclose-summary { color: var(--k-text-secondary); margin-left: 8px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: var(--k-fw-body); }
 .k-row-text.is-row { height: var(--k-row-h); display: flex; align-items: center; padding-bottom: 0; }
 
-/* Labelled toolbar: 56 tall; 40 x 40 tool buttons with a 16px icon over an
+/* Labeled toolbar: 56 tall; 40 x 40 tool buttons with a 16px icon over an
    8px label; Select and Hand stay 32 x 32 with no label; chevrons 16 x 40;
    disabled tools at 30 percent, labels included. */
 .k-toolbar.k-toolbar-labeled { height: var(--k-toolbar-labeled-h); }
@@ -1465,7 +1465,7 @@
 .k-refpage .k-ref-strips .k-popover { width: 240px; }
 
 /* Round-2, pass 3. A modal dialog on the stage (the Import dialog, the
-   reload dialog): the kit's 480 px dialog centred over a scrim, its rows the
+   reload dialog): the kit's 480 px dialog centered over a scrim, its rows the
    inspector's own row types. */
 .k-canvas-stage .k-dialog { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); }
 .k-dialog .k-popover-body { padding: 8px 0; }
@@ -1485,7 +1485,7 @@
 /* Round 3: the key-function screens (16 to 100). Menus that hang from  */
 /* any control, insets (a second state of the same screen), text        */
 /* fields, radios, charts, the History and Assistant docks, the status   */
-/* bar's coloured chips, canvas marks. Still drawn by render.mjs only.   */
+/* bar's colored chips, canvas marks. Still drawn by render.mjs only.   */
 /* ================================================================== */
 
 /* The file header: the name, the unsaved dot, the chevron box (pressed
@@ -1705,7 +1705,7 @@
 .k-cell-menu.is-open { background: var(--k-bg-pressed); }
 
 /* Canvas marks: a rubber band, the export frame, the drop overlay, a
-   centred stage card, the minimap, two panes, callouts, summary nodes. */
+   centered stage card, the minimap, two panes, callouts, summary nodes. */
 .k-rubber { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .k-export-frame { position: absolute; outline: 1.5px dashed var(--k-border-selected); outline-offset: 0; box-shadow: 0 0 0 9999px #0000000f; }
 .k-export-frame span { position: absolute; left: 0; top: -22px; height: 18px; padding: 0 6px; border-radius: var(--k-radius-md); background: var(--k-bg-brand); color: #fff; line-height: 18px; white-space: nowrap; }
@@ -1731,7 +1731,7 @@
 .k-graph text.k-callout-text { font-weight: 450; }
 .k-graph text.k-meta-label { font-weight: var(--k-fw-strong); }
 
-/* Toolbar: a greyed mode segment; the armed tool's label may spill 2 px
+/* Toolbar: a grayed mode segment; the armed tool's label may spill 2 px
    each side (revision.md 3.1), so its fill spills with it. */
 .k-mode-opt.is-disabled { color: var(--k-text-disabled); }
 .k-mode-opt.is-pressed { background: var(--k-bg-mode-hover); }
@@ -1789,7 +1789,7 @@
 /* button, the command palette, the light secondary bar               */
 /* (round-4/revision-round-4.md; measurements from visual-language.md). */
 /* Still drawn by render.mjs only; these rules override the round-2     */
-/* labelled toolbar and dark secondary bar above.                       */
+/* labeled toolbar and dark secondary bar above.                       */
 /* ================================================================== */
 
 /* The toolbar is 48 tall again (it was 56 with labels), so every float
@@ -1898,7 +1898,7 @@
 .k-flyout .k-menu-target { height: 32px; }
 
 /* The command palette (compact-mantine QuickActions, spec 11.9): 529 x 354,
-   light, radius 13, elevation 200, 8 px above the toolbar, centred on it. */
+   light, radius 13, elevation 200, 8 px above the toolbar, centered on it. */
 .k-palette { position: absolute; left: 50%; bottom: calc(12px + 48px + 8px); transform: translateX(-50%); width: 529px; height: 354px; display: flex; flex-direction: column; overflow: hidden; background: var(--k-bg); border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-200); z-index: 4; }
 .k-palette-search { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; font: 400 13px/24px var(--k-font); letter-spacing: -0.003px; border-bottom: 1px solid var(--k-border); }
 .k-palette-search .k-icon-16 { color: var(--k-text-secondary); }

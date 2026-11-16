@@ -46,7 +46,7 @@ interface Tombstone {
 }
 
 /**
- * The slice and what sits beside it, as stored: the one serialised form a project file or an undo
+ * The slice and what sits beside it, as stored: the one serialized form a project file or an undo
  * slice uses (design 12, 12.4). Plain JSON once stringified: a record's `revision` is not an own
  * enumerable field, a fixed set's edge members are, and unknown top-level fields are kept. Seeds
  * and every derived value are left out; the order high-water mark is recovered from the records
@@ -196,7 +196,7 @@ export class SetsStore implements RecordView {
         // edge columns when million-edge sets from createFrom make its memory matter.
         let seeds = this.seeds.get(id);
         if (seeds === undefined && entries instanceof Map) {
-            // A fresh set adopts the map its materialising door built (and hands over), instead of
+            // A fresh set adopts the map its materializing door built (and hands over), instead of
             // one set() per member.
             if (entries.size > 0) {
                 this.seeds.set(id, { counters: entries as Map<string, number>, version: 1 });
@@ -289,7 +289,7 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * The slice as stored. Internal: the one serialiser a project file or an undo slice uses.
+     * The slice as stored. Internal: the one serializer a project file or an undo slice uses.
      * @returns The records, the register and the tombstones.
      */
     toLogicalRecords(): LogicalSets {

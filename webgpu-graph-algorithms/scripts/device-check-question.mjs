@@ -11,7 +11,7 @@
  *
  *     node scripts/device-check-question.mjs
  *
- * It creates a context the way a consumer would (createNodeGpuContext, honouring GRAPHTY_GPU_ADAPTER and
+ * It creates a context the way a consumer would (createNodeGpuContext, honoring GRAPHTY_GPU_ADAPTER and
  * GRAPHTY_DAWN_FEATURES), awaits verifyDevice for the record, then calls `degree` -- a public algorithm, gated
  * like every other compute entry point -- to show what a caller actually gets. Every line is printed under the
  * marker [device-check]; the last one begins "VERDICT:" and says which of three things happened:

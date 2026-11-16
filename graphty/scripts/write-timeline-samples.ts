@@ -187,7 +187,7 @@ function paperCitations(): object {
         const want = Math.min(older.length, 1 + Math.floor(rand() * 5));
         const chosen = new Set<number>();
         while (chosen.size < want) {
-            // Preferential attachment, favouring the same topic and recent work.
+            // Preferential attachment, favoring the same topic and recent work.
             const score = older.map(
                 (j) =>
                     ((cited[j] + 1) * (papers[j].topic === paper.topic ? 3 : 1)) /

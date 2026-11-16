@@ -1,9 +1,9 @@
 /**
  * @file The background and the configuration document on a real `Graph`, across undo and redo.
  *
- * The scene holds at most one skybox dome, and none while the background is a colour, however the
+ * The scene holds at most one skybox dome, and none while the background is a color, however the
  * background got there: set forward, undone or redone. `styles.config` is a frozen view of the
- * settings, the same object on every read until one of them changes. And the layout-behaviour
+ * settings, the same object on every read until one of them changes. And the layout-behavior
  * settings that are preferences of the view change no project state and record no step.
  */
 
@@ -56,9 +56,9 @@ function domes(graph: Graph): number {
 }
 
 /**
- * The scene's clear colour, as hex.
+ * The scene's clear color, as hex.
  * @param graph - The graph.
- * @returns The colour.
+ * @returns The color.
  */
 function clear(graph: Graph): string {
     return graph.getScene().clearColor.toHexString().slice(0, 7).toUpperCase();

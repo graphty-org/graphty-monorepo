@@ -1,7 +1,7 @@
 // The College football drawing (football.gml: 115 teams, 613 games), laid out
 // once and baked by make-graphs.mjs so no two screens differ. A node's label
 // is the team; COMMUNITIES is the `value` attribute (the conference, 0 to
-// 11), GROUP_NAMES the conference names, BETWEENNESS the normalised
+// 11), GROUP_NAMES the conference names, BETWEENNESS the normalized
 // betweenness centrality of every team. Do not edit by hand: change
 // make-graphs.mjs and run it.
 export const BOX = {"w":1000,"h":760};

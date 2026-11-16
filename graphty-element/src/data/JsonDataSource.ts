@@ -487,7 +487,7 @@ export class JsonDataSource extends DataSource {
         aggregateErrors(imported.report, this.errorAggregator, JsonDataSource.type);
 
         // An edge naming a node the file never declared adds that node to the import, with no
-        // position; the element materialises such an endpoint itself, and has never been handed a
+        // position; the element materializes such an endpoint itself, and has never been handed a
         // record for it.
         const rowsOf = (records: readonly { data: Record<string, unknown> }[]): number[] =>
             records.flatMap(({ data }) => (typeof data[ROW_KEY] === "number" ? [data[ROW_KEY]] : []));
@@ -594,7 +594,7 @@ export class JsonDataSource extends DataSource {
      * reader for its dialect; every column becomes a key of the record.
      * @param text - the document
      * @param data - the parsed document
-     * @param dialect - the dialect it was recognised as
+     * @param dialect - the dialect it was recognized as
      * @yields DataSourceChunk objects containing the graph's nodes and edges
      */
     private async *readWhole(
@@ -634,7 +634,7 @@ export class JsonDataSource extends DataSource {
      * graph-io kept it.
      * @param text - the document
      * @param data - the parsed document
-     * @param dialect - the dialect graph-io recognised
+     * @param dialect - the dialect graph-io recognized
      * @yields DataSourceChunk objects containing the graph's nodes and edges
      */
     private async *readDialect(

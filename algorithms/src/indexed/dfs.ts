@@ -111,7 +111,7 @@ function followNextArc(g: AdjacencyView, u: number, w: Walk, arcOrder: U32 | nul
 }
 
 /**
- * Iterative DFS from `root` with an explicit arc cursor per node, so the walk tries neighbours in
+ * Iterative DFS from `root` with an explicit arc cursor per node, so the walk tries neighbors in
  * row order (or `arcOrder`) exactly as a recursive DFS would and never overflows the call stack.
  * @param g - The adjacency to walk
  * @param root - An unvisited node index
@@ -150,9 +150,9 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
 }
 
 /**
- * Depth-first search over out-neighbours, trying them in row (ascending index) order unless
+ * Depth-first search over out-neighbors, trying them in row (ascending index) order unless
  * `options.arcOrder` gives another. Takes any
- * `AdjacencyView`, so `s.reverse()` walks in-neighbours.
+ * `AdjacencyView`, so `s.reverse()` walks in-neighbors.
  * @param g - The adjacency to traverse
  * @param startNode - The node to start from: its index, or `{ id }`
  * @param options - Traversal options
@@ -232,9 +232,9 @@ function hasUndirectedCycle(g: AdjacencyView): boolean {
 
 /**
  * Topological order of a directed graph: reverse DFS post-order, roots taken in index order and
- * neighbours in row order unless `options.arcOrder` gives another.
+ * neighbors in row order unless `options.arcOrder` gives another.
  * @param g - A directed adjacency
- * @param options - The neighbour order
+ * @param options - The neighbor order
  * @returns The node indices in topological order, or null when the graph has a cycle
  * @throws Error when the graph is undirected
  * @public

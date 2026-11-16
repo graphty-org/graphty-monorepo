@@ -16,7 +16,7 @@ import { expectTypeOf } from "vitest";
 // Design section 12.1: public arrays are the concrete typed-array classes with the buffer parameter
 // fixed to ArrayBuffer. That parameter, not Readonly, is what makes them a BufferSource.
 
-// ---- the aliases are exactly the ArrayBuffer-parameterised classes
+// ---- the aliases are exactly the ArrayBuffer-parameterized classes
 expectTypeOf<U32>().toEqualTypeOf<Uint32Array<ArrayBuffer>>();
 expectTypeOf<I32>().toEqualTypeOf<Int32Array<ArrayBuffer>>();
 expectTypeOf<F32>().toEqualTypeOf<Float32Array<ArrayBuffer>>();

@@ -57,7 +57,7 @@ afterEach(() => {
 /**
  * A device whose arithmetic counts iterations: a landed batch of `k` iterations moves node `i`
  * by `k * (i + 1)` along x, so where the nodes end says exactly how many iterations ran, whatever
- * the element does to centre and scale the arrangement. It settles once `SETTLE_AFTER` iterations
+ * the element does to center and scale the arrangement. It settles once `SETTLE_AFTER` iterations
  * have landed. Two batches in flight at most, the oldest returned beyond that, as a GPU simulation
  * does.
  *

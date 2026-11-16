@@ -148,7 +148,7 @@ function degreeRunner(): Runner {
                             technicalName: "degree",
                             kind: "node",
                             type: "number",
-                            // What the element's own metric algorithms publish: the catalogue's
+                            // What the element's own metric algorithms publish: the catalog's
                             // path, naming the run as "$" (#354).
                             path: "results.$.value",
                         },
@@ -350,7 +350,7 @@ describe("session.styles", () => {
 
     it("resolves a path naming a catalogue run's field, and the run's fields name the run (#354)", async () => {
         // The runner publishes "results.$.value", as the element's metric algorithms do, and the
-        // catalogue descriptor says the same until a run is bound.
+        // catalog descriptor says the same until a run is bound.
         const runner = degreeRunner();
         const harness = harnessOf({ execute: runner.execute });
         runner.store = harness.store;

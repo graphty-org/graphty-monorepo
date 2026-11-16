@@ -85,7 +85,7 @@ afterEach(() => {
  * it was stopped. Every other address is fetched as usual.
  * @param url - the address.
  * @param body - the file, for its Content-Length (four times its size, so it never finishes).
- * @returns the push, once the download has started, and whether it was cancelled.
+ * @returns the push, once the download has started, and whether it was canceled.
  */
 function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) => void; cancelled: boolean } {
     const state: { push?: (chunk: Uint8Array) => void; cancelled: boolean } = { cancelled: false };

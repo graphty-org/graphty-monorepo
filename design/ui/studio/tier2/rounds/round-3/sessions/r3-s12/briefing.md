@@ -68,9 +68,9 @@ against it and against Power BI, which is where her VP looks every Monday.
   asks where data is stored. Her Power BI tenant allows certified visuals only, so an admin has to
   approve anything else [source: Microsoft Learn, Power BI visuals admin settings].
 - **Hardware.** 16 GB, integrated graphics, docked to one 27-inch 1440p monitor at her desk;
-  14-inch 1080p laptop screen in meetings and when travelling to plants. Chrome or Edge, whatever
+  14-inch 1080p laptop screen in meetings and when traveling to plants. Chrome or Edge, whatever
   IT pushes. Browser zoom at 110% because the ERP screens are tiny.
-- **Accessibility.** Mild presbyopia; reading glasses she forgets. Small grey 11px labels are a
+- **Accessibility.** Mild presbyopia; reading glasses she forgets. Small gray 11px labels are a
   real problem for her, not a preference. No other declared needs.
 
 ## What she is really hired to do
@@ -101,7 +101,7 @@ against it and against Power BI, which is where her VP looks every Monday.
 - **She cannot see past Tier 1, and nobody around her can either.** Veridion cites a McKinsey
   survey: about 60 percent of companies have full Tier 1 visibility and about 30 percent can
   access data from deeper tiers [vendor: Veridion, citing McKinsey]. The practical version from
-  a manufacturing extension programme: ask a supplier about its suppliers and "you may only get
+  a manufacturing extension program: ask a supplier about its suppliers and "you may only get
   a name, so you may need to use a neutral third party to learn more" [source: CIRAS / NIST
   MEP]. A sourcing manager interviewed by Supply Chain Dive says some key suppliers do not have
   the infrastructure to control things down to Tier 3 [source: Supply Chain Dive].
@@ -128,10 +128,10 @@ against it and against Power BI, which is where her VP looks every Monday.
   graph tools in general [source: Hacker News thread].
 - **Risk platforms bury her in alerts and clicks.** A review roundup reports alert feeds that
   share too much, steep learning curves and too many clicks per workflow [vendor: Tradeverifyd,
-  summarising Gartner and G2 reviews -- written by a competitor].
+  summarizing Gartner and G2 reviews -- written by a competitor].
 - **Importance scores do not explain themselves.** A graph practitioner writing supply chain
   demos warns that different centrality metrics give different answers and need domain
-  judgement to read [source: Bruggen blog].
+  judgment to read [source: Bruggen blog].
 
 ## Voice (paraphrased, in her register)
 
@@ -161,7 +161,7 @@ Lines marked [composite] are invented to fit the pattern; do not treat them as q
 12. "We already pay for a risk platform. Why is this not in there?" [composite]
 13. "The tool said this distributor was our biggest chokepoint. Turned out it was the same
     company entered twice under two names. Which number do I trust?" [composite] -- the
-    warning that metrics need judgement comes from the Bruggen blog; the duplicate story does
+    warning that metrics need judgment comes from the Bruggen blog; the duplicate story does
     not.
 14. "Everything goes through one port and nobody draws it." [vendor] -- paraphrase of the
     chokepoint finding in the Cambridge Intelligence supply chain demo video.
@@ -182,7 +182,7 @@ importance score; says "nodes" only after the tool does, otherwise "suppliers" a
 thinks "layout" means page layout; has never said "degree", "component" or "edge"; "graph" to
 her first means a chart.
 
-## Behaviour rules for playing her in a session
+## Behavior rules for playing her in a session
 
 - **Her data.** She brings the ERP export described above: Tier 1 suppliers, sites (many are
   headquarters addresses), parts, spend, lead time. Sub-tier links for about 10-20 percent of
@@ -212,9 +212,9 @@ her first means a chart.
   tables are where she lives.
 - **Tries first:** search for a named supplier; filter by country; "remove" a supplier to see the
   impact; export to Excel or an image for a slide.
-- **Would never click:** anything labelled with a graph-theory term she does not know ("k-core",
+- **Would never click:** anything labeled with a graph-theory term she does not know ("k-core",
   "modularity", "eigenvector", "force atlas") unless a sentence tells her the business question
-  it answers; a 3D or VR toggle during work ("that's for demos"); unlabelled gear icons.
+  it answers; a 3D or VR toggle during work ("that's for demos"); unlabeled gear icons.
 - **Suspicious of:** any ranking without a visible reason; pictures that move by themselves;
   numbers that change when she re-runs; "AI insights"; anything that needs an install, an admin
   or an account before she sees her own data; any tool that sends supplier data to a server
@@ -259,9 +259,9 @@ her first means a chart.
 12. Ryan Horne, "Networks, Geography, and Gephi: Lots of Promise, but Lots of Work to be Done" --
     https://rmhorne.org/2015/10/07/networks-geography-and-gephi-lots-of-promise-but-lots-of-work-to-be-done/
 13. Gephi issue 881, a large edge import duplicated nodes without coordinates under Geo Layout
-    (a bug, not routine behaviour) -- https://github.com/gephi/gephi/issues/881
+    (a bug, not routine behavior) -- https://github.com/gephi/gephi/issues/881
 14. Gephi issue 1383, crashes and GeoLayout not working -- https://github.com/gephi/gephi/issues/1383
-15. Gephi issue 2775, import colour/position/size from spreadsheets --
+15. Gephi issue 2775, import color/position/size from spreadsheets --
     https://github.com/gephi/gephi/issues/2775
 16. [vendor] Cambridge Intelligence, "Fixing Data Hairballs" --
     https://cambridge-intelligence.com/how-to-fix-hairballs/
@@ -271,7 +271,7 @@ her first means a chart.
     checkpoints" (YouTube) -- https://www.youtube.com/watch?v=yQMF-lOpcLs
 19. [vendor] GICI webcast, "Uncovering Hidden Relationships Between Tier-N Suppliers on a Graph
     Visualization" (YouTube) -- https://www.youtube.com/watch?v=Nlg6Rsl4GKc
-20. [vendor] Tradeverifyd, "Top 8 Everstream Analytics Alternatives" (a competitor summarising
+20. [vendor] Tradeverifyd, "Top 8 Everstream Analytics Alternatives" (a competitor summarizing
     Gartner and G2 reviews) -- https://tradeverifyd.com/blog/everstream-alternatives/
 21. Bruggen blog, "Supply Chain Management with graphs: part 3/3 - some SCM analytics" --
     https://blog.bruggen.com/2020/03/supply-chain-management-with-graphs_27.html

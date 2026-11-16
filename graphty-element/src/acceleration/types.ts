@@ -79,7 +79,7 @@ export function isAccelerationPolicy(value: unknown): value is AccelerationPolic
  * The arithmetic that produced a set of numbers.
  *
  * A GPU accelerator usually computes in single precision, so a result that came off one is
- * labelled `"f32"` and a result computed on the CPU path is labelled `"f64"`. The label lands on
+ * labeled `"f32"` and a result computed on the CPU path is labeled `"f64"`. The label lands on
  * a run's `Caveats.precision`, which is how a consumer can tell why two runs of the same
  * algorithm over the same graph disagree in the seventh decimal place.
  */
@@ -203,7 +203,7 @@ export interface AcceleratorFactoryOptions {
     /**
      * Whether a software adapter (SwiftShader, llvmpipe) is acceptable.
      *
-     * Under `"auto"` it is not: a software rasteriser is slower than the element's own CPU
+     * Under `"auto"` it is not: a software rasterizer is slower than the element's own CPU
      * path, and attaching it would make the graph slower while reporting "active". Under
      * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
      */
@@ -239,7 +239,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
  * Where acceleration stands, as a consumer reads it.
  *
  * This is the `acceleration` member of {@link Capabilities} and the payload a status chip
- * renders. It is plain, frozen, serialisable data: no GPU objects, no promises, no classes.
+ * renders. It is plain, frozen, serializable data: no GPU objects, no promises, no classes.
  */
 export interface AccelerationStatus {
     /**
@@ -449,7 +449,7 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  *
  * MEASURED 2026-09-30 AGAINST THE ALGORITHMS 3.0 CPU PORTS, which are much faster than the code
  * the earlier floors were set against. Headless Chromium on the RTX 4070 SUPER (ANGLE's Vulkan
- * backend; no software rasteriser), both arms through `@graphty/algorithms`' dispatcher with the
+ * backend; no software rasterizer), both arms through `@graphty/algorithms`' dispatcher with the
  * element's own options -- `accelerated(null)` for the CPU port, `accelerated(accelerator)` for
  * the device -- so each arm includes what the element's run includes on that path. Seeded random
  * graphs of n nodes and ten edges a node up to the element's 100,000-edge limit, and ten a node

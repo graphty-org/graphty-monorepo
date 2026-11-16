@@ -2,7 +2,7 @@
  * The element's configuration document.
  *
  * WHAT `Styles` IS NOW. The id paths a record is read with, the view mode, the background, the
- * layout and its options, the algorithms to run on load, and the behaviour settings -- and
+ * layout and its options, the algorithms to run on load, and the behavior settings -- and
  * nothing else. The stack of jmespath-selector layers it used to carry beside them is gone;
  * style layers are `session.styles`, which addresses a layer by a stable id and is tested in
  * `test/session/`.
@@ -123,7 +123,7 @@ describe("Styles", () => {
             });
 
             assert.strictEqual(s.config.graph.viewMode, "2d");
-            // A CSS colour name is normalised on parse, which is why a background set through
+            // A CSS color name is normalized on parse, which is why a background set through
             // the element reaches the renderer as hex whatever the caller wrote.
             assert.deepStrictEqual(s.config.graph.background, { backgroundType: "color", color: "#FF69B4" });
             assert.strictEqual(s.config.graph.layout, "circular");
@@ -138,7 +138,7 @@ describe("Styles", () => {
      * The 1.x keys, and the rule that governs both of them: they parse, and nothing reads them.
      *
      * The tests that used to live here asserted the opposite -- that a malformed layer threw a
-     * `ZodError` and refused the document. That refusal is the behaviour that deliberately went
+     * `ZodError` and refused the document. That refusal is the behavior that deliberately went
      * away: with nothing reading the array, turning down a whole configuration over one field in
      * an ignored layer loses the id paths, the view mode and the layout that the same document
      * carries, and the reader is given a parse error about a feature that no longer exists.

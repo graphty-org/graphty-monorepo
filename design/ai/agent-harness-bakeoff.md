@@ -818,7 +818,7 @@ Ten scenarios passed cleanly and four with a workaround.
   between chunks (`agent/agent.js:1750`) and the model passes no signal. A 3-line `fetch` wrapper
   that adds the turn's signal fixed it (54 ms). `OpenAIModel` stopped in 50 ms on its own. The
   same wrapper for Google and AI SDK models was not run. A later probe (`strands/probes-final/probe.mjs`)
-  cancelled 20 ms into a 200 ms graph command that ignores the cancel signal: `invoke()` waited for
+  canceled 20 ms into a 200 ms graph command that ignores the cancel signal: `invoke()` waited for
   the command, its change landed while the undo group was still open, and then the after-invocation
   hook closed the group and `invoke()` returned `stopReason: 'cancelled'`.
 - **Approval that survives a reload (clean, 25 lines).** A hook raises an interrupt whose reason is

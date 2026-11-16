@@ -84,7 +84,7 @@ Claim: `release.yml` and `coverage.yml` are `workflow_run: workflows: ["CI"], ty
 same workflow that fails (the R-13 `browser.close()` hang, a driver regression, a 3x bench blip) turns the run's conclusion
 to `failure`; a job that cannot start because the dev box is off stays queued and GitHub cancels it after 24 hours
 (docs.github.com/en/actions/reference/limits: "A job can be in the queue for 24 hours before it is automatically
-cancelled"). Either way: no release and no Coveralls publish for that master push, and every release waits for the GPU
+canceled"). Either way: no release and no Coveralls publish for that master push, and every release waits for the GPU
 lane to finish. Keeping the job out of `all-checks.needs` protects PR merges only.
 
 Fix: move the GPU lane to a separate workflow (VERIFY-2). If it must stay in `ci.yml`, add `continue-on-error: true` at job
@@ -282,7 +282,7 @@ enforced `nvidia`.
 
 Fix: state that the canary is meaningful only after a pipefail-safe `gpu-report.mjs` step has exited 0 under
 `GRAPHTY_GPU_REQUIRE=nvidia`, and add `| tee canary.log && grep -q "vendor=nvidia" canary.log` (with `shell: bash`) so a
-skip or an llvmpipe run is red; or extend the graph-format test to honour the two variables at F2 (a graph-format change,
+skip or an llvmpipe run is red; or extend the graph-format test to honor the two variables at F2 (a graph-format change,
 listed as such).
 
 ### VERIFY-16 [minor] 11.6 / 2.3 / 12.2 -- how `GRAPHTY_GPU_REQUIRE` reaches browser test code is unspecified
@@ -346,8 +346,8 @@ design's 3x rule (design 15.5) was written for hosted CPU runners; here the nois
 issue automation this becomes issue spam; without it, a red nightly nobody reads.
 
 Fix: before the bench step, poll `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv` for 10 s and skip (not
-fail) the bench when utilisation > 10%; compare the median of 5 runs; require two consecutive nightly failures before the
-issue is opened; record the utilisation sample in `gpu-report.json`.
+fail) the bench when utilization > 10%; compare the median of 5 runs; require two consecutive nightly failures before the
+issue is opened; record the utilization sample in `gpu-report.json`.
 
 ### VERIFY-21 [minor] 11.4 -- the trace tolerance schedule has no rule for when it is unmeetable
 

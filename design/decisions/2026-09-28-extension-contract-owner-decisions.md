@@ -11,7 +11,7 @@ follow them; where its static-layout, plugin-seam and export items disagree, thi
 
 1. **Where third-party file writers register (open decision 1).** Answer: graphty-element owns
    the registration. `registerFormatWriter({ descriptor, exporter })` wraps a graph-io exporter,
-   so the element supplies the catalogue entry, the reserved ids, the option descriptors and the
+   so the element supplies the catalog entry, the reserved ids, the option descriptors and the
    error mapping, and `./extend` re-exports graph-io's writer types. Third parties do not register
    with graph-io's registry directly. This replaces an earlier assumption, written into the
    migration's export item without the owner's say, that writers register through graph-io.

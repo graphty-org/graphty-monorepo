@@ -145,7 +145,7 @@ export type ColumnDomain = "node" | "edge" | "graph" | "extension";
 export type GpuEligibility = "direct" | "packed" | "convert" | "none";
 
 /**
- * The format-neutral roles the package and its importers recognise (design section 5.5): what a
+ * The format-neutral roles the package and its importers recognize (design section 5.5): what a
  * column means, independent of its name, so consumers find "the position column" without per-format
  * knowledge and exporters map roles back to reserved fields. At most one column per role per table.
  */
@@ -250,7 +250,7 @@ export interface ColumnDecl {
     origin?: ColumnOriginInput | undefined;
     /** GEXF dynamic attribute: values live in a temporal extension table (design section 5.10). */
     dynamic?: boolean | undefined;
-    /** Anything an importer wants to survive; must be JSON-serialisable. */
+    /** Anything an importer wants to survive; must be JSON-serializable. */
     extra?: Readonly<Record<string, unknown>> | undefined;
 }
 
@@ -294,7 +294,7 @@ export interface ColumnMeta {
     readonly origin: ColumnOrigin | null;
     /** Whether the column is a GEXF dynamic attribute. */
     readonly dynamic: boolean;
-    /** Importer-owned JSON-serialisable extras; an empty object when none. */
+    /** Importer-owned JSON-serializable extras; an empty object when none. */
     readonly extra: Readonly<Record<string, unknown>>;
 }
 
@@ -366,7 +366,7 @@ export interface ColumnBase<D extends Dtype> {
      */
     isSet(row: number): boolean;
     /**
-     * Typed read honouring meta.default; components > 1 returns a subarray view.
+     * Typed read honoring meta.default; components > 1 returns a subarray view.
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the declared default for an unset row, or undefined for an unset row without a default
      */
@@ -499,7 +499,7 @@ export interface DictColumn extends ColumnBase<"dict"> {
 
 /** string column: an Arrow Utf8 store (offsets + utf8) with a lazily decoded per-row cache (design section 5.1). */
 export interface StringColumn extends ColumnBase<"string"> {
-    /** rows + 1 offsets into utf8, non-decreasing; materialised lazily from the decoded cache when needed. */
+    /** rows + 1 offsets into utf8, non-decreasing; materialized lazily from the decoded cache when needed. */
     readonly offsets: U32;
     /** The UTF-8 bytes of every row, concatenated. */
     readonly utf8: U8;
@@ -530,7 +530,7 @@ export interface ListColumn extends ColumnBase<"list"> {
     sliceOf(row: number): readonly unknown[];
 }
 
-/** json column: one JS value per row, serialised as JSON text on the wire (design section 5.1). */
+/** json column: one JS value per row, serialized as JSON text on the wire (design section 5.1). */
 export interface JsonColumn extends ColumnBase<"json"> {
     /** One value per row; undefined in unset rows. */
     readonly values: readonly unknown[];
@@ -611,7 +611,7 @@ export interface AttributeTableContract extends Iterable<Column> {
      */
     byRole(role: ColumnRole): Column | null;
     /**
-     * Typed read of one cell honouring the column's declared default.
+     * Typed read of one cell honoring the column's declared default.
      * @param name - the column name
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the default for an unset row, or undefined for an unset row without a default
@@ -707,7 +707,7 @@ export interface GraphMeta {
     readonly declaredMultigraph: boolean | null;
     /** Declared source type of the weight (design section 3.7). */
     readonly weightOrigin: ColumnOrigin | null;
-    /** JSON-serialisable extras; reserved per-format keys in design section 8.5. */
+    /** JSON-serializable extras; reserved per-format keys in design section 8.5. */
     readonly extra: Readonly<Record<string, unknown>>;
 }
 
@@ -719,7 +719,7 @@ export type GraphMetaPatch = Loose<GraphMeta>;
 /**
  * Packed node bitmap: ceil(n / 32) words, bit i set means node i is included; the same layout as
  * validity bitmaps and bool columns (design section 7.4). No kernel or algorithm is required to
- * honour a mask; it is an input to inducedSubgraph() and an algorithm-internal scratch shape.
+ * honor a mask; it is an input to inducedSubgraph() and an algorithm-internal scratch shape.
  */
 export type NodeMask = U32;
 

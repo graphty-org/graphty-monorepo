@@ -27,7 +27,7 @@ beforeAll(() => {
 /** The document the `LoadDraft` row of `doors.ts` prepares. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
-/** Every row, labelled `Root.member`; a whole-type root is one row labelled `Root.*`. */
+/** Every row, labeled `Root.member`; a whole-type root is one row labeled `Root.*`. */
 function rows(): [string, Door][] {
     return DOOR_ROOTS.flatMap((root) =>
         root.whole === undefined
@@ -56,7 +56,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
-    // Cancelled, so `rerun` has something to run again.
+    // Canceled, so `rerun` has something to run again.
     Run: (session) => {
         const run = session.runs.start("degree");
         run.then(undefined, () => undefined);

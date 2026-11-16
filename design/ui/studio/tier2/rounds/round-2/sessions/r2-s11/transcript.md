@@ -6,7 +6,7 @@ Build: tier2-r2d4-8f0d5a6f7 (commit 8f0d5a6f7791). Window 1440 x 900.
 
 Command: `REAL_DIST=/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d4-8f0d5a6f7/ ../tool/with-browser.sh node ../tool/real.mjs --start rounds/round-2/sessions/r2-s11 setup:bus-stops-ranked.txt` -> 01.png
 
-01.png: My colleague's bus-stops file is open, ten orange dots colored and sized by the PageRank thing I usually run, a key at top left. The links are thin grey arrows, all the same. Nothing says how many minutes each link takes. The left list has Selection, PageRank (10), Everything. I need the links at 10 minutes or more. First I want to see the actual numbers -- I'll go to the Data place, where the table is.
+01.png: My colleague's bus-stops file is open, ten orange dots colored and sized by the PageRank thing I usually run, a key at top left. The links are thin gray arrows, all the same. Nothing says how many minutes each link takes. The left list has Selection, PageRank (10), Everything. I need the links at 10 minutes or more. First I want to see the actual numbers -- I'll go to the Data place, where the table is.
 
 ## Step 1
 
@@ -54,7 +54,7 @@ Commands: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --shift-c
 
 Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click "role=tab:Style"` -> 09.png
 
-09.png: Style for the 3 selected edges: Line, Arrows, Label, each with a "+". The labels are tiny and grey, I'm squinting. Line sounds like color and thickness. I'll press the "+" next to Line.
+09.png: Style for the 3 selected edges: Line, Arrows, Label, each with a "+". The labels are tiny and gray, I'm squinting. Line sounds like color and thickness. I'll press the "+" next to Line.
 
 ## Step 9
 
@@ -66,7 +66,7 @@ Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click-at
 
 Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click "Color"` -> 11.png
 
-11.png: The panel title changed to "3 edges -- Layer", and the key at top left now has "Edge color: 3 edges" with a grey swatch. The color box says A9A9A9, which is the same grey as every other link, so nothing changed yet. I'll click in that hex box, clear it and type a red.
+11.png: The panel title changed to "3 edges -- Layer", and the key at top left now has "Edge color: 3 edges" with a gray swatch. The color box says A9A9A9, which is the same gray as every other link, so nothing changed yet. I'll click in that hex box, clear it and type a red.
 
 ## Step 11
 
@@ -84,7 +84,7 @@ Commands: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click-a
 
 Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click-at 450,500` (empty canvas) -> 15.png
 
-15.png: Selection gone. Depot->Station, Station->Harbor and School->Harbor are red; the other 14 links are grey; the panel still says 10 nodes, 17 edges, so nothing was taken off. That's the job. Two things bug me: the red lines are no thicker than the grey ones -- the "8" in Width did nothing I can see -- and the key says red = "3 edges", which tells my colleague nothing. It should say "10 minutes or more". I'll look at the Graph place to see if I can rename that.
+15.png: Selection gone. Depot->Station, Station->Harbor and School->Harbor are red; the other 14 links are gray; the panel still says 10 nodes, 17 edges, so nothing was taken off. That's the job. Two things bug me: the red lines are no thicker than the gray ones -- the "8" in Width did nothing I can see -- and the key says red = "3 edges", which tells my colleague nothing. It should say "10 minutes or more". I'll look at the Graph place to see if I can rename that.
 
 ## Step 14
 
@@ -102,13 +102,13 @@ Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --dblclick
 
 Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --type "Slow links (10+ min)" --key Enter` -> 19.png
 
-19.png: Renamed. The key now reads "Slow links (10+ min)" with the red swatch -- that I can put in front of someone. Last annoyance: Width still says 8 and the red lines are as thin as the grey ones. One try: put a bigger number in Width.
+19.png: Renamed. The key now reads "Slow links (10+ min)" with the red swatch -- that I can put in front of someone. Last annoyance: Width still says 8 and the red lines are as thin as the gray ones. One try: put a bigger number in Width.
 
 ## Step 17
 
 Command: `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s11 --click-at 1333,194 --key Control+a --type "20" --key Enter` (the Width box) -> 20.png
 
-20.png: Now the three slow links are thick red lines and stand out clearly; all 10 stops and the other 14 grey links are still on the map. The red lines seem to have lost their arrowheads compared with the grey ones, which I only half notice -- direction isn't what my colleague asked about. I'm done.
+20.png: Now the three slow links are thick red lines and stand out clearly; all 10 stops and the other 14 gray links are still on the map. The red lines seem to have lost their arrowheads compared with the gray ones, which I only half notice -- direction isn't what my colleague asked about. I'm done.
 
 Command: `node ../tool/real.mjs --end rounds/round-2/sessions/r2-s11`
 
@@ -127,5 +127,5 @@ What confused or bothered me:
 - Adding Width put an 8 in the box and the lines did not get any thicker. I had to guess a bigger number (20) before anything showed. No units shown.
 - Before I clicked away, the selection's blue outline covered my red, so I couldn't judge the color or the width while I was setting them.
 - Shift-clicking table rows also lit up the cell text in browser blue, which looked like a glitch.
-- The labels in the right panel (Line, Arrows, Label, Width) are tiny grey text -- hard to read without my glasses.
+- The labels in the right panel (Line, Arrows, Label, Width) are tiny gray text -- hard to read without my glasses.
 - The red links seem to have lost their arrowheads once they got thick.

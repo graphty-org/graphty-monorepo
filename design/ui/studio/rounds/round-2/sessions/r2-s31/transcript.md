@@ -84,7 +84,7 @@ Next: click it.
 ## Step 10 -- Size by attribute
 
 Command: `--step --click-at 1380,264`
-Saw (10.png): a picker "Size by attribute": Bridges, Bridges rank, Bridges percentile; greyed out
+Saw (10.png): a picker "Size by attribute": Bridges, Bridges rank, Bridges percentile; grayed out
 "id" and "name" ("Cannot be used: Holds groups, not amounts" -- clear enough).
 Next: pick plain "Bridges", same as the color.
 

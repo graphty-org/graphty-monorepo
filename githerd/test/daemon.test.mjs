@@ -649,7 +649,7 @@ describe("HTTP endpoints", () => {
             return daemon;
         };
 
-        // Dry-run: the job is cancelled with its news, and the message is a would-do line.
+        // Dry-run: the job is canceled with its news, and the message is a would-do line.
         const dry = await held();
         await poll(dry);
         const job = dry.state.jobs["incident-release-stalled-114ae7f8"];
@@ -1583,7 +1583,7 @@ describe("the poll loop", () => {
             commit(B, A, "Merge pull request #2 from o/x"),
             commit(A, null, "first"),
         ];
-        // B's run was cancelled by C's: the lane has finished on no commit since green.
+        // B's run was canceled by C's: the lane has finished on no commit since green.
         scene.ci = [run(102, C, null), run(101, B, "cancelled"), run(100, A, "success")];
         const daemon = await start();
         await poll(daemon);
@@ -1710,7 +1710,7 @@ describe("the poll loop", () => {
             label: { name: "priority:critical" },
             actor: { login },
         });
-        // #8 labelled by the owner's account, #9 by another account, #10 is an incident job's, #7 nothing.
+        // #8 labeled by the owner's account, #9 by another account, #10 is an incident job's, #7 nothing.
         scene.prs = [
             pr(7, B),
             pr(8, C, ["priority:critical"]),
@@ -2298,7 +2298,7 @@ describe("the poll loop", () => {
 
 describe("required checks cancelled, not failed", () => {
     /**
-     * PR #7 whose CI run 77 had both required checks cancelled (no runner took them).
+     * PR #7 whose CI run 77 had both required checks canceled (no runner took them).
      * @returns {any} the GraphQL node
      */
     const cancelledPr = () => {
@@ -2367,7 +2367,7 @@ describe("required checks cancelled, not failed", () => {
         expect(reruns()).toHaveLength(1);
         expect(daemon.state.prs["7"].stuck).toContain("githerd re-ran the cancelled CI run 77");
 
-        // Attempt 2 was cancelled too: shown, not re-run again.
+        // Attempt 2 was canceled too: shown, not re-run again.
         scene.runAttempt = 2;
         clock = new Date("2026-10-02T12:06:00Z");
         await poll(daemon);

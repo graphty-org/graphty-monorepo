@@ -1,6 +1,6 @@
 /**
  * @file What `defineAlgorithm` fills in for the author, read back from the registry in Node: the
- * catalogue entry, the cost model, and the registration rules (design/extensions/simple-tier.md
+ * catalog entry, the cost model, and the registration rules (design/extensions/simple-tier.md
  * section 4.1, "What the element fills in"). What a run fills in is checked in the browser, in
  * test/browser/simple/define-algorithm-defaults.test.ts.
  */

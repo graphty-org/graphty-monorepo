@@ -3,7 +3,7 @@
  * whose query set (PROFILER_QUERY_SLOTS slots, two per pass) is written by the timestampWrites of
  * every CommandBatch pass; `resolveInto(batch)` records the resolve plus a copy into the batch's
  * staging slot and `timings(bytes, request)` decodes `{ label, ns }` per pass from the batch's
- * readback bytes. Chromium quantises timestamps to 100 us (`quantised: true`); Dawn-node reports
+ * readback bytes. Chromium quantizes timestamps to 100 us (`quantised: true`); Dawn-node reports
  * 1,024 ns ticks (spec 2.6). The profiler never throws: a full query set drops the timings of the
  * passes past the budget and marks the batch's request `partial(request)` so a caller summing the
  * rows into a duration falls back to wall time; a device without the feature disables it. Slot
@@ -32,7 +32,7 @@ interface PendingPass {
 export class Profiler {
     /** True when the feature was granted and a query set exists. */
     readonly enabled: boolean;
-    /** True in browsers (100 us quantisation), false under Dawn-node (spec 2.6). */
+    /** True in browsers (100 us quantization), false under Dawn-node (spec 2.6). */
     readonly quantised: boolean;
     private readonly slots: number;
     private readonly querySet: GPUQuerySet | null;
@@ -50,7 +50,7 @@ export class Profiler {
      * `slots < 2`, so no caller can make the profiler raise a validation error.
      * @param device - the device the query set is created on
      * @param enabled - whether the caller wants profiling (the context passes `features.has("timestamp-query")`)
-     * @param quantised - true in browsers
+     * @param quantized - true in browsers
      * @param slots - query slots, two per pass (default PROFILER_QUERY_SLOTS)
      */
     constructor(device: GPUDevice, enabled: boolean, quantised: boolean, slots?: number) {

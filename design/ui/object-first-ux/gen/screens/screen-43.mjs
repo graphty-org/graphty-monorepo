@@ -3,7 +3,7 @@
 // The reader ran Bridges, cut a top 10, turned Weights on (a re-run), then
 // the Assistant found groups and the reader renamed one. Two Ctrl+Z presses
 // undid the last two steps: the Communities row is gone from the tree, the
-// canvas is back to Conference colours sized by Bridges. The reader then
+// canvas is back to Conference colors sized by Bridges. The reader then
 // clicked the History tab of the dock handle and is pointing at "Ran Bridges".
 import { BETWEENNESS } from "../football.mjs";
 import { DATASET_ROW, conferenceFills, conferenceTreeRow, datasetInspector } from "../football-state.mjs";

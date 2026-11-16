@@ -41,7 +41,7 @@
  * multi-state twin comparison of fa2-twins.test.ts; it feeds the K4 state rows and the scalar twin row so those
  * floors cover ten geometries, not one), fa2-integrate / random1k-metrics100 (the layoutMetrics record
  * after 100 iterations, the "distributional" metric of test/helpers/fa2-parity.ts: the non-histogram metrics relative
- * under a 0.05 floor, the nearest-neighbour histogram as one total-variation distance), fa2-integrate /
+ * under a 0.05 floor, the nearest-neighbor histogram as one total-variation distance), fa2-integrate /
  * random1k-paper-layout5 (the positions after 5 paper-mode iterations against @graphty/layout's CPU class, whose
  * values carry the "oracle-f64" class, the fr-karate-layout10 precedent; the rows fa2-layout-oracle.*). Writers:
  * fa2-layout-oracle.test.ts (the layout5 member), fa2-inspect.test.ts
@@ -77,7 +77,7 @@
  * (P5-T4 Step 5 finding, the states10 precedent): the seven FR and eight spring stages of karate (fr-karate-* /
  * se-karate-*, whose 34-node sums near zero carry a larger relative noise in the partials, the K1 fold and their
  * twin comparison than random1k's) and the seven FR stages of random1k under k 0.3 (fr-random1k-k03-*: K3 sums 999
- * nearly cancelling terms under NVIDIA's 2.5-ulp division, 2e-5 where the k = auto member measured 6e-7, and the
+ * nearly canceling terms under NVIDIA's 2.5-ulp division, 2e-5 where the k = auto member measured 6e-7, and the
  * error carries through K5's direction into the displacement, positions and scene) feed the SAME rows, so every
  * derived FR / spring tolerance covers the configurations its suite asserts.
  *
@@ -228,7 +228,7 @@ interface NoiseMember {
     /** P3: the tolerance id that comparison is checked against. */
     readonly oracleF32Tolerance?: string | null | undefined;
     /**
-     * P3-T5 PLAN DECISION 17: a re-synchronised member -- the oracle fixtures are per adapter class (resyncOracleClass),
+     * P3-T5 PLAN DECISION 17: a re-synchronized member -- the oracle fixtures are per adapter class (resyncOracleClass),
      * every adapter AND twin fixture is compared with its own two oracle fixtures (the rows["oracle-f64"] and
      * oracleF32Row rows), and the cross-adapter / twin pairs (free-running paper-mode traces) are printed only.
      */
@@ -287,7 +287,7 @@ function p3Member(
     };
 }
 
-/** The two re-synchronised members share their rows and tolerances (the floor is the maximum over both graphs). */
+/** The two re-synchronized members share their rows and tolerances (the floor is the maximum over both graphs). */
 const RESYNC_ROWS: Readonly<Record<Comparison, string | null>> = {
     "cross-adapter": null,
     twin: null,
@@ -1232,7 +1232,7 @@ function pairError(
                 mismatches,
             };
         case "resync-trace":
-            // the ONE implementation of the re-synchronised comparison (test/helpers/fa2-parity.ts): b is the oracle
+            // the ONE implementation of the re-synchronized comparison (test/helpers/fa2-parity.ts): b is the oracle
             return { rel: resyncValuesError(a, b), abs, mismatches };
         default:
             throw new Error("unknown metric");

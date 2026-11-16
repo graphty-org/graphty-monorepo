@@ -64,7 +64,7 @@ async function mount2D(configure: (element: Graphty) => void): Promise<Graphty> 
 
 /**
  * Every node sits on the plane the orthographic camera draws, and every edge's drawn quad lies
- * between its two nodes' centres rather than past them.
+ * between its two nodes' centers rather than past them.
  * @param element - The element to inspect.
  * @param what - The setup, for the failure message.
  */

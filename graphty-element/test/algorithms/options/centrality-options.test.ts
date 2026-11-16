@@ -293,7 +293,7 @@ describe("Centrality Algorithm Options", () => {
                 const algo = new KatzCentralityAlgorithm(graph, { alpha: 0.2, beta: 2.0, normalized: false });
                 await algo.run();
 
-                // Every node of a triangle has two neighbours, so its Katz score is the series
+                // Every node of a triangle has two neighbors, so its Katz score is the series
                 // beta * sum((2 alpha)^k) = beta / (1 - 2 alpha) = 2 / 0.6. The defaults
                 // (alpha 0.1, beta 1) would give 1.25.
                 for (const id of ["A", "B", "C"]) {

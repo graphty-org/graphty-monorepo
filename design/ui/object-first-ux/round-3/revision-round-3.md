@@ -34,8 +34,8 @@ The gap register, with every gap's source and resolution, is `gaps.md`. The mock
 - **Object**: a row of the left panel's tree (a Set of nodes or edges, a Measure giving every
   node a value, a Grouping and its Groups, or the Dataset at the root).
 - **Inspector**: the right panel; it shows the selected thing's header block and tabs.
-- **Popover**: a 240 px light panel of options opened from a button. **Dialog**: a centred panel
-  over a grey veil (the *scrim*) that waits for an answer. **Menu**: the dark list that drops
+- **Popover**: a 240 px light panel of options opened from a button. **Dialog**: a centered panel
+  over a gray veil (the *scrim*) that waits for an answer. **Menu**: the dark list that drops
   from a button or opens on a right-click.
 - **Secondary bar**: the dark one-line sentence above the toolbar while a tool is armed.
 - **Dock**: the drawer under the canvas with the Table, Assistant and History tabs.
@@ -64,7 +64,7 @@ It found 99 such gaps:
 | Editing and joining data | 11 | the import report's rejected rows; editing a value; joining a table; removing and merging nodes |
 | Undo, history, errors and recovery | 6 | undo and the History dock; a failed run with Retry; stale results; a lost graphics context |
 | Finding, moving around and selecting | 15 | Find (Ctrl+F); right-click menus; 3D framing; box selection; Focus; keyboard-only navigation |
-| Filters, sets and paths | 10 | filter by values, range and rule; edge filters; neighbours; combining Sets |
+| Filters, sets and paths | 10 | filter by values, range and rule; edge filters; neighbors; combining Sets |
 | Analysis results, time and comparison | 16 | a result's values and histogram; the record of how it was made; over-time charts; side-by-side comparison |
 | Layout, look, export, Present and VR | 19 | choosing and running a layout; labels; the Export menu and image, data, report and video export; Present mode |
 
@@ -109,7 +109,7 @@ results that read the changed data re-run if cheap or turn stale if not; the fil
 never written; a reload re-applies the edits; Delete on the canvas or in the table removes data
 and always asks first. The import report lists rejected rows in a Rejected tab of the table
 (screen 33); load rules can be changed after a load (screen 34). A column's menu (screen 35)
-colours, sizes, filters, sets roles and edits (change type, fill, rename; screen 36). Tables join
+colors, sizes, filters, sets roles and edits (change type, fill, rename; screen 36). Tables join
 by a key column, with identifier mapping when the key systems differ (screen 37). A formula
 makes a new column (screen 38). Values edit in place in the table and on a node's Attributes tab
 (screen 39). Nodes can be removed (screen 40), merged (screen 41), expanded from a server and
@@ -134,7 +134,7 @@ with select and route verbs added (screen 49). **Find** (Ctrl+F) turns the Objec
 search field and lists objects, nodes and matching values; a value match can become a Set
 (screen 50). The **framing menu** under the zoom pill fits, zooms and picks the 3D views (screen
 51). A **minimap** appears on request (screen 52); **saved Views** keep camera, mode and what is
-showing (screen 53); **Follow** keeps a moving node centred (screen 54). A Shift+drag box
+showing (screen 53); **Follow** keeps a moving node centered (screen 54). A Shift+drag box
 selects many; the several-elements inspector selects all, none, inverts, adds the edges between
 and hides (screen 55). Edges are reached through the table's Edges tab and have their own
 inspector (screen 56). **Focus** shows only a Set's members and runs tools inside it (screen 57).
@@ -147,7 +147,7 @@ Filter by values (checklist with counts), by range over a histogram, or by rule 
 or typed as an expression, with inline errors), on nodes or on edges; every filter previews
 before Create and its Set keeps the rule editable on its Define tab (screens 59-62). Pattern
 search and All routes each make one Set, stepped through with Tab (screens 63, 67). The
-Neighbours tool shows the size at 1 and 2 steps before it runs (screen 64). Combining two Sets
+Neighbors tool shows the size at 1 and 2 steps before it runs (screen 64). Combining two Sets
 shows each result's size before choosing, and Subtract states its order in words (screen 65). A
 Set's Members tab reads a path or group result (screen 66); a hand-made Set's members are
 edited in place (screen 68).
@@ -204,7 +204,7 @@ These round-2 sections are amended by this part; where they disagree, this part 
 | `revision.md` 2.4, Dataset > Layout and Canvas | the rows of screens 83 and 87; Apply to; Show hidden faintly | `visualization-export.md` 1, 2 |
 | `revision.md` 2.4, several elements, Node and Edge | the Data verbs; Select all, none, invert, edges between, hide; the edge inspector | `data-editing.md` 6, 7; `navigate-select.md` 9-12 |
 | `revision.md` 2.4, Set, Measure, Grouping tabs | Define and Members of screens 59-68; Values, Groups and Record of 69-73 | `filters-sets.md`; `analysis-results.md` |
-| `revision.md` 3.4, 3.5 | the Filter, Neighbours and Path bars; a run's scope as a select; the bar's filled button dims while a popover carries it | `filters-sets.md`; `analysis-results.md` 8 |
+| `revision.md` 3.4, 3.5 | the Filter, Neighbors and Path bars; a run's scope as a select; the bar's filled button dims while a popover carries it | `filters-sets.md`; `analysis-results.md` 8 |
 | `revision.md` section 4 | failed and stale states and their actions | `history-errors.md` 3, 4 |
 | `revision.md` 5.6, 6.3, 6.8 | saved styles at the foot of every Style tab; the Export sheet | `visualization-export.md` 3.5, 4 |
 | `revision.md` 6.1 | the over-time chart lives in the table's Findings tab only | `analysis-results.md` 13 |
@@ -225,11 +225,11 @@ round 2's list (`../round-2/revision.md` sections 8 and 9.3) are not repeated.
 - Collapsed rendering of groups (summary nodes, merged edges, expand in place).
 - A second renderer for side-by-side comparison (#186).
 - Pattern matching as a run (`data.match`; needs an issue).
-- Subset loading (busiest N, largest part, neighbourhood, time window) with a memory estimate
+- Subset loading (busiest N, largest part, neighborhood, time window) with a memory estimate
   (medium to large).
 
 **Medium**
-- A staging load, so a failed or cancelled load never damages the open graph.
+- A staging load, so a failed or canceled load never damages the open graph.
 - Autosave and its list, restore and remove.
 - The recipe: export, check against new data, apply.
 - Enforcing the render ceiling and reporting what is drawn; performance mode (#302).
@@ -242,7 +242,7 @@ round 2's list (`../round-2/revision.md` sections 8 and 9.3) are not repeated.
   edge picking (#319); filters evaluated within a Focus; a keyboard navigation mode.
 - Parameter sweeps (#194); per-step runs over time (#300); matching groups across runs.
 - A public layout controller and layout over a scope (#144); looks (#331); graph-io's
-  exporters wired into the format catalogue; the report (#187); layout and time as video
+  exporters wired into the format catalog; the report (#187); layout and time as video
   sources; the legend drawn by the element (#292).
 
 **Small** (each a day or two): cancel through `AbortSignal` (#296); the same-id rule and dry run
@@ -252,7 +252,7 @@ self-loop load rules; `expand(id)`; a change counter since the last save; restor
 per-object style reset; stale through parameters and links; `element.diagnostics()`; an empty
 path's reason; `zoomToNodes`; the camera's framing name; follow (#183); a hide list; edge lists
 by id (#297); value distributions; a transient preview; rule parse and format; edge filters and
-the neighbourhood options; name lookup without selecting; editing a fixed Set's members; rank
+the neighborhood options; name lookup without selecting; editing a fixed Set's members; rank
 correlation; group names (#191); between-group counts; methods text; per-object export (#178);
 distances (#310); removal impact (#311); notes and markers (#145, #295); pins; label text from a
 column; the hover-highlight layer; edge encodings and legend blocks; shape lists; framing a
@@ -333,7 +333,7 @@ These are not:
 | 58 | the keyboard on the canvas |
 | 59-62 | filter by values, range, rule; edges |
 | 63 | pattern search |
-| 64 | the Neighbours tool |
+| 64 | the Neighbors tool |
 | 65 | combining Sets |
 | 66 | a path's Members tab |
 | 67 | all routes, the end typed by name |

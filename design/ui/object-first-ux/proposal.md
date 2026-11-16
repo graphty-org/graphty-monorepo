@@ -7,7 +7,7 @@ row-by-row model is `object-model.md`; the pictures are `mocks/index.html`. File
 
 ## 1. The recommended UX
 
-**Organise the app around what the reader has made, not around activities.** The things a
+**Organize the app around what the reader has made, not around activities.** The things a
 reader makes from a graph are groups, paths, rankings and filtered sets. Make those the
 objects: a **Set** (a collection of elements with one look), a **Group** (one label of a
 grouping), a **Measure** (one value per element, painted with a scale) and a **Grouping** (one
@@ -17,13 +17,13 @@ and edges are the material: they can be clicked and read, never painted directly
 **The frame is Figma's UI3 frame with Figma's measurements.** Two 240 px panels, no top bar, no
 activity rail. The left panel is the **tree** of objects (with a short Views list above it);
 the right panel is the **inspector** of whatever is selected, or the Dataset when nothing is;
-a 48 px floating toolbar at the bottom centre holds the tools; a 24 px status bar holds the
+a 48 px floating toolbar at the bottom center holds the tools; a 24 px status bar holds the
 counts, the layout chip, the computing chip, the selection count and the zoom. One body size
-(11 px at weights 450 and 550), 32 px rows, 24 px controls, borderless grey fields, one accent
+(11 px at weights 450 and 550), 32 px rows, 24 px controls, borderless gray fields, one accent
 blue that means "the live or chosen UI state", one filled button per screen, dark menus in
 both themes.
 
-**Creating an object is a tool, like drawing a shape.** Filter, Neighbours, Path, Groups and
+**Creating an object is a tool, like drawing a shape.** Filter, Neighbors, Path, Groups and
 Rank sit in the toolbar; a tool asks for exactly what it needs on the canvas (a pick, a rule in
 a popover), never in a dialog; the row appears in the tree the instant the tool finishes, or
 in a waiting state with "Run (about 4 min)" when the element's cost estimate says the run
@@ -33,7 +33,7 @@ plugin lands in the right place with no app change.
 
 **Appearance is a property of the object.** Select a row and its **Fill** is a section of the
 inspector: paint rows for a Set, an encoding (channel, scale, palette, domain) for a Measure.
-The colour is still stored as a style layer in graphty-element; the reader sets it on the
+The color is still stored as a style layer in graphty-element; the reader sets it on the
 object. The tree order is the paint order, per channel: the visible object nearest the top
 whose Fill writes a channel wins it on the elements it contains; children paint above their
 parent; the eye stops an object painting and never hides members; **Focus** is the separate
@@ -107,7 +107,7 @@ Recommendation: (b). It names the owner's own split at the one place it matters,
 element's own word. Reversible by a string change.
 
 **6. Does every new Measure paint?**
-Options: (a) always, on the first free channel (Colour, Size, Outline), which gives a
+Options: (a) always, on the first free channel (Color, Size, Outline), which gives a
 five-ranking comparison three pictures and two "no fill" rows; (b) a single run paints, and
 members of a batch after the first are created with their Encoding present and the eye off;
 (c) a Measure never paints until asked, as Gephi's statistics.
@@ -144,7 +144,7 @@ does not come back, while (a)'s items are each a row or a label and can ride alo
 **11. Are nodes material with no Fill of their own?**
 Options: (a) yes: a node's inspector is a report plus doors, and painting one node makes a
 one-node Set (as drawn), with the paint door moved to the top of Look and named "Fill...", a
-second door "Colour its group...", and "Add to [set v]" so recolours can share a Set; (b) a
+second door "Colour its group...", and "Add to [set v]" so recolors can share a Set; (b) a
 real Fill section on the node that writes to the smallest Set containing it.
 Recommendation: (a). (b) paints one of three Sets by accident and hides where the paint went.
 
@@ -173,18 +173,18 @@ paper; the rest are static mocks in the existing kit, or a thin clickable protot
    the design departs from Figma.
 2. **A headless-session undo test.** Run Bridges, cut Top 10, re-run Bridges with a new seed,
    apply the inverse; the Top 10 must come back with its old members. Undo is the safety net
-   that makes exploring cheap, and it is the one behaviour that cannot be judged from a mock.
+   that makes exploring cheap, and it is the one behavior that cannot be judged from a mock.
 3. **A 20,000-node Storybook story** (served through servherd) with a Components run that
    yields 300 groups, measuring hover-outline time over 10,000 members, selection statistics
-   over 12,000, and frame rate during a colour repaint. Those three numbers decide whether the
+   over 12,000, and frame rate during a color repaint. Those three numbers decide whether the
    tree's Figma borrowings (row hover, click-to-halo, "Covered by") survive scale or need
    mask-based paths in the element first.
 4. **An objects API spike on the session**: list, create, move, rename, set visible, focus over
    the existing runs, scopes and layers, with the set-vocabulary change underneath, on Karate
-   Club. It proves the tree can be the layer stack linearised without duplicating state, and
+   Club. It proves the tree can be the layer stack linearized without duplicating state, and
    it is the thing the app cannot start without.
 5. **A clickable tree-and-inspector prototype** against the real element for the parts that
-   work today (encode, highlight, layer order, explain): the three-click recolour, the Path
+   work today (encode, highlight, layer order, explain): the three-click recolor, the Path
    tool's pick-pick flow, dragging a row to change precedence. This is the paradigm's promise
    in the hand, and the first thing to put in front of a novice and an analyst.
 6. **Static mocks that close the open questions**: screen 3 with a Path partly covering Group
@@ -262,7 +262,7 @@ in `answers.md`, and the two critiques and two audits that shaped it). The curre
   in one of six states. A new Structure tool holds the skeleton algorithms; the flyout is
   chosen by the question the algorithm answers.
 - **Highlights are not exclusive.** A Path is an edge style layer that stacks like node
-  layers; several show at once, told apart by colour, width, pattern and arrows, with a
+  layers; several show at once, told apart by color, width, pattern and arrows, with a
   per-channel rule on shared edges and a highlight palette disjoint from the categorical ones.
 - **Styling has one grammar**: NODES and EDGES sections with a "+" each, every row led by its
   channel name; an encoding block (scale, palette, values from and to, clamp, missing, legend)
@@ -287,7 +287,7 @@ The three the owner settled: graphty-element owns the tree (and undo goes with i
 session contract moves to one set vocabulary (plus an edge-list scope and a run-result set);
 highlights are not exclusive. Of round 1's thirteen questions, 3 (edited runs keep the object
 id and replace the run), 4 (Compare takes two objects), 5 (the word is "Style" on every kind),
-6 (batch members after the first are created with the eye off), 7 (labelled tools), 8
+6 (batch members after the first are created with the eye off), 7 (labeled tools), 8
 ("Export"), 9 ("Create and focus"), 10 (build order follows the analyst), 11 (nodes are
 material), 12 (a headset is a viewer this phase) and 13 (label matching now, overlap matching
 as element work) are decided in `round-2/decisions.md` with their reasons; each is reversible
@@ -295,11 +295,11 @@ except where it names an API member.
 
 ### Open, with recommendations
 
-Each is one-way once built (a published behaviour or API shape) or a measured trade-off, so
+Each is one-way once built (a published behavior or API shape) or a measured trade-off, so
 the owner should confirm before element work starts. Full reasons: `round-2/decisions.md`.
 
-1. **The first-paint rule as element behaviour**: first free channel in a per-kind order,
-   categorical wins Colour, never drops itself. Replaces the auto-apply rule that drops a
+1. **The first-paint rule as element behavior**: first free channel in a per-kind order,
+   categorical wins Color, never drops itself. Replaces the auto-apply rule that drops a
    suggestion under an authored layer. Recommend yes; otherwise the second algorithm never
    paints once the objects API authors every layer.
 2. **Nodes follow their edges under a time window** (a node with no time value is inside when
@@ -331,7 +331,7 @@ round 2 adds or changes, from `round-2/revision.md` sections 5.7, 8 and 9.3.
 | One set vocabulary with the edge-list and run-result kinds; filters evaluated within a scope | medium |
 | The objects API with undo and redo, repeat naming, reload-with-replay | medium to large |
 | Exclusive highlights opt-in; the disjoint highlight palette; a layer selector by scope with induced edges; a top-N selector; legend width and pattern | small each |
-| The first-paint rule (per-kind order, categorical wins Colour, never drops); batch eye-off; coverage from member masks; `encodeAttribute`; saved styles | small each |
+| The first-paint rule (per-kind order, categorical wins Color, never drops); batch eye-off; coverage from member masks; `encodeAttribute`; saved styles | small each |
 | Themes restricted to match-everything layers with an unlocked dataset-default layer | medium |
 | The legend drawn by the element and into captures (#292) | medium |
 | `data.peek`, `data.neighbours`, `statistics().reading()`, `scope.statistics`, `{between}`, `backend` and the per-start override, partial results on cancel, the waiting state | small each |

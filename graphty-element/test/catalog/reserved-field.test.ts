@@ -1,7 +1,7 @@
 /**
  * @file No result field is named `runs` (design/sets/sets-design.md section 15.3, item 36):
  * `results.<result>.runs` is reserved for naming one run under a result, so a field of that name
- * would change meaning when it arrives. Checked over the built-in catalogue and refused when a
+ * would change meaning when it arrives. Checked over the built-in catalog and refused when a
  * plugin registers one.
  */
 

@@ -1,7 +1,7 @@
 // Screen 92: the channel menus and a Shape block. Screen 7's state (College
 // football, the Conference grouping selected on its Style tab); the reader
 // pressed NODES "+" and chose Shape, so a Shape block bound to the same
-// conferences now sits under Colour, and the canvas draws each conference's
+// conferences now sits under Color, and the canvas draws each conference's
 // nodes as its shape (flat silhouettes of the meshes), the legend with a
 // shape beside each swatch. The "+" menu is drawn beside the section, tagged
 // as the moment before.

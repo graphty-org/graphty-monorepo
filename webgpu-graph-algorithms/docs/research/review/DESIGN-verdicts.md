@@ -210,7 +210,7 @@ dominated by interior nodes whose exact force cancels. Fix as the reviewer wrote
 
 Line 1255 caps the edge frontier at 16M entries while 4.6 (1017-1024) says A = 20M is the normal desktop
 tier and the frontier family chunks by 2D dispatch above 16.7M -- the buffer cap contradicts the
-dispatch plan and no overflow behaviour is stated. Silent truncation would be a correctness bug, so the
+dispatch plan and no overflow behavior is stated. Silent truncation would be a correctness bug, so the
 fix must land with P8. Fix as the reviewer wrote.
 
 ### DESIGN-20 -- CONFIRMED, minor
@@ -223,7 +223,7 @@ reviewer wrote (the cost difference is ~0.1 ms per iteration, so no performance 
 ### DESIGN-21 -- CONFIRMED, minor
 
 Lines 1317, 1729, 1805-1806 and 2708 disagree; note 01 section 4.6 says the element expects `z = 0` in
-2D, so "writes `center.z` (0 by default)" is the behaviour to state, with the property test asserting
+2D, so "writes `center.z` (0 by default)" is the behavior to state, with the property test asserting
 `z === center.z`. Fix as the reviewer wrote (pick one and state it).
 
 ## Missed defects under this lens
@@ -257,10 +257,10 @@ otherwise; add both to the 11.3 compile matrix on Chromium.
 
 Line 1795-1796: `reheat()` sets `speed = 1`, `speedEfficiency = 1`; line 1714: `setPosition` reheats,
 and the bridge calls it on every pointer move during a drag (1720-1722). Gephi never resets `speed`
-mid-run (`ForceAtlas2.java` initialises it once). With `iterationsPerStep = 1` per frame the global
+mid-run (`ForceAtlas2.java` initializes it once). With `iterationsPerStep = 1` per frame the global
 speed is reset to 1 every frame of a drag, so it cannot exceed 1.5 while the pointer moves;
 `probes/verify-clamp-throttle.log` shows the settling regime at 2,048 nodes running at `speed` 2-13, so
-neighbours respond 2-10x slower during a drag than the controller would otherwise allow (the same
+neighbors respond 2-10x slower during a drag than the controller would otherwise allow (the same
 reset also fires on `setParams`). Fix: `reheat()` resets `iterationsDone`, `settledCount` and the
 settle window only; `speed` / `speedEfficiency` reset only in `load()`; state this in 7.17 and D8.
 

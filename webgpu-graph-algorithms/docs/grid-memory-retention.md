@@ -3,7 +3,7 @@
 ## What was seen
 
 A Node process that created, ran and disposed ForceAtlas2 simulations on the grid tier kept growing. On Mesa's
-software rasteriser (lavapipe) it grew by roughly 0.5-0.7 MB per simulation while the JavaScript heap looked flat,
+software rasterizer (lavapipe) it grew by roughly 0.5-0.7 MB per simulation while the JavaScript heap looked flat,
 and neither disposing the simulation nor destroying the device gave the memory back. The 4,096-seed unbiasedness
 check in `test/layouts/grid-unbiased.test.ts` creates one simulation per seed, so it pushed a CI worker past the
 runner's memory, and the software lane was cut to 128 printed seeds.

@@ -128,7 +128,7 @@ written in my words, not math words. Typing "shortest" in the analysis filter fo
 straight away. The result is a table, junctions in order with numbers, which is where I live.
 
 **What confused me or slowed me down:**
-- The km column's role box is labelled "Attribute". I only knew to open it because the line under
+- The km column's role box is labeled "Attribute". I only knew to open it because the line under
   it said "Weight: none". If that line were missing, I'd have loaded and gotten the wrong answer.
 - "Weight" is a strange word for distance. I got there because it was the only sensible choice in
   the list, but "length" or "cost" would be my word.
@@ -137,4 +137,4 @@ straight away. The result is a table, junctions in order with numbers, which is 
 - Direction defaults to "As the file says". For trails, that would have made them one-way. I
   happened to check. Someone in a hurry wouldn't, and here the answer would have come out the same
   only by luck.
-- The small grey labels ("Higher means", "Each row is") are hard to read without my glasses.
+- The small gray labels ("Higher means", "Each row is") are hard to read without my glasses.

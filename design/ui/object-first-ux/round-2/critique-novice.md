@@ -3,7 +3,7 @@
 This is a critique of `design/ui/object-first-ux/round-2/revision.md` (and the twelve screen
 specs beside it in `screens.md`) from two seats at once: the advocate of Explorer Elena, the
 novice persona in `design/designloom/personas/explorer-elena.yaml` (a product manager with no
-graph vocabulary who loads data, clicks the big nodes, reads importance from colour and size,
+graph vocabulary who loads data, clicks the big nodes, reads importance from color and size,
 screenshots for colleagues, and quits when the curve feels steep), and a Figma expert checking
 the revision's borrowings against the measured study in `design/ui/figma/components.md`.
 
@@ -29,7 +29,7 @@ state); these are the extra ones this critique needs.
 - **Header block**: the top of the inspector that never scrolls: title row, summary row, reading
   row and the tab strip (revision section 2.3).
 - **Pill tab**: one of a short row of text labels under the header block; the selected one is
-  bold on a grey pill. Measured in Figma as text plus 8 px of padding each side, 24 px tall, 4
+  bold on a gray pill. Measured in Figma as text plus 8 px of padding each side, 24 px tall, 4
   px between tabs (`design/ui/figma/components.md` section 16).
 - **Row budget**: how many 32 px rows fit in the inspector below the header block before the
   reader must scroll.
@@ -100,7 +100,7 @@ the node.
 ### 2.1 The tab strip does not fit a 240 px panel at Figma's measurements (blocker)
 
 The revision specifies Figma's pill tabs (section 0: "24 px tall, 11 px text, the selected one
-bold on a grey pill", `components.md` section 16) in a 240 px panel whose row grid is
+bold on a gray pill", `components.md` section 16) in a 240 px panel whose row grid is
 16 / 88 / 8 / 88 / 8 / 24 / 8, leaving 216 px between the gutters. Figma's tab is its text plus
 16 px of padding, with 4 px between tabs, and Figma measured "Design" at 54.3 px and
 "Prototype" at 69.5 px, which is about 6.3 px per character at 11 px weight 550 (the selected
@@ -121,7 +121,7 @@ will squeeze, wrap or truncate silently, and the design will be judged on whatev
 produced. This is the one finding that stops the screens being drawn as specified.
 
 The fix is a constraint, not a redesign, and it is a two-way door: **at most four tabs per kind,
-and four names totalling at most 27 characters at 4 px padding (21 at Figma's 8 px)**, or the
+and four names totaling at most 27 characters at 4 px padding (21 at Figma's 8 px)**, or the
 right panel goes to 280 px (which fits every four-tab set at Figma's padding but still not the
 five-tab Dataset). Names that meet the 4 px constraint: Set "Define, Members, Style, Record"
 (24); Measure "Values, Define, Style, Record" (23); Grouping "Groups, Define, Style, Record"
@@ -135,7 +135,7 @@ answers the timeline's discoverability problem in section 6 below.
 
 ### 2.2 The 24-row budget is a desktop budget, and the header block is 144 px, not 112
 
-Section 2.3 gives the header block as three rows totalling 112 px, then lists four: Title 48,
+Section 2.3 gives the header block as three rows totaling 112 px, then lists four: Title 48,
 Summary 32, Reading 32, Tabs 32, which is 144. `screens.md` repeats 112. The row budget then
 reads "24 x 32 = 768 px, which fits a 960 px window under the 112 px header block and the 48
 px panel header". A 960 px window is a 1600 x 1000 monitor with browser chrome, not the
@@ -185,7 +185,7 @@ then "and N more"; and correct 112 to 144 in both files.
 
 ### 2.3 The node's default tab answers the analyst's question, not the novice's (major)
 
-The persona's second behaviour is "clicks on prominent nodes to see what they are and who they
+The persona's second behavior is "clicks on prominent nodes to see what they are and who they
 connect to". On a fresh load, with no objects in the tree, a node's Overview tab (section 2.4,
 Node) is: a VALUES header with nothing under it, MEMBER OF "In no set", a LOOK header with
 nothing painted, three doors ("Style this node...", "Style its group..." absent, "Add to
@@ -231,7 +231,7 @@ section 1). At 9 px Inter, "Neighbours" is about 45 px and "Structure" about 41;
 button they spill into the 8 px gaps on both sides. Computed for the bar as specified (ten
 tools, six 16 px chevrons, three dividers, the 122 px mode switch, 8 px gaps, 8 px padding): 661
 px at 32 px buttons, 741 at 40, 821 at 48. Section 1.5 rejects the rail partly because "two 240
-px panels leave 800 px of canvas" at 1280; the labelled toolbar at 48 px buttons is wider than
+px panels leave 800 px of canvas" at 1280; the labeled toolbar at 48 px buttons is wider than
 that canvas, and at any width it collides with the 160 px legend card that `screens.md` draws
 at the bottom right. Figma's answer is to let the toolbar overlap the panels below 1280 (its
 section 40: "never collapses"), which is acceptable if stated. Fix: decide the button width
@@ -246,7 +246,7 @@ is showing with default parameters"; section 4 step 1 says pressing R means "Ran
 brand fill; nothing else changes", and the run only starts at step 2 or 4. Both cannot be true.
 If Rank runs on click it is a command, and the brand fill (which the toolbar reserves for "the
 armed tool") is wrong for it; if it arms, there is no canvas action for it to wait for. For a
-novice the mixed metaphor is the harm: Path and Neighbours wait and tell her what to do in the
+novice the mixed metaphor is the harm: Path and Neighbors wait and tell her what to do in the
 secondary bar; Groups acts instantly with no confirmation of what it will run on or what it
 will cost. Fix, recommended: make every creation tool arm the same way, and give the
 command-like ones a secondary bar too: "Rank by [Bridges v] on what is showing, 115 nodes,
@@ -274,13 +274,13 @@ removed" keeps its primary home on the node's overflow (where the revision alrea
 and "Over time" moves to the transport bar's gear, where a reader thinking about time already
 is; (c) the label is fine once the flyout is predictable.
 
-Smaller: "E" for Neighbours has no mnemonic (Figma's E is Ellipse); "Rank" alone does not say
+Smaller: "E" for Neighbors has no mnemonic (Figma's E is Ellipse); "Rank" alone does not say
 "rank the nodes" but the flyout's first row does; the mode switch showing VR and AR only when
 supported is right; the "Ask" button is the best novice door in the design, because "how are 1
 and 34 connected" typed in plain words needs no vocabulary at all, and the permanent privacy
 line above the composer is the right honesty. The three suggestion rows under the root
 (`screens.md` screen 2) still vanish after the first object with no way back (round-1 finding
-8, not addressed); with a labelled toolbar this matters less, but a "Suggestions" row in the
+8, not addressed); with a labeled toolbar this matters less, but a "Suggestions" row in the
 Objects header's overflow would close it.
 
 ## 4. Is running an algorithm understandable without a wizard?
@@ -288,7 +288,7 @@ Objects header's overflow would close it.
 **Yes, for the case the persona will actually meet, and the section 4 table is the best piece
 of the revision.** Elena on Karate Club: press G (or click the "Find groups (G)" suggestion
 row), a row "Communities (Louvain)" appears at the top of the tree already selected, the canvas
-goes four colours, the legend switches itself on, the summary row says "4 groups", the reading
+goes four colors, the legend switches itself on, the summary row says "4 groups", the reading
 row says "The groups are clearly separated (modularity 0.36)  ?", and the inspector opens on the
 Groups tab. Every round-1 novice finding about this moment is answered: the plain name comes
 first in the row (finding 6), the reading is on the surface (4), the legend is on (7). She can
@@ -304,11 +304,11 @@ is). Two defects.
 **The first-free-channel rule is not per kind, so the second run can paint nonsense.** Step 8:
 "Colour if no visible object above writes it, else Size, else Outline, else Colour anyway".
 The suggestion rows offer "Rank by connections (R)" before "Find groups (G)"; a reader who
-takes them in that order gets a Measure on Colour, then a Grouping whose first free channel is
+takes them in that order gets a Measure on Color, then a Grouping whose first free channel is
 Size: four communities drawn as four node sizes. A Grouping has no order, so Size is
 meaningless for it, and Shape or Outline is what it should take. Fix: the free-channel order is
-per kind: Measure: Colour, Size, Opacity; Grouping: Colour, Shape, Outline; Set: Outline,
-Colour, Glow. One table row in section 5.7, and the element's suggested-encoding change carries
+per kind: Measure: Color, Size, Opacity; Grouping: Color, Shape, Outline; Set: Outline,
+Color, Glow. One table row in section 5.7, and the element's suggested-encoding change carries
 it.
 
 **The click-versus-arm contradiction** (section 3 above) is also a section 4 defect, because
@@ -342,25 +342,25 @@ Style tab as specified:
 | Measure | "Channel [Colour v] [eye][-]", "Scale", "Palette", ..., "+" listing "Edge width, Edge colour" |
 
 So a Set says which element kind it paints with a section header (NODES, EDGES) and leaves
-its Colour row unlabelled (Figma's fill row) while labelling Width and Pattern; a Measure and a
+its Color row unlabeled (Figma's fill row) while labeling Width and Pattern; a Measure and a
 Grouping say it with a word prefixed to the channel name ("Edge colour") in one flat list, and
 label every row. A reader who learned the Set tab on a Path and then opens a Measure meets a
 different layout for the same idea. This is the exact place the owner's instinct ("node style,
-edge style") should be honoured in every tab, and the revision honours it in one. Fix: every
+edge style") should be honored in every tab, and the revision honors it in one. Fix: every
 Style tab has the NODES and EDGES section headers with a "+" each; a paint row and an encoding
-block both begin "Colour [chit or ramp] ..."; the Set's Colour row gets its label like its
-siblings; a Measure's "+" under EDGES lists Width, Colour, Opacity. One grammar, and "Edge
-colour" disappears as a channel name.
+block both begin "Colour [chit or ramp] ..."; the Set's Color row gets its label like its
+siblings; a Measure's "+" under EDGES lists Width, Color, Opacity. One grammar, and "Edge
+color" disappears as a channel name.
 
-**The Set highlight colours collide with the group palette.** New Sets take "blue, then green,
-then orange, then the categorical palette's colours" (section 5.4). Okabe-Ito, the default
+**The Set highlight colors collide with the group palette.** New Sets take "blue, then green,
+then orange, then the categorical palette's colors" (section 5.4). Okabe-Ito, the default
 Grouping palette, is orange, sky blue, green, yellow, dark blue, vermilion, pink; screen 8's
-own path colours (#1b9e77 green, #2166ac blue) sit next to Okabe-Ito's #009e73 and #0072b2. A
+own path colors (#1b9e77 green, #2166ac blue) sit next to Okabe-Ito's #009e73 and #0072b2. A
 path drawn green through green community nodes is invisible, and the novice reads importance
-from colour. The width and pattern channels help on edges but not on the path's nodes. Fix: the
+from color. The width and pattern channels help on edges but not on the path's nodes. Fix: the
 highlight palette is chosen to be distinct from every categorical palette the element ships
 (the element owns both lists, so it can check), and a Path's default node paint is an Outline
-in the path colour rather than a fill, so the community colour stays visible underneath.
+in the path color rather than a fill, so the community color stays visible underneath.
 
 Smaller, all vocabulary the novice would not open in her first ten minutes but will meet in
 her first hour: "Domain" and "Range" are mathematics; "Values from / to" and "Sizes from / to"
@@ -392,8 +392,8 @@ Structure > Over time, and this keeps that the only place values change with tim
 **A time column has no door until the reader finds "Set as time" three levels down.** The Time
 tab exists only "once a column carries the time role", set from Data tab > column "..." > Set
 as time. A reader who loads her own CSV with a `date` column sees no tab, no bar, and no hint;
-the attribute catalogue already types the column as `time`
-(`inventory/element-capabilities.md`, the attribute catalogue row), so the app knows. Fix: when
+the attribute catalog already types the column as `time`
+(`inventory/element-capabilities.md`, the attribute catalog row), so the app knows. Fix: when
 a column of type time exists and no role is set, the Dataset's Findings section (whole-graph
 facts, already a section) carries one row: "Time column: sent, 2019-01 to 2019-12
 [Show over time]", which sets the role, sets a full-range window and shows the bar. With the
@@ -409,7 +409,7 @@ speed, step keys and the change-count ticks are all right.
 
 | Round-1 finding (`critique/novice-walkthrough.md`) | Round 2 |
 |---|---|
-| 1 Tools unlabelled, tooltip delay | fixed: labels, 0 ms delay (section 3.1); width unresolved (this critique, section 3) |
+| 1 Tools unlabeled, tooltip delay | fixed: labels, 0 ms delay (section 3.1); width unresolved (this critique, section 3) |
 | 2 Locked inherited swatch is a dead click | fixed: the chit creates the override (5.3) |
 | 3 "Colour this node..." too easy, no door to the group | fixed: "Style its group..." (2.4, Node) |
 | 4 The reading buried behind "Made by" and "?" | fixed: the reading row in the header block (2.3) |
@@ -435,12 +435,12 @@ device; minor = friction she notices and passes.
 
 | # | Severity | What | Where | Fix |
 |---|---|---|---|---|
-| 1 | blocker | The pill-tab strips do not fit the 240 px panel at the Figma tab measurements the revision specifies: 227 to 272 px of tabs in 216 px of room; the five-tab Dataset fits at no padding | `revision.md` 2.3, 2.4; `screens.md` conventions | at most four tabs per kind, names totalling 27 characters at 4 px padding (or 21 at 8 px), or a 280 px panel; Time's rows become the transport bar's gear popover |
+| 1 | blocker | The pill-tab strips do not fit the 240 px panel at the Figma tab measurements the revision specifies: 227 to 272 px of tabs in 216 px of room; the five-tab Dataset fits at no padding | `revision.md` 2.3, 2.4; `screens.md` conventions | at most four tabs per kind, names totaling 27 characters at 4 px padding (or 21 at 8 px), or a 280 px panel; Time's rows become the transport bar's gear popover |
 | 2 | major | Clicking Groups, Rank or Structure runs at once (3.2) or only arms the tool (4 step 1); the two sections disagree, and a novice pressing R sees a blue button and nothing else | `revision.md` 3.2, 4 | every creation tool arms and shows a secondary bar "Rank by [Bridges v] on what is showing, 115 nodes, about 2 s [Run] Cancel"; flyout row click runs directly |
 | 3 | major | The 24-row budget assumes a 960 px window; the header block is 144 px (its own four rows), not 112; on a 768-tall laptop the budget is 14 rows and six tabs exceed it | `revision.md` 2.3, 2.6 rule 3; `screens.md` | set the rule at 14 rows; cap member rows at 5; Export off the Data tab; Node Overview sections show 3 rows then "and N more"; correct 112 to 144 |
 | 4 | major | A node's default tab is a report about objects (empty Values, "In no set", empty Look, three doors) on a fresh load; the novice's questions "what is it" and "who does it connect to" are on the other two tabs | `revision.md` 2.4 Node | Overview leads with the label, three attributes and "Connected to 17 nodes >", then the object sections, empty ones as headers only |
-| 5 | major | The suggested-encoding rule (Colour, else Size, else Outline) is not per kind; Rank then Groups paints communities as node sizes | `revision.md` 4 step 8, 5.7 | per-kind free-channel order: Measure Colour, Size, Opacity; Grouping Colour, Shape, Outline; Set Outline, Colour, Glow |
-| 6 | major | Style tabs use three grammars for "which element kind and channel": NODES/EDGES headers with an unlabelled Colour row on a Set; "Edge colour" as a channel name in one flat list on a Measure and a Grouping | `revision.md` 5.2, 5.3, 5.4 | NODES and EDGES headers on every kind; every paint row and block starts with its channel name; the Measure's EDGES "+" lists Width, Colour, Opacity |
+| 5 | major | The suggested-encoding rule (Color, else Size, else Outline) is not per kind; Rank then Groups paints communities as node sizes | `revision.md` 4 step 8, 5.7 | per-kind free-channel order: Measure Color, Size, Opacity; Grouping Color, Shape, Outline; Set Outline, Color, Glow |
+| 6 | major | Style tabs use three grammars for "which element kind and channel": NODES/EDGES headers with an unlabeled Color row on a Set; "Edge colour" as a channel name in one flat list on a Measure and a Grouping | `revision.md` 5.2, 5.3, 5.4 | NODES and EDGES headers on every kind; every paint row and block starts with its channel name; the Measure's EDGES "+" lists Width, Color, Opacity |
 | 7 | major | Setting a time window marks every Measure and Grouping stale, contradicting "a mask exactly as Focus"; the tree turns amber when the slider moves | `revision.md` 6.1, 8 | a window never marks stale; "computed on <range>" is a caveat in the legend and summary; the opt-in switch stays; drop the hash change |
 | 8 | major | A time column has no door: the Time tab appears only after Data > column "..." > Set as time, which nothing on screen suggests | `revision.md` 6.1, 2.4 Dataset | a Findings row "Time column: sent, 2019-01 to 2019-12 [Show over time]" when a time-typed column has no role, plus a "Time [sent v]" row in Data |
 | 9 | major | With labels the tool buttons cannot stay 32 px; the bar is 661 to 821 px wide against the 800 px canvas at 1280 that section 1.5 relies on, and it collides with the legend card | `revision.md` 3.1, 1.5; `screens.md` screen 11 | 40 px buttons with 8 px labels; no label on Select and Hand; legend docks above the toolbar's right end; draw screen 11 at 1280 too |
@@ -449,7 +449,7 @@ device; minor = friction she notices and passes.
 | 12 | minor | The status bar can hold seven mirrored items at once with no yield order | `revision.md` 1.4, 4 | a priority order and a collapse-to-glyph rule; draw the busiest state once |
 | 13 | minor | Initial faces of the flyout tools are undefined; "last used" has no first value, and the round-1 face for Rank was the heavy one | `revision.md` 3.2 | Connections, Communities, Shortest route, By values, Separate pieces |
 | 14 | minor | Structure hands back five object kinds and includes "Over time" and "What breaks if removed", so the tree result is unpredictable from the button | `revision.md` 3.3, 3.4 | flyout row icon = the kind icon of the row it makes; "Over time" to the transport gear; removal impact stays on the node |
-| 15 | minor | Set highlight colours (blue, green, orange, then the categorical palette) collide with Okabe-Ito community colours; a green path through green nodes vanishes | `revision.md` 5.4; `screens.md` screen 8 | a highlight palette disjoint from the shipped categorical palettes; a Path's node paint is an Outline, not a fill |
+| 15 | minor | Set highlight colors (blue, green, orange, then the categorical palette) collide with Okabe-Ito community colors; a green path through green nodes vanishes | `revision.md` 5.4; `screens.md` screen 8 | a highlight palette disjoint from the shipped categorical palettes; a Path's node paint is an Outline, not a fill |
 | 16 | minor | Suggestion rows vanish after the first object with no way back (round-1 finding 8) | `screens.md` screen 2 | "Suggestions" in the Objects header overflow |
 | 17 | minor | "Definition", "Domain", "Range", "Density", "Parts" are a stranger's words on the surface | `revision.md` 2.4, 5.2 | "Define" (or "Setup"), "Values from / to", "Sizes from / to"; the Dataset words get the "?" reading |
 | 18 | minor | The remembered tab per kind can make the same click open two different tabs | `revision.md` 2.5 | remember only after the reader changes tab twice in a session; keep the four event overrides |

@@ -50,7 +50,7 @@ published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
 checks it against the SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`
-and `src/datasets/hosted.ts` (the catalogue entries); it copies the small datasets' files from
+and `src/datasets/hosted.ts` (the catalog entries); it copies the small datasets' files from
 `dist/data/v1/` beside them and writes `index.json` for all of them. The `.gsnp.gz` files are not
 committed: every deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and
 publishes `public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given

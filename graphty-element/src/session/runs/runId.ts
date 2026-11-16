@@ -18,7 +18,7 @@
  *
  * Two rules do the work here:
  *
- * - **Canonicalisation, so two calls that mean the same thing are the same run.** Key order does
+ * - **Canonicalization, so two calls that mean the same thing are the same run.** Key order does
  *   not change an id, and neither does writing out a value the algorithm would have defaulted to:
  *   `{}` and `{ resolution: 1 }` are one run when 1 is the declared default.
  * - **The scope SPECIFICATION, not the resolved membership.** An id derived from which nodes were
@@ -260,11 +260,11 @@ export function trimTrailingSeparators(slug: string): string {
 export interface RunIdentity {
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
-    /** Its parameters, already canonicalised. */
+    /** Its parameters, already canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** What it was asked to look at. */
     readonly scope: Scope;
-    /** The seed a randomised or sampled method used, or null when it needed none. */
+    /** The seed a randomized or sampled method used, or null when it needed none. */
     readonly seed: number | null;
     /** The sample size that was asked for, or null when the run was not sampled. */
     readonly sample: number | null;
@@ -290,7 +290,7 @@ export function canonicalIdentity(identity: RunIdentity): string {
 }
 
 /**
- * One spelling per scope, so one scope has one run id: an inline definition is canonicalised, and
+ * One spelling per scope, so one scope has one run id: an inline definition is canonicalized, and
  * one that equals a form older than `{ define }` becomes that form -- a fixed node list read
  * `induced` with no listed edges is `{ nodes }`, a rule over one query read `induced` is
  * `{ where }` -- so every id derived before `{ define }` existed is unchanged.

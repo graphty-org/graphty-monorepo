@@ -2,18 +2,18 @@
  * @file One option mechanism, for all six extension points.
  *
  * WHAT THIS REPLACES. An extension author used to face three disagreeing mechanisms. An
- * algorithm declared its options twice -- as `OptionDescriptor[]` for the catalogue and as a
+ * algorithm declared its options twice -- as `OptionDescriptor[]` for the catalog and as a
  * separate schema for its constructor -- in two vocabularies that do not correspond
  * (`select`/`nodeId` against `enum`/`node-id`), with nothing cross-checking them. A layout
- * declared a Zod schema the catalogue emitter read for built-ins only. A format hand-wrote a
+ * declared a Zod schema the catalog emitter read for built-ins only. A format hand-wrote a
  * descriptor and validated nothing. A camera had no options at all.
  *
  * THE ONE MECHANISM: an extension declares `readonly OptionDescriptor[]` -- the plain-JSON type
- * the catalogue already publishes and already hands a picker -- and the element validates the
+ * the catalog already publishes and already hands a picker -- and the element validates the
  * caller's values against that declaration. One declaration is what a form renders, what the
- * catalogue publishes and what validation reads, so the three cannot disagree.
+ * catalog publishes and what validation reads, so the three cannot disagree.
  *
- * Zod stays off the boundary, which is the catalogue's own stated rule: shipping Zod across a
+ * Zod stays off the boundary, which is the catalog's own stated rule: shipping Zod across a
  * package boundary makes the consumer's Zod version part of this package's API. An author who
  * prefers to write a Zod schema calls `optionsFromZod` once and registers what it emits.
  *
@@ -43,9 +43,9 @@ export function withDescriptionIds(prefix: string, options: readonly OptionDescr
 }
 
 /**
- * {@link withDescriptionIds} over each descriptor of a catalogue list. A described descriptor
+ * {@link withDescriptionIds} over each descriptor of a catalog list. A described descriptor
  * without a `descriptionId` gets `<kind>.<id>` too.
- * @param kind - The catalogue, such as "camera"; each descriptor's options get the prefix `<kind>.<id>`.
+ * @param kind - The catalog, such as "camera"; each descriptor's options get the prefix `<kind>.<id>`.
  * @param descriptors - The descriptors, each with an id and options.
  * @param idOf - A descriptor's id.
  * @returns The descriptors, each described one and its described options carrying a `descriptionId`.
@@ -63,7 +63,7 @@ export function withEachDescriptionIds<
 }
 
 /**
- * A catalogue entry's deprecated English `description`, which the element's own assistant tools
+ * A catalog entry's deprecated English `description`, which the element's own assistant tools
  * and error messages still read this release: a model needs words, and the application words its
  * readers' text from `descriptionId` instead. Goes when the field does (#7961).
  * @param entry - An algorithm, layout, camera, log sink or format descriptor.
@@ -106,7 +106,7 @@ function editDistance(a: string, b: string): number {
 }
 
 /**
- * The declared names nearest to one that was not recognised.
+ * The declared names nearest to one that was not recognized.
  * @param wanted - The name that was passed.
  * @param available - The names that are declared.
  * @returns The nearest few, nearest first.

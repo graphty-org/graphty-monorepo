@@ -26,7 +26,7 @@ import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
 
-/** `batch`: commands that are one step, as data. A serialisable transaction. */
+/** `batch`: commands that are one step, as data. A serializable transaction. */
 export interface BatchCommand {
     readonly op: "batch";
     /** The commands, dispatched in order; each takes its own lane. */

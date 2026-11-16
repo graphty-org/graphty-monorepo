@@ -172,7 +172,7 @@ describe("the vocabulary", () => {
     it("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);
-        // The layout-behaviour settings that are preferences of the view, not project settings
+        // The layout-behavior settings that are preferences of the view, not project settings
         // (design/undo/undo-design.md section 3.2), under the names config.set would give them,
         // and a key that names nothing at all.
         const outside: readonly unknown[] = [

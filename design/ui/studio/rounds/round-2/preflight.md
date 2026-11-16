@@ -85,7 +85,7 @@ Graders record these as what a user meets; a bar is scored with build-decided se
   draws a chevron on the Degree row ("Degree 17 >"), the cue round 1's decisions held back so round
   2 could tell which change helped. Graders record each participant's route; the report cannot
   credit either change alone.
-- **graphty-element's English shown as is.** The Layout list greys No crossings with "the layout
+- **graphty-element's English shown as is.** The Layout list grays No crossings with "the layout
   "planar" cannot draw this graph without crossings: G is not planar." (internal name "planar",
   "G"); the CSV export's box lists "node column "style.color" ... cannot be written" and "the
   generic dialect has no direction column". Both break the rule that the element returns codes

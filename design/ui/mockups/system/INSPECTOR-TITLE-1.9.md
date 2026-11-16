@@ -82,7 +82,7 @@ and any string one word longer landed on a different board each time.
     3. On 32 boards it was the register's `toggle inspector` rect: the same glyph
        the top bar draws for the same surface, and draws ACTIVE in blue whenever
        the inspector is open. The inspector's identity is already marked, in
-       colour, 900px away. A second, grey, non-clickable copy of it beside text
+       color, 900px away. A second, gray, non-clickable copy of it beside text
        that says what is selected is decoration.
     4. It cost 22px (14 glyph + 8 gap) of the one row in the shell where 6.3 says
        the plain name must never truncate, and those 22px are exactly what makes
@@ -90,7 +90,7 @@ and any string one word longer landed on a different board each time.
 
     This is not a new move. FilterBuilderExpert had already dropped it alone, for
     this reason, and its comment says so: "the 14px pane glyph that used to lead
-    the row is dropped". CompareSplit had dropped it too. The pass generalises
+    the row is dropped". CompareSplit had dropped it too. The pass generalizes
     what two boards had already concluded.
 
     The activity panel header keeps its leading glyph and should: five activities
@@ -267,7 +267,7 @@ has the full 256px band.
   REGISTER 10.1 names that board explicitly and keeps it bare.
 - **`Pin as A` was added to DataTableDrawer**, which shows a selection and drew
   no header pin. Its action block's `Pin as A` text row stays: REGISTER 12.1
-  makes the pinned action block labelled rows, and MultiSelection and
+  makes the pinned action block labeled rows, and MultiSelection and
   ExplorePanel already draw both.
 - **`Toggle inspector (D)` was added to MultiSelection**, which drew none. Its
   comment had dropped it for fit; the row now has 14px of slack with it in.

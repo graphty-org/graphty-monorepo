@@ -39,12 +39,12 @@ Command: `--step ... --click-at 680,864` -> button "Analyze"
 
 Screen (03.png): a list pops up over the drawing: "Filter analyses", heading "Rank nodes and
 edges", then Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here"
-tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a grey
+tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a gray
 line under it.
 
 Elena: "Oof. That's a lot of words. Betweenness, Katz, HITS... 'Rank nodes' -- ranking is what I
 want, so I'm in the right place. I don't know which one means 'the club depends on them'. The
-grey lines are tiny. But PageRank says 'Start here' -- fine, I'll take the one it recommends,
+gray lines are tiny. But PageRank says 'Start here' -- fine, I'll take the one it recommends,
 like Google." (Hesitated here about 20 seconds reading; did not compare Betweenness's line.)
 
 ## Step 3 -- choose PageRank
@@ -109,7 +109,7 @@ Command: `--end`
     - The Analyze list is a wall of words I don't know (Betweenness, Eigenvector, Katz, HITS). I
       picked PageRank only because it said "Start here". I'm honestly not sure it's the one that
       means "the club depends on them" -- one of the others might have been closer, but I couldn't
-      tell from the grey lines and I wasn't going to try them all.
+      tell from the gray lines and I wasn't going to try them all.
     - After it ran, the drawing just turned shades of orange with a scale of 0.04 to 0.07. I couldn't
       tell who was first from the colors. No names on the dots either.
     - Clicking the PageRank row on the left took me to color and shape settings, not the ranking.

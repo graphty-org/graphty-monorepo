@@ -108,7 +108,7 @@ export class BufferPool {
      * so a missing write fails loudly instead of depending on which run got a fresh buffer.
      * @param byteLength - the bytes needed
      * @param usage - the GPUBufferUsage flags
-     * @param label - the buffer label (a reused buffer is relabelled)
+     * @param label - the buffer label (a reused buffer is relabeled)
      * @returns a buffer of the class size
      */
     acquire(byteLength: number, usage: number, label: string): GPUBuffer {

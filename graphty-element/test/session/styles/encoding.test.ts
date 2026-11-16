@@ -53,7 +53,7 @@ function countsOf(prepared: PreparedBinding): BindingCounts {
     return prepared.counts;
 }
 
-/** The hex a painted colour carries, so a colour assertion reads as a colour. */
+/** The hex a painted color carries, so a color assertion reads as a color. */
 function hex(value: EncodedValue | undefined): string | undefined {
     return value === undefined ? undefined : (value as ColorValue).hex;
 }
@@ -348,7 +348,7 @@ describe("the palette's capacity", () => {
     });
 
     it("gives a binding that names no palette and no overflow a palette big enough to name it", () => {
-        // The eight-colour default cannot name ten groups, and a categorical palette never wraps.
+        // The eight-color default cannot name ten groups, and a categorical palette never wraps.
         // What the element must NOT do is hand ITSELF that palette and then refuse its own layer:
         // this is a run of ten communities that got exactly that, and drew nothing at all.
         // encode() now writes overflow "other" onto such a binding (see overflow.test.ts); a layer
@@ -373,7 +373,7 @@ describe("the palette's capacity", () => {
 
     it("still refuses a palette the CALLER named that cannot name the groups", () => {
         // The element choosing for itself is what changed. A consumer who asked for these eight
-        // colours and has ten groups is told so, rather than shown a picture in colours it did
+        // colors and has ten groups is told so, rather than shown a picture in colors it did
         // not ask for.
         const chosen: PaletteId = "okabe-ito";
         const layer = plan({ run: "louvain", channel: "node.color", palette: chosen });
@@ -842,7 +842,7 @@ describe("encode()", () => {
         // A palette written in here would be a guess: nothing at this point has read a single one
         // of the run's values, and how many groups there are is what decides whether a palette can
         // name them. The guess was made and it was wrong -- a ten-community result was planned
-        // onto the eight-colour default, refused by the capacity check one step later, and left in
+        // onto the eight-color default, refused by the capacity check one step later, and left in
         // the stack enabled and painting nothing. Choosing is deferred to the paint, where the
         // count is known; see the capacity tests below for the choice itself.
         assert.isUndefined(bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").palette);

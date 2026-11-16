@@ -240,7 +240,7 @@ export type TypedDtype = Exclude<Dtype, "string" | "list" | "json">;
 /**
  * A typed-array class as the helpers use it: BYTES_PER_ELEMENT plus the (buffer, byteOffset, length)
  * constructor. Every concrete typed-array constructor satisfies it with T fixed to its
- * ArrayBuffer-parameterised instance type.
+ * ArrayBuffer-parameterized instance type.
  */
 export interface TypedArrayCtor<T extends TypedArrayData> {
     /** Bytes per element. */
@@ -349,7 +349,7 @@ export function allocateStagingBuffer(
  * Grow a staging array so it holds at least `minLength` elements, preserving its contents (design
  * section 6.2). When the array is the leading view of a resizable buffer with room left, the buffer is
  * resized in place and no bytes move; otherwise a new buffer is allocated (resizable per `resizable`,
- * with a reservation of at least twice the old one so repeated overflow stays amortised) and the
+ * with a reservation of at least twice the old one so repeated overflow stays amortized) and the
  * contents copied. Either way the returned array is a fresh view object of exactly the new capacity;
  * the caller replaces its reference. Elements beyond the old length are zero on the copy path and on a
  * freshly resized region.

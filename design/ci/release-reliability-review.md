@@ -14,7 +14,7 @@ See design/ci/channels-pipeline.md for how the channels fit together.
 ## 1. The short answer
 
 - **Releases fail mostly because of the release pipeline, not the product.** Of 30 runs that went
-  red or were cancelled, 23 failed on the pipeline itself: release-tool bugs (11), gates that waited
+  red or were canceled, 23 failed on the pipeline itself: release-tool bugs (11), gates that waited
   on the owner (7) and duplicate or superseded dispatches (5). 3 failed on a flaky test or a job
   timeout that passed on re-run, 2 on a defect in the tested commit (one product regression, one
   test-configuration defect), and 2 on outside causes.
@@ -35,7 +35,7 @@ See design/ci/channels-pipeline.md for how the channels fit together.
 
 ## 2. What failed, by cause
 
-Window: 10-23 17:00 to 10-29 12:00 PT. 30 release.yml runs failed, were cancelled, or went red on
+Window: 10-23 17:00 to 10-29 12:00 PT. 30 release.yml runs failed, were canceled, or went red on
 some attempt; each counts once, under the cause that decided it. Separately, 15 runs reached a green
 verdict, all of them "green-images" (every lane green, screenshots changed). The two groups overlap:
 4 of the 30 (40555956340, 40658389708, 40684344927, 40869780524) still ended green-images after a
@@ -46,7 +46,7 @@ fixes into the held candidate" with every lane green, so they cost no verdict.
 | -------------------------------- | --------------------------- | ----- | ----------------------------------------------------------------- | -------------------------------------------------- |
 | Release-tool bug                 | 11 (+4 as second cause)     | 37%   | about 15 h of nightly delayed; about 11 runner-hours              | Yes, as version skew (#4421, #4522)                |
 | Gate waiting on the owner        | 7 (2 also had a red T4)     | 23%   | 17.6 h before the first nightly; 4 runs held by one first publish | Gates fixed; today's hold waits on an owner script |
-| Duplicate or superseded dispatch | 5                           | 17%   | near zero; most cancelled while pending                           | Last one 10-27 19:02                               |
+| Duplicate or superseded dispatch | 5                           | 17%   | near zero; most canceled while pending                            | Last one 10-27 19:02                               |
 | Flaky test or job timeout        | 3 (+3 in bisects, attempts) | 10%   | about 4 h to the next green verdict                               | Quiet since #4315 (10-28)                          |
 | Defect in the tested commit      | 2 (+1)                      | 7%    | 2 to 3 runner-hours                                               | Yes, and that is the full run's job                |
 | Outside cause                    | 2                           | 7%    | 1 to 2 h                                                          | One undiagnosed LLM 400                            |
@@ -95,7 +95,7 @@ By day (primary cause of the 30 runs):
   immutable GitHub release (HTTP 422); the results store timing out or answering 500 (two runs, fixed
   by retry, #4433).
 - **Every promotion hit a tool bug**: promote-nightly skipped every job (#4130); release-due missed an
-  approval whose master build was cancelled as superseded (#4129); an approval pull request carrying
+  approval whose master build was canceled as superseded (#4129); an approval pull request carrying
   master merges was refused (#4457); its Stories job ran over its 20-minute limit (#4432).
 
 Two tests already guard the release path and block every pull request (ci.yml's Checks job, through
@@ -111,7 +111,7 @@ of them.
 - babylonjs-map's first-publish approval turned the version dry run red on 4 runs in a row (10-26
   22:48 to 10-27 02:50): one unapproved package held every package. Fixed by #4014, #4021, #4027.
 - An `abandon` run waited 6.7 h for production approval while holding the release-train concurrency
-  group, and 3 runs were cancelled behind it (10-27 05:51 to 06:17). Fixed by #4058.
+  group, and 3 runs were canceled behind it (10-27 05:51 to 06:17). Fixed by #4058.
 - Now: the candidate held at 10:41 today (#4513) waits on an owner-run script
   (`tmp/full-run-handoff-envs.sh`) that #4519 needs before it does anything.
 
@@ -121,7 +121,7 @@ of them.
 Of the 21, 6 were restarts by design (a merge that fixes a red run restarts it) and most of the rest
 were dispatches on new commits, which is how the owner's practice of iterating a red run until it is
 green works. The 37 runs covered 34 distinct commits. The three repeats (7b4c4de, c3a0dea, 70f1658)
-were cancelled while still pending or skipped by the pick step, at close to no cost; pick already
+were canceled while still pending or skipped by the pick step, at close to no cost; pick already
 skips a commit that has a verdict. The runner cost of the extra runs is the price of
 iterate-until-green, which is the owner's call, not a defect.
 
@@ -166,7 +166,7 @@ Ordered by the share of failures or delay each removes. None needs more runners.
   newest green run (`serve --candidate next` already shows them).
 - **The risk, stated plainly:** nightly would carry changed pictures that nobody has reviewed. This
   repository never reviews pictures on pull requests, so there is no earlier review to lean on. The
-  analogue is Claude Code's two channels: `latest` gets every release at once and `stable` lags about
+  analog is Claude Code's two channels: `latest` gets every release at once and `stable` lags about
   a week, "skipping releases with major regressions" (https://code.claude.com/docs/en/setup). Nightly
   would become the unfiltered channel and production the filter. That is the price of the change.
 - **Effect:** both promotions would have taken about 1.5 to 2 h instead of 4 h and 28 h. Nightly
@@ -206,7 +206,7 @@ Ordered by the share of failures or delay each removes. None needs more runners.
 
 - **Addresses:** release-tool bugs on the once-a-day paths (every promotion so far hit one).
 - **Change:** a fix for a release-path bug adds the `nightly-scenarios.test.mjs` row that reproduces
-  it, in the same pull request, as the #4130 fix did. The gap is the escapes: add rows for a cancelled
+  it, in the same pull request, as the #4130 fix did. The gap is the escapes: add rows for a canceled
   superseded master build (#4129) and an approval pull request carrying master merges (#4457). A
   Dependabot bump of an action used in the T4 container (the libatomic red) is the same kind of
   escape. Making `release-rehearsal.yml` a required check adds little: it takes 1 to 8 minutes and has

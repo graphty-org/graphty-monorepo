@@ -69,7 +69,7 @@ I'd like to see that list."
 
 Saw: the whole window replaced by "Add to friends": an empty "Tables +" column, "Drop a file
 here, or choose a file...", a Direction dropdown "As the file says", and Cancel / Load (Load
-greyed, "Choose a file first").
+grayed, "Choose a file first").
 
 Think-aloud: "What? I clicked the people list and it wants another file. I didn't ask to add
 anything. Where is my list? ... Cancel."

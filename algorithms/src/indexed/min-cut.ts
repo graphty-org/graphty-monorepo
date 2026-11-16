@@ -30,10 +30,10 @@ export interface KargerOptions {
 }
 
 /**
- * Incident (neighbour, edge weight) pairs per node, both directions of every edge.
+ * Incident (neighbor, edge weight) pairs per node, both directions of every edge.
  * @param s - The snapshot
  * @param capacity - The capacity of every edge
- * @returns The row offsets, neighbours and weights
+ * @returns The row offsets, neighbors and weights
  */
 function incidentLists(
     s: GraphSnapshot,
@@ -103,7 +103,7 @@ function startPhase(st: StoerWagnerState): number {
 }
 
 /**
- * Adds `v` to the phase and raises the connection of its unadded neighbours.
+ * Adds `v` to the phase and raises the connection of its unadded neighbors.
  * @param st - The run state, updated in place
  * @param v - The node added
  */
@@ -296,7 +296,7 @@ function groupMask(uf: IntUnionFind, root: number, n: number): NodeMask {
 }
 
 /**
- * Global minimum cut by Karger's randomised contraction, reading every edge as undirected. Each
+ * Global minimum cut by Karger's randomized contraction, reading every edge as undirected. Each
  * trial unions the endpoints of the edges in a seeded random order (an {@link IntUnionFind}, no
  * graph is contracted) until two groups remain, so every edge is equally likely to be contracted
  * next whatever its weight; the trial's cut is the weight of the edges between the two groups.

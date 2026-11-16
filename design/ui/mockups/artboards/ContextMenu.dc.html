@@ -991,7 +991,7 @@
                THE LEGEND, AND WHY THE MENU MOVED LEFT. LEGEND-1.8 fixed one width for the set, 256, and at 256 the legend's left edge moves from canvas x 630 to 844. This menu opened at left 622 and is 264 wide, so its bottom-right corner ran 42px into the legend's top-left corner. The legend is floor item 5 and 6.10's second clause keeps it with the canvas it keys, so the menu is the thing that moves. It moves horizontally, not vertically, which is the opposite of the rule TimeSlider's canvas-overlay pop-out follows and for the opposite reason: that pop-out is anchored to one control, whose right edge names it, while a context menu is anchored to a POINT and both axes are equally the pointer. A vertical shift of the 58px needed would have lifted the menu on top of acct-4471 itself; the horizontal one keeps its top edge on the pointer's own y and its top-left corner still against the node. left 564 puts the menu's right edge at 828, 16 clear of the legend, which is 5.6's minimum between two canvas overlays.
                1.8 THE ANCHOR, AND WHY THIS MENU TAKES NONE OF IT (B2). B2 gives every transient surface a lane, a
                gap axis and a shared edge line, and names two exceptions that take none: a context menu, which
-               takes the pointer, and a preview, which takes the centred home. This menu is the first. It carries
+               takes the pointer, and a preview, which takes the centered home. This menu is the first. It carries
                no caret either: a caret marks the edge line back to an opener's anchor box, and a pointer has no
                anchor box. 14.2's "every menu under 280 carries an 8px caret" is about menus that hang off a
                control. -->
@@ -1435,19 +1435,19 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (5.6, 5.1). This replaces the 1.5 navigation cluster: the 56px vertical stack at the
-               canvas's left edge is deleted and its contents become one horizontal bar centred on the live canvas
+               canvas's left edge is deleted and its contents become one horizontal bar centered on the live canvas
                rect -- left: 50% with translateX(-50%) on the canvas, never on the window -- riding 12px above the
                canvas floor. This board draws neither the time slider nor the Data table drawer, so the floor is the
                canvas rect itself and the offset is the plain 12; it is 82 with the slider on, 272 with the drawer
                open, 342 with both.
                246 by 36: 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders. Order left to right is fixed by how
                long the effect lasts -- [2D | 3D], divider, Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to
-               selection (F), divider, Views -- and nothing appears or disappears with selection, because a centred
+               selection (F), divider, Views -- and nothing appears or disappears with selection, because a centered
                bar that changes width moves every item under the pointer. Zoom out precedes Zoom in: on a horizontal
                bar magnitude increases rightward, where in-above-out was correct vertically. The 7px radius (3px
                padding plus a 4px item radius, concentric) and the shadow are the two deliberate exceptions that mark
                the bar as an instrument; the minimap and the legend stay flat at radius 4.
-               Zoom to selection is ENABLED on this board, because acct-4471 is selected: live colour, pointer cursor
+               Zoom to selection is ENABLED on this board, because acct-4471 is selected: live color, pointer cursor
                and the short title. Disabled it keeps the same glyph and reads "Zoom to selection (F). Select
                something first" -- floor 4, the reason a disabled control is disabled.
                The Views caret points up and its menu opens upward, bottom edge 4px above the bar. The zoom
@@ -2133,7 +2133,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same

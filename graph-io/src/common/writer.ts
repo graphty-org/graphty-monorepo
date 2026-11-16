@@ -109,7 +109,7 @@ export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<U
 }
 
 /**
- * Wrap an async iterable of chunks as a ReadableStream, pulling one chunk per read and cancelling
+ * Wrap an async iterable of chunks as a ReadableStream, pulling one chunk per read and canceling
  * the iterable when the stream is canceled.
  * @param chunks - the chunks
  * @returns a byte stream

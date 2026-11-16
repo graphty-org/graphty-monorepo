@@ -1,5 +1,5 @@
 /**
- * @file The scale catalogue: how a value in the data becomes a value on a channel.
+ * @file The scale catalog: how a value in the data becomes a value on a channel.
  *
  * A binding says which attribute to read and which scale to read it through. The scale is what
  * decides whether a value ten times larger looks ten times larger, twice as large, or one step
@@ -31,7 +31,7 @@ const REVERSE: OptionDescriptor = {
 };
 
 /**
- * The value a diverging palette centres on. Meaningless with a sequential or categorical
+ * The value a diverging palette centers on. Meaningless with a sequential or categorical
  * palette, which have no middle.
  */
 const MIDPOINT: OptionDescriptor = {
@@ -164,7 +164,7 @@ export function scaleDescriptor(name: string): ScaleDescriptor | undefined {
  * The scales that suit a kind of domain, which is what a binding editor offers once it knows
  * whether the chosen attribute holds measurements or names.
  * @param domainKind - The kind of values the attribute holds.
- * @returns Every scale that accepts that kind of domain, in catalogue order.
+ * @returns Every scale that accepts that kind of domain, in catalog order.
  */
 export function scalesForDomain(domainKind: ScaleDescriptor["domainKind"]): readonly ScaleDescriptor[] {
     return SCALE_DESCRIPTORS.filter((descriptor) => descriptor.domainKind === domainKind);

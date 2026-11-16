@@ -5,8 +5,8 @@ import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import { type CommonLayoutOptions, planar as inPlane, resolve, result } from "./common.js";
 
 /**
- * A combinatorial embedding: around every node, its neighbours in clockwise order, as a circular doubly linked list
- * (`cw` and `ccw`), and the neighbour the order starts at. A port of NetworkX's `PlanarEmbedding`.
+ * A combinatorial embedding: around every node, its neighbors in clockwise order, as a circular doubly linked list
+ * (`cw` and `ccw`), and the neighbor the order starts at. A port of NetworkX's `PlanarEmbedding`.
  */
 class Embedding {
     readonly cw: Map<number, number>[];
@@ -27,7 +27,7 @@ class Embedding {
      * The half-edge v -> w, clockwise after v -> ref; with ref -1, the first half-edge of v.
      * @param v - the node the half-edge leaves
      * @param w - the node it reaches
-     * @param ref - the neighbour it is placed next to, or -1
+     * @param ref - the neighbor it is placed next to, or -1
      */
     addCw(v: number, w: number, ref: number): void {
         if (ref < 0) {
@@ -50,7 +50,7 @@ class Embedding {
      * The half-edge v -> w, counter-clockwise before v -> ref; with ref -1, the first half-edge of v.
      * @param v - the node the half-edge leaves
      * @param w - the node it reaches
-     * @param ref - the neighbour it is placed next to, or -1
+     * @param ref - the neighbor it is placed next to, or -1
      */
     addCcw(v: number, w: number, ref: number): void {
         if (ref < 0) {
@@ -83,9 +83,9 @@ class Embedding {
     }
 
     /**
-     * The neighbours of v in clockwise order.
+     * The neighbors of v in clockwise order.
      * @param v - the node
-     * @returns its neighbours
+     * @returns its neighbors
      */
     neighboursCw(v: number): number[] {
         const start = this.first[v];
@@ -674,7 +674,7 @@ function biconnectedFaces(embedding: Embedding): number[][] {
         if (start < 0) {
             continue;
         }
-        // read the next neighbour only after the face is done, as NetworkX's generator does: it may add edges at v
+        // read the next neighbor only after the face is done, as NetworkX's generator does: it may add edges at v
         let w = start;
         do {
             const face = makeBiconnected(embedding, v, w, counted);
@@ -689,7 +689,7 @@ function biconnectedFaces(embedding: Embedding): number[][] {
 
 /**
  * The state of a canonical ordering as it peels nodes off a triangulated embedding: the current outer contour (each
- * contour node's clockwise and counter-clockwise neighbours on it), the nodes already ordered, the chord count of
+ * contour node's clockwise and counter-clockwise neighbors on it), the nodes already ordered, the chord count of
  * every contour node and the contour nodes ready to be removed. A port of NetworkX's `get_canonical_ordering`.
  */
 class CanonicalOrdering {
@@ -769,7 +769,7 @@ class CanonicalOrdering {
     }
 
     /**
-     * Counts the chords at contour node w: edges to contour nodes that are not its contour neighbours.
+     * Counts the chords at contour node w: edges to contour nodes that are not its contour neighbors.
      * @param w - the contour node
      * @param inner - the nodes just added to the contour, whose chords are counted at both ends except between two
      *   of them; null counts only w's end
@@ -788,7 +788,7 @@ class CanonicalOrdering {
     }
 
     /**
-     * The contour neighbours of v about to be removed: wp before it and wq after it.
+     * The contour neighbors of v about to be removed: wp before it and wq after it.
      * @param v - the node being removed
      * @returns wp and wq
      */
@@ -815,7 +815,7 @@ class CanonicalOrdering {
     }
 
     /**
-     * Replaces v on the contour by its neighbours from wp to wq, counter-clockwise around v.
+     * Replaces v on the contour by its neighbors from wp to wq, counter-clockwise around v.
      * @param v - the node being removed
      * @param wp - the contour node before v
      * @param wq - the contour node after v
@@ -935,7 +935,7 @@ function embeddingToRows(embedding: Embedding): F64 {
 }
 
 /**
- * The distinct neighbours of every node other than itself, in ascending index.
+ * The distinct neighbors of every node other than itself, in ascending index.
  * @param g - an undirected snapshot
  * @returns one list per node
  */
@@ -957,7 +957,7 @@ function neighbourLists(g: GraphSnapshot): number[][] {
 /**
  * Planar-layout rows over an undirected snapshot, rescaled so the farthest node is `scale` from `center`.
  * @param g - an undirected snapshot
- * @param scale - the distance of the farthest node from the centre
+ * @param scale - the distance of the farthest node from the center
  * @param center - at least 2 components
  * @returns `2 * n` values
  * @throws "G is not planar." (code `E_NOT_PLANAR`) when the graph is not planar
@@ -977,9 +977,9 @@ function planarRows(g: GraphSnapshot, scale: number, center: readonly number[]):
  * Nodes placed so that no two edges cross, as NetworkX's `planar_layout` places them: the left-right planarity test
  * finds an embedding, and the shift method of de Fraysseix, Pach and Pollack (in Chrobak and Payne's form) puts the
  * nodes on integer grid points from it. Self-loops and parallel edges are ignored; the layout is deterministic, so
- * `seed` has no effect. In 3D the layout lies in the plane of the centre's z.
+ * `seed` has no effect. In 3D the layout lies in the plane of the center's z.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
- * @param options - `scale` is the distance of the farthest node from the centre
+ * @param options - `scale` is the distance of the farthest node from the center
  * @returns the layout
  * @throws an Error "G is not planar." when the graph is not planar, with `code` `E_NOT_PLANAR` and `params`
  * `{ nodeCount, edgeCount }` (of the undirected graph it tested)

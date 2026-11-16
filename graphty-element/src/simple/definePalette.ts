@@ -3,14 +3,14 @@
  *
  * It builds an ordinary palette registration and hands it to `registerPalette`, so there is one
  * validation path and one registry: a palette defined here and the same palette registered
- * through the advanced tier are the same catalogue entry. What the element fills in is the plain
+ * through the advanced tier are the same catalog entry. What the element fills in is the plain
  * name (from `name`, else the id in sentence case); `registerPalette` already derives the
- * capacity, normalises every colour to six-digit hex and turns a missing colour-vision claim into
+ * capacity, normalizes every color to six-digit hex and turns a missing color-vision claim into
  * no claim.
  *
  * The checks made HERE, before `registerPalette` sees the definition, are the ones whose message
  * a beginner needs worded for the call they wrote: every refusal starts `definePalette("id"): `,
- * and a `var(...)` colour or an empty string (a design token read before its stylesheet loaded)
+ * and a `var(...)` color or an empty string (a design token read before its stylesheet loaded)
  * is refused with the line that reads the token first.
  */
 
@@ -23,15 +23,15 @@ import type { PaletteDefinition } from "./types";
 
 const KINDS: ReadonlySet<string> = new Set(["sequential", "diverging", "categorical"]);
 
-/** How to turn a design token into a colour, for the two refusals that need it. */
+/** How to turn a design token into a color, for the two refusals that need it. */
 const READ_THE_TOKEN =
     'Read the token first with getComputedStyle(document.documentElement).getPropertyValue("--brand-navy").trim(), ' +
     "after the stylesheet that defines it has loaded, and pass the colour that returns.";
 
 /**
- * Register a palette from a kind and a list of colours.
- * @param definition - The id, the kind, the colours, and optionally a name, a description and a
- *   colour-vision claim.
+ * Register a palette from a kind and a list of colors.
+ * @param definition - The id, the kind, the colors, and optionally a name, a description and a
+ *   color-vision claim.
  * @param options - Whether a collision with an existing registration throws instead of replacing.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` naming the member at fault, or with
  *   `E_DUPLICATE_PLUGIN` when the id is one of the element's own palettes.
@@ -90,7 +90,7 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
 }
 
 /**
- * Refuse one member of `colors` that is not a colour, with the message for the mistake it shows.
+ * Refuse one member of `colors` that is not a color, with the message for the mistake it shows.
  * @param id - The palette's id, for the message.
  * @param color - The member to check.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` on the `colors` field.

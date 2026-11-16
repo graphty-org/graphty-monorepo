@@ -275,7 +275,7 @@ the SNS topic `graphty-health-alarms` when that happens.
 
 The Costs page's LLM regression line (`costs.llm`) estimates what CI spends on Gemini; it is not the Google bill. It
 counts every paid step -- release.yml's `LLM regression tests` step, and the `Run the failing files` step of each
-point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or cancelled
+point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or canceled
 conclusion, at a flat 0.94 USD each (`config/rates.json`, measured 2026-10-12 at about 194 calls of 0.00485 USD).
 Local runs with the same key and any other use of the Google project are not counted. The member's value is the
 projection to month-end; the money table shows the spend so far beside it.

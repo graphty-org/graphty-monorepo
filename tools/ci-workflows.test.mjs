@@ -867,11 +867,11 @@ describe("ci.yml", () => {
         assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: false }, "a push");
         assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
         // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
-        // build nor is cancelled: its commit's own group
+        // build nor is canceled: its commit's own group
         assert.deepEqual(run({ event: "push", sha: "a1", attempt: "2" }), { group: "ci-a1", cancels: false });
-        // a dispatch keeps its commit's own group and is never cancelled
+        // a dispatch keeps its commit's own group and is never canceled
         assert.deepEqual(run({ event: "workflow_dispatch", sha: "a1" }), { group: "ci-a1", cancels: false });
-        // the release train's call: its own group, never cancelled, even if a caller were a push
+        // the release train's call: its own group, never canceled, even if a caller were a push
         assert.deepEqual(run({ event: "workflow_dispatch", ref: "c3" }), { group: "ci-release-c3", cancels: false });
         assert.deepEqual(run({ event: "push", ref: "c3" }), { group: "ci-release-c3", cancels: false });
     });
@@ -948,8 +948,8 @@ describe("ci.yml", () => {
         }
     });
 
-    // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
-    // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
+    // A job that reaches its timeout-minutes is canceled, and continue-on-error does not absorb a canceled job:
+    // the whole run concludes canceled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
     it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
         // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
         for (const [name, count] of [
@@ -1069,7 +1069,7 @@ describe("ci.yml", () => {
             { number: 9001, title: "Full run red: ci on abc" },
             { number: 9002, title: "Release held: T4 GPU failed on abc" },
         ];
-        // a Refs restarts without cancelling, so the red run still reaches its verdict, bisect and store record
+        // a Refs restarts without canceling, so the red run still reaches its verdict, bisect and store record
         assert.deepEqual(releaseDue(red, "fix(ci): x\n\nRefs #9001\n"), {
             mode: "restart",
             issue: 9001,
@@ -1200,14 +1200,14 @@ describe("ci.yml", () => {
     });
 
     // ci.yml cancels an unfinished master build when a newer push starts (#3850), and release-due runs only in a
-    // green build, so a cancelled build's merge must still be read by the next green build's release-due.
+    // green build, so a canceled build's merge must still be read by the next green build's release-due.
     it("restarts from a merge whose master build a newer push cancelled", () => {
         const order = ["h", "c2", "c1", "g", "older"];
         const ancestor = (sha) => order.includes(sha);
         assert.equal(lastGreenBuild("h", ["h", "g", "older"], ancestor), "g", "this build's own run is never the base");
         assert.equal(lastGreenBuild("h", ["elsewhere", "g"], ancestor), "g", "only a commit in this history");
         assert.equal(lastGreenBuild("h", [], ancestor), null);
-        // the cancelled merge's Fixes closed the issue more than an hour before this build's release-due ran
+        // the canceled merge's Fixes closed the issue more than an hour before this build's release-due ran
         const now = Date.parse("2026-10-25T12:00:00Z");
         const closed = [
             { number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt: "2026-10-25T10:40:00Z" },
@@ -1215,7 +1215,7 @@ describe("ci.yml", () => {
         assert.equal(releaseDue(closed, "Fixes #9001", now), null, "an hour's window alone misses it");
         assert.equal(releaseDue(closed, "Fixes #9001", now, Date.parse("2026-10-25T10:30:00Z"))?.issue, 9001);
 
-        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was cancelled, then this build's
+        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was canceled, then this build's
         // merge M2 with no reference. Reading only HEAD^1..HEAD would miss M1.
         const dir = mkdtempSync(join(TMP, "release-due-"));
         const g = (...args) =>
@@ -4009,7 +4009,7 @@ describe("master-guard", () => {
         let fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), true);
         assert.equal(fake.calls.length, 2, "a jobs call and one runs-list call");
-        // a running build that stopped (a job ran into its timeout, or a person cancelled it) alarms, even with a
+        // a running build that stopped (a job ran into its timeout, or a person canceled it) alarms, even with a
         // newer push queued behind it: ci.yml never cancels a running master build, so nothing newer stopped it
         fake = lister([newer("2026-10-25T10:05:00Z")], 4);
         assert.equal(await superseded(fake.gh, stopped), false);
@@ -4664,7 +4664,7 @@ describe("release.yml", () => {
         assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
         // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
         // priced in a step of its own from the usage file the transport appends to as it spends (else the log), so a
-        // failed, cancelled or cut-off test step still logs what it spent (#5062)
+        // failed, canceled or cut-off test step still logs what it spent (#5062)
         assert.match(llm, /LLM_REGRESSION_USAGE_FILE: \$\{\{ runner\.temp \}\}\/llm-usage\.jsonl\n/);
         assert.match(
             llm,
@@ -4837,7 +4837,7 @@ describe("release.yml", () => {
 
     // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
     // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
-    // good, its result "abandoned", and held's `if` listed only failure and cancelled.
+    // good, its result "abandoned", and held's `if` listed only failure and canceled.
     describe("never ends a train attempt without a landed release or a held issue", () => {
         // the version job's needs but the verdict, which runs only in full and restart runs (the nightly promotion)
         const trainNeeds = [

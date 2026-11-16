@@ -24,8 +24,8 @@ not exclusive) are taken as given and not re-argued.
 
 ## 1. Verdict in ten lines
 
-1. The frame (no rail, one bottom dock, tabs per kind, a labelled toolbar) is sound and every
-   list it draws is a catalogue or a session call. No app-side computation over nodes and edges
+1. The frame (no rail, one bottom dock, tabs per kind, a labeled toolbar) is sound and every
+   list it draws is a catalog or a session call. No app-side computation over nodes and edges
    is asked for. That is the single most important property and the revision holds it.
 2. The timeline does NOT match the element's temporal model in three places: the window treats
    an element with no time value as visible (so an edge-only time column hides no nodes, and
@@ -36,7 +36,7 @@ not exclusive) are taken as given and not re-argued.
    plain layer verb (or bypassed for `styles.add` with the same generated selector). The
    per-channel rule the revision describes is exactly the repaint's rule. One correction: the
    generated selector must be the value test `== true`, never a presence test, or a route paints
-   its whole neighbourhood (section 5).
+   its whole neighborhood (section 5).
 4. The styling rules hold: every paint row is a layer on an object; "Dim the rest" is a reader's
    linked Set, not a suggested style; the suggested first paint is scoped to the run's result.
    One rule is bent: the "Look" preset (Canvas > Look) is a template applied over a populated
@@ -45,7 +45,7 @@ not exclusive) are taken as given and not re-argued.
 5. About a third of the "today" status words in section 3 are optimistic. Six rows marked
    "today" depend on a gap (section 3 below has the corrected table).
 6. Three inspector tabs are drawn from APIs that do not exist: a node's Connections tab (there
-   is no neighbours read on `session.data`), the Dataset's and a Group's "reading" sentence (only
+   is no neighbors read on `session.data`), the Dataset's and a Group's "reading" sentence (only
    a run result has `reading()`), and a Set's "Findings" (density, diameter on a Set).
 7. The objects API is presumed to nest layers ("a child layer above its parent") but the stack is
    flat (`Layer` in `graphty-element/src/session/styles/Layer.ts` has no parent). Fine as long as
@@ -89,7 +89,7 @@ exists, is given.
 | Acceleration line | `session.capabilities.acceleration` | today |
 | Canvas tab: Background, Look, Labels budget, Edge labels, Tooltip, Arrows, Legend, Minimap, Note markers, Default look | `el.background` today; Look #331; label budget needs a top-N selector (round-1 A8); Legend `session.styles.legend()` data today, drawing #292; Minimap #293; markers #295 | as stated, with one addition: **Arrows [switch] on directed data** has no single switch; it is `edge.arrowHead` on the element's base layer, which is locked. Needs the "base look" template scope from 5.6 |
 | Data tab: Attributes with type, completeness | `session.data.attributes()` | today |
-| Column "..." verbs: Colour by, Size by, Filter by, Group by, Label by, Set as weight, label, time, type | encode by path today (no app UI, #190); Set as time #333; Set as type #299; **Set as weight and Set as label after a load** are load-time paths (`el.edgeWeightPath`, `el.nodeLabelPath`) | gap: re-mapping known fields after a load is a re-import today; say so or name the element work (#297 covers attribute updates, not role changes) |
+| Column "..." verbs: Color by, Size by, Filter by, Group by, Label by, Set as weight, label, time, type | encode by path today (no app UI, #190); Set as time #333; Set as type #299; **Set as weight and Set as label after a load** are load-time paths (`el.edgeWeightPath`, `el.nodeLabelPath`) | gap: re-mapping known fields after a load is a re-import today; say so or name the element work (#297 covers attribute updates, not role changes) |
 | Join a table, New from formula | #298; `data.compute` design | as stated |
 | Export section | image today; data proposed (graph-io has exporters); report #187; recipe proposed | as stated |
 | Time tab | section 6 of this file | see there |
@@ -98,7 +98,7 @@ exists, is given.
 
 | Rows | Backed by | Verdict |
 |---|---|---|
-| Definition by kind (rule, range, categories, degree, neighbours, path, network, cut, fixed, combination) | filters today for range, categories, degree, neighbourhood, component; runs today for path, MST, cut, matching; `{nodes}` scope for fixed; expression #149 | as stated, once decision 2 lands (a filter as a scope). Until then a rule Set has no saved form: `Filter` is not a `Scope` |
+| Definition by kind (rule, range, categories, degree, neighbors, path, network, cut, fixed, combination) | filters today for range, categories, degree, neighborhood, component; runs today for path, MST, cut, matching; `{nodes}` scope for fixed; expression #149 | as stated, once decision 2 lands (a filter as a scope). Until then a rule Set has no saved form: `Filter` is not a `Scope` |
 | **Fixed Set of edges**; a Path as a scope; "Within [Path >]" | `Scope` has `{nodes: NodeId[]}` and no edge list (`catalog/types.ts:710`) | **gap, unnamed**: decision 2 must add `{edges}` (and a run-result set) to `Scope`, or an edge Set cannot be saved, scoped to, or combined |
 | Invert | selection target `{invert}` today; a scope has no `not` | decision 2 |
 | Within [Everything v] | `Scope.set` references a saved scope | today |
@@ -157,7 +157,7 @@ exists, is given.
 | "Style this node..." (a one-node Set) | `scope.save({nodes:[id]})` plus a layer | today; note the element ALSO has `resolveToStatic` for this and the revision does not say which door the objects API takes |
 | Position | `el.getNode(id).position` | today |
 | Attributes tab | `session.data.node(id)` | today |
-| **Connections tab**: Neighbours 17, In 9, Out 8, rows with edge labels | nothing on `SessionDataApi` (`session/types.ts:299-350`): node, edge, attributes, statistics, fingerprint. The snapshot is CSR so the element can answer in O(degree); the app must not walk it | **gap, unnamed**: `session.data.neighbours(id, {direction})` returning ids and edge ids. Without it the tab is either app computation (forbidden) or a selection round-trip |
+| **Connections tab**: Neighbors 17, In 9, Out 8, rows with edge labels | nothing on `SessionDataApi` (`session/types.ts:299-350`): node, edge, attributes, statistics, fingerprint. The snapshot is CSR so the element can answer in O(degree); the app must not walk it | **gap, unnamed**: `session.data.neighbours(id, {direction})` returning ids and edge ids. Without it the tab is either app computation (forbidden) or a selection round-trip |
 | Locate | `zoomToNodes` exists only as an AI command | partial, as the inventory says |
 | Expand from server | `el.layoutBehavior.fetchNodes`, on double-click | today, but see the toolbar conflict in 3.2 |
 | What breaks if removed | #311, #180 | as stated |
@@ -180,14 +180,14 @@ status word is wrong it is corrected here; everything not listed is right.
 
 | Button or row | Revision says | Actually | Why |
 |---|---|---|---|
-| Select: "double-click a node selects its neighbours" | proposed | **conflicts with a shipped behaviour**: double-click is the server-expansion gesture (`NodeBehavior.ts:555-565`, registered unconditionally, fires `fetchNodes` when `layoutBehavior` names one). Two meanings on one gesture | pick one: double-click expands when a fetcher exists, else selects neighbours; or move expansion to the node's overflow only |
-| Hand: "wheel zooms toward the cursor" | today (2D) | 2D zoom is about the centre | #290 covers 2D too; mark it proposed |
+| Select: "double-click a node selects its neighbours" | proposed | **conflicts with a shipped behavior**: double-click is the server-expansion gesture (`NodeBehavior.ts:555-565`, registered unconditionally, fires `fetchNodes` when `layoutBehavior` names one). Two meanings on one gesture | pick one: double-click expands when a fetcher exists, else selects neighbors; or move expansion to the node's overflow only |
+| Hand: "wheel zooms toward the cursor" | today (2D) | 2D zoom is about the center | #290 covers 2D too; mark it proposed |
 | Filter > By id list | today | today as a Set (`{nodes}` scope, `scope.save`); NOT today as a filter or a Focus (`Filter` has no `ids` kind) | mark "Create today; Focus with decision 2" |
 | Filter > By range on a Measure | today for attributes, #192 for results | correct; add that `{above}` exists as a selection target so "Select" works on a result today even though "Create" does not |
 | Filter > Target [Nodes / Edges] | edges by expression #149 | correct, and stronger: an edge filter by categories or range does not exist at all (`Filter` kinds are node-only except `edges` by expression) | say "edge categories and ranges: gap, small" (the revision says this; keep it) |
-| Neighbours (E) | today | today: `neighborhood` filter AND `neighborsOf` selection target both exist, so the tool's Select and Create both work; the depth cap #160 is for BFS as a run, not for this | fine; the #160 note is misleading here, move it to Groups > Steps away |
+| Neighbors (E) | today | today: `neighborhood` filter AND `neighborsOf` selection target both exist, so the tool's Select and Create both work; the depth cap #160 is for BFS as a run, not for this | fine; the #160 note is misleading here, move it to Groups > Steps away |
 | Path > Shortest route | today | today | fine |
-| Path > Most that can flow | today | today; note the result is `edge-metric`, so the object is a Measure on edges, and the Style tab must offer the edge encoding block (5.2 lists Edge width, Edge colour: good) | fine |
+| Path > Most that can flow | today | today; note the result is `edge-metric`, so the object is a Measure on edges, and the Style tab must offer the edge encoding block (5.2 lists Edge width, Edge color: good) | fine |
 | Groups > By attribute... | today in the element | paint only (see 2.5); Group rows need per-value scopes | mark "paint today; Group children with decision 2 or #149" |
 | Groups > Several... | today (`runs.batch`) | today; the auto-apply policy already coalesces a batch to one layer per channel (`styles/autoApply.ts` rule 3), which is the revision's "eye off after the first" by another mechanism. Choose: coalesce (element today) or eye-off (A4). They are not the same picture: coalesced means five objects with NO layers; eye-off means five objects with disabled layers the reader can switch on | decide; eye-off is the better fit for the tree, and it is the policy change A4 names |
 | Rank > Connections | today (#161) | today; `degree` publishes inDegree and outDegree fields, so "Field [in / out / total]" in Values works today without #161 | soften #161 |
@@ -217,7 +217,7 @@ with `ranOn`, `nowVisible`, `scopeSpec`; there is no "waiting" and no "frozen" o
 | waiting (gated, not started) | `gateRun` returns a decision; nothing is created. A waiting row is an OBJECT with no run | the objects API must hold a "defined, not started" object. Small, but it is the one state the run model does not have, and it is the state the whole cost story rests on |
 | computing, "42%", phase, queued 3rd | `run.progress` (phase, fraction, ETA), queue position | today |
 | blocks the frame, no Cancel | `CostEstimate.blocksFrame` | today |
-| cancelled sampling keeps what it has, "~" | `canceled` status; a partial result is NOT kept today (a cancelled run has no result) | gap: partial results on cancel; small for sampled betweenness, not general |
+| canceled sampling keeps what it has, "~" | `canceled` status; a partial result is NOT kept today (a canceled run has no result) | gap: partial results on cancel; small for sampled betweenness, not general |
 | current, "~ sampled" | `caveats.exact === false` | today |
 | stale after a Definition edit | `run.rerun()` reruns with the SAME params; a changed parameter is a NEW run | the objects API must map "edit a parameter" to start-new-and-replace, keeping the object id. Small, but say it: otherwise Ctrl+Z after a re-run ("restores the previous result") has nothing to restore from, because the previous run was removed |
 | stale after Add data | `run.stale` derived from the scope digest (`RunScopeRecord.digest`) | today, for scope "visible" (the default, `RunsApi.ts:399`) |
@@ -226,8 +226,8 @@ with `ranOn`, `nowVisible`, `scopeSpec`; there is no "waiting" and no "frozen" o
 | frozen (input deleted) | `runs.remove(id)` removes the layers a run created; nothing links a Top N set to its Measure | objects-API work; the revision's "Unfreeze as fixed set" is `scope.save({nodes})` of the last resolved ids. Fine |
 | Ctrl+Z after creation cancels the run | `run.cancel()` | today; but see section 7 on who owns undo |
 
-The step-8 first paint: "Colour if no visible object above writes it, else Size, else Outline,
-else Colour anyway" is the OPPOSITE of the auto-apply policy today, which DROPS a suggestion when
+The step-8 first paint: "Color if no visible object above writes it, else Size, else Outline,
+else Color anyway" is the OPPOSITE of the auto-apply policy today, which DROPS a suggestion when
 an authored layer drives the channel (`styles/autoApply.ts`, rule 2). The revision names the
 change (5.7, A3). One consequence it does not name: once the objects API creates every layer as
 "authored" (source `user`), rule 2 would drop every suggestion after the first object. So A3 is
@@ -272,8 +272,8 @@ one or two layers. Say so in the objects API sketch, because coverage counts ("C
 Yes, with one mechanism and one caution.
 
 The mechanism: the repaint keeps one column per channel and later layers win per channel
-(`styles/repaint.ts`, "one column per channel"). So a higher path writing Colour and Width, and a
-lower path writing Colour, Width and Arrows, produce on the shared edge the higher Colour, the
+(`styles/repaint.ts`, "one column per channel"). So a higher path writing Color and Width, and a
+lower path writing Color, Width and Arrows, produce on the shared edge the higher Color, the
 higher Width and the lower Arrows. That is precisely what 5.4 and screen 8 describe. The
 `HighlightSpec.set` already accepts a `StaticStyle` with `edge.color`, `edge.width`, `edge.style`
 (the pattern), `edge.arrowHead` and `edge.animationSpeed`, so a Path with width, pattern and
@@ -283,14 +283,14 @@ one place (`StylesApi.ts:1626`, `doomed = ... kind === "highlight"`).
 The caution: the generated selector MUST stay `results.<run>.onPath == true` (an expression, the
 value test), not `{match: "has", path}`. The element's own comment explains why: the membership
 column carries FALSE for every element the run looked at and did not choose, so a presence test
-would paint the route's whole neighbourhood (`StylesApi.ts:1596-1600`). The revision's terms
+would paint the route's whole neighborhood (`StylesApi.ts:1596-1600`). The revision's terms
 define a Set as "an object whose members are a list of elements"; if the objects API ever
-materialises a Set as a saved scope of ids and paints it with `{match: "ids"}` that is fine too.
+materializes a Set as a saved scope of ids and paints it with `{match: "ids"}` that is fine too.
 What it must never do is paint a run-backed Set with a `has` selector.
 
 Two smaller points:
 
-- **Highlight colour cycling** (A6) is a palette question, not a layer question: the three
+- **Highlight color cycling** (A6) is a palette question, not a layer question: the three
   highlight palettes have capacity 2 each (highlighted and muted). The cycle the revision names
   (blue, green, orange, then the categorical palette) is fine; say that the fourth Set onward
   reads Okabe-Ito, and that the legend's swatch for a Set carries width and pattern. Today the
@@ -447,7 +447,7 @@ sheet, which the revision names but never lays out; that sheet is the missing sc
 | Load progress and Cancel a load, #296 (1) | partial | the status bar's computing chip during a load ("Loading 42% [Cancel]"); screen 1 to 2 transition |
 | Update attributes after load, #297; List edges (`getEdges`) (1) | proposed | the table dock's Edges tab needs `getEdges`; say #297 in screen 9 |
 | Node merging (1) | proposed | Several elements inspector: "Merge into one node..." (the second data edit) or state it is out |
-| SIF, CX2, STRING, BioGRID, Neo4j APOC readers (1) | proposed | Open... accepts whatever `catalog.formats()` lists; say that the Open dialog is catalogue-driven |
+| SIF, CX2, STRING, BioGRID, Neo4j APOC readers (1) | proposed | Open... accepts whatever `catalog.formats()` lists; say that the Open dialog is catalog-driven |
 | Progressive / viewport-first loading (1) | proposed | out of scope; say so |
 | Selection halo style (2) | shipped | Settings > Canvas |
 | Selection cap 5,000 and `truncated` (2) | shipped | status bar: "5,000 selected (capped)"; the analyst will hit this on the first marquee over a big graph |
@@ -484,7 +484,7 @@ wrap #294, overlap #5, palettes and custom palettes, legend #292, minimap #293, 
 journal, recipes, project file #301, acceleration policy and calibration #159, exact versus
 approximate, cost gate, caveats, engine versions, batch, cancel, re-run, stale, results as
 attributes, selection statistics, scope save and resolve, filters of every shipped kind,
-neighbourhood, largest component, expand from server, join #298, formula, node type #299, time
+neighborhood, largest component, expand from server, join #298, formula, node type #299, time
 role #333, report #187, evidence bundle, export result, export data, sample datasets, large-graph
 limits #302, hover highlight, pattern search, sweep #194, profiling #193, group names #191,
 result-field filters #192, weights and direction #313, all simple paths #329, clustering #330,
@@ -499,7 +499,7 @@ Smallest first. Items already in the revision's list are not repeated.
 | Item | Size | Needed by |
 |---|---|---|
 | `Scope` gains `{edges: EdgeId[]}` and a run-result set (a path as a scope) | small | every edge Set; decision 2 |
-| `session.data.neighbours(id, {direction})` returning node ids and edge ids | small | the node's Connections tab; the Neighbours tool's secondary bar count |
+| `session.data.neighbours(id, {direction})` returning node ids and edge ids | small | the node's Connections tab; the Neighbors tool's secondary bar count |
 | A `{between}` selection target (or a range filter on a result field, #192) | small | the histogram band drag |
 | A `backend` field on `RunRecord` and `CostEstimate` | small | "on the GPU" in Record, the GPU glyph in the status bar, the popover's cost line |
 | A per-start backend override (`backend: "cpu"`) or a documented policy toggle for Retry on the CPU | small | the failed state's second button |
@@ -513,7 +513,7 @@ Smallest first. Items already in the revision's list are not repeated.
 | A statistics call over a scope (`scope.statistics(spec)`: induced and cut edges, density) | small | a Set's Members and Findings without touching the selection |
 | `reading()` for the Dataset (from statistics) and, optionally, per Group | small | the reading row on the Dataset and a Group, or drop those two rows |
 | Undo ownership decided: the objects API returns inverses, or keeps the history | decision, then small or #145 | Ctrl+Z on tree edits |
-| Double-click: expansion when a fetcher exists, else neighbours | tiny | the Select tool's row in 3.2 |
+| Double-click: expansion when a fetcher exists, else neighbors | tiny | the Select tool's row in 3.2 |
 
 ## 10. What to change in screens.md before drawing
 

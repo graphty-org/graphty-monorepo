@@ -108,7 +108,7 @@ export interface AcceleratorOptions {
  * betweenness members take the seam's `BetweennessAcceleratorOptions`. `allPairsShortestPath` (design 8.7) takes the
  * seam's `SsspOptions` too and refuses both of its keys. P11 adds `triangleCount` (its result carries `coefficient`
  * and `transitivity` beyond the seam's `{ perNode, total }`, which a wider object satisfies) and `labelPropagation`
- * (the seam's `HitsOptionsLike`: `maxIterations` and `weighted` honoured, `tolerance` refused), and
+ * (the seam's `HitsOptionsLike`: `maxIterations` and `weighted` honored, `tolerance` refused), and
  * `minimumSpanningTree` (Boruvka; the seam's `MstOptions`, whose per-arc `weights` override is refused). Later phases
  * add one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
@@ -116,7 +116,7 @@ export interface AcceleratorOptions {
  */
 export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator {
     readonly kind: "webgpu";
-    /** `closenessCentrality` honours `harmonic` on an exact run, so the CPU dispatcher sends harmonic closeness here. */
+    /** `closenessCentrality` honors `harmonic` on an exact run, so the CPU dispatcher sends harmonic closeness here. */
     readonly harmonicCloseness: true;
     readonly ctx: GpuContext;
     readonly options: Readonly<AcceleratorOptions>;

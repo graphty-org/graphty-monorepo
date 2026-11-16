@@ -15,7 +15,7 @@ whatever hardware is present (`graphty-element/src/layout/index.ts:27`). Setting
 accelerator that implements it throws a `GraphtyError` with code `E_NO_ACCELERATOR` from
 `setLayout`, naming what is missing.
 
-What is not static is what the catalogue SAYS about it. `LayoutImplementation`, the per-engine row
+What is not static is what the catalog SAYS about it. `LayoutImplementation`, the per-engine row
 under an arrangement, carries `requires?: { accelerator?: boolean }`
 (`graphty-element/src/catalog/layouts.ts:84`) and the spring-electrical row sets it (`:223`),
 mirroring `AlgorithmDescriptor.requires`. A consumer's layout picker reads that field beside
@@ -24,10 +24,10 @@ and without hard-coding its name.
 
 ## Why
 
-A catalogue that changes with the hardware is a different feature from the one this phase is
+A catalog that changes with the hardware is a different feature from the one this phase is
 building. It needs a `catalog:changed` event on every attach and detach, a `LAYOUT_CATALOG` that is
 computed rather than declared, and a rule for what happens to a consumer holding a layout id that
-just disappeared. The element's catalogue is a static table today and its plugin registry publishes
+just disappeared. The element's catalog is a static table today and its plugin registry publishes
 static descriptors.
 
 Failing loudly on `set()` is the element's own rule for a layout that cannot run: an unknown layout
@@ -44,22 +44,22 @@ hardware.
 ## The argument that was rejected
 
 Offering the layout only when the attached accelerator has `springElectrical`, as 9.4 item 6 says.
-Its case is real: a picker built from the catalogue then cannot offer something that will fail, so
+Its case is real: a picker built from the catalog then cannot offer something that will fail, so
 no consumer has to reason about hardware at all.
 
 Rejected because `requires.accelerator` gets the same picker the same answer with no dynamic
-catalogue and no new event, and because a list that silently loses an entry is hard to debug from
+catalog and no new event, and because a list that silently loses an entry is hard to debug from
 the outside -- the consumer sees a shorter list and has nothing to ask about why.
 
 ## What we are giving up
 
-A consumer who ignores `requires` and offers every layout in the catalogue will show a reader an
-entry that throws when they pick it. The error says why, and the catalogue field that would have
+A consumer who ignores `requires` and offers every layout in the catalog will show a reader an
+entry that throws when they pick it. The error says why, and the catalog field that would have
 prevented it is one property read away, but the failure is at pick time rather than at draw time.
 
 ## What would reverse this
 
-`catalog:changed` landing for another reason. Once the catalogue is dynamic and consumers already
+`catalog:changed` landing for another reason. Once the catalog is dynamic and consumers already
 subscribe to it, filtering spring-electrical out when no accelerator implements it costs nothing
 extra, and 9.4 item 6 becomes the better rule again -- with the loud failure kept for the consumer
 who asks for it anyway.

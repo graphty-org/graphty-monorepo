@@ -162,7 +162,7 @@ describe("syncJobs: incidents", () => {
         expect(id).toBe("verdict-ci-build-security-audit");
         expect(id).toMatch(/^[a-z][a-z0-9-]{1,119}$/);
         expect(state.jobs[id].facts.key).toBe(KEY);
-        // A job saved before ids were normalized stays the job for its key, neither cancelled nor doubled.
+        // A job saved before ids were normalized stays the job for its key, neither canceled nor doubled.
         const old = base();
         old.master.lanes.ci = state.master.lanes.ci;
         old.incidents.i1 = state.incidents.i1;
@@ -293,7 +293,7 @@ describe("syncJobs: pull requests", () => {
 
     it("keeps the pr job of a conflicting pull request when its only failing check becomes the visual review", () => {
         // #1535 (issue #2081): claimed, then CI ended with only the owner's review failing, and its
-        // job was cancelled as "no longer needs a worker" while it still conflicted with master.
+        // job was canceled as "no longer needs a worker" while it still conflicted with master.
         const state = base();
         failingPr(state, 1535, { required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });
         expect(sync(state).created).toEqual(["pr-1535"]);
@@ -1181,7 +1181,7 @@ describe("syncJobs: advisory check promotions", () => {
         expect(syncOn(state, "2026-10-06").cancelled).toEqual([
             { job: "issue-promote-links", reason: "links is no longer an advisory check on master" },
         ]);
-        // Before the registry was ever read, nothing is made or cancelled.
+        // Before the registry was ever read, nothing is made or canceled.
         const fresh = base();
         expect(syncOn(fresh, "2026-10-06").created).toEqual([]);
     });

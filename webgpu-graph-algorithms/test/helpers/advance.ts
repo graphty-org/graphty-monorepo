@@ -100,7 +100,7 @@ export async function runAdvance(
             // Both readbacks ride this batch's staging copy: one submit and one map per level. Reading each buffer
             // through ctx.readback cost three submits and two maps (each read records and submits its own copy). On
             // WARP, a CPU rasterizer sharing the runner's cores with the other forks, that per-level overhead made
-            // the grid case's 597 levels 12-14 s beside light neighbours and over the 30 s budget beside se-inspect
+            // the grid case's 597 levels 12-14 s beside light neighbors and over the 30 s budget beside se-inspect
             // (issue #2158). The whole edge queue is copied, because edgeCount is unknown when the copy is recorded.
             const countersRequest = batch.readback(
                 frontier.counters.buffer,

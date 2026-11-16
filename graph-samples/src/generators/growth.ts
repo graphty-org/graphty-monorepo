@@ -92,7 +92,7 @@ function checkBurnRates(p: number, r: number): void {
  * Node 0 starts alone. Each new node v = 1 .. n - 1 draws an ambassador w = nextBelow(v) and burns
  * breadth-first from it: for each burning node x in burn order, draw x_out = floor(ln(1 - u) / ln p)
  * (geometric, P(x_out >= k) = p^k, mean p / (1 - p)) and then x_in the same way with r p; then pick
- * x_out of x's out-neighbours and then x_in of its in-neighbours uniformly among those not yet
+ * x_out of x's out-neighbors and then x_in of its in-neighbors uniformly among those not yet
  * burned (adjacency order, partial Fisher-Yates; all of them when there are fewer), and burn them.
  * Burning stops at `maxBurn` nodes. v then links to every burned node: arcs (v, t) in burn order.
  * Edges are listed by v. All draws come from the stream (seed, "forest-fire", 0).
@@ -162,11 +162,11 @@ export interface DuplicationDivergenceOptions extends WeightOptions {
  * The duplication-divergence model (I. Ispolatov, P. L. Krapivsky and A. Yuryev,
  * "Duplication-divergence model of protein interaction network", Phys. Rev. E 71, 061911, 2005,
  * doi:10.1103/PhysRevE.71.061911), as networkx's `duplication_divergence_graph`: protein-network
- * like, with many nodes sharing neighbours.
+ * like, with many nodes sharing neighbors.
  *
  * Start with the edge (0, 1). While there are fewer than n nodes, draw a node x = nextBelow(i) for
- * the next index i, then one float per neighbour of x (in the order they were joined to x): below
- * `retention`, the edge (i, neighbour). If i got at least one edge it is kept, otherwise the attempt
+ * the next index i, then one float per neighbor of x (in the order they were joined to x): below
+ * `retention`, the edge (i, neighbor). If i got at least one edge it is kept, otherwise the attempt
  * is discarded. All draws come from the stream (seed, "duplication-divergence", 0). Edges are
  * listed by new node. Simple and connected.
  *
@@ -217,7 +217,7 @@ export function duplicationDivergenceGraph(options: DuplicationDivergenceOptions
 export interface NewmanWattsOptions extends WeightOptions {
     /** The node count, > k. */
     n: number;
-    /** Each node's ring neighbours, even, >= 2. */
+    /** Each node's ring neighbors, even, >= 2. */
     k: number;
     /** The probability of a shortcut per ring edge, in [0, 1]. */
     p: number;
@@ -234,7 +234,7 @@ export interface NewmanWattsOptions extends WeightOptions {
  * The ring lattice of `wattsStrogatzGraph` comes first: edge slot u k/2 + (j - 1) is
  * (u, (u + j) mod n). Then for each slot in order, with source u: draw a float; if it is below p and
  * u is not joined to every other node, redraw w = nextBelow(n) until w is neither u nor a
- * neighbour of u, and append the shortcut (u, w). All draws come from the stream (seed,
+ * neighbor of u, and append the shortcut (u, w). All draws come from the stream (seed,
  * "newman-watts", 0). O(n k) expected.
  * @param options - n, k, p and seed
  * @returns the undirected graph
@@ -478,12 +478,12 @@ export function randomApollonianGraph(options: RandomApollonianOptions): SampleG
 }
 
 /**
- * The grid neighbours of node u in the order left, right, up, down.
+ * The grid neighbors of node u in the order left, right, up, down.
  * @param u - the node, r cols + c
  * @param rows - the number of rows
  * @param cols - the number of columns
- * @param into - receives the neighbours
- * @returns how many neighbours were written
+ * @param into - receives the neighbors
+ * @returns how many neighbors were written
  */
 function gridNeighbours(u: number, rows: number, cols: number, into: Uint32Array): number {
     const r = Math.floor(u / cols);
@@ -520,7 +520,7 @@ export interface WilsonMazeOptions extends WeightOptions {
  * doi:10.1145/237814.237880): loop-erased random walks.
  *
  * Node (r, c) is index r cols + c. The root is node 0. For each start node in index order that is
- * not yet in the tree, walk until the tree is hit, each step to a uniform grid neighbour
+ * not yet in the tree, walk until the tree is hit, each step to a uniform grid neighbor
  * (candidates in the order left, right, up, down; nextBelow(count)), remembering only the last exit
  * from each node (which erases the loops); then add the path: edges (u, next(u)) from the start to
  * the tree, in that order. Draws come from the stream (seed, "wilson", 0). rows cols - 1 edges.

@@ -1,5 +1,5 @@
 /**
- * @file `@graphty/graphty-element/commands`: the serialisable form of every verb.
+ * @file `@graphty/graphty-element/commands`: the serializable form of every verb.
  *
  * Every change a session makes is a command: plain data with an `op`, which `session.execute`
  * runs, a transaction groups into one undoable step, and a recipe, a journal or an agent's tool

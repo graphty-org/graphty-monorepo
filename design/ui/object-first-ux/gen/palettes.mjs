@@ -1,11 +1,11 @@
 // The palettes the screens paint with, in one place. OKABE_4 is the four
-// Okabe-Ito colours the round-2 screens give a four-group Louvain result
+// Okabe-Ito colors the round-2 screens give a four-group Louvain result
 // (orange, sky blue, bluish green, reddish purple; vermillion is kept for
 // the override); TOL_MUTED is the element's "Nine Soft Colours"; VIRIDIS the
-// ten-stop sequential ramp; TWELVE a twelve-colour categorical palette for
-// College football's conferences (no shipped palette has twelve colours, so
+// ten-stop sequential ramp; TWELVE a twelve-color categorical palette for
+// College football's conferences (no shipped palette has twelve colors, so
 // the mock invents one); HIGHLIGHT the disjoint highlight palette's first
-// two colours (decision Y3).
+// two colors (decision Y3).
 export const OKABE_4 = ["#e69f00", "#56b4e9", "#009e73", "#cc79a7"];
 export const OKABE_8 = ["#e69f00", "#56b4e9", "#009e73", "#0072b2", "#d55e00", "#cc79a7", "#000000", "#f0e442"];
 export const TOL_MUTED = ["#332288", "#88ccee", "#44aa99", "#117733", "#999933", "#ddcc77", "#cc6677", "#882255", "#aa4499"];

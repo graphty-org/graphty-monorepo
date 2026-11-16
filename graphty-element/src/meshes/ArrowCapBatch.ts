@@ -27,7 +27,7 @@ const INITIAL_SLOTS = 32;
  * arrays, so a red cap and a blue cap at two different sizes are one draw call. The fourth, the
  * clip, is only ever set on a pattern segment (see `PatternedLineMesh`); a cap is never clipped.
  * The fifth, the hidden flag, is 1 while the visibility mask hides the cap (`ArrowCapBatch.park`).
- * The colour carries the opacity in its fourth float, so caps of one shape share a batch whatever
+ * The color carries the opacity in its fourth float, so caps of one shape share a batch whatever
  * their look and a restyle between two looks writes one row in place (issue #6026).
  */
 const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 4, arrowClip: 1, arrowHidden: 1 } as const;
@@ -63,7 +63,7 @@ const INTO_XY_PLANE = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
 const scratchRow = new Float32Array(4);
 
 /**
- * Colour rows for a number of caps, opaque from a slot on, so a cap that is never given an
+ * Color rows for a number of caps, opaque from a slot on, so a cap that is never given an
  * opacity of its own draws at its batch's (a zero alpha would draw nothing).
  * @param count - The caps.
  * @param from - The first slot made opaque; the ones before it are copied over by the caller.
@@ -100,7 +100,7 @@ const batchesByScene = new WeakMap<Scene, Map<string, ArrowCapBatch>>();
  * slower" note this renderer carried for two years. This class never calls it: it writes floats
  * into its own arrays and uploads once a frame, from {@link ArrowCapBatch.flush}.
  *
- * CAPS ARE NOT PICKABLE, deliberately. `thinInstanceEnablePicking` makes Babylon materialise and
+ * CAPS ARE NOT PICKABLE, deliberately. `thinInstanceEnablePicking` makes Babylon materialize and
  * hold a `Matrix` object per instance -- the exact per-edge object this class exists to remove --
  * and nothing in the element picks a cap: every `scene.pick` consumer reads
  * `pickedMesh.metadata.nodeId`, so a cap winning the pick against the node behind it was only
@@ -116,7 +116,7 @@ export class ArrowCapBatch {
     /** Whether these caps are drawn flat in the XY plane rather than billboarded. */
     readonly is2D: boolean;
 
-    /** Whether the shader reads each cap's direction, size and colour from a per-slot buffer. */
+    /** Whether the shader reads each cap's direction, size and color from a per-slot buffer. */
     readonly billboarded: boolean;
 
     private readonly key: string;
@@ -144,7 +144,7 @@ export class ArrowCapBatch {
 
     /**
      * The billboard shader's per-instance values, or null for the batches drawn with a
-     * StandardMaterial (2D caps and the 3D sphere-dot), which hold colour on the material.
+     * StandardMaterial (2D caps and the 3D sphere-dot), which hold color on the material.
      */
     private billboard: Record<BillboardBuffer, Float32Array> | null;
 
@@ -189,7 +189,7 @@ export class ArrowCapBatch {
      *     an XR gesture.
      * @param key - What the caps in this batch have in common.
      * @param scene - The scene that renders it.
-     * @param billboard - Whether the caps read direction, size and colour per instance.
+     * @param billboard - Whether the caps read direction, size and color per instance.
      */
     constructor(mesh: Mesh, key: string, scene: Scene, billboard: boolean) {
         this.mesh = mesh;
@@ -376,7 +376,7 @@ export class ArrowCapBatch {
     }
 
     /**
-     * Give one slot the length the billboard shader draws it at, keeping its colour. A no-op on a
+     * Give one slot the length the billboard shader draws it at, keeping its color. A no-op on a
      * batch whose caps hold their size in their matrix.
      * @param index - The slot.
      * @param size - The cap's length in world units.
@@ -391,11 +391,11 @@ export class ArrowCapBatch {
     }
 
     /**
-     * Give one slot the size, colour and opacity the billboard shader draws it at, writing only
+     * Give one slot the size, color and opacity the billboard shader draws it at, writing only
      * what changed. A no-op on a batch whose caps hold them on their material.
      * @param index - The slot.
      * @param size - The cap's length in world units.
-     * @param colour - The cap's colour, as a hex string.
+     * @param color - The cap's color, as a hex string.
      * @param opacity - The cap's own opacity, multiplying the batch's.
      */
     setAppearance(index: number, size: number, colour: string, opacity = 1): void {
@@ -464,7 +464,7 @@ export class ArrowCapBatch {
 
     /**
      * Draw one slot where a slot of another batch is drawn: its matrix, and its direction, length
-     * and cut, copied rather than placed again. Its colour stays its own.
+     * and cut, copied rather than placed again. Its color stays its own.
      * @param index - The slot.
      * @param from - The batch the other slot is in.
      * @param fromIndex - The other slot.
@@ -513,12 +513,12 @@ export class ArrowCapBatch {
     /**
      * Draw one slot's cap at a point, pointing along a line.
      *
-     * The only placement a 3D cap needs. The billboard shader takes the cap's centre from the
+     * The only placement a 3D cap needs. The billboard shader takes the cap's center from the
      * matrix's translation and builds the rest of its frame from the direction and the camera,
      * so the slot's rotation and scale are never read -- which is why this writes three floats
      * and why the `lookAt` the old per-mesh path did here was already drawing nothing.
      * @param index - The slot.
-     * @param position - Where the cap's centre sits.
+     * @param position - Where the cap's center sits.
      * @param direction - The line's direction, which the cap points along.
      */
     placeAt(index: number, position: Vector3, direction: Vector3 | null): void {
@@ -573,7 +573,7 @@ export class ArrowCapBatch {
      * Read back out of the matrix rather than remembered, so there is nothing per cap to keep in
      * step with it. This is what an arrow caption hangs from.
      * @param index - The slot.
-     * @returns The cap's centre, as a fresh vector the caller may keep.
+     * @returns The cap's center, as a fresh vector the caller may keep.
      */
     positionOf(index: number): Vector3 {
         if (this.hiddenInPlace(index)) {
@@ -613,10 +613,10 @@ export class ArrowCapBatch {
     /**
      * The billboard shader's three per-instance values for one slot.
      *
-     * The direction it points along, the world-space length it is drawn at and its colour --
+     * The direction it points along, the world-space length it is drawn at and its color --
      * the three things that were uniforms on a cap's own material and are now rows in the
      * batch's own arrays -- plus where a pattern segment is cut off, -1 for drawn whole. Null on
-     * a batch whose caps hold colour on a shared material.
+     * a batch whose caps hold color on a shared material.
      * @param index - The slot.
      * @returns What the shader reads for that slot, or null when it reads none of it.
      */
@@ -662,7 +662,7 @@ export class ArrowCapBatch {
      *
      * Only the hiding half does anything. A zero matrix collapses the cap to a point and the
      * shader draws no fragments for it -- the billboard shader reads the zero in the matrix's
-     * bottom right as "hidden", because it builds a cap from its centre and its size rather than
+     * bottom right as "hidden", because it builds a cap from its center and its size rather than
      * from the matrix, and would otherwise draw it full size at the origin; showing it again is left to the next placement. The
      * visibility mask hides with {@link ArrowCapBatch.park} instead, which can put the slot back.
      * @param index - The slot.
@@ -985,7 +985,7 @@ export class ArrowCap {
 
     /**
      * Where this cap is drawn, which is what an arrow caption hangs from.
-     * @returns Its centre, as a fresh vector the caller may keep.
+     * @returns Its center, as a fresh vector the caller may keep.
      */
     get position(): Vector3 {
         return this.batch?.positionOf(this.slot) ?? Vector3.Zero();
@@ -1003,8 +1003,8 @@ export class ArrowCap {
 
     /**
      * What the billboard shader draws this cap with: the direction it points along, the length
-     * it is drawn at, its colour and where it is cut off (-1 for whole). Null for a cap whose
-     * colour is on its batch's material.
+     * it is drawn at, its color and where it is cut off (-1 for whole). Null for a cap whose
+     * color is on its batch's material.
      * @returns The per-instance values, or null.
      */
     get drawnAppearance(): { direction: Vector3; size: number; colour: Color3; clip: number } | null {
@@ -1014,7 +1014,7 @@ export class ArrowCap {
     /**
      * How this cap is placed, turned and scaled: the whole of what its slot holds.
      *
-     * A billboarded cap carries only its centre here, because its shape is laid out on the GPU
+     * A billboarded cap carries only its center here, because its shape is laid out on the GPU
      * from the camera and the line's direction; a 2D cap and the sphere-dot carry their turn and
      * their scale too.
      * @returns The slot's matrix, as a fresh matrix the caller may keep.
@@ -1027,12 +1027,12 @@ export class ArrowCap {
      * Put this cap where the edge says it goes, pointing along the line.
      *
      * ONE CALL FOR ALL THIRTEEN SHAPES IN BOTH MODES, where the mesh path had three blocks of
-     * branches. A billboarded 3D cap is laid out on the GPU from its centre and the line's
+     * branches. A billboarded 3D cap is laid out on the GPU from its center and the line's
      * direction, so only the translation and the direction are written and the slot's rotation
      * is never read -- which is why the `lookAt` the old path did for `open-dot` and `tee` was
      * already drawing nothing. A 2D cap and the 3D sphere-dot are drawn as their own geometry,
      * so they take a turn and a scale in the matrix.
-     * @param position - Where the cap's centre sits.
+     * @param position - Where the cap's center sits.
      * @param direction - The line's direction at that end, pointing the way the cap points.
      */
     place(position: Vector3, direction: Vector3): void {
@@ -1096,7 +1096,7 @@ export class ArrowCap {
 
     /**
      * Stand where another cap of the same shape and size stands, drawn as it is drawn but in this
-     * cap's own colour: what an edge whose colour or opacity changed does instead of placing its
+     * cap's own color: what an edge whose color or opacity changed does instead of placing its
      * new cap again.
      * @param other - The cap this one replaces.
      * @returns False when the two cannot be drawn alike, and this cap waits for its next placement.
@@ -1111,9 +1111,9 @@ export class ArrowCap {
     }
 
     /**
-     * Give this cap the size and colour the billboard shader draws it at.
+     * Give this cap the size and color the billboard shader draws it at.
      * @param size - Its length in world units.
-     * @param colour - Its colour, as a hex string.
+     * @param color - Its color, as a hex string.
      * @param opacity - Its own opacity, multiplying its batch's.
      */
     setAppearance(size: number, colour: string, opacity = 1): void {
@@ -1177,7 +1177,7 @@ export class ArrowCap {
  * @param key - What the caps in this batch have in common: the shape, and whatever else lives on
  *     the shared material rather than in a per-instance buffer.
  * @param build - Builds the batch's mesh, with its material, for a key the scene has not drawn.
- * @param billboard - Whether these caps read direction, size and colour per instance.
+ * @param billboard - Whether these caps read direction, size and color per instance.
  * @returns The batch to take a slot in.
  */
 export function arrowCapBatch(scene: Scene, key: string, build: () => Mesh, billboard: boolean): ArrowCapBatch {

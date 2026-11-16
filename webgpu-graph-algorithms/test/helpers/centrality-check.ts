@@ -1,6 +1,6 @@
 /**
  * The checks every betweenness test composes: the CPU package's host convention applied to the reference's raw sums
- * (halved on an undirected snapshot for vertices, never for folded edges, normalised by `(n - 1)(n - 2)` directed
+ * (halved on an undirected snapshot for vertices, never for folded edges, normalized by `(n - 1)(n - 2)` directed
  * or half that undirected), the score error the tolerance is stated in, Spearman's rank correlation, the top-k
  * agreement, and the equality of an undirected edge's two arcs before folding.
  */
@@ -8,7 +8,7 @@
 import { type F64, foldArcs, type GraphSnapshot } from "@graphty/graph-format";
 
 /**
- * The CPU normalisation divisor (1 when not normalising or when the factor is not positive).
+ * The CPU normalization divisor (1 when not normalizing or when the factor is not positive).
  * @param s - the snapshot
  * @param normalized - the option
  * @returns the divisor
@@ -20,7 +20,7 @@ function divisorOf(s: GraphSnapshot, normalized: boolean): number {
 }
 
 /**
- * The published vertex scores of raw sums: halved on an undirected snapshot, then normalised.
+ * The published vertex scores of raw sums: halved on an undirected snapshot, then normalized.
  * @param s - the snapshot
  * @param raw - the unhalved sums
  * @param normalized - the option
@@ -32,7 +32,7 @@ export function vertexConvention(s: GraphSnapshot, raw: ArrayLike<number>, norma
 }
 
 /**
- * The published edge scores of raw per-arc sums: folded with "sum", halved on an undirected snapshot, then normalised.
+ * The published edge scores of raw per-arc sums: folded with "sum", halved on an undirected snapshot, then normalized.
  * @param s - the snapshot
  * @param perArc - the per-arc sums
  * @param normalized - the option

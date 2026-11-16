@@ -124,7 +124,7 @@ describe("a known day", () => {
             }
         }
         expect(expected).toBeGreaterThan(100);
-        // A GPU run created 10-01 00:40 and cancelled 24 hours later had fallen off the first page
+        // A GPU run created 10-01 00:40 and canceled 24 hours later had fallen off the first page
         // of 100 by then: a poll of the first page alone never sees it end.
         expect(offPage).toEqual([36797347517]);
         // Nothing the record does not hold, apart from runs that ended the day before.

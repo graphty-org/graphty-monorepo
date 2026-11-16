@@ -1,7 +1,7 @@
 /**
  * @file The simple tier's first algorithm plugin, registered live: the guide's own example file
  * (docs/examples/simple-tier/confidence-degree.ts) is loaded before the element renders, and the
- * story runs it with the guide's "use it" line. The picture is the colour ramp the element derives
+ * story runs it with the guide's "use it" line. The picture is the color ramp the element derives
  * from the run, with no style code in the plugin or here.
  */
 

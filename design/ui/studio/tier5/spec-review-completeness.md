@@ -57,7 +57,7 @@ means a listed behavior has no rule form, or two sections of the spec contradict
   acceptance 7 requires both pickers to list the same entries. Runs default to the visible graph
   (`StartOptions.scope`, "Defaults to the visible graph", `graphty-element/src/session/runs/types.ts`
   463-466), so every Analyze run is a visible-scoped run that the filter must not read.
-- Fix: in the filter, list visible-scoped runs greyed with a reason code (`circular-scope`). On
+- Fix: in the filter, list visible-scoped runs grayed with a reason code (`circular-scope`). On
   commit, either offer the same algorithm with the same settings on the full graph or exclude the
   run. Reword acceptance 7 as "same entries, same order; states may differ by host". Put the
   scope in the run's title so the two Louvain runs ("on the full graph", "on the drawn graph")
@@ -203,7 +203,7 @@ min: number }`. Otherwise move "linked to at least N of", "downstream" and "upst
   the exact values.
 - **m2. Algorithms with nothing to pick have no stated entry.** `pair-list` (link prediction),
   `temporal` and `fact` have no per-element fields (`graphty-element/src/session/results/types.ts`
-  483-512). State their entry: absent, or greyed with a code. Hierarchical clustering and
+  483-512). State their entry: absent, or grayed with a code. Hierarchical clustering and
   Girvan-Newman publish `community` (shape at line 110 of `HierarchicalClusteringAlgorithm.ts`,
   175 of `GirvanNewmanAlgorithm.ts`), so in this build they are plain categories with the cut in
   Settings. Say so, since "hierarchy cuts" are excluded.

@@ -26,12 +26,12 @@
             </helmet>
             <!--
   STATE: Import options, one dialog in four states. This file: delimited file, nothing loaded
-  (a recognised export, so roles were pre-assigned).
+  (a recognized export, so roles were pre-assigned).
   INPUTS: no graph loaded; format class delimited; header signature matches a known export (STRING);
     nothing guessed -- roles were pre-assigned; size below both numbers; "Always show import
     options" off.
   CLAUSE: delimited file. Evaluated from the end, first match wins; nothing later in the list matched,
-    because a recognised export leaves no guessed column.
+    because a recognized export leaves no guessed column.
   RENDERS: item 2 recognition banner YES; item 3 picker no; item 6 Load defaults to Everything;
     no departure line.
   PRIMARY: Import.
@@ -42,7 +42,7 @@
   CANCEL: Cancel, Escape and the title-row X are one action. Nothing is loaded, so Cancel abandons the
     file: the shell returns to Empty, the status bar reading line clears, the file does not enter
     Recent, and the pre-assigned roles and the saved filter are discarded with it.
-  CANVAS TITLE: Import options -- delimited file (recognised export).
+  CANVAS TITLE: Import options -- delimited file (recognized export).
 
   IMPORT OPTIONS, RECOGNISED EXPORT. Desktop 1440 by 900. Spec revision 1.5. State: Empty (spec 6.1, 7.1) with the
   Import options dialog (spec 5.3 Data, items 1 to 9) open over the dimmed Welcome screen.
@@ -112,7 +112,7 @@
     IMP-5, the footer's "Load a subset (Coming)" button is deleted: it duplicated the Load control four
       rows above it, which reads Everything, and item 9's button list drops it. The footer is now
       Cancel at the left and Import as the primary.
-    REVISION 1.7, TB-1: the navigation cluster is retired app-wide for the bottom-centre canvas
+    REVISION 1.7, TB-1: the navigation cluster is retired app-wide for the bottom-center canvas
       toolbar; neither is drawn on this board, because nothing is loaded.
     REVISION 1.7, POP-3: validation issues inside the Import options dialog stay INLINE. 6.11 forbids
       a pop-out opening from inside a 3b dialog and errors here gate Import. On this board Rule 7c
@@ -163,7 +163,7 @@
   Pop-over: x 871 to 1151, y 403.4 to 527.8, 280 by 124.4.
   Gap axis (horizontal, it opens left): 1159 - 1151 = 8, the B2 dialog-lane constant exactly.
   Shared edge line (vertical): role row top 403.4 = pop-out top 403.4, a 0px difference, so the surface
-  is anchored and takes the anchored form rather than B1's centred fallback -- the 32px limit is not
+  is anchored and takes the anchored form rather than B1's centered fallback -- the 32px limit is not
   approached on either axis. Both numbers are structural rather than typed: the pop-over is positioned
   inside the Role cell itself, so top: 0 IS the grid row's top and right: 113 against a 109px cell whose
   chip starts 4px in IS an 8px gap. It opens left because opening right would put its far edge at 1447,
@@ -2611,7 +2611,7 @@
                                             </div>
                                         </div>
                                         <!-- The group chip is flanked by a rule to its two ends, so the chip reads as covering the
-                   seven columns rather than as labelling the one it happens to sit over. -->
+                   seven columns rather than as labeling the one it happens to sit over. -->
                                         <div
                                             style="
                                                 grid-column: span 7;

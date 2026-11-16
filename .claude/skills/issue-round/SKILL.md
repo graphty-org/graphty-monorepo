@@ -182,8 +182,8 @@ A load-sensitive failure (critical by the owner's rule, 2026-10-22) keeps its la
 reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. Never lower a priority
 label. An issue the owner explicitly ordered (in this session, or a label he applied) comes first.
 
-**Enhancements.** A round takes an enhancement labelled `ux-safe` without an owner order; the tool ranks it after
-the bugs and infrastructure issues of the same priority. An enhancement labelled `ux-owner`, or with neither label, is
+**Enhancements.** A round takes an enhancement labeled `ux-safe` without an owner order; the tool ranks it after
+the bugs and infrastructure issues of the same priority. An enhancement labeled `ux-owner`, or with neither label, is
 taken only on the owner's order. The labels (owner, 2026-11-10):
 
 - `ux-safe`: a user of the graphty app could not tell anything changed except speed or reliability -- no change to
@@ -255,7 +255,7 @@ past its size test, or drop or duplicate an export.
   `fix attempt` marker in the last 6 hours, and whose `Fixes`/`Refs` lines and branch issue do not name this job's
   issues (an issue it names is in flight: step 2 skips it). Pipeline-round's step 8 fixes these first; once it writes a
   `fix attempt` marker the pull request counts again;
-- a draft, or a pull request labelled `hold`;
+- a draft, or a pull request labeled `hold`;
 - a pull request not by graphty-agent (the owner's long-lived branches, such as #1677 and #1975) older than 7 days
   counts only for the files that conflict when it is merged with master
   (`git merge-tree --write-tree --name-only origin/master origin/<branch>` lists them after its tree line). Name it
@@ -350,7 +350,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
   mechanism, not by package or title: one job per mechanism, up to four issues. A load-sensitive test failure is
   critical, and its job must reproduce it under CPU restriction (`taskset -c 0 <test command>`) and name the
   mechanism before fixing it; never a longer wait or a raised timeout.
-- **A critical issue labelled `in-progress` with no open pull request.** Check its branch's last activity (see "Idle
+- **A critical issue labeled `in-progress` with no open pull request.** Check its branch's last activity (see "Idle
   claims" in the shared file: commits, progress note, markers), not whether its session lives: a live session that
   moved on holds it as surely as a dead one. Take it only when the branch has had no activity for 6 hours or more,
   and say so on the issue (`pipeline-round: taken by session ... -- previous owner <session>, inactive since <time>`).
@@ -378,7 +378,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **An issue held for the next major.** Since the owner's rule of 2026-11-10 (CLAUDE.md "Public API and breaking
   changes") nothing is held for a major: remove its `hold` or `blocked` label with a
   `pipeline-round: unheld -- breaking changes land as ordinary feat/fix commits since 2026-11-10` comment, and take it.
-- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
+- **Not work:** issues labeled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
   status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
   (pipeline-round's alarms; the tool drops them). An issue waiting on owner-only code carries `hold` or `blocked`
   with a comment saying why (nothing is held for a major any more), so the tool's list is what a round can take.

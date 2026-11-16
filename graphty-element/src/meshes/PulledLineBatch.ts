@@ -26,7 +26,7 @@ import { curveShape, type CurveSpan } from "./pulledCurve";
  * frame. Moving a node uploads its row and no edge byte. Design: `design/rendering/row-renderer.md`,
  * section 4.3.
  *
- * Only a straight piece between node centres is pulled: a plain solid line, no cap, gap, group,
+ * Only a straight piece between node centers is pulled: a plain solid line, no cap, gap, group,
  * bend or loop (the first row of the trim table).
  *
  * A piece also carries its own look -- color, opacity and width -- so edges that differ only in those
@@ -128,7 +128,7 @@ const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
 
-/** Straight edges between row centres, drawn in one non-instanced draw; see the file comment. */
+/** Straight edges between row centers, drawn in one non-instanced draw; see the file comment. */
 export class PulledLineBatch {
     /** The one mesh that draws every piece. */
     readonly mesh: Mesh;
@@ -342,7 +342,7 @@ export class PulledLineBatch {
     }
 
     /**
-     * Draw a piece between two rows' centres. Written when an edge joins or changes a node, never
+     * Draw a piece between two rows' centers. Written when an edge joins or changes a node, never
      * because one moved.
      * @param piece - The piece.
      * @param source - The source node's row.

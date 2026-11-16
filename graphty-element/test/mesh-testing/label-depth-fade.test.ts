@@ -4,7 +4,7 @@
  * The 3D camera is parented to a pivot (src/cameras/OrbitCameraController.ts), so its own
  * `position` is an offset from that pivot -- (0, 0, -distance) whatever the pivot's place or
  * rotation. Fading on that offset faded every label as if the camera sat at that spot near the
- * origin: orbiting the graph changed nothing, and a graph centred away from the origin faded the
+ * origin: orbiting the graph changed nothing, and a graph centered away from the origin faded the
  * wrong labels.
  */
 

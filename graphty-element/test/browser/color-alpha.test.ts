@@ -129,7 +129,7 @@ describe("a color with an alpha channel", () => {
      * Draw the graph with one layer on top, and histogram the frame.
      * @param target - What the layer paints.
      * @param set - What it writes.
-     * @returns Every pixel quantised to four bits per channel and counted.
+     * @returns Every pixel quantized to four bits per channel and counted.
      */
     async function frameWith(target: "node" | "edge", set: Record<string, unknown>): Promise<Uint32Array> {
         const layer: LayerSpec = { name: "alpha probe", target, selector: { match: "everything" }, set };

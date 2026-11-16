@@ -168,7 +168,7 @@ async function restsOnTheCurrentPicture(element: Graphty): Promise<void> {
  * Where a node is drawn, read through the public API.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre on the canvas.
+ * @returns Its center on the canvas.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);

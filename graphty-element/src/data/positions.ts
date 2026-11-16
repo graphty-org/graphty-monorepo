@@ -272,7 +272,7 @@ export class ElementPositions {
      * most wrong exactly while a layout was running, which is when somebody is asking. The scan is
      * one f32 read per node and touches only the x lane.
      *
-     * This is deliberately NOT on `GraphStatistics`. Those are memoised against the snapshot they
+     * This is deliberately NOT on `GraphStatistics`. Those are memoized against the snapshot they
      * were computed from, and how many nodes carry a coordinate changes while a layout runs WITHIN
      * one snapshot, so a cached answer would be stale in the one moment it mattered.
      * @returns how many rows in `[0, count)` carry a storable x

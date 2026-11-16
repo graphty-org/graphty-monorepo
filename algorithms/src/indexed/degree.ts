@@ -2,14 +2,14 @@ import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-form
 
 /** Options of the index-based degree centrality, matching the legacy `degreeCentrality`. @public */
 export interface DegreeCentralityOptions {
-    /** On a directed snapshot, which neighbours to count; ignored when undirected. Default `"total"`. */
+    /** On a directed snapshot, which neighbors to count; ignored when undirected. Default `"total"`. */
     readonly mode?: "in" | "out" | "total" | undefined;
-    /** Divide by `n - 1`, the most neighbours a node can have. Default false. */
+    /** Divide by `n - 1`, the most neighbors a node can have. Default false. */
     readonly normalized?: boolean | undefined;
 }
 
 /**
- * Add each node's number of DISTINCT neighbours in `g` to `out`: parallel edges count once and a self-loop
+ * Add each node's number of DISTINCT neighbors in `g` to `out`: parallel edges count once and a self-loop
  * counts once, as the legacy `Graph.degree` counts them.
  * @param g - The adjacency
  * @param out - Per-node totals, added to in place
@@ -28,11 +28,11 @@ function addDistinctNeighbours(g: AdjacencyView, out: F64): void {
 }
 
 /**
- * Degree centrality: each node's number of distinct neighbours (in, out, or both on a directed snapshot),
+ * Degree centrality: each node's number of distinct neighbors (in, out, or both on a directed snapshot),
  * optionally divided by `n - 1`. Equals the legacy `degreeCentrality` on every graph it can hold, and on a
  * multigraph equals it on the same graph with each pair's parallel edges merged.
  * @param s - The snapshot
- * @param options - Direction and normalisation
+ * @param options - Direction and normalization
  * @returns One score per node index
  * @public
  */

@@ -43,10 +43,10 @@ export interface XRInputDriver {
     setStick: (handedness: Handedness, x: number, y: number) => void;
     /**
      * Hold a tracked hand at `at`, its thumb and index tips `pinchDistance` apart. `at` is the
-     * hand's origin in the scene's coordinates (the wrist joint sits a few centimetres from it).
+     * hand's origin in the scene's coordinates (the wrist joint sits a few centimeters from it).
      * @param handedness - which hand
-     * @param at - where the hand is, in metres
-     * @param pinchDistance - thumb tip to index tip, in metres
+     * @param at - where the hand is, in meters
+     * @param pinchDistance - thumb tip to index tip, in meters
      */
     setHand: (handedness: Handedness, at: Vector3, pinchDistance: number) => void;
     /**
@@ -67,7 +67,7 @@ export interface XRInputDriver {
 /**
  * The emulated hand's pinch value whose thumb-to-index distance is `distance`. IWER moves each
  * joint linearly from the relaxed pose to the pinch pose, so the distance is |a + t * b|.
- * @param distance - thumb tip to index tip, in metres
+ * @param distance - thumb tip to index tip, in meters
  * @returns the pinch value, in [0, 1]
  */
 function pinchValueFor(distance: number): number {

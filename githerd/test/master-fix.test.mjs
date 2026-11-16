@@ -222,7 +222,7 @@ describe("one critical fix per red master", () => {
         linkMasterFix(state, [audit1127, { ...pr1140, ...critical }]);
         await labelMasterFixes(gh, REPO, state);
         expect(gh.writes).toHaveLength(1);
-        // #1140 closes unmerged: #1127 is labelled.
+        // #1140 closes unmerged: #1127 is labeled.
         linkMasterFix(state, [audit1127]);
         await labelMasterFixes(gh, REPO, state);
         expect(gh.writes).toEqual([`POST repos/${REPO}/issues/1140/labels`, `POST repos/${REPO}/issues/1127/labels`]);

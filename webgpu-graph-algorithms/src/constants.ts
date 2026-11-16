@@ -17,7 +17,7 @@ export const U32_MAX = 0xffffffff;
 export const RADIX_BINS = 256;
 /** Arc-window boundaries are multiples of 64 arcs = 256 bytes (design 10.6). */
 export const ARC_WINDOW_ALIGN = 64;
-/** Storage-binding offset alignment the package always honours (spec 2.6): the graph-format arena is 256-aligned. */
+/** Storage-binding offset alignment the package always honors (spec 2.6): the graph-format arena is 256-aligned. */
 export const STORAGE_ALIGN = 256;
 /** Stride of one UniformRing slot: minUniformBufferOffsetAlignment is 256 on every runtime the package targets (spec 5.3). */
 export const UNIFORM_SLOT_BYTES = 256;
@@ -334,7 +334,7 @@ export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
 /**
  * Label propagation (design 8.6): passes recorded per submit, with ONE readback of the per-pass changed counts at the
  * end of the submit. A readback costs about 2 ms in Chromium whatever it carries, so at one readback per pass a
- * 10,000-node call spends more on synchronisation than the CPU spends on the whole algorithm
+ * 10,000-node call spends more on synchronization than the CPU spends on the whole algorithm
  * (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md: 101 passes x 2 ms, 0.79x); eight passes per
  * submit is the floor that decision sets. Even, so every submit holds as many descending as ascending passes of the
  * alternating direction rule.
@@ -342,8 +342,8 @@ export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
 export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
 /**
  * Boruvka's minimum spanning tree (design 8.5): rounds recorded per submit, with one readback of the counters block
- * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
- * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
+ * per submit. Each readback is a device-to-host synchronization that costs about 2 ms in Chromium, and at one per
+ * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortize them over O(log n) rounds, moving
  * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
  * `src/algorithms/mst.ts` reads it.
  */

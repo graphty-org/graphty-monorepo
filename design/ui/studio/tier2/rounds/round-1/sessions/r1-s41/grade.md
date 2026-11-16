@@ -6,7 +6,7 @@ and "Spring list, checked against the sign-up sheet" with the chip "Graph". The 
 ("Saved Running club spring in this browser.", `15.png`), closed, and reopened from Recent
 projects (`16.png`, `17.png`), and both notes were listed again in the Notes place (`18.png`).
 Jordan named the Notes place and the inspector's "1 note" link as where he would read them. No
-note was ever saved on a wrong target: his first note form said "About PageRank" and he cancelled
+note was ever saved on a wrong target: his first note form said "About PageRank" and he canceled
 it before typing, so the answer key's SD case (a note on the wrong target, fixed later) does not
 apply. The detour it cost is counted below as wrong turns.
 
@@ -33,7 +33,7 @@ button first) took the rail button, which is what the step meant. The session is
 - **Wrong turns: 2.**
     1. Step 3 (`04.png`): "Add note" from the Notes place opened a form "About PageRank", because
        the inspector was showing the PageRank run that the setup left open. Jordan wanted a note on
-       the whole club; the form offers no way to change its subject, so he cancelled.
+       the whole club; the form offers no way to change its subject, so he canceled.
     2. Step 4 (`05.png`): he clicked empty canvas to "unpick" everything; the inspector stayed on
        PageRank, so the next note would still have been about PageRank. He recovered at step 5 by
        choosing "Everything" in the Graph place (`06.png`), after which the form said "About Graph"
@@ -54,7 +54,7 @@ Severity runs from 0 to 4 (Nielsen).
 1. **Severity 3 -- "Add note" silently takes whatever the inspector shows as the note's subject,
    including a calculation run, and the form gives no way to change it.** With nothing selected
    on the drawing but the PageRank run open in the inspector, the note became "About PageRank".
-   The only sign is a small grey "About PageRank" label above the text box; clicking empty canvas
+   The only sign is a small gray "About PageRank" label above the text box; clicking empty canvas
    does not reset the subject; the user has to guess that choosing "Everything" in the Graph place
    is what makes a note "About Graph". A user who typed without reading that label would have
    saved the club reminder on PageRank and believed it was on the club. Jordan caught it, so this

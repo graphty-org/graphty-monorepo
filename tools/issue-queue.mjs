@@ -94,7 +94,7 @@ export function skipReason(issue) {
     const labels = labelsOf(issue);
     const label = SKIP_LABELS.find((l) => labels.includes(l));
     if (label) return `label ${label}`;
-    // An enhancement only when labelled ux-safe (owner, 2026-11-10); ux-owner ones are owner-ordered only.
+    // An enhancement only when labeled ux-safe (owner, 2026-11-10); ux-owner ones are owner-ordered only.
     if (labels.includes("enhancement") && !labels.includes("ux-safe")) return "label enhancement";
     if (labels.includes("documentation") && !TYPES.some((t) => labels.includes(t)))
         return "documentation with no type label";

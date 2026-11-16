@@ -176,7 +176,7 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
 }
 
 /**
- * Drag a node with the real mouse: press on its centre, move in steps, release.
+ * Drag a node with the real mouse: press on its center, move in steps, release.
  *
  * @param graph - The graph instance
  * @param nodeId - The ID of the node to drag
@@ -317,7 +317,7 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
 }
 
 /**
- * Click a node with the real mouse, at its centre on screen.
+ * Click a node with the real mouse, at its center on screen.
  *
  * @param graph - The graph instance
  * @param nodeId - The ID of the node to click

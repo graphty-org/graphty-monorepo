@@ -34,7 +34,7 @@ loaded, PageRank run and selected, nodes sized and colored by PageRank (`work-st
 - **Steps:** 19 `real.mjs` steps after the start, against about 12 on the key's keyboard path.
 - **Wrong turns:** 2.
   1. Step 04: the first "Add note" opened a form "About PageRank", because the setup left the
-     PageRank run selected (`04.png`). Jordan read the label, cancelled before typing, selected
+     PageRank run selected (`04.png`). Jordan read the label, canceled before typing, selected
      "Everything" and opened the form again (steps 05 and 06). Caught before saving, so no note
      landed on the wrong target and this is not an SD detour.
   2. Step 08: `--click "Graph"` was refused because the rail button and the new note's "Graph" chip

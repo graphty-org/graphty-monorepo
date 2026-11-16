@@ -5,7 +5,7 @@
  * `test/kernel/dense-loop-guard.test.ts` runs this file as a child process and reads its output. Pipelines compile
  * synchronously here, so each module's dump arrives whole (see the createComputePipelineAsync override below).
  *
- * Runs AFTER `pnpm run build:all` (it imports dist/). Honours GRAPHTY_GPU_ADAPTER. Exit 0 with the dump on stdout;
+ * Runs AFTER `pnpm run build:all` (it imports dist/). Honors GRAPHTY_GPU_ADAPTER. Exit 0 with the dump on stdout;
  * exit 2 with `E_NO_ADAPTER: <reason>` on stdout when no adapter exists.
  */
 

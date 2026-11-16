@@ -4,7 +4,7 @@
  *
  * A collapse is one undoable step made of ordinary data steps: the members leave the graph, one
  * node takes their place, and their edges to the rest of the graph become one edge per
- * neighbour. Everything that step needs to undo itself rides on the collapsed node's own record,
+ * neighbor. Everything that step needs to undo itself rides on the collapsed node's own record,
  * so the collapse is saved with the data, undone with the history and opened with the project,
  * and expanding puts back each member's record, coordinates and pin exactly as they were.
  *
@@ -68,7 +68,7 @@ export interface CollapsedGroup {
 export interface GroupsApi {
     /**
      * Collapse a group to one node, as one undoable step: its members leave the graph, one node
-     * takes their place at their centre, and their edges to each outside node become one edge.
+     * takes their place at their center, and their edges to each outside node become one edge.
      * @param ref - The group.
      * @returns The id of the node standing in for the group.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when the group has no member in the graph or
@@ -228,7 +228,7 @@ function addEdgesStep(records: readonly Record<string, unknown>[]): SessionComma
 }
 
 /**
- * The step placing a collapsed node at the centre of its members, when any was placed.
+ * The step placing a collapsed node at the center of its members, when any was placed.
  * @param node - The collapsed node.
  * @param positions - The members' coordinates.
  * @returns The step, or none.
@@ -290,7 +290,7 @@ export function createGroupsApi(
         members: ReadonlySet<NodeId>,
         node: NodeId,
     ): { edges: Record<string, unknown>[]; aggregates: Map<string, Aggregate> } => {
-        // ponytail: walks every edge per call; read each member's neighbours when graphs outgrow it.
+        // ponytail: walks every edge per call; read each member's neighbors when graphs outgrow it.
         const edges: Record<string, unknown>[] = [];
         const aggregates = new Map<string, Aggregate>();
         for (const edge of session.data.edges({ scope: "graph" })) {

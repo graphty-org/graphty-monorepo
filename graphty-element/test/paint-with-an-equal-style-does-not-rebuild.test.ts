@@ -192,7 +192,7 @@ describe("a paint that changes only an edge's colour moves it without placing it
     });
 
     /**
-     * A placed directed edge, and the paint the Ghost row gives it: grey at low opacity.
+     * A placed directed edge, and the paint the Ghost row gives it: gray at low opacity.
      * @returns The edge and its two looks.
      */
     function ghostable(): { edge: Edge; normal: EdgePaint; ghost: EdgePaint } {

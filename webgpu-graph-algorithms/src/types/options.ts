@@ -70,7 +70,7 @@ export interface ResolvedFruchtermanReingoldOptions {
 
 /**
  * The resolved spring-electrical option record (spec 7.20, 9.3; ngraph's names): `gravity` is the Coulomb constant
- * (negative repels), never FA2's centre gravity. `gravity` and `springCoefficient` are null when left to their
+ * (negative repels), never FA2's center gravity. `gravity` and `springCoefficient` are null when left to their
  * defaults: ngraph's constant scaled by min(1, SE_SCALE_REFERENCE_NODES / n) once n is known at load. Exported for
  * src/layouts/spring-electrical.ts and the option tests.
  * @public

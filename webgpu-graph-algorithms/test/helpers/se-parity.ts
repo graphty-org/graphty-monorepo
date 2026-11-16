@@ -95,7 +95,7 @@ export async function withSeSim<T>(
 }
 
 /**
- * The inspect() / debugRunStages() pair of a spring simulation, or a throw when ctx.debug.inspect was not honoured.
+ * The inspect() / debugRunStages() pair of a spring simulation, or a throw when ctx.debug.inspect was not honored.
  * @param sim - the simulation
  * @returns the pair
  */

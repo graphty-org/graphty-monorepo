@@ -9,7 +9,7 @@
  * or the same two assignments in script, before any data has loaded. That asks for a graph whose
  * OPENING state is 2D, and nothing in the element used to read it: the scene was built with the
  * perspective orbit camera unconditionally, and the only route to the orthographic one was a
- * transition away from 3D. When the transition was cancelled, or when it was never queued at all
+ * transition away from 3D. When the transition was canceled, or when it was never queued at all
  * because the element was still being constructed, the element went on reporting `viewMode ===
  * "2d"` from its own property while the graph drew in perspective, gave the layout engine three
  * dimensions to spread the nodes through, and left `scene.metadata.twoD` unset so every edge mesh
@@ -43,7 +43,7 @@ const graphs: Graph[] = [];
 /**
  * Ask for the opening view before `init()`, where `init()` reads it: the dimension is written to
  * the `layout` slice at once, since there is no graph yet to take its turn on the queue behind.
- * @param graph - The graph, not yet initialised.
+ * @param graph - The graph, not yet initialized.
  */
 function openIn2D(graph: Graph): void {
     void graph.setViewMode("2d");
@@ -278,7 +278,7 @@ describe("a graph that opens in 2D", () => {
 
         // There is no WebXR here, so the switch falls back. What matters beyond the fallback is
         // that the SCENE records the fallback too: leaving an immersive session is decided by
-        // what the scene says it is showing, so a scene still labelled "vr" would make the next
+        // what the scene says it is showing, so a scene still labeled "vr" would make the next
         // ordinary switch to 3D try to exit a session that was never entered.
         assert.strictEqual(graph.getViewMode(), "3d");
         assert.strictEqual(graph.scene.metadata?.viewMode, "3d");

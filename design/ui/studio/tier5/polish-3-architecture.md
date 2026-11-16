@@ -79,13 +79,13 @@ Fix as before:
 - Runs start on a write, or through an explicit additive `@beta` `scope.startSteps(rule)`.
 - The app drops the render-time peek. Finding 1's fix removes one of them.
 
-### 3. The import filter's picker still lists filtered-graph runs un-greyed, and the app never calls `scope.checkStep`
+### 3. The import filter's picker still lists filtered-graph runs un-grayed, and the app never calls `scope.checkStep`
 
 Still reproduces: after Analyze, Run Betweenness, a new filter card's picker lists "Betweenness,
 40.5 to 40.5" under Results. Hovering it prints `tooltip: null` (`s1/08.png`).
 
 New evidence: the app has no call to `scope.checkStep` anywhere (`grep -rn checkStep
-graphty/src` finds none). That is the `@beta` API added for exactly this greying (spec lines 58,
+graphty/src` finds none). That is the `@beta` API added for exactly this graying (spec lines 58,
 120, 134 and 326). The element guard has a gap too:
 
 - A data-column step on the filtered run's path gets `circular-scope` (probe Q3b).
@@ -103,7 +103,7 @@ Fix:
 - **graphty-element:** `checkStep` returns a reason for a measure whose matching session run
   cannot be read on this host and base. Add an additive `@beta` readable-value fact for the run's
   scope (or for "reads run X / starts a run on Y").
-- **The app:** call `checkStep` for each Results entry in the filter host and grey the entry with
+- **The app:** call `checkStep` for each Results entry in the filter host and gray the entry with
   the element's reason as its tooltip. Decide "already ran" by run scope against the host's base,
   not by algorithm key.
 

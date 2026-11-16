@@ -507,7 +507,7 @@ const TIME_STEPS: ReadonlySet<string> = new Set(["hour", "day", "week", "month",
 
 /**
  * The refusal a filter this session cannot evaluate gets, naming what would evaluate it.
- * @param kind - The filter kind that cannot be honoured.
+ * @param kind - The filter kind that cannot be honored.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -1451,7 +1451,7 @@ function baseOf(context: CompileContext): { readonly node: Bytes; readonly edge:
 
 /**
  * Every node's degree (in, out, or both ways when `which` is absent), counted over the base's
- * edges inside a step, so a filtered-out neighbour is never counted; the snapshot's otherwise.
+ * edges inside a step, so a filtered-out neighbor is never counted; the snapshot's otherwise.
  * @param context - The compile context.
  * @param which - In, out, or both.
  * @returns The degrees.
@@ -1759,8 +1759,8 @@ function nextHop(
 /**
  * A test over the nodes within so many hops of a set of seeds.
  *
- * Hops are counted in BOTH directions even on a directed graph: a neighbourhood is what surrounds
- * a node, and a predecessor is as much a neighbour as a successor. A caller that wants only one
+ * Hops are counted in BOTH directions even on a directed graph: a neighborhood is what surrounds
+ * a node, and a predecessor is as much a neighbor as a successor. A caller that wants only one
  * direction wants a traversal, which is an algorithm and not a filter.
  * @param context - The compile context.
  * @param seeds - The nodes to start from; ones the graph does not hold are skipped.
@@ -2879,8 +2879,8 @@ function remembered(test: ElementTest | null, count: number): ElementTest | null
  * is visible when it passes both; either one on its own behaves exactly as it does with the other
  * set, and clearing one leaves the other's answer standing.
  *
- * The compilation itself does the work that cannot be done per element -- materialising a query's
- * matches, walking a neighbourhood, reading the degree view -- so it is O(n + m) before the pass
+ * The compilation itself does the work that cannot be done per element -- materializing a query's
+ * matches, walking a neighborhood, reading the degree view -- so it is O(n + m) before the pass
  * even starts, and it happens once per pass rather than once per element.
  * @param graph - The snapshot every test is written against.
  * @param filter - The filter, or null for none.
@@ -3049,7 +3049,7 @@ export function runPass(pass: VisibilityPass): void {
  * @param signal - Aborted when the caller cancels; the pass throws the signal's reason.
  * @param report - Called with how many of the elements have been looked at.
  * @returns Nothing, once every element has been looked at.
- * @throws The abort signal's reason when the pass is cancelled part way through.
+ * @throws The abort signal's reason when the pass is canceled part way through.
  */
 export async function runPassInSlices(
     pass: VisibilityPass,

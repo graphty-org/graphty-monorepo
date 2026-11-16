@@ -1,5 +1,5 @@
 /**
- * @file `session.catalog` against the published catalogue type.
+ * @file `session.catalog` against the published catalog type.
  *
  * `CatalogApi` names methods nothing implements; they are deprecated and listed in
  * `DeprecatedCatalogMethod`. What a session hands out must be exactly the rest -- no method the
@@ -13,7 +13,7 @@ import type { CatalogApi, DeprecatedCatalogMethod } from "../../src/catalog/type
 import { createSessionCatalog } from "../../src/session/catalog";
 import type { GraphSession, SessionCatalogApi } from "../../src/session/types";
 
-/** The catalogue methods a session implements, written out rather than derived. */
+/** The catalog methods a session implements, written out rather than derived. */
 const IMPLEMENTED = [
     "algorithms",
     "cameras",

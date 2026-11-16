@@ -319,7 +319,7 @@ export class AccelerationController {
 
     /**
      * Builds a controller. Nothing is probed until {@link start} is called.
-     * @param options - The policy, the threshold, the registry and the recovery behaviour.
+     * @param options - The policy, the threshold, the registry and the recovery behavior.
      */
     constructor(options: AccelerationControllerOptions = {}) {
         this.#registry = options.registry ?? acceleratorRegistry;
@@ -340,7 +340,7 @@ export class AccelerationController {
     }
 
     /**
-     * Where acceleration stands right now, as frozen, serialisable data.
+     * Where acceleration stands right now, as frozen, serializable data.
      * @returns The published status.
      */
     get status(): AccelerationStatus {

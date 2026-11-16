@@ -24,16 +24,16 @@ export const GirvanNewman: Story = createAlgorithmStory("graphty:girvan-newman",
  * Leiden - improved community detection (guarantees connected communities)
  * Draws with the default categorical palette, Okabe-Ito, like every community story here
  *
- * Not held distinct from Louvain. Both maximise modularity, and on the cat network both reach the
+ * Not held distinct from Louvain. Both maximize modularity, and on the cat network both reach the
  * same four communities, where the legacy Louvain function drew six at a lower modularity.
- * The same answer from two methods that optimise the same quantity is correct, as Kruskal and Prim
+ * The same answer from two methods that optimize the same quantity is correct, as Kruskal and Prim
  * drawing one tree is; the picture each draws is still held to its own baseline.
  */
 export const Leiden: Story = createAlgorithmStory("graphty:leiden", {
     varies: "hex",
     atLeast: 2,
     distinct: false,
-    // Leiden is randomised and unseeded by default; the story's picture is the one seed 42 draws.
+    // Leiden is randomized and unseeded by default; the story's picture is the one seed 42 draws.
     params: { randomSeed: 42 },
 });
 
@@ -61,15 +61,15 @@ const cliqueEdges = CLIQUE_SIZES.flatMap((size, clique) =>
     ).flat(),
 );
 
-/** The colour an overflowing group encoding paints every group past the palette. */
+/** The color an overflowing group encoding paints every group past the palette. */
 const OTHER_GREY = OTHER_GROUP_COLOR;
 
 /**
- * More communities than the default palette has colours.
+ * More communities than the default palette has colors.
  *
- * Louvain finds eleven communities and Okabe-Ito has eight colours. The default overflow policy,
- * "other", keeps the palette's eight colours for the eight largest communities and paints the
- * three smallest one dark grey, which the legend names "other: 3 groups".
+ * Louvain finds eleven communities and Okabe-Ito has eight colors. The default overflow policy,
+ * "other", keeps the palette's eight colors for the eight largest communities and paints the
+ * three smallest one dark gray, which the legend names "other: 3 groups".
  */
 export const LouvainMoreCommunitiesThanColours: Story = {
     args: {
@@ -122,7 +122,7 @@ export const LouvainMoreCommunitiesThanColours: Story = {
 /**
  * Nested cores: a five-node clique (core 4), a triangle and a square hanging off it (core 2), and
  * two single nodes on a stalk (core 1). The cat network every other story here draws is one 2-core
- * from end to end, so it would paint every node the same colour.
+ * from end to end, so it would paint every node the same color.
  */
 const coreNodes = [
     ...["k0", "k1", "k2", "k3", "k4"],
@@ -166,11 +166,11 @@ const EXPECTED_CORE: Readonly<Record<string, number>> = {
 };
 
 /**
- * K-core - colours every node by the depth of the most tightly knit core it belongs to.
+ * K-core - colors every node by the depth of the most tightly knit core it belongs to.
  *
  * A core number is a measurement every node has, so it draws on the same orange-to-brown ramp as
  * the centrality stories: orange for the loosely attached nodes on a stalk, dark brown for the
- * clique at the centre, and one colour between them for the triangle and the square.
+ * clique at the center, and one color between them for the triangle and the square.
  */
 export const KCore: Story = {
     args: {

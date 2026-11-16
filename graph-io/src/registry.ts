@@ -1987,7 +1987,7 @@ interface PeekedInput {
     readonly input: ImportInput;
     /**
      * Close the source when the importer never iterated the replaying input (it threw first, an
-     * abort for instance): a stream's reader is canceled and released, an async generator finalised.
+     * abort for instance): a stream's reader is canceled and released, an async generator finalized.
      * @returns when the source is closed
      */
     close(): Promise<void>;

@@ -3,7 +3,7 @@
  *
  * When a forked vitest worker dies the pool reports one closed channel and the run ends with no summary, so the only
  * evidence of WHICH test file went down is the reporter's own output: the files it announced minus the files it
- * printed a result for. These cases pin that difference against the exact lines vitest's reporters write, colour
+ * printed a result for. These cases pin that difference against the exact lines vitest's reporters write, color
  * escapes and all, without needing a device.
  */
 import { formatMissingFiles, missingTestFiles } from "../scripts/run-node-shard.js";
@@ -12,10 +12,10 @@ import { formatMissingFiles, missingTestFiles } from "../scripts/run-node-shard.
 const TICK = String.fromCharCode(0x2713);
 /** The reporters' fail glyph. */
 const CROSS = String.fromCharCode(0x00d7);
-/** The escape that opens every colour sequence the reporters write. */
+/** The escape that opens every color sequence the reporters write. */
 const ESC = String.fromCharCode(27);
 
-/** Wraps text in the green colour escapes the default reporter puts around a pass glyph. */
+/** Wraps text in the green color escapes the default reporter puts around a pass glyph. */
 function green(text: string): string {
     return `${ESC}[32m${text}${ESC}[39m`;
 }

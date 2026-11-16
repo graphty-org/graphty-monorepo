@@ -20,7 +20,7 @@ Nadia: "Filters -- that sounds like what I want. The runs column must be 'weight
 
 ### 03 -- `--step ... --click-at 276,197` (the + by Filters; tool: button "Add filter step")
 
-Screen: right panel now "New filter step". Keep: "an attribute's value". Attribute: an empty dropdown. "Add step" button, greyed.
+Screen: right panel now "New filter step". Keep: "an attribute's value". Attribute: an empty dropdown. "Add step" button, grayed.
 Nadia: "Keep an attribute's value -- fine. Attribute is empty; I'll open it and look for weight."
 
 ### 04 -- `--step ... --click "Attribute"`
@@ -30,7 +30,7 @@ Nadia: "weight, under Edges. That's the runs."
 
 ### 05 -- `--step ... --click-at 1245,295` (option "weight")
 
-Screen: Attribute weight; "Is" already says "at least"; an empty Value box; a hint "Keeps edges that pass and the nodes at their ends."; Add step still grey.
+Screen: Attribute weight; "Is" already says "at least"; an empty Value box; a hint "Keeps edges that pass and the nodes at their ends."; Add step still gray.
 Nadia: "At least -- exactly '4 or more'. And it keeps the people at the ends. I'll type 4."
 
 ### 06 -- `--step ... --click "Value" --type "4"`
@@ -83,7 +83,7 @@ Answer given for the follow-up: 10 people (5 pairs ran together 5 or more times)
 - **Ease:** 6 of 7.
 - **What went well:** I had never hidden part of a network, but "Filters" with a + sat right in Data, next to the weight column I was thinking about. "Keep an attribute's value / weight / at least / 4" read like the sentence in my head, and "at least" was already chosen. The count showed in three places at once (top bar "19 of 20 nodes", the filter row "20 to 19 nodes", and "Nodes showing 19 of 20"), so I did not have to count balls. The second time was quick: click the filter, change 4 to 5, "Save and turn on". Keeping the filter switched off instead of deleting it is what I would want for a case file.
 - **What confused me / small doubts:**
-    - It took me a moment to find the + by "Filters": in the Data panel it is a small grey + with nothing saying it adds a filter until you press it. I guessed right because the word "Filters" was there.
+    - It took me a moment to find the + by "Filters": in the Data panel it is a small gray + with nothing saying it adds a filter until you press it. I guessed right because the word "Filters" was there.
     - 19 of 20 felt surprisingly high for "only the strong pairs" -- the drawing still looked full of people. The hint "Keeps edges that pass and the nodes at their ends" explained it, but only because I read it; I would not have known which one person dropped out without hunting for them.
     - "weight" is the spreadsheet's word, not "runs"; I knew it was the third column only because it was the only number on the edges.
     - Nothing on the drawing itself says a filter is on except the small funnel and count in the top bar; the PageRank key in the corner still shows the full range, which made me wonder whether it is describing the whole club or the shown part.

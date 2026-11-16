@@ -2,14 +2,14 @@
  * @file What the style system SAYS a node is painted, checked against the pixels on the canvas.
  *
  * WHY THIS FILE EXISTS. Everything else about the migrated style system is asserted against the
- * model: `session-style-paint.test.ts` reads the colour the pass wrote into a node's instance
+ * model: `session-style-paint.test.ts` reads the color the pass wrote into a node's instance
  * buffer, and the unit tests next to it read the resolved style. Both are the element checking
  * its own arithmetic. `node-instance-color.test.ts` reads real pixels, but of two meshes placed
- * by hand -- it proves Babylon can draw one source mesh in two colours, not that a graph the
+ * by hand -- it proves Babylon can draw one source mesh in two colors, not that a graph the
  * element painted looks like anything.
  *
  * So there is a join nothing covered: a whole chain from a style layer, through the columnar
- * repaint, through the painter, through the mesh cache and the instanced colour buffer, to the
+ * repaint, through the painter, through the mesh cache and the instanced color buffer, to the
  * frame. Every link had a test and the chain had none, and a chain like that can be right at
  * every link and still draw the wrong picture -- a frozen material, a camera looking elsewhere,
  * an instance born at its source mesh's parking position far below the scene.
@@ -22,7 +22,7 @@
  * so agreement between them is evidence and disagreement is a real defect.
  *
  * The graph below is chosen so the answer cannot be right by accident: degree varies from 1 to
- * 4 across it, so a ramp over degree paints visibly different colours, and a system that painted
+ * 4 across it, so a ramp over degree paints visibly different colors, and a system that painted
  * every node the same would agree with nothing.
  */
 
@@ -57,11 +57,11 @@ const WIDTH = 640;
 const HEIGHT = 480;
 
 /**
- * How far apart two channel readings may be, once normalised, and still be the same colour.
+ * How far apart two channel readings may be, once normalized, and still be the same color.
  *
- * NORMALISED, because a lit sphere is not painted its own colour: diffuse shading scales all
+ * NORMALISED, because a lit sphere is not painted its own color: diffuse shading scales all
  * three channels together by how far the surface has turned from the light, so the raw bytes on
- * screen are some fraction of the authored colour and the fraction depends on where the node
+ * screen are some fraction of the authored color and the fraction depends on where the node
  * happens to sit. Dividing through by the strongest channel takes that scaling out and leaves
  * the ratio between the channels, which is what survives shading and is what "the same colour"
  * means here. The tolerance is wide enough for eight-bit rounding at the dark end of a ramp and
@@ -72,8 +72,8 @@ const CHANNEL_TOLERANCE = 40;
 /**
  * How far apart a pixel's strongest and weakest channel must be to count as carrying a hue.
  *
- * Anything below this is grey, which is the background, the edges and a specular highlight --
- * none of which is a node's own colour.
+ * Anything below this is gray, which is the background, the edges and a specular highlight --
+ * none of which is a node's own color.
  */
 const COLOURED = 24;
 
@@ -123,15 +123,15 @@ describe("what the style system says, and what the canvas shows", () => {
     }
 
     /**
-     * The most colourful pixel within a few pixels of where one node is drawn.
+     * The most colorful pixel within a few pixels of where one node is drawn.
      *
      * MOST COLOURFUL RATHER THAN BRIGHTEST, and the difference is the whole measurement. The
      * element's default background is whitesmoke and a sphere carries a near-white specular
      * highlight, so "brightest" finds the background or the highlight on every node and reports
      * the same near-white for all of them -- a reading that agrees with nothing and would fail a
-     * correct picture. Both of those are grey, though: what separates a node from the paper it is
+     * correct picture. Both of those are gray, though: what separates a node from the paper it is
      * drawn on is that the node has a hue. So the pixel with the widest spread between its
-     * strongest and weakest channel is the one carrying the most of the instance's own colour.
+     * strongest and weakest channel is the one carrying the most of the instance's own color.
      *
      * A radius rather than a point because projection lands between pixels and a node is a few
      * pixels wide.
@@ -189,9 +189,9 @@ describe("what the style system says, and what the canvas shows", () => {
     }
 
     /**
-     * The colour the element says one node is painted, as three channels.
+     * The color the element says one node is painted, as three channels.
      * @param id - The node id.
-     * @returns The channels, or null when nothing painted a colour onto it.
+     * @returns The channels, or null when nothing painted a color onto it.
      */
     function saidToBe(id: string): { r: number; g: number; b: number } | null {
         const painted = session.styles.explain({ node: id }).merged["node.color"];
@@ -208,9 +208,9 @@ describe("what the style system says, and what the canvas shows", () => {
     }
 
     /**
-     * One colour with its strongest channel scaled to 255, so two readings of the same colour at
+     * One color with its strongest channel scaled to 255, so two readings of the same color at
      * different brightnesses come out equal.
-     * @param colour - The channels.
+     * @param color - The channels.
      * @returns The same hue at full strength.
      */
     function normalised(colour: { r: number; g: number; b: number }): { r: number; g: number; b: number } {
@@ -287,7 +287,7 @@ describe("what the style system says, and what the canvas shows", () => {
             checked.push(`${said.r},${said.g},${said.b}`);
         }
 
-        // Without this the test above would pass on a ramp that had collapsed to one colour: two
+        // Without this the test above would pass on a ramp that had collapsed to one color: two
         // nodes agreeing with a model that says they are identical proves only that nothing
         // painted anything.
         assert.strictEqual(new Set(checked).size, 2, "the busiest node and the quietest are not painted alike");

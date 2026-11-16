@@ -169,12 +169,12 @@ export interface FakeSpeech {
     liveTracks(): number;
     /** Run the animation frames now requested. */
     frame(): void;
-    /** Animation frames requested and not yet run or cancelled. */
+    /** Animation frames requested and not yet run or canceled. */
     pendingFrames(): number;
     /** End the utterance being spoken, as the synthesizer does when it finishes. */
     finishSpeaking(): void;
     /**
-     * Set every microphone sample the analyser reads from now on (default 0.25, a level of 0.5,
+     * Set every microphone sample the analyzer reads from now on (default 0.25, a level of 0.5,
      * which is speech; 0 is silence).
      * @param sample - The sample value.
      */

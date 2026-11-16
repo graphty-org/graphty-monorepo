@@ -27,7 +27,7 @@ I have two spreadsheets, not one list. "Open project or file..." is what I alway
 
 `--step $S --click "New from data..."` -> 03.png. A page "Open as a new graph". On the left
 "Tables" with a plus; on the right "Drop a file here, or choose a file...". A "Direction" box
-says "As the file says". Load is greyed out, "Choose a file first".
+says "As the file says". Load is grayed out, "Choose a file first".
 
 "Tables", plural, and a plus: that looks like it takes more than one. I will start with the squad
 list, players.csv, through "choose a file...".
@@ -91,7 +91,7 @@ do not understand. Pressing Load.
 
 ### 10 -- Load
 
-`--step $S --click "Load"` -> 10.png. It is drawn: blue dots with grey arrows on a light canvas.
+`--step $S --click "Load"` -> 10.png. It is drawn: blue dots with gray arrows on a light canvas.
 The title at the top now reads "players and passes". On the right, "Graph, From 2 files", and the
 Overview: Nodes 11, Edges 18, Direction Directed, Components 1. I count eleven dots myself. So all
 ten players plus s11, and all eighteen passes.

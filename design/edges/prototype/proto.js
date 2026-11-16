@@ -124,7 +124,7 @@ void main() {
 }`;
 
 // D: one instance per piece reading prev, a, b, next. Each instance builds its own piece plus
-// HALF of the join at each end, so neighbours meet on shared vertices with no overlap and no
+// HALF of the join at each end, so neighbors meet on shared vertices with no overlap and no
 // notch. Six template vertices: (end, side, isMid). Miter up to the limit, bevel past it, and a
 // "broken" join (square ends, overlapping) when the inset would eat more than half a piece.
 Effect.ShadersStore.miterVertexShader = `precision highp float;

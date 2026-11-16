@@ -5,7 +5,7 @@
  * WHAT AN EXPORT CARRIES. Whatever the chosen format can represent: every node and edge with the
  * attributes it was loaded or edited with, the current positions, every published algorithm
  * result and the style each element is drawn with. The element resolves all of it into one
- * graph-format snapshot -- positions into the `position` role column, colours, sizes and edge
+ * graph-format snapshot -- positions into the `position` role column, colors, sizes and edge
  * widths into the `color`, `size` and `thickness` role columns, results into attribute columns
  * named by their result path (a partition's group as the algorithm's group id, or with
  * `{ groupRanks: true }` as its rank by size, 1 for the largest) -- and the exporter writes what its format has
@@ -237,7 +237,7 @@ interface ExportViewState {
     /**
      * What a node is drawn as.
      * @param row - The node's row in the session's snapshot.
-     * @returns Its colour, size and shape, or undefined when nothing is drawn.
+     * @returns Its color, size and shape, or undefined when nothing is drawn.
      */
     nodeStyle?(
         row: number,
@@ -245,7 +245,7 @@ interface ExportViewState {
     /**
      * What an edge is drawn as.
      * @param row - The edge's row in the session's snapshot.
-     * @returns Its colour and width, or undefined when nothing is drawn.
+     * @returns Its color and width, or undefined when nothing is drawn.
      */
     edgeStyle?(row: number): { readonly color: Rgba | null; readonly width: number | undefined } | undefined;
 }
@@ -345,7 +345,7 @@ function attributesOf(
 }
 
 /**
- * A colour as graph-format's `color` role holds it: four components from 0 to 1.
+ * A color as graph-format's `color` role holds it: four components from 0 to 1.
  * @param color - Components 0-255, alpha 0-1.
  * @returns The components.
  */
@@ -735,7 +735,7 @@ const EXPORT_WEIGHT_KEY = "weight";
 
 /**
  * What each column name and text value goes through, and how many cells it changed.
- * @param neutralise - Guard cells a spreadsheet would run as a formula.
+ * @param neutralize - Guard cells a spreadsheet would run as a formula.
  * @returns The cell function and a counter of the cells it rewrote.
  */
 function formulaGuard(neutralise: boolean): { cell: <T>(value: T) => T | string; count: () => number } {
@@ -812,7 +812,7 @@ function writeEdges(
 }
 
 /**
- * Write each node's drawn colour, size and shape, when the view supplies them.
+ * Write each node's drawn color, size and shape, when the view supplies them.
  * @param builder - The export's builder.
  * @param nodeRows - The session row of each node written.
  * @param view - Style, from the renderer.
@@ -842,7 +842,7 @@ function writeNodeStyles(builder: GraphBuilder, nodeRows: readonly number[], vie
 }
 
 /**
- * Write each edge's drawn colour and width, when the view supplies them.
+ * Write each edge's drawn color and width, when the view supplies them.
  * @param builder - The export's builder.
  * @param edgeRows - The session row of each edge written.
  * @param view - Style, from the renderer.
@@ -1048,7 +1048,7 @@ interface ChosenWriter {
 
 /**
  * The exporter for a format, and the options to hand it, checked against what the format's
- * catalogue entry declares in `writerOptions` -- the same rule for a built-in writer as for a
+ * catalog entry declares in `writerOptions` -- the same rule for a built-in writer as for a
  * registered one.
  * @param format - The format id.
  * @param options - What the caller passed.
@@ -1097,8 +1097,8 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     }
 
     // `variant` picks the writer and `neutraliseFormulas` is the element's own guard; graph-io
-    // reads neither. CSV's `dialect` defaults to the plain one (see the catalogue entry): the
-    // element's CSV reader reads Gephi's capitalised headers back under those names.
+    // reads neither. CSV's `dialect` defaults to the plain one (see the catalog entry): the
+    // element's CSV reader reads Gephi's capitalized headers back under those names.
     const { variant: _variant, neutraliseFormulas, ...rest } = resolved;
     // The header row's stated default is the edge and node tables'; an adjacency table has none,
     // and the writer refuses one, so it is passed only when the caller asked for it.
@@ -1200,7 +1200,7 @@ export function exportSession(
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     let styles: StylesToWrite | null = null;
     try {
-        // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
+        // With styles, the style writer is the only path: the drawn color, size and width columns are left out.
         built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, build);
         if (writer.build.styles === true) {
             styles = sessionStyles(session, built.snapshot, writer.exporter, rows);

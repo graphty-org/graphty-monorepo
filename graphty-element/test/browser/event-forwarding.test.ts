@@ -27,7 +27,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     graphtyElement.style.display = "block";
     container.appendChild(graphtyElement);
 
-    // Wait for element to be connected and its graph initialised
+    // Wait for element to be connected and its graph initialized
     await graphtyElement.updateComplete;
     await vi.waitFor(() => {
         assert.isTrue(graphtyElement.graph.initialized, "the element initialised its graph");

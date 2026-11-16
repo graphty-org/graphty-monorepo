@@ -126,7 +126,7 @@ pointer;`, still inside the same span. The rest of the blurb stays
     delete `Below the render ceiling`. Keep `Load`, the technical name
     `subset load`, and the `Coming` tag (this row is isolated, so it keeps its
     per-row tag under MIN-4). The value select stays `Everything`.
-19. **Status bar (lines ~430-434).** Current: ends with a grey dot and
+19. **Status bar (lines ~430-434).** Current: ends with a gray dot and
     `AI: not configured`. New (MIN-8): delete that whole slot -- the AI slot is
     rendered only when a provider is configured or a call is in flight.
     `AI: not configured` is a retired string. The `No data loaded` slot and the
@@ -220,8 +220,8 @@ column.` (VOCAB section 10 "Import grid footer"). No role menu is drawn open
 7. **Dialog title row (lines ~448-450).** Current: `Import options` then dimmed
    `ovarian_de_string.tsv, 212 KB`. New (DEF-5): dimmed half becomes
    `ovarian_de_string.tsv, 212 KB -- delimited file`. **Collision resolved:** the
-   canvas title DEF-5 assigns this file is "-- recognised export, nothing
-   loaded", but "recognised export" is not one of the six fixed entry clauses;
+   canvas title DEF-5 assigns this file is "-- recognized export, nothing
+   loaded", but "recognized export" is not one of the six fixed entry clauses;
    the row takes the legal clause `delimited file` and "recognised export" stays
    the canvas title only.
 8. **Dialog body, summary lines (lines ~450-451).** Current: "318 nodes, 1,104
@@ -258,7 +258,7 @@ network, Oahu` keeps `62,000 nodes, 81,000 edges, 9.8 MB` -- it carries the
 14. **Welcome underlay, recent rows (lines ~400, 407).** Current: "JSON, 20
     nodes, 29 edges, Yesterday" and "CSV, 148 nodes, 147 edges, Aug 28". New
     (MIN-11): drop the leading format word from both; the filename carries it.
-15. **Status bar (lines ~435-438).** Current: grey dot plus `AI: not configured`.
+15. **Status bar (lines ~435-438).** Current: gray dot plus `AI: not configured`.
     New (MIN-8): delete the slot; `AI: not configured` is retired.
 16. **Activity rail, the four disabled items (lines ~45-64).** New (IC-4 +
     IK-3): give each a `title` naming the enabling action --
@@ -277,13 +277,13 @@ network, Oahu` keeps `62,000 nodes, 81,000 edges, 9.8 MB` -- it carries the
 20. **Leading comment block (lines 15-27).** New (DEF-5): open with the shared
     two-line STATE block --
     `STATE: Import options, one dialog in four states. This file: delimited file,
-nothing loaded (a recognised export, so roles were pre-assigned).`
+nothing loaded (a recognized export, so roles were pre-assigned).`
     `OPENS: a delimited text file was dropped. Reopens from any Change link on a
 Loaded data line, the "Mapped as before" toast, the Data tier 3 list, the
 Insights card "Load the full graph", step 3 "Compare with current graph",
 Import as "Add attributes from a table", and the command palette (new in
 1.5).`
-    Record in comment only: canvas title becomes `Import options -- recognised
+    Record in comment only: canvas title becomes `Import options -- recognized
 export, nothing loaded` (do not edit canvas.json).
 
 ## ImportLargeFile
@@ -374,7 +374,7 @@ Analysis runs on the drawn sample unless a card's Scope is Whole graph.`,
 12 MB` -- it carries the `Large` badge and the Performance-mode line.
 15. **Welcome underlay, recent rows (lines ~370, 374).** New (MIN-11): drop the
     leading `JSON, ` and `CSV, ` -- the filenames carry the extension.
-16. **Status bar (lines ~401-404).** Current: grey dot plus `AI: not configured`.
+16. **Status bar (lines ~401-404).** Current: gray dot plus `AI: not configured`.
     New (MIN-8): delete the slot.
 17. **Activity rail, the four disabled items (lines ~46-65).** New (IC-4 +
     IK-3): `title="Explore. Load data first"` and the same for Analyze, Style,
@@ -499,7 +499,7 @@ node, linear  37`. New (MIN-2): delete the default scale word --
 15. **Legend and minimap (lines ~306, ~312).** Current: a `Minimap` caption above
     the thumbnail and a `Legend` caption above the swatch list. New (MIN-7):
     delete both captions -- a thumbnail with a viewport rectangle and a swatch
-    list with channel names name themselves. Keep the four colour rows WITH their
+    list with channel names name themselves. Keep the four color rows WITH their
     counts (96 / 48 / 22 / 34): the open panel is Data and does not list the
     groups, so C11's condition holds and the counts stay.
 16. **Status bar (lines ~474-495).** New (MIN-8 + NAV-12): delete the `3D` chip;
@@ -745,7 +745,7 @@ acct-4471`, are plain text. New (NAV-7): render each row TITLE as a link
    `title="Show data table (Shift+T)"`. The switch and label are unchanged.
 10. **Insights strip, trailing line (line ~430).** Current: plain text
     `2 more in Help`. New (NAV-8): render it as a link (`#5b8ff9`) that opens the
-    Help menu with More suggestions expanded. Record the strip's X behaviour in a
+    Help menu with More suggestions expanded. Record the strip's X behavior in a
     comment: the X raises `Suggestions hidden on every dataset.  Undo` for eight
     seconds and is reversible from Help > Show suggestions and from the palette.
 11. **Insights strip, fourth card (lines ~418-420).** Current: title
@@ -848,7 +848,7 @@ settings"`). **Collision resolved:** DEF-4 would render `Window` and `Step`
    `title="Zoom to selection (F)"`, `title="Select neighbors (Shift+E)"`,
    `title="Expand neighbors of all (E)"`, `title="Invert (I)"`,
    `title="Remove selected (Delete)"`, `title="Show in table (Shift+T)"`. - Leading glyphs, taken verbatim from the register: Zoom to selection = the
-   corner brackets with a centre dot in the VOCAB "Subtle action row" snippet;
+   corner brackets with a center dot in the VOCAB "Subtle action row" snippet;
    Filter to selection = the funnel
    `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>`; Save as set...
    = the bookmark in the same snippet's trailing-data variant; Select neighbors
@@ -915,7 +915,7 @@ total)` line is deleted entirely, because the status bar and this header
    performs the last-used copy on click. This is how the reading gets its
    NAV-5 affordance without a second copy glyph in the same header row.
 10. **Inspector, Actions header count (line ~792).** Current: a trailing `20`.
-    New (MIN-3): delete it -- `Actions 20` is a catalogue count and is named
+    New (MIN-3): delete it -- `Actions 20` is a catalog count and is named
     explicitly by MIN-3.
 11. **Inspector, Notes section (lines ~460-465).** Current: header `Notes` with a
     trailing `0`. New (MIN-2): delete the `0`; the section is its affordance,
@@ -1000,7 +1000,7 @@ State: Empty, nothing loaded. Canvas Welcome block plus the Data panel.
    Data management." The canvas block draws the same sentence as "Recent files
    are cleared from Settings > Data management." (MIN-11)
 6. Canvas Welcome block, sample blurbs: the closing imperative becomes a link
-   in the accent colour `#5b8ff9` with the rest of the blurb left at
+   in the accent color `#5b8ff9` with the rest of the blurb left at
    `#a3a8b1`. Link text per row: "Try finding the groups." (Cat social
    network), "Try Connected parts, following direction." (Fraud ring), "Try
    coloring by conference." (College football), "Try coloring by logFC and
@@ -1285,7 +1285,7 @@ inspector, fraud-ring dataset.
    scale", scale the canvas node radii by betweenness with acct-4471, dev-19c2
    and ph-2076 largest, and extend the Bridges reading with the closing clause
    "Sizes now show bridge scores." The Groups card keeps its un-applied "Encode
-   as style" button and its reading omits a closing clause, because the colour
+   as style" button and its reading omits a closing clause, because the color
    channel is already driven by node type. (NAV-2)
 4. Inspector, Attributes: delete the whole "Key attributes" block. The id row
    goes because the displayed label "acct-4471" equals the id (the annotation
@@ -1358,8 +1358,8 @@ y2="13.5"></line>` with the canonical upright pushpin `<path d="M6 2.5h4l-.5
     (IK-2)
 15. Canvas: acct-4471 is selected, and the graph is below the large-graph
     threshold, so draw every one of its 37 incident edges in the selection
-    colour at full opacity and outline its immediate neighbours; label its top
-    ten neighbours by weight regardless of the label cap. The path result's own
+    color at full opacity and outline its immediate neighbors; label its top
+    ten neighbors by weight regardless of the label cap. The path result's own
     dimming of non-path nodes stays -- that is a result highlight, not the
     selection's drawing, and NAV-10's "nothing is dimmed" governs only what the
     selection itself does. (NAV-10)
@@ -1496,7 +1496,7 @@ State: Loaded, Explore panel open, filter active, three nodes selected.
    (degree)". (MIN-7, MIN-2)
 10. Panel section headers: delete "2 active" from Filter builder, "2 saved"
     from Saved filters, "5 actions" from Selection sets and actions, and "3
-    views" from Bookmarks. Catalogue counts go entirely; the chips themselves
+    views" from Bookmarks. Catalog counts go entirely; the chips themselves
     are on screen. (MIN-3)
 11. Status bar: delete the "3D" mode chip; replace "Layout: Force-directed"
     plus "Settled" with one chip "Force directed - settled" plus a 12px chevron
@@ -1892,7 +1892,7 @@ State: Loaded, palette open with "bridge" typed, no panel open.
    interface, and under 2 s no estimate is shown at all. The Bridges row keeps
    its remembered-parameter line "normalized, weight value"; the Bridge edges
    and Find a path rows lose their second line entirely. (DEF-2)
-4. Search row: delete the count "4 results". Catalogue counts go entirely.
+4. Search row: delete the count "4 results". Catalog counts go entirely.
    (MIN-3)
 5. Palette footer: delete the sentence "Searches plain and technical names" and
    put it behind an info circle placed at the right end of the search input
@@ -2114,7 +2114,7 @@ fraud-ring dataset.
     right, `title="History"`, no binding. (NAV-7)
 16. Explore panel: "Bookmarks | 3 views" becomes "Bookmarks"; "Saved filters |
     2 saved" becomes "Saved filters"; "Filter builder | Nodes, Edges" keeps its
-    value (it names the scope, not a catalogue count). Catalogue counts go
+    value (it names the scope, not a catalog count). Catalog counts go
     entirely. (MIN-3)
 
 ## IpadPanel
@@ -2176,7 +2176,7 @@ State: iPad 1180 by 820, Analyze panel overlay open, Cards view, nothing run.
     AnalyzePanel. Order them as AnalyzePanel does (Capacity attribute, then
     Method) so identical inputs render identically. (6.3 same-input-same-text)
 14. Add a comment on the panel overlay: "NAV-10: below 1280 px, activating a
-    row whose behaviour is 'selects and centers the target and shows it in the
+    row whose behavior is 'selects and centers the target and shows it in the
     inspector' -- a search result, a result-table row, a path step, a note row,
     a Matches row -- closes this panel overlay and opens the inspector overlay
     on that target, with a back affordance that returns here with the list
@@ -2232,7 +2232,7 @@ dataset, Performance mode on.
    of 0 or 1 is not drawn). Header reads "Notes". Add a comment: "XR-E: a note
    dictated in a headset carries a 'Dictated' chip beside its time in this
    list; 'Flag this' writes a note whose body reads 'Flagged in VR 14:32' in
-   the placeholder colour. Edit, Delete and Done do not exist in a session."
+   the placeholder color. Edit, Delete and Done do not exist in a session."
    (MIN-2, XR-E)
 8. Notes row: give the row the fixed hover triple, drawn on the one note row --
    pencil (`title="Edit"`), then trash (`title="Delete"`, `margin-left: 4px`),
@@ -2275,8 +2275,8 @@ dataset, Performance mode on.
     exemption wins here. Record it as a comment. (IK-4/IK-8 versus IK-5)
 17. Canvas: add a comment -- "NAV-10: this graph is above the large-graph
     threshold, so a single-node selection draws exactly what hover-highlight
-    draws -- DC01's incident edges in the selection colour and its immediate
-    neighbours outlined, capped by the 500-node hover-highlight cap. Nothing is
+    draws -- DC01's incident edges in the selection color and its immediate
+    neighbors outlined, capped by the 500-node hover-highlight cap. Nothing is
     dimmed by the selection itself." (NAV-10)
 
 ## ViewsMenu
@@ -2339,7 +2339,7 @@ selected, no activity panel, Views menu open.
 
 5. **Status bar (comment "STATUS BAR, 24 tall") -- mode chip, layout slot and
    AI slot.** Current: a "3D" pill; then "Layout: Force-directed" plus a green
-   dot plus "Settled"; then, at the right, a grey dot plus "AI: not
+   dot plus "Settled"; then, at the right, a gray dot plus "AI: not
    configured". New: (a) delete the "3D" pill and the divider that follows it,
    leaving the slot for VR and AR; (b) replace the whole layout group with one
    16px pill reading "Force directed (ngraph) - settled" followed by an 8px
@@ -2483,7 +2483,7 @@ align-items: flex-start` with the sentence at `flex: 1 1 0` and a 24x24
    `<path d="M9.5 2.5l4 4-2 1-1.5 3.5L6 7 4.5 8.5l-2 -2L4 4l3-.5z">`. New:
    replace the whole svg body with the register's upright pushpin:
    `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5"
-x2="8" y2="13.5"></line>`. Keep the 24x24 box, the colour and the title.
+x2="8" y2="13.5"></line>`. Keep the 24x24 box, the color and the title.
    Snippet: VOCAB section 10, "New glyphs this revision adds to section 5"
    paragraph (pushpin consolidation). Decision IK-2.
 
@@ -2512,7 +2512,7 @@ x2="8" y2="13.5"></line>`. Keep the 24x24 box, the colour and the title.
 ## ShortcutsDialog
 
 File: `ShortcutsDialog.dc.html` (1440x900). Cat social network under a scrim,
-the ? dialog centred, Explore panel open behind it.
+the ? dialog centered, Explore panel open behind it.
 
 1. **Keyboard shortcuts dialog -- delete every unshipped row and one whole
    group.** Current: twelve rows carry a Coming tag. New: delete these rows
@@ -2642,7 +2642,7 @@ shortcuts active over the cat dataset.
    add `cursor: pointer`). Draw exactly one row -- "Zoom to selection F" -- in
    the hover state (`background: #374047` on the row, pencil visible) so the
    affordance exists on the artboard. Record in an HTML comment that a
-   customised row also reveals a 24x24 refresh icon with `title="Reset to
+   customized row also reveals a 24x24 refresh icon with `title="Reset to
 default"` before the pencil. The recording row ("Toggle inspector", "Press a
    key... Esc to cancel", "Cancel") keeps its text Cancel button: Cancel is on
    the never-iconify list. Snippets: VOCAB section 9 "Rebind row" for the grid,
@@ -2815,7 +2815,7 @@ activity panel, inspector Notes section open with two notes.
    badge states it). Decision MIN-10.
 
 3. **Inspector, note rows -- hover actions become the row icon pair.**
-   Current: two note cards, each with the colour dot, author, relative time, a
+   Current: two note cards, each with the color dot, author, relative time, a
    spacer and the "Done" checkbox on the first line. New: draw the newest card
    (Assistant, 10 min ago) in its hover state: after the spacer and before the
    Done checkbox, add a 24x24 pencil icon button (`title="Edit"`) and a 24x24
@@ -2829,7 +2829,7 @@ activity panel, inspector Notes section open with two notes.
    Decisions IK-7, IK-4, NAV-11 item 4.
 
 4. **Inspector, the user note -- gains the Dictated mark.** Current: first line
-   is colour dot, "You", "2 h ago", spacer, Done. New: insert a chip reading
+   is color dot, "You", "2 h ago", spacer, Done. New: insert a chip reading
    "Dictated" immediately after "2 h ago", using the Coming-tag pill geometry
    with its text changed: `<div style="display: inline-flex; align-items:
 center; height: 16px; padding: 0 6px; border-radius: 8px; background:
@@ -2838,7 +2838,7 @@ box-sizing: border-box;">Dictated</div>`. Add an HTML comment recording that
    the note was dictated in a VR session, that the mark also appears in the
    Explore notes list and the notes hover card and in the export, and that
    "Flag this" writes a note whose body reads "Flagged in VR 14:32" in the
-   placeholder colour `#5f6873`. Decision XR-E.
+   placeholder color `#5f6873`. Decision XR-E.
 
 5. **Inspector, Notes section header -- the key chip, the technical name and
    the count all go.** Current: "Notes" then the dimmed technical name
@@ -2889,7 +2889,7 @@ settled"`, caret menu recorded in a comment; the issues chip reads "3 data
    `title="Pin as A"` draws `<path d="M9.5 2.5l4 4-2 1-1.5 4-2.5-2.5-4.5
 4.5 4.5-4.5-2.5-2.5 4-1.5z">`. New: replace the whole svg body with the
    register's upright pushpin: `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z">
-</path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`; keep the box, colour
+</path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`; keep the box, color
    and title. Decision IK-2.
 
 10. **Inspector, Neighbors prose line -- drop its leading count.** Current:
@@ -2937,7 +2937,7 @@ with the Notes section expanded, nothing selected.
    "Yesterday", using the Coming-tag pill geometry with `color: #7a828e` and
    the text changed. Record in an HTML comment that the notes list is where a
    VR-dictated note is re-read, that a "Flag this" note renders its body as
-   "Flagged in VR 14:32" in the placeholder colour `#5f6873`, and that the row
+   "Flagged in VR 14:32" in the placeholder color `#5f6873`, and that the row
    context menu carries "Edit", "Delete" and "Pin to report" as full-text
    items. The list stays at four visible rows of six, so no row is added.
    Snippet: VOCAB section 10 "Icon group in a section header", "Row form".
@@ -2973,11 +2973,11 @@ with the Notes section expanded, nothing selected.
    form carries Nodes and Edges tabs reading "Nodes 7" and "Edges 4". Decisions
    MIN-9, MIN-3.
 
-6. **Explore panel, tier 2 headers -- three catalogue counts and one zero
+6. **Explore panel, tier 2 headers -- three catalog counts and one zero
    clause go.** Current: "Filter builder Coming" with the trailing value "None
    active"; "Bookmarks" with the trailing value "2 views"; "Find a pattern
    Coming" with the trailing value "2 saved". New: delete "None active", delete
-   "2 views" and delete "2 saved" -- absence is legible and catalogue counts go
+   "2 views" and delete "2 saved" -- absence is legible and catalog counts go
    entirely. The headers keep their Coming tags. Decisions MIN-2, MIN-3.
 
 7. **Explore panel, two stacked canonical pairs -- render on one line.**
@@ -3281,12 +3281,12 @@ nodes, measured on this machine. Settings > Performance"`; delete the AI
    slot. Snippet: VOCAB section 9 "Status bar chips". Decisions MIN-8, NAV-12
    item 1, DEF-6.
 
-10. **Legend -- palette name, colour channel pair, caption; the minimap keeps
+10. **Legend -- palette name, color channel pair, caption; the minimap keeps
     its caption.** Current: the "Legend" caption; "Size: most connected
     (degree)" with "1 to 812, sqrt scale"; "Color: Groups" with "Communities
     (Label propagation)" stacked on a second line; eleven group rows with
     counts; "Other (3,388 groups, 43% of nodes)"; then the line "Category 12
-    palette". New: delete the "Legend" caption; render the colour channel
+    palette". New: delete the "Legend" caption; render the color channel
     header on one line as "Color: Groups" followed by the muted technical name
     "Communities (Label propagation)" at 11px `#7a828e` with a 6px gap; delete
     the "Category 12 palette" line (the palette name lives on Style's Palette
@@ -3366,7 +3366,7 @@ Performance active over the 120,000-node security graph.
    `selectionCap`, `expansionCap`, `layoutSizeRatings`, `warnAboveMinutes`,
    `preSteps, stepMultiplier, settleThreshold`. New: delete every one of those
    monospace keys from the rows and add, on the section header row beside
-   "Reset to defaults", a compact toggle switch labelled "Show config keys",
+   "Reset to defaults", a compact toggle switch labeled "Show config keys",
    drawn off. The eight layout engine ids in the "Layout size ratings" row --
    ngraph, bfs, radial, sugiyama, circular, shell, multipartite, fixed -- are
    genuine canonical pairs and stay visible. Record in an HTML comment that
@@ -3409,7 +3409,7 @@ Performance active over the 120,000-node security graph.
    the section has three sub-headers, "Thresholds and loading", "Performance
    mode", "Analysis, layouts and selection". New: add a fourth sub-header "XR"
    after "Analysis, layouts and selection", with four rows drawn in the same
-   label-plus-control shape as its neighbours, each carrying an info circle on
+   label-plus-control shape as its neighbors, each carrying an info circle on
    its label:
     - "XR entry ceiling" -- value "10,000" unit "visible nodes" and "50,000"
       unit "visible edges"; circle: "The most a headset draws smoothly. Above
@@ -3567,7 +3567,7 @@ Results` sub-tabs: an 11px `#7a828e` line reading
    label at weight 500, left-aligned, trailing slot for data only. Leading
    glyphs, copied verbatim from the register: Select neighbors = the
    neighbors glyph already on `Expand 37 neighbors`; Frame this node = the
-   zoom-to-selection corner brackets with a centre dot
+   zoom-to-selection corner brackets with a center dot
    (`<path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle>`);
    More = the three-dot glyph
    (`<circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle>`).
@@ -3575,7 +3575,7 @@ Results` sub-tabs: an 11px `#7a828e` line reading
    may carry a Coming tag, never a key). `More` keeps its existing long
    `title` list and its trailing chevron.
 
-4. **Merge two neighbour rows in Computed metrics (MIN-10).** Region:
+4. **Merge two neighbor rows in Computed metrics (MIN-10).** Region:
    INSPECTOR CONTENT > Computed metrics. Delete the two separate rows
    `Neighbors in group  24 | 18 | -6` and `Share of neighbors  65% | 49% |
 -16 pts` and draw one row: label `Neighbors in group`, A cell `24 (65%)`,
@@ -3600,7 +3600,7 @@ Results` sub-tabs: an 11px `#7a828e` line reading
    heatmap form above 10,000 nodes).
 
 6. **Zero rows in the diff legend are not drawn (MIN-2).** Region: canvas diff
-   legend, top centre. Delete the `Only in A  0` and `Only in B  0` entries
+   legend, top center. Delete the `Only in A  0` and `Only in B  0` entries
    with their swatches. The strip keeps `Difference | Same group 178 | Moved
 22`. Reduce the strip width to fit; keep the 12px gaps.
 
@@ -3618,7 +3618,7 @@ Results` sub-tabs: an 11px `#7a828e` line reading
    layout chip. Record that in the slot's comment.
 
 8. **Both cards show the applied encoding (NAV-2).** Region: both result
-   cards, action row. Each half is already coloured by its own result (the
+   cards, action row. Each half is already colored by its own result (the
    legends prove it), so the un-applied `Encode as style` button is wrong.
    Replace the filled `Encode as style` button in card A and card B with the
    applied form: an 11px `#7a828e` label `Encoded as node color` and, beside
@@ -3648,7 +3648,7 @@ disconnected.` The band word never returns to the sentence itself.
     and stays inline in both reading states.
 
 12. **Header counts that say nothing (MIN-3, MIN-2).** (a) Sub-tab
-    `Results  2` becomes `Results` (a catalogue count over two visible cards).
+    `Results  2` becomes `Results` (a catalog count over two visible cards).
     (b) Inspector section header `Computed metrics  6` becomes
     `Computed metrics` (five rows visible after item 4, none hidden).
     (c) `Attributes  4` becomes `Attributes` (three rows visible after item
@@ -3771,7 +3771,7 @@ card A in the inspector). Ordered largest structural change first.
    and move it into the button's `title` and an HTML comment. (b) Region:
    inspector Actions block, the More trigger: it reads
    `More (13): Select neighbors, Copy ids, Pin to report...`; change the
-   visible label to `More`, drop the `(13)` catalogue count, and keep the full
+   visible label to `More`, drop the `(13)` catalog count, and keep the full
    list in the trigger's `title` and the existing comment. (c) Add
    `Export selection...` to that list in both the `title` and the comment
    (NAV-12).
@@ -3818,7 +3818,7 @@ card A in the inspector). Ordered largest structural change first.
 11. **Zero and default rows (MIN-2, MIN-3).** (a) Region: PANEL CONTENT >
     Filters collapsed header: delete the trailing `none active`; the header
     keeps `Filters` and its `Coming` tag. (b) Region: Selection sets header:
-    delete the trailing `2` (a catalogue count over two visible rows).
+    delete the trailing `2` (a catalog count over two visible rows).
     (c) Region: inspector Notes header: it reads `Notes  1 on members` --
     keep it; the note count is selection-scoped and the inspector is its
     owner.
@@ -3875,7 +3875,7 @@ section expanded, Bridges result in the inspector, a hovered row previewing
    still shows exactly the two run rows -- do not add a third.
 
 3. **Undo is a split button and History rows are links (NAV-7).** (a) Region:
-   TOP BAR centre. Draw Undo as a split control: the undo glyph in a 24px
+   TOP BAR center. Draw Undo as a split control: the undo glyph in a 24px
    half, then a 1px `#48525c` divider, then a 12px caret
    (`polyline points="4,6 8,10 12,6"`) in a 16px half, the caret half drawn
    active (`background: #28364e; color: #4a7ee8`) because the popover is open.
@@ -4119,7 +4119,7 @@ nearly disconnected.` The three cells keep their bare numbers.
     counts: the panel lists runs, not groups. (e) The
     `Size: most connected (degree) / 1 to 37, sqrt scale` block is unchanged.
 
-14. **Catalogue counts (MIN-3).** (a) Sub-tab `Results (4)` becomes `Results`.
+14. **Catalog counts (MIN-3).** (a) Sub-tab `Results (4)` becomes `Results`.
     (b) The pinned Results section header's trailing `4 cards, from 1 sweep`
     goes entirely -- all four cards are visible and nothing is truncated.
 
@@ -4376,7 +4376,7 @@ more (Jaccard >= 0.5); only the stronger one is listed.`
 
 11. **The applied encoding names itself (NAV-2).** Region: RESULT CARD 1
     action row, which reads `Run again with changes | Change encoding`. The
-    result already colours the canvas (its reading ends
+    result already colors the canvas (its reading ends
     `Colors now show groups.`), so draw the applied form: an 11px `#7a828e`
     label `Encoded as node color` immediately left of the existing
     `Change encoding` link.
@@ -4385,7 +4385,7 @@ more (Jaccard >= 0.5); only the stronger one is listed.`
     CARD 1's title row. The `Imported` chip on card 2 stays: it reports where
     the result came from, not a run state.
 
-13. **Catalogue counts (MIN-3).** Sub-tab `Results  2` becomes `Results` --
+13. **Catalog counts (MIN-3).** Sub-tab `Results  2` becomes `Results` --
     two cards are visible and nothing is truncated.
 
 14. **Status bar hygiene (MIN-8, NAV-12, C7).** Region: STATUS BAR. (a) Delete
@@ -4488,12 +4488,12 @@ Radial`) is unchanged: it is already one tag for a group.
    `padj 0.05 to 1e-12 maps to sizes 0.8 to 2.0 (-log10): smaller p, larger node.`
    The legend is on screen and visibly follows the encoding.
 
-9. **Catalogue counts (MIN-3).** Region: PANEL CONTENT tier 2, the collapsed
+9. **Catalog counts (MIN-3).** Region: PANEL CONTENT tier 2, the collapsed
    `All layouts` header. Delete its trailing `18 engines`: an engine count is
-   a catalogue count and is named as one that goes entirely, even on a
+   a catalog count and is named as one that goes entirely, even on a
    collapsed header. The collapsed `Layout parameters / Edge length 30` and
    `Preset details / Default` summaries stay -- they carry a current value,
-   not a catalogue size.
+   not a catalog size.
 
 10. **Status bar hygiene (MIN-8, NAV-12, C7).** Region: STATUS BAR. (a) Delete
     the `3D` chip. (b) Merge `Layout: Force directed (ngraph)` and `Settled`
@@ -4514,7 +4514,7 @@ Radial`) is unchanged: it is already one tag for a group.
 
 Spec 1.5 changes for `InspectorGenomics.dc.html` (no activity panel; TP53
 selected in the ovarian_de_string.tsv STRING network, 34 attributes, Bridges
-and degree in Computed metrics, 41 neighbours). Ordered largest structural
+and degree in Computed metrics, 41 neighbors). Ordered largest structural
 change first.
 
 1. **A long text value renders as its shape (MIN-10).** Region: INSPECTOR
@@ -4600,7 +4600,7 @@ percentile means it scores above 98 per cent of them.` One circle for the
    `Joined from expression.tsv 4` keep their counts -- those sections are
    collapsed.
 
-10. **The neighbour breakdown does not restate the header count (MIN-1).**
+10. **The neighbor breakdown does not restate the header count (MIN-1).**
     Region: INSPECTOR CONTENT > Neighbors. Change
     `41: 29 binding, 8 activation, 4 catalysis` to
     `29 binding, 8 activation, 4 catalysis`; the section header's `41` is the

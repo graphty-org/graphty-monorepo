@@ -15,7 +15,7 @@
  * even random20k misses) every fixture is printed. One summary line per (fixture, dimension) carries both sizes'
  * numbers for the record; (2) an isolated node's
  * total force after G7 is gravity plus the field of the other nodes at the strays' equilibrium (the design's
- * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbour are
+ * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbor are
  * printed for the record); the unbiasedness item (3) moved to grid-unbiased.test.ts, whose header says why;
  * (6) issue #90: a core with outlier groups on opposite sides beyond the extent, asserted on every adapter;
  * (4) expansion parity:

@@ -11,7 +11,7 @@
  * carries the f32 of the model's `0.1 - dt * idx`); with a `fixed` mask the pinned rows are bitwise the seed on both
  * sides at every k; and a scale 3 / center (10, 20, 0) case with the mask, where the CPU class writes
  * `layout * scale + center` exactly as the GPU's toScene does, agrees within the same tolerance at the fixed case's
- * largest admitted horizon, 10, with the plan's k = 20 printed (the derived-tolerance form of the fr-behaviour "not
+ * largest admitted horizon, 10, with the plan's k = 20 printed (the derived-tolerance form of the fr-behavior "not
  * rescaled" box; in layout units its dynamics are the fixed case's, which is NOT admitted at 20: the f32 oracle is
  * 5.9e-4 from the f64 there). The start MUST be the seeded array: layout's load() seeds NaN rows itself.
  *

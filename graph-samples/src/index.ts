@@ -1,5 +1,5 @@
 /**
- * `@graphty/graph-samples`: the shared types, the dataset catalogue, the loader for the datasets
+ * `@graphty/graph-samples`: the shared types, the dataset catalog, the loader for the datasets
  * (every one is downloaded from graphty.app on demand; none is bundled) and the conversion to
  * graphty-element records. The generators live in `@graphty/graph-samples/generators`.
  */

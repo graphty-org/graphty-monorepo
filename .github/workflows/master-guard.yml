@@ -3,8 +3,8 @@
 # - CI red: opens a revert of the commit when its parent was green, and opens a priority:critical issue; when the
 #   failure looks external (an outside service's error, a lost runner, the same job red on an earlier commit) it
 #   re-runs the failed jobs instead of reverting, and the issue names the evidence;
-# - CI cancelled or never started (a job past its timeout ends the run cancelled): the same priority:critical
-#   issue, no revert; not when a newer master push cancelled it
+# - CI canceled or never started (a job past its timeout ends the run canceled): the same priority:critical
+#   issue, no revert; not when a newer master push canceled it
 #   (ci.yml cancels an unfinished master build when a newer one starts: expected, never a red master);
 # - either way: closes its own revert pull requests that master CI shows are no longer needed;
 # - Deploy to GitHub Pages red (canary.graphty.app did not get the green master build): opens, or adds to, one

@@ -22,6 +22,6 @@ controller.abort();
 try {
     await loading;
 } catch (err) {
-    // a cancelled load is not an error to show the user
+    // a canceled load is not an error to show the user
     console.log(isAbortError(err) ? "cancelled" : `failed: ${String(err)}`);
 }

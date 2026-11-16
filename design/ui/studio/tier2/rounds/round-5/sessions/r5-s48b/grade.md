@@ -41,7 +41,7 @@ selected).
   pressing Escape twice). He saved through the main menu's Save (not Control+S) and reopened from
   the Recent projects row by position.
 - **Steps:** 19 `real.mjs` steps after the start (02 to 20), several of them chaining two or three
-  clicks. The key's success path is about 13 commands. The extra steps are the cancelled first
+  clicks. The key's success path is about 13 commands. The extra steps are the canceled first
   note (2), the refused "Graph" click (1), the hover on "+" (1), the local copy (1) and the
   "1 note" click (1).
 - **Wrong turns:** 1. The first Add note (step 04) opened with the PageRank run as its target

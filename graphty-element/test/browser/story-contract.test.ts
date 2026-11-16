@@ -178,7 +178,7 @@ describe("the pairing between a story's setup and the render function that under
      *
      * `run()` DOES execute play, so play is where an assertion goes, and this is what stops the
      * next story being added without one. It cannot check that the play function asserts anything
-     * -- a function's behaviour is not readable from outside it -- so the second case below asks
+     * -- a function's behavior is not readable from outside it -- so the second case below asks
      * the cheapest question that gets close: a play function that awaits nothing has not read the
      * scene, because every reading in stories/assertions.ts is asynchronous.
      */

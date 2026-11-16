@@ -82,7 +82,7 @@ interface OracleFold {
 }
 
 /**
- * A simulation's iteration-start state, as resync() seeds it (P3-T5 PLAN DECISION 17, the re-synchronised trace
+ * A simulation's iteration-start state, as resync() seeds it (P3-T5 PLAN DECISION 17, the re-synchronized trace
  * legs): the controller as K4 left it after the previous iteration, K1's statistics of the iteration about to run,
  * and F(t-1) per node (stride 3, the paper-mode swing reference; null keeps load()'s zeros).
  */
@@ -561,8 +561,8 @@ export class ForceAtlas2Oracle {
     }
 
     /**
-     * Re-synchronises the reference with a simulation's iteration-start state (P3-T5 PLAN DECISION 17: the
-     * re-synchronised legs of fa2-trace-parity.test.ts, fa2-twins.test.ts and fa2-properties.test.ts seed a FRESH
+     * Re-synchronizes the reference with a simulation's iteration-start state (P3-T5 PLAN DECISION 17: the
+     * re-synchronized legs of fa2-trace-parity.test.ts, fa2-twins.test.ts and fa2-properties.test.ts seed a FRESH
      * oracle from the GPU's positions and this state before every iteration, so one step() is compared with one
      * GPU iteration and the chaotic amplification of the free-running trajectory, spec 7.16, never enters the
      * comparison). The pending partials are cleared: the next step() folds nothing, exactly as FA2_FLAG_FIRST does,
@@ -599,7 +599,7 @@ export class ForceAtlas2Oracle {
      * What the next step()'s K1 would write from the last step()'s partials (the fold of contract 4.5 over the
      * integrate just performed: centroid, rmsRadius and layoutRadius about the centroid of that step, the mean free
      * displacement, the settle counter), without advancing; null before the first step() (K1 folds nothing then).
-     * The re-synchronised legs compare it with the K1 statistics the GPU reports for its next iteration.
+     * The re-synchronized legs compare it with the K1 statistics the GPU reports for its next iteration.
      * @returns the fold or null
      */
     peekFold(): OracleFold | null {
@@ -676,7 +676,7 @@ export class ForceAtlas2Oracle {
             centroid: [this.centroid[0], this.centroid[1], this.centroid[2]] as const,
         };
         if (n === 0) {
-            // An empty graph runs no GPU work (spec 11.4 behaviour pins): the state is reported unchanged.
+            // An empty graph runs no GPU work (spec 11.4 behavior pins): the state is reported unchanged.
             const empty: OracleTraceRecord = {
                 swing: this.swingValue,
                 traction: this.tractionValue,
@@ -1111,7 +1111,7 @@ export class ForceAtlas2Oracle {
  * @param seed - the LCG seed (null / 0: unseeded)
  * @param dim - 2 or 3
  * @param scale - the scene scale
- * @param center - the scene centre or null for the origin
+ * @param center - the scene center or null for the origin
  * @returns 3 x nodeCount scene-unit coordinates
  */
 export function seededScenePositions(
@@ -1128,7 +1128,7 @@ export function seededScenePositions(
 }
 
 /**
- * The resolved scene centre of an option record.
+ * The resolved scene center of an option record.
  * @param center - the option value
  * @returns [x, y, z]
  */
@@ -1142,7 +1142,7 @@ function centerOf(center: ArrayLike<number> | undefined): readonly [number, numb
 /**
  * Runs the oracle for `iterations` from a scene-unit array and returns the scene-unit result (the toScene inverse
  * applied). The layout-unit start is rounded to f32 in BOTH precisions because the GPU holds positions as vec4f
- * (D23), which keeps "same start" exact for every scale and centre.
+ * (D23), which keeps "same start" exact for every scale and center.
  * @param s - the snapshot
  * @param scenePositions - 3 x nodeCount scene-unit coordinates (finite)
  * @param options - the oracle options (scale / center / dim from the FA2 options)

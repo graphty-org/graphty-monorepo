@@ -17,7 +17,7 @@
  * tens of thousands, while every visual size in the element -- node size, edge width, label size,
  * arrow size -- is an absolute scene unit tuned for the plus-or-minus-100 box the one-shot engines
  * publish into. So the simulation is given an array of ITS OWN, and `publishPositions()` maps it
- * into the element's: the widest radius about its own centre, over the rows that publish actually
+ * into the element's: the widest radius about its own center, over the rows that publish actually
  * writes, becomes `scalingFactor`, recomputed at every publish so a settling graph holds its
  * apparent size instead of flying out of frame. Everything written the other way -- a drag, a pin replay, a
  * `setNodePosition`, the seed -- arrives in scene units and is divided back out, so a dragged node
@@ -156,13 +156,13 @@ const POINT_RADIUS = 1e-6;
 export interface LayoutEnvelope {
     /** What a simulation-unit offset from {@link LayoutEnvelope.centre} is multiplied by. */
     readonly scale: number;
-    /** The arrangement's centre, in the simulation's own units. */
+    /** The arrangement's center, in the simulation's own units. */
     readonly centre: readonly [number, number, number];
     /**
      * How many rows the measurement actually saw.
      *
      * Zero is the one answer a caller must not act on: it means the arrangement has nothing in
-     * it to fit, and the scale and centre beside it are the identity rather than a measurement.
+     * it to fit, and the scale and center beside it are the identity rather than a measurement.
      */
     readonly placed: number;
     /** The measured rows' box in the simulation's own units: min x, y, z then max x, y, z; empty for none. */
@@ -172,9 +172,9 @@ export interface LayoutEnvelope {
 /**
  * Measures the arrangement a simulation currently holds, and says how to publish it.
  *
- * The centre is the mean of the placed rows and the scale is `scalingFactor` divided by the
- * furthest row's distance from that centre, so a published arrangement is exactly
- * `scalingFactor` units from its centre at its widest whatever the simulation's own equilibrium
+ * The center is the mean of the placed rows and the scale is `scalingFactor` divided by the
+ * furthest row's distance from that center, so a published arrangement is exactly
+ * `scalingFactor` units from its center at its widest whatever the simulation's own equilibrium
  * turned out to be. A row that is not finite -- the element's "not laid out yet" -- counts for
  * neither, and an arrangement that measures as a point (see {@link POINT_RADIUS}) publishes at
  * its own size rather than being divided by nothing.
@@ -191,7 +191,7 @@ export interface LayoutEnvelope {
  * @param nodeCount - How many rows of it to measure.
  * @param scalingFactor - The scene-unit radius the arrangement is to be published at.
  * @param held - Answers true for a row the caller will not publish, or null to measure them all.
- * @returns The centre to publish about, the multiplier to publish with, and how many rows were
+ * @returns The center to publish about, the multiplier to publish with, and how many rows were
  * measured.
  */
 export function measureEnvelope(
@@ -262,13 +262,13 @@ function sumPlaced(
 }
 
 /**
- * The largest squared distance of a row not held from a centre.
+ * The largest squared distance of a row not held from a center.
  * @param positions - A stride-3 array.
  * @param nodeCount - How many rows of it.
  * @param held - Answers true for a row to leave out, or null.
- * @param cx - The centre's x.
- * @param cy - The centre's y.
- * @param cz - The centre's z.
+ * @param cx - The center's x.
+ * @param cy - The center's y.
+ * @param cz - The center's z.
  * @returns The squared distance, 0 for none.
  */
 function furthestSquared(
@@ -323,7 +323,7 @@ export function packedRadius(radii: F32, dimensions: 2 | 3): number {
 
 /**
  * The scene-unit point an arrangement is published around.
- * @param centre - Whatever the options carry, in the layout package's `ArrayLike` form.
+ * @param center - Whatever the options carry, in the layout package's `ArrayLike` form.
  * @returns The three components, defaulting to the origin.
  */
 function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, number, number] {
@@ -639,10 +639,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** What a simulation-unit offset from {@link SimulationLayoutEngine.#simCentre} is multiplied by. */
     #envelopeScale = 1;
 
-    /** The arrangement's centre at the last publish, in the simulation's own units. */
+    /** The arrangement's center at the last publish, in the simulation's own units. */
     readonly #simCentre: [number, number, number] = [0, 0, 0];
 
-    /** Where the element expects the arrangement's centre to be, in scene units. */
+    /** Where the element expects the arrangement's center to be, in scene units. */
     readonly #targetCentre: [number, number, number];
 
     /**
@@ -2254,7 +2254,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // implementation at all, so without an accelerator that computes it there is nothing to
         // run. `createSimulation` refuses too, with a plain `Error`; refusing here gives the
         // consumer the code they would switch on for any other missing accelerator, and the
-        // layout catalogue says the engine needs one, so nobody has to try it to find out.
+        // layout catalog says the engine needs one, so nobody has to try it to find out.
         if (!decision.accelerated && this.simulationType === "spring-electrical") {
             throw new GraphtyError({
                 code: "E_NO_ACCELERATOR",

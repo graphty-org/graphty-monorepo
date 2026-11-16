@@ -89,7 +89,7 @@ R-25 (busy dev GPU vs the 3x benchmark rule).
 
 ## Cross-section reconciliation performed after the edits
 
-- `exactMaxNodes` 16,384 labelled conservative everywhere (D7, 3.1, 7.8, 7.14,
+- `exactMaxNodes` 16,384 labeled conservative everywhere (D7, 3.1, 7.8, 7.14,
   R-2, Q-6, Summary); `calibrateLayout` ladder 8k-65k; T-4's exact ladder and
   the grid ladder named once and cited from 7.8, 11.7, T-4, P3, P4.
 - Tolerances: 1e-5 everywhere except BC and the one-iteration force parity at

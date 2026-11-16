@@ -20,7 +20,7 @@ Grace: "Lots of rankings. I don't want a ranking, I want a route. Let me type 'p
 
 ## Step 2
 
-`--step <folder> --type "path"`. 03.png: Betweenness, Edge betweenness, All-pairs distance, and under "Find paths and edge sets": "Shortest path" (Start here) -- "The fewest steps, or the shortest path by weight, between two nodes." -- and "Guided route" (greyed, "Select 2 nodes first").
+`--step <folder> --type "path"`. 03.png: Betweenness, Edge betweenness, All-pairs distance, and under "Find paths and edge sets": "Shortest path" (Start here) -- "The fewest steps, or the shortest path by weight, between two nodes." -- and "Guided route" (grayed, "Select 2 nodes first").
 
 Grace: "Shortest path, fewest steps. Exactly what I want."
 

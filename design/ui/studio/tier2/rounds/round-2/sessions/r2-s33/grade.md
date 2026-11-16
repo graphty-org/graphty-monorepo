@@ -8,7 +8,7 @@ Hana 0.06428, Ivan 0.06141 -- every value the answer key gives. Dev's answer, "B
 first (PageRank 0.06394). Now ... Ava is first (0.08012) and Farah is second (0.06556)", matches
 the key on both names. The grade is SD, not S, because the first route was a detour: Dev opened
 friends-v2.csv from the main menu's "Open project or file...", which led to the "Add to friends"
-page, and he cancelled it there (`05.png`, `06.png`) before finding "Replace with file..." in the
+page, and he canceled it there (`05.png`, `06.png`) before finding "Replace with file..." in the
 source inspector's "..." menu. Nothing was added, so no work had to be undone.
 
 Build seen: `8f0d5a6f7791 graphty@0.8.61` (session.json), the frozen build named in the criteria,
@@ -26,7 +26,7 @@ at 1440 x 900. Start: setup friends-ranked.txt (friends.csv, PageRank run, Size 
 - **Rerun (right).** `13.png` and `15.png`: new run time, key and Top 10 as above.
 - **Not a wrong answer.** Not `stale-read`: between Replace and Rerun Dev saw the old Top 10
   (Farah first, `12.png`) and said the table had not been redone yet. Not `added-not-replaced`:
-  he read "82 edges" on the Add to page and cancelled.
+  he read "82 edges" on the Add to page and canceled.
 - **Weight line.** Dev quoted the Replace page's line ("PageRank reads higher as closer") as his
   reason to leave "Higher means" at Not set, and pointed to Made with's "weight (read as closer)"
   as showing both runs used the same rule. Recorded as the key asks; nothing there needed choosing.
@@ -43,7 +43,7 @@ at 1440 x 900. Start: setup friends-ranked.txt (friends.csv, PageRank run, Size 
   task: only Cancel and Load (which adds). Recorded as a broken habit on that door; it becomes a
   confirmed finding only if a second T21 session makes the same first move.
 - **First move:** the Values tab (to note the first name), then the main menu.
-- **Recovery:** yes; the wrong turn was cancelled and the session succeeded.
+- **Recovery:** yes; the wrong turn was canceled and the session succeeded.
 - **False "done":** none. "Done!" after Rerun (`13.png`) and "Saved. I'm done." (`15.png`, toast
   "Saved friends in this browser.") are both true on screen. truth_on_screen: holds.
 - **Ease (from the transcript):** 5 of 7. Not used for the grade.

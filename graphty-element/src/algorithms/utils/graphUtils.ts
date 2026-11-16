@@ -1,6 +1,6 @@
 /**
  * @file Helpers the adapters share: matching an `@graphty/algorithms` answer back onto an edge,
- * refusing a node option that names no node, and the neighbour order a walk tries.
+ * refusing a node option that names no node, and the neighbor order a walk tries.
  */
 
 import type { AdjacencyView, U32 } from "@graphty/graph-format";
@@ -8,9 +8,9 @@ import type { AdjacencyView, U32 } from "@graphty/graph-format";
 import { GraphtyError } from "../../errors";
 
 /**
- * The order a walk tries each node's neighbours in: the order their edges were declared.
+ * The order a walk tries each node's neighbors in: the order their edges were declared.
  *
- * An index-based walk tries a node's arcs in row order, which is neighbour index order. The
+ * An index-based walk tries a node's arcs in row order, which is neighbor index order. The
  * element's walks have always tried them in the order the edges were declared, and a depth-first
  * order, a strongly connected component's number and the nodes a breadth-first walk expands
  * before it reaches its target all depend on it. Passed to a port as `arcOrder`, this keeps them.
@@ -119,7 +119,7 @@ export function requireDistinctEnds(algorithm: string, source: string | number, 
  * HITS, Katz and eigenvector centrality carry an `endpoints` option in their schemas, where it
  * has always been accepted and read by nothing: whether a path's two ends count is a question for
  * betweenness, and none of these methods has an answer to it. A reader who switched it on was told nothing, so the run now says so
- * rather than publishing a result that looks as though the option was honoured. `false`, the
+ * rather than publishing a result that looks as though the option was honored. `false`, the
  * default, is accepted, so a saved document that carries the default still loads and runs.
  * @param algorithm - The method, for the message.
  * @param endpoints - The option as the caller resolved it.

@@ -108,7 +108,7 @@ const ArrowStyle = z.strictObject({
     /**
      * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
-     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * in this cap's color and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
      * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
      * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
@@ -117,18 +117,18 @@ const ArrowStyle = z.strictObject({
      */
     stack: z.string().optional(),
     /**
-     * The colour to draw the cap in, or unset to follow the line it caps.
+     * The color to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
-     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset colour is how an
+     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset color is how an
      * arrow is told to follow its line -- and a default here fills one in whenever the arrow key
      * is present at all, which made that fallback unreachable for the head. With the head pinned
      * and the tail (optional, and absent from the element's defaults) unpinned, one magenta edge
-     * with caps at both ends was drawn with a magenta tail and a grey head.
+     * with caps at both ends was drawn with a magenta tail and a gray head.
      */
     color: ColorStyle.optional(),
     /**
-     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * The color an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
      * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
      * empty. Other cap types ignore it.
      */
@@ -195,7 +195,7 @@ const LineStyle = z.strictObject({
     /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
-     * Unset means "as many as the spacing rule asks for", which is the historical behaviour:
+     * Unset means "as many as the spacing rule asks for", which is the historical behavior:
      * the elements sit one and a half element-widths apart, so a longer edge gets more of
      * them and a THINNER line gets more of them too. Each element is a real mesh with its
      * own draw call, so on a large graph at a small line width that count can reach tens of
@@ -485,7 +485,7 @@ export const EdgeStyle = z.strictObject({
     xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
-     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
+     * Drawn only when it names a color. `scale` is a multiple of twice the line's width; the
      * `edge.band*` channels write it.
      */
     band: z

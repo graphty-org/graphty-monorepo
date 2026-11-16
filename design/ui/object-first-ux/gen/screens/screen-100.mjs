@@ -1,6 +1,6 @@
 // Screen 100: VR, before and after. Karate Club in screen 3's state. The
 // reader has just come back from a VR session in which they asked for the
-// path from node 12 to node 34 and grabbed node 34's neighbours: the two new
+// path from node 12 to node 34 and grabbed node 34's neighbors: the two new
 // objects are at the top of the tree, marked new (the paler fill), and the
 // status bar says "Back from VR: 2 objects added". The right-click menu on the
 // VR segment (what to take into the headset) is drawn above it, tagged as

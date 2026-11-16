@@ -167,7 +167,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         const targetIndex =
             targetNode === null || !preOrder ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
-        /* Each node's neighbours are tried in the order their edges were declared, as the element's
+        /* Each node's neighbors are tried in the order their edges were declared, as the element's
            walks always have: the order IS the result here. A post-order walk runs to the end, since
            a node's place is known only once everything below it is done, so a target stops only a
            pre-order walk and a post-order one reaches everything it can. A recursive walk records

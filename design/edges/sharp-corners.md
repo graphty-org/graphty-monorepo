@@ -76,8 +76,8 @@ indices per bend, 11.4 ms update at 50,000 edges.
 
 One instance per piece that reads four points: the corner before it, its own start and end, and
 the corner after it. The vertex shader moves the piece's end vertices onto the miter points it
-shares with its neighbour, and past the miter limit draws its half of the miter clipped flat (see
-"Past the miter limit"). Neighbours compute
+shares with its neighbor, and past the miter limit draws its half of the miter clipped flat (see
+"Past the miter limit"). Neighbors compute
 the shared vertices from the same points with the same arithmetic, so they meet exactly. It works
 in screen pixels, so one shader serves 2D and 3D. One draw call, no extra instances, 14 floats per
 piece instead of a 16-float matrix, and no trigonometry on the CPU: the 50,000-edge update fell
@@ -138,7 +138,7 @@ It is the only option that fixes the notch and the translucent overlap together.
 draw call per appearance, adds no instances, and is cheaper than what it replaces on the CPU,
 because a piece is fourteen floats copied rather than a matrix composed with trigonometry. It is
 the approach the established GPU line renderers take: deck.gl's path layer, regl-gpu-lines, pygfx
-and Mapbox and MapLibre's line layers all give each segment its neighbours and build the join on
+and Mapbox and MapLibre's line layers all give each segment its neighbors and build the join on
 the GPU or in the vertex data.
 
 ## The three fixes
@@ -152,7 +152,7 @@ three defects.
    rectangle with square ends, plus the outer half of the join -- the miter up to the limit,
    clipped past it -- and the overlap on the inside is resolved per fragment. The line through the
    corner along the bisector splits the overlap: each piece keeps the fragments on its own side,
-   and gives up a fragment on its neighbour's side only when the neighbour's rectangle covers it.
+   and gives up a fragment on its neighbor's side only when the neighbor's rectangle covers it.
    Both pieces compute that line from the same three points with the same arithmetic, so the two
    tests are exact complements: every pixel of the union is drawn exactly once, at any angle,
    including a U-turn.
@@ -163,7 +163,7 @@ three defects.
 3. **Dashes at a bend (a white sliver inside sharp bends).** Each piece measured dash distance
    along itself, so on each side of the corner's bisector the inside of the bend got a different
    distance. Now a fragment in the overlap is drawn when either piece's dash covers it, measured
-   along that piece -- the same pixels as dashing the centre line and then stroking every dash,
+   along that piece -- the same pixels as dashing the center line and then stroking every dash,
    which is what SVG and Canvas draw. The outer join takes the distance at the corner.
 
 The browser test `graphty-element/test/browser/edge-corner-joins.test.ts` draws the scene above and
@@ -172,24 +172,24 @@ checks every bend against the canvas reference, for all three.
 ### Who draws a pixel where pieces overlap
 
 The split at the bisector was later restated as a rule that also covers pieces that are not
-neighbours and the 3D camera's perspective (issues #3096 and #3114):
+neighbors and the 3D camera's perspective (issues #3096 and #3114):
 
-- **Each piece reads five pieces:** itself, its neighbours and the pieces two away (a slot carries
+- **Each piece reads five pieces:** itself, its neighbors and the pieces two away (a slot carries
   the corners two back and two ahead, 20 floats). A piece shorter than the line is wide lets the
   pieces either side of it overlap each other, along their whole length when they run side by side.
-- **Of the pieces whose shape covers a pixel's centre, the one whose centre line is nearest draws
+- **Of the pieces whose shape covers a pixel's center, the one whose center line is nearest draws
   it, the earlier on a tie.** A shape is the piece and the joins at its corners. Between two
-  neighbours the nearest-line split is the bisector, so this is the old rule there; past a short
+  neighbors the nearest-line split is the bisector, so this is the old rule there; past a short
   piece it settles the overlap of the pieces either side, and where three pieces overlap exactly
   one draws, because distance orders them. Inside a join at a piece's own corner the two pieces'
   triangles already split it along that same line, so there the rasterizer decides.
 - **Every piece tests the same point with the same numbers.** The fragment's position interpolated
   from a varying is off by a few hundredths of a pixel, differently in each piece's triangles, so
-  the shader snaps it to the centre of the pixel being drawn (it reads the viewport's size in
+  the shader snaps it to the center of the pixel being drawn (it reads the viewport's size in
   pixels as each draw binds). Two pieces compare a pair of distances from the same point by the
   same arithmetic, so their tests are exact complements; distances within 0.001 px tie, so two
   pieces along one line (a U-turn) split by order rather than by rounding.
-- **Under perspective a piece is a trapezoid,** wider at its nearer end, and a neighbour is tested
+- **Under perspective a piece is a trapezoid,** wider at its nearer end, and a neighbor is tested
   at its width at both ends, as its triangles draw it.
 - **Coverage is tested 0.05 px inside the edges first,** where it always agrees with what the
   rasterizer drew (it snaps corners to a sub-pixel grid). Only a pixel no shape covers by that much
@@ -197,15 +197,15 @@ neighbours and the 3D camera's perspective (issues #3096 and #3114):
 
 ### Corners the two pieces share exactly
 
-The rule above splits a pixel by its centre, and a `discard` throws away all of a pixel's samples.
+The rule above splits a pixel by its center, and a `discard` throws away all of a pixel's samples.
 The element draws with multisampling on, so a pixel on the boundary between two pieces has samples
-in both: the piece that does not own its centre discarded the samples only it covered, the pixel
+in both: the piece that does not own its center discarded the samples only it covered, the pixel
 was left part covered, and a light line crossed the curve at every join of its up to 64 pieces
 (issue #5799). WebGL has no per-sample discard, so no per-pixel rule can fix that.
 
 So where it can, a corner is not split by a rule at all: both pieces end at the corner's miter
 line, the line through its two miter points, and the side vertices at that end sit on those points
-(the join's triangles fold away to the centre). Both pieces compute the two points from the same
+(the join's triangles fold away to the center). Both pieces compute the two points from the same
 three corners and the same half width with the same arithmetic, so their triangles share one exact
 edge and the rasterizer splits every pixel on it by sample, with nothing lost and nothing drawn
 twice. Neither piece then tests the other, or the piece beyond it, for ownership. A corner is
@@ -255,7 +255,7 @@ line runs on 4 half-widths past the corner, or as far as the shorter piece, whic
 ![The 60 degree bend as the camera turns from 60 to 80 degrees: bevel above, miter-clip below](images/corner-rotation-3d.png)
 
 The shader keeps one draw call and one instance per piece: each piece's half of the join is two
-triangles, centre to side to where the side meets the clip line, and centre to there to the clip
+triangles, center to side to where the side meets the clip line, and center to there to the clip
 line's point on the bisector. Unclipped, both join vertices sit on the miter tip and the second
 triangle is empty. The template grows from 10 to 14 vertices and from 6 to 8 triangles. The extent
 is computed along the line, `(limit - cos h) * hw / sin h` past the corner where `h` is half the
@@ -310,7 +310,7 @@ wide with its opacity scaled by its width, as a canvas draws a hairline.
 
 - **Dash and dot, on a bent edge or a curve**, are drawn by the same joined line, the pattern in
   its fragment shader, measured along the whole edge: dash and dot lengths, widths and the
-  even spacing (first element at the start, last at the end, `line.patternCount` honoured) are the
+  even spacing (first element at the start, last at the end, `line.patternCount` honored) are the
   pattern elements' own, so a bent dashed edge matches a straight one beside it. A dot is round.
   A dashed curve used to be drawn solid; it is dashed now.
 - **Dash and dot on a straight edge** are still drawn by `PatternedLineMesh`, unchanged. Moving
@@ -366,7 +366,7 @@ draws plain edges as pulled pieces, one non-instanced draw (`test/browser/millio
 - **Pieces three apart can overlap.** A piece reads the pieces two away, not three, so two pieces
   in a row shorter than the line is wide can let the pieces either side of them overlap, and a
   translucent line shows that overlap darker.
-- **A dash on a piece two away is placed at its neighbour's scale.** Under perspective the dash
+- **A dash on a piece two away is placed at its neighbor's scale.** Under perspective the dash
   there can be off by a fraction of a pixel; in 2D the scale is the same for every piece.
 
 ## Prior art

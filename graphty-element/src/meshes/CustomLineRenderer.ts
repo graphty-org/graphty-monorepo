@@ -74,7 +74,7 @@ export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
     width: number;
-    /** Hex colour. */
+    /** Hex color. */
     color: string;
     /** Opacity 0-1; default 1. */
     opacity?: number;
@@ -534,10 +534,10 @@ void main(void) {
 
     /**
      * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
-     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
-     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * its neighbors at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbors is the same rectangle the line renderer always drew, at the same
      * width, so a straight edge looks exactly as it did.
-     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param options - Width, color, opacity, the width's unit and a dash or dot pattern.
      * @param scene - The scene it is drawn in.
      * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
      */
@@ -1041,7 +1041,7 @@ void main(void) {
      * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
      * draw and off again after it. Moving the line to the transparent pass instead would reorder
      * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
-     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * one pixel or more at full opacity -- blends to exactly the color it wrote before.
      * @param mesh - The line mesh.
      * @param blend - Straight alpha over (a line, a surface), premultiplied over or added (an effect).
      */
@@ -1141,7 +1141,7 @@ void main(void) {
         // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
         // re-derives its defines on every readiness check, and everything set on it later is a
         // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
-        // colour cost the size of the graph (issue #2894).
+        // color cost the size of the graph (issue #2894).
         shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;

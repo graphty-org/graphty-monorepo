@@ -50,7 +50,7 @@ export class PendingErrorSlot {
 }
 
 /**
- * The WebGpuGraphError for one uncaptured GPUError: E_OUT_OF_MEMORY for a GPUOutOfMemoryError (recognised
+ * The WebGpuGraphError for one uncaptured GPUError: E_OUT_OF_MEMORY for a GPUOutOfMemoryError (recognized
  * by its class name so no global is read, spec 2.1 rule 1), E_VALIDATION otherwise.
  * @param error - the event's error
  * @param label - the device label the error is attributed to

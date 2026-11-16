@@ -17,7 +17,7 @@ this design has to cover:
 
 ## 1. Problem
 
-graphty-element has no undo. `InputManager` recognises Ctrl+Z and Ctrl+Shift+Z and emits
+graphty-element has no undo. `InputManager` recognizes Ctrl+Z and Ctrl+Shift+Z and emits
 `input:undo` / `input:redo` (`graphty-element/src/managers/InputManager.ts:297`, `:299`), and
 nothing listens. The graphty app has its own history store
 (`graphty/src/components/shell/topbar/undoStore.ts`) that two call sites push to and that
@@ -60,7 +60,7 @@ A consumer that wanted undo today would have to rebuild all of the above.
 
 ### Goals
 
-1. `session.undo()`, `session.redo()`, `canUndo`, `canRedo`, and `session.history`: a labelled
+1. `session.undo()`, `session.redo()`, `canUndo`, `canRedo`, and `session.history`: a labeled
    list of steps, with change events.
 2. Everything a project file would save is undoable, and nothing else is.
 3. Every change to project state goes through one dispatcher. The dispatcher records each step's
@@ -103,7 +103,7 @@ A consumer that wanted undo today would have to rebuild all of the above.
 stack", and section 4.11.2 gives each journal entry an `inverse: Command`. Issue #427 reverses
 the first half: the element owns the history. Inverses are not published as commands, because an
 inverse that must hold a `RunResult` by reference, or a previous graph snapshot, cannot be a
-serialisable command. Section 4.11.1's `view.mode` op is split in two (section 10.5). Those
+serializable command. Section 4.11.1's `view.mode` op is split in two (section 10.5). Those
 sections of the element API design are updated to point here.
 
 ---
@@ -117,18 +117,18 @@ outside the slices is exempt.** The list is also the boundary of the future proj
 enforces the rule both ways (section 12): every slice change is recorded, and an exempt command
 changes no slice.
 
-| Slice         | Holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Kind        | Lives today in                                                                                                                                                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph`       | Topology and row order, every builder column of every row (including the seed and edge-id columns), direction and its provenance, node and edge records (attributes), graph-level results, the import report, the import source descriptor, the graph token and the graph epoch                                                                                                                                                                                            | op-log      | `GraphStore.builder` (`data/GraphStore.ts:111`), `Node.data` / `Edge.data`, `DataManager.graphResults`, `DataManager.importReport` (`DataManager.ts:1050`, `:1606`), the element's `#dataSource` / `#dataSourceConfig` |
-| `pins`        | The set of pinned node ids                                                                                                                                                                                                                                                                                                                                                                                                                                                 | op-log      | pin bytes in the positions lane (`data/positions.ts:314`)                                                                                                                                                              |
-| `config`      | The keys of `ProjectConfig` (section 10.1): the whole data configuration in the element's existing shape (`data.knownFields.*` -- every id, label, weight and time path, the repeated-edge policy, position scale and id coercion -- plus `data.algorithms` and `data.directed`), whether the on-load algorithms run, background, selection style, and three layout-behaviour keys (`layout.preSteps`, `layout.stepMultiplier`, `layout.minDelta`). One slice key per leaf | keyed value | `Graph.styles.config`, written in place (`graphty-element.ts:777-1107`, `Graph.ts:998`, `:1038`, `:1060`); the element's private mirrors                                                                               |
-| `layout`      | `{ id: LayoutId, engine: string, options, dimension: "2d" \| "3d" }`. `engine` is the registered engine that draws the layout; the catalogue maps several engines to one `LayoutId` (`force` is drawn by ngraph, d3 or forceatlas2, `catalog/layouts.ts:130-153`), so the id alone does not say which one was chosen                                                                                                                                                       | keyed value | the live engine (`managers/LayoutManager.ts:276`), `config.graph.viewMode`, `config.graph.twoD`, `scene.metadata.twoD`                                                                                                 |
-| `arrangement` | The node coordinates at rest                                                                                                                                                                                                                                                                                                                                                                                                                                               | capture     | the positions lane (`data/positions.ts:130`), the engine's own copy, and the private `savedZPositions` map (`Graph.ts:271`)                                                                                            |
-| `runs`        | `RunId -> RunEntry`: finished runs                                                                                                                                                                                                                                                                                                                                                                                                                                         | keyed value | `RunsApi` maps (`session/runs/RunsApi.ts:377-386`, `:677-682`), the auto-apply `painted` set (`styles/autoApply.ts:208`)                                                                                               |
-| `styles`      | The frozen, compiled layer stack                                                                                                                                                                                                                                                                                                                                                                                                                                           | value       | `stack` closure (`StylesApi.ts:976`)                                                                                                                                                                                   |
-| `visibility`  | `{ filter, window, showContext }`. The masks are derived from these, not state (section 3.4)                                                                                                                                                                                                                                                                                                                                                                               | keyed value | closures at `session/visibility/VisibilityApi.ts:422-424`                                                                                                                                                              |
-| `sets`        | `SetId -> ElementSet`: the kept sets, deep-frozen records written only by the `set.*` ops. Beside the slice, never rewound: the issued-id register, the order high-water mark, the tombstones, the edge seeds and the resolution cache (design/sets/undo-integration.md section 1)                                                                                                                                                                                         | keyed value | `SetsStore` over the dispatcher (`session/sets/store.ts`)                                                                                                                                                              |
-| `views`       | Saved camera views, `name -> CameraState`                                                                                                                                                                                                                                                                                                                                                                                                                                  | keyed value | `Graph.userCameraPresets` (`Graph.ts:185`)                                                                                                                                                                             |
+| Slice         | Holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Kind        | Lives today in                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph`       | Topology and row order, every builder column of every row (including the seed and edge-id columns), direction and its provenance, node and edge records (attributes), graph-level results, the import report, the import source descriptor, the graph token and the graph epoch                                                                                                                                                                                           | op-log      | `GraphStore.builder` (`data/GraphStore.ts:111`), `Node.data` / `Edge.data`, `DataManager.graphResults`, `DataManager.importReport` (`DataManager.ts:1050`, `:1606`), the element's `#dataSource` / `#dataSourceConfig` |
+| `pins`        | The set of pinned node ids                                                                                                                                                                                                                                                                                                                                                                                                                                                | op-log      | pin bytes in the positions lane (`data/positions.ts:314`)                                                                                                                                                              |
+| `config`      | The keys of `ProjectConfig` (section 10.1): the whole data configuration in the element's existing shape (`data.knownFields.*` -- every id, label, weight and time path, the repeated-edge policy, position scale and id coercion -- plus `data.algorithms` and `data.directed`), whether the on-load algorithms run, background, selection style, and three layout-behavior keys (`layout.preSteps`, `layout.stepMultiplier`, `layout.minDelta`). One slice key per leaf | keyed value | `Graph.styles.config`, written in place (`graphty-element.ts:777-1107`, `Graph.ts:998`, `:1038`, `:1060`); the element's private mirrors                                                                               |
+| `layout`      | `{ id: LayoutId, engine: string, options, dimension: "2d" \| "3d" }`. `engine` is the registered engine that draws the layout; the catalog maps several engines to one `LayoutId` (`force` is drawn by ngraph, d3 or forceatlas2, `catalog/layouts.ts:130-153`), so the id alone does not say which one was chosen                                                                                                                                                        | keyed value | the live engine (`managers/LayoutManager.ts:276`), `config.graph.viewMode`, `config.graph.twoD`, `scene.metadata.twoD`                                                                                                 |
+| `arrangement` | The node coordinates at rest                                                                                                                                                                                                                                                                                                                                                                                                                                              | capture     | the positions lane (`data/positions.ts:130`), the engine's own copy, and the private `savedZPositions` map (`Graph.ts:271`)                                                                                            |
+| `runs`        | `RunId -> RunEntry`: finished runs                                                                                                                                                                                                                                                                                                                                                                                                                                        | keyed value | `RunsApi` maps (`session/runs/RunsApi.ts:377-386`, `:677-682`), the auto-apply `painted` set (`styles/autoApply.ts:208`)                                                                                               |
+| `styles`      | The frozen, compiled layer stack                                                                                                                                                                                                                                                                                                                                                                                                                                          | value       | `stack` closure (`StylesApi.ts:976`)                                                                                                                                                                                   |
+| `visibility`  | `{ filter, window, showContext }`. The masks are derived from these, not state (section 3.4)                                                                                                                                                                                                                                                                                                                                                                              | keyed value | closures at `session/visibility/VisibilityApi.ts:422-424`                                                                                                                                                              |
+| `sets`        | `SetId -> ElementSet`: the kept sets, deep-frozen records written only by the `set.*` ops. Beside the slice, never rewound: the issued-id register, the order high-water mark, the tombstones, the edge seeds and the resolution cache (design/sets/undo-integration.md section 1)                                                                                                                                                                                        | keyed value | `SetsStore` over the dispatcher (`session/sets/store.ts`)                                                                                                                                                              |
+| `views`       | Saved camera views, `name -> CameraState`                                                                                                                                                                                                                                                                                                                                                                                                                                 | keyed value | `Graph.userCameraPresets` (`Graph.ts:185`)                                                                                                                                                                             |
 
 A `RunEntry` is `{ command, record, result, painted, derived, stale }`: the command that
 produced it, its run record, the `RunResult` by reference, whether auto-apply has painted it,
@@ -147,17 +147,17 @@ graph changed while it computed. The dedupe identity (`identities` today) is com
 | A run or import still in flight, and a mask evaluation                                          | In-flight computation. A run or import becomes a step when it commits; masks are derived (section 3.4) |
 | Acceleration policy, `accelerationMinNodes`, injected accelerators                              | A preference about this machine's hardware                                                             |
 | Input enabled, profiling, render settings                                                       | View and session control                                                                               |
-| `pinOnDrag` (graph-wide `node.pinOnDrag` in layout behaviour, and per node)                     | An interaction preference                                                                              |
-| `labels.declutter` in layout behaviour                                                          | A view preference                                                                                      |
-| `layout.maxInFlight`, `layout.iterationsPerStep`, `layout.zoomStepInterval` in layout behaviour | Throughput tuning for this machine and view cadence, like the acceleration settings                    |
-| `layout.type` in layout behaviour                                                               | Not a second home: it is derived from the `layout` slice                                               |
+| `pinOnDrag` (graph-wide `node.pinOnDrag` in layout behavior, and per node)                      | An interaction preference                                                                              |
+| `labels.declutter` in layout behavior                                                           | A view preference                                                                                      |
+| `layout.maxInFlight`, `layout.iterationsPerStep`, `layout.zoomStepInterval` in layout behavior  | Throughput tuning for this machine and view cadence, like the acceleration settings                    |
+| `layout.type` in layout behavior                                                                | Not a second home: it is derived from the `layout` slice                                               |
 | `layoutBehavior.fetchNodes` / `fetchEdges`                                                      | Functions: code, not data                                                                              |
 | Registries (algorithms, layouts, data sources, palettes, camera views, accelerators, log sinks) | Code, not data                                                                                         |
 | A layer's `userData`                                                                            | Owned by the consumer, kept by reference, documented as outside the contract                           |
 | Direct Babylon.js mesh, material and scene writes                                               | Rendering. The next derivation overwrites them; documented as outside the contract                     |
 
 The exempt view settings that today share `Graph.styles.config` with project settings (camera
-distance, the immersive mode, and the exempt layout-behaviour keys above, including the second
+distance, the immersive mode, and the exempt layout-behavior keys above, including the second
 home of `pinOnDrag` at `Graph.ts:190`) move to a small mutable view-settings store on `Graph`. The
 element's `layoutBehavior` setter splits its argument: the three project keys go to `config.set`,
 the rest to the view-settings store, and a `layout.type` in it becomes a `layout.set` in the same
@@ -351,7 +351,7 @@ would pay two rebuilds that cancel. So a history call applies the parts of a gra
 proportional to the patch -- the records map, the graph-level values, the pins, the token --
 synchronously, and appends the structural part (insert rows at recorded indices, remove ids,
 replace the whole builder with a kept snapshot) to a pending list on `GraphStore`, which already
-freezes lazily (`getSnapshot`). The builder is materialised once, on the next read of the snapshot
+freezes lazily (`getSnapshot`). The builder is materialized once, on the next read of the snapshot
 or the builder, or in the derivation pass, after the pending list is folded to its net effect: an
 insert followed by the removal of the same ids cancels, a replace discards everything queued before
 it, and of several replaces only the last target is built. The synchronous part of a history call
@@ -491,7 +491,7 @@ building, is queued:
 
 Style, visibility, scope, view and config edits used to share the queue with runs
 (`StylesApi.ts:1181`, `VisibilityApi.ts:640`, one queue of concurrency 1 per
-`GraphSession.ts:1085-1089`, `OperationQueueManager.ts:197`), which put a colour edit behind a
+`GraphSession.ts:1085-1089`, `OperationQueueManager.ts:197`), which put a color edit behind a
 minutes-long Betweenness run. They were queued so that their repaint or mask pass would not read the
 graph under a running writer. Both are now derivations (section 9), which run on their own lane
 against committed state, so the edit itself is a synchronous value write and needs no slot.
@@ -502,11 +502,11 @@ dispatched later, and history records what committed, in the order it committed.
 random-sequence model follows the committed order it observes, not the order it dispatched. When
 the queue obsoletes a command's slot (`constants/obsolescence-rules.ts:39-73`,
 `OperationQueueManager.ts:336-423`), that is a cancellation with reason `"obsolete"`: the group is
-rolled back, nothing is recorded, and the caller's promise or run handle reports cancelled. It is
+rolled back, nothing is recorded, and the caller's promise or run handle reports canceled. It is
 never settled as resolved, so the dispatcher never seals a partial draft. The obsolescence rules
 that remain are a newer `layout-set` replacing a running one (the same op replacing an older one,
-as coalescing does) and a data edit cancelling a run below 90% progress, which is in-flight
-computation, not yet a step, and is reported as cancelled.
+as coalescing does) and a data edit canceling a run below 90% progress, which is in-flight
+computation, not yet a step, and is reported as canceled.
 
 An undoable command's `ctx` carries a `Draft`. The draft has the primitives of section 3.4 and a
 typed setter per value slice (`draft.styles = next`, `draft.runs.set(id, entry)`,
@@ -555,7 +555,7 @@ reader's own edit -- so the dispatcher needs a rule for two groups writing the s
 keys from a group's first command until it seals would deadlock: a transaction's `fn` that awaits
 a door outside `tx` touching a key `tx` wrote would wait on the command, the command on the seal,
 and the seal on `fn`. And a run that held the style stack from its start until its commit would
-freeze every colour edit for the length of the run. So holds are short, and the rule differs by
+freeze every color edit for the length of the run. So holds are short, and the rule differs by
 kind of slice.
 
 **Value slices hand the key over.** A command holds a key only while its own `execute` writes it,
@@ -644,7 +644,7 @@ that a hand-over leaves each value key in exactly one open patch.
 7. When the group seals: hand its patch to `History`, publish events in the order of section 9.3,
    and schedule the derivation (section 9).
 
-**Doors resolve late.** A door whose argument is not serialisable, or whose meaning depends on
+**Doors resolve late.** A door whose argument is not serializable, or whose meaning depends on
 state at the moment it runs, hands the dispatcher a function from current state to a concrete
 command, called when the command executes. History records the concrete command. This is how
 `styles.removeBySource(predicate)` becomes `style.patch { action: "removeBySource", ids }`, how
@@ -661,7 +661,7 @@ Code that runs inside a command's `execute` can call public doors. Enqueueing th
 running slot would deadlock if awaited, and split the step if not. Deciding membership by "is a
 command executing right now" would be time-based membership again: a run or an import awaits its
 computation for its whole execution, minutes at a million nodes, and every edit the reader made
-through the app in that window would join "Ran Betweenness" and be destroyed when an undo cancelled
+through the app in that window would join "Ran Betweenness" and be destroyed when an undo canceled
 the run. So membership stays by origin, and the closed set of commands that call back into doors
 hand that code an origin:
 
@@ -755,18 +755,18 @@ type, { applySuggestedStyles: true })` today awaits the run, or runs the legacy 
     3. run the `layout` derivation hook inline, inside the slot, to build or reconfigure the engine;
     4. spend the pre-steps, passing the engine's arrangement generation and the command's liveness
        into `spendPreSteps`. After every await it checks both, and if either changed -- an undo or
-       restore bumped the generation, or the command was cancelled or made obsolete by a newer
+       restore bumped the generation, or the command was canceled or made obsolete by a newer
        `layout-set` -- it stops **without publishing**;
     5. seal the group after the pre-steps land.
 
-    If the command is cancelled or obsoleted during the pre-steps, its rollback restores the slice,
+    If the command is canceled or obsoleted during the pre-steps, its rollback restores the slice,
     the `layout` hook rebuilds the previous engine in restore mode, and the arrangement hook writes
     the before-arrangement back (section 6.4). The round-trip fixtures include an undo, and a second
     `layout.set`, while GPU pre-steps are in flight.
 
 ### 4.8 Failure and cancellation
 
-A command that throws or is cancelled has its draft rolled back by applying the patch's inverse,
+A command that throws or is canceled has its draft rolled back by applying the patch's inverse,
 the same path undo uses. Nothing is recorded, and the state is exactly as it was, except for keys
 another group has since taken over (section 4.3), which keep that group's value. This is how a
 failed import leaves no step.
@@ -783,10 +783,10 @@ restore mode, and its rollback is not a rest point (section 6.4).
   nothing it dispatched executes after the rollback. It then reverts everything its members
   wrote, including members that already finished. When undo cancels a batch, members already committed into the group are reverted and
   the held auto-apply plan is dropped, not applied.
-- A run cancelled with reason `"undo"` never writes a `runs` entry, including the partial result
+- A run canceled with reason `"undo"` never writes a `runs` entry, including the partial result
   a `publishOnCancel` run (`Run.ts:690-695`) resolves with. The handle still settles with that
   partial result, as today.
-- **A cancelled or failed run's late value is discarded.** `Run.cancel` settles the handle
+- **A canceled or failed run's late value is discarded.** `Run.cancel` settles the handle
   immediately while an accelerator's function may still be running
   (`AccelerationController.ts:523-555`). The commit tail checks, before touching its draft, that
   the run is still live (its settled flag, `Run.ts:826-830`, is unset) and that its group's
@@ -821,8 +821,8 @@ be frozen (typed arrays) is checked in the strict build.
 
 ## 5. Steps, gestures and transactions
 
-- **One command is one step**, labelled by its definition's `label` ("Ran Degree", "Changed
-  colour of Hubs", "Loaded flights.csv"). A door may pass a more specific label.
+- **One command is one step**, labeled by its definition's `label` ("Ran Degree", "Changed
+  color of Hubs", "Loaded flights.csv"). A door may pass a more specific label.
 - **Compound verbs are one group.** `algo.remove` (run plus layers), `runs.batch`,
   `applySuggestedStyles` (an encode and a move per layer, today `Graph.ts:1764-1813`),
   `Graph.setData` (today one fire-and-forget queued op per record, `Graph.ts:4734`) and entering XR
@@ -856,7 +856,7 @@ transaction<T>(label: string,
   step. A `tx` dispatch made after that point rejects with `E_TRANSACTION_CLOSED`.
 - **Runs started through `tx` and still going when `fn` settles are deferred members.** When one
   commits: if its step is on top and applied, its patch is merged into the step
-  (`history:changed` reason `"merge"`); if its step was undone, it has already been cancelled; if
+  (`history:changed` reason `"merge"`); if its step was undone, it has already been canceled; if
   other steps have been recorded above its step, it records as its own step with
   `provenance.after` set to the transaction's step id. A deferred member that fails contributes no
   patch and does not roll anything back.
@@ -870,7 +870,7 @@ transaction<T>(label: string,
   shows the alternative: return `{ run }` to hand the handle out.
 - **Nested transactions** (`tx.transaction(...)`) flatten into the outermost one.
 - **Throw or abort.** If `fn` throws, or the `AbortSignal` fires, runs started through `tx` are
-  cancelled, every member still queued or waiting is removed, every patch in the group is rolled
+  canceled, every member still queued or waiting is removed, every patch in the group is rolled
   back in reverse order, nothing is recorded, and the error is rethrown. The transaction then
   stays **aborted** until `fn` settles: every dispatch through `tx` in that window rejects with an
   `AbortError`, so `fn`'s tail cannot write onto the rolled-back state.
@@ -920,7 +920,7 @@ not one step per call (section 7 says why that matters for eviction).
 Two keys collapse only while queued and never merge recorded steps: `element-source` on the
 element's `data.import` and `element-layout` on the element's `layout.set` (section 4.4).
 
-The app's colour picker fires `styles.update` on every drag frame
+The app's color picker fires `styles.update` on every drag frame
 (`graphty/src/components/shell/sidebar/controls/CompactColorInput.tsx:176`); it becomes one step
 with no change in the app. Each frame writes the stack at once and schedules one derivation pass,
 so frames that arrive faster than a repaint are drawn once.
@@ -953,7 +953,7 @@ so frames that arrive faster than a repaint are drawn once.
   calls now runs in its own short transaction, and every batch after the first passes
   `TransactionOptions.after` (the message's newest step), which merges it into that step while the
   step is on top, by the deferred-member rule below. A reader's step between two batches splits the
-  message. Cancelling, a throw or an undo of the message's step ends the message and undoes its
+  message. Canceling, a throw or an undo of the message's step ends the message and undoes its
   steps while each is the next thing undo would undo; a reader's step stops that. The rules a
   reader sees are in `graphty-element/docs/guide/undo.md`, "Commands you register with the AI
   assistant".
@@ -961,7 +961,7 @@ so frames that arrive faster than a repaint are drawn once.
   `abortSignal`, `emitEvent` and `updateStatus`, gains `tx: TransactionScope`. Every built-in
   command is ported to it: the style commands to `tx.styles.*`, `setLayout`
   (`LayoutCommands.ts:53`) to `tx.layout.set`, `setDimension` (`:111`) to `tx.layout.setDimension`,
-  and the algorithm commands (`AlgorithmCommands.ts:103`, `:113`) to `tx.run` for catalogue
+  and the algorithm commands (`AlgorithmCommands.ts:103`, `:113`) to `tx.run` for catalog
   algorithms and `tx.execute({ op: "algo.legacy", ... })` for plugins. The `registerCommand` guide
   says a registered command must use `ctx.tx` to join the message; a call through `ctx.graph` is
   its own step, and a throw rolls back only what went through `ctx.tx`.
@@ -1002,24 +1002,24 @@ they are never pending and undo never waits behind a run for them.
    in any case. The press returns `{ kind: "cancelled", pending }` and does not also undo the step.
 1. **Pending work newer than the top step** (queued or running work, or an open transaction,
    dispatched after the top step was recorded, or a deferred member of the top step) is
-   cancelled with reason `"undo"`. When several such items are pending, the press cancels the
+   canceled with reason `"undo"`. When several such items are pending, the press cancels the
    **newest** (last in, first out, by dispatch order), and with it every later-dispatched pending
-   item that needs a key the cancelled item holds or would write. For op-log slices that is
+   item that needs a key the canceled item holds or would write. For op-log slices that is
    conservatively every later graph writer: a queued `add-edges x-y` behind a queued
-   `add-nodes x` is cancelled with it, instead of later executing against a graph with no `x`
+   `add-nodes x` is canceled with it, instead of later executing against a graph with no `x`
    and recording a step the forward timeline never had. Dispatch order is used, not queue order,
    because the queue's batch sort may reorder them (section 4.1). An open transaction is aborted
    and rolled back. `undo()` returns `{ kind: "cancelled", pending }` listing every item it
-   cancelled, and does not also undo a step. A load whose own part has been recorded, and whose
-   degree pass is still running as a deferred member, has that pass cancelled by the first press
+   canceled, and does not also undo a step. A load whose own part has been recorded, and whose
+   degree pass is still running as a deferred member, has that pass canceled by the first press
    and the load undone by the second. A `data.apply` dispatched a moment before the press and still
-   queued is cancelled the same way: it never appeared, so cancelling it is the undo.
+   queued is canceled the same way: it never appeared, so canceling it is the undo.
 2. **Otherwise the top step is undone.** Pending work dispatched before the top step keeps
-   running, unless rule 0 applied. A Betweenness run started before a colour change is not
-   cancelled by undoing the colour change; when it finishes it records on top and discards the
+   running, unless rule 0 applied. A Betweenness run started before a color change is not
+   canceled by undoing the color change; when it finishes it records on top and discards the
    redo tail.
 
-`history.cancel(pending)` follows the same cascade: cancelling one item also cancels every
+`history.cancel(pending)` follows the same cascade: canceling one item also cancels every
 later-dispatched pending item that depends on its keys, and its return value lists them.
 
 Undo never waits for pending work to finish, so it takes effect at call time (section 6.2) even
@@ -1033,7 +1033,7 @@ The same rule is written in the `undo()` TSDoc.
 pending work dispatched after the undo that created the redo tail, and leaves older work running.
 Key holds already keep that older work's writes disjoint from the redone step's, exactly as they do
 for undo, so a Betweenness run that has been going for ten minutes survives an undo and redo of a
-colour change. When the older work commits, it records on top and discards the redo tail, as
+color change. When the older work commits, it records on top and discards the redo tail, as
 section 5 says.
 
 `restoreTo(step)` is defined as the equivalent sequence of undos or redos, applied one step at a
@@ -1085,7 +1085,7 @@ promise.
   fresh against a different graph that happens to carry the same number. This
   is today's staleness caveat, made explicit. It applies to the runs that the queue's progress
   rule already lets finish (`OperationQueueManager.ts:11`, `:389-395`: a run at 90% or more is not
-  cancelled by a data edit), and to runs started beside the queue. Throwing away minutes of
+  canceled by a data edit), and to runs started beside the queue. Throwing away minutes of
   computation because a node was added is worse than a flagged result the reader can rerun.
 - **A run keeps one handle for its whole life.** `Run` becomes a stable facade keyed by `RunId`
   whose getters read the current `RunEntry` and the current execution. History swaps entries,
@@ -1154,13 +1154,13 @@ per add.
 
 A group's before-arrangement serves two purposes. If the group records, it becomes the step's
 before-capture, so undo returns to exactly where things were when the group began. If the group
-rolls back -- it threw, was cancelled by an undo while pending, or was made obsolete -- the
+rolls back -- it threw, was canceled by an undo while pending, or was made obsolete -- the
 `arrangement` hook writes it back in restore mode, and the rollback is **not** a rest point.
-Without this, cancelling a chunked import halfway would remove the added rows but leave every
+Without this, canceling a chunked import halfway would remove the added rows but leave every
 existing node where the half-run layout had pushed it, and then seal that displaced arrangement
-into the step below as if it had been recorded there. The same applies to a `layout.set` cancelled
+into the step below as if it had been recorded there. The same applies to a `layout.set` canceled
 during its pre-steps. The round-trip fixtures cancel a chunked import mid-load and a `layout.set`
-mid-pre-steps by undo, and assert that the lane equals the capture taken before the cancelled
+mid-pre-steps by undo, and assert that the lane equals the capture taken before the canceled
 work.
 
 **Epochs.** A replacing import and `clear` take a fresh graph **epoch** (section 3.4) and seal their
@@ -1240,7 +1240,7 @@ coordinates as its own (`SimulationLayoutEngine` refills `#simPositions` and its
 them), sets `running = false` explicitly, and is left at rest. Two other paths reheat today and are
 closed while the `restoring` flag is set: the snapshot-replaced listener
 (`LayoutManager.ts:418-431`, `engine.reload(...); this.running = true`) and the reload after an
-acceleration change. Both honour the flag by reloading without setting `running`, and the `graph`
+acceleration change. Both honor the flag by reloading without setting `running`, and the `graph`
 hook feeds the layout without stepping it (section 9.1). Because the flag is set when the history
 call starts and cleared only after the `arrangement` hook has run (section 6.2), a lazy freeze
 triggered by a listener between the call and the pass cannot reheat either. Without this, the
@@ -1306,7 +1306,7 @@ is a regression from today. The strict test asserts the state digest is unchange
   When either is exceeded, mask copies (section 3.4) are dropped first, because they are a cache
   that can be recomputed. Then the oldest done steps are evicted, then the farthest redo steps.
   Eviction runs in batches: once a limit is exceeded, it evicts down to 90% of both limits, so its
-  work is amortised over many records instead of paid on every one. The latest done step and the
+  work is amortized over many records instead of paid on every one. The latest done step and the
   next redo step are never evicted, so the last action stays undoable even when it alone is over
   budget.
 - Evicted steps are removed whole. They are never kept as "not undoable" rows: undo is last in,
@@ -1330,7 +1330,7 @@ is a regression from today. The strict test asserts the state digest is unchange
   applied.
 - `history.steps` is published lazily: the history keeps an internal array, a coalesced merge
   replaces only its top element, and a frozen copy is built only when `steps` is read after a
-  version change. A colour-picker drag merging 60 times a second therefore allocates one step
+  version change. A color-picker drag merging 60 times a second therefore allocates one step
   object per merge, not a frozen array of every step.
 
 **Run results become columnar.** A `RunResult` today stores each half as an ids array, one frozen
@@ -1342,7 +1342,7 @@ as a `Float64Array` column, rank and percentile as columns, and non-numeric fiel
 over one id index per half that is shared with the resident snapshot's id order when the order
 matches. `node(id)` and `edge(id)` build their record on demand. The public surface of
 `RunResult` does not change, except that two calls to `node(id)` return equal records rather than
-the identical object. Rankings, which today memoise a full `RankingEntry[]` per field
+the identical object. Rankings, which today memoize a full `RankingEntry[]` per field
 (`RunResult.ts:593`, `:675-680`, one object per element), are cached as a `Uint32Array`
 permutation per field, 4 bytes per element. `byteSize` sums the columns and every cache the result
 holds, and is re-read when a cache is built.
@@ -1375,7 +1375,7 @@ asserts these (section 12.6).
 | Replacing import or clear                                | The previous snapshot and records map, often over 200 MB. Kept as the latest step, and after that only while the budget allows                                                |
 
 Undoing a keyed value step is a pointer swap per key. The synchronous part of undoing a data step
-is proportional to its patch; the structural part is folded and materialised once, at the next
+is proportional to its patch; the structural part is folded and materialized once, at the next
 read or in the derivation pass (section 3.4), and costs one freeze, the same order as the edit it
 reverses, plus one rebuild in the recorded order when a removal's rows were not at the end. A run
 of thirty undos pays that once, not thirty times. Undoing or redoing a replacing import costs one
@@ -1436,24 +1436,24 @@ sort reorders it (`:512-566`). It runs on its own lane in `derive.ts`:
 
 **Chunked writers derive as they go.** A chunked import and a double-click expansion schedule a
 pass after each chunk, on the open draft's partial state, so the graph grows on screen while it
-loads, as it does today. If the writer is then cancelled or fails, its rollback changes the state
+loads, as it does today. If the writer is then canceled or fails, its rollback changes the state
 back and the next pass derives that, removing the chunks already drawn and shrinking the lane,
 and the `arrangement` hook writes the writer's before-arrangement back (section 6.4).
 
 ### 9.2 The hooks
 
-| Slice         | Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `graph`       | `DataManager` folds the dirty op-lists into a net difference, creates or disposes only the net `Node` / `Edge` render objects, materialises and refreezes the store once, feeds the layout, and repaints the touched ids. In forward mode only (the `restoring` flag unset), when rows were added it also starts the layout and frames the camera, which the `data-added` listener did before (section 4.7). `Graph.updateNodes`' manual `repaintFromSession()` (`Graph.ts:1977`) goes away                                                                                                                                                                              |
-| `layout`      | Swap or reconfigure the engine in restore mode: no pre-steps, not running. Write `scene.metadata.twoD` from `layout.dimension` and rebuild the merged `Styles.config` view (section 3.2). A forward `layout.set` runs this hook inline inside its slot (section 4.7)                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `pins`        | Write the lane's pin bytes; `engine.pin` / `unpin`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `arrangement` | Write the lane, then `engine.loadArrangement(lane)` (section 6.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `runs`        | Forget prepared bindings (`painter.invalidate`), repaint the layers bound to changed run ids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `styles`      | The existing plan-and-paint path in `styles/repaint.ts`. The dirty set is the difference in layer identities between the two stacks. The slice holds the compiled layers themselves, so a restored stack comes back compiled and nothing is compiled on undo or redo                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `visibility`  | Runs after `graph`. On undo or redo, when the nearest filter step at or below the target kept a mask copy whose tags all match (section 3.4), copy its bytes into the one live `ElementMask` pair and bump its revision; otherwise evaluate the filter into that pair, as `sync()` does today. Mark the pair evaluated against the current snapshot either way. A forward filter edit evaluates and copies nothing                                                                                                                                                                                                                                                       |
-| `sets`        | Nothing to draw. The kept sets tell their change -- one `SetChange` per changed key, from the committed diff of the slice -- from `project:changed`, synchronously when a step seals and on undo, redo and restore alike (never for a rollback): the change notifier re-resolves the layers and the filter naming a changed set and repaints only the rows whose membership moved, then `set:changed` is published. The hook order puts `sets` after `runs`, which a set may read, and before `styles` and `visibility`, which read sets                                                                                                                                 |
-| `config`      | Apply background, selection style and layout behaviour, and rebuild the merged `Styles.config` view. Import settings take effect at the next import, as today. The hook owns at most one skybox dome: it disposes the current dome when the background becomes a colour or a different skybox, and creates one only when the target is a skybox the scene does not already show. Today `setBackground` creates a new `PhotoDome` on every skybox value and never disposes the last (`Graph.ts:1004-1018`), so undoing a skybox would leave the dome visible and every redo would add another. An act-then-undo story and a picture test cover colour to skybox to colour |
-| `views`       | Nothing to draw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Slice         | Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph`       | `DataManager` folds the dirty op-lists into a net difference, creates or disposes only the net `Node` / `Edge` render objects, materializes and refreezes the store once, feeds the layout, and repaints the touched ids. In forward mode only (the `restoring` flag unset), when rows were added it also starts the layout and frames the camera, which the `data-added` listener did before (section 4.7). `Graph.updateNodes`' manual `repaintFromSession()` (`Graph.ts:1977`) goes away                                                                                                                                                                          |
+| `layout`      | Swap or reconfigure the engine in restore mode: no pre-steps, not running. Write `scene.metadata.twoD` from `layout.dimension` and rebuild the merged `Styles.config` view (section 3.2). A forward `layout.set` runs this hook inline inside its slot (section 4.7)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `pins`        | Write the lane's pin bytes; `engine.pin` / `unpin`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `arrangement` | Write the lane, then `engine.loadArrangement(lane)` (section 6.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `runs`        | Forget prepared bindings (`painter.invalidate`), repaint the layers bound to changed run ids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `styles`      | The existing plan-and-paint path in `styles/repaint.ts`. The dirty set is the difference in layer identities between the two stacks. The slice holds the compiled layers themselves, so a restored stack comes back compiled and nothing is compiled on undo or redo                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `visibility`  | Runs after `graph`. On undo or redo, when the nearest filter step at or below the target kept a mask copy whose tags all match (section 3.4), copy its bytes into the one live `ElementMask` pair and bump its revision; otherwise evaluate the filter into that pair, as `sync()` does today. Mark the pair evaluated against the current snapshot either way. A forward filter edit evaluates and copies nothing                                                                                                                                                                                                                                                   |
+| `sets`        | Nothing to draw. The kept sets tell their change -- one `SetChange` per changed key, from the committed diff of the slice -- from `project:changed`, synchronously when a step seals and on undo, redo and restore alike (never for a rollback): the change notifier re-resolves the layers and the filter naming a changed set and repaints only the rows whose membership moved, then `set:changed` is published. The hook order puts `sets` after `runs`, which a set may read, and before `styles` and `visibility`, which read sets                                                                                                                             |
+| `config`      | Apply background, selection style and layout behavior, and rebuild the merged `Styles.config` view. Import settings take effect at the next import, as today. The hook owns at most one skybox dome: it disposes the current dome when the background becomes a color or a different skybox, and creates one only when the target is a skybox the scene does not already show. Today `setBackground` creates a new `PhotoDome` on every skybox value and never disposes the last (`Graph.ts:1004-1018`), so undoing a skybox would leave the dome visible and every redo would add another. An act-then-undo story and a picture test cover color to skybox to color |
+| `views`       | Nothing to draw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The session is Node-safe, so the renderer-side hooks (`layout`, `pins`, `arrangement`, `config`,
 and the render half of `graph`) are registered by `Graph.ts` on the element's session. A headless
@@ -1490,7 +1490,7 @@ Every commit and every undo, redo, restore and rollback publishes in this order:
 The per-domain events come after the derivation because `StyleChange.painted` is "How much was
 repainted" (`StylesApi.ts:446-452`, `:563-564`): today the event fires after the repaint, and a
 consumer that reads `painted` or `session.paint` on `style:changed` must keep seeing the painted
-result. When one pass covers several edits (a held Ctrl+Z, a colour-picker drag), each edit's
+result. When one pass covers several edits (a held Ctrl+Z, a color-picker drag), each edit's
 event carries that pass's merged `RepaintReport`; the TSDoc of `painted` says so. `style:changed`
 keeps its promise of one event per edit: an undo publishes one event per step undone.
 
@@ -1513,7 +1513,7 @@ A rollback publishes these events too, with cause `"rollback"`, when it reverts 
 already live (section 4.8).
 
 A listener that calls a door from inside any of these events opens its own group, as any other
-caller does; a listener that calls `undo`, `redo` or `restoreTo` is serialised after the current
+caller does; a listener that calls `undo`, `redo` or `restoreTo` is serialized after the current
 call (section 6.2).
 
 ---
@@ -1940,14 +1940,14 @@ Op names follow `element-api-design.md` section 4.11.1. New ops are marked.
 | `set.remove` (new)         | `{ id }`                                                                                                                                                                                                                                                                                                                          |
 | `set.restore` (new)        | `{ id }`: puts back the record a removal tombstoned                                                                                                                                                                                                                                                                               |
 | `layout.scope` (new)       | `{ scope }`: what layouts run over, `"graph"` for the whole graph; written at once, so a layout still waiting carries it; never refused for a scope that resolves to nothing                                                                                                                                                      |
-| `layout.set`               | as section 4.11.1, with `id: LayoutId` and `engine?: string` (the catalogue default when absent; the slice stores the engine chosen)                                                                                                                                                                                              |
+| `layout.set`               | as section 4.11.1, with `id: LayoutId` and `engine?: string` (the catalog default when absent; the slice stores the engine chosen)                                                                                                                                                                                                |
 | `positions.set`            | `{ entries }`                                                                                                                                                                                                                                                                                                                     |
 | `positions.pin` (new)      | `{ ids, pinned: boolean }`                                                                                                                                                                                                                                                                                                        |
 | `view.dimension` (new)     | `{ dimension: "2d" \| "3d" }`; replaces the 2D/3D half of `view.mode`                                                                                                                                                                                                                                                             |
 | `view.save` (new)          | `{ views: readonly { name, camera }[] }`; covers `saveCameraPreset` and `importCameraPresets`                                                                                                                                                                                                                                     |
 | `view.remove` (new)        | `{ names }`; there is no way to delete a saved view today                                                                                                                                                                                                                                                                         |
 | `config.set`               | `{ values: ProjectConfigPatch }`; project settings only. Setting a leaf to `undefined` returns it to its default                                                                                                                                                                                                                  |
-| `batch`                    | `{ steps, label? }`: a serialisable transaction                                                                                                                                                                                                                                                                                   |
+| `batch`                    | `{ steps, label? }`: a serializable transaction                                                                                                                                                                                                                                                                                   |
 
 **Exempt:**
 
@@ -1991,7 +1991,7 @@ Rule: each door keeps its signature; its body dispatches the op shown.
 
 | Door                                                                                                                                                                                                                | Becomes                                                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `runs.start`, `runs.batch`, `session.run`, `Graph.run` (`Graph.ts:1676`), element `run`, `Graph.runAlgorithm` for catalogue algorithms, `Run.rerun`                                                                 | `algo.run` (a batch is one group). `runAlgorithm`'s `applySuggestedStyles: true` becomes the command's `applySuggestedStyles` argument, so the run and its layers are one step |
+| `runs.start`, `runs.batch`, `session.run`, `Graph.run` (`Graph.ts:1676`), element `run`, `Graph.runAlgorithm` for catalog algorithms, `Run.rerun`                                                                   | `algo.run` (a batch is one group). `runAlgorithm`'s `applySuggestedStyles: true` becomes the command's `applySuggestedStyles` argument, so the run and its layers are one step |
 | `Graph.runAlgorithm` for descriptor-less plugins (`Graph.ts:1623`), `AlgorithmManager.runAlgorithm` / `runAlgorithmsFromTemplate` (`AlgorithmManager.ts:198`, `:249`), `Algorithm.get().run()` (`Algorithm.ts:509`) | `algo.legacy`, with the plugin given a group-tagged `Graph` facade (section 4.5), and `applySuggestedStyles` as an argument as above                                           |
 | `Graph.runAlgorithmsFromTemplate` (`Graph.ts:782`), `Graph.runOnLoad`                                                                                                                                               | One group whose members are the template's runs; one step                                                                                                                      |
 | The on-load runs started by the `data-added` listener (`Graph.ts:637-644`)                                                                                                                                          | Deferred members of the command that added the rows (section 4.7)                                                                                                              |
@@ -2008,7 +2008,7 @@ Rule: each door keeps its signature; its body dispatches the op shown.
 | `seed` (`StylesApi.ts:1396`)                                                                                                                                                                                                                                                               | Writes the baseline (section 3.3); no step                                                                                                                                                                                                    |
 | AI style commands (`ai/commands/StyleCommands.ts:283`, `:441`, `:467`), AI layout and dimension commands (`LayoutCommands.ts:53`, `:111`), AI algorithm commands (`AlgorithmCommands.ts:103`, `:113`), commands added through `registerCommand`                                            | Reach `ctx.tx`, which dispatches into the message's transaction (section 5.3)                                                                                                                                                                 |
 | `visibility.set`, `setWindow`, `showContext =` (`VisibilityApi.ts:816-828`)                                                                                                                                                                                                                | `visibility.set`, `visibility.window`, `visibility.context`, all immediate: the edit writes the filter value at once and the mask evaluation runs on the derivation lane against the latest filter, so a superseded filter is never evaluated |
-| `sets.create`, `createFrom`, `createPath`, `combine`, `rename`, `redefine`, `addMembers`, `removeMembers`, `remove`, `restore` (`session/sets/SetsApi.ts`); the deprecated `scope.save` and `scope.remove` (`ScopeApi.ts`), which forward to them; `selection.promote` (`SelectionApi.ts`) | `set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove`, `set.restore`. The materialising doors resolve their source on their own time, then mint and dispatch one `set.create` with a concrete definition in one tick        |
+| `sets.create`, `createFrom`, `createPath`, `combine`, `rename`, `redefine`, `addMembers`, `removeMembers`, `remove`, `restore` (`session/sets/SetsApi.ts`); the deprecated `scope.save` and `scope.remove` (`ScopeApi.ts`), which forward to them; `selection.promote` (`SelectionApi.ts`) | `set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove`, `set.restore`. The materializing doors resolve their source on their own time, then mint and dispatch one `set.create` with a concrete definition in one tick        |
 
 ### 11.4 Layout, positions, dimension, views, settings
 
@@ -2066,7 +2066,7 @@ dispatch fails naming the slice.
 - a definition's `undo.kind` disagrees with `COMMANDS`;
 - an exempt op changes the state digest when dispatched, including `view.immersive` from 2D and
   from 3D and `layout.transport` measured around its dispatch;
-- a `config.set` names a key outside `ProjectConfig`, and each exempt layout-behaviour key of
+- a `config.set` names a key outside `ProjectConfig`, and each exempt layout-behavior key of
   section 3.2 leaves the digest unchanged when set;
 - a leaf of the zod `DataConfig` schema is neither a `config` slice key nor on the exempt list with
   a reason (section 10.1);
@@ -2083,7 +2083,7 @@ one of three expectations: the op it dispatches, `exempt` with a reason, or `kno
 issue. The test calls each door with a spy on the dispatcher. It fails when a door dispatches
 something other than its expectation, and when a `knownGap` door now dispatches, so the gap list
 can only shrink. Work lands in stages that each pass on their own, with the unported doors on the
-gap list keeping today's behaviour; the last stage empties it.
+gap list keeping today's behavior; the last stage empties it.
 
 The test also covers:
 
@@ -2091,7 +2091,7 @@ The test also covers:
   list is built from every property row of the door list, not written by hand and not from a list
   of ops, so all twenty-one properties of section 4.6, including `nodeData` and `edgeData`, and any
   added later are covered;
-- `runAlgorithm(ns, type, { applySuggestedStyles: true })`, for a catalogue algorithm and for a
+- `runAlgorithm(ns, type, { applySuggestedStyles: true })`, for a catalog algorithm and for a
   descriptor-less plugin, yields exactly one step, and one undo removes the run and its layers
   together (section 4.7);
 - with `algorithmsOnLoad` set, `addNodes` yields exactly one step with the on-load runs as its
@@ -2173,8 +2173,8 @@ Fixtures written for specific failure modes:
   The same with a layout that settles between the chunks of a replacing import (the previous
   dataset's lane is restored exactly), with an app-style load transaction, and with a drag held
   still until the layout settles.
-- **Cancelled work restores the arrangement.** Undo cancels a chunked import mid-load, and a
-  `layout.set` mid-pre-steps: the lane equals the capture taken before the cancelled work, and
+- **Canceled work restores the arrangement.** Undo cancels a chunked import mid-load, and a
+  `layout.set` mid-pre-steps: the lane equals the capture taken before the canceled work, and
   the step below keeps its capture bytes.
 - **Pre-steps in flight.** Undo, and separately a second `layout.set`, while GPU pre-steps are in
   flight: nothing the first command computed is published.
@@ -2183,10 +2183,10 @@ Fixtures written for specific failure modes:
   bytes are unchanged.
 - **Assistant abort.** Undo mid-message: no further tool runs and `CommandContext.abortSignal`
   fired.
-- **Background.** Colour, then skybox, then colour, undo twice and redo twice: the scene holds at
-  most one dome, and none while the background is a colour.
+- **Background.** Color, then skybox, then color, undo twice and redo twice: the scene holds at
+  most one dome, and none while the background is a color.
 - **Keys.** In `graphty-element/test/browser/history-keys.test.ts`, one Mod+Z on a focused canvas
-  moves `history.position` by exactly one, with a window-level listener that honours
+  moves `history.position` by exactly one, with a window-level listener that honors
   `defaultPrevented` attached.
 
 ### 12.5 Random sequences (`random-sequences.test.ts`)
@@ -2216,7 +2216,7 @@ state whose first load was dispatched after mount (a step), from the state after
   row order (section 6.1, rule 0);
 - dependent data edits queued behind each other (add nodes, then add edges between them), with
   undo or `history.cancel` in the middle of the queue: no dependent item executes after the item
-  it depends on was cancelled;
+  it depends on was canceled;
 - `restoreTo` forward into the redo tail while an older run is still running: the run survives;
 - more `positions.set` steps than `limitSteps` with coalescing off, then undo-all: the lane equals
   the baseline with the evicted steps' patches applied (section 7).
@@ -2263,7 +2263,7 @@ Timing assertions in both run with strict state off; strict overhead is reported
 
 - `graphty-element/stories/Undo.stories.ts`: an untouched baseline story, and act-then-undo
   stories for an import, a run with auto-applied styling, a style edit, a filter, a pin and a
-  drag, a layout switch, a 2D to 3D switch and a 3D to 2D switch, a colour to skybox background
+  drag, a layout switch, a 2D to 3D switch and a 3D to 2D switch, a color to skybox background
   change, and a saved view. Each play function acts and then awaits
   `session.undo()`. Chromatic locks each snapshot; the new snapshots need the owner's approval.
 - Chromatic compares a story with its own previous snapshot, not with another story. Equality
@@ -2466,7 +2466,7 @@ These are one-way doors: published names and shapes, or breaking changes.
    (with `mode` and `layout: "recommended"`), `NodeRecordInput`, `EdgeRecordInput`,
    `RowUpdate`, `PositionEntry`; `applySuggestedStyles` on `algo.run` and `algo.legacy`;
    `cause` on the element's `data-added`, `elements-removed` and `data-loaded` events;
-   `HistoryOutcome` and `nextUndo` listing every cancelled item, and `history.cancel` returning
+   `HistoryOutcome` and `nextUndo` listing every canceled item, and `history.cancel` returning
    them; and on the element and `Graph`: `removeEdges`, `updateEdges`, `removeCameraPreset` and
    the `historyKeys` property.
 2. **The op names**, which follow `element-api-design.md` section 4.11.1, plus the new ops marked
@@ -2476,7 +2476,7 @@ These are one-way doors: published names and shapes, or breaking changes.
    from time-based to origin-based membership later would change what every existing transaction
    records.
 
-### 15.2 Behaviour and type-level breaks
+### 15.2 Behavior and type-level breaks
 
 Each with the migration a consumer makes:
 
@@ -2525,7 +2525,7 @@ the names had been released (the owner confirmed that unpublished names are not 
 Two more names follow from the port and are decided the same way: `layout.scope`, the op
 `Graph.setLayoutScope` and the element's `layoutScope` property dispatch (a layout chosen with a
 scope in `setLayout` records it in `layout.set`), and `scope` on the `layout` slice's
-`LayoutChoice`. And one behaviour is settled in undo's favour: a re-run keeps the result it
+`LayoutChoice`. And one behavior is settled in undo's favor: a re-run keeps the result it
 replaces until it publishes a new one, because the result is project state in the `runs` slice.
 The sets branch had cleared the result while a re-run was queued; its execution token and the
 input tick now move only when the new result is published.
@@ -2570,17 +2570,17 @@ Everything else in this document is reversible and decided here.
 
 | Alternative                                                                                                               | Why not                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An inverse command written per door (`element-api-design.md` section 4.11.2's `inverse: Command`)                         | About 150 doors, each a place for undo to be wrong. An inverse that must hold a `RunResult` or a previous snapshot by reference is not a serialisable command. The issue forbids commands writing their own undo                                                                          |
+| An inverse command written per door (`element-api-design.md` section 4.11.2's `inverse: Command`)                         | About 150 doors, each a place for undo to be wrong. An inverse that must hold a `RunResult` or a previous snapshot by reference is not a serializable command. The issue forbids commands writing their own undo                                                                          |
 | A consumer-owned undo stack (section 4.3.3)                                                                               | Every consumer would rebuild the same history; the architecture rules put it in the element                                                                                                                                                                                               |
 | A graph snapshot per step                                                                                                 | Each freeze copies the whole graph (`freeze.ts:621`), so every data edit would cost a full graph                                                                                                                                                                                          |
 | A persistent chunked record table shared between versions                                                                 | History keeps op-logs, never old versions of the graph, so structural sharing buys nothing a plain map of frozen records does not                                                                                                                                                         |
 | Immer                                                                                                                     | It handles neither typed arrays nor million-entry maps efficiently, and the state has a handful of known slice shapes; no dependency is needed                                                                                                                                            |
 | Plugin algorithm results in a separate sink, overlaid on `node.data` at read time                                         | Plugins write through arbitrary code against `Graph`, so a sink cannot intercept them without changing the plugin contract; and every record read would merge across every legacy run                                                                                                     |
 | Grouping follow-on work by running it in the same queue slot                                                              | Loads bypass the queue, batches and `now` runs run beside it, and an import that awaited its on-load runs in its own slot would deadlock on the single-slot queue. Explicit groups name their members instead                                                                             |
-| Transaction membership by time (every commit while open joins)                                                            | Browsers have no async-context tracking, so unrelated edits, including the reader's own drags and colour changes during a long load, would join and be rolled back with it. A `tx` handle scopes membership without holding the queue, so it does not deadlock                            |
+| Transaction membership by time (every commit while open joins)                                                            | Browsers have no async-context tracking, so unrelated edits, including the reader's own drags and color changes during a long load, would join and be rolled back with it. A `tx` handle scopes membership without holding the queue, so it does not deadlock                             |
 | A transaction that stays open until every run it started finishes                                                         | A minutes-long run would hold the step open and swallow later edits. Deferred members join only while their step is on top                                                                                                                                                                |
 | Whole-slice before and after values for every value slice                                                                 | A synchronous writer and a queued writer of different fields of one slice would overwrite each other on commit or rollback. Keyed prior values and key hand-over make them independent                                                                                                    |
-| Holding every key a group declared from its first command until it seals                                                  | A transaction whose `fn` awaits a door outside `tx` on a key it wrote deadlocks, and a run holding the style stack until it commits freezes every colour edit for the run's length. Short holds with hand-over for values, and an immediate error for op-log ids, remove both             |
+| Holding every key a group declared from its first command until it seals                                                  | A transaction whose `fn` awaits a door outside `tx` on a key it wrote deadlocks, and a run holding the style stack until it commits freezes every color edit for the run's length. Short holds with hand-over for values, and an immediate error for op-log ids, remove both              |
 | Letting undo drain queued edits before it acts                                                                            | Style and filter edits shared the queue with runs, so undo waited behind a minutes-long run. Making those edits immediate removes the drain                                                                                                                                               |
 | Inlining any untagged dispatch into whichever queued command is executing                                                 | Time-based membership again: a reader's edit during a long run joins the run and is destroyed when undo cancels it. Only the plugin facade inlines                                                                                                                                        |
 | Declaring row order outside the undo contract and making the digest order-independent                                     | Row order feeds the fingerprint, the paint columns and every cache keyed on them; they would miss after every undo of a removal. Restoring order costs one rebuild, the same order as the freeze an undo already pays                                                                     |
@@ -2591,7 +2591,7 @@ Everything else in this document is reversible and decided here.
 | A capture per `moves` command, including adds                                                                             | At a million nodes with a running layout, adding nodes one at a time would copy 12 MB per add. Captures at rest points and deliberate moves cost one copy per thing a person does                                                                                                         |
 | Recording a layout re-run from transport as its own step                                                                  | Every settle after an add or a drag would then need its own step as well. Sealing rest points into the seal target covers all of them; the app's explicit "Re-run" uses `layout.set` to be its own step                                                                                   |
 | Showing a 2D layout flat in a VR or AR headset                                                                            | Keeps XR free of steps, but a flat graph in a device whose point is depth is a regression from today                                                                                                                                                                                      |
-| Undo cancelling the newest pending item regardless of age                                                                 | A run started minutes ago would be cancelled by the press meant for the colour change after it, and a queued colour-picker frame would absorb a press with no visible effect                                                                                                              |
+| Undo canceling the newest pending item regardless of age                                                                  | A run started minutes ago would be canceled by the press meant for the color change after it, and a queued color-picker frame would absorb a press with no visible effect                                                                                                                 |
 | Demoting old steps to "not undoable" before evicting them (section 4.11.2)                                                | Undo is last in, first out: a step that cannot be undone makes every older step unreachable while still paying for it                                                                                                                                                                     |
 | Coalesce keys opened and closed by gesture ids (section 4.11.1's table)                                                   | Every consumer would have to report gesture boundaries. A key plus a time window needs no consumer code, and the element's own drag is a transaction                                                                                                                                      |
 | An `undo-keys="element" \| "host"` attribute                                                                              | `preventDefault` plus a boolean covers both cases                                                                                                                                                                                                                                         |
@@ -2605,6 +2605,6 @@ Everything else in this document is reversible and decided here.
 | A restorable `graphVersion` counter as the row-identity tag                                                               | Undo rewinds it and the next commit reissues the same number for different rows, and key hand-over can leave it unchanged across a rollback that changed rows. A never-reissued token avoids both                                                                                         |
 | A flat `ProjectConfig` (`nodeIdPath`, `algorithmsOnLoad`, `directed` at the top) beside the existing `SessionConfig.data` | Two spellings of one value, and a hand-written key list that already missed four known fields. Reusing the `DataConfig` shape and deriving the keys from its schema keeps one spelling and follows the schema                                                                             |
 | A per-domain event for each of the seven slices that have none                                                            | Seven new published names that say nothing `project:changed { slices, cause }` does not                                                                                                                                                                                                   |
-| Reverting a style or visibility edit when its `Run` is cancelled                                                          | The edit is already recorded and may be coalesced into a larger step; a late cancel would have to split the step. Undo is the way back                                                                                                                                                    |
+| Reverting a style or visibility edit when its `Run` is canceled                                                           | The edit is already recorded and may be coalesced into a larger step; a late cancel would have to split the step. Undo is the way back                                                                                                                                                    |
 | Keeping `store` / `records` injection on `createGraphSession` with history disabled                                       | A session whose `canUndo` is always false for reasons invisible at the call site is a trap; the write verbs cover the headless case                                                                                                                                                       |
 | `nodeData` / `edgeData` getters that return the last array assigned                                                       | After an undo they report a graph that no longer exists, and a declarative host that re-renders with that value re-adds the undone nodes                                                                                                                                                  |

@@ -15,7 +15,7 @@ import { checkShapeContract, type RunResult } from "../../../src/session/results
 import { bindResultPath } from "../../../src/session/results/types";
 import { createMockGraph } from "../../helpers/mockGraph";
 
-/** The seven metrics this file covers, with the catalogue key each one must agree with. */
+/** The seven metrics this file covers, with the catalog key each one must agree with. */
 const METRICS = [
     { key: "degree", make: (g: Graph): MetricAlgorithm => new DegreeAlgorithm(g) },
     { key: "betweenness", make: (g: Graph): MetricAlgorithm => new BetweennessCentralityAlgorithm(g) },
@@ -56,7 +56,7 @@ describe("metric results", () => {
                 const result = await runMetric(metric.make);
 
                 assert.strictEqual(result.shape, declared.shape);
-                // The catalogue names the run "$"; the result names the run it belongs to (#354).
+                // The catalog names the run "$"; the result names the run it belongs to (#354).
                 assert.deepStrictEqual(
                     result.fields,
                     declared.fields.map((field) => ({ ...field, path: bindResultPath(field.path, result.runId) })),

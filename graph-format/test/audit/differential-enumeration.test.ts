@@ -8,7 +8,7 @@
  * algorithms build them.
  *
  * Two tests in this file (named "FINDING:") pin audit findings that have since been fixed; each
- * asserts the agreed behaviour:
+ * asserts the agreed behavior:
  *
  * - "outEdgesOf / inEdgesOf on an undirected builder ..." -- the builder's `outEdgesOf(u)` on an
  *   UNDIRECTED builder used to return only the edges whose DECLARED source is u; it now agrees with
@@ -137,7 +137,7 @@ function keyOf(id: NodeId): string {
     return typeof id === "number" ? `n:${String(id)}` : `s:${id}`;
 }
 
-/** Multiset key of an edge; undirected edges are normalised to an unordered pair. */
+/** Multiset key of an edge; undirected edges are normalized to an unordered pair. */
 function edgeKey(directed: boolean, source: NodeId, target: NodeId, weight: number): string {
     const a = keyOf(source);
     const b = keyOf(target);

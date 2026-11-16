@@ -1,14 +1,14 @@
 /**
- * The generator catalogue: every generator as plain data -- its name, a default plain name, one
+ * The generator catalog: every generator as plain data -- its name, a default plain name, one
  * line saying what it builds, and its main parameters with defaults that make a readable graph of
  * at most a few hundred nodes. `generateGraph(name, params)` from `@graphty/graph-samples/generators`
- * runs one. Nothing here is code, so the catalogue survives `JSON.stringify` and loads without the
+ * runs one. Nothing here is code, so the catalog survives `JSON.stringify` and loads without the
  * generators themselves.
  */
 
 import { NAMED_GRAPH_NAMES } from "./named.js";
 
-/** One parameter of a generator in the catalogue. */
+/** One parameter of a generator in the catalog. */
 export interface GeneratorParamDescriptor {
     /** The key `generateGraph` takes it under. */
     readonly name: string;
@@ -26,7 +26,7 @@ export interface GeneratorParamDescriptor {
     readonly choices?: readonly string[];
 }
 
-/** One generator in the catalogue. */
+/** One generator in the catalog. */
 export interface GeneratorDescriptor {
     /** The name `generateGraph` takes: the generator function's name in kebab case, without "Graph". */
     readonly name: string;

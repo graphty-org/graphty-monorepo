@@ -112,7 +112,7 @@ class SlabBuilder {
     /**
      * Texture coordinates laid flat across the shape's box, u left to right and v bottom to top,
      * so a texture (a gradient fill's ramp) covers the face the way it covers a square. Without
-     * them every vertex samples one texel and a gradient draws as one flat colour.
+     * them every vertex samples one texel and a gradient draws as one flat color.
      * @returns Two coordinates per vertex.
      */
     private planarUvs(): number[] {
@@ -250,13 +250,13 @@ export interface NodeExtents {
 }
 
 /**
- * Centre a built node mesh on its origin and scale it to the node's extents, baking both into its
+ * Center a built node mesh on its origin and scale it to the node's extents, baking both into its
  * vertices so its instances, its bounds and an edge's ray all see the same geometry.
  *
  * WHY "ACROSS THE VIEW". Every shape at one size covers the same extent in the plane a 2D camera
  * looks at, which is what a reader compares and what a file's node size means. Babylon builds its
  * shapes at whatever size its own parameters give -- an octahedron of size 1 is 2.83 across, a
- * sphere 1 -- so without this a diamond in a file was drawn nearly three times its neighbours.
+ * sphere 1 -- so without this a diamond in a file was drawn nearly three times its neighbors.
  * Depth keeps the shape's own proportion unless the node asks for one.
  * @param mesh - The mesh, as its creator built it.
  * @param extents - What to scale it to.
@@ -301,8 +301,8 @@ export function fitNodeMesh(mesh: Mesh, extents: NodeExtents): void {
 }
 
 /**
- * Whether a centring and scaling would leave a mesh where it is.
- * @param cx - The centre's x.
+ * Whether a centering and scaling would leave a mesh where it is.
+ * @param cx - The center's x.
  * @param cy - Its y.
  * @param cz - Its z.
  * @param sx - The scale along x.

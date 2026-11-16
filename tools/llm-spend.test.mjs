@@ -50,7 +50,7 @@ describe("spendWarning", () => {
 });
 
 // A fake Actions API over one run, in the jobs API's shape ({ total_count, jobs: [{ id, run_id, run_attempt, name,
-// steps: [{ name, conclusion, completed_at }] }] }). Modelled on run 40476709992 (2026-10-27, 223 jobs over two
+// steps: [{ name, conclusion, completed_at }] }] }). Modeled on run 40476709992 (2026-10-27, 223 jobs over two
 // attempts): every page of 25 or more jobs that holds one particular job answers 502, every time.
 function fakeRun({ total = 223, poison = 30, failSizes = 25, flaky = 0 } = {}) {
     const jobs = Array.from({ length: total }, (_, i) => ({

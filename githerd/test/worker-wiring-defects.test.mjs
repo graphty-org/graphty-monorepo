@@ -142,7 +142,7 @@ describe("a job cancelled while its worktree is being prepared", () => {
                 return { ok: true, salvage: null };
             },
         });
-        // Design 7.8: a cancelled job's worktree is removed. A locked, installed and built worktree
+        // Design 7.8: a canceled job's worktree is removed. A locked, installed and built worktree
         // that no record names is never removed by anything.
         expect(removed).toEqual([join(dir, "wt", "issue-7")]);
     });

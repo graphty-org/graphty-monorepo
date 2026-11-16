@@ -20,7 +20,7 @@ for (const nd of NODES) {
   if (SET.includes(CONF_OF[nd.id])) byId[nd.id].outline = { color: "ink", width: 2 };
 }
 
-// 16 bins over the real betweenness values, normalised to the tallest bin.
+// 16 bins over the real betweenness values, normalized to the tallest bin.
 const vals = Object.values(BETWEENNESS), lo = Math.min(...vals), hi = Math.max(...vals);
 const bins = Array(16).fill(0);
 for (const v of vals) bins[Math.min(15, Math.floor(((v - lo) / (hi - lo)) * 16))]++;

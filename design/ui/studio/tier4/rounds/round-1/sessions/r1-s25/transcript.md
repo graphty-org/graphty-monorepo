@@ -55,9 +55,9 @@ Did I finish? Yes. Two files, both in my browser's downloads folder:
 Ease: 6 out of 7. "..." next to the table had Export in it, the dialog already had CSV and the right table picked, and it defaulted to everything, not just what the filter shows. The preview of the actual file is the best part -- I could see it was a normal spreadsheet before saving.
 
 What confused or annoyed me:
-- The export lives behind an unlabelled "..." on the table. I found it because I poke at "..." buttons, but I'd have liked a word on it, or Export in the main menu where I'd look first.
+- The export lives behind an unlabeled "..." on the table. I found it because I poke at "..." buttons, but I'd have liked a word on it, or Export in the main menu where I'd look first.
 - The "Styles lost in CSV" warning, twice. I'm exporting a spreadsheet; of course there are no colors. The first time the yellow line already told me; turning it orange and making me press "Save anyway" each time is a nag. "Save anyway" also sounds like I'm doing something risky.
-- "Lost in CSV: ... node order changes, 2 more" -- I don't know what "node order changes" means and "2 more" hides the rest behind Details. Small grey text, hard to read without my glasses.
+- "Lost in CSV: ... node order changes, 2 more" -- I don't know what "node order changes" means and "2 more" hides the rest behind Details. Small gray text, hard to read without my glasses.
 - The file names say "nodes" and "edges". I'd rename them "sites" and "routes" before sending to a treasurer. Would be nice if it used the source names (pantries / deliveries).
 - The export didn't tell me where the files went beyond "Exported pantries_nodes.csv" -- I know browsers drop things in Downloads, the treasurer's volunteer might not.
 - Site P13 comes out as a blank row. The app knew (warning triangle on "Target" and on the source), but the export didn't warn me that I'm sending a row with no name. I'd have to explain that to the treasurer.

@@ -1945,7 +1945,7 @@ is enough: Turn shows another side.
 - **Main menu > Add custom model...**: command `model.custom`, group "Project",
   `feature: "node-models"`, sets `dialog: "custom-model"`, disabled as `shader.add` is ("No project
   is open", "The graph is still loading"); in the menu section with Add Shader..., before it. Add
-  model, labelled **Add to project** here, renames if needed, writes no layer, closes and shows a
+  model, labeled **Add to project** here, renames if needed, writes no layer, closes and shows a
   notice "police added to the project" (spoken too); the model is then an In this project tile,
   and stays one after save and reopen (14.4 item 5).
 - With node-models off the command is not shown and the button's pop-over is never reached.

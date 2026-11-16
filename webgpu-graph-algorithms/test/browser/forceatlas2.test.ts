@@ -1,7 +1,7 @@
 /**
  * Browser leg of the ForceAtlas2 simulation (spec 11.6 item 3; contract 5.5 P3 row test/browser/forceatlas2.test.ts):
  * the smoke on a 500-node graph -- load, step(10) five times with maxInFlight 2, positions written back, setPosition
- * and setFixed honoured, dispose clean -- plus the 11.4 frame-loop test (the 600-tick run, the setPosition-during-
+ * and setFixed honored, dispose clean -- plus the 11.4 frame-loop test (the 600-tick run, the setPosition-during-
  * flight run and the pause run of test/layouts/frame-loop.test.ts) on Chromium: SwiftShader on the default lane,
  * the NVIDIA card on the GPU lane and the dev box. Sizes follow browserScale() (1 on nvidia, 1 / 50 on swiftshader);
  * the smoke keeps the spec's 500 nodes on both (50 iterations of a 500-node exact tile is well inside SwiftShader's
@@ -137,7 +137,7 @@ describe("createForceAtlas2 in Chromium: the 11.6 item 3 smoke", () => {
         await sim.step(5);
         await sim.step(5);
         expect(sim.iterationsDone).toBe(10);
-        expect(Array.from(positions.subarray(9, 12))).toEqual([5, -4, 0]); // honoured, not restored by the GPU
+        expect(Array.from(positions.subarray(9, 12))).toEqual([5, -4, 0]); // honored, not restored by the GPU
         expect(Array.from(positions.subarray(21, 24))).toEqual(node7); // a pinned node never moves (7.12)
         let othersMoved = 0;
         for (let i = 0; i < n; i++) {

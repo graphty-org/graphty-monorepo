@@ -198,7 +198,7 @@ describe("data.previewSource", () => {
             );
             assert.deepInclude(preview.serverFacts, { code: "source.product", params: { value: "Neo4j" } });
             assert.strictEqual(preview.rows.length, 25);
-            // with no label path configured, a row is labelled as data.name labels a node: by its id
+            // with no label path configured, a row is labeled as data.name labels a node: by its id
             assert.isTrue(preview.rows.every((row) => row.name === String(row.id)));
             assert.isFalse(
                 preview.columns.some((c) => c.name.startsWith("_source.")),

@@ -6,7 +6,7 @@
 // for the owner.
 //
 // Counted: release.yml's "LLM regression tests" steps, and bisect.yml's "Run the failing files" steps in the points
-// of a bisect of the llm lane (run name "Bisect (llm lane)"), each a passed, failed or cancelled step. A run whose
+// of a bisect of the llm lane (run name "Bisect (llm lane)"), each a passed, failed or canceled step. A run whose
 // jobs cannot be read is counted as one paid run and named in a warning, so a GitHub outage never hides spend.
 // Bisects before the run name carried the lane (October 2026: run 40492117633, one point) are not counted.
 //
@@ -31,7 +31,7 @@ export const COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
 export const COST_PER_RUN = 0.94;
 const MONTHLY_CEILING = 60;
 
-// Conclusions of a test step that sent paid calls: a failed or cancelled run cost money too.
+// Conclusions of a test step that sent paid calls: a failed or canceled run cost money too.
 export const PAID = ["success", "failure", "cancelled"];
 
 /**

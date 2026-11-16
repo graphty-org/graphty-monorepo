@@ -41,7 +41,7 @@
   ExplorerExpert as rebuilt under 1.6. Everything else drawn is shipped or an app control.
 
   Revision 1.7 -- a PURE CANVAS-CHROME PASS. No panel, inspector or status bar word changed on this board.
-  TB-1, TB-2, TB-4: the 56px vertical navigation cluster at the canvas's left edge became the 246 x 36 bottom-centre
+  TB-1, TB-2, TB-4: the 56px vertical navigation cluster at the canvas's left edge became the 246 x 36 bottom-center
   canvas toolbar at bottom offset 12 -- the plain case of A1's four offsets (12 / 82 / 272 / 342), because this board
   draws no time slider (the Viewing slot is empty) and no Data table drawer. Zoom to selection is ENABLED there,
   because TP53 is selected. The freed 56 x 160 column at the left edge became canvas; nothing replaces it.
@@ -4256,7 +4256,7 @@
                                 </svg>
 
                                 <!-- CANVAS TOOLBAR (5.6, TB-1). Verbatim from VOCAB.md section 12. The 5.6 navigation cluster is retired:
-               the same six items, rotated out of the canvas's left edge and centred on the LIVE CANVAS RECT with
+               the same six items, rotated out of the canvas's left edge and centered on the LIVE CANVAS RECT with
                left: 50% and translateX(-50%), never on the window. 246 x 36, derived as
                3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders; items 28x28 carrying the register's fixed 14px
                glyph, padding 3 and a 4px item radius making the container radius concentric at 7 (TB-2). It is the
@@ -4271,11 +4271,11 @@
                Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F), divider, Views. Zoom OUT precedes
                Zoom in because magnitude increases rightward on a horizontal bar, where in-above-out was already
                correct vertically. Do not re-sort this back to the old column's order.
-               The item set is FIXED: nothing appears or disappears with selection, because a centred container that
+               The item set is FIXED: nothing appears or disappears with selection, because a centered container that
                changes width moves every item under the pointer. Here Zoom to selection is ENABLED -- TP53 is
                selected -- so it takes #a3a8b1, cursor: pointer and the register's bare title "Zoom to selection (F)".
                The disabled form and its longer title are not drawn on this board.
-               TB-8: the Views caret points UP and its menu opens UPWARD -- bottom edge 4px above the bar, centred on
+               TB-8: the Views caret points UP and its menu opens UPWARD -- bottom edge 4px above the bar, centered on
                the Views button, clamped 12px inside the canvas's left, right and top edges, scrolling internally if
                the stack pushes it up. That menu's Show group now carries a checked "Toolbar" row between Minimap and
                Legend; once it is unchecked the way back is the command palette row "Show canvas toolbar", never the
@@ -4537,7 +4537,7 @@
                MIN-7: the "Minimap" caption goes -- the drawing names itself. The box loses the caption's height rather
                than leaving an empty band under the drawing.
                TB-3, and this board is the 1112px case: no activity panel is open, so the canvas is 1112 rather than
-               832 and the centred 246px toolbar spans canvas x 433..679. This box ends at x 172 and the bar begins at
+               832 and the centered 246px toolbar spans canvas x 433..679. This box ends at x 172 and the bar begins at
                x 433, so the clearance is 433 - 172 = 261px against TB-3's 16px minimum -- the widest margin of any
                board in the group. The box stays at bottom: 12, on the toolbar's own baseline; the
                two-line rule fires below 172 + 16 + 246 + 16 + 172 = 622px of canvas and does not come close here.
@@ -4688,7 +4688,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -4698,7 +4698,7 @@
                No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
                channel that is not encoded.
                THIS BOARD: the ovarian STRING network, 318 proteins. Degree runs 1 to 41, TP53 holding the top (FIXTURES 3.3); the median 5 is invented once, in LEGEND-1.8, and used on every ovarian board. The clamp line was missing here while the same encoding on StyleDiverging carried it; floor item 5 requires it wherever the scale is clamped, so both boards now say it in the same words.
-               EDGE WIDTH IS ENCODED HERE and now has its block. The canvas draws three edge widths -- 0.7, 1 and 1.4 -- by combined_score, independent of the selection, and the legend keyed none of it, which is the unlabelled channel floor item 5 forbids. LEGEND-1.8 section 2 puts the block after Size; its stops are section 7's ovarian confidence row, 0.4 / median 0.6 / 0.99 on a linear scale, drawn as three line weights, the same block StyleDiverging already draws for the same channel on the same data.
+               EDGE WIDTH IS ENCODED HERE and now has its block. The canvas draws three edge widths -- 0.7, 1 and 1.4 -- by combined_score, independent of the selection, and the legend keyed none of it, which is the unlabeled channel floor item 5 forbids. LEGEND-1.8 section 2 puts the block after Size; its stops are section 7's ovarian confidence row, 0.4 / median 0.6 / 0.99 on a linear scale, drawn as three line weights, the same block StyleDiverging already draws for the same channel on the same data.
                SCALE WORD ON THE DIVERGING BLOCK: LEGEND-1.8 section 3 prints the scale word on every quantitative block, default or not, because the legend travels inside an exported image. The diverging block printed min, midpoint 0, max and the clamp line and no word, so it was the one block in the set that said what its ends were without saying how the ramp gets between them. It now reads "diverging scale", section 7's word for this channel, on the line the other blocks put it on -- under the ticks, above the clamp line, which stays where section 5 puts it.
                1.8 -- C3 CUT 1, THE STATE-ROW BLOCK LEAVES THE CANVAS LEGEND. The trailing block -- the transparent
                disc with its 1.5px #ffffff ring and the word "Selected" -- and the 1px #374047 rule above it are
@@ -4726,7 +4726,7 @@
                Color: fold change (log2FoldChange), diverging, -4.2 / midpoint 0 / 3.8, with the clamp line "clamped
                at -4.2 and 3.8; 12 nodes beyond the ends" and the "not measured (6 nodes)" row; Size: significance
                (padj), 0.05 / median 1e-3 / 1e-12, -log10; Edge width: confidence (combined_score), 0.4 / median 0.6
-               / 0.99, linear -- plus ONE STATE ROW, Selected, with its colour-agnostic white ring, because a static
+               / 0.99, linear -- plus ONE STATE ROW, Selected, with its color-agnostic white ring, because a static
                figure has no inspector header, no status bar and no canvas ring to borrow the fact from. This board
                is the genomics persona's own board, and the persona's complaint is named in the requirement set as
                "figures that need to be rebuilt in Illustrator because the legend is not exported"; C4's answer is
@@ -5199,7 +5199,7 @@
                                     <!-- RT-10 reading (floor 6.10 item 1): every result and every selected element opens with the plain sentence.
                  F-07. The third sentence read "Strongly down in the disease samples". Four rows below, this same
                  inspector prints log2FoldChange -0.42 and padj 3.2e-7, and the legend on the same screen runs -4.2 to
-                 3.8 with 0 at the centre, so -0.42 is a tenth of the domain, draws near-neutral on the canvas, and
+                 3.8 with 0 at the center, so -0.42 is a tenth of the domain, draws near-neutral on the canvas, and
                  fails the product's own "Fold change over 1" cutoff. The one line the design tells the reader to
                  trust was the one line that was wrong about their data.
                  The adjective is now derived from the same domain the color channel uses, and the direction word
@@ -5671,7 +5671,7 @@
                    two of its members, and one ungrouped row -- SEVEN attribute values drawn, with the affordance
                    onto the rest living as a dimmed numeral "34" in the header, carrying the words
                    title="Show all 34 attributes" where only a mouse could reach them.
-                   5.4 settles both halves and neither is a judgement call. It fixes this list at "the first 10 rows
+                   5.4 settles both halves and neither is a judgment call. It fixes this list at "the first 10 rows
                    (label, type, then alphabetical)" and it puts the count ON THE LINK and not on the header
                    ("Attributes" plus "Show all 52"). A numeral is not an affordance: it fails floor item 4, which
                    wants what a control will do stated before it does it, and it fails 6.4, because a keyboard or
@@ -6131,7 +6131,7 @@
                    resident, in words, at every density.
                    1.8 -- F'S REJECTED LIST, APPLIED TO THIS BOARD'S TWO SCAN SURFACES, and neither changes: this
                    Attributes list (ten rows plus this link) and the Neighbors list below it. F rejects putting the
-                   attribute profile, the neighbour list or any floor-7 scan surface behind a door, and 6.4's
+                   attribute profile, the neighbor list or any floor-7 scan surface behind a door, and 6.4's
                    reachability rule is why the count sits on this link and not on the section header -- a numeral a
                    keyboard or touch reader cannot reach fails floor item 4. Recorded so a compaction pass reading
                    "25 rows move behind doors this revision" does not reach for these. -->
@@ -6830,7 +6830,7 @@
                Frame this node / Radial layout around this node / Use as root or focus / Pin / Distance from here /
                Likely missing links from here / Simulate removing / Merge with... / Tag... / Bookmark this node /
                Show in table (Shift+T) / Copy as JSON / Copy neighbor ids
-               NO ICON-ONLY CONTROL IN THIS BLOCK (REGISTER-1.5 section 12.1). The trailing cluster was three bare 24px glyphs -- Zoom to selection, Note, More. 6.8 gives the footer a maximum of 0 icons and names this block; 12.1 settles it for the six boards that draw it and names this one. Drawn now: Zoom to selection and Note as flex 1 1 0 halves on one row, then "Find path from here" taking the row alone with More right-aligned beside it as a borderless subtle button -- 12.1's own shape. The caret on "Expand 41 neighbors" stays: it is the second half of a split button whose first half carries the words. The block goes 63px to 91px and the content column above it scrolls by 14px, into the neighbour list, which was already a scrolling list. More carries all fifteen verbs in full text.
+               NO ICON-ONLY CONTROL IN THIS BLOCK (REGISTER-1.5 section 12.1). The trailing cluster was three bare 24px glyphs -- Zoom to selection, Note, More. 6.8 gives the footer a maximum of 0 icons and names this block; 12.1 settles it for the six boards that draw it and names this one. Drawn now: Zoom to selection and Note as flex 1 1 0 halves on one row, then "Find path from here" taking the row alone with More right-aligned beside it as a borderless subtle button -- 12.1's own shape. The caret on "Expand 41 neighbors" stays: it is the second half of a split button whose first half carries the words. The block goes 63px to 91px and the content column above it scrolls by 14px, into the neighbor list, which was already a scrolling list. More carries all fifteen verbs in full text.
                1.8 -- D4, THE FOUR-ROW CAP DOES NOT BITE HERE, AND NOTHING IS CUT. D4 caps this pinned block at four
                rows in every selection state. This board draws THREE: (1) the "Expand 41 neighbors" split button with
                its type caret and its Coming tag, (2) Zoom to selection | Note as flex halves, (3) Find path from here

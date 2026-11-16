@@ -124,7 +124,7 @@ several units from those positions (1 of 8 renders run alone, and repeatedly ins
 ![Label Enabled Layers, a scattered render before the fix](label-enabled-layers-scattered.png)
 ![Label Enabled Layers, the intended picture](label-enabled-layers-placed.png)
 
-The cause was not a race in the story but a change of behaviour for every consumer. Before
+The cause was not a race in the story but a change of behavior for every consumer. Before
 `d055587d`, the fixed layout put every node at its `data.position` each time it ran. After it, the
 fixed layout kept whatever the element's position array held, and a node's `data.position` reached
 that array only when the node's row was still empty. So a graph that another layout had already

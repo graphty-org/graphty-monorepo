@@ -1404,7 +1404,7 @@ export function parseScope(value: unknown): Scope {
 /**
  * A write door's value with every edge reference inside an inline definition passed through
  * `stable` (a session edge id becomes its stable member; an object member is handed over as
- * given, for the door to canonicalise), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
+ * given, for the door to canonicalize), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
  * rule's tree, the `member` leaves of a rule tree and a `{ match: "member" }` selector. Everything
  * else is returned as given for the validator to judge, and a value `stable` changes nothing in is
  * returned unchanged (the same object).

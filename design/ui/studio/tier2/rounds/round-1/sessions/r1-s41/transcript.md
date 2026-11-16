@@ -37,7 +37,7 @@ Command: `node tool/real.mjs --step $S --click "Add note"` -> 04.png
 Jordan: "Nope, wrong target. Cancel. Maybe if I click on blank map first, nothing's 'picked' and it'll be about the whole thing."
 Command: `node tool/real.mjs --step $S --click "Cancel" --click-at 1100,800` -> 05.png (empty canvas)
 
-05.png: Note cancelled. The right side still shows PageRank, so clicking blank map didn't change what's "current".
+05.png: Note canceled. The right side still shows PageRank, so clicking blank map didn't change what's "current".
 
 ### Step 5
 

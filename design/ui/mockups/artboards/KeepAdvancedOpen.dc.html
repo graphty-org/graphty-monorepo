@@ -78,7 +78,7 @@
   Measured on this board: the circle's box is 14 by 14; the bubble is 250 wide with its left edge on the
   circle's left edge (REGISTER 4's left: 0, unchanged); the gap on the opening side is 8px, which is B2's
   shell-boundary constant and the one the dialog lane takes; and the 8px caret exactly fills that gap with its
-  apex on the circle's centre.
+  apex on the circle's center.
   In numbers, measured in the render and stated relative to the circle's own box: the circle occupies 0 to 14,
   the caret occupies 14 to 22, and the bubble's top edge is at 22. The caret IS the gap.
   Two recorded deviations, both forced by the caret that 1.8 added after REGISTER 4 was frozen:
@@ -86,9 +86,9 @@
       caret; B1's gap is 8 and 14.2's caret is 8 tall, so 22 is the only value at which the caret fills the gap
       and the gap stays the constant. Nothing else in REGISTER 4 moves: left: 0, width 250, padding 4px 8px.
   (2) the caret container is 14 wide at left 0, not 16 wide at left 7. 14.2's snippet puts its apex 15px from
-      the bubble's left edge, which on a left-aligned bubble lands 8px to the right of a 14px circle's centre;
+      the bubble's left edge, which on a left-aligned bubble lands 8px to the right of a 14px circle's center;
       the prose beside that snippet asks for a caret "centred on the circle", and 14 at left 0 puts the apex at
-      +7, which is the circle's centre. The 8px height and the 10 by 10 rotated square are unchanged.
+      +7, which is the circle's center. The 8px height and the 10 by 10 rotated square are unchanged.
   The popover covers the tail of its own sub-line, which is what a pinned popover does to the rows under it and
   is not the fault B4 names: B4 forbids a bubble that covers its control's own DATA -- the betweenness values on
   DataTableDrawer -- and a fixed helper string 8px below the control is not data. The floor-item-4 line below it
@@ -1452,7 +1452,7 @@
                                 </svg>
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-4). The 56px navigation cluster that stood at the canvas's
-               left edge above the minimap is deleted; its contents are this one horizontal bar, centred on the live
+               left edge above the minimap is deleted; its contents are this one horizontal bar, centered on the live
                canvas rect with left: 50%; transform: translateX(-50%) -- on the canvas, never on the window.
                Order, left to right, by how long the effect lasts: [2D | 3D] segmented (5 toggles it, 3D active by
                default); divider; Zoom out (-), Zoom in (=), Zoom to fit (0, Home), Zoom to selection (F); divider;
@@ -1462,7 +1462,7 @@
                TB-2 geometry, every number derived: 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders = 246 wide by
                36 tall; padding 3 with a 4px item radius makes the container radius concentric at 7. Below 1280px the
                items go to 32, the segmented to 68 and Views to 40, giving 274 at height 40.
-               TB-1: the item set is FIXED -- nothing appears or disappears with selection, because a centred bar that
+               TB-1: the item set is FIXED -- nothing appears or disappears with selection, because a centered bar that
                changes width moves every item under the pointer. Zoom to selection is drawn permanently and merely
                disables at #5f6873 with the register's exact disabled title, which is floor item 4's reason. No
                persistent tool modes: no pointer, hand or zoom tool toggles. The zoom percentage stays in the status
@@ -1764,7 +1764,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -2231,7 +2231,7 @@
                                         </div>
                                         <!-- RT-9, two pitches: the degree distribution, drawn to VOCAB 11's worked example for this graph --
                    2 links: 5 nodes, 3 links: 12, 4 links: 3. The empty 1-link bin is not drawn, so the axis ends
-                   are the data's own min and max; both are labelled, which is what lets the picture degrade into
+                   are the data's own min and max; both are labeled, which is what lets the picture degrade into
                    the table it replaced, and every bar carries its exact count in a title. Copy reading and the CSV
                    export still hold the figures, which is the answer to risk R6.
                    The caption "Nodes by links, linear scale" is gone: the section header two rows above already
@@ -2982,14 +2982,14 @@
                            GAP: 8px, on the side the surface opens from, which is the bottom of the circle. That
                            is B2's shell-boundary constant, the one the dialog lane takes; 12 is the canvas
                            overlay inset and nothing here floats over the canvas.
-                           CARET: 8px tall, filling that gap exactly, apex on the circle's centre.
+                           CARET: 8px tall, filling that gap exactly, apex on the circle's center.
                            Two deviations from REGISTER-1.5 section 4, both forced by the caret 1.8 added after
                            that geometry was frozen, and both recorded rather than silent: top is 22 and not 20,
                            because 20 was 14 plus a 6px gap chosen before there was a caret and the gap constant
                            is 8; and the caret container is 14 wide at left 0 rather than 16 wide at left 7,
                            because 14.2's snippet puts its apex 15px from the bubble's left edge, which on a
-                           left-aligned bubble lands 8px to the right of a 14px circle's centre, while 14 at
-                           left 0 puts it at +7, which is the centre. left: 0, width 250 and padding 4px 8px are
+                           left-aligned bubble lands 8px to the right of a 14px circle's center, while 14 at
+                           left 0 puts it at +7, which is the center. left: 0, width 250 and padding 4px 8px are
                            unchanged. The 8px height and the 10 by 10 rotated square are unchanged.
                            The sentence is at most two sentences and 220 characters, carries no control, and
                            rides in the circle's own title, which is how a static mock demonstrates 6.7's
@@ -5014,7 +5014,7 @@
                                                                     </div>
 
                                                                     <!-- RT-7, the subtle action row: transparent at rest, 24px, a 14px leading glyph in
-                                 the dimmed colour and an 11px label at weight 500. -->
+                                 the dimmed color and an 11px label at weight 500. -->
                                                                     <div
                                                                         title="Copy as TSV"
                                                                         style="

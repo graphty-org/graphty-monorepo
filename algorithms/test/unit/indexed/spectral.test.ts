@@ -34,7 +34,7 @@ function denseLaplacian(graph: Graph, s: GraphSnapshot, type: "unnormalized" | "
 
 /**
  * trace(Q^T L Q) over an orthonormal basis Q of the vectors' span: the relaxed cut the embedding
- * achieves, which spectral clustering minimises. Null when the vectors span fewer than k dimensions.
+ * achieves, which spectral clustering minimizes. Null when the vectors span fewer than k dimensions.
  */
 function ritzTrace(l: number[][], vectors: ArrayLike<number>[]): number | null {
     const q: number[][] = [];
@@ -58,7 +58,7 @@ function ritzTrace(l: number[][], vectors: ArrayLike<number>[]): number | null {
     return trace;
 }
 
-/** Normalised cut: the cut weight of every cluster over its volume, summed. */
+/** Normalized cut: the cut weight of every cluster over its volume, summed. */
 function normalisedCut(graph: Graph, s: GraphSnapshot, labels: ArrayLike<number>): number {
     const cut = new Map<number, number>();
     const vol = new Map<number, number>();
@@ -173,7 +173,7 @@ describe("indexed.spectralClustering", () => {
     }
 
     it("reports whether the eigenpairs met the tolerance", () => {
-        // Subspace iteration converges at the ratio of neighbouring eigenvalues of shift * I - L, and
+        // Subspace iteration converges at the ratio of neighboring eigenvalues of shift * I - L, and
         // the shift is the largest weighted d(u) + d(v). One heavy edge on a short path stretches the
         // shift to about 2e4 while the small eigenvalues stay below 4, so that ratio is within 1e-3 of
         // 1 and the iteration reaches its round cap; the same path with unit weights converges. A
@@ -229,7 +229,7 @@ describe("indexed.spectralClustering", () => {
     for (const { name, graph } of undirectedFixtures()) {
         for (const type of ["unnormalized", "normalized"] as const) {
             it(`reaches a relaxed cut no larger than legacy's embedding on ${name}, ${type} Laplacian`, () => {
-                // The eigenvector step minimises trace(V^T L V) over orthonormal V; its minimum is the sum
+                // The eigenvector step minimizes trace(V^T L V) over orthonormal V; its minimum is the sum
                 // of the k smallest eigenvalues. The legacy step does not reach it: for k <= 3 it runs a
                 // fixed number of power steps from a random start, and above that it finds the LARGEST.
                 const s = checksummedSnapshot(graph);
@@ -255,7 +255,7 @@ describe("indexed.spectralClustering", () => {
 
     // Left out: the 40-node random graph, whose spectrum has no gap after the first eigenvalue,
     // so neither embedding carries cluster structure and the cut is k-means luck. There the
-    // port's normalised cut at k = 2 and 3 is within 6% of legacy's ten-seed average.
+    // port's normalized cut at k = 2 and 3 is within 6% of legacy's ten-seed average.
     for (const { name, graph } of undirectedFixtures().filter((f) => f.name !== "random 40 nodes, 120 edges")) {
         for (const type of TYPES) {
             it(`cuts no worse than legacy's average on ${name}, ${type} Laplacian`, () => {

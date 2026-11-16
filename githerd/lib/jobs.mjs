@@ -37,7 +37,7 @@
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
  *   issue, even one master already references (`issueRefusal` in queue.mjs, the one rule). A job
- *   already made is never cancelled because the rule changed (the owner, 2026-10-06): the rule
+ *   already made is never canceled because the rule changed (the owner, 2026-10-06): the rule
  *   decides only which new jobs are made. An effort:low issue job
  *   may bundle up to `backlog.bundleMax - 1` more small issues of its type and package
  *   (`facts.batch`, the anchor first; `bundleOf`), fixed in one pull request: each is in use while
@@ -47,7 +47,7 @@
  * - `issue-promote-<check>`: an advisory CI check (advisory.mjs) whose enforce date is three days
  *   off or past, still listed as advisory on the default branch: open the pull request that makes
  *   it required. One per entry, ever: a done one is not made again. Its work edits
- *   `.github/workflows/`, which a worker may not, so it is `ownerOnly`. Cancelled once the entry
+ *   `.github/workflows/`, which a worker may not, so it is `ownerOnly`. Canceled once the entry
  *   left the advisory list.
  *
  * A job an owner session claimed goes back to the queue once that session ended (`sessionGone`:
@@ -96,7 +96,7 @@ const OWNER_ONLY = ["githerd/", "githerd.config.json", ".claude/", ".mcp.json", 
 
 /**
  * @typedef {{created: string[],
- *   cancelled: {job: string, reason: string, session?: string | null, startedBy?: string | null}[],
+ *   canceled: {job: string, reason: string, session?: string | null, startedBy?: string | null}[],
  *   lapsed: {job: string, session: string}[]}} SyncResult what changed, for the ledger
  */
 
@@ -106,7 +106,7 @@ const OWNER_ONLY = ["githerd/", "githerd.config.json", ".claude/", ".mcp.json", 
  * @param {any} state the daemon state
  * @param {{config: any, now: Date, sessionGone?: (session: string) => boolean}} ctx the normalized
  *   config, the clock, and whether an owner session ended
- * @returns {SyncResult} the jobs made, cancelled and given back by an ended owner session
+ * @returns {SyncResult} the jobs made, canceled and given back by an ended owner session
  */
 export function syncJobs(state, { config, now, sessionGone = () => false }) {
     state.jobs ??= {};
@@ -352,7 +352,7 @@ function masterKeyJob(state, open, key, r) {
 /**
  * The `pr` jobs: the owner's pull requests that need a worker; one that changes githerd itself is
  * marked `ownerOnly`, for the owner's sessions alone. One whose pull request closed or no longer
- * needs work is cancelled.
+ * needs work is canceled.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
  * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
@@ -423,7 +423,7 @@ function cancelEndedPrJobs(state, cancel) {
 
 /**
  * The `review` jobs: a pull request a githerd job made, at a patch id no review job has. A queued
- * review of an older patch takes the new one; a review whose pull request closed is cancelled.
+ * review of an older patch takes the new one; a review whose pull request closed is canceled.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
  * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
@@ -704,7 +704,7 @@ function cancelClosedIssueJobs(state, cancel) {
  * The issue jobs: as many queued as the sessions githerd may invite have room for (`issueDemand`),
  * for the issues at the front (an open
  * order first, then the ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
- * closed is cancelled.
+ * closed is canceled.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
@@ -743,7 +743,7 @@ function issueJobs(state, config, now, add, cancel) {
  * (the deprecated `workers.sessions` allowlist; otherwise every session that reported room, at least one), of the
  * room each last reported in its capacity answer (`state.capacity`, less the jobs it claimed
  * since), at least one and at most twice `workers.maxActive` per session. A session that never
- * answered counts one. Queued jobs are never cancelled when the demand falls.
+ * answered counts one. Queued jobs are never canceled when the demand falls.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @returns {number} the demand
@@ -922,7 +922,7 @@ function bundleOf(state, config, now, top, candidates) {
 /**
  * The promotion jobs (advisory.mjs): one per advisory check the CI workflow tests ask to promote
  * (on or after three days before its enforce date), made once and never again after it was done;
- * cancelled once the default branch no longer lists the check as advisory.
+ * canceled once the default branch no longer lists the check as advisory.
  * @param {any} state the daemon state; `state.advisory` is the default branch's registry as read
  * @param {Date} now the clock
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live

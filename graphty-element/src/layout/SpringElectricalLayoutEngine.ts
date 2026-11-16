@@ -4,8 +4,8 @@
  * It is registered whatever hardware is present, and `setLayout("spring-electrical")` without an
  * accelerator that implements it fails loudly with `E_NO_ACCELERATOR` rather than quietly
  * arranging the graph some other way. A picker does not have to try it to find out: the layout
- * catalogue's entry for this engine declares `requires: { accelerator: true }`, which a consumer
- * reads beside `capabilities.acceleration.state` and greys the entry out.
+ * catalog's entry for this engine declares `requires: { accelerator: true }`, which a consumer
+ * reads beside `capabilities.acceleration.state` and grays the entry out.
  */
 
 import type { SimulationType } from "@graphty/layout";
@@ -106,7 +106,7 @@ const springElectricalLayoutOptionsSchema = defineOptions({
  *
  * Every member is a static the element reads: `LayoutManager` builds the bridge itself, with the
  * graph's acceleration controller, so this class never runs a layout of its own. It declares no
- * `static descriptor` because its arrangement is authored in the layout catalogue, where it sits
+ * `static descriptor` because its arrangement is authored in the layout catalog, where it sits
  * under `force` beside ngraph, d3, ForceAtlas2, Spring and Kamada-Kawai.
  */
 export class SpringElectricalLayout extends SimulationLayoutEngine {

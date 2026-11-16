@@ -241,7 +241,7 @@ export function decideRepeat(policy: DuplicatePolicy, survivorWeight: number, re
         default:
             // "last": the repeat's weight and attributes replace the survivor's. The other three
             // reducers keep the survivor's attributes: no reading of `sum` makes the last record's
-            // colour the group's colour.
+            // color the group's color.
             return { kind: "merge", weight: repeatWeight, replaceRecord: true };
     }
 }

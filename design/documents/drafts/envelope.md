@@ -32,7 +32,7 @@ personas name:
 | recipe + style + view                                                                                  | a workspace                             | a team's standard investigation layout (`W06.yaml`)                                                                                                                                                                                                                                                                                                                                  |
 | data + data plan                                                                                       | a dataset with its reading instructions | data import and validation (`W18.yaml`)                                                                                                                                                                                                                                                                                                                                              |
 | data + annotations                                                                                     | shared findings on shared data          | two investigators on one case (`W09.yaml`)                                                                                                                                                                                                                                                                                                                                           |
-| recipe + style + run records, no data, no notes                                                        | supplementary material for review       | a reproducibility reviewer when the data is under licence (`W25.yaml`); a share save that names `runs`                                                                                                                                                                                                                                                                               |
+| recipe + style + run records, no data, no notes                                                        | supplementary material for review       | a reproducibility reviewer when the data is under license (`W25.yaml`); a share save that names `runs`                                                                                                                                                                                                                                                                               |
 | everything, with `imports`, `runs`, `positions`, `filter`, `sets`, `tables` and (when asked) `results` | a project                               | the reproducible session of `W25.yaml` (Reproducible Session and Network Publication): the network as it was read, its attribute tables, style, layout, the active filter, the record of every import, run and layout, kept sets and results. Version 1 does not hold several networks (open decision 24): a session holding more than one cannot be saved as one project ("Saving") |
 
 The element API design specifies the envelope (`design/element-api/element-api-design.md` section
@@ -129,11 +129,11 @@ records and stored results, so reopening never turns them into attributes.
 
 `dataSource` describes where the data came from without carrying it: the source, its release, when
 it was retrieved, the query that produced it (species, confidence cutoff), its citation and its
-licence. It is what a methods section reports and what a colleague reapplying a starting point needs
+license. It is what a methods section reports and what a colleague reapplying a starting point needs
 to fetch comparable data, so every save writes it when the session knows it -- a share save that
 writes no data included -- and every export sidecar copies it. A data member's own `provenance`,
 and each named input's, is the same shape and wins for that member or input, so a joined table
-from another source (a GEO accession under another licence) is cited in its own right.
+from another source (a GEO accession under another license) is cited in its own right.
 
 **How the session learns it.** The import call takes the same shape as an option
 (`load(src, { dataSource })`, and per input), and the import records it in its import record
@@ -151,7 +151,7 @@ is part of open decision 26.
 ### Options
 
 `options` may carry only the import options the named format declares in the element's format
-catalogue, validated against those option descriptors; an undeclared or invalid option skips the
+catalog, validated against those option descriptors; an undeclared or invalid option skips the
 data member with `E_UNKNOWN_OPTION` or `E_OPTION_RANGE`. Inputs the element owns -- `url`, `data`,
 `file`, `filename`, `size`, `chunkSize`, `errorLimit` -- MUST be refused in a document, because
 they would let a document fetch a URL without consent or disable the importer's error limit.
@@ -199,7 +199,7 @@ re-run or deleted (below), in the order they ran. A recipe is a plan and cannot 
 a methods section, a reviewer and a reproduction need what happened.
 
 The shape is graphty-element's `RunRecord` (`graphty-element/src/session/runs/types.ts`),
-serialised as it is: every member the element's record has is written, including those not shown
+serialized as it is: every member the element's record has is written, including those not shown
 below (`status`, `label`, `shape`, `summary`, and the scope's `digest`, `set` with its revision and
 `reading`), so a run scoped to a kept set can tell on reopen that the set was redefined since. The
 members shown here that the element's record does not have today -- `precision`, `accelerator`,
@@ -465,7 +465,7 @@ container):
    `manifest.json` at the root holds the envelope; the data member is a `part` naming another
    entry of the archive, which MAY be graph-format's binary wire form (format id `graph-format`,
    which names that wire form in a `part` only and is not an entry of the element's format
-   catalogue). This is the design studio's recommendation for project files
+   catalog). This is the design studio's recommendation for project files
    (`design/ui/framework/one-way-doors.md` door 1), measured at 18 MB and 6 ms to write a
    100,000-node, 500,000-edge graph as graph-format bytes against 58 MB and about 290 ms as JSON.
    Every other entry is named by the manifest; a reader ignores entries the manifest does not name.
@@ -585,7 +585,7 @@ and applies it to every new file of that shape.
    result, which must stay on the base's origin and under the base's path. A relative `url` (of the
    data member or of an input) is resolved against the envelope's own URL when the envelope was
    fetched from a URL. When the envelope was opened from a local file, it is matched against the
-   caller's `files` by exact name only (never by basename after normalising), or passed to the
+   caller's `files` by exact name only (never by basename after normalizing), or passed to the
    caller's `resolve` function, which receives only references that passed this check; without
    either, the reader reports the data member as `E_CONSENT_REQUIRED` naming the file it needs, so
    an application can ask the person for the sibling file. A sidecar pair opened from a folder
@@ -594,7 +594,7 @@ and applies it to every new file of that shape.
    `file:`, `data:`, `blob:`, `javascript:` and every other scheme are refused. A scheme-relative
    reference (`//host/path`) is cross-origin and is treated as an absolute URL.
 3. **Consent** is required for the origin of the resolved absolute URL, relative or not, and
-   including the origin the envelope itself came from, unless the caller pre-authorised that
+   including the origin the envelope itself came from, unless the caller pre-authorized that
    origin (`consent`). Consent lasts for one open unless the caller stores it. Without consent the
    data is not fetched, and the report says consent is needed.
 4. **Redirects** are followed only to an origin that also has consent, checked for each hop;
@@ -701,7 +701,7 @@ ids, the same paths, the same members, the same data bytes and digest.
 
 A 1.x style template is upgraded on read to an envelope as style.md ("Upgrading the 1.x style
 template") specifies. The upgrade report lists every 1.x member that has no home in version 1 (the
-background, the selection style, the behaviour settings), so nothing is dropped silently. A recipe
+background, the selection style, the behavior settings), so nothing is dropped silently. A recipe
 produced by the upgrade never runs without the caller's explicit instruction.
 
 ## Reserved names
@@ -721,7 +721,7 @@ produced by the upgrade never runs without the caller's explicit instruction.
    because another member says so. A recipe runs only on the caller's instruction, whatever the
    envelope contains.
 2. A zip reader MUST read the central directory only; MUST refuse duplicate entry names (compared
-   case-insensitively after normalising `\` to `/`), an entry whose local header names a different
+   case-insensitively after normalizing `\` to `/`), an entry whose local header names a different
    file than the central directory, entries whose data ranges overlap or fall outside the archive,
    entry names that are absolute or contain `..` segments, and more than 10,000 entries; MUST NOT
    extract to disk as a side effect; and MUST bound the total uncompressed size (RECOMMENDED 1 GB)

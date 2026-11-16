@@ -1,6 +1,6 @@
 /**
  * Weakly connected components on the device (spec 8.3, 3.3): Afforest from GAP's cc.cc, step for step. `comp[v] = v`
- * by `fill` mode 1; two sampled link rounds over the r-th out-neighbour of every row plus a compress (one batch, no
+ * by `fill` mode 1; two sampled link rounds over the r-th out-neighbor of every row plus a compress (one batch, no
  * readback); a 1,024-vertex label sample the host takes the mode of, which is the giant component (PD-12); then
  * each-edge-once link rounds over `edgeList()` -- correct for directed and undirected input alike, which is what
  * makes the partition the WEAK one -- in batches of four `link + compress` pairs, ONE readback of the changed flag per
@@ -292,7 +292,7 @@ export async function connectedComponents(
             return batch.submit();
         };
 
-        // batch 1: comp[v] = v, the flag cleared, two sampled link rounds over the r-th out-neighbour, one compress
+        // batch 1: comp[v] = v, the flag cleared, two sampled link rounds over the r-th out-neighbor, one compress
         queue.writeBuffer(comp, 4 * flagIndex, zero);
         const setup = new CommandBatch(ctx, `${ALGORITHM}/setup`);
         let pass = setup.pass("sample-rounds");

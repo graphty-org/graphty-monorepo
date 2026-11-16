@@ -114,7 +114,7 @@ const ONE_SHOT: Readonly<Record<string, keyof typeof LAYOUTS>> = {
 const BATCH_MS = 8;
 
 /**
- * The options an engine runs with: the catalogue's defaults under the choice's own.
+ * The options an engine runs with: the catalog's defaults under the choice's own.
  * @param choice - The choice.
  * @returns The options.
  */

@@ -3,7 +3,7 @@
  * y[v] = beta * pv + alpha * (sum over the in-arcs of weight * xNorm[u] + dangling * pv), where pv is
  * personalization[v] when a personalization vector is given and the uniform mass otherwise. The fold is sequential
  * in arc order; an unweighted snapshot folds weight 1. Index-based and independent of the kernel: it walks
- * s.reverse() the way graph-format materialises it, never the device bindings.
+ * s.reverse() the way graph-format materializes it, never the device bindings.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";

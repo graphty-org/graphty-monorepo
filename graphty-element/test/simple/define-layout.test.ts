@@ -1,6 +1,6 @@
 /**
  * @file `defineLayout` without a browser: the definition checks a beginner meets the moment they
- * call it, and the catalogue entry each of the guide's toy layouts files (design/extensions/
+ * call it, and the catalog entry each of the guide's toy layouts files (design/extensions/
  * simple-tier.md sections 2.4 and 4.2). What the layouts DRAW is proved on a rendered graph by
  * test/browser/simple/define-layout.test.ts.
  */

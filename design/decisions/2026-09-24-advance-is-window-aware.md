@@ -29,7 +29,7 @@ Three kernels keep `E_TOO_LARGE { path: "windowed", algorithm }` through `assert
 `sssp-relax` (the near-far queue relaxes arcs whose vertex may sit in any window and needs the
 whole adjacency in one binding), `bf-relax` (edge-parallel over `edgeList()`, whose arc range IS
 the dispatch range and which never had a window loop) and `closeness-sweep` (the bit-parallel
-claim reads every in-neighbour's word in one pass). So `sssp` on a weighted run, `bellmanFord`
+claim reads every in-neighbor's word in one pass). So `sssp` on a weighted run, `bellmanFord`
 and `closenessCentrality` refuse a windowed core; `sssp`'s unit-weight route, which runs the
 BFS, keeps its own `assertWholeCore` too, a choice the plan made before the lift and did not
 revisit. Whether that route should inherit the lift is open and the owner's.

@@ -252,7 +252,7 @@ describe("the camera on a location map", () => {
             await drawnFrames(element.graph.getScene(), 1);
         }
         await applied(element);
-        // The surface fills the view: the map's picture, shaded across it, not the one flat colour
+        // The surface fills the view: the map's picture, shaded across it, not the one flat color
         // of the background a clipped surface would leave. Lower down one texel of the bundled
         // picture fills this square; the street tile tests below cover that depth.
         assert.isAbove(await colorsAround(element, CENTER, 40), 1, "the map is drawn, not clipped");
@@ -535,7 +535,7 @@ describe("a city on the globe", () => {
     });
 
     // An arrow turned the camera about the globe's center by a fixed angle: at street level that
-    // swept it hundreds of kilometres a frame and down inside the globe.
+    // swept it hundreds of kilometers a frame and down inside the globe.
     it("turns by a step the view can follow with the arrow keys at the closest zoom, never inside", async () => {
         const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" }, CITY);
         const frame = element.mapFrame;
@@ -905,7 +905,7 @@ describe("W and S on the globe", () => {
 describe("turning the globe at the closest zoom and at the opening zoom", () => {
     // Near the surface a drag's turn is millionths of a radian, which the pivot used to drop, and
     // an arrow key turned the camera a fixed angle of the whole globe, about its center or the
-    // pivot, thousands of kilometres a frame and below the surface.
+    // pivot, thousands of kilometers a frame and below the surface.
 
     /**
      * A mounted globe and its radius, its camera at the closest zoom when asked.

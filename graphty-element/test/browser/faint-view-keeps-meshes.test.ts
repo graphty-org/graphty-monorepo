@@ -114,7 +114,7 @@ async function meshesForAFaintView(size: number): Promise<number> {
 
 describe("a faint branches view", () => {
     it("replaces no node's mesh when it opens or when it ends", async () => {
-        // Every node's paint changes only in its fill: the rest's opacity, the branch's colour.
+        // Every node's paint changes only in its fill: the rest's opacity, the branch's color.
         assert.strictEqual(await meshesForAFaintView(400), 0, "node meshes replaced");
     });
 

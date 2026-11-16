@@ -1,6 +1,6 @@
 /**
  * The `collide-gather` kernel body (issue #3256, the collision force; twin of layout/src/simulation/collision.ts): per
- * free node, the sum of the pushes out of every node it overlaps in its own and the neighbouring cells, into `moves`.
+ * free node, the sum of the pushes out of every node it overlaps in its own and the neighboring cells, into `moves`.
  * A candidate's own cell is compared with the searched one, so a cell sharing a hash bucket neither pushes wrongly nor
  * twice. A pair shares the push; a fixed partner leaves it all to the free node; an inert row (mass 0) pushes nothing;
  * a coincident pair parts along `kick_dir`. It reads positions only, so the result does not depend on thread order, and

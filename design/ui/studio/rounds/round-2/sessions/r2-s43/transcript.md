@@ -20,14 +20,14 @@ Hesitation: I trust the postdoc more than a program I have never used. Before I 
 
 Command: `--step --click "New from data..."`
 
-Saw (03.png): a page "Open as a new graph" with "Tables", a plus, "Drop a file here, or choose a file...", a "Direction: As the file says" box, and Cancel / Load (Load greyed, "Choose a file first"). The previous error bar is gone. The tiny grey writing here is hard on my eyes.
+Saw (03.png): a page "Open as a new graph" with "Tables", a plus, "Drop a file here, or choose a file...", a "Direction: As the file says" box, and Cancel / Load (Load grayed, "Choose a file first"). The previous error bar is gone. The tiny gray writing here is hard on my eyes.
 Next: "choose a file..." and give it the same club-members file, to see if this way reads it.
 
 ## Step 4 -- choose the same file here
 
 Command: `--step --click "choose a file..." --upload club-members.graphml`
 
-Saw (04.png): a red box: "club-members.graphml could not be read as GraphML. Check the file, or pick another format in File settings." Load stays greyed, "The file could not be read". So this way fails too -- two different doors, same file, both refuse. That convinces me the problem is the file, not my clicking.
+Saw (04.png): a red box: "club-members.graphml could not be read as GraphML. Check the file, or pick another format in File settings." Load stays grayed, "The file could not be read". So this way fails too -- two different doors, same file, both refuse. That convinces me the problem is the file, not my clicking.
 Hesitation: this second message says LESS than the first one. No "incomplete", no "line 9". And "pick another format" makes me wonder if the file is fine and I just need a different setting -- which would be the opposite of the first message. I do not know what a format is here beyond the ending of the file name. I will peek at "File settings" once, just to see whether it says anything more.
 
 ## Step 5 -- peek at File settings
@@ -64,5 +64,5 @@ said nothing had been read, so I was not left with a half-loaded network I might
   whether the program would then tell me what was left out.
 - The first message sits low on the screen in smallish text and goes away when I move on; I would
   have liked to be able to copy it into my email, or see it again.
-- Small grey text throughout ("Drop a file here", "Choose a file first", "The file could not be
+- Small gray text throughout ("Drop a file here", "Choose a file first", "The file could not be
   read") is hard to read at my eyesight.

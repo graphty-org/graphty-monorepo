@@ -6,14 +6,14 @@ GML, DOT, Pajek, CSV, JSON (several dialects) and Neo4j.
 Reference files (42 MB) are under `tmp/format-conformance/downloads/<format>/`. Each folder has a
 provenance file giving the origin URL, license and commit of every file:
 `downloads/{gexf,graphml}/SOURCES.tsv`, `downloads/{dot,gml,pajek}/SOURCES.txt` and
-`downloads/MANIFEST-csv-json-neo4j.tsv`. Helper scripts and behaviour probes are in
+`downloads/MANIFEST-csv-json-neo4j.tsv`. Helper scripts and behavior probes are in
 `tmp/format-conformance/scripts/` and `tmp/format-conformance/probes/`.
 
 How the "graph-io today" columns were established: by reading `graph-io/src` (every citation is
 file:line under `graph-io/src/`). Nothing was run against graph-io. "Silent" means no issue and no
 loss note is recorded.
 
-Licence rule of thumb for vendoring fixtures into this MIT package:
+License rule of thumb for vendoring fixtures into this MIT package:
 
 - **Safe to copy:** MIT, BSD, Apache-2.0, BSL-1.0, PSF-2.0, and the CC-BY spec examples. Keep the
   attribution.
@@ -41,7 +41,7 @@ rejects it" failures.
 
     What should happen:
     - **UTF-16 with a BOM:** always decode it (TextDecoder supports it).
-    - **XML:** honour the encoding declared in the prolog.
+    - **XML:** honor the encoding declared in the prolog.
     - **Other text formats:** add an `encoding` option. Whether a failed strict UTF-8 decode may fall
       back to Latin-1 / cp1252 _with a warning_ is a design decision. It is not silent, so it does
       not break the package's "never a silent U+FFFD" rule. Graphviz already does exactly this.
@@ -50,7 +50,7 @@ rejects it" failures.
     - `"1"` becomes 1, while `"01"`, `"1.0"` and `"1e0"` stay distinct strings.
     - This matches Graphviz (numerals are strings, so `1.0` is not `1`) and CSV practice.
     - JSON defaults to `ids:"keep"`, so `1` and `"1"` are two nodes. networkx can produce exactly that.
-      Right behaviour: a warning when both spellings occur in one file.
+      Right behavior: a warning when both spellings occur in one file.
 3. **Things silently ignored today**, each of which should produce at least a warning:
     - **GEXF:**
         - unknown attributes on `<attribute>`, `<attvalue>`, `<spell>`, viz and `<gexf>`
@@ -130,7 +130,7 @@ In 1.3, data, hierarchy and phylogenics were merged into gexf.
 
 - `timetype` became `timeformat` (default double).
 - `slices` became `spells`.
-- Colour gained alpha `a`.
+- Color gained alpha `a`.
 - `label` became optional.
 - `<meta>` must come before `<graph>`.
 
@@ -142,20 +142,20 @@ In 1.3, data, hierarchy and phylogenics were merged into gexf.
 
 ### 1.2 Test fixtures (reusable)
 
-| Source               | URL / path                                                                                                                       | License                                  | Covers                                                                                                                                        | Files                                 |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| gexf.net samples     | https://gexf.net/data/{hello-world,basic,data,dynamics,hierarchy1,hierarchy4,phylogeny,viz,celegans,yeast,WebAtlas_EuroSiS}.gexf | CC-BY-SA-3.0 (site); data terms unstated | one file per feature page plus 3 real datasets                                                                                                | 11 (downloaded)                       |
-| gephi/gexf primer    | `primer/{1.1draft,1.2draft,1.3}/simple.gexf`                                                                                     | CC-BY-4.0                                | primer example                                                                                                                                | 3 (1 downloaded)                      |
-| graphology           | github.com/graphology/graphology `src/gexf/test/resources/` + expected values in `test/definitions/parser.js`                    | MIT                                      | 1.3 lists (pipe, comma, quotes, mixed), hex colour, `kind`, missing_nodes, undeclared_attribute, pedantic and sanitized meta, mixed direction | 21 (16 downloaded)                    |
-| networkx             | `networkx/readwrite/tests/test_gexf.py`                                                                                          | BSD-3                                    | 30 tests, **inline XML**: 1.3, dynamic, INF/NaN, lists, slices and spells, parents, type promotion                                            | 1 (downloaded)                        |
-| gexf4j               | francesco-ficarola/gexf4j `src/test/resources/{dynamicGraph,staticGraph,testStaticUtf}.gexf`                                     | Apache-2.0                               | dynamic, UTF-8                                                                                                                                | 3 (downloaded)                        |
-| Gephi importer tests | gephi/gephi `modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/`                                    | CDDL-1.0/GPL-3.0                         | basic, data, dynamicedgeweight, infinity, meta, slice, timezone, zeroweight                                                                   | 8 (downloaded, reference only)        |
-| Gephi exporter tests | `modules/ExportPlugin/src/test/resources/.../gexf/`                                                                              | GPL-3.0                                  | include-null attvalues, infinity                                                                                                              | 2 (downloaded, reference only)        |
-| OGDF                 | ogdf/ogdf `test/resources/fileformats/gexf/valid/`                                                                               | GPL                                      | colour, metadata, hierarchy                                                                                                                   | 4 (downloaded, reference only)        |
-| Tulip                | Tulip-Dev/tulip `tests/plugins/data/*.gexf`                                                                                      | LGPL-3.0                                 | older gexf.net copies plus hierarchy2 and hierarchy3                                                                                          | 21 (2 downloaded)                     |
-| JGraphT              | jgrapht-io `nio/gexf/SimpleGEXFImporterTest.java`                                                                                | EPL-2.0/LGPL-2.1                         | 7 inline tests                                                                                                                                | not downloaded                        |
-| gephi-toolkit-demos  | `src/main/resources/.../{timeframe1-3,LesMiserables,Java}.gexf`                                                                  | no license file                          | time slices                                                                                                                                   | 5 (3 downloaded)                      |
-| Validation oracle    | 1.2draft and 1.3 XSDs                                                                                                            | CC-BY-4.0                                | validates our exporter's output                                                                                                               | downloaded in `downloads/gexf/specs/` |
+| Source               | URL / path                                                                                                                       | License                                  | Covers                                                                                                                                       | Files                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| gexf.net samples     | https://gexf.net/data/{hello-world,basic,data,dynamics,hierarchy1,hierarchy4,phylogeny,viz,celegans,yeast,WebAtlas_EuroSiS}.gexf | CC-BY-SA-3.0 (site); data terms unstated | one file per feature page plus 3 real datasets                                                                                               | 11 (downloaded)                       |
+| gephi/gexf primer    | `primer/{1.1draft,1.2draft,1.3}/simple.gexf`                                                                                     | CC-BY-4.0                                | primer example                                                                                                                               | 3 (1 downloaded)                      |
+| graphology           | github.com/graphology/graphology `src/gexf/test/resources/` + expected values in `test/definitions/parser.js`                    | MIT                                      | 1.3 lists (pipe, comma, quotes, mixed), hex color, `kind`, missing_nodes, undeclared_attribute, pedantic and sanitized meta, mixed direction | 21 (16 downloaded)                    |
+| networkx             | `networkx/readwrite/tests/test_gexf.py`                                                                                          | BSD-3                                    | 30 tests, **inline XML**: 1.3, dynamic, INF/NaN, lists, slices and spells, parents, type promotion                                           | 1 (downloaded)                        |
+| gexf4j               | francesco-ficarola/gexf4j `src/test/resources/{dynamicGraph,staticGraph,testStaticUtf}.gexf`                                     | Apache-2.0                               | dynamic, UTF-8                                                                                                                               | 3 (downloaded)                        |
+| Gephi importer tests | gephi/gephi `modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/`                                    | CDDL-1.0/GPL-3.0                         | basic, data, dynamicedgeweight, infinity, meta, slice, timezone, zeroweight                                                                  | 8 (downloaded, reference only)        |
+| Gephi exporter tests | `modules/ExportPlugin/src/test/resources/.../gexf/`                                                                              | GPL-3.0                                  | include-null attvalues, infinity                                                                                                             | 2 (downloaded, reference only)        |
+| OGDF                 | ogdf/ogdf `test/resources/fileformats/gexf/valid/`                                                                               | GPL                                      | color, metadata, hierarchy                                                                                                                   | 4 (downloaded, reference only)        |
+| Tulip                | Tulip-Dev/tulip `tests/plugins/data/*.gexf`                                                                                      | LGPL-3.0                                 | older gexf.net copies plus hierarchy2 and hierarchy3                                                                                         | 21 (2 downloaded)                     |
+| JGraphT              | jgrapht-io `nio/gexf/SimpleGEXFImporterTest.java`                                                                                | EPL-2.0/LGPL-2.1                         | 7 inline tests                                                                                                                               | not downloaded                        |
+| gephi-toolkit-demos  | `src/main/resources/.../{timeframe1-3,LesMiserables,Java}.gexf`                                                                  | no license file                          | time slices                                                                                                                                  | 5 (3 downloaded)                      |
+| Validation oracle    | 1.2draft and 1.3 XSDs                                                                                                            | CC-BY-4.0                                | validates our exporter's output                                                                                                              | downloaded in `downloads/gexf/specs/` |
 
 ### 1.3 Real-world corpora
 
@@ -178,7 +178,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 **Root and versions**
 
-| Case                                                                                                                                                                   | graph-io today                                                                        | Right behaviour                                                                 |
+| Case                                                                                                                                                                   | graph-io today                                                                        | Right behavior                                                                  |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Versions 1.0, 1.1draft, 1.2draft, 1.3; each namespace; namespace missing or wrong (`www.gexf.net/1.3`, `http:///www...` viz); `version` disagreeing with the namespace | Root matched by local name; `version` copied to meta; no version check (701-706, 553) | Accept every variant; record the version. Test every namespace spelling.        |
 | GEXF 1.0 `<attvalue id=...>` instead of `for=` (diseasome)                                                                                                             | `ATTVALUE_SHAPE`; value dropped (1570-1572)                                           | Accept `id` as an alias for `for` when the version is 1.0 or no `for` is given. |
@@ -186,7 +186,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 **Graph element**
 
-| Case                                                                                                                                                    | graph-io today                                         | Right behaviour                                                      |
+| Case                                                                                                                                                    | graph-io today                                         | Right behavior                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
 | `defaultedgetype` directed / undirected / mutual; missing (spec: undirected); misspelled `defaultedgestyle` (SocioPatterns)                             | Supported; other `<graph>` attributes silently ignored | Warn once on an unknown `<graph>` attribute.                         |
 | `mode` static / dynamic / slice; `timeformat` integer / double / date / dateTime; `timerepresentation`; `timezone`; graph `start` / `end` / `timestamp` | Read into meta. `timezone` is not listed.              | Apply `timezone` to stamps that carry no zone (Gephi timezone.gexf). |
@@ -196,7 +196,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 **Nodes and edges**
 
-| Case                                                                | graph-io today                                        | Right behaviour                                             |
+| Case                                                                | graph-io today                                        | Right behavior                                              |
 | ------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------- |
 | Duplicate node id, including in nested nodes                        | `DUPLICATE_NODE`                                      | Keep it.                                                    |
 | Edge to an undeclared node                                          | `addMissingNodes` false by default, so it is an error | Keep the strict default. graphology offers the same opt-in. |
@@ -207,7 +207,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 **Attributes**
 
-| Case                                                                                                                                                                                               | graph-io today                                                                                                             | Right behaviour                                                        |
+| Case                                                                                                                                                                                               | graph-io today                                                                                                             | Right behavior                                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | Types integer, long, float, double, boolean, string, anyURI, liststring (1.2); bigdecimal, biginteger, byte, short, char, list\* (1.3); aliases int, bool, character, listint (Gephi and networkx) | All mapped. bigdecimal and biginteger become string **silently**. An unknown type becomes string with `UNKNOWN_ATTR_TYPE`. | Emit a precision or loss warning for big\*. Test that the aliases map. |
 | `<default>`, `<options>` (1.2 pipe form, 1.3 bracket form); a default or value outside the options                                                                                                 | Parsed                                                                                                                     | A value outside the options: warn.                                     |
@@ -217,26 +217,26 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 **Hierarchy**
 
-| Case                                                                                                                  | graph-io today                    | Right behaviour                                                                                            |
+| Case                                                                                                                  | graph-io today                    | Right behavior                                                                                             |
 | --------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `pid` (including forward references), nested `<nodes>`, `<parents><parent for>`, several parents, edges across levels | Supported; resolved at `</graph>` | A `pid` naming a missing node (diseasome `pid="0"`, 1419 times) must be a warning, not a failure. Test it. |
 
 **Dynamics**
 
-| Case                                                                                                                                                                  | graph-io today                                                                           | Right behaviour               |
+| Case                                                                                                                                                                  | graph-io today                                                                           | Right behavior                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
 | start / end, `startopen` / `endopen`, both start and startopen, spells, 1.3 timestamps and intervals, overlapping or touching spells, timed attvalues, dynamic weight | Supported; an open spell bound is kept in the `spellsOpen` column; `OPEN_BOUND_CONFLICT` | Keep it. `end < start`: warn. |
 
 **viz**
 
-| Case                                                                                                     | graph-io today                                                                                   | Right behaviour                                                         |
+| Case                                                                                                     | graph-io today                                                                                   | Right behavior                                                          |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | color r/g/b/a, 1.3 `hex` + `a`, 8-digit hex, out-of-range values, float r/g/b                            | 8-digit hex gives `VIZ_VALUE` and is skipped. **`hex` is silently ignored when `r` is present.** | Accept `#RRGGBBAA`. Clamp out-of-range values and warn (as Gephi does). |
 | position x, y, optional z; size; thickness; node shape including image + uri; edge shape; unprefixed viz | Supported                                                                                        | Keep it.                                                                |
 
 **XML layer and unknowns**
 
-| Case                            | graph-io today                                                                                                                          | Right behaviour       |
+| Case                            | graph-io today                                                                                                                          | Right behavior        |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
 | Unknown elements and attributes | Unknown element: warn once. Unknown node/edge attribute: warn. On `<attribute>`, `<attvalue>`, `<spell>`, viz and `<gexf>`: **silent**. | Warn once everywhere. |
 | XML-level cases                 | See section 3 below                                                                                                                     |                       |
@@ -293,7 +293,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 | Gephi                   | `ImportPlugin/.../file/{cdata,withdesc}.graphml`                                                                                                                                               | GPL-3.0           | CDATA, `desc`                                                                                                          | 2 (reference only)              |
 | Cytoscape               | cytoscape-impl `graphml-impl/src/test/resources/`                                                                                                                                              | LGPL-2.1          | desc, igraph output                                                                                                    | 5 (2 downloaded)                |
 | GraphStream             | gs-core `example{,-extraattributes}.graphml`                                                                                                                                                   | LGPL-3.0/CeCILL-C | keys without name or type; undeclared XML attributes                                                                   | 2 (downloaded)                  |
-| APOC GraphML            | neo4j/apoc `core/src/test/resources/fileWithUnicode.graphml`                                                                                                                                   | Apache-2.0        | the APOC flavour (`labels=":A:B"`)                                                                                     | 1 (in `downloads/neo4j/apoc`)   |
+| APOC GraphML            | neo4j/apoc `core/src/test/resources/fileWithUnicode.graphml`                                                                                                                                   | Apache-2.0        | the APOC flavor (`labels=":A:B"`)                                                                                      | 1 (in `downloads/neo4j/apoc`)   |
 
 ### 2.3 Real-world corpora
 
@@ -321,19 +321,19 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 **Root and keys**
 
-| Case                                                                                                                                                | graph-io today                                                                                                         | Right behaviour                                                                                                                                                                                                                                   |
+| Case                                                                                                                                                | graph-io today                                                                                                         | Right behavior                                                                                                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Default namespace, no namespace, `ns3:` prefix, 1.0rc namespace, any schemaLocation, a DOCTYPE with a SYSTEM DTD                                    | Local names; DOCTYPE skipped, not fetched                                                                              | Keep it. Test the no-namespace, prefix and DOCTYPE cases (the North and igraph files).                                                                                                                                                            |
 | `key for="graphml"`, including **yEd's `yfiles.type="resources"` key, present in every yEd file**                                                   | **`KEY_FOR_INVALID`, recorded as an error that counts toward `errorLimit`**; the root `<data>` then gives `KEY_DOMAIN` | `for="graphml"` is valid in GraphML 1.1. Accept it and put document-level data into graph attributes or meta. The yEd resources can be kept as json or skipped with a single warning. **High priority: this reports an error on every yEd file.** |
 | `for` hyperedge / port / endpoint                                                                                                                   | `KEY_DOMAIN_UNSUPPORTED`; data dropped                                                                                 | Keep it, but it is a warning, not an error.                                                                                                                                                                                                       |
 | Same key id twice across different `for` values (Gephi cdata.graphml); an empty key id; duplicate or empty `attr.name`; no `attr.name` (use the id) | `DUPLICATE_KEY`, `KEY_MISSING_ID`                                                                                      | Duplicate id: warn and keep the first (as Gephi does). No `attr.name`: fall back to the key id.                                                                                                                                                   |
 | `attr.type`: the six types; missing; unknown (TinkerPop's "nothing-supported..."); graph-tool's `vector_*` / `short` / `python::object`             | A missing type is string with no warning. An unknown type is string with `UNKNOWN_ATTR_TYPE`.                          | Map `short` to i32 and parse `vector_*` as lists. The rest is unchanged.                                                                                                                                                                          |
-| `attr.list` (GraphML 1.1 / Boost)                                                                                                                   | **Silently ignored**                                                                                                   | Honour it, or at least warn.                                                                                                                                                                                                                      |
+| `attr.list` (GraphML 1.1 / Boost)                                                                                                                   | **Silently ignored**                                                                                                   | Honor it, or at least warn.                                                                                                                                                                                                                       |
 | `<default>`; a typed default containing elements                                                                                                    | Parsed; `DATA_NESTED`                                                                                                  | Keep it.                                                                                                                                                                                                                                          |
 
 **Data values**
 
-| Case                                                                                                                                                     | graph-io today                                                                  | Right behaviour                                                                                                       |
+| Case                                                                                                                                                     | graph-io today                                                                  | Right behavior                                                                                                        |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `<data>` for an undeclared key (APOC); `<data>` without `key`; duplicate `<data>` for one key; `<data>` before or after nodes; data at the graphml level | `UNKNOWN_KEY`, `DATA_MISSING_KEY`; root data goes to the graph table            | An undeclared key: warn and keep the value as a string. JGraphT's `testNonValidApoc` shows real APOC files need this. |
 | Typed values: booleans true/false/1/0 in any case, INF/-INF/NaN, int and long overflow, unparseable text, **whitespace-only text**                       | Declared-types rules. **A whitespace-only non-string value is silently unset.** | An unparseable value: error per value, or keep as a string with a warning. Whitespace-only: warn.                     |
@@ -342,7 +342,7 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 **Graph and structure**
 
-| Case                                                                                                                                                                                | graph-io today                                                                                                                 | Right behaviour                                                                         |
+| Case                                                                                                                                                                                | graph-io today                                                                                                                 | Right behavior                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | `edgedefault` missing (all North/Rome files)                                                                                                                                        | Warning; falls back to `defaultDirected` (false)                                                                               | Keep it.                                                                                |
 | Per-edge `directed` true/false; `directed="1"` / `"0"` / `"True"`                                                                                                                   | Anything else is `INVALID_DIRECTED` and the **edge is skipped**                                                                | Accept 1/0 and any case, as networkx does, with a warning. Skipping edges is data loss. |
@@ -356,10 +356,10 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 **yFiles**
 
-| Case                                                                                        | graph-io today                                                                                                                                                             | Right behaviour                                                                                                                  |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note; classic ShapeNode / PolyLineEdge also read into `yfiles.*` columns (position, size, colours, label, shape, arrows) | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
-| `.graphmlz` (gzip)                                                                          | Not handled                                                                                                                                                                | Optional: decompress with `DecompressionStream`.                                                                                 |
+| Case                                                                                        | graph-io today                                                                                                                                                            | Right behavior                                                                                                                   |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note; classic ShapeNode / PolyLineEdge also read into `yfiles.*` columns (position, size, colors, label, shape, arrows) | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
+| `.graphmlz` (gzip)                                                                          | Not handled                                                                                                                                                               | Optional: decompress with `DecompressionStream`.                                                                                 |
 
 ---
 
@@ -367,7 +367,7 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 graph-io source: `common/xml.ts`.
 
-| Case                                                                                        | graph-io today                                                                                                | Right behaviour                                                                                                                                                                 |
+| Case                                                                                        | graph-io today                                                                                                | Right behavior                                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | UTF-8 with or without BOM                                                                   | Supported                                                                                                     | Keep it.                                                                                                                                                                        |
 | UTF-16LE / UTF-16BE with a BOM                                                              | **Fatal `E_INVALID_UTF8`**                                                                                    | Detect the BOM and decode (XML 1.0 requires parsers to support UTF-16).                                                                                                         |
@@ -377,7 +377,7 @@ graph-io source: `common/xml.ts`.
 | An undeclared named entity (`&nbsp;`)                                                       | Fatal                                                                                                         | Correct under XML. The message should name the entity.                                                                                                                          |
 | DOCTYPE with an internal subset that declares entities (billion laughs, XXE)                | The DOCTYPE is skipped and its entities are never expanded, so an entity use becomes a fatal "unknown entity" | This is safe. Add explicit tests for a billion-laughs file and a `SYSTEM "file:///etc/passwd"` file. Both must fail fast or be ignored, never fetch anything, and never expand. |
 | Namespace prefixes, wrong namespace URIs                                                    | Not resolved; local names are used                                                                            | Lenient, and matches Gephi and igraph. Test `<gexf:node>` and `<ns3:graph>`.                                                                                                    |
-| Attribute-value normalisation (tab and newline become a space), CRLF to LF                  | Supported                                                                                                     | Keep it.                                                                                                                                                                        |
+| Attribute-value normalization (tab and newline become a space), CRLF to LF                  | Supported                                                                                                     | Keep it.                                                                                                                                                                        |
 | Truncated or not-well-formed input, a second root, text outside the root                    | Fatal                                                                                                         | Keep it. Test the igraph invalid1-6 files and graphology miserables_broken.graphml.                                                                                             |
 | Illegal XML 1.0 characters (control characters)                                             | Fatal                                                                                                         | Keep it.                                                                                                                                                                        |
 | Very long lines (OGDF long-line.graphml); huge files                                        | Streaming tokenizer                                                                                           | Test it.                                                                                                                                                                        |
@@ -454,7 +454,7 @@ graph-io source: `common/xml.ts`.
     - Nesting is limited to 32 levels.
 - **yEd:** https://docs.yworks.com/yfiles/doc/developers-guide/gml.html
     - `Version 2.18`, `hierarchic`, `isGroup` / `gid`.
-    - Colours `#RRGGBB[AA]`, plus `LabelGraphics`.
+    - Colors `#RRGGBB[AA]`, plus `LabelGraphics`.
 - **graph-tool (Netzschleuder):**
     - Ids start at 0; keys begin with `_` (`_pos`).
     - Vectors are written as `"x, y"`.
@@ -498,7 +498,7 @@ graph-io source: `formats/gml/syntax.ts`, `importer.ts` and `common/escape.ts`.
 
 **Lexing and values**
 
-| Case                                                                                                                                                                   | graph-io today                                                                                                                                            | Right behaviour                                                                                                                              |
+| Case                                                                                                                                                                   | graph-io today                                                                                                                                            | Right behavior                                                                                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A multi-line string** (spec: the newline is part of the string; igraph keeps it)                                                                                     | **Fatal `E_SYNTAX`** (syntax.ts:272-279)                                                                                                                  | Accept it and keep the newline; turn CRLF inside the string into LF.                                                                         |
 | Entities: the 5 XML names, `&#NN;`, `&#xHH;`, `&eacute;`, `&auml;` (in the spec's own examples), `&NewLine;` (graph-tool), unknown `&foo;`, a stray `&`, `&#99999999;` | Numeric and the 5 XML names are decoded. **Other names are left verbatim, silently.** An out-of-range numeric reference **probably throws a RangeError**. | Decode the full HTML5 named-entity set. An unknown name: keep it verbatim and warn once. An out-of-range code point: warn and keep the text. |
@@ -514,7 +514,7 @@ graph-io source: `formats/gml/syntax.ts`, `importer.ts` and `common/escape.ts`.
 
 **Structure**
 
-| Case                                                                                               | graph-io today                                                                                              | Right behaviour                                                                                              |
+| Case                                                                                               | graph-io today                                                                                              | Right behavior                                                                                               |
 | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Missing `graph`; `graph []`                                                                        | `E_GML_NO_GRAPH`; an empty graph                                                                            | Keep it.                                                                                                     |
 | **Several `graph` blocks**                                                                         | **Fatal `E_GML_SECOND_GRAPH`**                                                                              | Use the first graph and warn, as igraph does. Fatal throws away a readable graph.                            |
@@ -542,8 +542,8 @@ graph-io source: `formats/gml/syntax.ts`, `importer.ts` and `common/escape.ts`.
 | HTML-like labels                                        | https://graphviz.org/doc/info/shapes.html#html                                                                                                                 |                                                                                           |
 | Reference implementation (more permissive than the doc) | gitlab.com/graphviz/graphviz `lib/cgraph/scan.l` and `lib/cgraph/grammar.y`                                                                                    | EPL-2.0                                                                                   |
 
-The grammar, the ID forms, the comment rules and the scanner behaviour the doc omits are
-summarised in the checklist below. The full grammar is in `downloads/dot/spec/`.
+The grammar, the ID forms, the comment rules and the scanner behavior the doc omits are
+summarized in the checklist below. The full grammar is in `downloads/dot/spec/`.
 
 ### 5.2 Test fixtures
 
@@ -584,7 +584,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 
 **Header, keywords and ids**
 
-| Case                                                                     | GV                                        | graph-io today                                                                                       | Right behaviour                                         |
+| Case                                                                     | GV                                        | graph-io today                                                                                       | Right behavior                                          |
 | ------------------------------------------------------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | `strict` / `graph` / `digraph`; named, anonymous, numeral or quoted name | OK                                        | Supported                                                                                            | Keep it.                                                |
 | Keywords in any case (`DiGraph`, `NODE`, `SubGraph`)                     | OK                                        | Supported                                                                                            | Keep it.                                                |
@@ -595,7 +595,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 
 **Strings**
 
-| Case                                                                       | GV                                                   | graph-io today                                                                             | Right behaviour                                                                                                                              |
+| Case                                                                       | GV                                                   | graph-io today                                                                             | Right behavior                                                                                                                               |
 | -------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `\"` and `\\` inside a quoted string                                       | Only `\"` is unescaped; `\\` stays as two characters | Same                                                                                       | Keep it.                                                                                                                                     |
 | escString sequences `\N \G \E \T \H \L \n \l \r`                           | Expanded at layout time                              | Kept literally                                                                             | Keep them raw at import. Expanding them for display belongs to the renderer.                                                                 |
@@ -605,7 +605,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 
 **Comments, separators and multiple graphs**
 
-| Case                                                                         | GV                                                            | graph-io today                                    | Right behaviour                                                                      |
+| Case                                                                         | GV                                                            | graph-io today                                    | Right behavior                                                                       |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `//`, `/* */`; an unterminated `/*`                                          | Comments; the unterminated one is an error                    | Same                                              | Keep it.                                                                             |
 | `#` at the start of a line; an **indented `#`**; a mid-line `#`              | All ignored to the end of the line (the last is undocumented) | **Only column 0 works; an indented `#` is fatal** | Accept `#` to the end of the line wherever it is outside a string, as Graphviz does. |
@@ -616,7 +616,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 
 **Subgraphs, edges and attributes**
 
-| Case                                                                              | GV                                                                              | graph-io today                                                 | Right behaviour                                                                                                                                            |
+| Case                                                                              | GV                                                                              | graph-io today                                                 | Right behavior                                                                                                                                             |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Named, anonymous and bare `{}` subgraphs; the same name reused (they merge)       | OK                                                                              | Supported                                                      | Test the reuse case.                                                                                                                                       |
 | `cluster` name prefix; `cluster=true`                                             | Clusters                                                                        | Container node plus parent                                     | Keep it.                                                                                                                                                   |
@@ -631,12 +631,12 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 | `strict` with repeated edges, `b--a` against `a--b`, one self-loop                | Merged, latest attributes win; the self-loop is kept once                       | `STRICT_MERGED`                                                | Keep it.                                                                                                                                                   |
 | Edge `key`                                                                        | Names the edge                                                                  | Edge-id column; `KEY_MERGED`                                   | Keep it.                                                                                                                                                   |
 | **`--` in a digraph, or `->` in a graph**                                         | **Fatal syntax error**                                                          | Warning `EDGE_OPERATOR` by default; the edge is kept           | Being more lenient than Graphviz is acceptable, since it rejects nothing Graphviz accepts. Keep the warning and document that Graphviz rejects such files. |
-| `charset=latin1`                                                                  | Decoded as Latin-1; invalid UTF-8 without a charset gives a warning and Latin-1 | **Fatal `E_INVALID_UTF8`**                                     | Honour `charset`; see cross-format finding 1.                                                                                                              |
+| `charset=latin1`                                                                  | Decoded as Latin-1; invalid UTF-8 without a charset gives a warning and Latin-1 | **Fatal `E_INVALID_UTF8`**                                     | Honor `charset`; see cross-format finding 1.                                                                                                               |
 | UTF-8 BOM; CRLF; `@` outside a string; attribute macros `graph x = [...]`         | BOM ignored; OK; error; warning                                                 | BOM stripped; the others need tests                            | Test them.                                                                                                                                                 |
 
 **Size limits**
 
-| Case                                                                                        | GV                                            | graph-io today                     | Right behaviour                      |
+| Case                                                                                        | GV                                            | graph-io today                     | Right behavior                       |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------- | ------------------------------------ |
 | Very long strings (200k characters); 50k edges on one line; nesting 3000 deep; a long chain | Parses; fails at about 5000 levels of nesting | Nesting capped at 1024 (`NESTING`) | Keep it, with a clear error message. |
 
@@ -648,7 +648,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 
 **Pajek Reference Manual 6.02 (1 Jan 2026):** http://mrvar.fdv.uni-lj.si/pajek/pajekman.pdf
 (downloaded). Relevant sections: 2 (data objects), 5.3 (network on an ASCII file), 5.4 (Unicode),
-8 (colours), and Table 1 (time events). The manual says it is free for non-commercial use.
+8 (colors), and Table 1 (time events). The manual says it is free for non-commercial use.
 
 **Also relevant:**
 
@@ -674,7 +674,7 @@ binary. graph-io source: `formats/dot/tokenizer.ts` and `importer.ts`.
 - The value is formally required, but real files omit it.
 - Parameters: `w c p s a ap l lp lr lphi lc la fos font h1 h2 a1 k1 a2 k2`.
 
-**Colours:** about 96 names, plus `RGBrrggbb`, `RGB(r,g,b)`, `CMYKccmmyykk` and `CMYK(c,m,y,k)`.
+**Colors:** about 96 names, plus `RGBrrggbb`, `RGB(r,g,b)`, `CMYKccmmyykk` and `CMYK(c,m,y,k)`.
 
 **Unicode:**
 
@@ -724,7 +724,7 @@ testing:
 - LondonTube.net: relation `:0`, a repeated `:5` header, a bare `*arcs` in the middle.
 - Padgett.paj: a `[2-Mode]` inside a network NAME, which is not an interval.
 - caviar.paj: UTF-8 without a BOM.
-- The gd/\*.NET graph-drawing contest files: shapes and colours.
+- The gd/\*.NET graph-drawing contest files: shapes and colors.
 
 **What the 171 downloaded files contain:**
 
@@ -740,7 +740,7 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 
 **Sections**
 
-| Case                                                                                                                            | graph-io today                                                                                                                                                                            | Right behaviour                                                                                                            |
+| Case                                                                                                                            | graph-io today                                                                                                                                                                            | Right behavior                                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `*Network`, `*Vertices n`, `*Arcs`, `*Edges`, `*Arcslist`, `*Edgeslist`, `*Matrix`, each with `:k "name"`; keywords in any case | Supported; relation goes to a `relation` column                                                                                                                                           | Keep it. Test a repeated `:k` header and `:0`.                                                                             |
 | `*Arcs n` / `*Edges n` with a count                                                                                             | ?                                                                                                                                                                                         | Accept it and ignore the count; warn on a mismatch. Test it.                                                               |
@@ -751,7 +751,7 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 
 **Vertex lines**
 
-| Case                                                                                     | graph-io today                                                                                                                                      | Right behaviour                                                                                                                    |
+| Case                                                                                     | graph-io today                                                                                                                                      | Right behavior                                                                                                                     |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `*Vertices n` with fewer vertex lines, or none                                           | n vertices; `W_PAJEK_VERTEX_COUNT` (a warning) for a partial list                                                                                   | Create n vertices, with label = number. No warning is needed (common in real files).                                               |
 | Vertex lines out of order; duplicates                                                    | `DUPLICATE_NODE`                                                                                                                                    | Warn; the last one wins.                                                                                                           |
@@ -760,12 +760,12 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 | Encoding: a BOM means UTF-8, otherwise ANSI                                              | UTF-8 only                                                                                                                                          | See cross-format finding 1. Pajek's own default is ANSI without a BOM.                                                             |
 | Coordinates: 2 or 3, missing, 0..1                                                       | Position; `COORD_DIMS` on a mix                                                                                                                     | Keep it.                                                                                                                           |
 | **Shapes: ellipse, box, diamond, triangle, cross, empty, plus house, man, woman**        | All 9, in any case, stored lower-cased                                                                                                              | Match case-insensitively and include all 9.                                                                                        |
-| Vertex parameters and colours (named, `RGBrrggbb`, `RGB(...)`, `CMYK...`)                | Plain text-inferred columns; no colour or size role                                                                                                 | Optionally map `ic` to the colour role and `x_fact` to size.                                                                       |
+| Vertex parameters and colors (named, `RGBrrggbb`, `RGB(...)`, `CMYK...`)                 | Plain text-inferred columns; no color or size role                                                                                                  | Optionally map `ic` to the color role and `x_fact` to size.                                                                        |
 | **2-mode `*Vertices n n1`**                                                              | `meta.extra.pajek.firstMode`; no per-vertex mode column; `n1 > n` is a fatal `E_PAJEK_VERTICES_COUNT`                                               | Add a mode column (igraph adds a `type`). A same-mode edge: warn. `n1 > n`: error.                                                 |
 
 **Arc and edge lines**
 
-| Case                                                                             | graph-io today                                                                                                                           | Right behaviour                                                              |
+| Case                                                                             | graph-io today                                                                                                                           | Right behavior                                                               |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Weight missing, negative, a float, `1e-3`                                        | Weight                                                                                                                                   | Keep it.                                                                     |
 | Mixed `*Arcs` and `*Edges`; an empty `*Arcs` block                               | Direction per section, so mixed direction works; the direction is set by the first line, so an empty `*Arcs` block does not count        | Keep it. An empty `*Arcs` block must not make the graph mixed. Test USAir97. |
@@ -776,9 +776,9 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 
 **Lines and comments**
 
-| Case                                                                                    | graph-io today | Right behaviour |
-| --------------------------------------------------------------------------------------- | -------------- | --------------- |
-| `%` comments, including indented; blank lines; trailing whitespace; tabs; CRLF; bare CR | Supported      | Keep it.        |
+| Case                                                                                    | graph-io today | Right behavior |
+| --------------------------------------------------------------------------------------- | -------------- | -------------- |
+| `%` comments, including indented; blank lines; trailing whitespace; tabs; CRLF; bare CR | Supported      | Keep it.       |
 
 ---
 
@@ -839,7 +839,7 @@ graph-io source: `formats/csv/records.ts`, `header.ts` and `importer.ts`.
 
 **Quoting and records**
 
-| Case                                                                         | graph-io today                                   | Right behaviour                                                                                                      |
+| Case                                                                         | graph-io today                                   | Right behavior                                                                                                       |
 | ---------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | RFC quoting: `""`; delimiter, CR, LF or CRLF inside quotes                   | Supported                                        | Keep it. Run csv-spectrum and the RFC cases in PapaParse.                                                            |
 | A bare quote inside an unquoted field (`a"b`)                                | ?                                                | Keep it literally and warn. Test it.                                                                                 |
@@ -851,16 +851,16 @@ graph-io source: `formats/csv/records.ts`, `header.ts` and `importer.ts`.
 
 **Encoding and line endings**
 
-| Case                                                         | graph-io today                        | Right behaviour             |
+| Case                                                         | graph-io today                        | Right behavior              |
 | ------------------------------------------------------------ | ------------------------------------- | --------------------------- |
 | UTF-8 BOM; UTF-16LE TSV (Excel "Unicode text"); Windows-1252 | BOM stripped; the other two are fatal | See cross-format finding 1. |
 | CR-only line endings                                         | Supported                             | Keep it.                    |
 
 **Delimiters and headers**
 
-| Case                                                                                                | graph-io today                                                                                             | Right behaviour                                                                                                                                                                                        |
+| Case                                                                                                | graph-io today                                                                                             | Right behavior                                                                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Delimiter sniffing `, ; \t \| space`; Excel `sep=;` first line                                      | Sniffed over 10 rows; **`sep=` is not recognised**                                                         | Honour `sep=`.                                                                                                                                                                                         |
+| Delimiter sniffing `, ; \t \| space`; Excel `sep=;` first line                                      | Sniffed over 10 rows; **`sep=` is not recognized**                                                         | Honor `sep=`.                                                                                                                                                                                          |
 | **Runs of whitespace as the delimiter** (SNAP, KONECT, networkx, igraph); a trailing space (KONECT) | **A space delimiter does not collapse runs**, so empty fields cause `FIELD_COUNT` or blank-endpoint errors | Add a whitespace delimiter mode that collapses runs and ignores trailing space. Use it automatically for `.edges`, `.edgelist`, `.txt` and KONECT `out.*` files, and whenever the sniffer picks space. |
 | Header present or absent; a header in a comment (`# source, target`, `# FromNodeId ToNodeId`)       | Header detected by known names or text-over-numbers; comment headers are not read                          | Read column names from the last leading `#` line when it looks like a header.                                                                                                                          |
 | **A header with unknown names over all-text data**                                                  | **Read as a data row, silently**, so `from_node,to_node` becomes an edge                                   | Warn when the first row could be a header, e.g. no row after it repeats its text and its cells look like identifiers.                                                                                  |
@@ -869,14 +869,14 @@ graph-io source: `formats/csv/records.ts`, `header.ts` and `importer.ts`.
 
 **Comments**
 
-| Case                                                     | graph-io today                                                                                          | Right behaviour                                                                                                                              |
+| Case                                                     | graph-io today                                                                                          | Right behavior                                                                                                                               |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#` and `%` comment lines: leading, or later in the file | Leading only, with direction hints (`% sym`, `# Directed graph`); **a later `#` line becomes a record** | Treat `#` / `%` lines anywhere as comments in edge-list files. igraph's lgl is the exception, where `#` is data; that is a different format. |
 | KONECT's second `%` line (edge and node counts); `% bip` | `% bip` is read as a direction hint                                                                     | For `bip`, prefix the right-side ids so the two id spaces do not collide (e.g. `r:1`); warn.                                                 |
 
 **Row shapes**
 
-| Case                                                                       | graph-io today                                             | Right behaviour                                                                                                        |
+| Case                                                                       | graph-io today                                             | Right behavior                                                                                                         |
 | -------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Third column as a weight; KONECT's fourth column as a timestamp            | Positional: source, target, weight, then `column4`         | Keep it. Map KONECT's fourth column to a time column.                                                                  |
 | networkx dict-repr column `{'weight': 4}`                                  | A string                                                   | Parse the Python-literal subset, or warn that it is not JSON.                                                          |
@@ -936,7 +936,7 @@ graph-io source: `formats/json/dialect.ts` and `importer.ts`.
 
 **JSON layer**
 
-| Case                                                                                   | graph-io today                        | Right behaviour                                                                                                                                                  |
+| Case                                                                                   | graph-io today                        | Right behavior                                                                                                                                                   |
 | -------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | JSONTestSuite y* / n* / i\_                                                            | `JSON.parse`                          | Run the suite once. n\_ files must fail with `E_JSON_SYNTAX`, never crash. The deep-nesting cases (`n_structure_100000_opening_arrays`) must give a clean error. |
 | **NaN / Infinity / -Infinity literals** (networkx writes them whenever a value is NaN) | **Fatal `SYNTAX`**                    | Accept them in a lenient pre-pass and warn, because networkx is the most common producer. Use a token-aware replacement, never a regex over strings.             |
@@ -947,13 +947,13 @@ graph-io source: `formats/json/dialect.ts` and `importer.ts`.
 
 **Dialect detection**
 
-| Case            | graph-io today                                            | Right behaviour                                                              |
+| Case            | graph-io today                                            | Right behavior                                                               |
 | --------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Detection order | Fixed order that **inspects only the first node or edge** | Keep the order, but check a few elements. The `dialect` option overrides it. |
 
 **node-link and d3**
 
-| Case                                                                   | graph-io today                                                                                | Right behaviour                                            |
+| Case                                                                   | graph-io today                                                                                | Right behavior                                             |
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `links` against `edges`; **both present**                              | `edges` wins; **`links` silently ignored**                                                    | Both present: error, or warn and read both.                |
 | `directed`, `multigraph`, `key`                                        | `key` is a plain attribute                                                                    | Keep it; the multigraph `key` should get the edge-id role. |
@@ -963,20 +963,20 @@ graph-io source: `formats/json/dialect.ts` and `importer.ts`.
 
 **JGF**
 
-| Case                                                                                               | graph-io today | Right behaviour                                                                             |
+| Case                                                                                               | graph-io today | Right behavior                                                                              |
 | -------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
 | v1 arrays; v2 object map; `graphs` array; `directed` default true; per-edge `directed`; hyperedges | Supported      | Keep it. The v1 quirk where `id` is also written as an `id#element` column should be fixed. |
 
 **Cytoscape**
 
-| Case                                                                                     | graph-io today                                                                                               | Right behaviour                                                  |
+| Case                                                                                     | graph-io today                                                                                               | Right behavior                                                   |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `{elements:{}}`, a flat array, top-level `{nodes,edges}` with `data` (gal.json); `.cyjs` | The first two are supported; **gal.json's shape probably falls through to node-link and fails on `data.id`** | Detect `nodes[0].data` and route it to Cytoscape. Test gal.json. |
 | Cytoscape `position.z`; a node without an id                                             | z is silently ignored; `MISSING_ID`                                                                          | Keep z in a 3-component position.                                |
 
 **Other dialects**
 
-| Case                                                                          | graph-io today                                               | Right behaviour                                                                                     |
+| Case                                                                          | graph-io today                                               | Right behavior                                                                                      |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
 | graphology `options.type` / `multi` / `allowSelfLoops`; per-edge `undirected` | Supported                                                    | Warn on a self-loop when `allowSelfLoops` is false.                                                 |
 | vis `from` / `to`; `arrows`                                                   | `arrows` is a plain attribute; x and y have no position role | Map vis `x` / `y` to position. `arrows` could decide direction; at least document that it does not. |
@@ -1048,7 +1048,7 @@ graph-io source: `formats/neo4j/header.ts` and `importer.ts`.
 
 **neo4j-admin header and values**
 
-| Case                                                                                       | graph-io today                                                                                                                               | Right behaviour                                                                                                                   |
+| Case                                                                                       | graph-io today                                                                                                                               | Right behavior                                                                                                                    |
 | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Every header type, `T[]` arrays, a configurable array delimiter                            | Supported; `duration` becomes a string; `point` becomes json                                                                                 | Keep it.                                                                                                                          |
 | `vector{...}` (a quoted header cell)                                                       | ?                                                                                                                                            | Parse it as a list of f32 / f64. Test it.                                                                                         |
@@ -1065,7 +1065,7 @@ graph-io source: `formats/neo4j/header.ts` and `importer.ts`.
 
 **APOC exports**
 
-| Case                                                             | graph-io today                                                                                                                                       | Right behaviour                                                                                                                                                                                                                                                                 |
+| Case                                                             | graph-io today                                                                                                                                       | Right behavior                                                                                                                                                                                                                                                                  |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **APOC JSON Lines, ARRAY_JSON, `{nodes,rels}`, JSON_ID_AS_KEYS** | **Not supported.** JSONL is a fatal JSON syntax error; the array form is fatal `DIALECT`; `{nodes,rels}` is misread as node-link with `rels` ignored | Add an `apoc` JSON dialect, plus JSONL sniffing: `{"type":"node"` on the first line. Map `labels` to the labels list, the relationship `label` to the type (role `kind`), and `start.id` / `end.id` to the endpoints. Create a node from a start / end stub when it is missing. |
 | **APOC CSV** (`_id,_labels,...,_start,_end,_type`)               | **Not supported.** No `:ID` header, so it is not Neo4j; the CSV importer finds no endpoint columns in node rows                                      | Detect the `_id` + `_start` + `_end` header and split rows by whether `_start` is set. Parse labels written `:A:B`.                                                                                                                                                             |
@@ -1125,7 +1125,7 @@ graph-io source: `formats/neo4j/header.ts` and `importer.ts`.
     - case-insensitive shapes plus house / man / woman
     - a 2-mode mode column and rectangular matrices
     - `&#dddd;` decoding
-8. **DOT:** `#` anywhere outside a string; keep the HTML-string flag; honour `charset`.
+8. **DOT:** `#` anywhere outside a string; keep the HTML-string flag; honor `charset`.
 9. **GEXF:**
     - 1.0 `attvalue id=`
     - 1.1 `<slices>`

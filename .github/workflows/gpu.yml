@@ -76,7 +76,7 @@ on:
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=spot
 permissions: { contents: read }
-# One paid run at a time, never cancelled: a cancelled run is a paid hour thrown away. A bisect point has a group
+# One paid run at a time, never canceled: a canceled run is a paid hour thrown away. A bisect point has a group
 # of its own, so it neither waits behind nor cancels the full run's lane; bisect.yml runs its points one at a time.
 concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || 'gpu-lane' }}
@@ -293,8 +293,8 @@ jobs:
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).
             # Each project is an invocation of its own. vitest reads fileParallelism from the ROOT config, so the
-            # config serialises a whole run that selects node-device-errors or node-limits; naming either beside
-            # `node` would serialise the main suite too.
+            # config serializes a whole run that selects node-device-errors or node-limits; naming either beside
+            # `node` would serialize the main suite too.
             # node-gpu-alone is the rest of the main suite: the files that hold the GPU for seconds per submission,
             # run after the node project and one at a time, so no short GPU test waits behind them (issue #1884).
             - name: Bisect point -- only the failing files, under each project that holds them and its no-subgroups twin

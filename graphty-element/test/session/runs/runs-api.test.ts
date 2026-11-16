@@ -60,7 +60,7 @@ interface HeldExecutor {
 
 /**
  * An executor that stays busy until the test releases it, or until its run
- * is cancelled. Nothing here reads the clock, so what a test observes does
+ * is canceled. Nothing here reads the clock, so what a test observes does
  * not depend on timer granularity or scheduling.
  */
 function heldExecutor(): HeldExecutor {

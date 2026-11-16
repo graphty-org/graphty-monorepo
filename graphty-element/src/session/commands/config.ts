@@ -5,7 +5,7 @@
  * path: every leaf of the zod `DataConfig` schema under `data.` (the id, label, weight and time
  * paths, the repeated-edge policy, the position scale, the id coercion, the on-load algorithms and
  * the direction), whether the on-load algorithms run, the background, the selection style, the pinned style, and
- * three layout-behaviour keys, the author stamped on notes, and the project's name. The `DataConfig` leaves are read from the schema when this module
+ * three layout-behavior keys, the author stamped on notes, and the project's name. The `DataConfig` leaves are read from the schema when this module
  * loads, so a field added there joins the slice without an edit here.
  *
  * The slice holds only what has been set, as the caller gave it; a key that is absent reads as
@@ -164,7 +164,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
             code: "config.set",
             params: { keys: configLeaves(command.values).map(([path]) => path) },
         }),
-        // Dragging a colour picker is one step: sets of the same keys recorded close together merge.
+        // Dragging a color picker is one step: sets of the same keys recorded close together merge.
         coalesce: (command) =>
             `config:${configLeaves(command.values)
                 .map(([path]) => path)

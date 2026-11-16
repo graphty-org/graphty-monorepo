@@ -210,8 +210,8 @@ export function sourceOf(property: string, id: string, baseline: Baseline | unde
 }
 
 /**
- * Whether a property is measured in a judgement, and which of a list of elements it judged.
- * @param run - the judgement
+ * Whether a property is measured in a judgment, and which of a list of elements it judged.
+ * @param run - the judgment
  * @param property - the property
  * @param ids - the elements asked about
  * @returns the elements it judged
@@ -230,7 +230,7 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
  * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
  * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
  * elements at all (a sample that drew nothing) says nothing is gone.
- * @param run - the judgement
+ * @param run - the judgment
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
  */
@@ -265,7 +265,7 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
  * @param known - the elements known to fail each property of this key
  * @param recorded - the recorded pass rates of this key
  * @param options - the rest
- * @param options.baseline - the baseline drawing's judgements, when the run judged one
+ * @param options.baseline - the baseline drawing's judgments, when the run judged one
  * @param options.section - where the key's recorded pass rates are kept (default: with the real programs)
  * @param options.gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset)
  * @param options.gateFloors - fail an element-judged rate below its floor (the oracle scorecard)

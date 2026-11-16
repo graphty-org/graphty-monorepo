@@ -1,9 +1,9 @@
 /**
  * @file What an algorithm that chooses a subset paints, run for real: a route, a spanning tree, a
  * cut. Each run's suggested style is an ordinary layer per half that sets explicit channels (a
- * colour on a node; a colour and a width on an edge) on exactly the elements the run chose, and
+ * color on a node; a color and a width on an edge) on exactly the elements the run chose, and
  * never a highlight -- so two algorithms' pictures stack instead of the second sweeping the first
- * away, and changing the element's highlight colour leaves both alone.
+ * away, and changing the element's highlight color leaves both alone.
  */
 
 import "../../src/algorithms";

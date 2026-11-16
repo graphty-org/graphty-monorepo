@@ -1,7 +1,7 @@
 // Screen 52: the minimap (round-3/navigate-select.md, "Minimap"). The Email
 // network, 2D, zoomed to 400 percent on one region (canvas.camera), the
 // minimap switched on from Dataset > Canvas (or M). The card at the bottom
-// left draws the whole graph as dots in their painted colours with the part
+// left draws the whole graph as dots in their painted colors with the part
 // the canvas shows as a blue box.
 import { DEGREE, COMMUNITIES } from "../email.mjs";
 import { OKABE_8, OTHER } from "../palettes.mjs";
@@ -32,7 +32,7 @@ export default {
     edges: { default: { width: 1 } },
     overlays: {
       // The viewport box: the 959 x 844 stage in box units at this zoom (fit
-      // scale 0.839 x 4), placed as fitOf centres the camera.
+      // scale 0.839 x 4), placed as fitOf centers the camera.
       minimap: { zoom: "400%", viewport: { x: CENTER.x - 143, y: CENTER.y - 111, w: 286, h: 252 } },
       dock: { open: false },
     },

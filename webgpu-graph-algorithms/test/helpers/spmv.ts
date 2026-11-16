@@ -245,7 +245,7 @@ export function spmvChecks(): readonly SpmvCheck[] {
 
 /**
  * One pull's error factor: maxRelError(actual, expected, absFloor) (test/helpers/matchers.ts) over spmvTolerance(s).
- * The 1e-12 floor on the tolerance is segmented-reduce's SR_FACTOR_FLOOR analogue: a tolerance of 0 would make
+ * The 1e-12 floor on the tolerance is segmented-reduce's SR_FACTOR_FLOOR analog: a tolerance of 0 would make
  * every factor Infinity; a NaN anywhere in the result is Infinity.
  * @param result - the kernel's output
  * @param expected - the f64 oracle

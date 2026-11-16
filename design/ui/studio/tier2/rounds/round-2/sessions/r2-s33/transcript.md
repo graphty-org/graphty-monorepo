@@ -31,7 +31,7 @@ Dev: "Menu: New project, Open project or file, Open sample, Save... There's noth
 
 Dev: "Okay, it didn't wipe my map, it says 'Add to friends'. Good. But wait -- 'friends-v2 adds 0 nodes, 41 edges' and at the bottom 'the load makes 20 nodes and 82 edges'. 82 is double! I don't want the old ties AND the new ties, I want the new ones instead of the old ones. There's no button that says that, only Cancel and Load. There's also a 'Higher means' thing for weight, Not set / Closer / Farther. The task didn't say anything changed about what the number means, so I'll leave that. I'm not loading 82 edges. Cancel, and I'll look in the Data tab on the left instead -- that's where the file should live."
 
-### 06 -- cancelled, back on the map
+### 06 -- canceled, back on the map
 `--step $S --click "Cancel"` -> 06.png
 
 Dev: "Phew, map is the same, Farah still first. Now the Data button on the left, under Graph."

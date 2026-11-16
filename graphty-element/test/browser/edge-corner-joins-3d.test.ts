@@ -4,12 +4,12 @@
  * and where a piece shorter than the line is wide lets the pieces either side of it overlap.
  *
  * Each piece of the joined edge is drawn on its own, from the slot the batch wrote for it (a slot
- * carries its neighbours' corners, so the others need not be drawn), with no anti-aliasing so a
+ * carries its neighbors' corners, so the others need not be drawn), with no anti-aliasing so a
  * pixel is either drawn or not. The pieces' drawings must not overlap, and together they must
  * cover every pixel inside the outline the same pieces cover when each is drawn as a plain
  * straight line. (A pixel on that outline is not compared: where the pieces meet at a shared miter
  * line, a piece's side runs along the plain line's side but from a different vertex, so a pixel
- * centre exactly on it can round either way.) Design:
+ * center exactly on it can round either way.) Design:
  * `design/edges/sharp-corners.md`.
  */
 
@@ -118,7 +118,7 @@ describe("a bent edge's pieces under the 3D camera", () => {
                 camera.position.set(7 * Math.sin(t), -7 * Math.sin(t), -10 * Math.cos(t));
                 camera.setTarget(Vector3.Zero());
 
-                // Each piece alone: every other slot hidden, its own carrying its neighbours.
+                // Each piece alone: every other slot hidden, its own carrying its neighbors.
                 plain.mesh.setEnabled(false);
                 joined.mesh.setEnabled(true);
                 const drawnBy = new Uint8Array(SIZE * SIZE);
@@ -213,7 +213,7 @@ describe("a bent edge's pieces under the 3D camera", () => {
         g.drawImage(canvas, 0, 0);
         const { data } = g.getImageData(0, 0, SIZE, SIZE);
 
-        // World y is up and the canvas's y down; the arc's centre is at world (0, -1).
+        // World y is up and the canvas's y down; the arc's center is at world (0, -1).
         const cx = SIZE / 2;
         const cy = SIZE / 2 + pxPerUnit;
         const rPx = R * pxPerUnit;

@@ -12,7 +12,7 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
-/** Thumb-to-index distances, in metres, for a hand that is clearly pinching or clearly open. */
+/** Thumb-to-index distances, in meters, for a hand that is clearly pinching or clearly open. */
 const PINCHED = 0.01;
 const OPEN = 0.1;
 

@@ -10,7 +10,7 @@ import { CustomLineRenderer, type JoinedLineOptions } from "./CustomLineRenderer
  * the nodes do.
  *
  * ONE MESH PER APPEARANCE, NOT PER EDGE (issue #444). This builds the mesh an `EdgeLineBatch`
- * draws every 2D line of one colour, width and opacity from, one instance per straight piece. It
+ * draws every 2D line of one color, width and opacity from, one instance per straight piece. It
  * is the joined line the 3D line is drawn with too (`CustomLineRenderer.createJoinedLineMesh`),
  * taking its width in world units: the pieces of a bent or curved edge meet at their corners with
  * a miter or a bevel, and a straight edge is the same rectangle it always was.

@@ -3,37 +3,37 @@ import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
 import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 
 /**
- * @file Make a node's per-instance colour shade like a colour the material carries itself.
+ * @file Make a node's per-instance color shade like a color the material carries itself.
  *
- * THE PROBLEM THIS SOLVES. Nodes that differ only in colour are drawn as instances of one mesh
- * with one shared material, and the colour travels in a per-instance vertex colour buffer rather
+ * THE PROBLEM THIS SOLVES. Nodes that differ only in color are drawn as instances of one mesh
+ * with one shared material, and the color travels in a per-instance vertex color buffer rather
  * than in the material. That sharing is worth having -- it is one material and one draw call for a
- * graph of ten thousand differently coloured nodes -- but it moves where in the shader the colour
- * is spent, and Babylon's default fragment shader spends a vertex colour LAST:
+ * graph of ten thousand differently colored nodes -- but it moves where in the shader the color
+ * is spent, and Babylon's default fragment shader spends a vertex color LAST:
  *
  *     light        = diffuseBase * diffuseColor + emissiveColor + vAmbientColor
- *     finalDiffuse = clamp(light, 0, 1) * baseColor.rgb    // the instance's colour is in there
+ *     finalDiffuse = clamp(light, 0, 1) * baseColor.rgb    // the instance's color is in there
  *
- * A material that carries its own colour has that colour inside the clamp, in `diffuseColor` and
- * in the emissive floor, so a lit surface climbs to 1.2 times the colour before any channel
- * saturates. A neutral material with the colour outside the clamp cannot: the clamp caps the light
- * term at 1, so the brightest a pixel can be is the colour itself, and every surface lit past 0.8
+ * A material that carries its own color has that color inside the clamp, in `diffuseColor` and
+ * in the emissive floor, so a lit surface climbs to 1.2 times the color before any channel
+ * saturates. A neutral material with the color outside the clamp cannot: the clamp caps the light
+ * term at 1, so the brightest a pixel can be is the color itself, and every surface lit past 0.8
  * -- under this element's single hemispheric light, the whole cap of the node facing the light --
- * comes out as one flat patch of unshaded colour. The node stops looking round.
+ * comes out as one flat patch of unshaded color. The node stops looking round.
  *
  * WHY IT HAS TO BE THE SHADER. The cap is a consequence of the multiply landing after the clamp,
  * so nothing set on the material can undo it: turning the diffuse down, dropping the emissive
- * floor or lifting the light's ground colour all move where the gradient starts and none of them
+ * floor or lifting the light's ground color all move where the gradient starts and none of them
  * raise its ceiling, because `clamp(x) * colour` is at most `colour` whatever x is. The only place
  * the ceiling exists is the expression itself, and the smallest honest correction is to multiply
- * the instance colour into the light term BEFORE the clamp, which is what this plugin does:
+ * the instance color into the light term BEFORE the clamp, which is what this plugin does:
  *
  *     finalDiffuse = clamp(light * baseColor.rgb, 0, 1)
  *
- * WHAT IT DOES NOT CHANGE. On a material whose instances carry no colour, `baseColor.rgb` is 1 and
+ * WHAT IT DOES NOT CHANGE. On a material whose instances carry no color, `baseColor.rgb` is 1 and
  * moving the multiply is arithmetically nothing. The shadowed end does not move either: a pixel at
  * the brightness floor was `0.55 * colour` before and is `0.55 * colour` after -- the floor still
- * lifts each node in proportion to its own colour. Only the saturated cap changes, which is the
+ * lifts each node in proportion to its own color. Only the saturated cap changes, which is the
  * whole of what was lost. The specular highlight is added after `finalDiffuse` and is not touched.
  */
 
@@ -67,7 +67,7 @@ const PLUGIN_PRIORITY = 900;
  * ONLY THE PLAIN BRANCH IS REWRITTEN. The shader writes `finalDiffuse` three times, once each for
  * `EMISSIVEASILLUMINATION` and `LINKEMISSIVEWITHDIFFUSE` and once for neither, and only the last
  * is matched here. The other two mean something different by "emissive" and the node material sets
- * neither flag; a material that did would keep the stock behaviour, visibly, rather than get a
+ * neither flag; a material that did would keep the stock behavior, visibly, rather than get a
  * rewrite of an expression this file has not reasoned about.
  */
 const LIT_TERM: Record<"glsl" | "wgsl", { readonly stock: string; readonly shaded: string }> = {
@@ -89,9 +89,9 @@ const LIT_TERM: Record<"glsl" | "wgsl", { readonly stock: string; readonly shade
 };
 
 /**
- * Shades a per-instance colour the way a material's own colour is shaded.
+ * Shades a per-instance color the way a material's own color is shaded.
  *
- * Attach it to a lit material whose colour arrives per instance; see the file comment for what it
+ * Attach it to a lit material whose color arrives per instance; see the file comment for what it
  * rewrites and why nothing outside the shader can do the same job.
  */
 class InstanceColorShading extends MaterialPluginBase {
@@ -128,7 +128,7 @@ class InstanceColorShading extends MaterialPluginBase {
     }
 
     /**
-     * The shader edit: move the instance colour inside the clamp on the lit term.
+     * The shader edit: move the instance color inside the clamp on the lit term.
      * @param shaderType - Which shader Babylon is building, "vertex" or "fragment".
      * @param shaderLanguage - The language it is building it in.
      * @returns The replacement, keyed by the regular expression it replaces.
@@ -150,10 +150,10 @@ class InstanceColorShading extends MaterialPluginBase {
 }
 
 /**
- * Shade this material's per-instance colours the way a material's own colour would be shaded.
+ * Shade this material's per-instance colors the way a material's own color would be shaded.
  *
- * For a lit material built neutral so that its instances can carry the colour: without this, every
- * surface lit past four fifths renders as one flat patch of the instance's colour instead of the
+ * For a lit material built neutral so that its instances can carry the color: without this, every
+ * surface lit past four fifths renders as one flat patch of the instance's color instead of the
  * gradient the light asks for. Attach it BEFORE freezing the material -- a frozen material stops
  * re-evaluating its shader defines, and a plugin is a define.
  *

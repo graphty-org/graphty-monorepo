@@ -2341,7 +2341,7 @@ here, no prior art found.
 ### 18.4 Agent drives, user steers (shared autonomy)
 
 - How: The agent explores continuously; the user biases direction with gaze or lean, flicks "less of this", holds "stay"; control is blended by user effort.
-- Inputs: head/gaze, hand flicks, hold; optional voice. Visual: travelling focus, fan of next candidates, trail.
+- Inputs: head/gaze, hand flicks, hold; optional voice. Visual: traveling focus, fan of next candidates, trail.
 - Good for: foraging large unfamiliar graphs; low-effort exploration.
 - Origin and evidence: invented, from shared-control robotics.
 - Sources: https://doi.org/10.1177/0278364913490324 ; https://dl.acm.org/doi/10.1145/302979.303030
@@ -2615,7 +2615,7 @@ here, no prior art found.
 - How: The user plants a sentinel (a small totem) on a node, cluster or empty region holding a standing question: 'tell me if this node enters the top 10 by betweenness', 'if these two communities merge', 'if any node crosses this volume', 'if a path between A and B appears'. It stays live through filter changes, time scrubbing, reruns and layout settling; when true it lights, chimes spatially and pulses haptics, and a thread leads to the cause. Placed operators (20.2) apply once; a sentinel watches and reports later.
 - Inputs: place and grab; a voice or NL predicate (17.1 chips) dragged onto the totem; poke to see why it fired; pick up to remove. Visual: dormant totems, glowing when fired with a leader line; off-screen firing uses 22.21 Halo or Wedge cues.
 - Good for: temporal or what-if exploration, long sweeps and parameter fiddling where the change happens away from where the user looks; in VR much of the scene is behind the user.
-- Origin and evidence: invented for VR graph analysis; desktop analogues are database triggers, continuous queries and dashboard alerting. No VR evidence.
+- Origin and evidence: invented for VR graph analysis; desktop analogs are database triggers, continuous queries and dashboard alerting. No VR evidence.
 - Sources: https://dl.acm.org/doi/10.1145/191839.191863
 
 ---

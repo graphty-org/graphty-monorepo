@@ -35,7 +35,7 @@
  * transport (`play`, `pause`, `step`) attach to this surface and are a later piece, because they
  * need a temporal result shape that does not exist yet. The seam they attach to is
  * {@link VisibilityApi.setWindow}: `steps()` is a batch of runs over a list of windows, each one
- * setting this same window and summarising what it left visible, and playback is a cursor over
+ * setting this same window and summarizing what it left visible, and playback is a cursor over
  * that list calling `setWindow` per step. Nothing about the masks needs to change for either.
  *
  * THE FILTER, THE WINDOW AND THE CONTEXT FLAG ARE PROJECT STATE; THE MASKS ARE NOT. The three
@@ -137,7 +137,7 @@ import { WindowCounter } from "./windowCount";
  * How much of the graph is showing, which is what a status bar reads.
  *
  * Four numbers rather than a list, because "showing 1,204 of 50,000" has to be renderable without
- * materialising anything: every one of these is maintained by the masks and costs nothing to
+ * materializing anything: every one of these is maintained by the masks and costs nothing to
  * read.
  */
 export interface VisibilitySummary {
@@ -259,7 +259,7 @@ export interface FilterConditionCount {
 export interface FilterDraft {
     /** The condition as the draft holds it now, with its id: a new one's id is made when it opens. */
     readonly condition: FilterCondition;
-    /** Whether the draft is still open: false once committed or cancelled. */
+    /** Whether the draft is still open: false once committed or canceled. */
     readonly open: boolean;
     /**
      * Change what the draft holds. Nothing is written and nothing that is shown changes.
@@ -363,7 +363,7 @@ export interface VisibilityApi {
      */
     isVisible(id: NodeId | EdgeId): boolean;
     /**
-     * The visible node ids, materialised lazily from the mask.
+     * The visible node ids, materialized lazily from the mask.
      *
      * Identity-stable and genuinely read-only: the same object comes back until the membership
      * changes, so `previous === next` is a valid staleness test. A consumer that only needs
@@ -407,7 +407,7 @@ export interface VisibilityApi {
      *
      * The time window is untouched. The two compose.
      *
-     * Of the run options, `signal` and `onProgress` are honoured; `queue` is not, and `dryRun` is
+     * Of the run options, `signal` and `onProgress` are honored; `queue` is not, and `dryRun` is
      * REFUSED rather than ignored -- `plan({ op: "visibility.set", filter })` is the call that
      * answers "what would this leave showing" without doing it.
      * @param filter - What to keep, or null to stop filtering.
@@ -564,7 +564,7 @@ export interface VisibilityApi {
      *
      * A reader who hides nine tenths of a graph usually still wants to see the shape of what they
      * hid. The flag is owned here because it is part of what "visible" means to a consumer, and
-     * it is honoured by the renderer, which draws the hidden nodes as a low-alpha point layer.
+     * it is honored by the renderer, which draws the hidden nodes as a low-alpha point layer.
      * Turning it on changes NOTHING about the masks: a context node is still hidden, still
      * outside every run's default scope, and still absent from `nodes`. Changing it is one
      * undoable step.
@@ -592,7 +592,7 @@ export interface VisibilityApi {
  *
  * `masks` is separate rather than folded in because the two shapes disagree on purpose. A
  * consumer reads `nodes` as a set of ids; the scope resolver needs the mask OBJECT, so that it
- * can test membership per element and key its caches on the mask's version without materialising
+ * can test membership per element and key its caches on the mask's version without materializing
  * anything.
  */
 export interface SessionVisibilityApi extends VisibilityApi {

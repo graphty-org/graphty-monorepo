@@ -107,7 +107,7 @@ floors at 0.05 and speed converges to a jitter-bounded value rather than
 zero, so a noisy force never yields zero displacement -- but is not
 measured; keep it as a stated risk, not a fact.
 
-Fix: normalise by the RMS radius that PERF-1 adds (one word once that
+Fix: normalize by the RMS radius that PERF-1 adds (one word once that
 partial exists); state that `meanDisplacement` is over free nodes NOT in
 over-capacity cells, or raise `nearMax` adaptively when
 `maxCellOccupancy > nearMax` persists for `settleWindow` iterations, and add
@@ -119,7 +119,7 @@ Plan lines 2028-2031 list 8 bindings (revRowPtr, revColIdx, revWeights,
 outWeightSum, rankIn, rankOut, personalization-or-dummy, partials) and say
 "the dangling sum and the delta are reduced by a tiny kernel into a 16-byte
 STORAGE block the next iteration reads". Line 1257 (row 9): spmvPull is
-"segmentedReduce specialised ... tiered by IN-degree (`degreeOrder({ of:
+"segmentedReduce specialized ... tiered by IN-degree (`degreeOrder({ of:
 "reverse" })`)"; row 3 (line 1251): tiered rows are "visited through
 `degreeOrder(opts).perm` with `override USE_PERM`"; 3.5 (lines 797-806):
 group 0 is `rowPtr, colIdx, weights or dummy, perm or dummy` and "a kernel
@@ -215,7 +215,7 @@ is 17.7 ms and 1M ~1.8 s (the plan is 1.6-2x pessimistic there) while 16k is
 (1.14-1.7x, mean ~1.3). Consequences are limited: T-4 (16k <= 2 ms) still
 holds and `exactMaxNodes` is re-fixed by measurement at G3.
 
-Fix: replace the constant with the measured (n, ms, pairs/s) curve labelled
+Fix: replace the constant with the measured (n, ms, pairs/s) curve labeled
 "[M], occupancy-limited below ~65k"; correct the 100k / 1M exact rows in
 7.21 and 10.3; fix 7.8's 16k figure to ~1.1-1.3 ms.
 
@@ -231,8 +231,8 @@ and 1607-1612 (7.8's P3 rule measures 1k-65k). The claim "can never suggest
 never compares the exact cost with the grid cost it also measures
 (`gridMsPerIter16k` is returned but unused by the suggestion), and the
 "20-40 ms" omits first-use pipeline compilation of the grid build's ~15-20
-pipelines and Chromium's 100 us timer quantisation (5.5 already documents the
-quantisation).
+pipelines and Chromium's 100 us timer quantization (5.5 already documents the
+quantization).
 
 Fix: default `sizes = [8k, 16k, 32k, 65k]`, 10 timed iterations after
 `PipelineCache.warm` and one warm-up submit; `suggestedExactMaxNodes` =
@@ -297,7 +297,7 @@ final result.
 
 ### PERF-13 -- DOWNGRADED (minor; the "contradiction" is a pessimism, the Q-13 impact is refuted)
 
-Plan lines 2115-2118 ("batching amortises dispatch latency, not bandwidth, so
+Plan lines 2115-2118 ("batching amortizes dispatch latency, not bandwidth, so
 256 sampled sources at 100k / 1M is 1-5 s and at 1M / 10M 20-60 s [X]"),
 2604-2605 (10.3 BFS whole run 30-100 ms at 1M / 10M), 2635 (T-10 basis "[P]
 Merrill 3.3 GTEPS (2011)"), 3246 (Q-13). The BC figure is NOT unsupported:
@@ -323,7 +323,7 @@ at note 05 lines 209-211: "NVIDIA RTX 4070 SUPER (Dawn-node)" vs "Mesa
 llvmpipe 23.2.1 / LLVM 15 (Dawn-node)"), i.e. a software GPU running the
 compute, not a Chromium readback. Note 05 section 7.2 (line 517) has exactly
 one Chromium copy datapoint (1 MiB: 2.65 ms NVIDIA, 3.83 ms SwiftShader) and
-the plan cites it as such with the 12 MB figure labelled by extrapolation.
+the plan cites it as such with the 12 MB figure labeled by extrapolation.
 There is no evidence for "~5 ms/MiB" or "30-60 ms". Adding a 12 MB Chromium
 measurement to T-5 would be sensible housekeeping but is not a defect: the
 1M-node browser row already says "readback-bound -> `k` >= 4; batch use".
@@ -351,7 +351,7 @@ peaks (RTX 4070 SUPER ~35 TFLOPS / 504 GB/s; Iris Xe 96 EU ~2.1 TFLOPS /
 ~60 GB/s shared; Apple M1 ~2.6 TFLOPS / 68 GB/s) give 13-17x on the
 compute-bound exact tile (measured compute-bound at 5.7e11 pairs/s) and 7-8x
 on bandwidth-bound gathers, and a unified-memory `mapAsync` has no PCIe copy,
-so "2x slower on readback" has no basis. All rows are labelled [X], so the
+so "2x slower on readback" has no basis. All rows are labeled [X], so the
 harm is calibration of the integrated-GPU fps expectations (10-15 fps at
 100k becomes 5-8 fps).
 

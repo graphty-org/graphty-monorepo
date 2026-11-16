@@ -8,10 +8,10 @@ const meta = {
 export default meta;
 
 /**
- * The reader's own layer: every edge grey, so that the ones the tree kept stand out when the
+ * The reader's own layer: every edge gray, so that the ones the tree kept stand out when the
  * algorithm's layer repaints them on top.
  *
- * It greys EVERY edge rather than naming the ones outside the tree, and that is deliberate. The
+ * It grays EVERY edge rather than naming the ones outside the tree, and that is deliberate. The
  * tree's own layer paints only the edges in the tree -- an edge it left out is not its to touch
  * -- so "the rest" is whatever is still showing from underneath, which is what a layer beneath is
  * for. Naming the rest would need the id of a run that has not started when the story is written.
@@ -25,7 +25,7 @@ const DIM_EVERY_EDGE: LayerSpec = {
 
 /**
  * Kruskal's MST - highlights minimum spanning tree edges
- * MST edges are highlighted; every other edge is left grey by the reader's layer beneath
+ * MST edges are highlighted; every other edge is left gray by the reader's layer beneath
  */
 export const Kruskal: Story = createAlgorithmStory("graphty:kruskal", {
     readerLayers: [DIM_EVERY_EDGE],

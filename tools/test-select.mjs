@@ -2112,7 +2112,7 @@ async function buildGraph(root, pkg, config, reuseFrom = null) {
 }
 
 /**
- * One file's edges, then its imports' (memoised across every test of the package).
+ * One file's edges, then its imports' (memoized across every test of the package).
  * @param project the Vitest project whose Vite server transforms the file
  * @param file an absolute path
  * @param ctx shared state of the run

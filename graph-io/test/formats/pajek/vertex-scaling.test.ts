@@ -23,7 +23,7 @@ import { describe, expect, it } from "vitest";
 import { pajekImporter } from "../../../src/formats/pajek/importer.js";
 import { arrayReadsOfLength } from "../../helpers/work-meter.js";
 
-/** A vertices-only .net document with ascending, labelled vertex lines. */
+/** A vertices-only .net document with ascending, labeled vertex lines. */
 function verticesOnly(count: number): string {
     const lines = [`*Vertices ${count}`];
     for (let i = 1; i <= count; i++) {
@@ -56,7 +56,7 @@ describe("Pajek vertex-section scaling", () => {
     });
 
     it("numbers the nodes in vertex order whatever the line order", async () => {
-        // the gap-fill the high-water mark optimises is what makes this true; pin the behaviour it
+        // the gap-fill the high-water mark optimizes is what makes this true; pin the behavior it
         // must not change, at a size where both the old and the new loop are fast
         const ascending = new GraphBuilder({ directed: true });
         await pajekImporter.import(verticesOnly(50), ascending);

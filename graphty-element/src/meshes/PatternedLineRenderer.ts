@@ -12,7 +12,7 @@
  * graphty-element/scripts/ produces this file, so it is an ordinary source file and is
  * edited directly. It previously carried a "THIS FILE IS AUTO GENERATED" banner naming a
  * path (design/mesh-based-patterned-lines.md) that no longer exists after the monorepo
- * reorganisation. That banner was false and was removed, because it would have stopped the
+ * reorganization. That banner was false and was removed, because it would have stopped the
  * next reader from making the mesh-count and material-lifetime repairs this file now carries.
  * - Phase 1: Discrete patterns (dot, star, dash, diamond) with billboarding
  * - Phase 2: Adaptive density (add/remove meshes based on line length)
@@ -353,11 +353,11 @@ export class PatternedLineRenderer {
      * of a zigzag -- used to be a `Mesh` with a material of its own, so a single dashed edge was
      * tens of scene objects. It is now a slot in an `ArrowCapBatch`, the batch arrow caps are
      * drawn from, because an element is drawn exactly the way a cap is: in 3D by the same
-     * billboard shader, with its direction, size and colour per instance; in 2D by a
-     * StandardMaterial that holds the colour, turned into the XY plane and along its line by its slot.
+     * billboard shader, with its direction, size and color per instance; in 2D by a
+     * StandardMaterial that holds the color, turned into the XY plane and along its line by its slot.
      *
      * WHAT A BATCH IS KEYED BY is whatever the batch's mesh or material holds rather than a slot:
-     * the shape, the opacity, in 2D the colour, and for a connected pattern the width, because
+     * the shape, the opacity, in 2D the color, and for a connected pattern the width, because
      * its segment geometry is built to it rather than scaled.
      * @param pattern - The pattern type to render
      * @param width - Line width

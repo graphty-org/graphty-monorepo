@@ -64,7 +64,7 @@ async function start(dir = profile("chrome"), args: string[] = []): Promise<Chro
 /**
  * Tab labels scoped to one test, so no test reads another's reports.
  * @param key - The test's autosave key.
- * @returns The labeller.
+ * @returns The labeler.
  */
 function labels(key: string): (name: string) => string {
     return (name) => `${key}.${name}`;
@@ -127,7 +127,7 @@ const saved = (label: string, revision: number, mark = 0): Promise<LogEvent> =>
  * the edit was written because the page was hidden: its `saved` report comes after its `hidden`.
  * @param chrome - The browser.
  * @param key - The autosave key.
- * @param tab - The labeller.
+ * @param tab - The labeler.
  * @returns The hidden tab, the tab in front, and the hidden tab's entry.
  */
 async function editThenHide(
@@ -164,7 +164,7 @@ async function tabId(chrome: Chrome, label: string): Promise<number> {
 /**
  * After a discard: prove it happened, bring the tab back, and check what it restored.
  * @param chrome - The browser.
- * @param tab - The labeller.
+ * @param tab - The labeler.
  * @param entryA - The discarded tab's entry.
  */
 async function reactivateDiscarded(chrome: Chrome, tab: (name: string) => string, entryA: string): Promise<void> {

@@ -5,7 +5,7 @@
  * is copied, not shared): all-u32 CAS on `comp`, an `array<atomic<u32>>` because WGSL forbids mixing atomic and
  * plain access to one element, with a bounded retry loop (PD-5) and the changed flag at `P.flagIndex` inside the
  * same array (PD-4). The `P.giant` guard is GAP's "skip the vertices already in the giant component" and is a pure
- * optimisation -- linking two vertices already in one component is a no-op. The body is normative: a sabotage
+ * optimization -- linking two vertices already in one component is a no-op. The body is normative: a sabotage
  * mutation is a textual edit of it, so it is not restyled.
  */
 

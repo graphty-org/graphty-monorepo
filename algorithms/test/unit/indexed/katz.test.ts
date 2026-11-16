@@ -127,8 +127,8 @@ describe("indexed.katzCentrality", () => {
     for (const { name, graph } of [...undirectedFixtures(), ...directedFixtures()]) {
         it(`agrees with the legacy katzCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
-            // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, stopped by the
-            // largest single-node change -- so they differ only in the order the neighbours are summed
+            // Both sides run the same loop -- alpha * sum(neighbor scores) + beta, stopped by the
+            // largest single-node change -- so they differ only in the order the neighbors are summed
             // in: the legacy side walks an insertion-ordered Map, the port walks a row sorted by node
             // index. That is a floating-point difference, not an algorithmic one.
             // Where the series does not converge, legacy returned the rescaled diverged vector and the

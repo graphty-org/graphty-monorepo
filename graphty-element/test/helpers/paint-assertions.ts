@@ -17,7 +17,7 @@
  * THE LAST ONE IS THE INVERSE OF THE SAMPLER IN `style-paint-pixels.test.ts`. That file looks for
  * the most COLOURFUL pixel near a node and skips anything whose channel spread is under 24,
  * "because that is grey, which is the background, the edges and a specular highlight". A default
- * label is black text on whitesmoke, which is pure grey by that measure -- so the one instrument
+ * label is black text on whitesmoke, which is pure gray by that measure -- so the one instrument
  * in the repository that read pixels was calibrated to ignore exactly the thing the blank label
  * stories were about. Reading text back needs the opposite measurement, and {@link darkPixelsNear}
  * is it.
@@ -53,12 +53,12 @@ const INK_MAX_CHANNEL = 110;
 /**
  * How far apart a pixel's strongest and weakest channel may be and still count as ink.
  *
- * Text is grey -- its three channels move together. A dark BLUE node is dark and is not text, and
+ * Text is gray -- its three channels move together. A dark BLUE node is dark and is not text, and
  * this is what tells the two apart.
  */
 const INK_MAX_SPREAD = 40;
 
-/** How far from a node's projected centre {@link darkPixelsNear} looks, by default, in pixels. */
+/** How far from a node's projected center {@link darkPixelsNear} looks, by default, in pixels. */
 const DEFAULT_INK_RADIUS = 70;
 
 /**
@@ -79,9 +79,9 @@ export interface Frame {
     readonly height: number;
 }
 
-/** How much ink was found in a neighbourhood, and how big the neighbourhood was. */
+/** How much ink was found in a neighborhood, and how big the neighborhood was. */
 export interface InkReading {
-    /** Pixels dark enough and grey enough to be text. */
+    /** Pixels dark enough and gray enough to be text. */
     readonly ink: number;
     /** Pixels looked at, so a caller can quote a ratio. */
     readonly sampled: number;
@@ -122,8 +122,8 @@ function paintedChannels(paint: ElementPaint, target: "node" | "edge", index: nu
  * Every element in the graph has been painted by the style stack at least once.
  *
  * THE ONE ASSERTION THAT COVERS A WHOLE FAULT CLASS. The element's fallback appearance happens to
- * equal its own default layer's colour, so a graph the stack never painted looks correct until
- * something asks for a colour the fallback does not have. Three separate readings say so here, and
+ * equal its own default layer's color, so a graph the stack never painted looks correct until
+ * something asks for a color the fallback does not have. Three separate readings say so here, and
  * they come from different machinery: the resolved style per element, which is the columnar model;
  * the explanation a consumer would read, which is built from the bindings the pass prepared; and
  * the source mesh each node is actually drawn from, which is the scene.
@@ -307,8 +307,8 @@ export async function assertRunSettles<T>(run: Run<T>): Promise<RunOutcomeKind> 
 /**
  * Wait for the finished picture, then read the frame off the GPU.
  *
- * Babylon compiles a shader asynchronously and the instanced colour buffer is a define on that
- * shader, so the first frames draw in the source material's own colour rather than the instance's.
+ * Babylon compiles a shader asynchronously and the instanced color buffer is a define on that
+ * shader, so the first frames draw in the source material's own color rather than the instance's.
  * A fixed number of frames is a guess at how long that takes; the stable frame waits for it.
  * @param graph - The graph to read.
  * @returns The frame.
@@ -354,14 +354,14 @@ function projectNode(graph: Graph, frame: Frame, nodeId: string | number): { x: 
 }
 
 /**
- * How much text-coloured ink is on the canvas near one node.
+ * How much text-colored ink is on the canvas near one node.
  *
- * THE MEASUREMENT THAT PROVED THE LABELS WERE ABSENT: zero dark pixels in the whole neighbourhood
- * of a node whose resolved style confidently reported a black label. Text is dark AND grey, so
+ * THE MEASUREMENT THAT PROVED THE LABELS WERE ABSENT: zero dark pixels in the whole neighborhood
+ * of a node whose resolved style confidently reported a black label. Text is dark AND gray, so
  * both conditions are required -- a dark blue node is dark and is not a label.
  * @param graph - The graph to read.
  * @param nodeId - The node whose label is being looked for.
- * @param radius - How far from the node's projected centre to look, in pixels.
+ * @param radius - How far from the node's projected center to look, in pixels.
  * @param frame - A frame already read, when the caller is making several readings of one picture.
  * @returns The ink count and how many pixels were looked at.
  */

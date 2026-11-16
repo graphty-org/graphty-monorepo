@@ -253,8 +253,8 @@ describe("Arrowhead position", () => {
     });
 
     test("an edge down a torus's axis stops at the torus, not at its bounding sphere", async () => {
-        // The ray cast from centre to centre runs through the hole of both rings and hits
-        // neither, so the arrow is placed from the centres (#2643). That used to trim by the
+        // The ray cast from center to center runs through the hole of both rings and hits
+        // neither, so the arrow is placed from the centers (#2643). That used to trim by the
         // bounding sphere's radius -- the box's half-diagonal -- and stopped a full unit short.
         const g = await drawGraph(false, space(["A", 0, 0, 0], ["B", 0, 4, 0]), [["A", "B"]], {
             "node.shape": "torus",

@@ -71,12 +71,12 @@ graph-io/
 ## Conformance suite
 
 `test/conformance/` runs every fixture under `fixtures/<format>/` through `importGraph()` as bytes and
-checks it against the expected-result record in that format's `manifest.json` (origin, licence,
+checks it against the expected-result record in that format's `manifest.json` (origin, license,
 version, what it exercises, which oracle produced the expectation). `tools/oracle.py` regenerates the
 oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json and csv modules;
 `oracle_<format>.py` per format): `python3 test/conformance/tools/oracle.py [format ...]`.
 
-- An expectation states the RIGHT behaviour. Where graph-io misses it, the fixture carries
+- An expectation states the RIGHT behavior. Where graph-io misses it, the fixture carries
   `knownFailure` (or `roundTripFailure`): the cause and its section in the research notes. The
   test then runs as an expected failure, so a fix turns it red until the marker is removed. Remove
   the marker in the same change as the fix; never weaken an expectation to make it pass.
@@ -87,7 +87,7 @@ oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json a
   rank as its own format; `sniffAs` asks the same of any other fixture (null: no format).
 - `CONFORMANCE_REPORT=1 pnpm exec vitest run test/conformance` regenerates `test/conformance/REPORT.md`
   (the known failures grouped by cause: the work list).
-- Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licences are test-only: `test/` is not in the
+- Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licenses are test-only: `test/` is not in the
   package's `files`, so they are never published.
 - Three generative layers run in the same file (`conformance.test.ts`):
     - `generative.ts`: fast-check graphs (ids with Unicode, quotes, delimiters, XML / DOT / GML

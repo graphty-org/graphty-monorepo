@@ -220,7 +220,7 @@ export default [
             "sonarjs/hidden-files": "error", // S5691 Statically serving hidden files is security-sensitive
             "sonarjs/insecure-cookie": "error", // S2092 Creating cookies without the "secure" flag is security-sensitive
             "sonarjs/insecure-jwt-token": "error", // S5659 JWT should be signed and verified with strong cipher algorithms
-            "sonarjs/label-position": "error", // S1439 Only "while", "do", "for" and "switch" statements should be labelled
+            "sonarjs/label-position": "error", // S1439 Only "while", "do", "for" and "switch" statements should be labeled
             "sonarjs/link-with-target-blank": "error", // S5148 Authorizing an opened window to access back to the originating window is security-sensitive
             "sonarjs/max-switch-cases": "error", // S1479 "switch" statements should not have too many "case" clauses
             "sonarjs/misplaced-loop-counter": "error", // S1994 "for" loop increment clauses should modify the loops' counters

@@ -25,7 +25,7 @@
  *
  * WHAT THIS FILE CANNOT CHECK. A selector naming a run or an attribute that does not exist
  * parses perfectly and matches NOTHING, and an empty result reads exactly like a correct answer
- * of zero. Deciding that requires the run list and the attribute catalogue, which the compiler
+ * of zero. Deciding that requires the run list and the attribute catalog, which the compiler
  * does not have, so {@link CompiledSelector.paths} reports every column the selector reads and
  * the caller resolves them -- `E_UNKNOWN_RUN` and `E_UNKNOWN_ATTRIBUTE`, with candidates.
  *

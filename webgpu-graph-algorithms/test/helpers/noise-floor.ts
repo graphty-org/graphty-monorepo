@@ -103,7 +103,7 @@ interface NoiseFixtureDocument {
 }
 
 /**
- * The file-name sanitiser of vitest.config.ts (2.5): every character outside [A-Za-z0-9_.-] becomes "_".
+ * The file-name sanitizer of vitest.config.ts (2.5): every character outside [A-Za-z0-9_.-] becomes "_".
  * @param s - a name segment
  * @returns the safe segment
  */

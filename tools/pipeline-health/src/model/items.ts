@@ -66,8 +66,8 @@ export interface RunItem extends RawBase {
     sha: string;
     pr?: number;
     status: string; // queued | in_progress | completed
-    conclusion?: string; // success | failure | cancelled | timed_out | skipped | startup_failure | ...
-    /** For a cancelled run (4, "Master state"): never from timing. */
+    conclusion?: string; // success | failure | canceled | timed_out | skipped | startup_failure | ...
+    /** For a canceled run (4, "Master state"): never from timing. */
     cancelClass?: "superseded" | "by-hand" | "red";
     /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
     cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
@@ -183,7 +183,7 @@ export interface ShardRunItem extends RawBase {
     full: boolean; // a full run (the release train's ci lane)
     pr?: number;
     sha: string;
-    outcome: string; // passed | failed | error | infra | cancelled
+    outcome: string; // passed | failed | error | infra | canceled
     startedAt: number;
     endedAt: number;
     secs: number;

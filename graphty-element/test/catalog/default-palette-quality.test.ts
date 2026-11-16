@@ -3,14 +3,14 @@
  *
  * A reader who names no palette gets whatever the element chose, so the element's choice is the
  * picture most graphs are drawn with. These checks are measured, never eyeballed, and they read
- * the defaults THROUGH the element -- by planning a colour binding that names no palette -- so they
+ * the defaults THROUGH the element -- by planning a color binding that names no palette -- so they
  * follow the default if it changes rather than pinning an id.
  *
- * The colour science is small and standard, and is written out here rather than imported so the
+ * The color science is small and standard, and is written out here rather than imported so the
  * test cannot drift with the code it checks:
  *
  * - sRGB to linear RGB to OKLab (Ottosson 2020); Delta E is Euclidean OKLab distance x100.
- * - Colour-blindness simulation: Machado, Oliveira & Fernandes (2009) at severity 1.0, applied in
+ * - Color-blindness simulation: Machado, Oliveira & Fernandes (2009) at severity 1.0, applied in
  *   linear RGB. The Delta E floors below are calibrated to that model.
  * - Contrast: the WCAG 2 relative-luminance ratio.
  */
@@ -115,7 +115,7 @@ function hueSpread(hues: readonly number[]): number {
     return 360 - widestGap;
 }
 
-/** The CSS colour names the defaults are spelled with, and their hex. */
+/** The CSS color names the defaults are spelled with, and their hex. */
 const NAMED_COLORS: Record<string, string> = { whitesmoke: "#f5f5f5", darkgrey: "#a9a9a9" };
 
 const hexOf = (color: string): string => NAMED_COLORS[color.toLowerCase()] ?? color.toLowerCase();
@@ -132,7 +132,7 @@ function defaultBackground(): string {
 const registry = createScaleRegistry();
 const background = defaultBackground();
 
-/** Eleven colours along the palette a measurement gets when nobody names one. */
+/** Eleven colors along the palette a measurement gets when nobody names one. */
 const measurementSamples = Array.from(
     { length: 11 },
     (_, index) => prepareRamp({ domain: [0, 1] }, registry).color(index / 10)?.hex ?? "",
@@ -186,7 +186,7 @@ describe("the default palette for groups", () => {
         assert.notInclude(slots, "");
     });
 
-    // Every pair, not only neighbours: two groups of nodes can sit side by side anywhere in a graph.
+    // Every pair, not only neighbors: two groups of nodes can sit side by side anywhere in a graph.
     const pairs = slots.flatMap((left, index) => slots.slice(index + 1).map((right) => [left, right] as const));
 
     it("keeps every pair apart for normal vision (Delta E >= 15)", () => {
@@ -206,8 +206,8 @@ describe("the default palette for groups", () => {
     });
 
     it("keeps every colour but the last visible against the background (>= 1.5:1)", () => {
-        // The last slot is exempt: it is reached only when all eight colours are needed, and the
-        // palette puts the one colour that barely shows on a light background (yellow) there.
+        // The last slot is exempt: it is reached only when all eight colors are needed, and the
+        // palette puts the one color that barely shows on a light background (yellow) there.
         for (const color of slots.slice(0, -1)) {
             assert.isAtLeast(contrast(color, background), 1.5, `${ramp.palette.id}: ${color} on ${background}`);
         }
@@ -215,16 +215,16 @@ describe("the default palette for groups", () => {
 });
 
 /**
- * A colour as a lit 3D node draws it, at one point of its surface.
+ * A color as a lit 3D node draws it, at one point of its surface.
  *
  * The node material (`NodeMesh.createMaterial` with `InstanceColorShading`) multiplies the node's
- * colour by the light term inside the clamp: the scene's hemispheric light (`RenderManager`, sky
+ * color by the light term inside the clamp: the scene's hemispheric light (`RenderManager`, sky
  * 1.0, ground 0.35) plus an emissive floor of 0.2. A point on a sphere is lit somewhere between
  * the ground and the sky, so the factor runs from 0.55 to 1.2; a rendered #808080 node read back
- * in a browser has its median pixel at 0.875 of the colour, the sphere's middle tone.
- * @param hex - The colour the node is given.
+ * in a browser has its median pixel at 0.875 of the color, the sphere's middle tone.
+ * @param hex - The color the node is given.
  * @param factor - The light term at that point.
- * @returns The colour drawn there.
+ * @returns The color drawn there.
  */
 function shaded(hex: string, factor: number): string {
     const digits = hex.replace(/^#/, "");
@@ -238,7 +238,7 @@ function shaded(hex: string, factor: number): string {
         .join("")}`;
 }
 
-/** The shadow side, the middle and the lit side of a node, as factors of its colour. */
+/** The shadow side, the middle and the lit side of a node, as factors of its color. */
 const NODE_TONES = { shadow: 0.55, middle: 0.875, lit: 1.2 } as const;
 
 describe("the grey an overflowing encoding paints its smallest groups", () => {
@@ -257,8 +257,8 @@ describe("the grey an overflowing encoding paints its smallest groups", () => {
     });
 
     it("is clearly apart from the palette's black at every tone of a node (Delta E >= 33)", () => {
-        // The case that made the grey hard to read: a black group and the leftovers, side by
-        // side. A darker grey's shadow side sinks towards black (#505050 is 29.3 there).
+        // The case that made the gray hard to read: a black group and the leftovers, side by
+        // side. A darker gray's shadow side sinks towards black (#505050 is 29.3 there).
         for (const [tone, factor] of tones) {
             const grey = shaded(OTHER_GROUP_COLOR, factor);
             assert.isAtLeast(deltaE(grey, "#000000"), 33, `${tone}: ${grey} vs black`);
@@ -266,8 +266,8 @@ describe("the grey an overflowing encoding paints its smallest groups", () => {
     });
 
     it("is apart from every colour of the default group palette, flat (Delta E >= 13) and on a node (>= 8)", () => {
-        // 15, the floor between two palette colours, is out of reach for any grey light enough
-        // to stand off black: blue #0072B2 sits 13.2 from every grey from #606060 to #808080.
+        // 15, the floor between two palette colors, is out of reach for any gray light enough
+        // to stand off black: blue #0072B2 sits 13.2 from every gray from #606060 to #808080.
         for (const color of slots) {
             assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color), 13, `flat: ${OTHER_GROUP_COLOR} vs ${color}`);
             for (const [tone, factor] of tones) {
@@ -291,7 +291,7 @@ describe("the grey an overflowing encoding paints its smallest groups", () => {
 
 describe("the element's own highlight colour", () => {
     // What a highlight is drawn over: the default node, the default edge and the background. A
-    // route painted in a colour close to any of them is a route nobody finds.
+    // route painted in a color close to any of them is a route nobody finds.
     const nodeColor = defaultNodeStyle.texture?.color;
     const edgeColor = defaultEdgeStyle.line?.color;
     if (typeof nodeColor !== "string" || edgeColor === undefined) {
@@ -321,7 +321,7 @@ describe("the element's own highlight colour", () => {
     });
 
     it("is apart from every colour of the default measurement palette for every kind of vision (Delta E >= 15)", () => {
-        // A route is usually found on a graph already coloured by a score: a highlight inside
+        // A route is usually found on a graph already colored by a score: a highlight inside
         // that ramp makes the route's nodes read as low- or high-scored nodes, not as the route.
         for (const vision of [undefined, "protan", "deutan", "tritan"] as const) {
             for (const color of measurementSamples) {
@@ -336,8 +336,8 @@ describe("the element's own highlight colour", () => {
 });
 
 describe("the element's own highlight colour among the group colours", () => {
-    // A route is often found on a graph coloured by community: a highlight that is one of the
-    // group colours (black is the seventh) reads as one more community.
+    // A route is often found on a graph colored by community: a highlight that is one of the
+    // group colors (black is the seventh) reads as one more community.
     const groups = [...OKABE_ITO_COLORS, OTHER_GROUP_COLOR];
 
     it("is apart from every colour of the default group palette and its grey (Delta E >= 15, >= 6 under protanopia and deuteranopia)", () => {
@@ -388,7 +388,7 @@ describe("the band a selected edge is drawn with", () => {
     });
 
     it("is apart from the edges around it, the measurement colours and the highlight for every kind of vision (Delta E >= 15)", () => {
-        // A selected tie sits among grey ties and nodes coloured by a score, and may be on a route.
+        // A selected tie sits among gray ties and nodes colored by a score, and may be on a route.
         const around = [hexOf(edgeGrey), background, DEFAULT_HIGHLIGHT.color.toLowerCase(), ...measurementSamples];
         for (const vision of [undefined, "protan", "deutan", "tritan"] as const) {
             for (const color of around) {

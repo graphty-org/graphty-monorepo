@@ -2,7 +2,7 @@
  * @file Which analysis this graph can support, what each would cost, and which of them have
  * already been run.
  *
- * Nothing here is new work. The catalogue already declares every algorithm the element ships and
+ * Nothing here is new work. The catalog already declares every algorithm the element ships and
  * what each one requires of a graph; the cost model already answers, synchronously, what one of
  * them would take over the scope a run would actually cover, and already reports a requirement the
  * graph does not meet as `available: false` with a sentence rather than a throw; and the runs API
@@ -11,11 +11,11 @@
  *
  * The assembly belongs to the element for the reason the cost model's own file states: the element
  * is the only party that knows what its own work costs and can time it, and the one consumer that
- * modelled this package's internals for itself was wrong by 6.9x at 200,000 nodes.
+ * modeled this package's internals for itself was wrong by 6.9x at 200,000 nodes.
  *
  * Every metric is listed, including the ones this graph cannot support, because a list that
  * silently drops them cannot say WHY a metric is missing. `available` plus `reason` is the
- * difference between a greyed-out card that explains itself and a card nobody can find.
+ * difference between a grayed-out card that explains itself and a card nobody can find.
  */
 
 import type { AlgorithmDescriptor, AlgorithmKey, MetricAvailability, RunId } from "../catalog/types";
@@ -38,7 +38,7 @@ interface MetricRunRecord {
  * The three things a metric listing reads, each of which the session already maintains.
  *
  * Declared as a seam rather than taken as a session so that the assembly is testable against a
- * fixed catalogue and a fixed cost model, and so that nothing here has to know how a session
+ * fixed catalog and a fixed cost model, and so that nothing here has to know how a session
  * resolves a scope.
  */
 export interface MetricsSource {
@@ -89,8 +89,8 @@ function runIdsByAlgorithm(runs: readonly MetricRunRecord[]): ReadonlyMap<Algori
  * the button a consumer is about to draw would run. A consumer that wants a different scope or
  * different parameters asks `session.estimate` for that exact command instead; this is the
  * listing, not a substitute for the estimate.
- * @param source - The catalogue, the cost model and the run history.
- * @returns One entry per algorithm the element ships, in catalogue order.
+ * @param source - The catalog, the cost model and the run history.
+ * @returns One entry per algorithm the element ships, in catalog order.
  */
 export function describeMetrics(source: MetricsSource): readonly MetricAvailability[] {
     const byAlgorithm = runIdsByAlgorithm(source.runs());

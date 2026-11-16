@@ -24,7 +24,7 @@ Command: --step --click "Load"
 03.png: graph loaded, 24 nodes / 59 edges / 1 component on the right. Matches the preview. All nodes same blue. Left panel "Style layers": Hovered, Selected, Everything, with a + button. Toolbar at bottom with icons. A notice about the browser clearing storage.
 
 ## Step 3
-Alex: Counts match. Now I need to colour a subset by a rule -- in Gephi that's Appearance + a filter. Here the left panel has "Style layers" with a plus. "Layer" is a bit developer-speak but it's the only thing that looks like colouring. I'll try the + .
+Alex: Counts match. Now I need to color a subset by a rule -- in Gephi that's Appearance + a filter. Here the left panel has "Style layers" with a plus. "Layer" is a bit developer-speak but it's the only thing that looks like coloring. I'll try the + .
 Command: --step --hover-icon / --click on the + next to Style layers
 Output: button "Add a layer or a folder". 04.png: menu Layer / Folder / Select layers... / Analyze...
 
@@ -59,10 +59,10 @@ Output: combobox "email: how to match". 10.png: Contains / Starts with / Ends wi
 ## Step 10
 Alex: "Has no value" -- there it is.
 Command: --step --click "Has no value"
-11.png: email "Has no value" 9 nodes; together "4 of 24 nodes". 9 missing matches the 62%-have-email hint (15 of 24). Four people. Now the colour.
+11.png: email "Has no value" 9 nodes; together "4 of 24 nodes". 9 missing matches the 62%-have-email hint (15 of 24). Four people. Now the color.
 
 ## Step 11
-Alex: Colour should be under "Fill". Click the + on Fill.
+Alex: Color should be under "Fill". Click the + on Fill.
 Command: --step --click-at 1404,543
 Output: button "Add to node fill". 12.png: conditions collapsed into chips "on_record: yes, 12 nodes", "email: no value, 9 nodes". Fill > Color with hex 6366F1 already selected in the box.
 
@@ -74,7 +74,7 @@ Command: --step --type "FF0000" --key Enter
 ## Step 13
 Alex: Picture's done, but I need the names. There's a table icon in the bottom bar -- that's what I'd trust anyway.
 Command: --step --click-at 793,864
-Output: button "Table". 14.png: table of all 24 nodes (id, name, kind, donations, on_record, email). It does not show which rows are in my red layer -- no colour column, no "only these 4" option I can see. I could scroll and eyeball, but that's how mistakes end up in a report.
+Output: button "Table". 14.png: table of all 24 nodes (id, name, kind, donations, on_record, email). It does not show which rows are in my red layer -- no color column, no "only these 4" option I can see. I could scroll and eyeball, but that's how mistakes end up in a report.
 
 ## Step 14
 Alex: I want just the four. Maybe the layer's "Values" tab on the right lists who's in it.
@@ -99,9 +99,9 @@ Did I finish? Yes. Red, and only them: four sources who agreed to be on the reco
 Ease: 6 out of 7.
 
 What took longest / what confused me:
-- Getting the names back out. The layer's Values tab lists "Members" as s05, s11, s17, s19 -- ids, not names -- and the table below shows all 24 rows with no way I could see to show only the red ones or a colour column. I had to scroll and match ids by eye. For a list I'm going to hand to someone, that's the step where I'd make a mistake. Gephi isn't better here, but I'd want "show only these" or names in that member list.
-- "Style layers" / "Layer" is developer-speak; I only clicked it because nothing else looked like colouring. Once inside, though, "Which nodes" with "Nodes that pass every condition" was clear, and the per-condition counts (on_record yes 12, email no value 9, together 4 of 24) let me check the logic as I built it. That's the bit I liked.
+- Getting the names back out. The layer's Values tab lists "Members" as s05, s11, s17, s19 -- ids, not names -- and the table below shows all 24 rows with no way I could see to show only the red ones or a color column. I had to scroll and match ids by eye. For a list I'm going to hand to someone, that's the step where I'd make a mistake. Gephi isn't better here, but I'd want "show only these" or names in that member list.
+- "Style layers" / "Layer" is developer-speak; I only clicked it because nothing else looked like coloring. Once inside, though, "Which nodes" with "Nodes that pass every condition" was clear, and the per-condition counts (on_record yes 12, email no value 9, together 4 of 24) let me check the logic as I built it. That's the bit I liked.
 - The email condition started on "Contains"; I had to open the dropdown to find "Has no value". Fine once found.
 - on_record defaulted to "Yes" on its own -- right this time, but it chose for me without asking.
 - Good: "It never leaves your computer" right next to Open, and the node/edge counts before I hit Load. That's what got me to load the file at all.
-- The red is a plain FF0000; I typed it as hex. A colour picker with named colours would be friendlier for most people, but hex suits me.
+- The red is a plain FF0000; I typed it as hex. A color picker with named colors would be friendlier for most people, but hex suits me.

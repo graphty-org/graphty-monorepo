@@ -81,7 +81,7 @@ function bucketSort(degree: Uint32Array, bin: Uint32Array, vert: Uint32Array, po
 }
 
 /**
- * Peel node v: every simple neighbour of higher degree swaps to the front of its bucket and loses
+ * Peel node v: every simple neighbor of higher degree swaps to the front of its bucket and loses
  * one, which keeps vert sorted without re-sorting it.
  * @param s - The adjacency
  * @param v - The node being peeled
@@ -157,9 +157,9 @@ function groupByCore(degree: Uint32Array, maxCore: number): U32[] {
  *
  * Core numbers are defined on a SIMPLE graph, so a parallel arc counts once (parallels are
  * adjacent within a row, invariant I4) and a self-loop does not count at all, as NetworkX defines
- * it. The legacy implementation's adjacency-of-sets counts a self-loop as one neighbour, so there a
+ * it. The legacy implementation's adjacency-of-sets counts a self-loop as one neighbor, so there a
  * node with a self-loop can sit higher, and so can a node without one whose core leaned on
- * self-looped neighbours. The result equals the legacy function's on the graph with every
+ * self-looped neighbors. The result equals the legacy function's on the graph with every
  * self-loop removed.
  * @param s - An undirected snapshot
  * @returns The core numbers, the largest of them, and the lazy grouping

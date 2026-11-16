@@ -7,7 +7,7 @@
  * nodes are small.
  *
  * A slow GPU is simulated at the one place the loop learns about the GPU: the WebGL 2 fence after
- * each frame. `fenceSync` and `getSyncParameter` are wrapped so a fence reads unsignalled until a
+ * each frame. `fenceSync` and `getSyncParameter` are wrapped so a fence reads unsignaled until a
  * set time after it was made, which is exactly what a GPU that takes that long to finish a frame
  * looks like to the loop. Slow CPU work is a busy wait inside the frame.
  */
@@ -192,7 +192,7 @@ function hostOf(element: Graphty): LazyShaderHost {
 }
 
 /**
- * Make every fence the element's GL context makes read unsignalled for a while after it was made,
+ * Make every fence the element's GL context makes read unsignaled for a while after it was made,
  * as a GPU that takes that long per frame does.
  * @param element - The element.
  * @param gpuMs - How long each frame keeps the GPU busy; a function so a test can change it.

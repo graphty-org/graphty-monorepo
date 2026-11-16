@@ -5,7 +5,7 @@
  * edges, each held as one byte per element -- and the five operations that change them: replace,
  * add, remove, toggle and intersect. `./targets` turns the description of what to select into the
  * elements it names, whether that is a list of ids, a predicate, a pasted column out of a
- * spreadsheet, the neighbourhood of a node or the top twenty of a finished run.
+ * spreadsheet, the neighborhood of a node or the top twenty of a finished run.
  *
  * There is ONE selection per session, not one per view. Every view of a dataset, the data table,
  * the inspector and a headset read and write the same two sets, and none of that is expressible

@@ -179,8 +179,8 @@ describe("what a run suggests be drawn from it", () => {
         assert.strictEqual(spec.run, "route");
         assert.strictEqual(spec.field, "onPath");
         assert.deepStrictEqual([...channels], ["node.color", "edge.color"]);
-        // The colour and the width are the mark's own, so nothing about it follows the element's
-        // highlight colour: today's vermilion, and an edge three times the default width.
+        // The color and the width are the mark's own, so nothing about it follows the element's
+        // highlight color: today's vermilion, and an edge three times the default width.
         assert.deepStrictEqual(spec.set, {
             "node.color": "#D55E00",
             "edge.color": "#D55E00",
@@ -276,7 +276,7 @@ describe("the layer a suggestion becomes", () => {
             scale: "linear",
         });
         // A grouping carries the default overflow policy, so a run that finds more groups than the
-        // palette has colours folds the smallest into one grey rather than being refused.
+        // palette has colors folds the smallest into one gray rather than being refused.
         assert.deepStrictEqual(grouped, {
             by: "results.louvain.group",
             scale: "ordinal",
@@ -288,7 +288,7 @@ describe("the layer a suggestion becomes", () => {
         // The scale is settled here because the SHAPE settles it -- a partition is categorical
         // however many groups it turns out to hold. The palette is not, because it depends on a
         // number nothing knows yet: how many groups there are. Writing one in anyway is what
-        // planted an eight-colour palette on a ten-community result, which the capacity check
+        // planted an eight-color palette on a ten-community result, which the capacity check
         // then refused, leaving a layer that was in the stack, enabled, and painting nothing.
         const grouped = layerFor(LOUVAIN).encode?.["node.color"];
         const measured = layerFor(BETWEENNESS).encode?.["node.color"];

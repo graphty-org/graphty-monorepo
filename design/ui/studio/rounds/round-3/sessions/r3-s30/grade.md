@@ -71,6 +71,6 @@ every run.
 
 **What worked:** "Local only" and "Files are read on this computer and never uploaded" on the
 first screen. Every Analyze method has a one-line description and a time estimate ("Under a
-second"). Size "+" opens its from-data list at once, and "id" and "name" are greyed out with the
+second"). Size "+" opens its from-data list at once, and "id" and "name" are grayed out with the
 reason "holds groups, not amounts". The key names both channels with their range. The inspector's
 "47.5, #1 of 15" is a value she can quote directly.

@@ -37,15 +37,15 @@ import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
  * THE COLOUR IS NOT IN THE STYLE. It is beside it, because the two halves go to two different
  * places: {@link NodePaint.style} builds the SOURCE mesh, which every node of the same shape and
  * size shares, and {@link NodePaint.color} is written into that node's own instance. Putting the
- * colour in the style would put it in the source mesh's material, and one material per colour is
- * one source mesh per colour -- fifty thousand of them for a continuous ramp.
+ * color in the style would put it in the source mesh's material, and one material per color is
+ * one source mesh per color -- fifty thousand of them for a continuous ramp.
  */
 export interface NodePaint {
     /** Which source mesh this node is drawn from. */
     readonly meshKey: string;
     /** The style the source mesh, the label and the effects are built from. */
     readonly style: NodeStyleConfig;
-    /** The colour to write into this node's instance, or null when no layer painted one. */
+    /** The color to write into this node's instance, or null when no layer painted one. */
     readonly color: Rgba | null;
     /**
      * Set on a plain paint ({@link plainNodePaint}) whose row's own paint draws a label: label sampling
@@ -60,9 +60,9 @@ export interface NodePaint {
  * THE COLOUR IS IN THE STYLE HERE, and that is a fact about the edge renderer rather than a
  * disagreement with {@link NodePaint}. A bezier, a patterned line and a 2D solid line are built
  * per edge and are not instances of anything, and the one line that IS cached -- a 3D solid --
- * carries its colour in a `StandardMaterial` the cache keys. So an edge's colour keys its mesh
+ * carries its color in a `StandardMaterial` the cache keys. So an edge's color keys its mesh
  * until the edge renderer grows a per-instance buffer of its own, and {@link EdgePaint.meshKey}
- * says so by carrying the colour.
+ * says so by carrying the color.
  */
 export interface EdgePaint {
     /** Which source mesh this edge is drawn from. */
@@ -195,7 +195,7 @@ export function plainEdgePaint(paint: EdgePaint): EdgePaint {
 /** The texture a plain body keeps: its color, never a picture. */
 const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
 
-/** The colour a source mesh's material is built in when the instance carries the real one. */
+/** The color a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 
 /** The node style every painted node is filled out from, parsed once. */
@@ -345,7 +345,7 @@ const RICH_TEXT_FIELDS: ReadonlySet<string> = new Set(Object.keys(RichTextStyle.
  *
  * WHY THE PAINTER APPLIES THIS AND NOT THE RENDERER. A badge is a whole look -- a notification is
  * a red pill in bold white lettering -- and `RichTextLabel` does declare all of it. It merges
- * those declarations UNDER whatever the caller passed, so that a caller who names a colour keeps
+ * those declarations UNDER whatever the caller passed, so that a caller who names a color keeps
  * it, which is right. What defeats it is that the caller here is never a person: a painted label
  * arrives as a fully filled-in style, every optional field already carrying the schema's own
  * default, so the merge finds a value for every key a badge wanted to set and the badge changes
@@ -384,8 +384,8 @@ function badgeAppearance(badge: LabelBadge): Record<string, unknown> {
  *
  * THREE FIELDS ARE NOT A PLAIN RENAME. A weight is stringified, because the renderer takes the
  * CSS spelling and a reader may write the number. An outline COLOUR switches the outline on,
- * because a colour is the thing a reader points at and `textOutline: false` with a colour beside
- * it draws nothing. And the gradient colours are copied, because the list a layer holds is
+ * because a color is the thing a reader points at and `textOutline: false` with a color beside
+ * it draws nothing. And the gradient colors are copied, because the list a layer holds is
  * frozen and the renderer's schema parses a mutable one.
  * @param style - The label style a layer painted.
  * @returns The rich-text fields it corresponds to.
@@ -474,7 +474,7 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
 
     const color = asColorValue(value);
 
-    // An effect written off draws nothing: its colour is left unwritten, so the renderer has
+    // An effect written off draws nothing: its color is left unwritten, so the renderer has
     // nothing to switch it on with, whatever a layer beneath wrote.
     if (color?.hex === EFFECT_OFF) {
         return;
@@ -554,7 +554,7 @@ function writeRank(name: string): number {
 type Fill = NonNullable<NodeStyleConfig["texture"]>["color"];
 
 /**
- * The neutral solid a node's material is painted so that its instance colour shows.
+ * The neutral solid a node's material is painted so that its instance color shows.
  * @param opacity - The node's opacity, when it has one.
  * @returns The `texture.color` value.
  */
@@ -563,11 +563,11 @@ function neutralFill(opacity: number | undefined): Fill {
 }
 
 /**
- * A gradient fill through `node.gradientColors`, or else from the node's colour into
+ * A gradient fill through `node.gradientColors`, or else from the node's color into
  * `node.gradientColor`, placed by `node.gradientStops`; linear, running the way
  * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from
- * `node.gradientCenterX` / `node.gradientCenterY` (the middle, when unset) to `node.gradientRadius`. With one colour it is one stop, which `NodeMesh` paints flat.
- * @param from - The node's colour, where the ramp starts when no colour list is painted.
+ * `node.gradientCenterX` / `node.gradientCenterY` (the middle, when unset) to `node.gradientRadius`. With one color it is one stop, which `NodeMesh` paints flat.
+ * @param from - The node's color, where the ramp starts when no color list is painted.
  * @param gradient - The gradient channels, as painted.
  * @param opacity - The node's opacity, when it has one.
  * @returns The `texture.color` value.
@@ -595,7 +595,7 @@ function gradientFill(from: string, gradient: FillChannels, opacity: number | un
 
 /** The channels a node's fill is drawn from, read beside the style rather than into it. */
 interface FillChannels {
-    /** `node.color`: the instance colour, or where a gradient starts. */
+    /** `node.color`: the instance color, or where a gradient starts. */
     color?: ColorValue | null;
     /** `node.opacity`. */
     opacity?: number;
@@ -603,9 +603,9 @@ interface FillChannels {
     to?: string;
     /** `node.gradientDirection`: which way it runs. */
     direction?: number;
-    /** `node.gradientColors`: every colour it runs through, in place of the two above. */
+    /** `node.gradientColors`: every color it runs through, in place of the two above. */
     colors?: string;
-    /** `node.gradientStops`: where each colour sits. */
+    /** `node.gradientStops`: where each color sits. */
     stops?: string;
     /** `node.gradientKind`: linear or radial. */
     kind?: string;
@@ -687,14 +687,14 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     // opaque color leaves the opacity, and so the mesh key, exactly as it was.
     const opacity = color !== null && color.a < 1 ? (fill.opacity ?? 1) * color.a : fill.opacity;
 
-    // The material is built neutral so that what shows is the instance's own colour. Opacity goes
+    // The material is built neutral so that what shows is the instance's own color. Opacity goes
     // in, because Babylon keeps `visibility` on the SOURCE mesh rather than on an instance -- so
     // an opacity encoding still mints one source mesh per distinct opacity, and the key below says
-    // so. Moving it takes a per-instance alpha buffer in `NodeMesh`, which a colour does not.
+    // so. Moving it takes a per-instance alpha buffer in `NodeMesh`, which a color does not.
     //
     // A GRADIENT FILL IS THE EXCEPTION. It is a texture in the source mesh's material, so a node
     // filled with one is drawn from a source mesh of its own (both gradient channels are `mesh`
-    // channels) and its instance colour is not drawn: `node.color` is where the ramp starts. That
+    // channels) and its instance color is not drawn: `node.color` is where the ramp starts. That
     // is an `instance` channel the interner keys nothing by, so the start goes into the key here,
     // as the opacity does.
     const filled =
@@ -843,7 +843,7 @@ function edgeHeaded(resolved: ResolvedStyle, directed: boolean): boolean {
 }
 
 /**
- * The key an edge's paint is drawn from: its interned mesh key, with the colour and the opacity
+ * The key an edge's paint is drawn from: its interned mesh key, with the color and the opacity
  * folded back in.
  *
  * See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner
@@ -865,9 +865,9 @@ function edgeIdentity(resolved: ResolvedStyle, meshKey: number, directed: boolea
 }
 
 /**
- * The instance colour of a node no gradient fills, as {@link nodePaintOf} writes it.
+ * The instance color of a node no gradient fills, as {@link nodePaintOf} writes it.
  * @param resolved - Everything the stack painted this node.
- * @returns The colour, or the element's own default when no layer painted one.
+ * @returns The color, or the element's own default when no layer painted one.
  */
 function rowColor(resolved: ResolvedStyle): Rgba | null {
     const painted = asColorValue(resolved["node.color"]);
@@ -909,10 +909,10 @@ function sharedColorPaint(
 
 /**
  * The look a node row shares with every row of the same mesh key, or null when its paint does not
- * follow from the key: every channel it carries keys its mesh, or is the colour, the opacity or the
- * visible flag. The colour's alpha (an opacity) and, under a gradient, its hex (the ramp's start)
+ * follow from the key: every channel it carries keys its mesh, or is the color, the opacity or the
+ * visible flag. The color's alpha (an opacity) and, under a gradient, its hex (the ramp's start)
  * are folded into the mesh key by {@link nodePaintOf}, so they are in the identity too; the rest of
- * the colour is only the instance's and is not.
+ * the color is only the instance's and is not.
  * @param resolved - Everything the stack painted this node.
  * @param meshKey - The key the interner gave this node's geometry.
  * @returns The identity, or null when two rows with the same key may be painted differently.
@@ -965,7 +965,7 @@ function sameStyle(a: ResolvedStyle, b: ResolvedStyle): boolean {
 
 /**
  * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
- * is the colour or the opacity the key folds back in. Content (a label, a bend) and the visible
+ * is the color or the opacity the key folds back in. Content (a label, a bend) and the visible
  * flag are per edge and are not in the key.
  * @param resolved - Everything the stack painted this edge.
  * @returns True when two edges with the same key are painted the same.
@@ -1018,16 +1018,16 @@ function foldEdgeAlpha(style: EdgeStyleConfig): EdgeStyleConfig {
     return style;
 }
 
-/** The colour fields of an edge style, each a hex string when set. */
+/** The color fields of an edge style, each a hex string when set. */
 const EDGE_COLOUR_PATHS = ["line.color", "arrowHead.color", "arrowTail.color"] as const;
 
 /**
- * Spell every colour of an edge style the way the engine spells a resolved one: lowercase hex.
+ * Spell every color of an edge style the way the engine spells a resolved one: lowercase hex.
  *
- * ONE SPELLING, WHOEVER WROTE THE COLOUR. A colour a layer resolved arrives as the engine's
- * lowercase hex; one nothing resolved is filled in from `defaultEdgeStyle`, whose grey the schema
+ * ONE SPELLING, WHOEVER WROTE THE COLOUR. A color a layer resolved arrives as the engine's
+ * lowercase hex; one nothing resolved is filled in from `defaultEdgeStyle`, whose gray the schema
  * parses to `#A9A9A9`. `Edge.paintFrom` decides whether a pass has to rebuild an edge by comparing
- * the pass's style with the one the edge was built from, and two spellings of one colour read as
+ * the pass's style with the one the edge was built from, and two spellings of one color read as
  * two styles -- which, between the bootstrap paint and the first pass, rebuilt every edge of every
  * load once, and Babylon's dispose costs the size of the scene (issue #388). So both the bootstrap
  * paint and every resolved paint go through this.
@@ -1168,7 +1168,7 @@ export class PendingRows {
  *
  * NEUTRAL MATERIAL, COLOUR BESIDE IT -- the same split {@link nodePaintOf} produces, and for the
  * same reason. A bootstrap built straight from `NodeStyle.parse(defaultNodeStyle)` would put the
- * colour in the source mesh's material, which is a material the session's own neutral one can
+ * color in the source mesh's material, which is a material the session's own neutral one can
  * never match, so the first repaint would rebuild every node's mesh rather than write one buffer
  * value per node.
  *
@@ -1231,7 +1231,7 @@ export function bootstrapNodePaint(): NodePaint {
 /**
  * What an edge looks like between its construction and the first repaint.
  *
- * The colour stays IN the style here, because the edge renderer has no per-instance state to
+ * The color stays IN the style here, because the edge renderer has no per-instance state to
  * carry one. See {@link EdgePaint}.
  * @param directed - Whether the graph is directed; the first pass draws a head only then, and the
  *     placeholder must match it or every edge is rebuilt once.
@@ -1261,7 +1261,7 @@ export function bootstrapEdgePaint(directed = true): EdgePaint {
  * being built and its first style pass and for a graph constructed with no session behind it.
  *
  * What fills that moment is {@link bootstrapNodePaint} and {@link bootstrapEdgePaint}: the
- * element's own defaults, in the shape a session pass produces, so the first pass writes a colour
+ * element's own defaults, in the shape a session pass produces, so the first pass writes a color
  * rather than rebuilding a graph.
  */
 export class StylePainter {
@@ -1453,7 +1453,7 @@ export class StylePainter {
      * Whether a style pass is still on its way: asked for, and not yet announced.
      *
      * Different from {@link StylePainter.hasPending}, which is paint that has ARRIVED and not been
-     * drawn. This is paint that has not arrived yet, and what it will change -- a colour, a size,
+     * drawn. This is paint that has not arrived yet, and what it will change -- a color, a size,
      * the box the camera frames -- is not known until it does.
      * @returns True while the bound pass is painting or queued to paint.
      */
@@ -1579,7 +1579,7 @@ export class StylePainter {
      * What a row drawn with no `Node` is painted (`NodeBatches.paintRow`), the paint
      * {@link StylePainter.nodePaint} gives it, built once per look rather than once per row.
      *
-     * Rows painted by their mesh key alone share one style object, and each keeps its own colour,
+     * Rows painted by their mesh key alone share one style object, and each keeps its own color,
      * so a load of a hundred thousand rows of one shape builds one style, not a hundred thousand.
      * Only rows with no `Node` take it: a `Node` keeps the style object it is handed, and the objects
      * path, which builds a `Node` for every row, still builds a style of its own for each.

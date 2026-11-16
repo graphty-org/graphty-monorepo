@@ -3,7 +3,7 @@
 Link prediction algorithms estimate the likelihood that two nodes will be connected in the future. They are useful for
 recommendation systems, knowledge graph completion, and social network analysis.
 
-Each function takes a graph snapshot (see [Graph Data Structure](./graph.md)) and node indices. A neighbour reached by
+Each function takes a graph snapshot (see [Graph Data Structure](./graph.md)) and node indices. A neighbor reached by
 parallel edges counts once.
 
 ## Overview
@@ -15,7 +15,7 @@ parallel edges counts once.
 
 ## Common Neighbors
 
-The simplest approach: count shared neighbours.
+The simplest approach: count shared neighbors.
 
 <!-- doc-check -->
 
@@ -36,12 +36,12 @@ const score = commonNeighborsScore(graph, graph.ids.requireIndex("alice"), graph
 console.log(score); // 2
 ```
 
-On a directed graph, pass `{ directed: true }` to count the nodes on a path u -> z -> v; without it the out-neighbours
+On a directed graph, pass `{ directed: true }` to count the nodes on a path u -> z -> v; without it the out-neighbors
 of both nodes are compared.
 
 ## Adamic-Adar Index
 
-Weighs each common neighbour by the inverse logarithm of its degree, so neighbours with fewer connections contribute
+Weighs each common neighbor by the inverse logarithm of its degree, so neighbors with fewer connections contribute
 more to the score.
 
 <!-- doc-check -->
@@ -64,7 +64,7 @@ console.log(score.toFixed(3)); // 1.820
 ```
 
 ::: tip
-Adamic-Adar often outperforms plain common neighbours because it down-weights neighbours that are connected to everyone
+Adamic-Adar often outperforms plain common neighbors because it down-weights neighbors that are connected to everyone
 (high-degree hubs).
 :::
 
@@ -117,7 +117,7 @@ for (let k = 0; k < top.scores.length; k++) {
 console.log(`${name(top.sources[0])} - ${name(top.targets[0])}`); // alice - dave
 ```
 
-`commonNeighborsPrediction(graph, { topK })` ranks by common neighbours instead, and `includeExisting: true`
+`commonNeighborsPrediction(graph, { topK })` ranks by common neighbors instead, and `includeExisting: true`
 also scores pairs that are already joined.
 
 On an undirected graph each pair is listed twice by default, once each way round (alice - dave and dave - alice,
@@ -168,7 +168,7 @@ const recommendations = getTopAdamicAdarCandidatesForNode(social, social.ids.req
 console.log(Array.from(recommendations.targets, (i) => social.ids.idOf(i))); // ["dave", "eve"]
 ```
 
-`getTopCandidatesForNode` does the same by common neighbours.
+`getTopCandidatesForNode` does the same by common neighbors.
 
 ## Evaluating a Predictor
 
@@ -197,5 +197,5 @@ console.log(adamicAdar.auc, commonNeighbors.auc); // 1 0.75
 ```
 
 Each result carries the `precision`, `recall` and `f1Score` of the best threshold and the ranking `auc`. Here b-c
-ties a-d with two common neighbours, and a tie counts half in the AUC, so common neighbours score 0.75. A threshold
+ties a-d with two common neighbors, and a tie counts half in the AUC, so common neighbors score 0.75. A threshold
 never splits pairs with equal scores, so a predictor that gives every pair the same score has an AUC of 0.5.

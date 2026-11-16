@@ -559,15 +559,15 @@ under about $1,000 a month. So the plan cuts work instead, in this order (plan s
 run stays first in line for runners, as today:
 
 1. **Stop work nobody uses.** (a) A newer push replaces a waiting master build; a running one
-   finishes (#3938: cancelling running builds left master with no finished build while merges came
+   finishes (#3938: canceling running builds left master with no finished build while merges came
    faster than one build). Only the newest build's site matters for canary, and the full run picks the
    newest commit with a kept site, so a replaced waiting build only means a newer commit is built. This replaces "a push to master
-   never cancels" for superseded master builds only; nothing else on master is cancelled, and
+   never cancels" for superseded master builds only; nothing else on master is canceled, and
    master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
    in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
    parity holds (section 5, step 9): the largest single saving. (d) Fewer pushes per pull request:
-   on 2026-10-26, 99 of 244 pull request runs were cancelled by a newer push to the same branch, a
+   on 2026-10-26, 99 of 244 pull request runs were canceled by a newer push to the same branch, a
    median 6 minutes later, because every commit was pushed and `pr-open.sh` merged master into a branch
    that was only behind; a branch with an open pull request is now pushed only on purpose.
 2. **Make each run smaller.** File-level test selection for the packages that still run whole

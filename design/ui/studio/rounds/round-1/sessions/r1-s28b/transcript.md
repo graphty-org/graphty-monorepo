@@ -73,7 +73,7 @@ it depends on a family, the bigger its dot -- then say what the sizes and colors
     Think-aloud: "The chain icon says Size by attribute. That's what I want."
 
 13. `--step --click "Size by attribute"` -> 13.png
-    Saw: "Find an attribute" with Bridges, Bridges rank, Bridges percentile, and greyed id and name
+    Saw: "Find an attribute" with Bridges, Bridges rank, Bridges percentile, and grayed id and name
     ("Cannot be used: Holds groups, not amounts").
 
 14. `--step --click-at 1188,324` (option "Bridges") -> 14.png

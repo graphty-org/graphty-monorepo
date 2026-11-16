@@ -6,7 +6,7 @@
  * of the P5 FR noise members, the tolerance caps and the ONE resolver of every FR tolerance. Shares only what
  * fa2-parity.ts exports (the graphs, the start array, the pure metrics, the decoders); never imports se-parity.ts.
  *
- * Units: every capture runs at scale 1 with a zero centre so the owner's scene array IS the layout state on both
+ * Units: every capture runs at scale 1 with a zero center so the owner's scene array IS the layout state on both
  * sides (assertUnitStart). The `displacement` stage is the G5 quantity (design 13 row P5): the positions after K5
  * minus the start in layout units, on both sides, compared with the floored per-node metric of spec 11.4.
  */
@@ -98,7 +98,7 @@ export async function withFrSim<T>(
 }
 
 /**
- * The inspect() / debugRunStages() pair of an FR simulation, or a throw when ctx.debug.inspect was not honoured.
+ * The inspect() / debugRunStages() pair of an FR simulation, or a throw when ctx.debug.inspect was not honored.
  * @param sim - the simulation
  * @returns the pair
  */
@@ -220,7 +220,7 @@ export const FR_NOISE_FIXTURES: Readonly<
  * The widening members (the FA2 precedent of the states10 / karate resync members: extra fixtures that feed the SAME
  * rows so a floor covers more than one geometry): the seven stages of karate at the base options, whose 34-node
  * sums near zero give the partials / K1 fold a larger relative noise than random1k's, and K3's force on random1k
- * under `k: 0.3`, where the 90x larger repulsion sums 999 nearly cancelling terms and NVIDIA's 2.5-ulp division
+ * under `k: 0.3`, where the 90x larger repulsion sums 999 nearly canceling terms and NVIDIA's 2.5-ulp division
  * leaves 2e-5 where the k = auto member measured 6e-7 (P5-T4 Step 5 finding). Written by fr-inspect.test.ts and
  * fr-twins.test.ts beside the random1k fixtures.
  */

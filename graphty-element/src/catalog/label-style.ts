@@ -57,7 +57,7 @@ export type LabelDeclutterOrder = "degree" | "size";
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
 
-/** The shape of the panel behind a label, when it is painted as a gradient rather than a colour. */
+/** The shape of the panel behind a label, when it is painted as a gradient rather than a color. */
 export type LabelGradientType = "linear" | "radial";
 
 /** Which way a label's background gradient runs. */
@@ -139,7 +139,7 @@ export interface LabelStyle {
     letterSize?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
-    /** The colour of the letters. */
+    /** The color of the letters. */
     color?: string;
     /** Whether the letters are drawn italic. */
     italic?: boolean;
@@ -220,15 +220,15 @@ export interface LabelStyle {
     textAlign?: LabelTextAlign;
 
     /**
-     * How opaque the words are, from 0 (not drawn) to 1, applied over their colour's own alpha.
+     * How opaque the words are, from 0 (not drawn) to 1, applied over their color's own alpha.
      * Unset, 1.
      */
     opacity?: number;
 
-    /** The colour of the panel behind the words. */
+    /** The color of the panel behind the words. */
     background?: string;
     /**
-     * How opaque that panel is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that panel is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     backgroundOpacity?: number;
@@ -244,18 +244,18 @@ export interface LabelStyle {
     cornerRadius?: number;
     /** How thick a border is drawn around the panel; zero draws none. */
     borderWidth?: number;
-    /** The colour of that border. */
+    /** The color of that border. */
     borderColor?: string;
     /**
-     * How opaque that border is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that border is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     borderOpacity?: number;
-    /** Whether the panel is filled with a gradient rather than a single colour. */
+    /** Whether the panel is filled with a gradient rather than a single color. */
     gradient?: boolean;
-    /** Whether that gradient runs in a line or out from the centre. */
+    /** Whether that gradient runs in a line or out from the center. */
     gradientType?: LabelGradientType;
-    /** The colours the gradient runs through, in order. */
+    /** The colors the gradient runs through, in order. */
     gradientColors?: readonly string[];
     /** Which way a linear gradient runs. */
     gradientDirection?: LabelGradientDirection;
@@ -330,18 +330,18 @@ export interface LabelStyle {
     /** Whether the pointer's sides are drawn as curves rather than straight lines. */
     pointerCurve?: boolean;
 
-    /** The colour of an outline around each letter; writing one is what switches the outline on. */
+    /** The color of an outline around each letter; writing one is what switches the outline on. */
     outline?: string;
     /** How thick that outline is drawn. */
     outlineWidth?: number;
     /**
-     * How opaque that outline is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that outline is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     outlineOpacity?: number;
     /** Whether the letters cast a shadow. */
     shadow?: boolean;
-    /** The colour of that shadow. */
+    /** The color of that shadow. */
     shadowColor?: string;
     /** How far the shadow is blurred. */
     shadowBlur?: number;
@@ -414,7 +414,7 @@ export interface LabelStyle {
     overflowSuffix?: string;
 
     /**
-     * Whether the panel draws an x in its top-right corner, in the label's text colour.
+     * Whether the panel draws an x in its top-right corner, in the label's text color.
      *
      * A click on the x clears the selection, as a click on empty canvas does. A click anywhere
      * else on a label with this on does nothing: it does not reach the node or the background

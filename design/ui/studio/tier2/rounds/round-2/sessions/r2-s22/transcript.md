@@ -11,7 +11,7 @@ The Data side shows "Les Miserables 77 nodes, 254 edges", a "Filters" row with a
 Command: `node real.mjs --step $S --click-at 276,285`
 
 ## Step 3 -- 03.png
-A "New filter step" form opened on the right: Keep "an attribute's value", then an empty Attribute box, and a greyed "Add step" button. I'll open Attribute and look for shared_chapters.
+A "New filter step" form opened on the right: Keep "an attribute's value", then an empty Attribute box, and a grayed "Add step" button. I'll open Attribute and look for shared_chapters.
 Command: `node real.mjs --step $S --click "Attribute"`
 
 ## Step 4 -- 04.png
@@ -61,7 +61,7 @@ Command: `node real.mjs --end $S`
 - **What confused me:**
   - I had to guess that this lives under Data; nothing on the Graph side I started on pointed to it. I went there only because "chapters" felt like data.
   - The attribute is called "shared_chapters" with an underscore -- fine, but it is the file's name, not plain words.
-  - The plus next to "Filters" is small and grey; I only tried it because it was the only thing near the word.
+  - The plus next to "Filters" is small and gray; I only tried it because it was the only thing near the word.
   - While only 17 were showing, the right panel still said "Components 1" though I could see two separate groups. A line said those counts are for the whole graph, so I let it go, but I had to read twice.
   - It wasn't obvious whether unticking the box would delete my step or just switch it off; it switched off (it says "off"), which is what I hoped.
 

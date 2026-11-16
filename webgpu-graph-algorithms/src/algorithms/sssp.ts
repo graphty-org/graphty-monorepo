@@ -312,7 +312,7 @@ export function resolveWeights(
  * @param ctx - the context
  * @param s - the snapshot
  * @param source - the source node index
- * @param cutoff - the normalised cutoff
+ * @param cutoff - the normalized cutoff
  * @param dest - the caller's destination, if any
  * @param options - the run options
  * @returns the result

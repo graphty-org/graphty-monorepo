@@ -33,7 +33,7 @@ carries short **notices** (defined below).
 - **Linked object**: an object whose definition points at another object without being inside
   it, such as "Top 10 by Bridges" cut from Bridges (`object-model.md` section 6).
 - **Frozen**: the state of a linked object whose input was deleted: members kept as a fixed
-  list, a grey snowflake on the row (`revision.md` section 4).
+  list, a gray snowflake on the row (`revision.md` section 4).
 - **Cost gate**: the element's refusal to start a run unasked above a time budget
   (`session.estimate`). **The one-second rule**: an edit or a data change re-runs an object at
   once when its estimate is under one second, and marks it stale otherwise (`revision.md`
@@ -194,7 +194,7 @@ overlap matching (`object-model.md`). One history step.
 Tree order is paint order, so reordering is a styling action. Pressing on a row and moving 4 px
 starts a drag; the row follows the pointer at 50 percent and a 2 px brand insertion line shows
 where it will land. The canvas previews the new paint order while the pointer moves (the
-element moves the layer and moves it back if the drag is cancelled). Drop commits as one step;
+element moves the layer and moves it back if the drag is canceled). Drop commits as one step;
 Escape cancels. A row can only move within its own parent: over any other parent the line is
 not drawn and the pointer shows "not allowed", because moving out of a parent would change what
 the object was computed on (`object-model.md` section 6.1). The Dataset row does not move.
@@ -214,7 +214,7 @@ the object was computed on (`object-model.md` section 6.1). The Dataset row does
 Screen 45.
 
 A run fails when it throws: the GPU device was lost, the graph is too large for the chosen
-method, the input changed shape underneath it, or the element hit a bug. A cancelled run is not
+method, the input changed shape underneath it, or the element hit a bug. A canceled run is not
 a failure (`revision.md` section 4, step 7). A parameter out of range is not a failure either:
 it is refused inline on its field before the run starts.
 
@@ -316,13 +316,13 @@ The browser can reclaim a page's WebGL context at any time: after a driver reset
 computer wakes, or when too many tabs draw. The session still holds the data, the runs, the
 layers and the positions; only the picture is gone.
 
-- The canvas is blank and greyed. A card in its middle says: "The graphics context was lost.
+- The canvas is blank and grayed. A card in its middle says: "The graphics context was lost.
   Your data and objects are kept. ... The tree, the inspector and the table still work."
 - Buttons: **Reload view** (primary; rebuilds the renderer from the session, with the same
   tree, positions and camera) and **Copy diagnostics**. A **Details** disclosure shows the code,
   the time and how many times this session lost it, the renderer, and the versions.
 - The status bar's error slot (the computing chip's slot) reads "View lost [Reload view]".
-- The toolbar is greyed with the canvas, because its tools pick on the canvas; Re-run from the
+- The toolbar is grayed with the canvas, because its tools pick on the canvas; Re-run from the
   tree, the inspector, the table and export of data keep working.
 - When the browser restores the context on its own, the element reloads the view without being
   asked and the notice reads "View restored".
@@ -334,7 +334,7 @@ layers and the positions; only the picture is gone.
 
 A disposed session (`E_DISPOSED`) cannot recover. The same card on the canvas reads "This graph
 session was closed and cannot be used" with Reopen from autosave and Copy diagnostics, and the
-tree and inspector grey out, because nothing behind them answers.
+tree and inspector gray out, because nothing behind them answers.
 
 ### Non-fatal element errors
 
@@ -371,7 +371,7 @@ tree, and **stay armed** so the next pick can follow.
 | Path, directed | "No route from 12 to 40 following direction" | [Ignore direction] |
 | Filter | "Matches 0 nodes: the highest Connections is 17" | Select, Create and Create and focus are disabled with that sentence as their tooltip; the Options popover stays open to change the rule |
 | Pattern | "No matches for this pattern" | the same as Filter |
-| Neighbours | "Node 12 has no neighbours in that direction" | [All directions]; Create disabled |
+| Neighbors | "Node 12 has no neighbours in that direction" | [All directions]; Create disabled |
 | Find (Ctrl+F) | "No object or node matches 'bridgs'" | a close match when one exists ("Did you mean Bridges?") |
 
 If a run (not a tool bar) produces an empty Set, for example "Top 10 by Bridges" over an empty
@@ -385,7 +385,7 @@ matches"; it is not an error.
 | A live match count before creating | exists (`session.plan`, the Filter bar's dry run) |
 | The attribute's range for "the highest is 17" | exists (column statistics) |
 | A path result that says why there is no route: different parts, direction, or the mask | missing; small (a `reason` on an empty path result: `disconnected`, `direction`, `outside-scope`) |
-| Neighbours of a node with ids | missing, small (`session.data.neighbours`, already in `revision.md` section 8) |
+| Neighbors of a node with ids | missing, small (`session.data.neighbours`, already in `revision.md` section 8) |
 
 ---
 
@@ -409,6 +409,6 @@ the session.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, colored status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
-Screen 43 draws the History dock with the current step's brand bar and the undone steps faded; 44 the dark row menu beside its row and the 320 px confirmation with a red button; rename in place and the drag insertion line are screen 102; 45 and 48 put their second example in an inset; 47 draws the fatal case and, in an inset, the non-fatal error chip and its Details; 46 draws the six new nodes in grey.
+Screen 43 draws the History dock with the current step's brand bar and the undone steps faded; 44 the dark row menu beside its row and the 320 px confirmation with a red button; rename in place and the drag insertion line are screen 102; 45 and 48 put their second example in an inset; 47 draws the fatal case and, in an inset, the non-fatal error chip and its Details; 46 draws the six new nodes in gray.

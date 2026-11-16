@@ -1,5 +1,5 @@
 /**
- * The wire form of a snapshot (design sections 9.1, 9.2 and 12.2): a JSON-serialisable manifest
+ * The wire form of a snapshot (design sections 9.1, 9.2 and 12.2): a JSON-serializable manifest
  * plus a list of ArrayBuffers. The same object is what postMessage, structuredClone, IndexedDB and
  * the GSNP byte container carry; `buffers` is literally the postMessage transfer list. Absent
  * members are null, never optional (design section 12.1).
@@ -79,7 +79,7 @@ export interface WireArena {
 
 /**
  * The id map on the wire (design section 4.5), one shape for every kind: the members a kind does not
- * use are null. The reverse Map is never serialised; a receiver rebuilds it lazily.
+ * use are null. The reverse Map is never serialized; a receiver rebuilds it lazily.
  */
 export interface WireIdMap {
     /** The storage kind. */
@@ -101,7 +101,7 @@ export interface WireIdMap {
 }
 
 /**
- * The JSON-serialisable manifest of a wire snapshot (design section 9.1). Readers refuse a
+ * The JSON-serializable manifest of a wire snapshot (design section 9.1). Readers refuse a
  * formatVersion or wire major they do not know (E_UNSUPPORTED_VERSION), ignore unknown manifest
  * fields of a newer minor, refuse an unknown column dtype unless unknownColumns is "skip", refuse an
  * unknown id-map kind, and ignore unknown view entries.
@@ -127,7 +127,7 @@ export interface WireManifest {
     /** The flags (invariant I9). */
     readonly flags: SnapshotFlags;
     /**
-     * The core arrays; null for an identity permutation (always, whether or not a getter materialised it), an absent
+     * The core arrays; null for an identity permutation (always, whether or not a getter materialized it), an absent
      * weights array or a zero-length array.
      */
     readonly core: {

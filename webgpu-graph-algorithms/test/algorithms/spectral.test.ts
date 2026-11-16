@@ -127,7 +127,7 @@ describe("spectral oracles (pure)", () => {
         const result = eigenvectorOracle(s, OPTS);
         expect(result.converged).toBe(true);
         expect(spearman(result.scores, densePowerIteration())).toBeGreaterThan(0.999);
-        // and the vector itself: the oracle's final L2 normalisation makes them comparable directly
+        // and the vector itself: the oracle's final L2 normalization makes them comparable directly
         expectAllClose(result.scores, densePowerIteration(), { rel: 1e-4, abs: 1e-6 }, "eigenvector");
     });
 

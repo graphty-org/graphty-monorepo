@@ -43,5 +43,5 @@ Command: `--end` -> session ended.
 - Replace is only on a right-click of the source row. I found it because I right-click everything; a colleague who doesn't would look for a button on the Data page and not see one.
 - The "Higher means: Not set / Closer / Farther / Capacity" choice on the replace screen. I don't know what it changes for my ranking and the sentence under it mentions "PageRank and communities". I left it alone so this month matches last month, but I'm not sure that was right.
 - Before rerunning, the Top 10 still showed the old numbers (Hal first) under a small "Data changed since this run" line. I almost copied the old list; the warning should be harder to miss.
-- Labels in the right panel and the legend are small and grey-ish; on my laptop screen I'd be leaning in.
+- Labels in the right panel and the legend are small and gray-ish; on my laptop screen I'd be leaning in.
 - Still no answer to my usual questions: does this go into Power BI, and where does the file go when I load it ("Local only" in the top bar suggests it stays on my machine, which is what IT will ask).

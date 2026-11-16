@@ -358,7 +358,7 @@ export class ModelGraph {
                 const survivor = policy === "last" ? group[group.length - 1] : group[0];
                 const target = this.edges[survivor];
                 if (policy === "sum" || policy === "min" || policy === "max") {
-                    // "sum" over an unweighted graph materialises multiplicities, unless the builder
+                    // "sum" over an unweighted graph materializes multiplicities, unless the builder
                     // was declared unweighted (then no weight array ever exists)
                     if (!this.weightArray && policy === "sum" && this.options.weighted !== false) {
                         this.weightArray = true;

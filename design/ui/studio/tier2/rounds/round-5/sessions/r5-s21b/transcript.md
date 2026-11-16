@@ -10,7 +10,7 @@ Okay, friends.csv is open, PageRank colors and sizes from before. 20 dots, no na
 The flask is "Analyze". A list opened with a filter box: rankings like Degree, Betweenness, Closeness... and "All-pairs distance". I want a route between two people. I'll type "path" in the filter box.
 
 ## Step 2: `--step <folder> --type "path"` -> 03.png
-"Shortest path -- The fewest steps ... between two nodes." That's exactly my question, in plain words. "Guided route" is greyed: "Select 2 nodes first". I'll click Shortest path and see if it asks me for the two people.
+"Shortest path -- The fewest steps ... between two nodes." That's exactly my question, in plain words. "Guided route" is grayed: "Select 2 nodes first". I'll click Shortest path and see if it asks me for the two people.
 
 ## Step 3: `--step <folder> --click-at 500,630` (Shortest path) -> 04.png
 A small form: From, To, Follow (Out / All -- All is picked), Weight None ("each edge counts as 1"). Fewest steps is what I want, so leave those. The From box has the cursor; I'll type Chloe.

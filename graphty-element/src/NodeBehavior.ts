@@ -398,7 +398,7 @@ function clickNode(node: GraphNode): void {
 }
 
 /**
- * Expand a double-clicked node: fetch its neighbourhood through the layout behaviour's fetchers
+ * Expand a double-clicked node: fetch its neighborhood through the layout behavior's fetchers
  * and add it as one step.
  * @param node - The node.
  */
@@ -421,7 +421,7 @@ function expandNode(node: GraphNode): void {
     context.getLayoutManager().running = true;
 
     // Add what was fetched as one step; the command adds the edges under
-    // `repeated: "first"`, because a neighbourhood legitimately names edges the
+    // `repeated: "first"`, because a neighborhood legitimately names edges the
     // graph already holds.
     void dispatcherOf(graph.getSession())
         .dispatch(command)
@@ -458,8 +458,8 @@ function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): v
 
 /*
  * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
- * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
- * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * in meters of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimeters in one frame), not a
  * hand, and is ignored.
  *
  * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
@@ -479,9 +479,9 @@ const XR_MAX_HAND_REACH = 2;
 /**
  * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
  * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
- * but never scaled by zoom), so the pointer moves in metres.
+ * but never scaled by zoom), so the pointer moves in meters.
  * @param elapsedMs - Time since the previous update.
- * @returns The limit, in metres.
+ * @returns The limit, in meters.
  */
 function xrMaxDragStep(elapsedMs: number): number {
     const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);

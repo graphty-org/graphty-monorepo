@@ -13,15 +13,15 @@
  * bevel. At a corner within the miter limit whose pieces are long enough, both pieces instead end
  * at the corner's miter line and share that edge exactly (see `miterAt`), so neither discards
  * anything there and a curve is one seamless line under anti-aliasing (issue #5799). A straight
- * edge has no neighbours (its previous point is its start, its next point is its
+ * edge has no neighbors (its previous point is its start, its next point is its
  * end), so it draws exactly the rectangle it always drew.
  *
  * NO PIXEL IS DRAWN TWICE. Pieces overlap on the inside of a bend, and past a piece shorter than
  * the line is wide the pieces either side of it overlap each other. Of the pieces whose shape (the
- * piece and the joins at its corners) covers a pixel's centre, the one whose centre line is nearest
- * draws it, the earlier on a tie. Between neighbours that is the corner's bisector; where three
+ * piece and the joins at its corners) covers a pixel's center, the one whose center line is nearest
+ * draws it, the earlier on a tie. Between neighbors that is the corner's bisector; where three
  * pieces overlap, distance orders them, so exactly one draws (issue #3096). Every piece tests the
- * same point -- the centre of the pixel being drawn, not a position interpolated a few hundredths
+ * same point -- the center of the pixel being drawn, not a position interpolated a few hundredths
  * of a pixel off, differently in each piece -- with the same numbers, and under the 3D camera's
  * perspective a piece is tested as the trapezoid its triangles draw, so no pixel at the inside of
  * a corner is left to neither piece or taken by both (issue #3114). A translucent line stays one
@@ -63,7 +63,7 @@
  *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
- * it, which is what dashing the centre line and then stroking each dash would draw.
+ * it, which is what dashing the center line and then stroking each dash would draw.
  */
 
 import { PULLED_CURVE_GLSL } from "./pulledCurve";
@@ -98,7 +98,7 @@ export const EDGE_STATIC_FLOATS = EDGE_STATIC_ATTRIBUTES.length * 4;
 export const EDGE_STATE_BITS = { selected: 1, hovered: 2, sourceSelected: 4, targetSelected: 8 } as const;
 
 /**
- * The template every piece is drawn from: seven vertices at each end -- the centre, one on each
+ * The template every piece is drawn from: seven vertices at each end -- the center, one on each
  * side, and two join vertices per side: where the side's edge meets the clip line, and the clip
  * line's point on the miter direction (both the miter tip when the miter is not clipped). `x` is
  * the end (0 start, 1 end), `y` the side (-1, 0, 1), `z` 1 for the first join vertex, 2 for the
@@ -110,8 +110,8 @@ export const JOIN_TEMPLATE_POSITIONS: readonly number[] = [
 ];
 
 /**
- * The rectangle, then the join at each end and side: two triangles (centre, side, first join
- * vertex) and (centre, first join vertex, second join vertex).
+ * The rectangle, then the join at each end and side: two triangles (center, side, first join
+ * vertex) and (center, first join vertex, second join vertex).
  */
 export const JOIN_TEMPLATE_INDICES: readonly number[] = [
     1, 2, 7, 1, 7, 6, 0, 1, 3, 0, 2, 4, 5, 6, 8, 5, 7, 9, 0, 3, 10, 0, 4, 11, 5, 8, 12, 5, 9, 13,
@@ -122,8 +122,8 @@ export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
 
 /**
  * The lean program's template (`EDGE_PULLED_LEAN`): the join template's rectangle alone, its
- * vertices 1, 2, 7 and 6, drawn as the same two triangles. A straight piece between node centres
- * has no neighbour, so every join vertex sits on a side vertex and the join's eight triangles have
+ * vertices 1, 2, 7 and 6, drawn as the same two triangles. A straight piece between node centers
+ * has no neighbor, so every join vertex sits on a side vertex and the join's eight triangles have
  * no area: the rectangle is all such a piece draws.
  */
 export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
@@ -163,7 +163,7 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * its row and no edge byte. The draw is one unindexed, non-instanced draw of 30 corners a piece:
  * `gl_VertexID / 30` is the draw slot (`pulledPiece` names its piece) and the rest names the corner,
  * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
- * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
+ * centers is all this reads, written as `EdgeLineBatch.place` writes it: its neighbors are its
  * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
  * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
  * the origin, as a hidden slot does, and draw nothing.
@@ -177,11 +177,11 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
  * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
- * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ * has no neighbor and is solid), so it never discards: the rasterizer's coverage is its shape.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
- * points are points of that path, picked as `EdgeLineBatch.writeFlat` picks a run's neighbours (they
+ * points are points of that path, picked as `EdgeLineBatch.writeFlat` picks a run's neighbors (they
  * stop at the run's ends), and its run is zero: a solid line that does not taper never reads it (its
  * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
  * nothing, so an edge holds as many pieces as its longest cut.
@@ -287,7 +287,7 @@ void pullEdge() {
 
 /**
  * A point behind the camera has a clip w of 0 or less, and dividing by it mirrors the point through
- * the screen's centre (or gives Inf at 0), so a line with one end behind the camera would be drawn
+ * the screen's center (or gives Inf at 0), so a line with one end behind the camera would be drawn
  * as a streak across the screen (issue #7126). `nearTrim` moves such an end along its segment, in
  * clip space where the segment is still straight, to the plane z = -w: the near plane under WebGL's
  * depth range, and just behind it under WebGPU's 0 to 1 range. Either way the moved end is in front

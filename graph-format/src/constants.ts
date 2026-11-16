@@ -31,7 +31,7 @@ export const FORMAT_VERSION = 1;
 
 /**
  * Brand property read by isGraphSnapshot() (design section 7.5). It is a Symbol.for() symbol rather
- * than a private one so that two copies of the package inside one application still recognise each
+ * than a private one so that two copies of the package inside one application still recognize each
  * other's snapshots structurally, without instanceof.
  */
 export const SNAPSHOT_BRAND: unique symbol = Symbol.for("@graphty/graph-format/snapshot");

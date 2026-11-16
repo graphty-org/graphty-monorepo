@@ -244,7 +244,7 @@ interface StorySetup {
     layers?: readonly LayerSpec[];
     /** 2D or 3D. */
     viewMode?: ViewMode;
-    /** What the graph is drawn against: a colour, or a photo-dome skybox. */
+    /** What the graph is drawn against: a color, or a photo-dome skybox. */
     background?: GraphBackgroundConfig;
     /** How far the camera starts from the graph. */
     startingCameraDistance?: number;
@@ -258,9 +258,9 @@ interface StorySetup {
      * project's wait for a final frame -- should spend on it. The settled picture is the same.
      */
     stepMultiplier?: number;
-    /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
+    /** Hide labels whose words would overlap: the element's `labels.declutter` behavior. */
     declutterLabels?: boolean;
-    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    /** How node labels draw their words: the element's `labels.labelText` behavior. */
     labelText?: "canvas" | "glyphs";
 }
 
@@ -546,7 +546,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         }
 
         // The two background controls build the element's own background value: one names a
-        // colour and the other the image a photo dome is built from.
+        // color and the other the image a photo dome is built from.
         if (name === "background.color" && typeof value === "string" && value !== "") {
             setup.background = { backgroundType: "color", color: value };
             continue;
@@ -710,7 +710,7 @@ export const remoteLogging = (): (() => void) | undefined => {
 /**
  * One console argument as text.
  * @param arg - What was passed to the console.
- * @returns It as JSON when it is an object that serialises, otherwise as a string.
+ * @returns It as JSON when it is an object that serializes, otherwise as a string.
  */
 function formatConsoleArg(arg: unknown): string {
     if (typeof arg !== "object" || arg === null) {

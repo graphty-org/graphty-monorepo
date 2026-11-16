@@ -664,7 +664,7 @@ function sizeRows(counts: ReadonlyMap<string | number, number>): readonly Result
  * Read how a field declares its values were scaled.
  * @param fields - The fields the run published.
  * @param name - The field to ask about.
- * @returns The declared normalisation, or "none" when the field declares none the element knows.
+ * @returns The declared normalization, or "none" when the field declares none the element knows.
  */
 function declaredNormalization(fields: readonly FieldDescriptor[], name: string): Normalization {
     const declared = fields.find((field) => field.name === name)?.normalization;
@@ -1049,7 +1049,7 @@ class Result implements RunResult {
      * One numeric field as a column.
      *
      * The view reads straight through to the result's own storage and its four figures were
-     * computed on the first call, so a histogram, a colour ramp's domain and a summary all walk
+     * computed on the first call, so a histogram, a color ramp's domain and a summary all walk
      * one column rather than three copies of it.
      * @param field - The field name.
      * @returns A view over the values, without an object per element.
@@ -1565,7 +1565,7 @@ class Result implements RunResult {
      * How this result's values were scaled.
      * @param valueField - The field a summary describes, or null when the shape measures no
      *   number.
-     * @returns The normalisation the run published, the one its field declares, or "none".
+     * @returns The normalization the run published, the one its field declares, or "none".
      */
     #normalization(valueField: string | null): Normalization {
         const published = this.graph.normalization;

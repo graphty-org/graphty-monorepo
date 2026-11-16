@@ -58,7 +58,7 @@ async function mount(size: number): Promise<Graphty> {
     const { graph } = element;
     graph.engine.stopRenderLoop();
     // Seeded, so every run draws the same graph: unseeded, about one mount in sixty put two
-    // neighbours on the path so close that their spheres overlap, and an edge between overlapping
+    // neighbors on the path so close that their spheres overlap, and an edge between overlapping
     // nodes hides its arrowhead and never places it (#7759), so `Edge.update` saw it not move (#8466).
     await graph.setLayout("random", { seed: 1 });
     const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);

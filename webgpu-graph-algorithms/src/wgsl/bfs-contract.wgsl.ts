@@ -10,7 +10,7 @@
  * and a bounded loop could leave a vertex unclaimed for its level; `atomicMin` has no such failure mode. The winners
  * are packed by a Hillis-Steele inclusive scan of the workgroup's `won` flags and ONE `atomicAdd` per workgroup on
  * `nextFrontierCount` reserves the block's span in the output vertex queue. The edge queue holds duplicates (a vertex
- * with three frontier neighbours appears three times); exactly one claimant wins, exactly one appends, so the next
+ * with three frontier neighbors appears three times); exactly one claimant wins, exactly one appends, so the next
  * frontier is duplicate-free by construction and no ownership dedupe follows (DEP-P8-B). Nothing here writes a
  * parent (PD-24: the post-pass does). Uniformity (spec 3.5 rule 1): the guarded work writes locals, every barrier is
  * reached unconditionally. Body only (spec 3.5, D9); the text is normative: the sabotage rows of

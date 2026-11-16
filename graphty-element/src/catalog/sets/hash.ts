@@ -7,7 +7,7 @@
  * - `H` is two independent 32-bit FNV-1a lanes. Lane A starts at 0x811c9dc5 and multiplies by
  *   0x01000193, lane B starts at 0x1b873593 and multiplies by 0x85ebca6b. Each step is
  *   `lane = Math.imul(lane ^ unit, multiplier) >>> 0` on both lanes, and each lane ends with the
- *   MurmurHash3 32-bit finaliser, so member hashes can be summed without inheriting FNV's
+ *   MurmurHash3 32-bit finalizer, so member hashes can be summed without inheriting FNV's
  *   near-linear structure.
  * - A string part is the unit 0x24 then each UTF-16 code unit as one step. A numeric part is the
  *   unit 0x23 then the eight little-endian bytes of its float64 value, `-0` fed as `+0`. No string
@@ -136,9 +136,9 @@ function idPart(id: string | number): void {
 }
 
 /**
- * The MurmurHash3 32-bit finaliser. FNV-1a's last step is a multiply, so the hashes of short
+ * The MurmurHash3 32-bit finalizer. FNV-1a's last step is a multiply, so the hashes of short
  * inputs that differ in their last unit differ by near-arithmetic steps, and sums of them collide
- * (a, d against b, c). The finaliser breaks that structure before any hash is summed.
+ * (a, d against b, c). The finalizer breaks that structure before any hash is summed.
  * @param lane - A lane value.
  * @returns The mixed lane, unsigned.
  */
@@ -152,7 +152,7 @@ function finalise(lane: number): number {
 }
 
 /**
- * The lanes fed so far, each finalised.
+ * The lanes fed so far, each finalized.
  * @returns The hash.
  */
 function end(): LanePair {

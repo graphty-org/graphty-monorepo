@@ -42,7 +42,7 @@ const TWO_TRIANGLES: MockGraphOpts = {
     ],
 };
 
-/** A ring of eight: every node ties between its two neighbours, so the seed decides the groups. */
+/** A ring of eight: every node ties between its two neighbors, so the seed decides the groups. */
 const RING: MockGraphOpts = {
     nodes: Array.from({ length: 8 }, (_, i) => ({ id: `n${String(i)}` })),
     edges: Array.from({ length: 8 }, (_, i) => ({

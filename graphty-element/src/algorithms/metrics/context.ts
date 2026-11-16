@@ -4,7 +4,7 @@
  * A measurement that runs to completion in one synchronous pass locks the frame for as long as it
  * takes. The element's own history records what that costs: a 70,000-node graph estimated at 2.10
  * seconds held the frame for 10.4. Neither number is the point -- the point is that nothing could
- * be drawn, and nothing could be cancelled, while it happened.
+ * be drawn, and nothing could be canceled, while it happened.
  *
  * So the element's half of every metric is walked in chunks: the signal is checked, progress is
  * reported and the host is given a turn between them. The work inside `@graphty/algorithms` is
@@ -55,7 +55,7 @@ export function detachedRunContext(runId: string): MetricRunContext {
  * @param phase - The step, as a kebab-case code (`"reading-scores"`) an application words; never a sentence.
  * @param visit - What to do with one item.
  * @returns A promise that settles once every item has been visited.
- * @throws Whatever `signal.throwIfAborted` throws once the run has been cancelled, which is a
+ * @throws Whatever `signal.throwIfAborted` throws once the run has been canceled, which is a
  *   `DOMException` named `AbortError`.
  */
 export async function walkInChunks<T>(

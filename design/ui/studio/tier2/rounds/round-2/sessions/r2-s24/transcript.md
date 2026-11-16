@@ -13,7 +13,7 @@ Command: `node tool/real.mjs --step <session> --click "Data"` -> 02.png
 
 Command: `--click-at 276,285` (the tool reported: button "Add filter step") -> 03.png
 
-**03.png** -- A "New filter step" panel on the right: Keep "an attribute's value", then an empty Attribute box, and a greyed "Add step". Fine, I pick the attribute -- I'll open the Attribute list.
+**03.png** -- A "New filter step" panel on the right: Keep "an attribute's value", then an empty Attribute box, and a grayed "Add step". Fine, I pick the attribute -- I'll open the Attribute list.
 
 Command: `--click "Attribute"` -> 04.png
 

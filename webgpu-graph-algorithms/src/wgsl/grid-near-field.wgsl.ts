@@ -8,7 +8,7 @@
  * `lowbias32(((c ^ (iteration * 0x9E3779B9)) ^ seed) ^ (k * 0x85EBCA6B)) % count` (every slot's inclusion
  * probability is `nearMax / count` whatever its position in the sorted order, so a duplicated draw is counted twice
  * and the node itself, when drawn, is skipped and not replaced), and scaled by `others / sampled` where `sampled` is
- * the realised number of draws that were not the node (the Horvitz-Thompson form of PD-15 / DEP-P4-K: given
+ * the realized number of draws that were not the node (the Horvitz-Thompson form of PD-15 / DEP-P4-K: given
  * `sampled = s`, those `s` draws are i.i.d. uniform over the `others` slots, so the expectation of the scaled sum is
  * the exact cell sum whenever `s >= 1`; the G4 record's G4-F2 row carries the measurement); then
  * the fused epilogue of K3 (gravity, `force +=`, the swing / traction workgroup reduction in uniform control flow).

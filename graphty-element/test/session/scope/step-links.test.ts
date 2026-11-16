@@ -151,7 +151,7 @@ describe("a union step's links", () => {
 
     it("walks hops only along the passing links", async () => {
         const session = await weighted();
-        // The busiest character, so the heavy links leave some neighbours out.
+        // The busiest character, so the heavy links leave some neighbors out.
         const valjean = IDS.indexOf(
             [...degreesOver(() => true)].reduce((best, each) => (each[1] > best[1] ? each : best))[0],
         );

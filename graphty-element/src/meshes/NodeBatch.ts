@@ -1000,7 +1000,7 @@ export class NodeBatches {
 
     /**
      * The source a paint draws from: the one the row has while the paint keeps it, as
-     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and colour on
+     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and color on
      * the same shader path), or else the paint's own.
      * @param drawn - What the row is drawn as now, if anything.
      * @param paint - The new paint.

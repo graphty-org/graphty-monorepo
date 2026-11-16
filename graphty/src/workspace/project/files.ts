@@ -32,7 +32,7 @@ function pickers(): FileAccessWindow {
 }
 
 /**
- * Whether an error is the reader cancelling a picker.
+ * Whether an error is the reader canceling a picker.
  * @param error - what a picker threw.
  * @returns true for a cancel.
  */
@@ -63,7 +63,7 @@ export async function readHandle(handle: FileSystemFileHandle): Promise<File | n
 /**
  * Asks the reader for a project file (Locate...): the file picker that keeps a handle where the
  * browser has one, else a plain file input.
- * @returns the file and, where the browser keeps them, its handle; undefined when cancelled.
+ * @returns the file and, where the browser keeps them, its handle; undefined when canceled.
  */
 export async function locateFile(): Promise<{ file: File; handle?: FileSystemFileHandle } | undefined> {
     const { showOpenFilePicker } = pickers();

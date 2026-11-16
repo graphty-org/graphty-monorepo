@@ -467,7 +467,7 @@ export function setOffersPaused(state, { name, session, paused, at, by }) {
 
 /**
  * When a capacity answer went stale, or null while it holds: the latest end (done, released,
- * cancelled) of a job the session held when it answered (`said.held`, recorded by githerd_expect;
+ * canceled) of a job the session held when it answered (`said.held`, recorded by githerd_expect;
  * for an older answer without it, the jobs it had claimed by then), when that end came after the
  * answer. The answer counted those jobs, so it no longer says what the session can take.
  * @param {any} state the daemon state
@@ -1468,13 +1468,13 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
 }
 
 /**
- * Tells each owner session that held a job the reconcile cancelled (its cause ended: the incident
+ * Tells each owner session that held a job the reconcile canceled (its cause ended: the incident
  * ended, the pull request closed or needs no work, the issue closed) that the job is gone, through
  * the same messaging as the status question: one message to that session only, none to a session
  * githerd may not message (no worker, `workerSessions`), and a would-do line in dry-run. A githerd worker
  * reads the job's news instead.
- * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} cancelled
- *   the jobs syncJobs cancelled
+ * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} canceled
+ *   the jobs syncJobs canceled
  * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport}} opts whether the `workers` write group acts, the
  *   sessions githerd may message, and the transport

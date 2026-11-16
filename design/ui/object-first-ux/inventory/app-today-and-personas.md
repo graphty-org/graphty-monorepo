@@ -33,13 +33,13 @@ recollection.
   visible, tier 2 is inside a collapsible section, tier 3 is behind a pop-out or a dialog.
 - **Section.** A collapsible group inside a panel with a 32 px header row. Its open or
   closed state is remembered between visits.
-- **"Coming" tag.** A small grey pill on a control whose feature does not exist yet. The
+- **"Coming" tag.** A small gray pill on a control whose feature does not exist yet. The
   control is drawn at its final shape but disabled. The design (section 5.8 of
   `design/ui/app-shell-progressive-disclosure-design.md`) requires this instead of hiding the
   control. There are about thirty of them on screen today.
 - **Key chip.** The small text of a keyboard shortcut ("Ctrl+K") printed beside a control.
 - **Style layer.** graphty-element's unit of appearance: a rule ("which nodes") plus the
-  values it paints (colour, size, label...). Layers stack; a higher layer overrides a lower
+  values it paints (color, size, label...). Layers stack; a higher layer overrides a lower
   one where both match. All appearance in graphty must go through layers.
 - **Run.** One execution of an algorithm inside graphty-element's session, with an id, its
   parameters, and the per-node values it produced. Runs are what the app calls "results".
@@ -193,7 +193,7 @@ object-first redesign: a run produces a result, the result paints, the inspector
 | Tab track Run / Results (N) | Switches the body; Results is disabled and dimmed until a result exists | none | Works | statistics-panel |
 | Cards / List toggle in the panel header | Remembered, but read by nothing (a known dead control) | none | Inert | - |
 | "Weight" compound row and a scope line | Drawn only when passed; the shell never passes them | none | never drawn | - |
-| Section "Suggested": four rows, each a plain name plus technical name, an info circle with one sentence, and a filled **Run** button: Groups (Communities, Louvain); Most connected (Degree centrality); Bridges (Betweenness centrality); Influence (PageRank) | Runs the algorithm. Run's label carries the cost ("Run (about 4 min)") and a warning line appears under the row when the estimate is long; above a threshold a confirm dialog asks first | `session.estimate({op:"algo.run", algorithm})` for the cost; `session.runs.start(algorithm)`; the element derives the colour encoding itself; `session.styles.removeBySource` removes the previous run's layers so node colour has one owner; `session.styles.legend()` feeds the legend | Works | community-detection, centrality-degree, centrality-betweenness, centrality-pagerank: Analyst Alex, Marketing Analyst, Fraud Analyst, Intelligence Analyst; Community Analysis, Influencer Identification, Hub Investigation, Hub Gene Identification |
+| Section "Suggested": four rows, each a plain name plus technical name, an info circle with one sentence, and a filled **Run** button: Groups (Communities, Louvain); Most connected (Degree centrality); Bridges (Betweenness centrality); Influence (PageRank) | Runs the algorithm. Run's label carries the cost ("Run (about 4 min)") and a warning line appears under the row when the estimate is long; above a threshold a confirm dialog asks first | `session.estimate({op:"algo.run", algorithm})` for the cost; `session.runs.start(algorithm)`; the element derives the color encoding itself; `session.styles.removeBySource` removes the previous run's layers so node color has one owner; `session.styles.legend()` feeds the legend | Works | community-detection, centrality-degree, centrality-betweenness, centrality-pagerank: Analyst Alex, Marketing Analyst, Fraud Analyst, Intelligence Analyst; Community Analysis, Influencer Identification, Hub Investigation, Hub Gene Identification |
 | Button "+ Analysis" ("Add an analysis: 26 methods behind 7 questions") | Opens the old Run Algorithm dialog: Category select, Algorithm select, options, source/target node fields, "Show advanced options", "Apply suggested styles" checkbox | `graph.runAlgorithm(namespace, type, options)` through the dialog | Works, but lists by category not by question (issue #320) | every centrality and clustering capability: Expert Emma |
 | Results tab: one row per result (title, headline "6 groups, modularity 0.361", swatch, "Change encoding") | Row click opens the result in the inspector; "Change encoding" opens the Style panel (but not the run's layer, issue #324) | none | Works; holds only the latest result (issue #176) | statistics-panel, analysis-history |
 | Section "All statistics" | empty | none | Inert | basic-statistics, statistics-panel: First Exploration |
@@ -212,7 +212,7 @@ draws that sentence with Cancel and the Run label.
 |---|---|---|---|---|
 | Section "Layers" with "+ Add a style layer" | Adds an empty layer over every node named "New Layer N" | `session.styles.add({name, target:"node", selector:{match:"everything"}})` | Works in code; the owner reported it silently doing nothing (issue #380, critical) | visual-encoding-nodes, visual-encoding-edges: every persona; Findings Communication, Gene List to Interaction Network |
 | Layer rows (name, drag handle "Reorder this layer"); click selects; drag reorders; rename | Selecting a layer fills the inspector with the layer editor; reorder changes precedence | `session.styles.move(id, aboveId)`, `session.styles.update(id, {name})`; rows come from the `styles-changed` event with the element's own locked base layers filtered out | Works; rows lack show/hide, delete, paint chip, match count (issue #167) | visual-encoding |
-| Section "Arrangement (Layout)", tagged Coming, with a select of four quick picks (Force directed, Hierarchical: Coming, Radial: Coming, Grid) and a gear "Layout parameters" | Select applies the layout; gear opens the Run Layout dialog (Layout Algorithm select, Dimensions 2D/3D radio, per-layout options) | wrapper props `layout` / `layoutConfig` -> element `setLayout`; picks read from the app's own `data/layoutMetadata.ts` (a copy of the element catalogue) | Works despite the Coming tag (issue #384); grid and radial are published ids with no engine (issue #58) | layout-force-directed, layout-hierarchical, layout-radial: Visual Exploration, Supply Chain Risk, Hub Investigation |
+| Section "Arrangement (Layout)", tagged Coming, with a select of four quick picks (Force directed, Hierarchical: Coming, Radial: Coming, Grid) and a gear "Layout parameters" | Select applies the layout; gear opens the Run Layout dialog (Layout Algorithm select, Dimensions 2D/3D radio, per-layout options) | wrapper props `layout` / `layoutConfig` -> element `setLayout`; picks read from the app's own `data/layoutMetadata.ts` (a copy of the element catalog) | Works despite the Coming tag (issue #384); grid and radial are published ids with no engine (issue #58) | layout-force-directed, layout-hierarchical, layout-radial: Visual Exploration, Supply Chain Risk, Hub Investigation |
 | Section "Styles", tagged Coming: five built-in rows (Default, High contrast, Print, Colorblind safe, Presentation), "+ Save as style...", overflow (Import style..., Export style (JSON), Reset styles to defaults) | Rows and verbs have no handlers | none | Coming | style-presets: Findings Communication, Gene List to Interaction Network |
 | Section "Canvas": switch "Show legend (L)" | Shows or hides the legend; disabled with a reason while nothing is encoded | none (canvas layout flag) | Works | legend-display |
 | Panel overflow: "Reset styles to defaults" | Removes every non-element layer | `session.styles.removeBySource(() => true)` | Works | - |
@@ -238,7 +238,7 @@ draws that sentence with Cancel and the Run label.
 ### 3.9 Settings overlay (`panel/SettingsOverlay.tsx`)
 
 A full-panel overlay over the body row with a 200 px section nav. Sections: Appearance
-(works: the colour-scheme toggle), Defaults (Coming), Keyboard shortcuts (works: the whole
+(works: the color-scheme toggle), Defaults (Coming), Keyboard shortcuts (works: the whole
 binding table with Coming tags on unshipped rows), Performance (works: "Label the most
 connected nodes" switch and "How many labels" number; applies on the next load), AI providers
 (works: provider list, key entry, default provider, persistence opt-in), Data management
@@ -251,20 +251,20 @@ the three stub panes and the missing settings store.
 |---|---|---|---|---|
 | Graph host (`components/Graphty.tsx`) | Draws the graph; mounted in every state including Empty | `<graphty-element>` with `layers`, `viewMode`, `layout`, `layoutConfig`; events `selection-changed`, `styles-changed` | Works | graph-rendering, zoom-pan: everyone |
 | Welcome sheet (`canvas/WelcomeState.tsx`, `canvas/WelcomeSampleList.tsx`), Empty state only | Heading "Open a graph to get started", a dashed drop zone with "Open file", "or paste data / open from URL", the accepted-formats line, the sample list (each row with a size, tags, a blurb, and an optional hint link that loads the sample and runs Find groups), and the failed-load sentence inline in the zone | `handle.loadFromFile` etc. | Works | guided-onboarding, sample-datasets: Explorer Elena; First-Time Onboarding (this is view V01 "Welcome") |
-| Insights strip (`canvas/InsightsStrip.tsx`, rules in `insights/insightsRules.ts`) | Up to four suggestion cards at the top centre, each a plain name, technical name, one sentence and "Try it"; the whole card runs the capability; X dismisses the strip (remembered); Delete on a focused card retires it. Rule table: data validation (never fires: nothing counts issues), Find groups, Who has influence (directed graphs), Who is most connected, Search, plus large-graph and time cards that cannot fire (issue #323) | `session.catalog.metrics()` decides which cards the graph supports and their cost; activation calls the same run functions as Analyze | Works | guided-onboarding: Explorer Elena; First-Time Onboarding |
+| Insights strip (`canvas/InsightsStrip.tsx`, rules in `insights/insightsRules.ts`) | Up to four suggestion cards at the top center, each a plain name, technical name, one sentence and "Try it"; the whole card runs the capability; X dismisses the strip (remembered); Delete on a focused card retires it. Rule table: data validation (never fires: nothing counts issues), Find groups, Who has influence (directed graphs), Who is most connected, Search, plus large-graph and time cards that cannot fire (issue #323) | `session.catalog.metrics()` decides which cards the graph supports and their cost; activation calls the same run functions as Analyze | Works | guided-onboarding: Explorer Elena; First-Time Onboarding |
 | Filter status strip (`canvas/FilterStatusStrip.tsx`) | Chips for active filters under the strip | none | never drawn (no filter exists) | filtering |
 | Minimap (`canvas/Minimap.tsx`), bottom left, M | Draws points and a viewport rectangle it is handed; the shell hands it only the node count, so it is an empty box | none (the element publishes no positions or settle event a minimap could read, issue #293) | Inert placeholder | overview-minimap: Visual Exploration, Path Investigation, Threat Hunting |
 | Legend (`canvas/Legend.tsx`, `canvas/legendChannels.ts`), bottom right, L | One block per encoded channel: "Color: Community (group)", up to five categorical rows plus Other, or the stops of a ramp, the scale in words, and every caveat; compacts while the drawer is open; not drawn while nothing is encoded | `session.styles.legend()` translated into blocks | Works (numbering mismatch with the result list, issue #381; "Other" swatch wrong, issue #201) | legend-display: Community Analysis, Findings Communication, Gene List to Interaction Network |
-| Data table drawer (`canvas/DataTableDrawer.tsx`), bottom dock, Shift+T | Tabs Nodes / Edges, a virtualised table of every attribute column, a "Show: All N of N" control, a resize handle, an X; a Graph / Table segmented control at the top centre maximises it | `handle.getData()` | Works; no metric columns, no column menu, "See all ranked" lands on the plain table (issues #168, #169) | details-on-demand, data-preview: First Exploration, Hub Gene Identification, Genomics Cytoscape User |
+| Data table drawer (`canvas/DataTableDrawer.tsx`), bottom dock, Shift+T | Tabs Nodes / Edges, a virtualized table of every attribute column, a "Show: All N of N" control, a resize handle, an X; a Graph / Table segmented control at the top center maximizes it | `handle.getData()` | Works; no metric columns, no column menu, "See all ranked" lands on the plain table (issues #168, #169) | details-on-demand, data-preview: First Exploration, Hub Gene Identification, Genomics Cytoscape User |
 | Time slider (`canvas/TimeSlider.tsx`) | Transport (step back, play/pause, step forward), "Viewing:" readout, gear | none | never drawn (no Time role) | temporal-navigation: Network Evolution, Fraud Ring, Threat Hunting |
-| Canvas toolbar (`toolbar/CanvasToolbar.tsx`), bottom centre | [2D 3D] segmented control; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F, disabled with "Select something first"); Views menu | `graph.setCameraZoom` or `setCameraState({cameraDistance})`, `graph.zoomToFit`, `graph.getNodeMesh` + `setCameraTarget`; view mode through the wrapper prop | Works | zoom-pan: Visual Exploration |
+| Canvas toolbar (`toolbar/CanvasToolbar.tsx`), bottom center | [2D 3D] segmented control; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F, disabled with "Select something first"); Views menu | `graph.setCameraZoom` or `setCameraState({cameraDistance})`, `graph.zoomToFit`, `graph.getNodeMesh` + `setCameraTarget`; view mode through the wrapper prop | Works | zoom-pan: Visual Exploration |
 | Views menu (`toolbar/ViewsMenu.tsx`), opens upward | Reset view (Shift+0), Top (7), Front (1), Side (3), Isometric (Coming), Follow selection (Coming), Save as view... (Coming), Minimap (M, checked), Toolbar (checked; the palette row "Show canvas toolbar" is the only way back), Legend (L, disabled with a reason while nothing is encoded), Enter VR / Enter AR (drawn only when the browser reports support; handlers are no-ops) | `graph.resetCamera`, `graph.setCameraState({preset})` | Works except the three Coming rows (issue #183) and XR | zoom-pan, view-bookmarks |
 | Screen too small (`AppShell.tsx`) | Full-screen sheet below 1280 px | none | Works (portrait iPads are caught by it, issue #327) | - |
 
-Behaviour rules the canvas keeps: the drawer never covers a sidebar (it is inset to the live
+Behavior rules the canvas keeps: the drawer never covers a sidebar (it is inset to the live
 canvas); the toolbar rides 12 px above the uppermost of the canvas floor, the time slider and
 the drawer; the minimap and legend share that baseline and rise onto a second line on a
-narrow canvas; the drawer maximised hides toolbar, minimap and legend.
+narrow canvas; the drawer maximized hides toolbar, minimap and legend.
 
 ### 3.11 Inspector (`inspector/`)
 
@@ -291,12 +291,12 @@ beats a result, which beats the graph summary.
 
 | Block | Does | Element call | State |
 |---|---|---|---|
-| Label, "Copy id", "Locate" | Copy to clipboard; centre the camera on the node | `graph.getNodeMesh` + `setCameraTarget` | Works |
+| Label, "Copy id", "Locate" | Copy to clipboard; center the camera on the node | `graph.getNodeMesh` + `setCameraTarget` | Works |
 | "Pinned" badge with Unpin | Shown when the node is pinned (by the Pin verb or by dragging) | `handle.pinnedNodes`, `graphty-node-drag-end` event | Works |
 | Attributes grid (the app's `DataAccordion`), filter box above ten attributes, "Show all N" | Shows the record the selection event carried | `selection-changed` detail | Works |
 | Computed metrics | Never drawn: the shell passes none | none | never drawn (issue: the element's results are not read per node here) |
 | Notes: "Add a note..." (Ctrl+Enter saves, Escape cancels), note rows with Done and Delete | Saving opens Explore and discards the text (issue #188) | none | Inert |
-| Neighbors: count line, In/Out/All tabs on directed graphs, up to twenty rows "label - edge type - value" (click selects; a pin icon "Note this relationship"), "Show all in data table", "Select these", "See all N" | Rows select the neighbour; table rows open the drawer on Edges; "Select these" is a no-op | neighbours computed in the app from the edge records (`analysis/graphShape.ts`), an app-side reimplementation; `graph.selectNode` | Works (rows read "9 - edge -", issue #382) |
+| Neighbors: count line, In/Out/All tabs on directed graphs, up to twenty rows "label - edge type - value" (click selects; a pin icon "Note this relationship"), "Show all in data table", "Select these", "See all N" | Rows select the neighbor; table rows open the drawer on Edges; "Select these" is a no-op | neighbors computed in the app from the edge records (`analysis/graphShape.ts`), an app-side reimplementation; `graph.selectNode` | Works (rows read "9 - edge -", issue #382) |
 | Actions footer (four resident rows, rest under More): Expand N neighbors (with a cost line), Frame this node, Select neighbors, Find path from here; More: Ego network, Radial layout around this node, Use as root or focus, Pin/Unpin, Distance from here, Likely missing links, Simulate removing, Merge with..., Tag..., Bookmark, Show in table, Copy as JSON, Copy neighbor ids | Only Pin/Unpin does anything | `handle.pin` / `handle.unpin` | Pin Works; eight are Coming; the rest Inert (issues #314, #180) |
 
 **Algorithm result** (`inspector/ResultInspector.tsx`): the reading, a caveats line when a
@@ -401,13 +401,13 @@ A list of chords that must never be bound (browser and OS chords) is kept in the
    element, returns to Welcome, and prints the sentence in the drop zone and the status bar.
 3. **After the first successful load**, unasked: the panel switches to Explore; a degree pass
    runs in the background; the element's `recommendLayout` picks the arrangement; a style
-   layer "Top degree labels" is added labelling the square-root-of-N most connected nodes;
+   layer "Top degree labels" is added labeling the square-root-of-N most connected nodes;
    the inspector shows the graph summary with "Most connected"; the Insights strip shows up
    to four cards; the minimap (empty) and the toolbar appear.
 4. **Sample row's hint link** ("Try Find groups"): loads the sample and, once the defaults
-   have landed, runs community detection, so the reader sees coloured groups in one click.
+   have landed, runs community detection, so the reader sees colored groups in one click.
 5. **Run Groups** (card, Analyze Run, or palette): `session.runs.start`; the element derives
-   the colour encoding; the shell removes any other run's layers, clears the node selection
+   the color encoding; the shell removes any other run's layers, clears the node selection
    on both sides, writes the result into the inspector, opens Analyze, pushes a history entry,
    and retires the card if the run came from the card's own panel.
 6. **Run a node metric** (degree, betweenness, PageRank): same, behind the size gate; the
@@ -425,7 +425,7 @@ A list of chords that must never be bound (browser and OS chords) is kept in the
 
 Things the app does without being asked, in one list: switches to Explore after the first
 load; runs degree; picks a layout; adds a label layer; computes "Most connected"; shows four
-suggestion cards; removes the previous run's colour layers when a new run paints; clears the
+suggestion cards; removes the previous run's color layers when a new run paints; clears the
 selection when a run completes; opens Analyze when a run completes.
 
 ## 5. The element API the shell actually uses, and what it lacks
@@ -443,7 +443,7 @@ wrapper: load, clear, pin, unpin, pinnedNodes, getData; DOM events `data-loaded`
 
 Recorded in the shell's own comments as missing on the element side, each blocking a drawn
 control: multi-node and edge selection with set algebra (the element's `selection.apply`
-exists but the app never calls it); a where-query and text search (`E_UNSUPPORTED`); neighbour
+exists but the app never calls it); a where-query and text search (`E_UNSUPPORTED`); neighbor
 lookup (the app walks edge records itself); node positions and a settle event for a minimap;
 camera-change events and a fit extent for a zoom readout; a drag-cancel call; progress and
 cancel for runs and loads; a merge-capable load; table join; column roles (Time, Type,
@@ -455,7 +455,7 @@ element could own; a context-menu event. Most have open issues (numbers 144 to 1
 ## 6. Personas (`design/designloom/personas/`)
 
 Twelve personas. For each: who they are, their goal, and the task they must complete in
-their first five minutes (derived from their listed behaviours and their first workflow).
+their first five minutes (derived from their listed behaviors and their first workflow).
 Expertise words are the files' own: novice, intermediate, expert.
 
 | Persona (file) | Who | Goal | First five minutes |
@@ -464,13 +464,13 @@ Expertise words are the files' own: novice, intermediate, expert.
 | Analyst Alex (`analyst-alex.yaml`) | Data analyst, intermediate, weekly, has used Gephi and NetworkX | Answer a specific question with an established algorithm; reproduce it; export the numbers | Load data, run degree or communities, read the ranking, export metrics |
 | Expert Emma (`expert-emma.yaml`) | Network-science researcher and consultant, expert, daily, keyboard-driven | Full parameter control, minimal clicks, scripting, no wizards | Open a file by keyboard, run an exact algorithm with chosen parameters, validate against a reference, export raw data |
 | Fraud Detection Analyst (`fraud-analyst.yaml`) | Financial-crime investigator, intermediate, daily, 50+ alerts a day, time pressure | Follow the money from a flagged account, document evidence, decide quickly | Search the flagged account, expand one hop, trace paths, look at the timeline, note findings |
-| Intelligence Analyst (`intelligence-analyst.yaml`) | Counter-terrorism analyst, intermediate, daily, sensitive data | Map an organisation, find brokers with betweenness, watch activation over time, brief decision-makers | Load multi-source data, run betweenness and communities, expand around a seed, bookmark and annotate |
-| Cybersecurity Threat Analyst (`cybersecurity-analyst.yaml`) | Threat hunter over SIEM data, expert, daily, very large graphs | Hunt for attack patterns by hypothesis, save the queries that worked | Filter a huge behavioural graph, search for a pattern, triage matches, save the filter |
+| Intelligence Analyst (`intelligence-analyst.yaml`) | Counter-terrorism analyst, intermediate, daily, sensitive data | Map an organization, find brokers with betweenness, watch activation over time, brief decision-makers | Load multi-source data, run betweenness and communities, expand around a seed, bookmark and annotate |
+| Cybersecurity Threat Analyst (`cybersecurity-analyst.yaml`) | Threat hunter over SIEM data, expert, daily, very large graphs | Hunt for attack patterns by hypothesis, save the queries that worked | Filter a huge behavioral graph, search for a pattern, triage matches, save the filter |
 | Bioinformatics Researcher (`bioinformatics-researcher.yaml`) | Computational biologist leading a lab, expert, weekly, tens of thousands of nodes | Find drug targets: hubs and bottlenecks in protein networks; reproducible, publishable | Import a STRING or BioGRID download, cluster, run centralities, export a subnetwork figure |
-| Genomics Cytoscape User (`genomics-cytoscape-user.yaml`) | Postdoc following Cytoscape protocols, intermediate biology expert, not a graph theorist | Turn a gene list plus a spreadsheet into a coloured network figure with a legend by Friday | Paste a gene list or load an edge list, keep the largest component, join a 30-column table by gene symbol, colour by log fold change on a red-blue gradient centred on zero |
+| Genomics Cytoscape User (`genomics-cytoscape-user.yaml`) | Postdoc following Cytoscape protocols, intermediate biology expert, not a graph theorist | Turn a gene list plus a spreadsheet into a colored network figure with a legend by Friday | Paste a gene list or load an edge list, keep the largest component, join a 30-column table by gene symbol, color by log fold change on a red-blue gradient centered on zero |
 | Marketing Network Analyst (`marketing-analyst.yaml`) | Growth marketer, intermediate, weekly | Find influencers of different kinds and segment audiences | Run several centralities at once, run communities, export a ranked list |
 | Supply Chain Network Analyst (`supply-chain-analyst.yaml`) | Supply-chain risk manager, intermediate, weekly | Find single points of failure and model "what if supplier X fails" | Lay out the multi-tier network hierarchically, run betweenness, simulate removing a node |
-| ML Engineer, Recommendation Systems (`ml-engineer-recsys.yaml`) | Recommender-systems engineer, expert, daily, millions of edges | Link prediction and graph features for a bipartite user-item graph | Import an interaction log, compute common-neighbour scores, export features |
+| ML Engineer, Recommendation Systems (`ml-engineer-recsys.yaml`) | Recommender-systems engineer, expert, daily, millions of edges | Link prediction and graph features for a bipartite user-item graph | Import an interaction log, compute common-neighbor scores, export features |
 | Knowledge Graph Engineer (`knowledge-engineer.yaml`) | Enterprise ontologist, expert, daily | Build and validate a unified knowledge graph; merge duplicate entities | Import from several sources, inspect schema and components, merge duplicates, export |
 
 ## 7. Workflows (`design/designloom/workflows/`)
@@ -482,24 +482,24 @@ task phases. The steps below are the files' own phases, condensed.
 |---|---|---|---|
 | First Exploration: Quick Data Assessment (`W01.yaml`) | Elena, Alex, Emma, Fraud, Intelligence, Bioinformatics | Size check; structure check (directed, weighted); degree distribution; inspect a sample of rows; assess attributes; decide to proceed or not, under 15 minutes | data-import, data-validation, data-preview, basic-statistics, degree-analysis, component-analysis, metric-histograms |
 | Visual Exploration: Overview to Detail (`W02.yaml`) | Elena, Alex, Emma | Overview; zoom to an area; filter out the uninteresting; details on a node | graph-rendering, zoom-pan, filtering, details-on-demand, minimap, hover-highlight, view-bookmarks |
-| Iterative Analysis Cycle (`W03.yaml`) | Alex, Emma, Bioinformatics | Question; explore views and encodings; hypothesise; test with algorithms; refine and document; conclude | the four centralities, community-detection, analysis-history, comparison-view, statistics-panel |
-| Community Analysis (`W04.yaml`) | Alex, Emma, Fraud, Marketing | Detect (Louvain); validate modularity; characterise each group; find bridge nodes; map inter-group structure | community-detection, community-profiling, centrality-betweenness, legend-display |
+| Iterative Analysis Cycle (`W03.yaml`) | Alex, Emma, Bioinformatics | Question; explore views and encodings; hypothesize; test with algorithms; refine and document; conclude | the four centralities, community-detection, analysis-history, comparison-view, statistics-panel |
+| Community Analysis (`W04.yaml`) | Alex, Emma, Fraud, Marketing | Detect (Louvain); validate modularity; characterize each group; find bridge nodes; map inter-group structure | community-detection, community-profiling, centrality-betweenness, legend-display |
 | Path Investigation (`W05.yaml`) | Fraud, Intelligence, Alex | Pick source and target; shortest path; compare alternative paths; show in context; interpret intermediates | shortest-path, all-paths-finding, path-highlighting, search, neighborhood-expansion |
-| Fraud Ring Investigation (`W06.yaml`) | Fraud | Contextualise the alert (1-2 hops); recognise patterns; expand to the ring; score risk; document; decide | ego-network, neighborhood-expansion, anomaly-detection, temporal-navigation, annotation, pattern-search, saved-filters |
+| Fraud Ring Investigation (`W06.yaml`) | Fraud | Contextualize the alert (1-2 hops); recognize patterns; expand to the ring; score risk; document; decide | ego-network, neighborhood-expansion, anomaly-detection, temporal-navigation, annotation, pattern-search, saved-filters |
 | Threat Hunting (`W07.yaml`) | Cybersecurity | Hypothesis; translate to a pattern; query; triage; iterate; respond or document | pattern-search, anomaly-detection, filtering, saved-filters, large-graph-rendering, view-bookmarks |
 | Drug Target Discovery (`W08.yaml`) | Bioinformatics | Build the disease network; define the module; rank by centrality; validate; select candidates | centralities, community-detection, shortest-path, computed-attributes, data-export |
-| Criminal Network Analysis (`W09.yaml`) | Intelligence | Initialise the case; integrate data; build the network (merge duplicates); structural analysis; vulnerabilities; briefings | centralities, community-detection, ego-network, node-merging, removal-impact-analysis, annotation, export-image |
+| Criminal Network Analysis (`W09.yaml`) | Intelligence | Initialize the case; integrate data; build the network (merge duplicates); structural analysis; vulnerabilities; briefings | centralities, community-detection, ego-network, node-merging, removal-impact-analysis, annotation, export-image |
 | Influencer Identification (`W10.yaml`) | Marketing | Define influence; compute metrics; segment by type; validate; rank | four centralities, community-detection, large-graph-rendering, data-export |
-| Supply Chain Risk Assessment (`W11.yaml`) | Supply chain | Map the network; dependency analysis; betweenness bottlenecks; scenario modelling; mitigation | centrality-betweenness, layout-hierarchical, removal-impact-analysis, comparison-view |
+| Supply Chain Risk Assessment (`W11.yaml`) | Supply chain | Map the network; dependency analysis; betweenness bottlenecks; scenario modeling; mitigation | centrality-betweenness, layout-hierarchical, removal-impact-analysis, comparison-view |
 | Anomaly Detection (`W12.yaml`) | Fraud, Cybersecurity, Alex | Baseline; statistical outliers; structural outliers; triage; investigate; classify | anomaly-detection, clustering-coefficient, metric-histograms, selection-statistics, saved-filters |
 | Knowledge Graph Construction (`W13.yaml`) | Knowledge engineer | Schema; extract entities; map relationships; resolve duplicates; validate; deploy | data-import, data-validation, node-merging, search, data-export |
-| First-Time User Onboarding (`W14.yaml`) | Elena | Arrive to a clear call to action; load (file, URL, paste, sample); first visualisation with counts; guided tries (zoom, select, layout); one analysis; next steps; under 2 minutes to the first picture | guided-onboarding, sample-datasets, community-detection |
+| First-Time User Onboarding (`W14.yaml`) | Elena | Arrive to a clear call to action; load (file, URL, paste, sample); first visualization with counts; guided tries (zoom, select, layout); one analysis; next steps; under 2 minutes to the first picture | guided-onboarding, sample-datasets, community-detection |
 | Findings Communication (`W15.yaml`) | Alex, Emma, Fraud, Intelligence | Audience; message; filter and highlight and annotate; narrative; produce image or report; validate | export-image, annotation, style-presets, legend-display, report-generation |
 | Graph-Based Recommendation (`W16.yaml`) | ML engineer | Bipartite graph; graph features; similarity; score pairs; evaluate; deploy | link-prediction, clustering-coefficient, data-export |
 | Hub Investigation (`W17.yaml`) | Alex, Fraud, Intelligence | Identify hubs; ego network; attribute analysis; temporal growth; classify the role; anomaly check | ego-network, layout-radial, selection-statistics, neighborhood-expansion |
 | Data Import and Validation (`W18.yaml`) | Elena, Alex, Emma | Source; format detection; field mapping; preview; load; validate; quality report | data-import, data-validation, data-preview, progressive-loading |
 | Network Evolution Analysis (`W19.yaml`) | Alex, Emma, Bioinformatics | Time windows; metrics per window; change detection; trends; community evolution; interpret | temporal-analysis, temporal-navigation, comparison-view, animated-transitions |
-| Gene List to Interaction Network (`W20.yaml`) | Genomics, Bioinformatics | Get the network (paste genes or load an edge list); keep the largest component; join the data table by key; colour by log fold change with grey for missing; lay out and read; export with legend | data-import (table join), component-analysis, visual-encoding-nodes, legend-display, export-image |
+| Gene List to Interaction Network (`W20.yaml`) | Genomics, Bioinformatics | Get the network (paste genes or load an edge list); keep the largest component; join the data table by key; color by log fold change with gray for missing; lay out and read; export with legend | data-import (table join), component-analysis, visual-encoding-nodes, legend-display, export-image |
 | Cluster and Functionally Annotate (`W21.yaml`) | Genomics, Bioinformatics | Cluster (MCL expected); inspect clusters as a table and select members; annotate each cluster; show terms on the map; export | community-detection, community-profiling, selection-statistics, annotation |
 | Enrichment Map (`W22.yaml`) | Genomics, Bioinformatics | Build the map from an enrichment table; explore; tune thresholds; name themes; publish (adopted as a data-only case through the ordinary Data panel and filter builder) | data-import, filtering, community-detection, annotation, node-merging |
 | Hub Gene Identification and Ranking (`W23.yaml`) | Genomics, Bioinformatics | Compute several rankings; read distributions; combine or intersect top-10 lists; look at hubs in context; report | four centralities, clustering-coefficient, computed-attributes, metric-histograms, removal-impact-analysis |

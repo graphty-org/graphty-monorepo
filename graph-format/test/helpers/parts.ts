@@ -288,7 +288,7 @@ function tableOf(
 
 /**
  * Build mutable SnapshotParts for a spec: identity permutations are passed as null with the flag set
- * (the rule of SnapshotParts), everything else materialised.
+ * (the rule of SnapshotParts), everything else materialized.
  */
 export function makeParts(spec: GraphSpec): MutableParts {
     const csr = naiveCsr(spec);
@@ -349,7 +349,7 @@ export function weightOf(edge: EdgeSpec): number {
 }
 
 /**
- * The neighbour multiset of a node as a sorted array of [target, edge] pairs, from the spec.
+ * The neighbor multiset of a node as a sorted array of [target, edge] pairs, from the spec.
  */
 export function naiveOutArcs(spec: GraphSpec, u: number): [number, number][] {
     const out: [number, number][] = [];
@@ -448,7 +448,7 @@ export const KARATE_EDGES: readonly EdgeSpec[] = [
 ];
 
 /**
- * A w x h grid (4-neighbour), directed or undirected, row-major node indices.
+ * A w x h grid (4-neighbor), directed or undirected, row-major node indices.
  */
 export function gridEdges(w: number, h: number): EdgeSpec[] {
     const edges: EdgeSpec[] = [];

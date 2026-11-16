@@ -56,7 +56,7 @@ what `tools/check-data-source-migration.mjs` and `tools/check-legacy-use.mjs` en
 | graphty-element algorithm adapters on the dispatcher | 25 of 25 run through `accelerated()` and call a dispatcher member; none imports a port function to call inside its run. None builds a legacy `Graph`. `Algorithm.algorithmGraph()` and `AlgorithmGraphView` stay, deprecated, through graphty-element 3.x (removed in 4.0), backed by a copy of the algorithms 2.x `Graph`.                                                                                                |
 | graphty-element static layout engines                | 14 of 14 on the snapshot layout contract (`SnapshotLayoutEngine`), the contract a third-party layout registers through: the 13 that call a `@graphty/layout` snapshot layout, and fixed, which places nodes at positions in their data. No `SimpleLayoutEngine` subclass is left. `SimpleLayoutEngine` and its protected `pairWeights` / `pairWeightKey` helpers stay, deprecated, for third-party subclasses through 3.x. |
 | graphty-element data sources on graph-io             | 7 of 7 (CSV, DOT, GEXF, GML, GraphML, JSON, Pajek).                                                                                                                                                                                                                                                                                                                                                                        |
-| graphty-element parsers of its own                   | 0: no papaparse, no fast-xml-parser, no hand-written tokeniser.                                                                                                                                                                                                                                                                                                                                                            |
+| graphty-element parsers of its own                   | 0: no papaparse, no fast-xml-parser, no hand-written tokenizer.                                                                                                                                                                                                                                                                                                                                                            |
 | `@deprecated` exports                                | algorithms: `indexed` (the alias above). layout: `indexed`, `rescaleLayout`, `rescaleLayoutDict`, each removed in the next major.                                                                                                                                                                                                                                                                                          |
 
 The two checks that guarded the migration no longer carry an allow-list: any use of the legacy
@@ -89,7 +89,7 @@ list, in full, is the "Results that differ from 2.x" section of that guide.
 
 Checked against `feat/graph-format-migration` at `d40e0301`. Phases are those of design section
 14.6. The A1, A2 (ports), A2 (facades), L1 and W1 rows of the previous revision still hold and are
-summarised here; the counts that changed are E1, D1 and IO1.
+summarized here; the counts that changed are E1, D1 and IO1.
 
 | Phase        | State   | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -124,7 +124,7 @@ and redo work, merge `a778a43f`), so graphty-element 3.0.0 carries both.
 - **E1: partial.** Bipartite matching, link prediction, max flow and min cut run on the
   indexed ports, and `Algorithm.edgeRecord` is gone; max flow reads each edge's capacity from
   the store's `graphty.capacity` edge column. `algorithmGraph()` and `AlgorithmGraphView` are deprecated in graphty-element 3.1 and removed in 4.0, in
-  favour of a snapshot accessor with edge ids and attribute columns; third-party layouts are to
+  favor of a snapshot accessor with edge ids and attribute columns; third-party layouts are to
   get the snapshot layout contract, with the built-in layouts on it.
 - **IO1: partial.** DOT, GML and Pajek through graph-io, detection through graph-io's sniffers,
   one import helper and the truncated-GML test (#503) are finished on an unmerged branch. Still
@@ -331,7 +331,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
   on a column with unset rows is `E_COLUMN_TYPE`.
 - `paddedU32View()` also returns the codes of a `dict` column; `i32` / `f32` throw
   `E_GPU_INELIGIBLE` from it (their `gpuView()` returns the data).
-- `byteLength`: json 0 data bytes (+ validity); dict codes + validity; string materialises the Utf8
+- `byteLength`: json 0 data bytes (+ validity); dict codes + validity; string materializes the Utf8
   store; list offsets + child + validity.
 - `column.isSet(row)` is total; `table.isSet(name, row)` throws `E_UNKNOWN_COLUMN` for an absent column.
 - `createColumn()` recomputes `nullCount`; a validity bitmap on a non-nullable meta is `E_COLUMN_TYPE`;
@@ -416,7 +416,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
 - `E_DUPLICATE_EDGE` details name the edges in the builder's index space.
 - An unset value written by name to a column that does not exist is a no-op; `null` is unset on
   inferred columns and a value on a declared json column.
-- Counting sort: arc materialisation is fused into pass 1; pass 1 scatters (source, edge) pairs into
+- Counting sort: arc materialization is fused into pass 1; pass 1 scatters (source, edge) pairs into
   one `U32(2A)` transient with a bitmap over pass-1 positions for the declared orientation (undirected
   only), plus 2 x U32(n + 1) counts; the weights and (directed) `edgeToArc` of 6.3 step 6 are written
   in sequential post-passes rather than inside the pass-2 scatter (same result, measured 2x faster);
@@ -446,7 +446,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
   space is unchanged, applied to contract too).
 - `contract` remaps extension tables' `refersTo` values through the block map rather than dropping
   them; `refersTo` node / edge columns are dropped even when named in the reducers.
-- `toUndirected` / `simplified` on an unweighted source with `weights: "sum"` materialise
+- `toUndirected` / `simplified` on an unweighted source with `weights: "sum"` materialize
   multiplicities (the design states this rule only for contract); other reducers keep `null`.
 - `isSymmetric` compares forward and reverse rows position by position on a simple graph and, on a
   multigraph, each run of parallel arcs as a sorted weight multiset (3.6: closed under reversal with
@@ -465,9 +465,9 @@ candidate for confirmation by the owner; none contradicts an invariant.
   goes through the builder's counting sort (`sortIntoCore`) into a fresh arena.
 - Derived graphs carry the source's `label` and `meta` and share its `graph` table; `withColumns()`
   clones the graph table too and shares the extensions map; it propagates the checksum setting.
-- `dropCaches()` also drops materialised identity permutations and their checksum records, and the
+- `dropCaches()` also drops materialized identity permutations and their checksum records, and the
   cached `gpuView()` f32 copies of f64 columns.
-- Checksum records of a reverse view cover the members materialised when the view was first computed.
+- Checksum records of a reverse view cover the members materialized when the view was first computed.
 
 ### Populate (8.1)
 
@@ -507,8 +507,8 @@ candidate for confirmation by the owner; none contradicts an invariant.
   range) before a typed array is built; overlap, nullCount, arena agreement, name uniqueness and
   `validate()` run only at "structure" / "full".
 - The 9.1 owner count is `src/util/shared-buffers.ts`: every `AttributeTable` claims its columns AND
-  the buffers they view, every `GraphSnapshot` claims its core buffers, the id map and its materialised
-  buffers, and its tables at construction; a lazily materialised store (a string column's Utf8 store,
+  the buffers they view, every `GraphSnapshot` claims its core buffers, the id map and its materialized
+  buffers, and its tables at construction; a lazily materialized store (a string column's Utf8 store,
   a numeric / mixed id map's arrays) claims its buffers when it is built; a zero-copy `slice()` notes
   its source buffer shared; the second claim marks the target shared, so a same-realm `fromWire`
   receiver, a slice attached elsewhere or a Column moved between tables all make a later transfer copy
@@ -593,7 +593,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
   same-space case and refuse the cross-space declaration.
 - `E_TOO_LARGE` at the 0xFFFFFFFF-th element is covered through count validation only.
 - The big-endian writer refusal is tested through `assertLittleEndianHost(false)` only.
-- Checksum records of a reverse view do not cover members materialised after the view was recorded.
+- Checksum records of a reverse view do not cover members materialized after the view was recorded.
 - The three weight flags (`allWeightsOne`, `nonNegativeWeights`, `finiteWeights`) describe the f32 arc
   array, as 3.8 defines them; with `weightDtype: "f64"` the kept shadow can disagree (1 + 2^-30 rounds
   to 1, -1e-50 to -0, 1e39 to Infinity). A consumer that substitutes the f64 shadow for the arc
@@ -602,7 +602,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
 - `runFreeze` (about 170 lines) and five other functions between 100 and 150 lines
   (`nodeIdMapFromTyped`, `columnOfValues`, `gatherColumn`, `sortIntoCore`, `createColumn`) exceed or
   approach the 13.4 threshold; each is one dtype / kind switch with independent cases. Not split in
-  audit round 1 (no behavioural benefit, real regression risk).
+  audit round 1 (no behavioral benefit, real regression risk).
 - `remapColumnWith` / `invertRemap` (columns/remap.ts) and `invertOrigin` (snapshot/derived.ts),
   `allocLike` / `allocVector` / `allocNumeric`, and the builder's `checkRole` versus the table's are
   near-duplicates with different signatures or semantics; left as they are.
@@ -623,7 +623,7 @@ candidate for confirmation by the owner; none contradicts an invariant.
 
 ## Audit round 1 (2026-09-13)
 
-Eight adversarial audits (data-model invariants, builder lifecycle and compaction, serialisation and
+Eight adversarial audits (data-model invariants, builder lifecycle and compaction, serialization and
 transfer, the GPU memcpy contract on real hardware, differential tests against the legacy Graph class,
 freeze hot-path performance, API conformance to section 12.2, code quality) reported 66 findings: 27
 major, 39 minor (four of the performance findings were fixed by that auditor directly and are counted
@@ -659,7 +659,7 @@ Applied (by area):
   `options.directed` must agree with the input.
 - Wire: the `$esc` wrapper (golden regenerated); type-based error rendering; a 256-level nesting limit;
   the overlap rule by buffer identity; carried views content-checked at "structure"; `transferables()`
-  follows the last transfer-mode wire; buffer-level holders for tables, id maps and materialised
+  follows the last transfer-mode wire; buffer-level holders for tables, id maps and materialized
   stores; `ArenaSegment` records frozen; `E_DETACHED` through `validate({ checksum: true })`.
 - Quality: 24 dead exports removed with their tests (the 5.1 text grammar stays, tagged `@public` as
   the reference implementation graph-io must reproduce); `hasLoneSurrogate`, `seedDictionary`,
@@ -731,7 +731,7 @@ barrel, registry, sniffing, children CSR, subpath exports, multi-entry build, do
 | `common/`          | 8.4-8.6, 5 | codes.ts (the one definition of every shared issue / loss code), report.ts, options.ts (`reportSinkOptions` / `reportUnusedOptions`), input.ts, ids.ts, text.ts (the 5.1 grammar, `TextCellWriter`), declared-types.ts, temporal.ts, lists.ts, attributes.ts (`declareResolved`: the 5.6 rename rule), weights.ts (`explicitWeights`), direction.ts (`DirectionResolver`, `pairFolding`), export.ts (`LOSS`, `checkCapabilities` + `CheckExtras`, `sanitizeIds`), xml.ts (the streaming XML tokenizer, `xmlIllegalTextNotes`), escape.ts, format.ts (`formatDecimal`), writer.ts. |
 | `formats/gexf/`    | 8.4, 8.5   | 1.2 and 1.3; a streaming reader over the shared XML tokenizer (single pass, bounded memory, line numbers); declared attributes, viz roles, lifetimes / spells / timestamps / intervals (XSD `startopen` / `endopen` in 1.2), dynamic values as `temporal:*` extension tables, pid / parents deferred; exporter folds pairs, writes explicit weights only, streams the edges.                                                                                                                                                                                                      |
 | `formats/graphml/` | 8.4, 8.5   | The shared streaming XML tokenizer (single pass, bounded memory, line numbers); keys of every attr.type, `for="all"`, defaults and descs, ports, nested graphs, hyperedges (error / skip / star / clique), yFiles trees as json; exporter writes nested graphs from the children CSR, the label slot, mangles ids to NMTOKEN on request, folds mutual pairs to undirected edges.                                                                                                                                                                                                  |
-| `formats/gml/`     | 8.4, 8.5   | A NetworkX-compatible lexer, two-walk import over one token list (schema first, typed declarations second, so `origin.type` is exact), graphics -> position, records -> json, dictionary heuristic; exporter writes reals with a decimal point, `+INF` / `-INF` / `NAN`, integer ids (mangle renumbers), key sanitising.                                                                                                                                                                                                                                                          |
+| `formats/gml/`     | 8.4, 8.5   | A NetworkX-compatible lexer, two-walk import over one token list (schema first, typed declarations second, so `origin.type` is exact), graphics -> position, records -> json, dictionary heuristic; exporter writes reals with a decimal point, `+INF` / `-INF` / `NAN`, integer ids (mangle renumbers), key sanitizing.                                                                                                                                                                                                                                                          |
 | `formats/dot/`     | 8.4, 8.5   | A Graphviz-faithful tokenizer and parser (verified against `dot -Tcanon`), clusters as container nodes with the parent role, ports, HTML strings, scoped defaults expanded at creation, `pos` -> position; exporter writes nested cluster blocks from the children CSR.                                                                                                                                                                                                                                                                                                           |
 | `formats/pajek/`   | 8.4, 8.5   | Line-oriented state machine over `LineReader`; `*Vertices N` pre-creates ids 1..N (0-based files detected), `*Arcs` / `*Edges` / `*Arcslist` / `*Edgeslist` / `*Matrix`, labels, positions, shapes, key-value parameters, time intervals -> spells; exporter numbers 1..N and writes sections in runs so a mixed file keeps its edge order.                                                                                                                                                                                                                                       |
 | `formats/csv/`     | 8.4, 8.5   | The shared streaming RFC 4180 record reader (`records.ts`, also Neo4j's) with delimiter / newline sniffing, SNAP `#` / KONECT `%` comment headers, header resolution (`source` / `target`, Gephi `Source` / `Target` / `Type` / `Id` / `Label` / `Weight`), positional headerless files, a paired node table (`nodes`), per-row direction; exporter dialects `gephi` and `generic`.                                                                                                                                                                                               |
@@ -945,7 +945,7 @@ DOT:
 - Edge endpoint ports are kept (`graphty.sourcePort` / `graphty.targetPort`); a port on a node
   statement is dropped with `W_DOT_NODE_PORT_DROPPED`. A contradicting edge operator is read with
   the operator's direction and resolved through the mixed-direction policy (`W_DOT_EDGE_OPERATOR`;
-  `mismatchedEdgeOperator: "header" | "error"` for the other behaviours).
+  `mismatchedEdgeOperator: "header" | "error"` for the other behaviors).
 - `key` becomes the edge id role column; `strict` merges parallel edges last-write-wins. HTML
   strings keep their outer brackets. `pos` -> `pos` (f32 x3, role position); `!` sets a `pin`
   bool attribute. `viz: false`; non-cluster subgraph attributes are reported.
@@ -1001,7 +1001,7 @@ CSV:
 - The record reader (`csv/records.ts`) is the package's one RFC 4180 reader, shared with Neo4j;
   papaparse is gone.
 - `table: "adjacency"` reads and writes an adjacency table: no header by default, each row a node
-  then its neighbours, `id:weight` when the text after the last colon is a number (`id:` for an
+  then its neighbors, `id:weight` when the text after the last colon is a number (`id:` for an
   id holding a colon and no weight). It is never sniffed. An empty file is the empty graph, which
   is what the exporter writes for it. Its delimiter sniff also skips a candidate under which a
   closing quote is followed by other text, since its rows vary in width; every other table keeps
@@ -1017,7 +1017,7 @@ JSON:
 
 - The importer does not call `fromRecords()` (it creates and freezes its own builder); the
   node-link path reproduces its rules. A missing `nodes` / `edges` array is a recoverable
-  `E_MISSING_SECTION`; empty input, invalid JSON, an unrecognised shape and a wrong section type
+  `E_MISSING_SECTION`; empty input, invalid JSON, an unrecognized shape and a wrong section type
   are fatal.
 - `nodesPath` / `edgesPath` (node-link, d3, vis, graphology) are dotted paths of object keys to the
   node and edge arrays; the object holding the nodes is the graph record. A path naming nothing is
@@ -1076,7 +1076,7 @@ Integration (registry, sniffing, children, build):
   was chosen). Format-specific options are passed in the same object (`importGraph(input,
 { format: "csv", delimiter: ";" })`); the registry keeps `format`, `filename`, `mimeType`,
   `builder` and `freeze` for itself. `weightDtype` seeds the builder with `"f64"` by default (8.4).
-- An input no importer recognises is an `ImportError` (`E_IMPORT`) whose report has format
+- An input no importer recognizes is an `ImportError` (`E_IMPORT`) whose report has format
   `"unknown"` and one parse-error issue `E_UNKNOWN_FORMAT`; an unregistered format name is
   `E_UNSUPPORTED` (the core's convention for an option outside its set).
 - `exportGraph()` returns the exporter's `AsyncIterable<Uint8Array>`; `exportGraphToString()` and
@@ -1105,7 +1105,7 @@ Integration (registry, sniffing, children, build):
   nested `<graph id>` values and element `<desc>` texts are not preserved; `W_PRECISION` is once
   per file.
 - GEXF: 1.3 `timestamps` / `intervals` attribute syntax follows Gephi's toString form only; the
-  file's `idtype` is not honoured by the importer (the canonical id rule of 4.1 applies; `ids:
+  file's `idtype` is not honored by the importer (the canonical id rule of 4.1 applies; `ids:
 "string"` keeps the texts and `check()` says which ids change type).
 - Pajek: unknown shape values and the `value` parameter are untested against Pajek itself.
 - Neo4j: the Neo4j 5 brace-option set was not verified against a live `neo4j-admin`; a
@@ -1175,7 +1175,7 @@ Applied (by area):
   `dict` / `positions` / `viz` are truthful (F1, F4, F5); every one of the 40 `LOSS` codes is
   reachable through a built-in exporter.
 - Direction: under `onMixedDirection: "directed"` every exporter without mixed direction folds a
-  pair to one directed edge (F2); Neo4j honours `"undirected"` (F3); GraphML and Pajek fold a mutual
+  pair to one directed edge (F2); Neo4j honors `"undirected"` (F3); GraphML and Pajek fold a mutual
   pair to one undirected edge, the others write two directed edges; the shared `pairFolding()` and
   `explicitWeights()` helpers replace eight private copies of the mirror and weight-text rules.
 - Text cells (5.1): `TextCellWriter` tracks the text dtype per column, widens an all-`x.0` column
@@ -1213,13 +1213,13 @@ Applied (by area):
   array of sessions like graph-format's, `fast-xml-parser` is a declared devDependency of the
   independent-reader probes.
 
-Rejected or re-pinned (the design wins; each test was re-pinned to the design behaviour with the
+Rejected or re-pinned (the design wins; each test was re-pinned to the design behavior with the
 section named in the test):
 
 - D4 (a plain `weight` / `value` column must survive a round trip as a column): 3.7 / 8.4 make the
   importer's `weightFrom` rule decide what becomes THE weight, so the column reads back as the
   weight; the fix is the prediction (`W_WEIGHT_KEY_CLASH`), not a rename of the column.
-- D5 (GEXF must honour `idtype="string"`, DOT must keep string ids of integer text): 4.1's
+- D5 (GEXF must honor `idtype="string"`, DOT must keep string ids of integer text): 4.1's
   canonical rule applies to every text-cell format (Gephi writes `idtype="string"` on every file);
   `check()` predicts the change (`W_ID_TEXT_TYPE`) and `ids: "string"` keeps the texts.
 - D8 second half (dict / list / f32 x4 / integral f64 must survive JSON): JSON declares no types
@@ -1228,7 +1228,7 @@ section named in the test):
   position column and the values are exact at f32 precision.
 - D1 first half (a CSV edge table must keep an isolated node): an edge table cannot; the notes
   (`W_CSV_ISOLATED_NODES`, `W_CSV_NODE_ORDER`) say so and the node table keeps it.
-- D3 (Pajek must keep the original id of a labelled node): the file has no second slot; the
+- D3 (Pajek must keep the original id of a labeled node): the file has no second slot; the
   `W_ID_RENUMBERED` note now says exactly which ids are lost and which become labels (the
   auditor's own expectations contradicted the file text they pinned).
 - GML NetworkX leniencies (string node ids, strings spanning lines): the malformed corpus fixtures
@@ -1271,7 +1271,7 @@ abort paths, the 40 `IO_BENCH=1` checks, 8 MB tokens in 16 KB chunks for every r
   `report.finish()`, so an abort raised from the sink during the last elements of an in-memory
   document resolved instead of rejecting. Every importer now checks every 64 pushed elements and
   once before `finish()`; `fuzz-abort` pins both (an abort at the 20th and at the last `addEdge`).
-- Pajek honours `sanitizeIds: "mangle"` (design 8.5: the exporter names the attribute the original
+- Pajek honors `sanitizeIds: "mangle"` (design 8.5: the exporter names the attribute the original
   id is kept in, `restoreMangledIds` reads it back): every renumbered vertex carries a
   `graphty_originalId` parameter, the importer restores it (`W_PAJEK_ORIGINAL_ID_MERGED` when two
   lines carry the same one; the index order stays the vertex-number order, so a parameter on a
@@ -1279,7 +1279,7 @@ abort paths, the 40 `IO_BENCH=1` checks, 8 MB tokens in 16 KB chunks for every r
   `W_PAJEK_ORIGINAL_ID_UNRESTORED`), a user column of that name is reserved under "mangle"
   (`W_PAJEK_KEY_DROPPED`), an unwritable id text is `E_PAJEK_TEXT`, and a string id of integer
   text is predicted to come back as a number (`W_ID_TEXT_TYPE`). Before, the option was silently a
-  no-op and a labelled node's id was written nowhere (the D3 finding's first alternative).
+  no-op and a labeled node's id was written nowhere (the D3 finding's first alternative).
 - `test/corpus/malformed/csv/binary-content.csv` now holds invalid UTF-8 (see the known gaps), so
   the suite has no test that fails by design; the graph-io README's issue-table names
   (`DOT_ISSUE`, `PAJEK_ISSUE`) and this file's numbers and stale GEXF / GraphML / CSV / Neo4j /
@@ -1319,7 +1319,7 @@ graph-io (this pass):
    pin (the legacy `malformed.test.ts` of graphty-element expected the file to import).
 7. The issue-code renames (about 90 codes and the `PAJEK_ISSUES` -> `PAJEK_ISSUE` table) change
    every subpath's public surface; confirm before anything ships.
-8. `W_ID_RENUMBERED` (Pajek, under the default `sanitizeIds: "error"`: a labelled node's id is
+8. `W_ID_RENUMBERED` (Pajek, under the default `sanitizeIds: "error"`: a labeled node's id is
    written nowhere; `"mangle"` keeps it in `graphty_originalId`) and the JSON / Neo4j / GEXF /
    GraphML / GML weight-key clash are predicted, not avoided: confirm that a loss note is the
    design's answer (8.5) rather than a rename of the written column, and whether Pajek should
@@ -1327,7 +1327,7 @@ graph-io (this pass):
    a recorded deviation from 8.5's "never silently renames").
 9. JSON keys colliding with a caller-declared column of another dtype are per-element
    `E_COLUMN_TYPE` issues (no 5.6 rename for inferred attributes); confirm.
-10. GEXF's `idtype` is not honoured on import (4.1 canonical rule; `ids: "string"` opts out);
+10. GEXF's `idtype` is not honored on import (4.1 canonical rule; `ids: "string"` opts out);
     confirm that the importer should not switch on the file's declaration.
 11. The `E_EMPTY_ID` loss code was dropped (an empty-string id now round-trips through CSV and
     Neo4j as the quoted empty cell); confirm the quoted-empty-cell rule for the CSV exporter
@@ -1389,7 +1389,7 @@ saw it.
 
 Fix: a `filledBelow` high-water mark so the gap-fill resumes where it stopped (one private field and
 three lines in `PajekParser.vertexLine`, reset in `verticesHeader`). No public surface, option, issue
-code, id, node order or report field changes. Equivalence was checked over 3200 randomised cases
+code, id, node order or report field changes. Equivalence was checked over 3200 randomized cases
 (shuffled, gapped and duplicated vertex lines, `graphty_originalId` parameters, coordinates, shape
 keywords, zero-based numbering, across eight option sets) with no mismatch on node count, edge count,
 id-map order, the label and originalId columns, any edge endpoint or the issue list.
@@ -1434,7 +1434,7 @@ XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of gr
    holds), so "eager element strings" belongs to DOT and Neo4j; and for Pajek it is the token array,
    not the extras record, that resists removal, because `tokenize()` lives in `syntax.ts` and encodes
    the unterminated-quote failure in its `string[] | null` return.
-3. Compaction after removals -- recorded as a design correction, not optimised. Measured with
+3. Compaction after removals -- recorded as a design correction, not optimized. Measured with
    `freezeWithReport({ profile: true })` at 100k nodes / 1M directed edges, median of 5: the
    `compact` phase is 31.78 ms against the 10-15 ms of design 15.4 and 6.7, in a freeze whose total
    goes 21.04 ms -> 52.50 ms when 10 percent of the edges are tombstoned first. Both design tables
@@ -1452,7 +1452,7 @@ XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of gr
 - `graph-format/test/build-output.test.ts` guarded its bundle assertions on `dist/graph-format.js`
   existing. Since the rehearsal added the `graph-format.ts` root entry, a tsc-only build -- which is
   what `tools/prepush.sh` runs -- also writes that file, as a re-export stub with a sourceMappingURL
-  comment, so the guard passed and the test then failed against the stub. The guard now recognises the
+  comment, so the guard passed and the test then failed against the stub. The guard now recognizes the
   stub and skips, as the sibling build-output tests do. The rehearsal missed it because it ran only
   graph-io's tests after the plain build.
 - `remote-logger`'s `GET /remote-logger.js endpoint > response contains the bundled RemoteLogClient

@@ -27,7 +27,7 @@ I see friends.csv open, orange dots of different sizes with arrows, no names on 
 
 ### Step 5
 `--click "Filter to neighbors"`
-08.png: The five dots at the top right are gone. Top bar now says "15 of 20 nodes" -- Ava plus her 14. The legend says "PageRank, full graph". The button went grey, so I guess it's applied. That's what Ava wanted. I'm done; ending.
+08.png: The five dots at the top right are gone. Top bar now says "15 of 20 nodes" -- Ava plus her 14. The legend says "PageRank, full graph". The button went gray, so I guess it's applied. That's what Ava wanted. I'm done; ending.
 
 ### End
 `REAL_DIST=/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r5-8c015b806/ node design/ui/studio/tool/real.mjs --end tmp/studio-sessions/tier2/rounds/round-5/sessions/r5-s49b` -- session ended, no further request.
@@ -41,4 +41,4 @@ I see friends.csv open, orange dots of different sizes with arrows, no names on 
   - "Hops" -- I guessed 2 meant friends-of-friends because 1 showed only her six. It worked but the word is odd.
   - "Follow: Out / In / All" -- I left it on All. I'm not sure if "runs with" should be one direction; the arrows on the lines worry me a bit. If it had been on Out I might have gotten a different number and not known.
   - Ava came out "#20 of 20" and the smallest dot, so I figured she's the least popular runner in the club. Kind of sad for the party host.
-  - After filtering, the button went grey and nothing told me how to get the other five back; I assume undo would.
+  - After filtering, the button went gray and nothing told me how to get the other five back; I assume undo would.

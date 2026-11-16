@@ -5,7 +5,7 @@
  * snapshot the element built for it (`referenceSnapshot`), and compares what was published. Scores
  * agree to 1e-9 relative, and Girvan-Newman publishes the same partition and modularity. With a
  * self-loop, modularity counts it twice in its node's degree (algorithms 2.x counted it once). Leiden
- * is a randomised heuristic, so its partition is not compared with anything: its modularity is
+ * is a randomized heuristic, so its partition is not compared with anything: its modularity is
  * within 0.02 of what algorithms 2.x's own Leiden reached on the two fixtures, within 0.05 either way
  * on small random graphs without self-loops and no lower on average (the 2.x values are recorded
  * below), and it is the modularity of the partition it published.

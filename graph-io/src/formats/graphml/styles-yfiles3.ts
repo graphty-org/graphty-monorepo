@@ -958,7 +958,7 @@ function putBpmnPicture(
 const UML_NAME_DROP = 13;
 
 /**
- * The words of a UMLClassModel: its name's neighbours and its two sections.
+ * The words of a UMLClassModel: its name's neighbors and its two sections.
  * @param model - the model's element
  * @returns the words
  */

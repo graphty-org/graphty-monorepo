@@ -34,7 +34,7 @@ const CAVEATS: Caveats = {
     notes: [],
 };
 
-/** A field descriptor with the path a catalogue descriptor would have written. */
+/** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `results.$.${spec.name}` };
 }
@@ -353,7 +353,7 @@ describe("a scope", () => {
 
 describe("a neighbourhood", () => {
     it("includes the nodes it was grown from", () => {
-        // A neighbourhood that excluded its own centre would deselect the node a person just
+        // A neighborhood that excluded its own center would deselect the node a person just
         // clicked in order to look around it.
         const harness = line(true);
         const selection = selectionOf(harness);

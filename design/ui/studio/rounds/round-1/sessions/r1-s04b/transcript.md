@@ -15,7 +15,7 @@ Session: design/ui/studio/rounds/round-1/sessions/r1-s04b (screens 01-17, export
 7. `--click "Style"` (07). Nodes section: Fill/Color already set to Bridges; Shape, Effects, Label, Tooltip each with a plus.
 8. `--click-at 1419,226` (08): plus beside Shape offers "Size" and "Shape". Hesitation: Dev expected a word like "Size" at the top level, not hidden under Shape.
 9. `--click "Size"` (09): a Size row showing "1", a dropdown and a chain-link icon. Hesitation: no word says "by measure"; the icon is unlabeled to Dev (its name is "Size by attribute").
-10. `--click-at 1381,256` (10): attribute list: Bridges, Bridges rank, Bridges percentile; id and name greyed ("Holds groups, not amounts"). Dev picks plain Bridges.
+10. `--click-at 1381,256` (10): attribute list: Bridges, Bridges rank, Bridges percentile; id and name grayed ("Holds groups, not amounts"). Dev picks plain Bridges.
 11. `--click-at 1189,324` (11): Valjean and Myriel and Fantine get bigger; key now has "Size: Bridges" and "Color: Bridges". PART 3 DONE: bigger dots for those who matter more.
 12. `--click-at 1419,324` (12): plus beside Label opens an attribute list: id, name, Bridges...
 13. `--click-at 1118,455` (13): picked "name". Names appear on the drawing; note says "77 labels, 7 hidden to avoid overlap". PART 4 DONE: names written. Some are tiny and overlap in the middle.

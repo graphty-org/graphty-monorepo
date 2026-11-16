@@ -46,7 +46,7 @@
  * divides both by `(n - 1)(n - 2)` directed or half that undirected, when positive. A sampled run (`sources` or `k`)
  * is the UNSCALED sum over the sources run, reported beside `sourcesUsed`. `endpoints: true` is refused: the CPU's
  * endpoints branch (`algorithms/src/algorithms/centrality/betweenness.ts`, `predecessors.length === 0 && w !==
- * source`) can never fire for a vertex on the Brandes stack, so there is no behaviour to be in parity with.
+ * source`) can never fire for a vertex on the Brandes stack, so there is no behavior to be in parity with.
  * Betweenness is breadth-first on both packages; weights are ignored. Parallel edges are distinct shortest paths
  * here (each arc adds to sigma), where the CPU package refuses them or, with `allowParallelEdges`, collapses them to
  * one: on a multigraph the two packages' scores differ.
@@ -145,7 +145,7 @@ export interface BetweennessTuning {
     readonly readArrays?: boolean | undefined;
 }
 
-/** The raw outcome of a run: the unhalved, unnormalised sums. */
+/** The raw outcome of a run: the unhalved, unnormalized sums. */
 interface RawBetweenness {
     readonly vertex: F32;
     readonly perArc: F32 | null;
@@ -845,7 +845,7 @@ async function runRaw(
 }
 
 /**
- * The CPU's normalisation factor: `(n - 1)(n - 2)` directed, half that undirected; 1 when not normalising or when the
+ * The CPU's normalization factor: `(n - 1)(n - 2)` directed, half that undirected; 1 when not normalizing or when the
  * factor is not positive.
  * @param s - the snapshot
  * @param normalized - the option

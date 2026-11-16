@@ -5,7 +5,7 @@
  * plain dispatch is a group of its own, and a dispatch through a transaction's `tx` joins that
  * transaction's group. An undoable command writes through the group's draft; an exempt command
  * gets no draft at all. When a group seals, its patch becomes one step in the history. When it
- * fails or is cancelled, its writes are reverted through the same `applyBackward` that undo uses,
+ * fails or is canceled, its writes are reverted through the same `applyBackward` that undo uses,
  * and nothing is recorded. See design/undo/undo-design.md sections 4 to 6.1.
  *
  * Two lanes. An immediate command executes synchronously inside `dispatch`, so a write is visible
@@ -171,7 +171,7 @@ export interface UndoableContext {
     readonly services: CommandServices;
     /** The group's draft. Read it when writing, after any await: it can change underneath. */
     readonly draft: Draft;
-    /** Fires when the command is cancelled or made obsolete; a queued command stops on it. */
+    /** Fires when the command is canceled or made obsolete; a queued command stops on it. */
     readonly signal: AbortSignal;
     /** What the queue handed the slot; empty for an immediate command or one started beside it. */
     readonly slot: SlotContext;
@@ -258,7 +258,7 @@ interface DefinitionBase<C extends CommandLike> {
     readonly renderer?: boolean;
 }
 
-/** A command that changes project state: one step, labelled. */
+/** A command that changes project state: one step, labeled. */
 export interface UndoableDefinition<C extends CommandLike> extends DefinitionBase<C> {
     readonly undo: {
         readonly kind: "undoable";
@@ -310,7 +310,7 @@ export interface TransactionOptions {
     readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it commits into the baseline. */
     readonly setup?: boolean;
-    /** Starts the history: never undone or cancelled by undo, and the steps before it go when it commits. */
+    /** Starts the history: never undone or canceled by undo, and the steps before it go when it commits. */
     readonly starts?: boolean;
     /**
      * A batch's transaction: its members are known when it opens and it settles by itself, so a
@@ -370,7 +370,7 @@ interface DispatcherEvents {
      * A command dispatched on its own, or as a member of a transaction or a batch, finished
      * executing: called synchronously, before its promise resolves; a transaction's members
      * are called, in order, when the transaction records, and never when it rolls back. Not
-     * called for a command that failed or was cancelled, for one a running command dispatched
+     * called for a command that failed or was canceled, for one a running command dispatched
      * inline, or for an exempt one. The journal appends here.
      */
     executed?: (done: ExecutedCommand) => void;
@@ -548,7 +548,7 @@ type CancelReason = "undo" | "redo" | "cancel" | "obsolete" | "rollback";
 const CANCEL_REASON: unique symbol = Symbol("cancel reason");
 
 /**
- * Why pending work was cancelled, read from the error its signal was aborted with.
+ * Why pending work was canceled, read from the error its signal was aborted with.
  * @param error - The abort reason.
  * @returns The reason, or undefined when the error is not a cancellation of the dispatcher's.
  */
@@ -628,7 +628,7 @@ interface Group {
     readonly jobs: Set<Job>;
     /** A deferred member's transaction step, which it merges into when that step is still on top. */
     readonly after: string | null;
-    /** Labelled by its transaction, whose only work it is: its member starting does not rename it. */
+    /** Labeled by its transaction, whose only work it is: its member starting does not rename it. */
     named?: true;
     /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
     readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
@@ -1060,7 +1060,7 @@ export class Dispatcher {
      * @param command - The command, or a function from state to one.
      * @param options - Its signal, and whether a queued command starts beside the queue.
      * @returns What `execute` returned; rejects with what it threw, after reverting its writes,
-     * or with an `AbortError` when it was cancelled.
+     * or with an `AbortError` when it was canceled.
      */
     dispatch<C extends CommandLike>(command: Dispatchable<C>, options: DispatchOptions = {}): Promise<unknown> {
         if (this.route !== null) {
@@ -1131,7 +1131,7 @@ export class Dispatcher {
      * such a dispatch writes a value key the transaction wrote, it takes the key over, so the
      * transaction's rollback leaves it alone; if it needs an op-log key the transaction holds, it
      * fails at once with `E_HELD_BY_TRANSACTION`. If `fn` throws, or the transaction is aborted,
-     * everything it wrote is reverted, its pending members are cancelled, nothing is recorded,
+     * everything it wrote is reverted, its pending members are canceled, nothing is recorded,
      * and the error is rethrown; until `fn` settles, and after, `tx` dispatches reject with an
      * `AbortError`. After a clean settle they reject with `E_TRANSACTION_CLOSED`. A transaction
      * that wrote nothing records nothing.
@@ -1224,7 +1224,7 @@ export class Dispatcher {
      * 0. an open group holding an op-log key the top step touched, or holding graph keys taken
      *    since the top step was recorded, is aborted, with its dependents;
      * 1. otherwise the newest pending work dispatched after the top step, or deferred from it, is
-     *    cancelled, with every later-dispatched pending item that shares a key with it;
+     *    canceled, with every later-dispatched pending item that shares a key with it;
      * 2. otherwise the top step is undone. Pending work dispatched before it keeps running.
      *
      * Acts at call time; called from inside a listener, it acts after the current call returns.
@@ -1236,7 +1236,7 @@ export class Dispatcher {
 
     /**
      * Redo, by the rules of {@link Dispatcher.undo} checked against the step being redone: only
-     * pending work dispatched after that step was undone is cancelled first.
+     * pending work dispatched after that step was undone is canceled first.
      * @returns What was done, once the picture has caught up.
      */
     redo(): Promise<HistoryOutcome> {
@@ -1285,8 +1285,8 @@ export class Dispatcher {
     /**
      * Drop every step: the current state becomes the baseline. Pending work that has already
      * changed something (a value, the graph, or the lane it took a before-arrangement of) is
-     * cancelled, open transactions aborted, along with the work queued behind it: its step would
-     * undo to a state older than the baseline. Unless `keepPending`, the rest is cancelled too;
+     * canceled, open transactions aborted, along with the work queued behind it: its step would
+     * undo to a state older than the baseline. Unless `keepPending`, the rest is canceled too;
      * kept, it records its step over the new baseline when it seals.
      * @param keepPending - Leave pending work that has changed nothing yet to finish.
      */
@@ -1322,7 +1322,7 @@ export class Dispatcher {
     }
 
     /**
-     * Whether any command with this op is dispatched and not yet done or cancelled.
+     * Whether any command with this op is dispatched and not yet done or canceled.
      * @param op - The op, such as `layout.set`.
      * @returns True while one is pending.
      */
@@ -1368,7 +1368,7 @@ export class Dispatcher {
     /**
      * Cancel one pending item, and every later-dispatched pending item that shares a key with it.
      * @param id - The item's id in `pending`.
-     * @returns Every item cancelled; empty when the id is not pending.
+     * @returns Every item canceled; empty when the id is not pending.
      */
     cancel(id: string): readonly PendingStep[] {
         const group = [...this.open].find((open) => open.id === id);
@@ -1516,7 +1516,7 @@ export class Dispatcher {
 
         const cancelled: PendingStep[] = [];
         if (id === null) {
-            // A load that starts the history is not cancelled, as undo does not cancel it.
+            // A load that starts the history is not canceled, as undo does not cancel it.
             const pending = this.ordered().filter((group) => group.starts === null);
             cancelled.push(...this.cancelAll(this.cascade(pending), "undo"));
         }
@@ -1530,11 +1530,11 @@ export class Dispatcher {
     }
 
     /**
-     * How many of the steps a history jump passes it can pass, cancelling for each what undo or
+     * How many of the steps a history jump passes it can pass, canceling for each what undo or
      * redo would: it stops at a step with nothing to move.
      * @param direction - Which way the jump goes.
      * @param passing - The steps, in the order they would be passed.
-     * @param cancelled - Collects what was cancelled.
+     * @param canceled - Collects what was canceled.
      * @returns How many, from the first.
      */
     private passable(
@@ -1559,11 +1559,11 @@ export class Dispatcher {
     }
 
     /**
-     * The jump itself, once what it cancels is cancelled.
+     * The jump itself, once what it cancels is canceled.
      * @param id - The step it lands just after, or null for the baseline.
      * @param target - Its index: how many steps are done there.
      * @param position - How many are done now.
-     * @param cancelled - What it cancelled.
+     * @param canceled - What it canceled.
      * @returns What was done.
      */
     private restoreAt(id: string | null, target: number, position: number, cancelled: PendingStep[]): HistoryOutcome {
@@ -1950,7 +1950,7 @@ export class Dispatcher {
                 starts,
             },
         );
-        // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
+        // As a single command's promise is: a batch nobody awaited, canceled, is not an unhandled
         // rejection.
         done.catch(() => undefined);
         return done;
@@ -2237,7 +2237,7 @@ export class Dispatcher {
 
     /**
      * A job has executed. A transaction member stays in the transaction's draft; any other group
-     * seals. A job cancelled meanwhile is ignored: its late value is discarded.
+     * seals. A job canceled meanwhile is ignored: its late value is discarded.
      * @param job - The job.
      * @param value - What `execute` returned.
      */
@@ -2884,7 +2884,7 @@ export class Dispatcher {
             return this.movable(target, meta?.recorded);
         }
 
-        // A load that starts the history is never cancelled by undo or redo.
+        // A load that starts the history is never canceled by undo or redo.
         const newer = this.ordered().filter(
             (group) =>
                 group.starts === null && (group.seq > since || (direction === "undo" && group.after === target?.id)),
@@ -2937,7 +2937,7 @@ export class Dispatcher {
     /**
      * The groups to cancel with `roots`: every later-dispatched pending group sharing a key with
      * one of them, transitively.
-     * @param roots - The groups being cancelled.
+     * @param roots - The groups being canceled.
      * @returns Them and their dependents, in dispatch order.
      */
     private cascade(roots: readonly Group[]): readonly Group[] {
@@ -3133,7 +3133,7 @@ export class Dispatcher {
             yes = resolve;
             no = reject;
         });
-        // A cancelled job nobody awaited must not surface as an unhandled rejection.
+        // A canceled job nobody awaited must not surface as an unhandled rejection.
         promise.catch(() => undefined);
 
         return {

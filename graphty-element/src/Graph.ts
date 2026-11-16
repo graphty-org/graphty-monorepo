@@ -316,13 +316,13 @@ import { XrAvailability } from "./xr/XrAvailability";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 
 /**
- * A catalogue key the element can start as a run, and the parameters that go with it.
+ * A catalog key the element can start as a run, and the parameters that go with it.
  *
- * Deliberately narrower than a catalogue entry: the key and the parameters are all the run path
+ * Deliberately narrower than a catalog entry: the key and the parameters are all the run path
  * reads, and a registered plugin has no entry in the built-in table to offer.
  */
 interface RunnableAlgorithm {
-    /** The catalogue entry, of which only the key is read. */
+    /** The catalog entry, of which only the key is read. */
     readonly descriptor: { readonly key: AlgorithmKey };
     /** The parameters that reproduce what the address being translated used to do. */
     readonly params: Readonly<Record<string, unknown>>;
@@ -468,7 +468,7 @@ function drawsNothing(dirty: ReadonlyMap<string, ReadonlySet<string>>): boolean 
     return true;
 }
 
-/** The three layout-behaviour settings a project file saves. The others are the view's. */
+/** The three layout-behavior settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
 /**
@@ -511,7 +511,7 @@ function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorCo
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
  * 3.2), as they were set: the camera distance, the immersive session the view is in, and the
- * layout-behaviour preferences of this machine and this reader. The frozen `Styles.config` merges
+ * layout-behavior preferences of this machine and this reader. The frozen `Styles.config` merges
  * these with the project settings and the `layout` slice, which is the one home of the dimension.
  */
 interface ViewSettings {
@@ -654,12 +654,12 @@ export function featuresFrom(graph: Graph, read: () => readonly string[] | undef
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
  */
 export interface NodeScreenPosition {
-    /** The node's centre, pixels from the element's left edge. */
+    /** The node's center, pixels from the element's left edge. */
     x: number;
-    /** The node's centre, pixels from the element's top edge. */
+    /** The node's center, pixels from the element's top edge. */
     y: number;
     /**
-     * True when the node is drawn and its centre is on screen: inside the element, in front of
+     * True when the node is drawn and its center is on screen: inside the element, in front of
      * the camera and not hidden by a filter. Another node drawn in front of it does not count.
      */
     visible: boolean;
@@ -669,7 +669,7 @@ export interface NodeScreenPosition {
      * The rectangle the node covers on screen, in the same pixels: its bounding box's eight
      * corners, projected. Unlike {@link NodeScreenPosition.radius} it follows the node's shape --
      * a box seen corner-on reaches past the radius, and a tall cylinder is narrower than it. The
-     * corners behind the camera are left out; with none in front it is the centre, zero in size.
+     * corners behind the camera are left out; with none in front it is the center, zero in size.
      * @since 3.27.0
      */
     bounds: { left: number; top: number; right: number; bottom: number };
@@ -677,7 +677,7 @@ export interface NodeScreenPosition {
 
 /**
  * The eight corners of an unturned box, in the world.
- * @param centre - Its centre, in the transform it is drawn in.
+ * @param center - Its center, in the transform it is drawn in.
  * @param half - Its half extents.
  * @param half.x - Along x.
  * @param half.y - Along y.
@@ -714,7 +714,7 @@ export interface DrawnNodeSpot {
     readonly row: number;
     /** Where it is on screen. */
     readonly at: NodeScreenPosition;
-    /** Its centre in the world. */
+    /** Its center in the world. */
     readonly centre: Vector3;
     /** The eight corners of its drawn box in the world. */
     readonly corners: readonly Vector3[];
@@ -1050,7 +1050,7 @@ export class Graph implements GraphContext {
     /**
      * The headless model this renderer draws.
      *
-     * The graph data, the coordinates, the statistics, the catalogue, what is selected, what is
+     * The graph data, the coordinates, the statistics, the catalog, what is selected, what is
      * visible and what the machine can do belong to the session; the camera, the canvas and the
      * scene belong here. The split is what makes a graph usable without a renderer at all -- and
      * it is why every data question this class answers is forwarded rather than computed.
@@ -1147,7 +1147,7 @@ export class Graph implements GraphContext {
         QUEUES.set(this, this.operationQueue);
 
         // The element's configuration document: id paths, view mode, background, layout and its
-        // options, the run-on-load algorithms and the behaviour settings. It carries no style
+        // options, the run-on-load algorithms and the behavior settings. It carries no style
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
@@ -1427,7 +1427,7 @@ export class Graph implements GraphContext {
 
         // The `config` hook: the background and the selection highlight follow the settings,
         // forward, on undo and on redo alike. Import settings take effect at the next import and
-        // the layout-behaviour settings at the next layout, as they always have.
+        // the layout-behavior settings at the next layout, as they always have.
         dispatcherOf(this.session).lane.register("config", (rendered, target, dirty) => {
             const changed = (key: string): boolean =>
                 dirty.has(key) && rendered.config.get(key) !== target.config.get(key);
@@ -1831,7 +1831,7 @@ export class Graph implements GraphContext {
             { signal: this.#teardown.signal },
         );
 
-        // The render loop honours the two masks from here on: what is drawn, and what is drawn as
+        // The render loop honors the two masks from here on: what is drawn, and what is drawn as
         // selected, are answered by the model rather than by the style stack.
         const viewMasks: ViewMasks = {
             selection: {
@@ -1876,7 +1876,7 @@ export class Graph implements GraphContext {
         this.dataManager.setGraphContext(this);
         this.layoutManager.setGraphContext(this);
 
-        // A layout scope is canonicalised and resolved through the session, and a layout holding
+        // A layout scope is canonicalized and resolved through the session, and a layout holding
         // nodes for one is a user of the sets it names.
         const resolver = scopeResolverOfSession(this.session);
         // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
@@ -2240,7 +2240,7 @@ export class Graph implements GraphContext {
      * Run one entry of the load-time algorithm list.
      *
      * A 1.x "namespace:type" address takes the same road `runAlgorithm` does, so a plugin with no
-     * catalogue descriptor still runs; a bare catalogue key goes straight to `session.runs.start`.
+     * catalog descriptor still runs; a bare catalog key goes straight to `session.runs.start`.
      * The entry's run options ride along either way, with no per-algorithm branch.
      * @param entry - An algorithm, or an algorithm with its run options.
      */
@@ -2254,7 +2254,7 @@ export class Graph implements GraphContext {
         if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
             for (const entry of algorithms) {
                 void this.runOnLoad(entry, dispatch).catch((error: unknown) => {
-                    // Cancelled -- by an undo, the queue, or the reader -- is not a failure.
+                    // Canceled -- by an undo, the queue, or the reader -- is not a failure.
                     if (!(error instanceof Error && error.name === "AbortError")) {
                         console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
                     }
@@ -2266,7 +2266,7 @@ export class Graph implements GraphContext {
     /**
      * Run one entry of the load-time algorithm list.
      * @param entry - An algorithm, or an algorithm with its run options.
-     * @param dispatch - Where a catalogue run's command goes.
+     * @param dispatch - Where a catalog run's command goes.
      */
     private async runOnLoad(entry: AlgorithmOnLoad, dispatch: DispatchFunction): Promise<void> {
         const { algorithm, params, ...start } = typeof entry === "string" ? { algorithm: entry } : entry;
@@ -2375,7 +2375,7 @@ export class Graph implements GraphContext {
         } else {
             // In a task of its own: called from a `render-lost` listener, this runs while the
             // browser is still dispatching `webglcontextlost`, before it has seen the event
-            // cancelled, and a restore asked for then is refused.
+            // canceled, and a restore asked for then is refused.
             const loseContext = this.#loseContext;
             setTimeout(() => {
                 loseContext?.restoreContext();
@@ -2415,9 +2415,9 @@ export class Graph implements GraphContext {
 
     /**
      * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
-     * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
+     * initializes asynchronously and the scene cannot exist before it does; so when WebGPU is asked
      * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
-     * before the managers are initialised, so nothing has drawn or attached yet. What a consumer
+     * before the managers are initialized, so nothing has drawn or attached yet. What a consumer
      * set on the first scene in the meantime moves with it: see {@link openWebGPU}.
      */
     private async openRenderer(): Promise<void> {
@@ -2955,7 +2955,7 @@ export class Graph implements GraphContext {
                 this.#rendererOpened?.();
             }
 
-            // Shut down while the renderer was opening: there is nothing left to initialise.
+            // Shut down while the renderer was opening: there is nothing left to initialize.
             if (this.#teardown.signal.aborted) {
                 return;
             }
@@ -2994,7 +2994,7 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
-            // Shut down while the managers were initialising: they are disposed, so nothing starts.
+            // Shut down while the managers were initializing: they are disposed, so nothing starts.
             if (this.#teardown.signal.aborted) {
                 return;
             }
@@ -3186,13 +3186,13 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set what the graph is drawn against: a flat colour, or a photo-dome skybox.
+     * Set what the graph is drawn against: a flat color, or a photo-dome skybox.
      *
-     * A project setting: one step, which undo takes back. The colour reaches the scene's clear
-     * colour and a skybox builds a `PhotoDome` around the graph, announcing `skybox-loaded` once
+     * A project setting: one step, which undo takes back. The color reaches the scene's clear
+     * color and a skybox builds a `PhotoDome` around the graph, announcing `skybox-loaded` once
      * its texture has arrived; the scene never holds more than one dome. A later read of
      * `styles.config.graph.background` sees the value, parsed.
-     * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
+     * @param background - A color (`{backgroundType: "color", color}`) or a skybox
      *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG;
      *     either may carry a `shader` (`{ id, params }`) drawn over it.
      * @throws A Zod error when the value is not a background; nothing is changed then.
@@ -3230,7 +3230,7 @@ export class Graph implements GraphContext {
 
     /**
      * Set how the globe under the `location-map` layout looks beyond its map: a glow of air around
-     * its rim, a sun lighting one side, and a colour the canvas is cleared to while it is drawn.
+     * its rim, a sun lighting one side, and a color the canvas is cleared to while it is drawn.
      * Every part is off unless set. A view setting, not saved with the project; it takes effect at
      * once on a globe drawn now, and on every globe drawn after.
      * @param look - The look; a part left out is off.
@@ -3252,10 +3252,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set what a selected node looks like: its halo's colour, how far it stands out past the
+     * Set what a selected node looks like: its halo's color, how far it stands out past the
      * node, and how solid it is.
      *
-     * MERGED, NOT REPLACED: naming the colour leaves the scale and the opacity where they were.
+     * MERGED, NOT REPLACED: naming the color leaves the scale and the opacity where they were.
      * A project setting: one step, which undo takes back. It takes effect on a selection that is
      * already on screen as well as on the next one.
      *
@@ -3265,7 +3265,7 @@ export class Graph implements GraphContext {
      * the wrong shape.
      * @param selection - The fields to change. Anything omitted keeps its current value.
      * @throws A Zod error when a value is outside what the schema allows -- a scale that is not
-     *     positive, an opacity outside `[0, 1]`, a colour the element cannot read.
+     *     positive, an opacity outside `[0, 1]`, a color the element cannot read.
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
         const current = dispatcherOf(this.session).state.config.get("selectionStyle") as
@@ -3343,7 +3343,7 @@ export class Graph implements GraphContext {
         }
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
-        // fetchers are declared in the behaviour schema, so a consumer sets them the same way
+        // fetchers are declared in the behavior schema, so a consumer sets them the same way
         // they set the pacing settings -- and `NodeBehavior` reads them off this object's own
         // fields. Nothing used to carry them across, so the setting parsed, was stored, and was
         // never read: double-clicking a node did nothing, in every version that published the
@@ -3422,11 +3422,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The layout behaviour: the view preferences somebody set on this graph, and the pacing
+     * The layout behavior: the view preferences somebody set on this graph, and the pacing
      * settings saved with the project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in
      * effect. Those three always read their value, so assigning one its default reads back even
      * though it records no step.
-     * @returns The behaviour settings.
+     * @returns The behavior settings.
      */
     getLayoutBehavior(): GraphBehaviorConfig | undefined {
         const project = this.session.config.layoutBehavior;
@@ -4111,7 +4111,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async setLayout(type: string, opts: object = {}, options: SetLayoutOptions = {}): Promise<void> {
-        // One undoable step. The engine name maps to the catalogue id it serves, and the slice
+        // One undoable step. The engine name maps to the catalog id it serves, and the slice
         // keeps the engine itself, so undo restores the engine that was chosen, with its options.
         // A scope rides in the same step; absent, the one the slice holds is carried over.
         const { scope } = options;
@@ -4157,7 +4157,7 @@ export class Graph implements GraphContext {
             scope: scope === undefined ? "graph" : this.canonicalLayoutScope(scope),
         });
         // The restart takes a turn on the queue as well, so whoever waits for the queue waits for
-        // it. `layout-update`: a pending `layout-set` is not cancelled by it, and one set later
+        // it. `layout-update`: a pending `layout-set` is not canceled by it, and one set later
         // cancels only this wait, never the scope, which the slice already carries.
         void this.operationQueue
             .queueOperationAsync(
@@ -4199,7 +4199,7 @@ export class Graph implements GraphContext {
      * - **Spanning Tree**: prim, kruskal
      * - **Flow**: max-flow, min-cut
      * @deprecated Since 2.0. Use {@link Graph.run}, which returns a `Run`: the result is on the
-     *   object the call hands back, the work reports progress and can be cancelled, and the
+     *   object the call hands back, the work reports progress and can be canceled, and the
      *   result is addressed at `results.<runId>.<field>`. This method still works and is
      *   expressed in terms of `run`, so it produces the same run and the same result; what it
      *   cannot give back is the run object those three things hang off.
@@ -4243,9 +4243,9 @@ export class Graph implements GraphContext {
      * @param namespace - Algorithm namespace.
      * @param type - Algorithm type, which is the 1.10 registry key.
      * @param options - Algorithm options and queue settings.
-     * @param start - Run options for a catalogue run, such as `style`; a plugin without a
+     * @param start - Run options for a catalog run, such as `style`; a plugin without a
      *     descriptor has no run to give them to.
-     * @param dispatch - Where a catalogue run's command goes; the session's own by default.
+     * @param dispatch - Where a catalog run's command goes; the session's own by default.
      */
     private async runLegacyAddress(
         namespace: string,
@@ -4265,7 +4265,7 @@ export class Graph implements GraphContext {
         /* A PLUGIN THAT PUBLISHED A DESCRIPTOR IS STARTED AS A RUN, exactly as a built-in is.
            That is what declaring one buys: progress, cancellation, a cost estimate before the
            click, a result object with a ranking and a summary and a reading, and the styling the
-           element derives from the result's shape. None of it was reachable while the catalogue
+           element derives from the result's shape. None of it was reachable while the catalog
            was closed, so a plugin could compute something and nothing could ask for it. */
         const registered = registeredAlgorithmByKey(`${namespace}:${type}`) ?? registeredAlgorithmByKey(type);
 
@@ -4282,7 +4282,7 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // A key nothing in the catalogue carries: a plugin registered through `Algorithm.register`
+        // A key nothing in the catalog carries: a plugin registered through `Algorithm.register`
         // that declared no descriptor. It takes the 1.10 path, which addresses the registry
         // directly, and gets none of what a run offers -- which is the trade its author made by
         // not declaring one. It is still one step: `algo.legacy` runs it with a facade of this
@@ -4320,8 +4320,8 @@ export class Graph implements GraphContext {
      * result. Awaiting it gives the result; not awaiting it is safe, because a run is a
      * `PromiseLike` rather than a `Promise` subclass and a failure nobody awaited cannot reach
      * the window as an unhandled rejection.
-     * @param algorithm - Which algorithm to run, by its catalogue key such as "betweenness".
-     * @param params - Its parameters, as the catalogue declares them.
+     * @param algorithm - Which algorithm to run, by its catalog key such as "betweenness".
+     * @param params - Its parameters, as the catalog declares them.
      * @param options - The scope, the seed, the id, the signal and the progress handler.
      * @returns The run.
      * @since 2.0.0
@@ -4341,13 +4341,13 @@ export class Graph implements GraphContext {
      * Run a 1.10 algorithm key through the run machinery.
      *
      * One implementation, reached three ways: a built-in's old address translated into the
-     * catalogue key and the parameters that reproduce what that address used to do -- `scc` is
+     * catalog key and the parameters that reproduce what that address used to do -- `scc` is
      * `components` at `{ strength: "strong" }`, not a rename -- and a registered plugin, whose
      * key needs no translation. Everything after that is an ordinary run.
      *
-     * Takes the KEY and the parameters rather than a built-in catalogue entry, because those two
+     * Takes the KEY and the parameters rather than a built-in catalog entry, because those two
      * are all it reads and a plugin has no entry in that table to offer.
-     * @param mapping - The catalogue key to start, and the parameters it needs.
+     * @param mapping - The catalog key to start, and the parameters it needs.
      * @param namespace - The 1.10 namespace, for the error event and the suggested styles.
      * @param type - The 1.10 type, for the same two.
      * @param options - What the caller passed. `applySuggestedStyles` is carried out in the run's
@@ -4393,9 +4393,9 @@ export class Graph implements GraphContext {
      * Paint what an algorithm's finished runs suggest be drawn from them.
      *
      * DERIVED, NOT WRITTEN OUT. A run already declares its result shape and its fields, and that
-     * is everything a first picture needs: a node metric suggests a sequential colour over the
+     * is everything a first picture needs: a node metric suggests a sequential color over the
      * nodes it measured, a community suggests a categorical one, a route or a chosen set suggests
-     * a mark (an ordinary layer setting a colour, and an edge width, on what it chose), and a
+     * a mark (an ordinary layer setting a color, and an edge width, on what it chose), and a
      * table of pairs suggests nothing at all. There is one derivation for
      * every algorithm rather than a block per algorithm, so there is no per-algorithm branch that
      * can paint the elements its own run measured nothing about.
@@ -4418,7 +4418,7 @@ export class Graph implements GraphContext {
      * It starts the style edits and returns at once. To wait for the picture, await
      * {@link Graph.waitForStableFrame} after the call: it settles only once every suggested layer
      * is added, stacked in the order named and painted.
-     * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
+     * @param algorithmKey - A catalog key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True when at least one suggestion was applied, false when no finished run of that
      *     algorithm has anything per element to paint.
@@ -4526,7 +4526,7 @@ export class Graph implements GraphContext {
 
     /**
      * What an algorithm's finished runs suggest be drawn from them, without painting any of it.
-     * @param algorithmKey - A catalogue key such as "degree", or a 1.10 address such as
+     * @param algorithmKey - A catalog key such as "degree", or a 1.10 address such as
      *     "graphty:degree".
      * @returns One suggestion per channel a run of that algorithm would paint, empty when it has
      *     finished no run or its result is read rather than painted.
@@ -4544,11 +4544,11 @@ export class Graph implements GraphContext {
     /**
      * The finished runs an algorithm address names.
      *
-     * Two addresses reach the same runs: the catalogue key a run records, and the 1.10
+     * Two addresses reach the same runs: the catalog key a run records, and the 1.10
      * "namespace:type" address the deprecated entry points still take. Translating here rather
      * than at each caller is what keeps "one capability, one picture" true of the old door as
      * well as the new one.
-     * @param algorithmKey - The catalogue key or the 1.10 address.
+     * @param algorithmKey - The catalog key or the 1.10 address.
      * @returns The runs of that algorithm that succeeded, oldest first.
      */
     #finishedRunsOf(algorithmKey: string): readonly Run[] {
@@ -4842,7 +4842,7 @@ export class Graph implements GraphContext {
 
     /**
      * The headless model behind this renderer: the graph data, the coordinates, the statistics,
-     * the catalogue, the configuration and what this machine can do.
+     * the catalog, the configuration and what this machine can do.
      *
      * Everything about the graph that needs no screen is answered from here, so a consumer asking
      * "how dense is this?" or "what attributes does it carry?" asks the session rather than
@@ -4857,7 +4857,7 @@ export class Graph implements GraphContext {
      * Get the total number of nodes in the graph.
      *
      * This is the count in the graph data, which mid-load can be AHEAD of the nodes that have been
-     * drawn: an edge whose endpoints have not arrived materialises them in the store while its
+     * drawn: an edge whose endpoints have not arrived materializes them in the store while its
      * render objects wait. The data is the authority, so the data is what is counted.
      * @returns The number of nodes
      */
@@ -5661,7 +5661,7 @@ export class Graph implements GraphContext {
      * Change what is selected.
      *
      * The one selection verb: five set operations over every way of naming elements -- a list of
-     * ids, a pasted column, a neighbourhood, a scope, the top twenty of a finished run. Selecting
+     * ids, a pasted column, a neighborhood, a scope, the top twenty of a finished run. Selecting
      * a second node, selecting an edge and inverting a selection are all this call, which is why
      * it supersedes {@link Graph.selectNode} and {@link Graph.deselectNode}.
      * @param target - What to select.
@@ -7026,7 +7026,7 @@ export class Graph implements GraphContext {
      * created it reports the hidden mesh template's position, off screen and not visible. Wait
      * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
-     * @returns The centre, whether it is drawn on screen, its radius and the rectangle it covers in
+     * @returns The center, whether it is drawn on screen, its radius and the rectangle it covers in
      *     pixels; undefined for an id the graph does not hold.
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
@@ -7051,7 +7051,7 @@ export class Graph implements GraphContext {
             return undefined;
         }
 
-        // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
+        // The world center, not `mesh.position`: an XR gesture moves and scales graph-root.
         node.drawnWorldMatrix(true);
         // The node's largest half-extent in the world.
         const extent = node.drawnBoundingBox.extendSize;
@@ -7068,7 +7068,7 @@ export class Graph implements GraphContext {
 
     /**
      * Where something drawn in the world is on screen, as {@link Graph.nodeScreenPosition} reports a node.
-     * @param centre - Its centre in the world.
+     * @param center - Its center in the world.
      * @param worldRadius - Its largest half-extent in the world.
      * @param corners - The corners of its box in the world.
      * @param shown - Whether it is drawn at all.
@@ -7211,7 +7211,7 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Move the camera, keeping its zoom and direction, so the view is centred on a point of the
+     * Move the camera, keeping its zoom and direction, so the view is centered on a point of the
      * overview frame. See `Graphty.centerOnOverview`.
      * @param point - The point, in the frame `getOverview()` returns.
      * @param point.x - Frame x, 0 to 1 left to right.
@@ -8188,7 +8188,7 @@ export class Graph implements GraphContext {
 
     /**
      * Cancel ongoing animation capture
-     * @returns true if a capture was cancelled, false if no capture was in progress
+     * @returns true if a capture was canceled, false if no capture was in progress
      * @example
      * ```typescript
      * // Start a capture
@@ -8232,8 +8232,8 @@ export class Graph implements GraphContext {
     /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, and
      * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
-     * awaiting one of them resolves; a cancelled move is not an error.
-     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
+     * awaiting one of them resolves; a canceled move is not an error.
+     * @returns True if a camera move or tour was canceled, false if none was under way or waiting
      * @example
      * ```typescript
      * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
@@ -8419,7 +8419,7 @@ export class Graph implements GraphContext {
 
         // An explicit placement of where the camera stands or how far it is answers any framing
         // the element still owes on its own initiative (a data load, a new layout, the first
-        // settlement). Left outstanding, that request is honoured on a later frame -- once a style
+        // settlement). Left outstanding, that request is honored on a later frame -- once a style
         // pass finishes, or once a slow machine renders one -- and moves the camera off the state
         // just placed. A later load or layout asks again. A placement that only turns the camera
         // answers nothing a framing sets, so the framing still lands (issue #3153): a turn right
@@ -8750,7 +8750,7 @@ export class Graph implements GraphContext {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
 
-                // Cancelled: stopping raises this callback too, and the final value is not ours to write.
+                // Canceled: stopping raises this callback too, and the final value is not ours to write.
                 if (signal?.aborted === true) {
                     resolve();
                     return;
@@ -8763,7 +8763,7 @@ export class Graph implements GraphContext {
                 resolve();
             });
 
-            // Without this a cancelled animation kept writing the distance every frame and, at the
+            // Without this a canceled animation kept writing the distance every frame and, at the
             // end of its own duration, snapped the camera to ITS target over the one that replaced it.
             signal?.addEventListener(
                 "abort",
@@ -8949,7 +8949,7 @@ export class Graph implements GraphContext {
                             await distanceAnimation;
                         }
 
-                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
+                        // Stopping a canceled animation raises this too; its target is not the camera's now.
                         if (signal?.aborted === true) {
                             safeSettle();
                             return;
@@ -9394,7 +9394,7 @@ export class Graph implements GraphContext {
      * move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
-     * @param options.extent - `"centers"` (the default) measures each node by its centre;
+     * @param options.extent - `"centers"` (the default) measures each node by its center;
      *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
@@ -9582,7 +9582,7 @@ export class Graph implements GraphContext {
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
         // The whole graph is framed as the project's framing says, by what is drawn when it says
-        // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
+        // nothing, so no node at the rim is cut off; a subset by its centers unless the caller asks otherwise.
         const whole = nodeIds === undefined;
         const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
         // The `Node`s, and the rows drawn with no `Node` (renderPath "batched"), measured by row:
@@ -9678,7 +9678,7 @@ export class Graph implements GraphContext {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     * @param options.extent - What each node counts as in the box: `"centers"` its center,
      *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
      *   `"centers"` when `nodes` names a subset.
      * @returns The camera state the view computed.
@@ -9727,7 +9727,7 @@ export class Graph implements GraphContext {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
      *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
@@ -9865,7 +9865,7 @@ export class Graph implements GraphContext {
      *
      * The export carries whatever the format can represent: every node and edge with its
      * attributes, the current positions, every published algorithm result (as attributes named
-     * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
+     * by the result's path, `results.<runId>.<field>`) and the color, size and edge width each
      * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
      * per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
@@ -9876,7 +9876,7 @@ export class Graph implements GraphContext {
      *
      * The style layers are written when `{ styles: true }` asks for them: each element's look in
      * the format's own style slots and, where the format can keep them, the layers themselves, so
-     * loading the file back with `styles: "file"` rebuilds them. The drawn colour, size and width
+     * loading the file back with `styles: "file"` rebuilds them. The drawn color, size and width
      * columns are then left out, because the format's style writer carries the look. What the
      * format cannot hold is a `W_STYLE_` loss, listed before anything is written. Without the
      * option the file is what it always was, and a graph with layers of its own reports

@@ -169,7 +169,7 @@ already carries to the next build round are listed once at the end, as still ope
 The rows are still hand-built with a 2 px primary focus ring where the tree has 1 px
 (`side-focus-tree-vs-step.png`) and a checkbox where the tree has an eye; Which nodes is still a
 9 px caption, not a ControlSection; the value picker still shows a white-on-lime keyboard highlight
-and a grey pointer highlight at once, and section rules (`side-13-14-highlight.png`); the number
+and a gray pointer highlight at once, and section rules (`side-13-14-highlight.png`); the number
 card still offers Between / Highest / Has a value / Has no value over a bare slider (`crop-33.png`);
 a new filter card still lacks the approved header until a value exists, and its count chip (blue
 dot, `crop-16-filtercard.png`) still differs from the editor's subtle count buttons; no Pick on

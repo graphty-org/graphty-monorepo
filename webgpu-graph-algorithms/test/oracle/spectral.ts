@@ -1,6 +1,6 @@
 /**
  * The f64 references of HITS, eigenvector centrality and Katz centrality (spec 8.2, 9.7; M8b-T6), each running the
- * SAME recurrence the device runs: x(i) = A * (x(i-1) / ||x(i-1)||) for the two normalised ones (sum for HITS, L2
+ * SAME recurrence the device runs: x(i) = A * (x(i-1) / ||x(i-1)||) for the two normalized ones (sum for HITS, L2
  * for eigenvector) and x(i) = alpha * A * x(i-1) + beta for Katz, from x(0) = 1 / n. `A * y` over the FORWARD
  * arrays is y pulled along the out-arcs of each row (hubs, eigenvector); over the REVERSE arrays it is y pulled
  * along the in-arcs (authorities, Katz). HITS is `a(i) = A^T norm(h(i-1))`, `h(i) = A norm(a(i-1))`, run as the
@@ -11,8 +11,8 @@
  * iteration maxIterations included: the device
  * records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the iterate it is
  * about to overwrite), so after the last pull it runs one more scale and finalize, without a pull, to measure it. The final
- * vector is normalised ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
- * the way graph-format materialises it, never the device.
+ * vector is normalized ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
+ * the way graph-format materializes it, never the device.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -25,7 +25,7 @@ export interface SpectralOracleOptions {
 }
 
 /**
- * One vector result: the scores (normalised once at the end), the 1-based first converged iteration (maxIterations
+ * One vector result: the scores (normalized once at the end), the 1-based first converged iteration (maxIterations
  * when it never converged) and whether it converged. Exported for the signatures, not imported by name.
  * @public
  */
@@ -56,8 +56,8 @@ interface Adjacency {
 }
 
 /**
- * The recurrence's coefficients: the per-iteration normaliser (null for Katz), alpha and beta; `shifted` makes beta
- * multiply the normalised iterate (eigenvector's `(A + beta I)`) and `seed` is x(0) (1 / n everywhere when absent).
+ * The recurrence's coefficients: the per-iteration normalizer (null for Katz), alpha and beta; `shifted` makes beta
+ * multiply the normalized iterate (eigenvector's `(A + beta I)`) and `seed` is x(0) (1 / n everywhere when absent).
  */
 interface Recurrence {
     readonly norm: "sum" | "l2" | null;
@@ -89,7 +89,7 @@ function reverseOf(s: GraphSnapshot, weighted: boolean): Adjacency {
 }
 
 /**
- * The norm of a vector under a normaliser.
+ * The norm of a vector under a normalizer.
  * @param x - the vector
  * @param norm - "sum" (L1) or "l2"
  * @returns the norm
@@ -105,7 +105,7 @@ function normOf(x: Float64Array, norm: "sum" | "l2"): number {
 /**
  * Divides a vector by its norm in place; a non-positive norm leaves it unchanged (the device's `scale <= 0 -> 1`).
  * @param x - the vector
- * @param norm - the normaliser
+ * @param norm - the normalizer
  * @returns the same vector
  */
 function normalise(x: Float64Array, norm: "sum" | "l2"): Float64Array {
@@ -122,9 +122,9 @@ function normalise(x: Float64Array, norm: "sum" | "l2"): Float64Array {
  * Exactly `maxIterations` iterations of x(i) = beta + alpha * A * norm(x(i-1)), the adjacencies taken in turn,
  * recording the first converged one (see the file comment).
  * @param adjacencies - the arrays the pulls walk, one per iteration in turn (one, or the alternating pair)
- * @param recurrence - the normaliser and the coefficients
+ * @param recurrence - the normalizer and the coefficients
  * @param options - the iteration cap and the tolerance
- * @returns the raw final iterate (NOT normalised), the first converged iteration and whether one was found
+ * @returns the raw final iterate (NOT normalized), the first converged iteration and whether one was found
  */
 function iterate(
     adjacencies: readonly Adjacency[],
@@ -168,10 +168,10 @@ function iterate(
 }
 
 /**
- * One normalised run: the raw iterate normalised once at the end.
+ * One normalized run: the raw iterate normalized once at the end.
  * @param adjacencies - the arrays, one per iteration in turn
- * @param recurrence - the normaliser and the coefficients
- * @param finalNorm - the normaliser applied once to the final iterate
+ * @param recurrence - the normalizer and the coefficients
+ * @param finalNorm - the normalizer applied once to the final iterate
  * @param options - the iteration cap and the tolerance
  * @returns the result
  */
@@ -189,7 +189,7 @@ function run(
 }
 
 /**
- * HITS in f64: a(i) = A^T norm(h(i-1)) over the in-arcs and h(i) = A norm(a(i-1)) over the out-arcs, sum-normalised,
+ * HITS in f64: a(i) = A^T norm(h(i-1)) over the in-arcs and h(i) = A norm(a(i-1)) over the out-arcs, sum-normalized,
  * as two chains alternating the two pulls: the hub-seeded chain pulls the in-arcs first and holds h(m) after an even
  * m and a(m) after an odd one; the authority-seeded chain is its mirror image. Both chains run exactly
  * maxIterations, so `hubs` is h(maxIterations) and `authorities` a(maxIterations) whichever chain holds them; the
@@ -215,12 +215,12 @@ export function hitsOracle(s: GraphSnapshot, options: SpectralOracleOptions): Hi
 }
 
 /**
- * Eigenvector centrality in f64: the L2-normalised power iteration over the out-arcs, stopping on a change relative
+ * Eigenvector centrality in f64: the L2-normalized power iteration over the out-arcs, stopping on a change relative
  * to the iterate. Undirected, each pass is `(A + cI) y` from 0 at a node with no arcs, `c = max(1, sqrt(h) / 2)` for
  * `h` the largest sum of squared folded weights over a node's arcs to other nodes (the device's identity shift).
  * @param s - the snapshot
  * @param options - maxIterations, tolerance, weighted
- * @returns the L2-normalised scores, the first converged iteration and whether it converged
+ * @returns the L2-normalized scores, the first converged iteration and whether it converged
  */
 export function eigenvectorOracle(s: GraphSnapshot, options: SpectralOracleOptions): SpectralOracleResult {
     const forward = forwardOf(s, options.weighted);
@@ -243,10 +243,10 @@ export function eigenvectorOracle(s: GraphSnapshot, options: SpectralOracleOptio
 }
 
 /**
- * Katz centrality in f64: x(i) = alpha * A^T x(i-1) + beta over the in-arcs, L2-normalised once at the end.
+ * Katz centrality in f64: x(i) = alpha * A^T x(i-1) + beta over the in-arcs, L2-normalized once at the end.
  * @param s - the snapshot
  * @param options - maxIterations, tolerance, weighted, plus alpha (the attenuation) and beta (the constant term)
- * @returns the L2-normalised scores, the first converged iteration and whether it converged
+ * @returns the L2-normalized scores, the first converged iteration and whether it converged
  */
 export function katzOracle(
     s: GraphSnapshot,

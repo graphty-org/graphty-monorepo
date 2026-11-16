@@ -2,7 +2,7 @@
  * Afforest weakly connected components against the union-find oracle (spec 8.3, 9.7, 11.3; M8b-T7): labels
  * IDENTICAL to the oracle's on every named fixture (both renumber first-seen), directed input treated weakly, the
  * singleton / giant-plus-dust / no-arc / empty / self-loop / parallel legs, `renumber: false` raw roots, `groups()`,
- * bitwise repeatability, and the run options as `degree` honours them.
+ * bitwise repeatability, and the run options as `degree` honors them.
  */
 
 import { type TestContext } from "vitest";

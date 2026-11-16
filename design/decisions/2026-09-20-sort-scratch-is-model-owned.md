@@ -37,7 +37,7 @@ The rejected argument was to keep the design's lease:
 > values ping-pong |
 
 It is right about the memory: a lease returns the scratch to the pool between iterations, so an
-algorithm running between two layout iterations (a PageRank colouring pass, say) could reuse
+algorithm running between two layout iterations (a PageRank coloring pass, say) could reuse
 the same bytes, and the grid tier's resident footprint would be 7.3's 65 B/node rather than
 81 B/node. On a 12 GB card at the 10M tier that is 160 MB, which is not nothing.
 

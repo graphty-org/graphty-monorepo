@@ -8,7 +8,7 @@
  *
  * Measured independently of the element's placement: the label plane's four corners after a
  * frame, projected through the scene's transform, times the share of the plane the words take;
- * the ring as its sphere's world radius projected at its centre.
+ * the ring as its sphere's world radius projected at its center.
  */
 
 import "../../src/graphty-element";
@@ -47,7 +47,7 @@ async function draw(graph: Graph): Promise<void> {
 }
 
 /**
- * Three labelled nodes in a row, framed whole.
+ * Three labeled nodes in a row, framed whole.
  * @returns The graph.
  */
 async function labelled(
@@ -136,7 +136,7 @@ function words(graph: Graph, node: Node): Rect {
  * The ring around a node on screen, as a circle.
  * @param graph - The graph.
  * @param node - The node.
- * @returns Its centre and radius in pixels.
+ * @returns Its center and radius in pixels.
  */
 function ring(graph: Graph, node: Node): { x: number; y: number; r: number } {
     const { halo } = node as unknown as { halo: AbstractMesh | null };

@@ -99,7 +99,7 @@ test("parseBudget: unset is the runner ceiling less the full run's share, off is
 test("earlierActive counts only earlier, active pull request runs", () => {
     const runs = [
         ME,
-        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // cancelled by a newer push: frees its place
+        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // canceled by a newer push: frees its place
         run(40264114276, "2026-10-26T03:26:48Z", "in_progress"),
         run(40264114000, "2026-10-26T03:20:00Z", "queued"),
         run(40269999999, "2026-10-26T04:20:00Z", "in_progress"), // later: never counts (no deadlock)

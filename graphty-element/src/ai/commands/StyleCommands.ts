@@ -184,7 +184,7 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 /**
  * Turn the simplified edge parameters into literal channel values.
  *
- * NOTHING IS REFUSED HERE ANY MORE. An arrow's colour, size and opacity each have a channel of
+ * NOTHING IS REFUSED HERE ANY MORE. An arrow's color, size and opacity each have a channel of
  * their own at each end, so the three this function used to answer "unsupported" to are written
  * like everything else. They are written to the HEAD, which is what the parameters are named
  * for; a tail is drawn only when a layer asks for one.
@@ -235,7 +235,7 @@ function edgeChannels(params: z.infer<typeof EdgeStyleParamsSchema>): {
 /**
  * Build the layer one style command adds.
  *
- * The selector is normalised for quotes only. The element's expression parser accepts single
+ * The selector is normalized for quotes only. The element's expression parser accepts single
  * quotes around a string literal, and a model that was trained on JSON sends double ones.
  * @param name - What to call the layer.
  * @param target - Whether it paints nodes or edges.

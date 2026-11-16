@@ -368,7 +368,7 @@ export const captureTool: ToolDefinition = {
             run: (context, args) => {
                 const graph = capturer(context, "captureAnimation");
                 // A recording takes seconds: it settles after the batch commits, when it is the
-                // batch's last call, and a cancelled message stops it.
+                // batch's last call, and a canceled message stops it.
                 return Promise.resolve({
                     settle: async ({ signal, host }) => {
                         const stop = (): void => {

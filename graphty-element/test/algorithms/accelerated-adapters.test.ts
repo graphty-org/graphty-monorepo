@@ -14,7 +14,7 @@
  * connected components -- runs on the CPU port and says so in its precision.
  *
  * The last block holds each of those runs to the algorithm of `@graphty/algorithms` run directly
- * over the snapshot the adapter reads. Where the answer depends on the order neighbours are tried
+ * over the snapshot the adapter reads. Where the answer depends on the order neighbors are tried
  * in -- the element tries them in the order their edges were declared -- the expected answer is
  * written out: it is what algorithms 2.x, which walked the same declaration order, answered.
  */
@@ -548,7 +548,7 @@ describe("the adapters that run through accelerated()", () => {
 
 /**
  * An undirected walk's fixture whose declaration order is not its node order: A's edges are
- * declared to D, then B, then C. The reference implementation tries neighbours in the order their
+ * declared to D, then B, then C. The reference implementation tries neighbors in the order their
  * edges were declared, so a walk that tried them in node order would reach them in another order.
  * Every weight differs, so a tree and a route are each the only one of their cost.
  */
@@ -580,7 +580,7 @@ const STRONG: MockGraphOpts = {
 };
 
 /**
- * What a depth-first walk of `DECLARED_ORDER` from A visits, trying neighbours in declaration
+ * What a depth-first walk of `DECLARED_ORDER` from A visits, trying neighbors in declaration
  * order: the visit order, and every node it reached. Keyed by order ("pre" or "post") and target.
  */
 const DFS_EXPECTED: Record<string, { order: NodeId[]; visited: Set<NodeId> }> = {

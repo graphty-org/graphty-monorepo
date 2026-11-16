@@ -45,7 +45,7 @@ const FIRST_RETRY_MS = 2000;
 const MAX_HONORED_WAIT_MS = 60_000;
 
 /**
- * Wait, unless the turn is cancelled first.
+ * Wait, unless the turn is canceled first.
  * @param ms - How long.
  * @param signal - Cancels the wait.
  * @returns When the time is up.

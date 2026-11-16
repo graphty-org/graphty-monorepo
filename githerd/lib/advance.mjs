@@ -328,7 +328,7 @@ function laneNews(state, job, name) {
 
 /**
  * Ends a blocked job's wait once its blocker ended: back to the queue. A job already made is never
- * cancelled because the offer rule changed (the owner, 2026-10-06).
+ * canceled because the offer rule changed (the owner, 2026-10-06).
  * @param {any} state the daemon state
  * @param {any} job the blocked job
  * @param {Date} now the clock

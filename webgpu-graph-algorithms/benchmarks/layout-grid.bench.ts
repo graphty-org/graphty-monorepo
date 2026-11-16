@@ -24,7 +24,7 @@
  * therefore also runs the RECHECK_RUNGS -- the exact ladder's rungs the grid ladder lacks (1k / 4k / 8k / 16k) -- in 2D
  * only, with the exact ladder's labels, so every exact rung has a grid row and the rule's answer is measured, not
  * inferred. The 1M 3D rung is
- * included although spec 7.21 puts it at 55-175 ms per iteration: it is the neighbour of the T-6 3D row (100k 3D
+ * included although spec 7.21 puts it at 55-175 ms per iteration: it is the neighbor of the T-6 3D row (100k 3D
  * <= 20 ms) and the only 3D figure at the top of the ladder. `warmClock` and `reportedRow` are the exported helpers of
  * layout-exact.bench.ts, not copies.
  */

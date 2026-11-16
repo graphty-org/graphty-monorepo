@@ -152,7 +152,7 @@ async function inkIn(blob: Blob, corner: "top-left" | "top-right" | "bottom-left
 }
 
 /**
- * Colours the test graph's nodes by their degree, so the element's legend has a block to draw.
+ * Colors the test graph's nodes by their degree, so the element's legend has a block to draw.
  * @param target - The graph.
  */
 async function colorByDegree(target: Graph): Promise<void> {

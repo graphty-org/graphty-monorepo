@@ -21,7 +21,7 @@ const CAVEATS: Caveats = {
     notes: [],
 };
 
-/** A field descriptor with the path a catalogue descriptor would have written. */
+/** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `results.$.${spec.name}` };
 }
@@ -96,7 +96,7 @@ describe("addressing a result", () => {
     });
 
     it("defaults to the field the run's shape calls primary", () => {
-        // A caller holding a run should not have to open the catalogue to learn that a
+        // A caller holding a run should not have to open the catalog to learn that a
         // centrality's number is called "value" and a partition's is called "group".
         const results = createResultsApi(REGISTRY);
 
@@ -207,7 +207,7 @@ describe("did you mean", () => {
 /**
  * WHAT GOES INTO AN EXPRESSION, as distinct from what goes into a selector's `path`.
  *
- * A run id carries its algorithm's name and ten of the catalogue's twenty-four algorithms are
+ * A run id carries its algorithm's name and ten of the catalog's twenty-four algorithms are
  * hyphenated, while the expression grammar reads a bare hyphen as subtraction. A path pasted into
  * an expression unquoted is therefore a refused selector rather than a comparison -- and degree,
  * which has no hyphen, works right up until the metric changes.

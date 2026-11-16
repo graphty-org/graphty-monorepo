@@ -18,7 +18,7 @@ const between = (text, from, to) => {
     return text.slice(a, b < 0 ? undefined : b);
 };
 
-// The vocabularies. The outline is the labelled hierarchy; the register (output-homes.md 3) is the
+// The vocabularies. The outline is the labeled hierarchy; the register (output-homes.md 3) is the
 // one list of command labels. A label is matched as a whole item, never as a substring of a file.
 function outlineLabels(ia) {
     const block = between(ia, "### 4.1 The outline", "## 5.").match(/```text\n([\s\S]*?)```/)[1];
@@ -51,7 +51,7 @@ function commandColumn(section) {
     return labels;
 }
 
-// Every label a flow draws: commands on edges, and capitalised text after a place's colon.
+// Every label a flow draws: commands on edges, and capitalized text after a place's colon.
 // An answer out of a diamond is written in lower case, as is a description after a place's colon;
 // both are skipped. "Cancel" is a dialog's dismiss button (interaction-patterns.md 3.6), not a command.
 function drawnLabels(flows) {

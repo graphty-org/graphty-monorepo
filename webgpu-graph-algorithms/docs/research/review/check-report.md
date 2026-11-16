@@ -64,7 +64,7 @@ should have caught.
 PERF-1 7.7 extent table (min(bbox, extentFactor \* rmsRadius), outside
 pseudo-cell), 7.3 partials `.w`, 3.3 `outsideGrid`, 11.4 isolated-node
 fixture, R-3. PERF-2 D24, 7.7 sorted-order paragraph and G6 / G7 rows,
-7.21 "conservative". PERF-3 7.17 RMS normaliser, R-24. PERF-4 8.2 eight
+7.21 "conservative". PERF-3 7.17 RMS normalizer, R-24. PERF-4 8.2 eight
 named bindings via pre-scaled `xNorm`, 6 row 9, 3.5, G7. PERF-5 6 row 7
 overflow rule, 8.4, 10.1 "A entries: no overflow", G8 faked 4,096
 capacity. PERF-6 7.7 "raise gridMax2D (FINER cells)", Q-32. PERF-7 D23,
@@ -225,7 +225,7 @@ COMPLETE-M6 7.3 trace record, 7.10, 3.3.
    column directly". D23 makes device positions the simulation's own
    `array<vec4f>` with a `toScene` kernel; the sentence's OUTCOME (the
    owner's stride-3 array read at `load()` and written by every readback,
-   no per-frame copy) is honoured, but the mechanism differs and 1.5 does
+   no per-frame copy) is honored, but the mechanism differs and 1.5 does
    not list it. Owner call: add a DEPARTURE-7 row, or a clause in D23
    stating that 14.3's sentence describes the CPU simulations' in-place
    loop.
@@ -246,7 +246,7 @@ COMPLETE-M6 7.3 trace record, 7.10, 3.3.
    in `[lowEnd, n)`; design 10.6 itself names the zero-degree segment).
    Explicit, not silent; no action.
 6. The three verdict-file summary lines noted above are wrong against
-   their own tallies (a defect in the review artefacts, not the plan).
+   their own tallies (a defect in the review artifacts, not the plan).
 
 ## Verification commands (post-edit)
 

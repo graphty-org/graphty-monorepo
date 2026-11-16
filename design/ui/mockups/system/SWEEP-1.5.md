@@ -40,7 +40,7 @@ Artboards: Vertical dots r=0.75 (VOCAB canonical) in AnalyzePanel, CommandPalett
 
 Problem: The section-header overflow control -- one verb -- has four drawings and four naming conventions, which is the exact 'one verb, one drawing' failure 6.8 warns about. AnalyzePanel alone draws both the vertical r=0.75 form (title 'More', on the History header) and the horizontal r=0.75 form (title 'Run all (4)', on question-group headers). The names disagree too: the identical glyph is titled 'More' on 10 boards, 'Run all (3)/(4)' on AnalyzePanel, IpadPanel and ExplorerAfterCard, and 'More. Color by this, Size by this, Filter by this, Show in table' on InspectorGenomics. The comments confirm the control is an overflow whose menu holds Run all (N), so the name is wrong rather than the glyph.
 
-Proposed fix: Standardise on the VOCAB snippet's vertical three dots at r=0.75 everywhere, and title every one of them 'More'. Move 'Run all (4)' and the InspectorGenomics item list out of the title and into the HTML comment that already records each menu's contents.
+Proposed fix: Standardize on the VOCAB snippet's vertical three dots at r=0.75 everywhere, and title every one of them 'More'. Move 'Run all (4)' and the InspectorGenomics item list out of the title and into the HTML comment that already records each menu's contents.
 
 ### S05
 
@@ -104,7 +104,7 @@ Artboards: Locate: CompareSplit, ExplorerNotes, InspectorGenomics vs ContextMenu
 
 Problem: Three more register glyphs drift in geometry while keeping one name. 'Locate' has three drawings: outer r=4.5 with inner r=1.5 (CompareSplit, ExplorerNotes, InspectorGenomics), the same outer with inner r=1.25 (ContextMenu), and outer r=4 with longer ticks (ExplorerExpert). The Analyze view toggle 'List' is drawn with leading bullets on AnalyzePanel, CompareSplit and ExplorerExpert but as three plain rules on AnalyzeSweep and ExplorerAfterCard, and shifted again on IpadPanel; 'Cards' shifts its rects by 0.5px on IpadPanel. The History caret is `polyline 4,6 8,10 12,6` on 14 boards and `3,6 8,11 13,6` on IpadInspector. Separately, the Compare glyph `rect 2,2.5,12,11 + line at x=8` and the inspector-toggle glyph `rect 2,2.5,12,11 + line at x=10` differ by 2px and sit next to each other in the same top bar.
 
-Proposed fix: Pick the majority drawing for each (Locate: outer r=4.5 / inner r=1.5; List: with bullets; Cards: rects at x=2.5 w=11; caret: 4,6 8,10 12,6) and paste it into the minority boards. For Compare vs inspector toggle, move the Compare divider further off-centre or change one of the two shapes so the pair is distinguishable at 14px, then record the decision in VOCAB section 5.
+Proposed fix: Pick the majority drawing for each (Locate: outer r=4.5 / inner r=1.5; List: with bullets; Cards: rects at x=2.5 w=11; caret: 4,6 8,10 12,6) and paste it into the minority boards. For Compare vs inspector toggle, move the Compare divider further off-center or change one of the two shapes so the pair is distinguishable at 14px, then record the decision in VOCAB section 5.
 
 ### S13
 
@@ -118,7 +118,7 @@ Proposed fix: Delete both chips from the header row and move the bindings into t
 
 Artboards: AnalyzePanel; ContextMenu
 
-Problem: Two rows survive that the 1.5 minimisation deleted everywhere else. AnalyzePanel's 'All statistics' section still draws 'Isolated nodes 0' although the fraud dataset has one connected part, and the Counts override says that row and '(largest holds 100%)' are not drawn in that case -- no other board draws it except ExplorerLoading, where the value is legitimately 'Loading...'. ContextMenu still draws the 'Key attributes' sub-header inside a section already titled Attributes; MIN-10 removed it and InspectorGenomics and IpadInspector both did so, but ContextMenu's own checklist item 4 only removed the type row.
+Problem: Two rows survive that the 1.5 minimization deleted everywhere else. AnalyzePanel's 'All statistics' section still draws 'Isolated nodes 0' although the fraud dataset has one connected part, and the Counts override says that row and '(largest holds 100%)' are not drawn in that case -- no other board draws it except ExplorerLoading, where the value is legitimately 'Loading...'. ContextMenu still draws the 'Key attributes' sub-header inside a section already titled Attributes; MIN-10 removed it and InspectorGenomics and IpadInspector both did so, but ContextMenu's own checklist item 4 only removed the type row.
 
 Proposed fix: Delete the 'Isolated nodes 0' row from AnalyzePanel's All statistics block. In ContextMenu, replace the 'Key attributes' sub-header with the 1px #374047 hairline that InspectorGenomics uses, and extend ContextMenu item 4 in ARTBOARD-CHANGES-1.5.md to say so.
 

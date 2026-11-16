@@ -5,7 +5,7 @@
  * the file formats the element does NOT serve, each with a reason, "rather than left for a
  * consumer to discover by asking for a layout that never answers, or by never learning a
  * capability exists". Styles were the one surface where that was never written down, and it cost
- * the 2.0 major a regression nobody could see: `EdgeStyle` declared an arrow head's size, colour
+ * the 2.0 major a regression nobody could see: `EdgeStyle` declared an arrow head's size, color
  * and opacity with defaults, `Edge.ts` read all three to build the cap, and the published channel
  * set carried the cap TYPE and nothing else. The capability was built, drawn, tested and had no
  * door. Three agents noticed over three days; none of them had anywhere to put the observation.
@@ -24,7 +24,7 @@
  *
  * WHAT "UNREACHABLE" MEANS HERE, precisely: no style channel can make this field take a value the
  * author chose. A field the painter writes to a fixed value of its own is unreachable --
- * `texture.color.value` is pinned to a neutral white on every node so that the per-instance colour
+ * `texture.color.value` is pinned to a neutral white on every node so that the per-instance color
  * can show.
  *
  * WHAT IT IS NOT. It is not a list of bugs and not a roadmap. Some entries are deliberate and
@@ -98,7 +98,7 @@ export const WAIVER_OWNER_UNASSIGNED = "unassigned -- no person has taken this y
  * The expiry a defect waiver carries until a real one is chosen: ninety days from 2026-09-22,
  * the day the two kinds of waiver were split apart.
  *
- * A placeholder, not a judgement. None of these defects has been weighed against a release, so
+ * A placeholder, not a judgment. None of these defects has been weighed against a release, so
  * the date says only "look at this within the quarter". The owner replaces it per waiver with a
  * date that means something, and `test/contracts/waiver-expiry.test.ts` refuses a date more than
  * {@link WAIVER_HORIZON_DAYS} away, so "2099-01-01" is not a way back to silence.

@@ -475,7 +475,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             position?: { x: number; y: number; z: number };
             target?: { x: number; y: number; z: number };
         }): Promise<void> {
-            // Asked of the catalogue rather than of a copied list. A hard-coded five here would
+            // Asked of the catalog rather than of a copied list. A hard-coded five here would
             // make this mock refuse a registered view -- the very defect the camera extension
             // point exists to remove, reproduced inside a test helper.
             if (state.preset && !isCameraViewName(state.preset)) {

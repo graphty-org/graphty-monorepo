@@ -5,7 +5,7 @@
  * plane's world bounds -- wherever the label is anchored -- so no label is cut off by the edge of
  * the viewport. A label's size depends on its text and font, which is why framing runs on data
  * loads and layout changes and never on a label edit (#76): after the graph has settled, changing a
- * label's words, colour, size, anchor or offset must leave the camera exactly where it was.
+ * label's words, color, size, anchor or offset must leave the camera exactly where it was.
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";

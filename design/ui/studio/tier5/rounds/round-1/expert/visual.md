@@ -37,12 +37,12 @@ the decided rules it would fill. "Known" means `../../../backlog.md` or `../../.
 | #  | Sev | Screen                                    | Finding                                                                                          | Owner           | Status |
 | -- | --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------- | ------ |
 | 1  | 2   | Workspace, both hosts, node table open    | The preview keeps the hidden data table's height: a 240 px blank band above the strip            | graphty app     | Known  |
-| 2  | 2   | Workspace outline, both hosts             | The No match chit is drawn as a grey, unticked checkbox, one row under the card's real checkbox  | graphty app     | New    |
+| 2  | 2   | Workspace outline, both hosts             | The No match chit is drawn as a gray, unticked checkbox, one row under the card's real checkbox  | graphty app     | New    |
 | 3  | 2   | Read-only outlines at rest, two groups    | "Except" sits in the verb column, 21 px left of its group's other step; the workspace aligns them | graphty app     | New    |
 | 4  | 2   | Workspace, value picker while typing      | The picker jumps up over the header and its own field                                            | graphty app     | Known  |
 | 5  | 2   | Within hops, preview                      | The reference node is drawn like every other member; nothing marks the center                   | graphty app     | New    |
 | 6  | 2   | Graph at rest after Fill                  | The key grows over a node                                                                        | graphty app     | Known  |
-| 7  | 2   | Workspace preview at 50,000 nodes         | Members in the middle sit under the faint non-members' grey fog                                  | graphty-element | Known  |
+| 7  | 2   | Workspace preview at 50,000 nodes         | Members in the middle sit under the faint non-members' gray fog                                  | graphty-element | Known  |
 | 8  | 2   | Filter card with two groups, at rest      | The card's title, its boldest text, still names only group A ("role staff") beside "16 of 24"    | graphty app     | Known  |
 | 9  | 1   | Workspace, value picker                   | The list is cut mid-row with no scrollbar, the column below it empty                             | graphty app     | Known  |
 | 10 | 1   | Workspace header                          | The result count is the lightest thing in the header                                             | graphty app     | New    |
@@ -81,10 +81,10 @@ gets 55% of its cell, and in dark mode the eye lands on a dark slab.
 
 ### 2. The No match chit looks like a checkbox (sev 2, new)
 
-The outline's last row starts with a 13 px grey rounded square with a darker edge: the size, radius
+The outline's last row starts with a 13 px gray rounded square with a darker edge: the size, radius
 and edge of an unticked checkbox. With one group nothing else in the outline has a chit, so the row
 reads as an option turned off. On a filter card it sits one row under the card's real, ticked
-checkbox, the same shape. Its grey (206) is also not the lavender the preview draws non-members in
+checkbox, the same shape. Its gray (206) is also not the lavender the preview draws non-members in
 (about 209, 210, 232), so it does not work as a legend either.
 
 - Evidence: `visual/v1/04.png`, `visual/v1/23.png` (under the card's checkbox), `visual/v4/12.png`,
@@ -153,7 +153,7 @@ line, grows from 55 to 120 px tall and covers the top-left node.
 
 ### 7. Members under the fog at 50,000 nodes (sev 2, known)
 
-With "Grants" ticked, the faint non-members and their edges form a grey slab in the middle of the
+With "Grants" ticked, the faint non-members and their edges form a gray slab in the middle of the
 preview, and the green members inside it are dimmed by it; only those near the edge read at full
 color.
 
@@ -233,7 +233,7 @@ range and Hops boxes elsewhere are 24 px.
 
 ### 15. Advanced's "Edges" label and two ellipses (sev 1, new)
 
-Under Advanced, the label "Edges" is about 8 px grey, smaller than every other label in the pane
+Under Advanced, the label "Edges" is about 8 px gray, smaller than every other label in the pane
 (11 px) and starts at the chevron's x, not at "Advanced"'s text. Its control reads "Edges where ..."
 with a spaced ellipsis while the pane's other openers read "Condition...", "Or..." and
 "Edge value...".
@@ -261,7 +261,7 @@ Shaders at 1218.
 
 ### 18. "32 more" is the smallest text on the checklist (sev 1, known)
 
-The 50,000-node checklist shows 8 of 40 values and "32 more" in about 8 px grey; the only sign 32
+The 50,000-node checklist shows 8 of 40 values and "32 more" in about 8 px gray; the only sign 32
 values are not shown is the least visible text on the pane.
 
 - Evidence: `visual/v3/08.png`, crop `tmp/visual-t5/r1/v3-08-list.png`.
@@ -279,8 +279,8 @@ layer row "1,076" and the Everything row "50,000".
 
 ### 20. The key: three sizes, two edges (sev 1, new)
 
-The key's five lines use 11 px (swatch title, gradient ends), about 8 px grey (count), 8 px
-semibold (PageRank title) and 8 px grey (coverage); the swatch title is indented 24 px while the
+The key's five lines use 11 px (swatch title, gradient ends), about 8 px gray (count), 8 px
+semibold (PageRank title) and 8 px gray (coverage); the swatch title is indented 24 px while the
 lines under it start at the card's edge.
 
 - Evidence: `visual/v1/15.png`; `visual/v3/12.png`.
@@ -306,7 +306,7 @@ lon reads "-73.2" in a column of "-73.21"; PageRank reads "0.0355" in a column o
 ### 23. The focus ring is a 1 px line (sev 1, known)
 
 Keyboard focus on Edit, Fit and the strip's Group header is a 1 px olive outline (#588300), the
-weight of a field border; on Fit it sits beside the button's grey border.
+weight of a field border; on Fit it sits beside the button's gray border.
 
 - Evidence: `visual/v4/09.png`, `visual/v4/12.png`, `visual/v4/14.png` (crop
   `tmp/visual-t5/r1/v4-12-fit.png`).
@@ -324,6 +324,6 @@ weight of a field border; on Fit it sits beside the button's grey border.
 - A node under the canvas toolbar while the node table is open (`visual/v2/08.png`): known and
   cosmetic (backlog T72B.10, T74B.20, T76B.2).
 - The canvas stays light in dark mode; the Fit button is dark on it (`visual/v2/05.png`). Decided.
-- Number boxes filled grey beside white selects are compact-mantine's Figma inputs.
+- Number boxes filled gray beside white selects are compact-mantine's Figma inputs.
 - The Values tab's "972 nodes joined to no other n..." is cut (`visual/v3/01.png`); not a tier 5
   surface, left for the backlog.

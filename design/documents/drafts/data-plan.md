@@ -48,12 +48,12 @@ another's vocabulary. The design's two other spellings are withdrawn. The member
 (`nodeTypePath` and the other new fields below) are additions to `DataConfig`, marked NEW.
 
 Two more spellings exist for the endpoint and id fields as import options: graphty-element's
-format catalogue (`edgeSource`, `edgeTarget`, `nodeIdPath`, `idColumn`,
+format catalog (`edgeSource`, `edgeTarget`, `nodeIdPath`, `idColumn`,
 `graphty-element/src/catalog/formats.ts`) and graph-io's CSV importer (`sourceColumn`,
 `targetColumn`, `idColumn`). In a document, `knownFields` is the only one: a `formatOptions` entry
 or an envelope data member `options` entry naming an endpoint or id column is refused with
 `E_BAD_COMMAND`, and graphty-element translates `knownFields` into the importer's own options. Which
-spelling survives in the published catalogue is open decision 32.
+spelling survives in the published catalog is open decision 32.
 
 ## Data model
 
@@ -191,7 +191,7 @@ An attribute declaration states what a field means, which is what styles and rec
 new data:
 
 - `level` is the measurement level. It decides which encodings suit the attribute: a palette of
-  distinguishable colours for `categorical`, an ordered palette for `ordinal`, a ramp for
+  distinguishable colors for `categorical`, an ordered palette for `ordinal`, a ramp for
   `quantitative` (diverging when `signed`), a time scale for `temporal`. `identifier` marks a
   field that names an entity outside the graph (a gene symbol, an account number), which is what
   identifier lists match against (the design studio's door 27: an identifier list is matched
@@ -200,7 +200,7 @@ new data:
   read it directly) or `similarity` (larger is closer). `signed: true` declares a similarity that
   may be negative -- correlation and co-expression networks (`W23.yaml`, Hub Gene Identification;
   `W24.yaml`, Condition Comparison). A negative `distance` is a data error, reported at import. An
-  algorithm whose catalogue entry does not declare that it accepts negative weights refuses a
+  algorithm whose catalog entry does not declare that it accepts negative weights refuses a
   signed weight with `E_NEGATIVE_WEIGHT` rather than running on it (recipe.md, "Weights"). The role
   belongs to the attribute, not to each run (the design studio's door 21: a weight's meaning is
   declared once on the attribute and every run reads it). A flow **capacity** is not a weight
@@ -286,7 +286,7 @@ a STRING network (`W20.yaml`), an HR extract joined onto an entity list (`W13.ya
 `repeatedNodes` is graph-format's `onDuplicateNode`: `merge` overwrites the attributes of a node id
 seen before (the builder's default), `error` refuses the import naming the id. `missingEndpoints`
 decides what an edge whose end has no node record does: `create` adds an attribute-less node (the
-builder's `addMissingNodes`, today's behaviour), `report` creates it and lists it in the import
+builder's `addMissingNodes`, today's behavior), `report` creates it and lists it in the import
 report, `reject` drops the edge and lists it. A typo'd id is then visible instead of becoming a new,
 silent node. With `repeatedNodes: "merge"`, the import report lists, per merged id, the attributes
 whose values differed between the records (`nodeConflicts`), so an overwrite is visible.
@@ -348,7 +348,7 @@ open decision 13. Until it is decided, **every typed-identity member (`nodeTypeP
 implement it refuses the plan with `E_UNSUPPORTED_FEATURE`, rather than silently merge nodes of
 different types; inside an envelope the data is then not imported (envelope.md, "Opening"). The
 meaning of these members is fixed only when the decision is made, so no file written before then
-carries a meaning a later reader must honour.
+carries a meaning a later reader must honor.
 
 ## Applying
 
@@ -482,7 +482,7 @@ graph-io's CSV importer today treats a leading line beginning with `#` or `%` as
 SNAP and KONECT header convention, `COMMENT_CHARS` in `graph-io/src/formats/csv/importer.ts`), so
 it swallows STRING's header and reads the first interaction as the header. **That graph-io change
 is a prerequisite of publishing any data plan**: an import option that turns comment lines off, or
-recognising a `#`-prefixed line whose fields match the data rows' count as the header. Until then
+recognizing a `#`-prefixed line whose fields match the data rows' count as the header. Until then
 the import is refused under "Applying" rule 2, with the message that names the skipped comment
 line, because no record carries `#node1`.
 

@@ -8,7 +8,7 @@
  * speed controller. The velocity is the model's `velocity` buffer bound into the `oldForce` slot of K3 and K5 (PD-2),
  * left alone by the FA2 text because the model compiles `SWING_MODE = 1` (PD-20). Mass is `1 + degree / 3` and the
  * weights are ignored (PD-11); `SpringElectricalOptions.gravity` is ngraph's Coulomb constant, written into
- * `Fa2Params.coulomb` while FA2's centre gravity is 0 (PD-12). Settlement is the shared rule of spec 7.17
+ * `Fa2Params.coulomb` while FA2's center gravity is 0 (PD-12). Settlement is the shared rule of spec 7.17
  * (DEP-P5-A); `reheat()` leaves the velocities alone (ngraph has no reheat).
  *
  * Model decisions this file shares with forceatlas2.ts: on the exact tier the K1-K5 dispatches of one batch share ONE
@@ -97,7 +97,7 @@ const SE_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
 /** The name of the model's velocity buffer (bound into the `oldForce` slot of K3 / K5, PD-2). */
 const VELOCITY_BUFFER = "velocity";
 
-/** The resolved record with no option given: SE_DEFAULTS plus the origin centre and the null seed; the two force constants null = size-scaled at load. */
+/** The resolved record with no option given: SE_DEFAULTS plus the origin center and the null seed; the two force constants null = size-scaled at load. */
 const DEFAULT_RESOLVED: ResolvedSpringElectricalOptions = Object.freeze<ResolvedSpringElectricalOptions>({
     ...SE_DEFAULTS,
     maxIter: null,
@@ -305,7 +305,7 @@ export class SpringElectricalModel
     }
 
     /**
-     * The Fa2Params values of one iteration: the shared fields, the FA2 fields at 0 (no centre gravity, PD-12; no
+     * The Fa2Params values of one iteration: the shared fields, the FA2 fields at 0 (no center gravity, PD-12; no
      * FR temperature) and ngraph's five constants with `gravity` in `coulomb`.
      * @param iteration - the global iteration index
      * @param options - the simulation's current option record

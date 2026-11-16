@@ -26,7 +26,7 @@
  *   public-data/v1/<name>.webp      every picture in thumbnails/ (tools/render-sample-thumbnails.mjs): the
  *                                   datasets', named by their `thumbnail`, and the generators'
  *   public-data/v1/index.json       every dataset's metadata, URL, size and checksum, small ones first
- *   src/datasets/hosted.ts          the same metadata for the DATASETS catalogue (committed)
+ *   src/datasets/hosted.ts          the same metadata for the DATASETS catalog (committed)
  *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES (committed)
  *
  * public-data/ is build output and is not committed; .github/workflows/deploy-pages.yml runs this

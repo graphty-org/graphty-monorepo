@@ -41,7 +41,7 @@ sounds like cutting things down is "Filters" with the plus next to it. I will pr
     node real.mjs --step $S --click-at 276,197     # the plus beside "Filters" ("Add filter step")
 
 04.png: A "New filter step" panel on the right: "Keep: an attribute's value", then an empty
-"Attribute" box and a grey "Add step" button. "Keep" is what I want. The attribute box is empty;
+"Attribute" box and a gray "Add step" button. "Keep" is what I want. The attribute box is empty;
 I will open it and look for "weight".
 
 ## Step 4
@@ -54,7 +54,7 @@ I will open it and look for "weight".
 
     node real.mjs --step $S --click-at 1245,295     # option "weight"
 
-06.png: Now it reads "weight", "Is: at least", and an empty "Value" box, with a small grey line
+06.png: Now it reads "weight", "Is: at least", and an empty "Value" box, with a small gray line
 under it about keeping edges that pass and the people at their ends. "At least" is already
 what I need. I will put 4 in the Value box.
 
@@ -85,7 +85,7 @@ beside "weight is at least 4" looks like it switches the step off, so I untick i
     node real.mjs --step $S --click-at 273,238     # the box "Apply step: weight is at least 4"
 
 09.png: All the lines are back, the far-left person is back, the top bar no longer says "19 of 20",
-and the right side says Nodes 20, Edges 41. The step is still listed, greyed, with "off" under it,
+and the right side says Nodes 20, Edges 41. The step is still listed, grayed, with "off" under it,
 so I did not throw it away. Whole club back. First part done: 19 people.
 
 Follow-up given: "Your club now asks the same for pairs who ran together 5 or more times. How many
@@ -122,7 +122,7 @@ twice). So 10 people for 5 or more runs. Now the whole club back: untick the box
     node real.mjs --step $S --click-at 273,238     # the box "Apply step: weight is at least 5"
 
 13.png: Everyone is back: 20 balls, all the lines, right side Nodes 20 and Edges 41, nothing in the
-top bar about "of 20". The step stays in the list, greyed, "weight is at least 5, off". Done.
+top bar about "of 20". The step stays in the list, grayed, "weight is at least 5, off". Done.
 
 ## End
 
@@ -146,9 +146,9 @@ I only had to change 4 to 5. Nothing asked me to delete anything.
 **What made me stop and think.**
 - The column is called "weight", not "runs". I only knew it was the run counts because the task
   told me it was the third column and the range 1 to 5 looked right.
-- 19 of 20 for "4 or more" surprised me; I counted the balls to be sure. The little grey line under
+- 19 of 20 for "4 or more" surprised me; I counted the balls to be sure. The little gray line under
   the value box ("keeps edges that pass and the nodes at their ends") is what explains it, but that
-  text is small and grey and I only half read it.
+  text is small and gray and I only half read it.
 - The legend says "PageRank on 20 nodes" while only 19 or 10 are showing. I guessed it means the
   ranking was done on the whole club. I'd probably ask the postdoc whether the sizes are still right
   with people taken out.

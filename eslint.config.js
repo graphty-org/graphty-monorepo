@@ -42,7 +42,7 @@ export default tseslint.config(
             "*/examples/**",
             // The webgpu-graph-algorithms browser demo belongs to no tsconfig on purpose --
             // webgpu-graph-algorithms/eslint.config.js has ignored it since it was written, with
-            // the note that it is type-checked by hand with the DOM lib. A per-package run honours
+            // the note that it is type-checked by hand with the DOM lib. A per-package run honors
             // that ignore; a run started from the repo root reads this file alone and does not, so
             // without this line `npx eslint .` reports three "not found by the project service"
             // parsing errors that the package's own lint gate has never reported.
@@ -611,7 +611,7 @@ export default tseslint.config(
     // src/ and tests/ in one project on 2026-09-22 reported 22 errors, including a mock whose
     // handler signature no longer matches ActivationHandler and an "@ts-expect-error" that no
     // longer suppresses anything. Giving tests/ a tsconfig of its own and clearing those 22 is
-    // the fix; this block is the interim, and it is not a licence to write untyped tests.
+    // the fix; this block is the interim, and it is not a license to write untyped tests.
     {
         files: ["compact-mantine/tests/**/*.ts", "compact-mantine/tests/**/*.tsx"],
         languageOptions: {

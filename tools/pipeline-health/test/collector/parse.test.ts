@@ -193,7 +193,7 @@ describe("master state", () => {
     });
 });
 
-// Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were cancelled while they waited
+// Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were canceled while they waited
 // because a newer push replaced them (ci.yml's concurrency group, #3940). Their check suites have no check run.
 describe("replaced runs (recorded 2026-10-27)", () => {
     const master = (fixture("runs-master-replaced.json") as { workflow_runs: GhRun[] }).workflow_runs;
@@ -229,7 +229,7 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     );
 
     it("does not call the train skipped when a newer release run replaced the cancelled one", () => {
-        // The newest attempts (a stuck run cancelled by hand at 19:46, a restart replaced at 18:00) were each
+        // The newest attempts (a stuck run canceled by hand at 19:46, a restart replaced at 18:00) were each
         // replaced by a newer dispatch; the newest real attempt tested its candidate.
         expect(trainSkipped(seen, releases)).toBe(false);
     });
@@ -267,7 +267,7 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     it("does not count replaced release runs as failed", () => {
         const now = Date.parse("2026-10-27T13:30:00Z");
         const w = workflowState("release.yml", releases, now);
-        // All 11 runs completed in the last 24 h failed or were cancelled; the 6 cancelled runs a newer run replaced
+        // All 11 runs completed in the last 24 h failed or were canceled; the 6 canceled runs a newer run replaced
         // are not failures.
         const bad = releases.filter(
             (r) =>

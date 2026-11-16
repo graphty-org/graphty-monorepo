@@ -18,7 +18,7 @@ import { NodeMesh } from "../src/meshes/NodeMesh";
  *    "torus-knot" for it.
  *
  * 2. GRADIENT COLOUR. `createMaterial` used to leave a StandardMaterial completely unstyled for a
- *    gradient colour, so a gradient node rendered flat white. These tests run in the default
+ *    gradient color, so a gradient node rendered flat white. These tests run in the default
  *    (Node.js) project where there is no 2D canvas, so `DynamicTexture` cannot be allocated --
  *    which is exactly the fallback path worth pinning here: a gradient must still produce a
  *    COLOUR, taken from its first stop. The texture-based tests, which need a real canvas, live in
@@ -109,7 +109,7 @@ describe("NodeMesh gradient colour without a canvas", () => {
         });
 
         // The defect this replaces: NOTHING was assigned, so the node rendered at the raw
-        // StandardMaterial default. A colour -- any colour from the gradient -- is the floor.
+        // StandardMaterial default. A color -- any color from the gradient -- is the floor.
         assert.isNull(mat.diffuseTexture);
         assert.closeTo(mat.diffuseColor.r, 0, 0.001);
         assert.closeTo(mat.diffuseColor.g, 0, 0.001);
@@ -174,9 +174,9 @@ class StubGradient {
     readonly stops: { offset: number; color: string }[] = [];
 
     /**
-     * Records a colour stop, standing in for CanvasGradient.addColorStop.
+     * Records a color stop, standing in for CanvasGradient.addColorStop.
      * @param offset - Stop position from 0 to 1
-     * @param color - Stop colour
+     * @param color - Stop color
      */
     addColorStop(offset: number, color: string): void {
         this.stops.push({ offset, color });

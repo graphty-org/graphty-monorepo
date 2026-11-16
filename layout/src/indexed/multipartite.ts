@@ -26,8 +26,8 @@ export interface MultipartiteLayoutOptions extends CommonLayoutOptions {
  * @param layers - node indices per layer
  * @param place - the unscaled x, y of the `j`-th of `size` nodes in layer `k` of `count`
  * @param align - the layer direction, checked, since a JavaScript caller may pass any string
- * @param scale - the distance of the farthest node from the centre
- * @param center - the centre, at least 2 components
+ * @param scale - the distance of the farthest node from the center
+ * @param center - the center, at least 2 components
  * @param option - the option the layers came from, for a refusal's `params`
  * @returns `2 * n` values
  * @throws `E_BAD_OPTION` for an unknown `align`, `E_BAD_NODE` for a layer index that is not a node
@@ -63,7 +63,7 @@ export function layeredRows(
     if (align === "vertical") {
         return rescaleInPlace(rows, 2, scale, center);
     }
-    // rescale around the swapped centre, then swap every row, so the centre lands where it was asked for
+    // rescale around the swapped center, then swap every row, so the center lands where it was asked for
     rescaleInPlace(rows, 2, scale, [center[1], center[0]]);
     for (let i = 0; i < n; i++) {
         [rows[2 * i], rows[2 * i + 1]] = [rows[2 * i + 1], rows[2 * i]];
@@ -73,7 +73,7 @@ export function layeredRows(
 
 /**
  * The unscaled multipartite place: layer `k` of `count` at x `k - (count - 1) / 2`, its nodes one apart in y and
- * centred on 0.
+ * centered on 0.
  * @param k - the layer
  * @param count - the layer count
  * @param j - the node's place in its layer
@@ -135,9 +135,9 @@ export function groupsOfColumn(s: GraphSnapshot, name: string, option: string): 
 
 /**
  * Nodes in straight lines, one line per layer: with `vertical` alignment layer k is a column left of layer k + 1,
- * its nodes evenly spaced top to bottom in the order listed. In 3D the layout lies in the plane of the centre's z.
+ * its nodes evenly spaced top to bottom in the order listed. In 3D the layout lies in the plane of the center's z.
  * @param s - the snapshot; only its node count and the named column are read
- * @param options - `scale` is the distance of the farthest node from the centre; `subsets` the layers
+ * @param options - `scale` is the distance of the farthest node from the center; `subsets` the layers
  * @returns the layout
  * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `subsets` names a node column the snapshot
  * does not hold or one that is not u32 or dict, `E_BAD_NODE` for a layer index that is not a node, and

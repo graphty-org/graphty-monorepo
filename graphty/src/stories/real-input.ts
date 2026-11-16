@@ -17,7 +17,7 @@ export interface RealInput {
     };
     /**
      * Drag a file from outside the window over the middle of an element and hold it there. The
-     * drag is cancelled when the test ends.
+     * drag is canceled when the test ends.
      */
     dragFileOver(element: Element): Promise<void>;
     /** Turn the mouse wheel over the middle of an element, by `deltaY` pixels (negative is away from the reader). */

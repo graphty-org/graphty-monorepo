@@ -1,6 +1,6 @@
 /**
- * Layout extension point. NORMATIVE for shapes; behaviour in design/extensions/layout.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
+ * Layout extension point. NORMATIVE for shapes; behavior in design/extensions/layout.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/LayoutDescriptor (published) and
  * #/$defs/AuthoredLayoutDescriptor (what a class writes).
  */
@@ -15,7 +15,7 @@ import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
 
 /**
  * The built-in arrangement ids. Reserved, as are the names of the element's own engines.
- * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalogue publishes as
+ * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalog publishes as
  * built-in arrangements (README section 5 item 4); adding them is an additive fix.
  * "force-2d" is deprecated (see DEPRECATED_LAYOUT_IDS): it is no longer in `catalog.layouts()` and
  * is read as "force" drawn by its `arf` engine, until the next major release removes it.
@@ -86,7 +86,7 @@ export interface EdgePosition {
     dst: Position;
 }
 
-/** One layout, as the catalogue publishes it. */
+/** One layout, as the catalog publishes it. */
 export interface LayoutDescriptor {
     /** MUST equal the class's static type. */
     id: LayoutId;
@@ -332,7 +332,7 @@ export interface LayoutReport {
     /** Nodes left unplaced because their data gave no position; drawn one element-defined way. */
     readonly unplaced: readonly NodeIdType[];
     readonly notes: readonly string[];
-    /** A carried scope that the engine could not honour and that was therefore dropped. */
+    /** A carried scope that the engine could not honor and that was therefore dropped. */
     readonly droppedScope: boolean;
 }
 

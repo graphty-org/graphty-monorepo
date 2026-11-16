@@ -26,7 +26,7 @@
  * killed must never look green because some process between the wrapper and vitest reported 0, and the summary and
  * report checks are what catch that.
  *
- * Only Node processes are signalled: Node is the only program in the tree whose SIGUSR2 writes a report
+ * Only Node processes are signaled: Node is the only program in the tree whose SIGUSR2 writes a report
  * (--report-on-signal, set below) instead of killing it. The tree also holds `pnpm` (a packaged binary that does not
  * read NODE_OPTIONS), on a developer machine pnpm's version-switch shell script, and esbuild's service; SIGUSR2 kills
  * each of them. Killing the version-switch script made the outer pnpm exit 0 -- pnpm 10.0.0 exits 0 whenever the
@@ -35,7 +35,7 @@
  * The machine-wide test slot (tools/test-slots.mjs) is taken here, before vitest starts, and handed down as
  * GRAPHTY_TEST_SLOT_HELD, so time queued for a slot is never silence the hang watcher counts.
  *
- * The signalling half of a snapshot is POSIX only: Windows has neither --report-on-signal nor a SIGUSR2 that leaves
+ * The signaling half of a snapshot is POSIX only: Windows has neither --report-on-signal nor a SIGUSR2 that leaves
  * its target alive, so there the wrapper prints the process table and the missing files and signals nothing.
  */
 
@@ -63,7 +63,7 @@ const CAN_SIGNAL = process.platform !== "win32";
 const MISSING_MARKER = "[missing-files]";
 /** The fixed marker on the line that names why a run vitest reported as passing still failed. */
 const VERDICT_MARKER = "[shard-verdict]";
-/** How long a snapshot waits at most for the signalled processes to write their reports. */
+/** How long a snapshot waits at most for the signaled processes to write their reports. */
 const REPORT_WAIT_MS = 10_000;
 /** The runner the arguments are appended to; main()'s `command` option replaces it in tests. */
 const VITEST_COMMAND = ["pnpm", "exec", "vitest", "run"];
@@ -273,8 +273,8 @@ export function digestReport(file) {
 /**
  * Whether every process in `pids` has either written its whole report into `dir` or exited.
  * @param {string} dir - the report directory
- * @param {readonly number[]} pids - the signalled processes
- * @param {ReadonlySet<string>} before - the files already in `dir` before they were signalled
+ * @param {readonly number[]} pids - the signaled processes
+ * @param {ReadonlySet<string>} before - the files already in `dir` before they were signaled
  * @returns {boolean} true once nothing more is coming
  */
 function reportsSettled(dir, pids, before) {
@@ -307,7 +307,7 @@ function reportsSettled(dir, pids, before) {
  * @param {number} pid - the runner's process id
  * @param {number} index - which snapshot this is
  * @param {string} reason - why the snapshot is being taken, printed with it
- * @returns {Promise<number>} how many processes were signalled
+ * @returns {Promise<number>} how many processes were signaled
  */
 async function snapshot(dir, pid, index, reason) {
     console.log(`\n[hang-report] ${reason}; snapshot ${String(index)}`);
@@ -325,7 +325,7 @@ async function snapshot(dir, pid, index, reason) {
             process.kill(target, "SIGUSR2");
             signalled.push(target);
         } catch {
-            // the process may have exited between listing and signalling; nothing to report for it
+            // the process may have exited between listing and signaling; nothing to report for it
         }
     }
     console.log(
@@ -513,10 +513,10 @@ export async function main(argv, options = {}) {
 
 /**
  * Prints the wrapper's verdict line: FAIL with its cause (after the missing files, when vitest itself exited 0), or a
- * PASS note when the run was signalled for a snapshot along the way; nothing for a quiet pass.
+ * PASS note when the run was signaled for a snapshot along the way; nothing for a quiet pass.
  * @param {{ exitCode: number, cause: string }} decision - verdict()'s decision
- * @param {{ status: number, output: string, signalled: number, silenceMs: number }} run - vitest's exit status, its
- *     transcript, the processes signalled for a snapshot and the silence that counted as a hang
+ * @param {{ status: number, output: string, signaled: number, silenceMs: number }} run - vitest's exit status, its
+ *     transcript, the processes signaled for a snapshot and the silence that counted as a hang
  */
 function printVerdict(decision, { status, output, signalled, silenceMs }) {
     if (decision.exitCode !== 0) {

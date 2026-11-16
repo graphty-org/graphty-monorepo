@@ -8,7 +8,7 @@
  * `segment.byteOffset - arena.byteOffset`; the perArray path writes one buffer per array; the windowed path (P4-T7,
  * PD-8) writes one buffer per PlannedArray range of every arc-indexed array and binds window 0 as the default
  * colIdx / weights, the whole window list and the per-array buffers riding on the CoreBinding for the row-walking
- * primitives to bind per window. Identity permutations are never materialised: presence is
+ * primitives to bind per window. Identity permutations are never materialized: presence is
  * decided from counts and flags, and the arcToEdge / edgeToArc getters are read only when a segment exists. Nothing
  * is freed by garbage collection; the once-only warning above warnUnreleasedSnapshots names the missing release.
  */
@@ -156,7 +156,7 @@ interface ResidencyRecord {
     /**
      * One fresh marker object per PACKED view, keyed the same way as `views`. It is the `key` argument of
      * upload(): a packed view must never be keyed on one of the snapshot's own arrays, because upload()
-     * memoises on the key object and does NOT compare byte lengths, and `s.reverse()` is cached
+     * memoizes on the key object and does NOT compare byte lengths, and `s.reverse()` is cached
      * (graph-format `graph-snapshot.ts:600-601`) so the packed and the unpacked builder see the same
      * `rev.rowPtr` object.
      */
@@ -221,7 +221,7 @@ function assertAttached(s: GraphSnapshot): void {
 /**
  * Whether a core array exists on the snapshot, from counts and flags alone (mirrors coreByteLengths of
  * ./upload-plan.ts; spec 5.6: zero-length arrays are never uploaded; spec 4.1: identity permutations never
- * materialised).
+ * materialized).
  * @param s - the snapshot
  * @param name - the core array
  * @returns true when the array has bytes to upload
@@ -244,7 +244,7 @@ function isPresent(s: GraphSnapshot, name: CoreArrayName): boolean {
 }
 
 /**
- * The array object of a PRESENT core array (the caller checked isPresent, so the two getters never materialise).
+ * The array object of a PRESENT core array (the caller checked isPresent, so the two getters never materialize).
  * @param s - the snapshot
  * @param name - the core array
  * @returns the array
@@ -280,7 +280,7 @@ export class GraphResidency {
     private readonly warn: (message: string) => void;
     /** Fast lookup by the uploaded object (a typed array or a Column). */
     private readonly residents = new WeakMap<object, Resident>();
-    /** Fast lookup of a snapshot's record (entries of released records are recognised by `released`). */
+    /** Fast lookup of a snapshot's record (entries of released records are recognized by `released`). */
     private readonly records = new WeakMap<GraphSnapshot, ResidencyRecord>();
     /** The strong map by serial: withColumns() siblings share one record; cleared by release. */
     private readonly bySerial = new Map<number, ResidencyRecord>();
@@ -321,7 +321,7 @@ export class GraphResidency {
 
     /**
      * Uploads (or finds) the core; `need` defaults to ["rowPtr", "colIdx", "weights"]; cold segments on demand
-     * (spec 4.2). Never materialises an identity permutation. A windowed plan (spec 4.2, PD-8) uploads every
+     * (spec 4.2). Never materializes an identity permutation. A windowed plan (spec 4.2, PD-8) uploads every
      * arc-indexed array as the plan's buffer ranges and binds window 0 as its default binding; rowPtr and edgeToArc
      * stay whole. A tombstoned serial is lifted and re-uploaded (PLAN DECISION 7).
      * @param s - the snapshot
@@ -384,7 +384,7 @@ export class GraphResidency {
 
     /**
      * Uploads (or finds) a view: outDegree / inDegree / degreeOrder / reverseDegreeOrder upload one array each;
-     * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoised per record so
+     * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoized per record so
      * a second call uploads nothing (spec 4.3). coo uploads its per-arc `src` (P11; the rest aliases the core); mate ->
      * E_UNSUPPORTED. packViews concatenates a
      * reverse or edgeList view into ONE buffer at STORAGE_ALIGN offsets; on any other view `true` is E_UNSUPPORTED
@@ -554,7 +554,7 @@ export class GraphResidency {
      * split into arc windows exactly as core() splits the forward colIdx, so a frontier-walking kernel dispatches once
      * per window (`coreWindows`). Null when the reverse colIdx fits one binding and one buffer: the caller binds
      * view(s, "reverse") whole then. Carries colIdx only (`weights` null): the bottom-up sweep reads no weight.
-     * Memoised per record, so a second call uploads nothing.
+     * Memoized per record, so a second call uploads nothing.
      * @param s - a directed snapshot
      * @returns the windowed core of the reverse adjacency, or null when it needs no windows
      */
@@ -1060,7 +1060,7 @@ export class GraphResidency {
     }
 
     /**
-     * Marks a record released and drops it from the serial map (the snapshot WeakMap entries recognise it by the flag).
+     * Marks a record released and drops it from the serial map (the snapshot WeakMap entries recognize it by the flag).
      * @param record - the record
      */
     private forget(record: ResidencyRecord): void {

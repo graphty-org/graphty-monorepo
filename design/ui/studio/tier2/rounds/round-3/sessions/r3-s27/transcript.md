@@ -87,4 +87,4 @@ Answer on the right: Nodes in order -- Ben 1, Theo 2, Ravi 3, Pia 4, Nora 5. "5 
   - Running the second chain replaced the first one in the left list -- there's still a single "Shortest path" row. I didn't ask to throw away Chloe-to-Milo. If I wanted both side by side for a meeting, I'd have to redo one.
   - "4 hops" on the left vs "5 nodes, 4 edges" on the right -- I worked out that hops = introductions, but "edges" and "hops" are two words for the same thing.
   - "Follow: Out / All" -- I guessed All because introductions go both ways; one line on what Out means would help.
-  - Small grey labels in the side panel (Summary, Made with) are hard to read without my glasses.
+  - Small gray labels in the side panel (Summary, Made with) are hard to read without my glasses.

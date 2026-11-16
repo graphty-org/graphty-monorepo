@@ -50,13 +50,13 @@ interface LabelPropagationOptions extends Record<string, unknown> {
 }
 
 /**
- * Label propagation: every node takes the label most of its neighbours carry, until none moves.
+ * Label propagation: every node takes the label most of its neighbors carry, until none moves.
  *
  * Two definitions, chosen by `randomSeed`. Each is one definition wherever it runs:
  *
- * - No seed (the default): synchronous passes. Every node reads its neighbours' labels from the
+ * - No seed (the default): synchronous passes. Every node reads its neighbors' labels from the
  *   previous pass and takes one of the best-voted labels by a fixed order, with passes alternating
- *   between moving only up and only down that order so two neighbours cannot trade labels for ever.
+ *   between moving only up and only down that order so two neighbors cannot trade labels for ever.
  *   Deterministic.
  *   This is the definition a GPU runs, so it is the one routed to an accelerator above its floor;
  *   below the floor, or with no accelerator, `@graphty/algorithms`' synchronous port runs it. The
@@ -66,7 +66,7 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  *   and reports `converged` false; the device runs all `maxIterations` passes and reports no
  *   `converged` at all. `caveats.precision` says which one ran.
  * - A seed: the asynchronous (FLPA) definition. Nodes are visited one at a time in an order drawn
- *   from the seed, so one seed gives one partition. No GPU kernel has a seed to honour, so this
+ *   from the seed, so one seed gives one partition. No GPU kernel has a seed to honor, so this
  *   always runs on the CPU, and under `acceleration="required"` it is refused.
  */
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
@@ -101,7 +101,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
     };
 
     /**
-     * Group the nodes into communities by letting labels spread between neighbours.
+     * Group the nodes into communities by letting labels spread between neighbors.
      *
      * Publishes a group per node and nothing the shape does not derive. Label propagation does
      * not score its own partition, so it reports no modularity: the community shape makes that

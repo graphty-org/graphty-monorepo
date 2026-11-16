@@ -710,7 +710,7 @@ async function runSteps(dir, steps, env) {
  * @param {{root: string, job: string, dir?: string, base: string, salvage?: boolean,
  *   env?: Record<string, string | undefined>, ledger: Ledger}} options the main checkout, the job
  *   id, its worktree (the job's directory by default), the commit it was prepared at, and whether
- *   unpushed commits are salvaged (a cancelled job) or block the removal
+ *   unpushed commits are salvaged (a canceled job) or block the removal
  * @returns {Promise<{ok: true, salvage: string | null} | {ok: false, reason: string}>} whether it
  *   was removed, and the salvage branch it left
  */

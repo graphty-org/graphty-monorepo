@@ -1,7 +1,7 @@
 /**
  * The GraphML exporter (design section 8.5; research note 07 section 9): `<key>` declarations
  * regenerated from ColumnMeta.origin when the column came from GraphML (key id, attr.name,
- * attr.type, yfiles.type) and derived from the dtype otherwise; node ids sanitised to NMTOKEN
+ * attr.type, yfiles.type) and derived from the dtype otherwise; node ids sanitized to NMTOKEN
  * (`sanitizeIds: "error"` refuses, `"mangle"` rewrites and keeps the original in a
  * `graphty:originalId` data attribute the importer restores); mixed direction written with
  * `edgedefault` plus per-edge `directed` attributes, folding expanded pairs back through the
@@ -1544,7 +1544,7 @@ function keyElement(key: KeyPlan, indent: string): string {
 }
 
 /**
- * Sanitised edge ids: NMTOKENs as they are; the rest refused or mangled per sanitizeIds.
+ * Sanitized edge ids: NMTOKENs as they are; the rest refused or mangled per sanitizeIds.
  * @param column - the edge id column, or null
  * @param mode - the resolved sanitizeIds option
  * @param edgeCount - the edge count
@@ -1786,7 +1786,7 @@ interface SubtreeWalk {
  * cannot overflow the call stack).
  * @param root - the top-level node
  * @param plan - the plan
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param indent - the indentation of top-level nodes
  * @param step - one indentation step
  * @param walk - the reusable walk state

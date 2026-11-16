@@ -1232,7 +1232,7 @@ export interface ExtraItem {
     readonly onPick: () => void;
     /** One fact that tells it from its neighbors, drawn dimmed at the right. */
     readonly fact?: string;
-    /** Why it cannot be picked here: greyed, with the reason as its tooltip and in its name. */
+    /** Why it cannot be picked here: grayed, with the reason as its tooltip and in its name. */
     readonly unusable?: string;
     /** Plain words for what it is, as its tooltip (selection spec 3.5). */
     readonly tip?: string;
@@ -1780,7 +1780,7 @@ export function AddCondition({
 }
 
 /**
- * One row of the add list that is not a field: its icon, name and fact; greyed with its reason as
+ * One row of the add list that is not a field: its icon, name and fact; grayed with its reason as
  * a tooltip when it cannot be picked here.
  * @param props - Component props
  * @param props.item - the row

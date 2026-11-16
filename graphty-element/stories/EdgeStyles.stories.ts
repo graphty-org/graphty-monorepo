@@ -117,7 +117,7 @@ const ARROW_GRID = [
 const LINE_GRID = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
 
 /**
- * How much of the canvas the edge's own colour covers.
+ * How much of the canvas the edge's own color covers.
  *
  * Bucketed to the nearest thousand so that it separates one picture from another without being a
  * pixel-exact baseline, which is visual review's job and not this one's.
@@ -205,7 +205,7 @@ export const Default: Story = {
 
         await assertGraphLoaded(scene, { nodes: 2, edges: 1 });
 
-        // The element's own edge appearance, with no layer of the story's own: one grey line with
+        // The element's own edge appearance, with no layer of the story's own: one gray line with
         // a normal cap on it.
         await assertArrowVariety(scene, 1);
         await assertDistinctPicture(scene, "Styles/Edge", await lineInk(scene));
@@ -261,7 +261,7 @@ export const Width: Story = {
 /**
  * Which arrow is drawn at the head of an edge.
  *
- * The three stories below it -- size, opacity and colour -- are the rest of what a layer can say
+ * The three stories below it -- size, opacity and color -- are the rest of what a layer can say
  * about that arrow. Told nothing, a cap follows the line it caps.
  */
 export const ArrowHead: Story = {
@@ -271,7 +271,7 @@ export const ArrowHead: Story = {
         await assertGraphLoaded(scene, { nodes: 2, edges: 1 });
         await assertArrowVariety(scene, 1);
 
-        // `normal` IS the element's own cap and `darkgrey` IS its own line colour, so this
+        // `normal` IS the element's own cap and `darkgrey` IS its own line color, so this
         // story's opening picture is deliberately the default one and the control is what it
         // demonstrates. What has to be true is that a triangle cap is actually drawn.
         await holds(
@@ -367,7 +367,7 @@ export const ArrowOpacity: Story = {
         // of ink. What is left at full strength is LINE, whose ink is its length times its
         // thickness, so it is divided by that length: 10.69, 10.69, 10.69, 10.70 and 10.68 at
         // canvas widths 668, 968, 1168, 1200 and 1668. The faded ink is the CAP, whose pixels land
-        // at the half-way blend of the line colour over the background, (0xa9 + 0xf5) / 2 = 0xcf.
+        // at the half-way blend of the line color over the background, (0xa9 + 0xf5) / 2 = 0xcf.
         // A cap is a triangle that grows in both directions with the picture, so it is taken as a
         // share of the canvas: 0.276%, 0.278%, 0.283%, 0.282% and 0.280% over the same range.
         //
@@ -421,14 +421,14 @@ export const ArrowOpacity: Story = {
 };
 
 /**
- * A red arrow on a grey line.
+ * A red arrow on a gray line.
  *
  * TOLD NOTHING, A CAP FOLLOWS ITS LINE -- that is what every other story on this page draws, and
- * it is why this one sets the two to different colours. Until the arrow channels were published
+ * it is why this one sets the two to different colors. Until the arrow channels were published
  * the head did not follow its line either: the element's own defaults pinned it to `darkgrey` and
- * the schema defaulted it to white, so every arrow head in every graph was grey whatever its line
+ * the schema defaulted it to white, so every arrow head in every graph was gray whatever its line
  * was painted, while an arrow TAIL -- which the defaults never mentioned -- did follow. One edge,
- * two ends, two colours.
+ * two ends, two colors.
  */
 export const ArrowColor: Story = {
     play: async ({ canvasElement }) => {
@@ -436,13 +436,13 @@ export const ArrowColor: Story = {
 
         await assertGraphLoaded(scene, { nodes: 2, edges: 1 });
 
-        // PIXELS, because a cap's colour is a shader uniform in 3D: it is not on the mesh, not on
+        // PIXELS, because a cap's color is a shader uniform in 3D: it is not on the mesh, not on
         // the mesh's name, and not anywhere else a scene reading can reach.
         //
         // NORMALISED, AND BY TWO DIFFERENT THINGS. The red is the CAP -- a triangle that grows in
         // both directions with the picture -- so it is read as a share of the canvas: 0.280%,
         // 0.282%, 0.287%, 0.286% and 0.285% at canvas widths 668, 968, 1168, 1200 and 1668, a
-        // spread of 2.7% over a 2.5x range of canvas. The grey is the LINE, whose ink grows with
+        // spread of 2.7% over a 2.5x range of canvas. The gray is the LINE, whose ink grows with
         // its length alone, so it is divided by that length: 10.66, 10.67, 10.69, 10.70 and 10.68
         // over the same range.
         const red = await pixelsOfColour(scene, "#ff0000");
@@ -462,8 +462,8 @@ export const ArrowColor: Story = {
         );
 
         // What this separates is "the line is still grey" from "the layer painted the line red
-        // too", which is what a shared colour channel would have done -- that break reads 0.03
-        // grey pixels per pixel of span, over 240x under the floor.
+        // too", which is what a shared color channel would have done -- that break reads 0.03
+        // gray pixels per pixel of span, over 240x under the floor.
         await holds(
             grey / span > 8,
             `Styles/Edge ArrowColor: the line is asked for in grey and the canvas holds ${String(grey)} grey ` +
@@ -495,9 +495,9 @@ export const LineOpacity: Story = {
 
         await assertGraphLoaded(scene, { nodes: 2, edges: 1 });
 
-        // A half-transparent grey line over whitesmoke is not grey any more, so the count of
+        // A half-transparent gray line over whitesmoke is not gray any more, so the count of
         // full-strength pixels is what falls -- and the count at the half-way blend of the line
-        // colour over the background, (0xa9 + 0xf5) / 2 = 0xcf, is what takes its place.
+        // color over the background, (0xa9 + 0xf5) / 2 = 0xcf, is what takes its place.
         //
         // BOTH ARE ASSERTED, AND THE SECOND IS WHAT CLOSES A HOLE. A ceiling on full-strength ink
         // says only that the line is not opaque, and a line that is not drawn AT ALL is not
@@ -507,7 +507,7 @@ export const LineOpacity: Story = {
         // says the thing the story is named for -- there IS a line, and it is drawn at the
         // half-way blend.
         //
-        // Each is normalised the way its own ink grows. What is left at full strength is cap, a
+        // Each is normalized the way its own ink grows. What is left at full strength is cap, a
         // triangle that grows in two directions, so it is a share of the canvas: 0.293%, 0.294%,
         // 0.296%, 0.293% and 0.296% at canvas widths 668, 968, 1168, 1200 and 1668. The blend is
         // line, which grows with its length alone: 10.77, 10.76, 10.74, 10.75 and 10.80 per pixel
@@ -577,16 +577,16 @@ export const CombinedOpacity: Story = {
         // alone -- 2.35 per pixel of span, under the floor of 8.
         //
         // THE BLEND NEEDS A NARROW TOLERANCE, AND HERE IT IS NOT OPTIONAL. Three tenths of
-        // darkgrey over whitesmoke is 0xde = 222 and the background is 0xf5 = 245, which are 23
+        // darkgray over whitesmoke is 0xde = 222 and the background is 0xf5 = 245, which are 23
         // apart -- inside `pixelsOfColour`'s default tolerance of 24. At that tolerance this
-        // colour cannot be told from the bare canvas at all and the count is the whole frame. At 8
+        // color cannot be told from the bare canvas at all and the count is the whole frame. At 8
         // it is clean, and the counterfactual with no edge drawn reads exactly zero.
         //
-        // Normalised as each reading grows. The full-strength remainder is cap ink, so it is a
+        // Normalized as each reading grows. The full-strength remainder is cap ink, so it is a
         // share of the canvas: 0.0072%, 0.0041%, 0.0034%, 0.0033% and 0.0021% at canvas widths
         // 668, 968, 1168, 1200 and 1668. The blend is line ink, so it is divided by the line's
         // length: 11.8, 12.4, 12.8, 12.8 and 13.8 per pixel of span. That second reading is the
-        // one MIXED measurement on this page -- a faded line plus a faded cap share the colour --
+        // one MIXED measurement on this page -- a faded line plus a faded cap share the color --
         // so it spreads 1.17x where the pure readings spread under 3%. It only grows with the
         // canvas, so a floor taken under the smallest reading is safe in the direction that
         // matters, and both breaks land far below it: about 1.35 per pixel of span with both
@@ -1762,7 +1762,7 @@ export const TwoDAllLines: Story = {
 /**
  * A solid line and a dashed line, both at half opacity, one above the other.
  *
- * WHAT TO LOOK FOR: the dashes are the same pale grey as the solid line. A dash drawn darker than
+ * WHAT TO LOOK FOR: the dashes are the same pale gray as the solid line. A dash drawn darker than
  * the line above it is a patterned line ignoring its opacity (issue #619).
  */
 export const PatternedLineOpacity: Story = {
@@ -1772,11 +1772,11 @@ export const PatternedLineOpacity: Story = {
         await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
         await assertViewMode(scene, "3d");
 
-        // Half of darkgrey over whitesmoke is 0xcf. Each count is read per pixel of line length,
+        // Half of darkgray over whitesmoke is 0xcf. Each count is read per pixel of line length,
         // since both lines grow with their length alone. Measured on a 1200 x 600 canvas: with
-        // both lines blended, 0.9 pixels per pixel of line at full darkgrey (the antialiased edges
+        // both lines blended, 0.9 pixels per pixel of line at full darkgray (the antialiased edges
         // of the black captions) and 18.9 at the blend; with the dashed line drawn opaque, 10.3
-        // at full darkgrey and 10.2 at the blend, which is the solid line's alone.
+        // at full darkgray and 10.2 at the blend, which is the solid line's alone.
         const ink = await pixelsOfColour(scene, "#a9a9a9");
         const faded = await pixelsOfColour(scene, "#cfcfcf");
         const span = edgeSpanPx(scene, "dash-src", "dash-dst");
@@ -2017,8 +2017,8 @@ const framesOf = async (scene: Drawn, count: number): Promise<void> => {
 /**
  * Two edges running the same animation at different speeds.
  *
- * WHAT THE NUMBER MEANS. A nonzero `edge.animationSpeed` draws the line as a gradient travelling
- * along it instead of a flat colour, and the number is a multiple of the element's own pace. The
+ * WHAT THE NUMBER MEANS. A nonzero `edge.animationSpeed` draws the line as a gradient traveling
+ * along it instead of a flat color, and the number is a multiple of the element's own pace. The
  * lower edge here asks for 1 and the upper for 4, so the upper one's gradient travels four times
  * as far in the same time. Zero, which is what every other edge in the package has, draws a
  * still line.
@@ -2029,7 +2029,7 @@ const framesOf = async (scene: Drawn, count: number): Promise<void> => {
  * distance the other travels is the ratio of the two speeds and nothing else.
  *
  * NO VISUAL BASELINE. The picture is deliberately different on every frame, so a snapshot of it
- * would differ on every build for reasons that say nothing about the code. The behaviour is
+ * would differ on every build for reasons that say nothing about the code. The behavior is
  * pinned by the measurement below instead, which a snapshot could not make anyway: a still
  * picture of a moving line cannot show how fast it is moving.
  */
@@ -2082,7 +2082,7 @@ export const AnimationSpeed: Story = {
         );
 
         // The two edges sit four world units apart, so a line thicker than one unit is on its way
-        // to covering its neighbour -- and a line of no width is not drawn at all.
+        // to covering its neighbor -- and a line of no width is not drawn at all.
         for (const source of ["slow-src", "fast-src"]) {
             const width = drawnWidthOf(scene, source);
 
@@ -2192,7 +2192,7 @@ export const AnimationSpeed: Story = {
 /**
  * A straight and a curved edge of one width draw one thickness (issue #125).
  *
- * MEASURED AS INK PER PIXEL OF SPAN, as `Width` is, once per edge colour. A curve is a little
+ * MEASURED AS INK PER PIXEL OF SPAN, as `Width` is, once per edge color. A curve is a little
  * longer than the straight span between its ends, so it reads somewhat more ink per pixel of span
  * than the straight edge, and never several times more: a curve once drew ten pixels per unit of
  * width under the 2D camera while the straight edge beside it drew `width / 40` world units.

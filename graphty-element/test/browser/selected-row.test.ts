@@ -84,7 +84,7 @@ async function mounted(): Promise<Graphty> {
  * Where a node is drawn, from the element's public API.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);

@@ -6,7 +6,7 @@
  * lets test/setup/global.ts prove that every pipeline key the node suite created came from a case of it.
  *
  * PLAN DECISION (P2-T2): a factory passes kernelSpec exactly the kernel's declared overrides plus USE_PERM /
- * HAS_WEIGHTS iff the kernel binds group 0 (3.10 graphOverrides); `matrixCovers` canonicalises keys -- an absent
+ * HAS_WEIGHTS iff the kernel binds group 0 (3.10 graphOverrides); `matrixCovers` canonicalizes keys -- an absent
  * declared override takes its default, an absent standard pair is false, the device-derived WG / SUBGROUP_MIN /
  * SUBGROUP_MAX are dropped -- so "omit the default" and "spell every override" give the same verdict, and keys of
  * ids outside the registry (ad hoc specs built by tests) are not package variants and are ignored.
@@ -259,7 +259,7 @@ function twinCapsOf(caps: PlanCaps): readonly PlanCaps[] {
 }
 
 /**
- * The key with its override record canonicalised: a declared override absent -> the entry default, USE_PERM /
+ * The key with its override record canonicalized: a declared override absent -> the entry default, USE_PERM /
  * HAS_WEIGHTS absent -> false, WG / SUBGROUP_MIN / SUBGROUP_MAX dropped, every other name kept verbatim, names
  * sorted. A key of an id outside the registry is returned unchanged.
  * @param key - a PipelineCache.key string (`id|overrides|needs|hash`)

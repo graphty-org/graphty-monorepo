@@ -2,13 +2,13 @@
  * Fuzz audit, cancellation lens (design section 8.4 and the CommonImportOptions contract: "the
  * importer stops between chunks and rejects with the signal's reason"): an AbortSignal that fires
  * mid-stream must make import() reject with the reason itself, the source stream must be
- * cancelled and its reader lock released (nothing left dangling for a File.stream() or a fetch
+ * canceled and its reader lock released (nothing left dangling for a File.stream() or a fetch
  * body), the caller's sink must be left intact and usable (the importer does not own it, so it
  * is never disposed), and no ImportError or report may be produced for a cancellation.
  *
  * Three cases here once found defects, and the tests now guard the fixed behavior: (1) when
  * importGraph() under format "auto" peeks the head and the signal fires during the read that
- * completes it, the reader lock is still released, the stream cancelled and an async-generator
+ * completes it, the reader lock is still released, the stream canceled and an async-generator
  * input finalized; (2) a non-Error abort reason (a string, as AbortController.abort(reason)
  * allows) is rethrown as it is, never replaced by a DOMException; (3) an abort raised while a
  * single in-memory chunk is being parsed (from the sink or a callback) is honored by every
@@ -194,7 +194,7 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
             `${format}: an abort as the sniff peek completes still cancels the stream (no dangling reader)`,
             async () => {
                 // The abort lands on the read that completes peekHead()'s 8 KB head (src/registry.ts),
-                // before the importer iterates the replaying input; the stream must still be cancelled
+                // before the importer iterates the replaying input; the stream must still be canceled
                 // and released, or a File.stream() or fetch body is left open. (A file under 8 KB is
                 // read to its end by the peek, which releases the reader, so it is skipped.)
                 const ac = new AbortController();

@@ -1,6 +1,6 @@
 /**
  * The heartbeat issue, which the GitHub watchdog workflow (tools/githerd-watchdog.mjs) reads while
- * the dev machine may be off: githerd's first write opens one issue labelled `githerd-heartbeat`
+ * the dev machine may be off: githerd's first write opens one issue labeled `githerd-heartbeat`
  * and pins it; after that githerd rewrites its BODY (never a comment, so nobody is notified) every
  * 15 minutes, a cadence and not a timeout, and at once when a line other than the times changes.
  *

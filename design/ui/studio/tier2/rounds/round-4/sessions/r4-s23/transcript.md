@@ -20,7 +20,7 @@ Tooltip "Filters". Dev: "Yes, Filters. That's the word I wanted."
 
     real.mjs --step <session> --click "Filters"
 
-03.png: left panel switched to Data (friends.csv, 20 nodes, 41 edges; Filters +; Attributes: Nodes id, Edges weight). Right panel: "New filter step", Keep: "an attribute's value", Attribute: empty dropdown, "Add step" greyed. Dev: "Oh nice, it says 20 nodes, 41 edges, so I can count after. Keep an attribute's value -- the attribute is my runs column, weight. Let me pick it."
+03.png: left panel switched to Data (friends.csv, 20 nodes, 41 edges; Filters +; Attributes: Nodes id, Edges weight). Right panel: "New filter step", Keep: "an attribute's value", Attribute: empty dropdown, "Add step" grayed. Dev: "Oh nice, it says 20 nodes, 41 edges, so I can count after. Keep an attribute's value -- the attribute is my runs column, weight. Let me pick it."
 
 ## Step 3 -- open Attribute
 

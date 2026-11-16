@@ -1,5 +1,5 @@
 /**
- * @file Every layout in the catalogue, and every engine that can draw one, carries a description.
+ * @file Every layout in the catalog, and every engine that can draw one, carries a description.
  */
 
 import { assert, describe, it } from "vitest";

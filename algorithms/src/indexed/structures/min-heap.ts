@@ -97,7 +97,7 @@ export class IndexedMinHeap {
     }
 
     /**
-     * Remove and return the node with the smallest key. Undefined behaviour on an empty heap;
+     * Remove and return the node with the smallest key. Undefined behavior on an empty heap;
      * callers guard with `isEmpty()`.
      * @returns The node index
      */

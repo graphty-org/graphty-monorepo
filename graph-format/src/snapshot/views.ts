@@ -10,7 +10,7 @@
  * lets `edgeList().weights` alias `weights`, and so on, so `viewByteLength()` counts only the bytes a
  * view owns.
  *
- * Nothing here allocates an identity permutation that the snapshot has not materialised: view objects
+ * Nothing here allocates an identity permutation that the snapshot has not materialized: view objects
  * reach `arcToEdge` / `edgeToArc` through getters, so touching `coo()` on a directed identity
  * snapshot costs one `src` array and nothing else until `coo().arcToEdge` is read.
  */
@@ -59,7 +59,7 @@ export function identityPermutation(length: number): U32 {
 
 /**
  * The in-adjacency of a snapshot (design section 7.2): `ReverseView` with `fwdArc` (reverse arc k ->
- * forward arc) and `arcToEdge` (`arcToEdge[fwdArc[k]]`) materialised lazily. For an undirected
+ * forward arc) and `arcToEdge` (`arcToEdge[fwdArc[k]]`) materialized lazily. For an undirected
  * snapshot the forward arrays are shared (invariant I7), `fwdArc` is the identity (allocated on first
  * read) and `arcToEdge` is the snapshot's own array. For a directed snapshot whose permutation is the
  * identity, the reverse `arcToEdge` IS `fwdArc` (aliased, zero bytes).
@@ -107,7 +107,7 @@ export class ReverseAdjacency implements ReverseView {
     }
 
     /**
-     * Reverse arc k -> forward arc index; the identity for an undirected snapshot, materialised on first
+     * Reverse arc k -> forward arc index; the identity for an undirected snapshot, materialized on first
      * read outside any arena.
      * @returns the map, arcCount entries
      */
@@ -117,7 +117,7 @@ export class ReverseAdjacency implements ReverseView {
     }
 
     /**
-     * Logical edge of every reverse arc: `source.arcToEdge[fwdArc[k]]`, materialised on first read.
+     * Logical edge of every reverse arc: `source.arcToEdge[fwdArc[k]]`, materialized on first read.
      * Aliases `source.arcToEdge` when undirected and `fwdArc` when the forward permutation is the
      * identity.
      * @returns the map, arcCount entries
@@ -144,7 +144,7 @@ export class ReverseAdjacency implements ReverseView {
 
     /**
      * Bytes owned by this view (not shared with the snapshot's core): the reverse arrays when directed,
-     * a materialised identity `fwdArc`, and a gathered `arcToEdge`.
+     * a materialized identity `fwdArc`, and a gathered `arcToEdge`.
      * @returns the byte count
      */
     get ownedByteLength(): number {
@@ -165,7 +165,7 @@ export class ReverseAdjacency implements ReverseView {
     }
 
     /**
-     * The arrays this view has materialised so far, for checksums and byte accounting.
+     * The arrays this view has materialized so far, for checksums and byte accounting.
      * @returns the arrays, keyed by member name
      */
     materialised(): Readonly<Record<string, Uint32Array | Float32Array>> {
@@ -248,7 +248,7 @@ function expandRowPtr(rowPtr: U32, nodeCount: number, arcCount: number): U32 {
 /**
  * Compute the per-arc COO view (design section 7.2): `src` is the only new array; `dst` aliases
  * `colIdx`, `weights` aliases `weights`, and `arcToEdge` reaches the snapshot's array through a
- * getter (so an identity permutation is not materialised by building the view).
+ * getter (so an identity permutation is not materialized by building the view).
  * @param snapshot - the snapshot
  * @returns the COO view
  */
@@ -313,7 +313,7 @@ export function computeEdgeList(snapshot: GraphSnapshot): EdgeListView {
 /**
  * Wrap per-edge arrays as the edge list view of a snapshot (the shape `computeEdgeList()` returns;
  * also used to install carried arrays from the wire). `arc` reaches `edgeToArc` through a getter so
- * an identity permutation is not materialised by building the view.
+ * an identity permutation is not materialized by building the view.
  * @param snapshot - the snapshot
  * @param src - declared source of every edge, edgeCount entries
  * @param dst - declared target of every edge, edgeCount entries (colIdx itself when the permutation is the identity)

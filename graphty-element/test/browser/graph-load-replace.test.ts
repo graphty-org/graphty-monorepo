@@ -250,7 +250,7 @@ describe("the load CALLED last wins", () => {
         await graph.addNodes([{ id: "after" }]);
         openHeldRead();
 
-        // The cancelled edit resolves and adds nothing.
+        // The canceled edit resolves and adds nothing.
         await edit;
 
         assert.deepStrictEqual(ids(graph).nodes, ["after"]);

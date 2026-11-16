@@ -2,7 +2,7 @@
  * @file What attributes the graph's records carry, described as data -- and the one function that
  * writes them.
  *
- * An options form, a filter builder, a colour encoding and a column picker all need the same
+ * An options form, a filter builder, a color encoding and a column picker all need the same
  * four facts about every attribute: what it is called, what type its values are, how many
  * records actually carry it, and what a few of its values look like. Each of those is a walk
  * over the graph, so each of them is the element's to do once rather than every consumer's to do
@@ -148,7 +148,7 @@ function accumulate(accumulator: Accumulator, value: unknown, id?: string | numb
  *
  * A column of integers and fractions is a number column, not a mixed one -- that is one type of
  * thing measured two ways. A column of numbers and strings is genuinely mixed, and saying so is
- * what stops a colour scale being offered for it.
+ * what stops a color scale being offered for it.
  * @param types - the value types seen
  * @returns the attribute's type
  */
@@ -456,7 +456,7 @@ export function describeShownFigures(
  * One session-wide counter that moves whenever any input a set's resolution can read moves: an
  * attribute revision, a visibility or selection mask version, an execution token or a freeze.
  *
- * A memo keyed on it can never outlive an input it summarises, which is its whole job: a reader
+ * A memo keyed on it can never outlive an input it summarizes, which is its whole job: a reader
  * that saw the same tick twice knows nothing it could have read has changed in between.
  */
 export class InputTick {

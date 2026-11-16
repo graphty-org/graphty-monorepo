@@ -163,7 +163,7 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
-    /** True when `closenessCentrality` honours `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
+    /** True when `closenessCentrality` honors `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
     readonly harmonicCloseness?: boolean;
     betweennessCentrality?(
         s: GraphSnapshot,
@@ -187,7 +187,7 @@ export interface AlgorithmAccelerator {
  * The option shape of the power-iteration family until each one's `indexed.*` port lands and
  * brings its real option type (plan decision PD-2's "NOT TOUCHED" rows). It is DELIBERATELY not
  * `Record<string, unknown>`: these three are the members every one of those algorithms takes, so
- * an accelerator can honour them today and the type narrows rather than widens as ports arrive.
+ * an accelerator can honor them today and the type narrows rather than widens as ports arrive.
  * @public
  */
 export interface HitsOptionsLike {
@@ -277,13 +277,13 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * of the two paths differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
- * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
+ * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honor. An
  * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
  * those. webgpu-graph-algorithms runs synchronous passes (the rules of `labelPropagationSynchronous`),
  * so its partition can differ from the CPU port's, which visits nodes in a seeded random order.
  *
  * `breadthFirstSearch` with a `target` or an `arcOrder` runs the CPU port: a GPU BFS expands whole
- * levels and has no early stop and no neighbour order, so it would give a different result.
+ * levels and has no early stop and no neighbor order, so it would give a different result.
  *
  * `pageRank` and `personalizedPageRank` run the CPU port when `initialRanks` or
  * `convergenceNorm: "max"` is set: the accelerator members take neither. The accelerator is
@@ -302,7 +302,7 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * from the uniform start. Older webgpu-graph-algorithms releases iterate on `A`, which oscillates
  * forever on a bipartite component; current ones iterate on the port's shifted `A + cI` and stop at
  * the port's pass, but the dispatcher cannot tell the two apart, so a bipartite component still runs
- * the port. The kernel walks every parallel arc where the port counts a neighbour once. A directed
+ * the port. The kernel walks every parallel arc where the port counts a neighbor once. A directed
  * snapshot always runs the port, since a periodic strongly connected component oscillates on `A`.
  * The accelerator is called with `{ maxIterations, tolerance, weighted: false }` and its
  * unit-length vector is rescaled to [0, 1] exactly as the port rescales its own unless
@@ -587,7 +587,7 @@ function acceleratorAnswersEigenvector(s: GraphSnapshot, options: EigenvectorOpt
 }
 
 /**
- * Whether some connected component with at least one edge is bipartite, by two-colouring each
+ * Whether some connected component with at least one edge is bipartite, by two-coloring each
  * component breadth first. A self-loop is an odd cycle.
  * @param s - An undirected snapshot
  * @returns True when a component with an edge has no odd cycle
@@ -648,7 +648,7 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * false`) are lost to the accelerator's own rescaling, and a constant vector -- `alpha` 0, or the
  * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges when `alpha`
  * times the spectral radius is below 1; past that an accelerator iterating in f32 with no
- * per-iteration normaliser can overflow to Infinity, so such a graph goes to the port, which throws
+ * per-iteration normalizer can overflow to Infinity, so such a graph goes to the port, which throws
  * `ConvergenceError`. Options out of range are refused here first, as the port refuses them. The radius is bounded, in one pass over the arcs, by the largest
  * `sqrt(r_u * r_v)` over the arcs u -> v, where `r` is a node's in-arc total (absolute weights):
  * scale the in-arc matrix by `diag(sqrt(r))` and each row sum is at most that, by Cauchy-Schwarz.

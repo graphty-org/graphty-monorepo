@@ -80,7 +80,7 @@ interface ArrowHeadOptions {
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
     outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
-    fill?: string; // An open cap's inside colour (unset: the inside is left empty)
+    fill?: string; // An open cap's inside color (unset: the inside is left empty)
 }
 
 /**
@@ -184,19 +184,19 @@ function widened(mesh: Mesh, breadth: number): Mesh {
 
 /**
  * What an open cap draws besides its shape, each part of its batch's key since a batch holds one geometry and one inside
- * colour.
+ * color.
  *
  * AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz and
  * Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
  * createPatternedLine) over the cap's length. Unset, the cap keeps its own thin frame.
  *
- * AN OPEN CAP'S INSIDE (#7565), when given a colour, is filled inside its frame, as yEd fills a framed edge's
+ * AN OPEN CAP'S INSIDE (#7565), when given a color, is filled inside its frame, as yEd fills a framed edge's
  * arrowheads: the frame drawn as an outline (the cap's own thin one when it has no width), its inside apart from it.
  * @param type - The cap type; only open caps with an outline take either.
  * @param options - The cap's options.
  * @param length - The cap's length in scene units.
  * @param widthKey - The key so far.
- * @returns The frame's thickness in the cap's lengths, the inside's colour, and the key with both.
+ * @returns The frame's thickness in the cap's lengths, the inside's color, and the key with both.
  */
 function openLook(
     type: string,
@@ -546,7 +546,7 @@ void main() {
      *   `finalWorld` and so draws thin instances as it drew instanced meshes
      * - everything else is the straight solid 3D line
      *
-     * A slot is sixteen floats; the mesh and the material are the batch's, so the colour, the
+     * A slot is sixteen floats; the mesh and the material are the batch's, so the color, the
      * width and the opacity stay folded into the key, and there is one batch per appearance --
      * except with `byShape`, below.
      *
@@ -717,7 +717,7 @@ void main() {
     }
 
     /**
-     * The batch a plain straight line between node centres is pulled into, drawn from the row table
+     * The batch a plain straight line between node centers is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
      * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
@@ -868,7 +868,7 @@ void main() {
      * In 3D mode, uses shader-based billboard rendering.
      *
      * The head is a thin-instance slot in a batch its scene shares with every head of the same
-     * shape (and, where the material holds them, the same colour and opacity), so a graph's
+     * shape (and, where the material holds them, the same color and opacity), so a graph's
      * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
      * See `ArrowCapBatch`.
      * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
@@ -907,7 +907,7 @@ void main() {
 
         // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
         // texture, so it is a batch per picture and is laid in the XY plane turned along its line in
-        // 3D as in 2D: the billboard shader draws a single colour and no texture.
+        // 3D as in 2D: the billboard shader draws a single color and no texture.
         if (options.type === "image") {
             const src = options.image;
             if (src === undefined || src === "") {
@@ -971,7 +971,7 @@ void main() {
                   );
 
         if (is2D) {
-            // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
+            // StandardMaterial (no shader, XY rotation). Color and opacity live on the material,
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
@@ -1004,7 +1004,7 @@ void main() {
             return this.createSphereDot(length, options.color, opacity, scene);
         }
 
-        // 3D mode: shader-based billboard arrows; size and colour are per instance.
+        // 3D mode: shader-based billboard arrows; size and color are per instance.
         return FilledArrowRenderer.createArrowCap(
             `${arrowType}${openKey}`,
             () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
@@ -1020,7 +1020,7 @@ void main() {
     }
 
     /**
-     * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
+     * A 3D sphere-dot arrowhead: an unlit sphere, batched by color and opacity, sized by the
      * slot's own scale.
      * @param length - Arrow length in world units
      * @param color - Arrow color as hex string
@@ -1236,7 +1236,7 @@ void main() {
                 // "convert back from scaled width to match 3D line thickness".
                 width: options.width / 40,
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
-                // Babylon otherwise binds one colours texture shared by every engine on the page
+                // Babylon otherwise binds one colors texture shared by every engine on the page
                 // and disposed with whichever engine goes first. WebGL tolerates the stale
                 // binding; WebGPU refuses the draw ("Trying to bind a null gpu texture").
                 colorsTexture: this.emptyColorsTexture(scene),
@@ -1256,7 +1256,7 @@ void main() {
     }
 
     /**
-     * An empty colours texture for one animated line, disposed with it. Not shared: the line's
+     * An empty colors texture for one animated line, disposed with it. Not shared: the line's
      * mesh disposes its material's textures when it goes, so a shared one would be disposed under
      * every other line still using it.
      * @param scene - The scene the line is drawn in.
@@ -1333,7 +1333,7 @@ void main() {
         const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
-            // switch for "do not animate", and honouring it is what lets a visual baseline of an
+            // switch for "do not animate", and honoring it is what lets a visual baseline of an
             // animated edge exist at all: the line is still built and drawn by this renderer, so
             // a defect in it still shows up in the picture, but the picture is the same one every
             // time. Stopping without resetting would have made every snapshot differ by however

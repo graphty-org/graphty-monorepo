@@ -85,7 +85,7 @@ export function weightedEdges(edges: readonly EdgeSpec[], kind: WeightKind, seed
 
 /**
  * PD-27's first counterexample: the source `k` joined to `k - 1` at weight 1, then `k - 1, k - 2, ..., 0` chained at
- * weight 0 (undirected), so every plateau node's SMALLEST tight in-arc comes from its deeper neighbour and the
+ * weight 0 (undirected), so every plateau node's SMALLEST tight in-arc comes from its deeper neighbor and the
  * smallest-attaining-arc rule walks `j -> j - 1 -> ... -> 0 -> 1 -> 0` forever, while the plateau rule walks
  * `j -> j + 1 -> ... -> k`.
  * @param k - the source and the plateau's length
@@ -247,7 +247,7 @@ export async function ssspReport(ctx: GpuContext): Promise<CheckReport> {
     const uniform = snapshotOf(weightedEdges(gridEdges(30, 30), "uniform", 11), { label: "sssp-report-uniform" });
     reports.push(...(await runReports(ctx, "grid30-uniform", uniform, 0, undefined, {})).reports);
     ctx.release(uniform);
-    // the <= case: an integer cutoff some node attains exactly (the centre's distance from the corner)
+    // the <= case: an integer cutoff some node attains exactly (the center's distance from the corner)
     const integer = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 12), { label: "sssp-report-integer" });
     const cutoff = dijkstraOracle(integer, 0, "f32").dist[465];
     reports.push(...(await runReports(ctx, "grid30-integer-cutoff", integer, 0, { cutoff }, {})).reports);

@@ -74,13 +74,13 @@ Paths below are relative to `engineer/`. Screen numbers are the screenshot file 
   right as if a column were kept for it: two different behaviors for the same key.
 - Owner: graphty (where the key sits and what the frame leaves room for).
 
-### 2 -- Two field looks side by side: grey filled and white outlined
+### 2 -- Two field looks side by side: gray filled and white outlined
 
 - Screens: a number card, a groups analysis before it runs, the size popover of a number column.
-- Evidence: `1200x900/sessions/own-file-1200x900/17.png` ("Values from / Values to" grey filled,
+- Evidence: `1200x900/sessions/own-file-1200x900/17.png` ("Values from / Values to" gray filled,
   "Size from / Size to" white outlined, in one popover); `1200x900/sessions/first-use-1200x900/29.png`
-  (Resolution grey filled beside the white outlined Weight select);
-  `1200x900/sessions/own-file-1200x900/07.png` (the number card's 2 and 52 grey) against
+  (Resolution gray filled beside the white outlined Weight select);
+  `1200x900/sessions/own-file-1200x900/07.png` (the number card's 2 and 52 gray) against
   `first-use-1200x900/07.png` (Size and Color white outlined).
 - compact-mantine's TextInput and NumberInput default to filled; the app sets `variant="outlined"`
   on some fields (`PropertyRow.tsx`, `ValueField.tsx`, `BindingPopover.tsx` near line 1148,
@@ -103,7 +103,7 @@ Paths below are relative to `engineer/`. Screen numbers are the screenshot file 
 
 - Screens: a layer with a condition at rest; a layer with an Edge tab condition at rest.
 - Evidence: `1200x900/sessions/first-use-1200x900/21.png` (node chip: white, outlined, one line,
-  hugs its text) against `first-use-1200x900/38.png` (edge chip: grey fill, full width, wraps
+  hugs its text) against `first-use-1200x900/38.png` (edge chip: gray fill, full width, wraps
   "shared_chapters 1 to 31, / 254 edges" onto two lines though it fits on one); same at 900 x 700,
   `first-use-900x700/38.png`. Owner: graphty.
 

@@ -48,7 +48,7 @@ Replayed the earlier pass's route; every check point matched. A new layer's Canc
 back "installed before 2000", 3 of 11), then Data, Add filter, `telemetry`, yes, Cancel: no card
 left, no filter mark, the table lists all 11
 (tmp/design-studio/tier5/r1d1/pilot/T70B/touched-31/04.png). The Undo button names the layer's last
-condition edit, not the cancelled card (07.png); Ctrl+Z undoes that edit (Which nodes "installed",
+condition edit, not the canceled card (07.png); Ctrl+Z undoes that edit (Which nodes "installed",
 11 of 11, 08.png) and Ctrl+Shift+Z redoes it (09.png). No card comes back.
 
 ## touched-39 (success path)

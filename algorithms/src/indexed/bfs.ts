@@ -57,13 +57,13 @@ export function treePaths(
     };
 }
 
-/** The neighbour-order option the order-sensitive traversals share. @public */
+/** The neighbor-order option the order-sensitive traversals share. @public */
 export interface ArcOrderOption {
     /**
      * A permutation of the arc indices, `arcCount` long, whose slice `[rowPtr[u], rowPtr[u + 1])`
-     * lists node `u`'s arcs in the order to try them. The default is row order (ascending neighbour
-     * index). A caller that must reproduce a traversal over another neighbour order -- a legacy
-     * `Graph` hands out neighbours in insertion order -- passes that order here.
+     * lists node `u`'s arcs in the order to try them. The default is row order (ascending neighbor
+     * index). A caller that must reproduce a traversal over another neighbor order -- a legacy
+     * `Graph` hands out neighbors in insertion order -- passes that order here.
      */
     readonly arcOrder?: U32 | undefined;
 }
@@ -73,7 +73,7 @@ export interface BfsOptions extends ArcOrderOption {
     /** Stop expanding at this depth; unbounded when omitted. */
     readonly maxDepth?: number | undefined;
     /**
-     * Stop when this node (an index, or `{ id }`) is taken off the queue, before its neighbours are
+     * Stop when this node (an index, or `{ id }`) is taken off the queue, before its neighbors are
      * expanded. Every node discovered by then stays in `order`; the target's own position in
      * `order` ends the prefix of nodes that were expanded.
      * @throws RangeError when it is not a node index
@@ -161,8 +161,8 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
 }
 
 /**
- * Breadth-first search over out-neighbours. Takes any `AdjacencyView`, so `s.reverse()` gives an
- * in-neighbour BFS with no extra code.
+ * Breadth-first search over out-neighbors. Takes any `AdjacencyView`, so `s.reverse()` gives an
+ * in-neighbor BFS with no extra code.
  * @param g - The adjacency to traverse
  * @param startNode - The node to start from: its index, or `{ id }`
  * @param options - Traversal options
@@ -229,7 +229,7 @@ export interface DirectionOptimizedBfsOptions {
 
 /**
  * On an undirected snapshot, the arc `u -> v` of the same logical edge as arc `a` (`v -> u`): the row of `u` is
- * sorted by neighbour, so a binary search finds `v`'s run of parallel arcs and the one carrying the same edge.
+ * sorted by neighbor, so a binary search finds `v`'s run of parallel arcs and the one carrying the same edge.
  * @param s - An undirected snapshot
  * @param a - An arc out of `v`
  * @param u - The arc's target
@@ -255,7 +255,7 @@ function twinArc(s: GraphSnapshot, a: number, u: number, v: number): number {
     return lo;
 }
 
-/** The arrays a direction-optimising search fills, indexed by node (`order` by visit). */
+/** The arrays a direction-optimizing search fills, indexed by node (`order` by visit). */
 interface BfsArrays {
     parent: Uint32Array;
     predArc: Uint32Array;
@@ -280,7 +280,7 @@ function frontierArcCount(rowPtr: Uint32Array, order: Uint32Array, levelStart: n
 }
 
 /**
- * A bottom-up step: every unvisited node takes its lowest-index in-neighbour at depth `d` as parent.
+ * A bottom-up step: every unvisited node takes its lowest-index in-neighbor at depth `d` as parent.
  * @param s - The snapshot
  * @param reverse - The snapshot's reverse view
  * @param st - The search's arrays
@@ -347,9 +347,9 @@ function topDownStep(
 }
 
 /**
- * Direction-optimising breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
+ * Direction-optimizing breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
  * step expands the frontier's out-arcs, a bottom-up step has every unvisited node look for a
- * frontier node among its in-neighbours over `s.reverse()`, and the search switches between the
+ * frontier node among its in-neighbors over `s.reverse()`, and the search switches between the
  * two by the arcs each would read. Both steps give a node the LOWEST-index frontier node that reaches it as its
  * parent, so the result does not depend on which steps ran: `depth` equals `breadthFirstSearch`'s,
  * and `order` lists the visited nodes level by level, ascending within a level.

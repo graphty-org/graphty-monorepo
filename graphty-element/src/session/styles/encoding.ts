@@ -36,7 +36,7 @@
  *   and a departure a legend prints. Betweenness has zeros on every real graph, so this is the
  *   common case and not the edge case.
  * - An element a run never measured carries no value, and no value is painted for it. Not a muted
- *   grey, not a default. That is the rule that stops an algorithm colouring elements it has
+ *   gray, not a default. That is the rule that stops an algorithm coloring elements it has
  *   nothing to say about, and asking for the opposite is `missing: { value }`, which is written
  *   down in the layer so an export explains itself.
  *
@@ -49,7 +49,7 @@
  * painted. That boundary is the whole reason the expression evaluator does not have to come back.
  *
  * WHAT THIS FILE DOES NOT KNOW ABOUT ANY PARTICULAR SCALE. It never names one. Whether a scale
- * reads a numeric domain comes from its catalogue entry; whether it reads the column's categories
+ * reads a numeric domain comes from its catalog entry; whether it reads the column's categories
  * or its cut points is discovered by asking {@link groupCount} the same question twice; and
  * whether a domain can be placed at all is discovered by asking the scale about its own
  * endpoints. A list of logarithmic scale names kept here would be a second copy of something
@@ -163,7 +163,7 @@ export interface PreparedBinding {
     readonly path: Path | null;
     /** The scale's name, or null when it is a literal. */
     readonly scale: string | null;
-    /** The palette, when the channel carries a colour and the binding is a rule. */
+    /** The palette, when the channel carries a color and the binding is a rule. */
     readonly palette: PaletteDescriptor | null;
     /** The extent values were read against, or null when the scale reads no numeric domain. */
     readonly domain: readonly [number, number] | null;
@@ -215,7 +215,7 @@ export interface PreparedBinding {
     paint(value: unknown): EncodedValue | undefined;
     /**
      * What the encoding would paint a value if it were not hidden: what a legend shows beside a
-     * hidden row, so the reader sees which colour comes back when it is shown again.
+     * hidden row, so the reader sees which color comes back when it is shown again.
      * @param value - The value.
      * @returns The value to paint, or undefined when the encoding paints nothing for it.
      */
@@ -452,7 +452,7 @@ function readCategory(value: unknown): string | null {
 /**
  * Whether a value carries red, green and blue components.
  * @param value - The value to test.
- * @returns True when it is a colour written as components rather than as a string.
+ * @returns True when it is a color written as components rather than as a string.
  */
 function isRgba(value: unknown): value is Rgba {
     return typeof value === "object" && value !== null && "r" in value && "g" in value && "b" in value;
@@ -568,7 +568,7 @@ function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): Co
  * The value at a percentile of a sorted column.
  * @param sorted - The finite values, ascending.
  * @param percentile - Where to cut, from 0 to 100.
- * @returns The value there, interpolated between its neighbours, or NaN for an empty column.
+ * @returns The value there, interpolated between its neighbors, or NaN for an empty column.
  */
 function percentileValue(sorted: readonly number[], percentile: number): number {
     if (sorted.length === 0) {
@@ -787,7 +787,7 @@ interface SettledCategories {
  * broken by name, so preparing the same column twice gives the same order twice.
  *
  * `other.threshold` is a COUNT: a category carried by fewer elements than that is lumped. It is
- * also what rescues an encoding with more groups than the palette has colours, because the
+ * also what rescues an encoding with more groups than the palette has colors, because the
  * palette never wraps. `keep` is the other rescue, an overflow policy's: past that many groups,
  * the smallest are lumped whatever their size.
  * @param facts - What the column held.
@@ -942,11 +942,11 @@ function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberForma
 }
 
 /**
- * Read a colour a layer wrote.
- * @param value - A colour as a string, or as components.
+ * Read a color a layer wrote.
+ * @param value - A color as a string, or as components.
  * @param what - What the value was for, so a refusal can name it.
- * @returns The colour with its numbers worked out once.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` when the value is not a colour.
+ * @returns The color with its numbers worked out once.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the value is not a color.
  */
 function requireColor(value: unknown, what: string): ColorValue {
     const parsed = typeof value === "string" || isRgba(value) ? toColorValue(value) : null;
@@ -1068,7 +1068,7 @@ function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: 
  * @param descriptor - The channel.
  * @param value - The value as it was authored.
  * @param what - What the value was for, so a refusal can name it.
- * @returns The value in the form a repaint reads, which for a colour means its components.
+ * @returns The value in the form a repaint reads, which for a color means its components.
  * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
  */
 function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
@@ -1078,7 +1078,7 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
 
     switch (accepts) {
         case "color":
-            // An effect written off carries the one off colour, which the painter draws as nothing.
+            // An effect written off carries the one off color, which the painter draws as nothing.
             return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
         case "number":
             return authoredNumber(descriptor, value, what, wrongKind);
@@ -1246,7 +1246,7 @@ function combineFactor(value: ChannelValue, what: string): number {
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
  * interpolate. A binding that names its values with `map` takes them as they are on every
  * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
- * painted the map's colours while the legend described a ramp nobody drew.
+ * painted the map's colors while the legend described a ramp nobody drew.
  * @param kind - The kind of value the channel accepts.
  * @param binding - The binding, read for `map`.
  * @returns The scale's name.
@@ -1380,11 +1380,11 @@ interface Painter {
 }
 
 /**
- * Read the missing policy a colour ramp takes.
+ * Read the missing policy a color ramp takes.
  * @param missing - The binding's missing policy.
  * @param descriptor - The channel, named in a refusal.
  * @returns The policy in the form a ramp reads.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` when a number was offered as a colour.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when a number was offered as a color.
  */
 function colorMissing(missing: RuleBinding["missing"], descriptor: ChannelDescriptor): RampSpec["missing"] {
     if (missing === undefined || missing === "skip") {
@@ -1402,12 +1402,12 @@ function colorMissing(missing: RuleBinding["missing"], descriptor: ChannelDescri
 }
 
 /**
- * Build the per-value colour overrides a binding declared.
+ * Build the per-value color overrides a binding declared.
  * @param binding - The rule binding, read for `map` and `other`.
  * @param lumped - The categories the "other" bucket absorbed.
  * @param descriptor - The channel, named in a refusal.
  * @returns The overrides, or null when the binding declared none.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` when an override is not a colour.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when an override is not a color.
  */
 function colorOverrides(
     binding: RuleBinding,
@@ -1418,7 +1418,7 @@ function colorOverrides(
     const { other } = binding;
 
     if (lumped.length > 0) {
-        // Folded by an overflow policy with no bucket declared, the lumped groups get the grey.
+        // Folded by an overflow policy with no bucket declared, the lumped groups get the gray.
         const color = requireColor(
             other?.value ?? OTHER_GROUP_COLOR,
             `The colour the "other" bucket paints on ${descriptor.channel}`,
@@ -1441,16 +1441,16 @@ function colorOverrides(
 }
 
 /**
- * Build the painter for a channel that carries a colour.
+ * Build the painter for a channel that carries a color.
  *
  * The ramp owns the scale call and the palette lookup, because it is the one place that turns a
- * position into a colour without building a string per element.
+ * position into a color without building a string per element.
  * @param descriptor - The channel.
  * @param binding - The rule binding.
  * @param parts - What preparing it worked out.
  * @returns The painter.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` for a palette or a missing colour that is not
- *   one, and `E_CAP_EXCEEDED` when there are more groups than the palette has colours.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for a palette or a missing color that is not
+ *   one, and `E_CAP_EXCEEDED` when there are more groups than the palette has colors.
  */
 function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
     const { bins, categories, domain, exponent, midpoint, reverse, thresholds } = parts.context;
@@ -1554,7 +1554,7 @@ function missingValue(descriptor: ChannelDescriptor, binding: RuleBinding): Enco
 }
 
 /**
- * Build the per-value overrides a binding declared, for a channel that does not carry a colour.
+ * Build the per-value overrides a binding declared, for a channel that does not carry a color.
  * @param binding - The rule binding, read for `map` and `other`.
  * @param lumped - The categories the "other" bucket absorbed.
  * @param descriptor - The channel, named in a refusal.
@@ -1619,7 +1619,7 @@ function withChoices(descriptor: ChannelDescriptor, choices: readonly string[] |
 }
 
 /**
- * Build the painter for every channel that does not carry a colour.
+ * Build the painter for every channel that does not carry a color.
  * @param declared - The channel, before a binding's `choices` narrow its list.
  * @param binding - The rule binding.
  * @param parts - What preparing it worked out.
@@ -1712,9 +1712,9 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
  * Build the painter for the second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge
  * line patterns).
  *
- * Group i -- largest first, the order the colour half numbers them in -- is drawn in value
- * floor(i / N) of the list, N being the palette's capacity, so each full cycle of colours moves to
- * the next value and two groups that share a colour never share it. A group with its own entry in
+ * Group i -- largest first, the order the color half numbers them in -- is drawn in value
+ * floor(i / N) of the list, N being the palette's capacity, so each full cycle of colors moves to
+ * the next value and two groups that share a color never share it. A group with its own entry in
  * the binding's `map` keeps that entry. A group folded into "other" is not given a value at all.
  * @param binding - The rule binding, read for the palette whose capacity sets the cycle.
  * @param parts - What preparing it worked out.
@@ -1742,11 +1742,11 @@ function cyclePainter(binding: RuleBinding, parts: AssemblyParts, list: readonly
 }
 
 /**
- * The second half of a colour binding whose overflow cycles a second cue: the node shape binding
+ * The second half of a color binding whose overflow cycles a second cue: the node shape binding
  * of `overflow: "shape"` on `node.color`, the edge pattern binding of `overflow: "pattern"` on
  * `edge.color`. Both halves read the same value and count the same palette, so a group that shares
- * a colour with another never shares its shape or pattern.
- * @param channel - The colour channel.
+ * a color with another never shares its shape or pattern.
+ * @param channel - The color channel.
  * @param binding - Its binding.
  * @returns The other channel and its binding, or null when the binding cycles nothing.
  * @since 3.27.0
@@ -1780,7 +1780,7 @@ export function overflowHalf(channel: Channel, binding: Binding): readonly [Chan
 }
 
 /**
- * How many groups the binding's colours can name: its own stops, else its palette's capacity.
+ * How many groups the binding's colors can name: its own stops, else its palette's capacity.
  * @param binding - The rule binding.
  * @returns The capacity, or null when nothing folds.
  */
@@ -2383,8 +2383,8 @@ export interface BindingPreview {
     /** What an element with no value is painted, or null when it is left to the layers beneath. */
     readonly noValuePaints: EncodedValue | null;
     /**
-     * The palette painting a colour channel: a catalogue palette's id, `"custom"` for a binding
-     * carrying its own stops, null on a channel that carries no colour.
+     * The palette painting a color channel: a catalog palette's id, `"custom"` for a binding
+     * carrying its own stops, null on a channel that carries no color.
      * @since 3.26.0
      */
     readonly palette: PaletteId | null;
@@ -2865,7 +2865,7 @@ export interface StyleSequence {
      * binding cycles none.
      */
     readonly cue: { readonly channel: Channel; readonly values: readonly (EncodedValue | undefined)[] } | null;
-    /** The palette painting a colour channel, `"custom"` for its own stops, null otherwise. */
+    /** The palette painting a color channel, `"custom"` for its own stops, null otherwise. */
     readonly palette: PaletteId | null;
 }
 
@@ -2897,7 +2897,7 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     const descriptor = requireChannel(channel);
     const count = Math.max(0, Math.floor(options.count));
     const numeric = descriptor.accepts === "number";
-    // Items are groups for a colour or a list value, amounts for a number. The scale is named here
+    // Items are groups for a color or a list value, amounts for a number. The scale is named here
     // because a map keyed by item position would otherwise default a number to "passthrough".
     const binding: RuleBinding =
         options.binding.scale === undefined

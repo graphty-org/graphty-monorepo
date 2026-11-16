@@ -72,10 +72,10 @@ Tom: "'Attribute' -- not my word, but 'name' is plain enough. I want their names
 
 Command: `--step --click "name"` -> 07.png
 
-Saw: names appeared above the dots straight away: Blacheville, Fameuil, Favourite, Myriel,
+Saw: names appeared above the dots straight away: Blacheville, Fameuil, Favorite, Myriel,
 Napoleon, Old Man, Mlle Baptistine and so on. Very small and thin type, hard on my eyes, and in
 the crowded middle they run into each other. The panel row now reads "Aa Above / Abc name" and
-underneath, small grey: "77 labels, 7 hidden", with a checkbox "Show all labels".
+underneath, small gray: "77 labels, 7 hidden", with a checkbox "Show all labels".
 
 Tom: "That's names, good. But it says 7 hidden -- I was asked for every character, and I count
 things. 77 is all of them, 7 not showing. There's a box 'Show all labels'. Tick it."
@@ -103,14 +103,14 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s12`
 - **How easy, 1 (very difficult) to 7 (very easy):** 5.
 - **What got in the way:**
     - My first guess was the "Style" tab on the right while nothing was picked. It showed background
-      colour, "Method", "Spring length" and "Gravity" -- nothing about names. I only found "Label"
+      color, "Method", "Spring length" and "Gravity" -- nothing about names. I only found "Label"
       after clicking "Everything" on the left, and I clicked that on a hunch because the word
       sounded like "all the dots". If that hunch had not worked I would have been at my second
       failure.
     - Two "Style" tabs that show different things depending on what is picked on the left. I did
       not know the left side was choosing what the right side talks about.
     - After I picked "name", it quietly left 7 names off ("77 labels, 7 hidden"). I only caught it
-      because I read counts. The note is small grey text; someone less fussy would have thought
+      because I read counts. The note is small gray text; someone less fussy would have thought
       they were done.
     - "Attribute" and "Pick an attribute" -- not my words; luckily "name" was in the list.
     - The names are very small, thin type. In the busy middle they sit on top of each other and I

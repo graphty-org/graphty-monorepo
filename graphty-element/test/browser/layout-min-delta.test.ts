@@ -8,7 +8,7 @@
  * stop" did nothing.
  *
  * What it means here: once a whole frame moves every node less than `minDelta`, the layout has
- * arrived and stops. Zero -- the default -- switches the threshold off, which is the behaviour
+ * arrived and stops. Zero -- the default -- switches the threshold off, which is the behavior
  * every existing graph already has.
  */
 

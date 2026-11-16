@@ -1957,7 +1957,7 @@ export function arrowheadEdge(
             size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
     );
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
-    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
+    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbor's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
     // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
     // spans its middle (gml-synthetic-coverage, 29->40).
@@ -4026,7 +4026,7 @@ export function associate(
 
     // ---- labels by geometry: graphty's label text near the node it belongs to. Every line goes to
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
-    // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
+    // a neighbor's line that sits nearer the neighbor (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
     const wanting = nodeList
         .filter((n) => n.label === null)
@@ -4127,7 +4127,7 @@ export function associate(
             apartAsGraphty(w.picked, guideById.get(w.n.id)?.label ?? null),
         );
     }
-    // one guide edge per pair, a labelled one where parallel edges are not all labelled
+    // one guide edge per pair, a labeled one where parallel edges are not all labeled
     const guideEdges = new Map<string, (typeof guide.edges)[number]>();
     for (const e of guide.edges) {
         const k = `${e.source}\u0000${e.target}`;
@@ -4956,7 +4956,7 @@ function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
 /**
  * graphty's groups that are containers: drawn, holding two or more nodes, and at least twice the
- * area of the largest of them. A node that merely covers its neighbours in a dense drawing holds
+ * area of the largest of them. A node that merely covers its neighbors in a dense drawing holds
  * them too, but is no box drawn around them.
  * @param guide - graphty's drawing
  * @returns the groups
@@ -5085,7 +5085,7 @@ function spotsOf(guideNodes: readonly PNode[], predict: Predict): Map<PNode, Non
         return at === null ? [] : [{ n, at }];
     });
     byId.sort((a, b) => compareIds(a.n.id, b.n.id));
-    // in buckets of a pixel, so each node is compared with its neighbours only
+    // in buckets of a pixel, so each node is compared with its neighbors only
     const bucket = new Map<string, { x: number; y: number }[]>();
     const key = (x: number, y: number): string => `${String(Math.floor(x))},${String(Math.floor(y))}`;
     for (const { n, at } of byId) {

@@ -25,7 +25,7 @@ import {
 } from "./graph-io-import.js";
 import { readOrRefuse, urlTail } from "./source-bytes.js";
 
-/** The CSV shapes the reader can be told to read, or recognises when it is not told. */
+/** The CSV shapes the reader can be told to read, or recognizes when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
 
 /**
@@ -278,7 +278,7 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
      * The column holding the node an edge starts at.
      *
      * Named `edgeSource` rather than `sourceColumn` so that ONE pair of option names describes the
-     * endpoints for every format the element reads. The catalogue used to advertise
+     * endpoints for every format the element reads. The catalog used to advertise
      * `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/`targetColumn` for CSV and nothing
      * at all for the other five, which is three names for one fact.
      */
@@ -340,7 +340,7 @@ export class CSVDataSource extends DataSource {
 
     /**
      * Fetches and parses CSV data into graph chunks.
-     * Recognises a Neo4j file from its header; every other file is read as the variant asked for,
+     * Recognizes a Neo4j file from its header; every other file is read as the variant asked for,
      * or as whatever table its header describes.
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */

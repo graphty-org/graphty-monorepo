@@ -9,7 +9,7 @@ data analysis or visualization, and that the second round of the object-first de
 
 - **Key function.** Either (a) required for the app to work end to end: getting data in and out,
   saving and reopening work, undo, finding things, moving around the canvas, selecting, settings
-  that change behaviour, errors and recovery, large data; or (b) a data-analysis or visualization
+  that change behavior, errors and recovery, large data; or (b) a data-analysis or visualization
   feature: algorithms, filters, paths, comparison, time, layouts, styling, labels, legends, 3D and
   VR, exporting pictures and data, notes. Onboarding, wizards, suggestion cards and tips are not
   key and are not listed.
@@ -39,7 +39,7 @@ drawn); each is changed by exactly one cluster.
 | 3. Editing and joining data | 11 | 33-42 | revision.md 2.4 Dataset Data tab, node data edits, Import options sheet |
 | 4. History, errors and recovery | 6 | 43-48 | revision.md section 4 run states and failure states; object-model.md delete rules |
 | 5. Find, navigate and select | 15 | 49-58 | revision.md 1.5 find and framing pill, 3.3 selection, 6.2 Views, 2.4 several-elements and edge inspectors |
-| 6. Filters, sets and paths | 10 | 59-68 | revision.md 3.4 Filter, Path and Neighbours tools; 2.4 Set Define and Members tabs; several-objects inspector |
+| 6. Filters, sets and paths | 10 | 59-68 | revision.md 3.4 Filter, Path and Neighbors tools; 2.4 Set Define and Members tabs; several-objects inspector |
 | 7. Analysis results, time and comparison | 16 | 69-82 | revision.md 2.4 Measure and Grouping tabs, Record tab, Findings; 3.5 run scope and batch; 6.1 over time; 6.5 Assistant; 6.6 notes; 6.7 compare |
 | 8. Layout, styling, export and presentation | 19 | 83-100 | revision.md 2.4 Dataset Layout and Canvas tabs, section 5 styling, 6.3 video, 6.4 VR, 6.8 Export menu, 6.9 labels and hover |
 
@@ -74,9 +74,9 @@ screens instead of "none".
 | Parsing options before the first load (separator, quote, header row, skip lines, encoding, JSON paths, format variant) | app works | Previous app plan; workflows W18, W22; screens.md screen 14 | A semicolon CSV or nested JSON otherwise fails or loads as garbage | Text only: one sentence, fields not listed, not drawn | 14, 25 | Screen 25 (Options open; JSON options inset); import.md 2.7 |
 | Import that hits unreadable rows: show the bad lines, fix the separator, or skip rows | app works | Previous app plan; workflow W18 | Decides whether the data gets in at all | Absent | 25 | Screen 25 (12 unreadable rows, Load and skip); import.md 2.8 |
 | A load that fails entirely (unreadable file, unknown format, no source or target column, network error) | app works | Previous app plan; workflows W01, W18; coverage.md 10.1 | The app must stay usable and say why | Absent | 27 | Screen 27 (error in the Welcome sheet, in-dialog failure inset, red chip); import.md 2.9 |
-| Load progress with Cancel for a large file | app works | revision.md 1.6 (#296); workflows W01, W18 | The case where a reader waits and may need to stop | Text only: one status-bar string | 28 | Screen 28 (centred card, pending name, Cancel in three places); import.md 2.10 |
+| Load progress with Cancel for a large file | app works | revision.md 1.6 (#296); workflows W01, W18 | The case where a reader waits and may need to stop | Text only: one status-bar string | 28 | Screen 28 (centered card, pending name, Cancel in three places); import.md 2.10 |
 | A file above the render ceiling (the most nodes the app draws at once): choose a subset before loading, with memory estimates | app works | Previous app plan; cybersecurity and ML-engineer personas | The normal case for those personas | Absent: only an after-the-fact "Drawing N of M" row | 29 | Screen 29 (choose a subset, each with its estimate); import.md 2.11 |
-| Large-graph state: "Drawing N of M", labels capped, hover off, a Performance mode switch | app works | Previous app plan; workflows W07, W10 (#302) | Tells the reader only part of the graph is shown, and what to do | Text only; the largest drawn graph has 1,204 nodes | 30 | Screen 30 (amber limit chip, Performance mode, VR greyed with its reason); import.md 2.12 |
+| Large-graph state: "Drawing N of M", labels capped, hover off, a Performance mode switch | app works | Previous app plan; workflows W07, W10 (#302) | Tells the reader only part of the graph is shown, and what to do | Text only; the largest drawn graph has 1,204 nodes | 30 | Screen 30 (amber limit chip, Performance mode, VR grayed with its reason); import.md 2.12 |
 | Load from a source that needs a connection (a Neo4j server and query; a gene list sent to STRING) | app works | Workflows W13, W20; Figma; coverage.md section 13 | The only way in for those workflows | Absent: proposed in coverage.md, never adopted | 1, 31 | Screens 1 and 31 (Neo4j; failed test and STRING insets); import.md 2.13 |
 | Reload a URL-backed dataset and recover when the source cannot be reached, keeping the last good copy | app works | End-to-end walkthrough; screens.md screen 2 Reload row | Refreshing from a network makes failure likely | Absent | 32 | Screen 32 (red failure under the Source row, red chip); import.md 2.14 |
 
@@ -90,11 +90,11 @@ screens instead of "none".
 | Map identifiers (for example gene symbol to UniProt) so a joined table matches | app works | Previous app plan "Map identifiers" | Without it a join matches 0 rows when id systems differ | Absent | 37 | Screen 37 (Map identifiers open, 318 of 340 matched); data-editing.md section 8 |
 | Edit one attribute value in a table cell or the node's Attributes tab | app works | Previous app plan; workflows W09, W13 (#297) | Correcting data is basic data work | Absent | 39 | Screen 39 (the cell in edit mode; committed result and wrong-type error insets); data-editing.md section 5 |
 | Column operations: rename, change the detected type, fill empty values, delete, find and replace, split | app works | Previous app plan; end-to-end walkthrough | A date read as text breaks the timeline; numbers read as text break sizing | Absent | 36 | Screens 35 (Edit group) and 36 (Change type); data-editing.md section 4 |
-| Column "..." menu drawn open (Colour by, Size by, Shape by, Filter by, Group by, Label by, Set as weight or label) | visualization | revision.md 2.4; workflows W20, W24 (#190) | The only drawn way to encode by a raw data column | Entry only: closed "..." on screen 10 | 35 | Screen 35 (dark menu, four groups, disabled items with reasons); data-editing.md section 3 |
+| Column "..." menu drawn open (Color by, Size by, Shape by, Filter by, Group by, Label by, Set as weight or label) | visualization | revision.md 2.4; workflows W20, W24 (#190) | The only drawn way to encode by a raw data column | Entry only: closed "..." on screen 10 | 35 | Screen 35 (dark menu, four groups, disabled items with reasons); data-editing.md section 3 |
 | Add a computed column from a formula | analysis | Previous app plan; workflows W23, W24 | Needed for a combined score of two measures | Entry only: a menu row name | 38 | Screen 38 (code field; error and completion inset); data-editing.md section 9 |
 | Remove selected nodes or edges from the data, and merge duplicate nodes (one pair or in bulk by attribute) | app works | Previous app plan; workflows W09, W13 | Core data clean-up | Text only: rows in undrawn menus; no Delete key, confirmation or bulk merge | 40, 41 | Screens 40 (remove, red button) and 41 (merge); data-editing.md sections 6 and 7 |
 | Add a single node or edge by hand | app works | coverage.md line 70 | Adding a known missing link or a hypothesis node | Absent | 42 | Screen 42 (Add node here inset, Connect to... line); data-editing.md section 11 |
-| Expand a node's neighbours from a server | app works | revision.md 2.4 and section 8; element fetch settings | How a server-backed graph gets more data | Text only | 42 | Screen 42 (six new nodes, report and Undo inset); data-editing.md section 10 |
+| Expand a node's neighbors from a server | app works | revision.md 2.4 and section 8; element fetch settings | How a server-backed graph gets more data | Text only | 42 | Screen 42 (six new nodes, report and Undo inset); data-editing.md section 10 |
 
 ## Cluster 4: history, errors and recovery
 
@@ -103,9 +103,9 @@ screens instead of "none".
 | Undo and redo (Ctrl+Z, Ctrl+Shift+Z) and the History dock opened | app works | decisions.md S1, F2; workflows W03, W07 | The visible safety net for every change | Entry only: the "History" label on the closed dock | 43 | Screen 43 (History dock, now and undone rows, Redo in the status bar); history-errors.md section 1 |
 | Object "..." menu open: rename, duplicate, delete with the confirm-for-children rule, reorder by drag | app works | object-model.md delete rules; screens.md screens 7 and 8; workflow W25 | Cleaning up wrong runs; order decides which style wins | Text only | 44 | Screens 44 (dark row menu, 320 px delete confirmation) and 102 (rename in place, drag to reorder); history-errors.md section 2 |
 | A failed run: red dot, message, Retry and an explicit Retry on the CPU | app works | revision.md section 4 and 6.11; the no-silent-fallback WebGPU rule in the root CLAUDE.md | Recovery, and the visible form of the no-silent-fallback rule | Text only | 45 | Screen 45 (red summary, Retry and Retry on the CPU; refused style inset); history-errors.md section 3 |
-| Stale objects after a data or setting change (amber dot, "3 stale [Re-run all]") | analysis | revision.md 1.6 and section 4 | The only signal that results on screen are out of date | Text only | 46 | Screen 46 (amber dots and summary, six new nodes in grey, 3 stale [Re-run all]); history-errors.md section 4 |
+| Stale objects after a data or setting change (amber dot, "3 stale [Re-run all]") | analysis | revision.md 1.6 and section 4 | The only signal that results on screen are out of date | Text only | 46 | Screen 46 (amber dots and summary, six new nodes in gray, 3 stale [Re-run all]); history-errors.md section 4 |
 | Failure of the whole graph component (lost graphics context, disposed session) with Details and Reload | app works | Figma; coverage.md 10.1 and 13 | Without it a blank canvas has no explanation or way out | Absent: proposed in coverage.md only | 47 | Screen 47 (lost view dialog, red chip; non-fatal error inset); history-errors.md section 5 |
-| A tool that finds nothing: no route, a filter or pattern with 0 matches, neighbours of an isolated node | errors and empty states | round-2/walkthroughs.md finding 20; revision.md 3.3, 3.4 | The reader must know nothing was found and how to widen the search | Absent | 48 | Screen 48 (the bar's No route with Search everything; the other tools inset); history-errors.md section 6 |
+| A tool that finds nothing: no route, a filter or pattern with 0 matches, neighbors of an isolated node | errors and empty states | round-2/walkthroughs.md finding 20; revision.md 3.3, 3.4 | The reader must know nothing was found and how to widen the search | Absent | 48 | Screen 48 (the bar's No route with Search everything; the other tools inset); history-errors.md section 6 |
 
 ## Cluster 5: find, navigate and select
 
@@ -133,13 +133,13 @@ screens instead of "none".
 |---|---|---|---|---|---|---|
 | Filter by attribute values: value checklist with counts, Select / Create / Create and focus, the resulting Set's Define tab | analysis | Previous app plan | Core filtering | Entry only: the Filter bar and menu on screen 11 | 59 | Screen 59 (after-Create inset) and the Define tab on 60; filters-sets.md section 1 |
 | Filter by numeric range over a histogram, including dragging a band | analysis | revision.md 3.4; workflows W12, W22, W23 | Thresholding a score | Entry only: a menu row | 60 | Screen 60 (histogram band and handles, Create disabled until #192); filters-sets.md section 2 |
-| Filter by an expression or by several rules joined with AND, OR and NOT | analysis | Previous app plan (#149) | Real questions combine conditions | Entry only: a greyed menu row; OR unspecified | 61 | Screen 61 (rule lines with Not; code field with error and completion); filters-sets.md section 3 |
+| Filter by an expression or by several rules joined with AND, OR and NOT | analysis | Previous app plan (#149) | Real questions combine conditions | Entry only: a grayed menu row; OR unspecified | 61 | Screen 61 (rule lines with Not; code field with error and completion); filters-sets.md section 3 |
 | Filter edges rather than nodes | analysis | #149; screen 11 Target switch | Keeping edges by weight, type or date | Entry only: the Nodes / Edges switch | 62 | Screen 62 (the bar says edges; edge Set inset); filters-sets.md section 4 |
-| Pattern search: pick or define a pattern, list and step through matches | analysis | Previous app plan; workflow W07 | Matching known attack playbooks | Entry only: a greyed menu row | 63 | Screen 63 (pattern diagram, Matches tab, Previous and Next); filters-sets.md section 5 |
-| Neighbours tool armed: steps, direction, edge types, size preview, the resulting Set | analysis | Previous app plan; workflows W06, W09, W17, W23 | Exploring around a node | Entry only: the toolbar button | 64 | Screen 64 (centre chip, live size, Options popover); filters-sets.md section 6 |
+| Pattern search: pick or define a pattern, list and step through matches | analysis | Previous app plan; workflow W07 | Matching known attack playbooks | Entry only: a grayed menu row | 63 | Screen 63 (pattern diagram, Matches tab, Previous and Next); filters-sets.md section 5 |
+| Neighbors tool armed: steps, direction, edge types, size preview, the resulting Set | analysis | Previous app plan; workflows W06, W09, W17, W23 | Exploring around a node | Entry only: the toolbar button | 64 | Screen 64 (center chip, live size, Options popover); filters-sets.md section 6 |
 | Combine Sets (union, intersect, subtract, exclude) | analysis | revision.md 2.4 several objects | "In group 2 and on the path" | Text only | 65 | Screen 65 (sizes per verb, Swap; new linked Set and disabled verbs insets); filters-sets.md section 7 |
 | Set, Group or Path Members tab: members in order, hops and cost, inside and cut edges, density, profile | analysis | revision.md 2.4; workflows W04, W05, W21 (#193) | Where a reader reads a path or group result | Entry only: tab label | 66 | Screen 66 (Profile inset); filters-sets.md section 8 |
-| All routes between two nodes, and pick endpoints by typing a name | analysis | Previous app plan; workflow W05; revision.md 9.1 (#329) | Endpoints cannot be clicked in a large graph | Entry only: a greyed menu row | 67 | Screen 67 (From chip, typed To field, dashed line, Routes Set inset); filters-sets.md section 9 |
+| All routes between two nodes, and pick endpoints by typing a name | analysis | Previous app plan; workflow W05; revision.md 9.1 (#329) | Endpoints cannot be clicked in a large graph | Entry only: a grayed menu row | 67 | Screen 67 (From chip, typed To field, dashed line, Routes Set inset); filters-sets.md section 9 |
 | Remove members from a hand-made Set, or add more | analysis | revision.md 2.4 Set Define and Members; object-model.md | Curating a candidate list by hand | Text only: an "Edit members" button with no state | 68 | Screen 68 (remove buttons, Add selection; Member of x inset); filters-sets.md section 10 |
 | Empty results inside these tools | see cluster 4 | | | | 48 | Screen 48; history-errors.md section 6 |
 
@@ -154,12 +154,12 @@ screens instead of "none".
 | Record tab: method, parameters, scope, seed, engine, caveats, Copy as methods text | analysis | Previous app plan; workflow W25 | Trusting and citing a result | Entry only: tab label | 73 | Screen 73 (Measure Record inset); analysis-results.md section 5 |
 | Export one result (ranked list, membership, members, subgraph) as a file | analysis | revision.md 2.4 Record Export row (#178); workflows W06, W13, W21 | Getting an analysis result out | Text only, on the undrawn Record tab | 73 | Screen 73 (the Export list as a dark menu); analysis-results.md section 6 |
 | Run several algorithms in one batch, and a parameter sweep with its results table | analysis | Previous app plan; workflows W10, W23 (#194) | Comparing measures; tuning a parameter | Entry only: menu rows on screens 4 and 11 | 74 | Screen 74 (Rank several; sweep in the Findings tab); analysis-results.md section 7 |
-| Run on a Set or the selection instead of the whole graph | analysis | Previous app plan "Scope control" | Analysing part of a graph without hiding the rest | Absent: scope is fixed text | 75 | Screen 75 (scope select in the bar); analysis-results.md section 8 |
-| Results of distances (diameter, radius, mean path), likely missing links and unusual nodes | analysis | Previous app plan; workflows W12, W16 | Whole-graph facts and pair lists have no drawn result | Entry only: greyed menu rows | 76 | Screen 76 (Findings rows, pair list, Unusual nodes inset); analysis-results.md sections 9 and 10 |
+| Run on a Set or the selection instead of the whole graph | analysis | Previous app plan "Scope control" | Analyzing part of a graph without hiding the rest | Absent: scope is fixed text | 75 | Screen 75 (scope select in the bar); analysis-results.md section 8 |
+| Results of distances (diameter, radius, mean path), likely missing links and unusual nodes | analysis | Previous app plan; workflows W12, W16 | Whole-graph facts and pair lists have no drawn result | Entry only: grayed menu rows | 76 | Screen 76 (Findings rows, pair list, Unusual nodes inset); analysis-results.md sections 9 and 10 |
 | Whole-graph findings on the dataset (a Findings row) and the table they open | analysis | Workflows W03, W06, W07 | Where member-less results appear | Entry only: an empty "Findings +" header | 76 | Screen 76 (the Findings + menu, the Findings table); analysis-results.md sections 9 and 10 |
 | What breaks if a node is removed | analysis | revision.md 2.4 (#311); workflows W09, W11, W23 | Finding critical points | Text only: a row in an undrawn menu | 77 | Screen 77 (preview, result card, the node menu as the moment before); analysis-results.md section 11 |
 | Compare two objects or two time windows side by side | analysis | revision.md 6.7 and 9.1; workflows W03, W04, W11, W19, W24 | Core comparison | Text only | 78 | Screen 78 (two panes, one camera); analysis-results.md section 12 |
-| Over-time results: a metric per window as a chart, biggest movers | analysis | revision.md 6.1; workflows W17, W19 | Analysing change over time | Entry only: an empty "Over time +" header; documents disagree on where the chart lives | 79 | Screen 79 (line chart in the Findings tab); analysis-results.md section 13 |
+| Over-time results: a metric per window as a chart, biggest movers | analysis | revision.md 6.1; workflows W17, W19 | Analyzing change over time | Entry only: an empty "Over time +" header; documents disagree on where the chart lives | 79 | Screen 79 (line chart in the Findings tab); analysis-results.md section 13 |
 | Community evolution: groups form, merge, split over time | analysis | Previous app plan; workflow W19 | A named phase of the temporal workflow | Absent | 80 | Screen 80 (alluvial chart and events); analysis-results.md section 14 |
 | Notes on a node, edge or object; the note list; markers and callouts on the canvas | analysis | Previous app plan; workflows W06, W09, W15, W21 (#145, #295) | Annotation | Entry only: the Note tool and empty "Notes +" headers | 81 | Screen 81 (markers, callout, note field; note list inset); analysis-results.md section 15 |
 | Assistant tab opened: ask in plain language, the transcript, the provider state | analysis | revision.md 6.5 | A shipped way to run analyses and style the graph | Entry only: the Ask button and dock label | 82 | Screen 82 (transcript, tool rows, composer; provider inset); analysis-results.md section 16 |
@@ -172,12 +172,12 @@ screens instead of "none".
 | Layouts that need an input: tree root, radial around a node, layers by group | visualization | Previous app plan; revision.md 2.4 | Those layouts cannot be used without it | Text only | 84 | Screen 84 (Tree from a root, picking a new root); visualization-export.md 1.2 |
 | Lay out only a selection or one cluster while the rest stays put | visualization | Previous app plan; workflow W21 (#144) | Tidying one cluster | Absent: no way to start it | 85 | Screen 85 (Apply to Group 2, Ring); visualization-export.md 1.3 |
 | Drag a node to move and pin it; see pinned nodes; Unpin all | visualization | Workflows W15, W22 | Hand placement, and the only way to release it | Entry only: a Pin glyph on screen 9 | 86 | Screen 86 (pin marks, Pinned system row, Unpin all); visualization-export.md 1.4 |
-| Dataset Canvas tab: background, look preset (print, colour-blind safe, high contrast), default look, arrows, legend switch | visualization | revision.md 2.4 and 5.6; workflow W15 | Whole-graph appearance | Entry only: tab label | 87 | Screen 87 (the Look list); visualization-export.md 2.1 |
+| Dataset Canvas tab: background, look preset (print, color-blind safe, high contrast), default look, arrows, legend switch | visualization | revision.md 2.4 and 5.6; workflow W15 | Whole-graph appearance | Entry only: tab label | 87 | Screen 87 (the Look list); visualization-export.md 2.1 |
 | Draw filtered-out elements faintly instead of hiding them | visualization | Previous app plan; revision.md 2.4 Canvas tab | Keeps context while filtering | Text only | 87 | Screen 87 (Show hidden faintly on); visualization-export.md 2.2 |
 | Label control: which nodes get labels, from which column, label style, overlap avoidance, edge labels | visualization | revision.md 6.9; workflows W15, W20, W23 (#294) | Labels are drawn but cannot be controlled | Text only | 88 | Screen 88 (the Labels popover); visualization-export.md 2.3 |
-| Hover a node: tooltip and neighbour highlight | visualization | Workflows W02, W05; Settings > Canvas | Basic inspection under the pointer | Text only | 89 | Screen 89 (dark tooltip, neighbours lit); visualization-export.md 2.4 |
-| Colour by a signed number with a diverging palette centred on a midpoint | visualization | Previous app plan; workflows W20, W24 | Fold change around zero | Text only; screen 6 draws a one-direction ramp | 90 | Screen 90 (Red-blue with a midpoint mark); visualization-export.md 3.1 |
-| Edge width or colour by an edge attribute | visualization | Workflows W20, W22 | Weight and flow as thickness | Entry only: an empty "Edges +" | 91 | Screen 91 (column menu, width legend); visualization-export.md 3.2 |
+| Hover a node: tooltip and neighbor highlight | visualization | Workflows W02, W05; Settings > Canvas | Basic inspection under the pointer | Text only | 89 | Screen 89 (dark tooltip, neighbors lit); visualization-export.md 2.4 |
+| Color by a signed number with a diverging palette centered on a midpoint | visualization | Previous app plan; workflows W20, W24 | Fold change around zero | Text only; screen 6 draws a one-direction ramp | 90 | Screen 90 (Red-blue with a midpoint mark); visualization-export.md 3.1 |
+| Edge width or color by an edge attribute | visualization | Workflows W20, W22 | Weight and flow as thickness | Entry only: an empty "Edges +" | 91 | Screen 91 (column menu, width legend); visualization-export.md 3.2 |
 | Node shape by attribute, and the Nodes and Edges "+" channel menus | visualization | Previous app plan; element capabilities | Styling by attribute | Entry only: closed "+" buttons | 92 | Screen 92 (NODES + menu, shapes on the canvas and in the legend); visualization-export.md 3.3 |
 | Style one node ("Style this node...") | visualization | revision.md 2.4 | Highlighting one entity | Entry only: collapsed Look row | 93 | Screen 93; visualization-export.md 3.4 |
 | Save a style, apply it elsewhere, export and import styles | visualization | revision.md 5.6 and 6.8 | Reusing a look | Text only; import absent | 94 | Screen 94 (Saved style rows, Import styles dialog); visualization-export.md 3.5 |
@@ -232,7 +232,7 @@ Each screen is owned by one cluster. "Change" means an existing mock is redrawn.
 | 45 | 4 | A failed run |
 | 46 | 4 | Stale objects |
 | 47 | 4 | Graphics context lost, and error details |
-| 48 | 4 | Empty results in the Path, Filter and Neighbours bars |
+| 48 | 4 | Empty results in the Path, Filter and Neighbors bars |
 | 49 | 5 | Canvas right-click menus |
 | 50 | 5 | Find open, with object, node and value results |
 | 51 | 5 | 3D canvas with the framing menu open |
@@ -248,7 +248,7 @@ Each screen is owned by one cluster. "Change" means an existing mock is redrawn.
 | 61 | 6 | Filter by rule, built or typed, all or any |
 | 62 | 6 | Filtering edges |
 | 63 | 6 | Pattern search and the match list |
-| 64 | 6 | Neighbours tool armed, and its Set |
+| 64 | 6 | Neighbors tool armed, and its Set |
 | 65 | 6 | Combining two Sets |
 | 66 | 6 | A path's Members tab, with a group's Members inset |
 | 67 | 6 | All routes, with endpoints typed by name |
@@ -273,7 +273,7 @@ Each screen is owned by one cluster. "Change" means an existing mock is redrawn.
 | 86 | 8 | Dragged and pinned nodes |
 | 87 | 8 | Dataset Canvas tab, with hidden elements drawn faintly |
 | 88 | 8 | Label choices and the label style panel |
-| 89 | 8 | Hover tooltip and neighbour highlight |
+| 89 | 8 | Hover tooltip and neighbor highlight |
 | 90 | 8 | Diverging palette with a midpoint |
 | 91 | 8 | Edge width by weight |
 | 92 | 8 | Nodes and Edges "+" menus, and a Shape block |

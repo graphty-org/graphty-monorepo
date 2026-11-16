@@ -41,7 +41,7 @@ export interface ElementSet {
     readonly createdFrom: SetCreatedFrom;
     /**
      * `r1:<hex>`, a digest of the canonical definition. Derived: computed on first read and
-     * memoised, never stored. Rename does not change it.
+     * memoized, never stored. Rename does not change it.
      */
     readonly revision: string;
 }

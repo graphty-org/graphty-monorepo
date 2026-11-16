@@ -31,7 +31,7 @@ and paste its "use it" line into the page of section 2.7.
 | place nodes (rows by a value, preset coordinates)   | 4.2     |
 | read or write a file format                         | 4.3     |
 | load a graph from a web API                         | 4.4     |
-| add brand colours                                   | 4.5     |
+| add brand colors                                    | 4.5     |
 | move or aim the camera                              | 4.6     |
 | send log records somewhere                          | 4.7     |
 
@@ -56,7 +56,7 @@ The rule that ties them together: **a simple-tier extension IS an advanced-tier 
 `define*` function builds an ordinary advanced registration from the definition and files it
 through the point's published registration verb. There is no second registry, no private path and
 no capability that only one tier reaches. So everything the parity rule (`README.md` section 8)
-promises for an advanced extension -- catalogue entry, every route by which a built-in is reached,
+promises for an advanced extension -- catalog entry, every route by which a built-in is reached,
 progress and cancellation, options, coded errors, typing -- holds for a simple one by construction,
 and the conformance kit checks both with the same checks.
 
@@ -66,7 +66,7 @@ and the conformance kit checks both with the same checks.
 | Layout      | `defineLayout({ id, place })`                                          | a map from node id to `[x, y]` or `[x, y, z]` | snapshot layout registration (`layout.md`)                          |
 | File format | `defineFormat({ id, extensions, read, write })`                        | text to records, records to text              | `DataSource` subclass and `registerFormatWriter` (`file-format.md`) |
 | Data source | `defineDataSource({ id, hosts, load })`                                | a function that fetches pages of records      | the full source descriptor (`candidates.md` section 1)              |
-| Palette     | `definePalette({ id, kind, colors })`                                  | a name, a kind and a list of colours          | `registerPalette(descriptor)` (`palette.md`)                        |
+| Palette     | `definePalette({ id, kind, colors })`                                  | a name, a kind and a list of colors           | `registerPalette(descriptor)` (`palette.md`)                        |
 | Camera      | `defineCameraView({ id, view })`, `defineCameraMotion({ id, motion })` | a still framing, or a framing over time       | `registerCameraView({ descriptor, compute })` (`camera.md`)         |
 | Logging     | `defineLogDestination({ id, write })`                                  | a function that receives each record          | `Sink` and `registerLogSink` (`logging.md`)                         |
 
@@ -189,7 +189,7 @@ Rules:
    so a plugin cannot read direction the view was built without and return plausible wrong
    numbers. With `direction: "directed"`, an undirected edge in the data counts both ways.
 7. **Walk edges with `other`.** In an undirected view, `edge.source` is whichever end the data
-   named first, NOT the node the edge was reached from. From a node, the neighbour along an edge
+   named first, NOT the node the edge was reached from. From a node, the neighbor along an edge
    is `edge.other(node)`:
    `for (const edge of node.edges()) sum += rank.get(edge.other(node).id) ?? 0;`
 8. `neighbors()` never includes the node itself; a self-loop is in `edges()` and in
@@ -257,7 +257,7 @@ leave the node out to leave it unplaced.` A score that is not a finite number is
    beginner meets are named after the element's internals, so each message opens with plain
    words and the code follows them: `E_BAD_COMMAND` reads "invalid definition", `E_OPTION_RANGE`
    "unknown attribute" or "unknown node" (or the range it broke), `E_CAP_EXCEEDED` "more groups
-   than colours".
+   than colors".
 6. The TypeScript types report a mistake against the member the author wrote. Because the option
    values are typed from the declaration, the FIRST line of a type error spells out the options
    type, and the type shows each default as written (`60`, not `number`); **read the LAST line**,
@@ -288,7 +288,7 @@ positions but no key matches a node id (got "1"; node ids here are numbers)`. Wh
 9. **A synchronous whole-graph function cannot be interrupted.** The element owns the loop of
    `node` and `edge`, so those never freeze the page. A `nodes`, `groups` or `place` function that
    loops without awaiting `context.progress(...)` runs to completion before anything else happens,
-   and cannot be cancelled; an endless loop hangs the tab. Only the per-element forms are safe
+   and cannot be canceled; an endless loop hangs the tab. Only the per-element forms are safe
    from a freeze by construction, so prefer them wherever the method fits. One pass over the
    nodes (every layout example in section 4.2) finishes in milliseconds even at 100,000 nodes and
    needs no `progress`; a loop that REPEATS passes (an iteration to convergence, a simulation)
@@ -397,7 +397,7 @@ package. `extend.d.ts` is the whole entry point, both tiers, and needs `lib` ES2
 `@graphty/graph-format` installed; a simple-tier plugin never needs it.
 
 A run paints the graph on its first completion (the element's automatic style: a node score
-becomes a colour ramp over the nodes it measured), so this page shows coloured nodes with no
+becomes a color ramp over the nodes it measured), so this page shows colored nodes with no
 style code. A reader's own style layer reaches the values at `results.degree.value` -- the path is
 `results.<as name>.value`, which is why every example below names its run with `as`.
 
@@ -412,7 +412,7 @@ For every point:
    (section 2.2), builds the advanced registration the point's specification describes, and calls
    that point's PUBLISHED registration verb with it. The generated registration is an ordinary
    one; the registry cannot tell which tier produced it.
-2. Everything the element derives for an advanced extension -- the catalogue entry, the reserved-id
+2. Everything the element derives for an advanced extension -- the catalog entry, the reserved-id
    check, re-registration and replacement rules, option validation, the run or load record,
    derived rankings and styles, progress, cancellation, coded errors -- it derives the same way.
 3. Registering the same definition object again is a no-op (the sameness rule of `README.md`
@@ -531,9 +531,9 @@ A definition carries exactly one of four functions, and the function decides the
 `note(text)` and `converged(done, iterations)`. The per-element forms never need anything but
 `options` and `graph`: the element owns the loop. A whole-graph function that loops MUST
 `await context.progress(done / total)` once per pass: the promise yields to the page when the
-frame's time is spent and rejects when the run is cancelled, so it is the whole of keeping the
+frame's time is spent and rejects when the run is canceled, so it is the whole of keeping the
 page responsive (`await Promise.resolve()` is not: it lets no frame draw). A whole-graph function
-that never awaits it runs to completion and cannot be cancelled (section 2.4 item 9); the element
+that never awaits it runs to completion and cannot be canceled (section 2.4 item 9); the element
 warns on the console when it blocks the page. An iterative method
 reports how it ended with `context.converged(false, iterations)`, which the run record's caveats
 carry, and states a method detail with `context.note(...)`. A definition may name the edge option
@@ -579,7 +579,7 @@ undirected graph.
 four above (a path, a node set, a pair list, a temporal or category table); several fields in one
 result; control over parallel-edge merging; a seed, sampling or an approximation; or speed on
 large graphs. Per-element work that grows faster than the degree -- a clustering coefficient
-walks neighbour PAIRS -- still works in the `node` form and gives the right numbers; only the
+walks neighbor PAIRS -- still works in the `node` form and gives the right numbers; only the
 element's cost estimate is low, so a very large graph may run longer than its warning said. The
 view's arrays are cached, but every node and edge is still an object: an iterative whole-graph
 method over about 100,000 nodes or more is slow on the view, so **an author who starts with that
@@ -626,7 +626,7 @@ await element.setLayout("acme-tiers", { spacing: 3 });
 ```
 
 Positions are in scene units, the units the camera and the node sizes use: a node at the default
-size is 1 unit across, so a spacing of 2 leaves a node's width between neighbours. A node left out
+size is 1 unit across, so a spacing of 2 leaves a node's width between neighbors. A node left out
 of the map is not placed, and the layout's list of unplaced nodes names it.
 
 **Rows by a text category** -- the more common request -- with a node that has no category left
@@ -842,14 +842,14 @@ hierarchy, custom loss notes, or content detection that needs bytes rather than 
 | Advanced-tier member | Simple-tier value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FormatDescriptor`   | `id`; `plainName` from `name`; `extensions`; `mimeTypes` from `mediaTypes`, else looked up from the extensions, else `text/plain`; `canImport` and `canExport` from whether `read` and `write` exist; `options` expanded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| catalogue            | one entry, whether the format has a reader, a writer or both                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| catalog              | one entry, whether the format has a reader, a writer or both                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | the reader class     | a generated `DataSource` subclass: constructor, `getConfig`, `resolveOptions`, `sourceFetchData` = read the input (string, `File` or URL, with the element's retry and size limits) -> `read` -> records -> chunks; registered with `DataSource.register`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | records              | plain objects; the element applies the record conventions (section 2.6) and the brand, and types number and boolean columns on load. Ids stay as the file spells them, as strings, unless `read` returns numbers on purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | direction            | `directed` in the returned records becomes `declareDirection`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | per-record problems  | `context.warn(message, line)` reaches the error aggregator and the load report                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | errors               | a throw from `read` becomes `E_PARSE_FAILED` with `details.format`, and `details.line` when the error carries `line`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | detection            | by extension; `detect(sample)` when given                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| the writer           | a generated `GraphExporter` registered with `registerFormatWriter`. Its `export` resolves the snapshot into records -- node ids and edge endpoints resolved, mixed-direction pairs folded, the element's internal columns removed, unmeasured values left out, algorithm results included as attribute columns under their export names -- calls `write`, and encodes the text as UTF-8. When the format is a spreadsheet format (an extension `.csv` or `.tsv`, or a media type `text/csv` or `text/tab-separated-values`), string cells that begin with `=`, `+`, `-`, `@`, tab or carriage return are neutralised first; number columns never are, and neither is a string cell that is itself a number in the JSON grammar (a `-2.31` in a column that stayed text), so `-2.31` round-trips. Other text formats are written as `write` returns them |
+| the writer           | a generated `GraphExporter` registered with `registerFormatWriter`. Its `export` resolves the snapshot into records -- node ids and edge endpoints resolved, mixed-direction pairs folded, the element's internal columns removed, unmeasured values left out, algorithm results included as attribute columns under their export names -- calls `write`, and encodes the text as UTF-8. When the format is a spreadsheet format (an extension `.csv` or `.tsv`, or a media type `text/csv` or `text/tab-separated-values`), string cells that begin with `=`, `+`, `-`, `@`, tab or carriage return are neutralized first; number columns never are, and neither is a string cell that is itself a number in the JSON grammar (a `-2.31` in a column that stayed text), so `-2.31` round-trips. Other text formats are written as `write` returns them |
 | loss notes           | the `ExportCapabilities` table is derived from `keeps` (default: edge attributes only, which is what an edge list provably carries; no node attributes, isolated nodes, positions or style unless declared). The conformance kit checks the claim by reading, writing and reading again a file with negative numbers, a numeric column holding one `NA`, a leading-zero column, a value holding a tab and an isolated node                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### 4.4 Data source
@@ -918,7 +918,7 @@ into an advanced one by adding members, never by being rewritten into a class.
 
 **What the element fills in.**
 
-- **The descriptor.** A data source is its own catalogue kind (`session.catalog.sources()`), not a
+- **The descriptor.** A data source is its own catalog kind (`session.catalog.sources()`), not a
   file format, so it has no invented extension or media type and does not take part in file
   detection.
 - **The fetch it hands over.** A URL on `hosts` is fetched without a prompt: the embedder chose
@@ -932,23 +932,23 @@ into an advanced one by adding members, never by being rewritten into a class.
   token; it passes the URL through unchanged;
   retries with backoff; applies a 30-second timeout per request and the abort signal; sends one
   request at a time and, on HTTP 429, waits as long as the response's `Retry-After` asks before
-  retrying, so an API's own rate limit is honoured without a setting; turns a failed
+  retrying, so an API's own rate limit is honored without a setting; turns a failed
   response into `E_FETCH_FAILED` with the URL and status; and stops a runaway pager, refusing the
   same URL twice in one load and more than `maxRequests` (default 1000) requests.
 - **The credential.** Asked for in a masked field -- or supplied in code by an embedder that
   already holds one, with `element.setSourceCredential(id, secret)` (proposed) -- kept by the
-  element, never logged, never published in the catalogue, never saved in a configuration, never
+  element, never logged, never published in the catalog, never saved in a configuration, never
   visible to `load`.
 - **Ingestion.** The same record conventions, chunking, per-record validation, error aggregation
   and progress events as a file load.
 - **Provenance.** The source id and version, the options with the credential removed, the time of
   the query and the page count, recorded in the load report.
 - **Cancellation.** The signal aborts on a new load, on removal of the element and on a cancel
-  call; `load` needs to do nothing for it because the handed-over `fetch` honours it.
+  call; `load` needs to do nothing for it because the handed-over `fetch` honors it.
 - **Errors.** A throw from `load` that is not a `GraphtyError` becomes `E_PARSE_FAILED`,
   `details.source` = the id. `E_FETCH_FAILED` is raised only by the handed-over `fetch`.
 - **Reach.** `element.addDataFromSource("acme-api", { endpoint })`, the element attribute, and the
-  catalogue for an import dialog's service tab -- the routes a built-in source uses.
+  catalog for an import dialog's service tab -- the routes a built-in source uses.
 
 **Ceiling, which is additive here.** Refresh modes (manual, interval, stream), a pinned service
 release, retention windows and removal records, the found, not-found and ambiguous identifier
@@ -961,7 +961,7 @@ by media type, and the reader's advanced tier takes columns.
 **On 2.6.1:** there is NO way to publish a data source. `defineDataSource` does not exist and the
 point has no advanced verb yet. The nearest thing today is the embedder's own code: fetch the
 pages, rename to records, and call `element.addNodes(nodes)` and `element.addEdges(edges)` --
-which gives none of the host check, credential store, retries or catalogue entry above.
+which gives none of the host check, credential store, retries or catalog entry above.
 
 ### 4.5 Palette
 
@@ -978,7 +978,7 @@ definePalette({
 definePalette({ id: "acme-brand-ramp", kind: "sequential", colors: ["#E8F1FA", "#1B7F79", "#0B1D51"] });
 ```
 
-**Use it** -- make them the colours every binding uses when it names none:
+**Use it** -- make them the colors every binding uses when it names none:
 
 ```ts
 element.setDefaultPalettes({ categorical: "acme-brand", sequential: "acme-brand-ramp" });
@@ -991,21 +991,21 @@ after such layers exist writes a warning naming them, so the wrong order is neve
 that names its palette is never touched.
 
 `setDefaultPalettes` (proposed; also on `session.styles`) has one slot per palette kind:
-`categorical`, `sequential` and `diverging`. Colours are any CSS colour except `var(...)`, which
+`categorical`, `sequential` and `diverging`. Colors are any CSS color except `var(...)`, which
 `definePalette` refuses with a message that shows the fix: read the design token first, with
 `getComputedStyle(document.documentElement).getPropertyValue("--brand-navy").trim()`, after the
 stylesheet that defines it has loaded (in a module script that runs after the page's stylesheets,
 or on `DOMContentLoaded`). A token that reads as an empty string is refused the same way, so a
-too-early read fails loudly instead of registering no colour. A categorical
-palette has one colour per group and the element never wraps: when a clustering yields more groups
-than colours, the extra groups keep the base colour and the element reports `E_CAP_EXCEEDED`, so
-give a brand palette as many colours as the clusterings it will colour, or set `overflow` on the
+too-early read fails loudly instead of registering no color. A categorical
+palette has one color per group and the element never wraps: when a clustering yields more groups
+than colors, the extra groups keep the base color and the element reports `E_CAP_EXCEEDED`, so
+give a brand palette as many colors as the clusterings it will color, or set `overflow` on the
 binding: `{ by: "results.clusters.group", palette: "acme-brand", overflow: "other" }` paints the
-largest groups in the brand colours and the rest one grey (`"extend"` gives every group a colour).
+largest groups in the brand colors and the rest one gray (`"extend"` gives every group a color).
 
 **What the element fills in.** `plainName` from the id (or `name`); `capacity`, which it already
-derives; `colorblindSafe` as `[]` (no claim) unless the definition makes one; normalisation of
-every colour to six-digit hex. `definePalette` builds a `PaletteRegistration` and calls
+derives; `colorblindSafe` as `[]` (no claim) unless the definition makes one; normalization of
+every color to six-digit hex. `definePalette` builds a `PaletteRegistration` and calls
 `registerPalette`, so there is one validation path and one registry.
 
 **Two changes the palette point needs besides the function.** (1) The published parameter type of
@@ -1016,7 +1016,7 @@ records the resolved id -- so saved documents always name a concrete palette and
 meaning, which is the reason the guide gives today for keeping the defaults fixed (README section
 12, item 35).
 
-**Ceiling.** There is almost none: a description and a colour-vision claim are members of the
+**Ceiling.** There is almost none: a description and a color-vision claim are members of the
 definition. The descriptor form remains for authors who build palettes as data.
 
 **On 2.6.1:** `definePalette` and `setDefaultPalettes` do not exist. `registerPalette` does, with
@@ -1076,7 +1076,7 @@ author never picks axes or works out field-of-view geometry. When a motion resum
 moved the camera, `t` starts again at 0 and the frame is measured afresh, so a motion written from
 `frame.azimuth` carries on from where the reader left the camera instead of jumping back. While
 the motion plays, `frame.azimuth`, `frame.elevation` and `frame.current` stay as they were when it
-started or resumed; a re-measure when the layout settles refreshes only the centre, the size, the
+started or resumed; a re-measure when the layout settles refreshes only the center, the size, the
 radius and `fitDistance`, so an angle added to `frame.azimuth` is never counted twice. An
 option the motion does not declare rejects `playCameraMotion` at once with `E_UNKNOWN_OPTION`; a
 motion whose `modes` exclude the current drawing mode (the default is 3D only) rejects with
@@ -1084,7 +1084,7 @@ motion whose `modes` exclude the current drawing mode (the default is 3D only) r
 
 **What the element fills in.**
 
-- **The frame.** `ViewFrame` gives the centre, the size, the radius, `fitDistance` (the distance
+- **The frame.** `ViewFrame` gives the center, the size, the radius, `fitDistance` (the distance
   at which the box fills the view), the scene's `up` direction, the current camera's `azimuth`
   and `elevation`, and `orbit(azimuth, elevation?)`, so an author never works out field-of-view
   geometry or the axis convention.
@@ -1161,7 +1161,7 @@ defineLogDestination({
   after 1, 2 and 4 seconds (never a 4xx other than 408 or 429), and gives up. The queue holds at
   most 1000 records; past that the oldest is dropped and the next send starts with one record
   saying how many were, so an error storm against a slow endpoint cannot grow memory without
-  limit. `time` serialises as an ISO string. `flush` awaits the queue;
+  limit. `time` serializes as an ISO string. `flush` awaits the queue;
   `dispose` drains it with a timeout; every destination is flushed on `pagehide`. This is the
   batching the built-in `remote` destination already has, now given to everyone -- in both tiers:
   the advanced `Sink.write` may return a promise too (`logging.md` section 4), and that replaces
@@ -1203,13 +1203,13 @@ implementation changes. A different method (label propagation replaced by Louvai
 extension with a new id, because documents that saved the old id meant the old method; the
 `version` records output changes within one method.
 
-**Same numbers.** The catalogue descriptor of a simple extension publishes the input policy the
+**Same numbers.** The catalog descriptor of a simple extension publishes the input policy the
 element generated for it -- orientation, `simplify: "none"` (every parallel edge its own edge),
 and typed columns without string coercion -- and a graduated version MUST read its input the same
 way, or the same id gives different values. The conformance kit's
 `checkSameResults(id, AdvancedClass)` runs both over the kit's graphs and lists every element
 whose value differs, before the simple form is deleted. A method whose result depends on visit
-order or tie-breaking (label propagation, a greedy colouring) visits nodes in the view's order in
+order or tie-breaking (label propagation, a greedy coloring) visits nodes in the view's order in
 the simple tier, so its graduated version MUST do the same: sort the rows with `compareNodeIds`
 over their ids, and break ties by that order.
 
@@ -1267,7 +1267,7 @@ Each item is additive to a published contract and is also useful to advanced aut
 14. **The check of "node-id" and "node-set" options** against the graph at run start (section
     2.2), in the option validation both tiers share.
 15. **The missing-value tokens and the "mostly numeric" report** of typing on load (section 2.6),
-    and the rule that a numeric string cell is never neutralised on export (`file-format.md`
+    and the rule that a numeric string cell is never neutralized on export (`file-format.md`
     section 8.1 item 4).
 
 `edge.weight`, `node.strength` and `graph.groupBy` need nothing from the advanced tier: they are

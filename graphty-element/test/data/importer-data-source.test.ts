@@ -95,7 +95,7 @@ let spied: Record<string, unknown> = {};
 
 /**
  * An importer that adds one `a -> b` edge, never states a direction, records its options and
- * recognises any file that begins "SPY".
+ * recognizes any file that begins "SPY".
  */
 const spyImporter: GraphImporter = {
     format: "spy",

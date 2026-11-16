@@ -104,7 +104,7 @@
   REVISION 1.9 (SECTIONS-1.9 D1, D3, D5, D11; work list 5.16 Provider and 5.17 Console; VOCAB 15.1 and 15.2).
   THIS BOARD IS RE-SCOPED, NOT RETIRED. Its 1.8 premise was a door drawn open: the Console as a section whose
   whole content lived in a 280 pop-out, with the pop-out drawn so its anchor could be measured. D1 withdraws
-  the licence for a section that is only a door -- a chevron that reveals nothing is a defect -- so under D11
+  the license for a section that is only a door -- a chevron that reveals nothing is a defect -- so under D11
   the board is re-aimed at what replaces it. It is now THE DRAWING OF THE EXPANDED CONSOLE WITH ITS GEAR, and
   of the expanded Provider beside it, which is what D11's table asks of this board in as many words: "both
   sections expanded". The pop-out is withdrawn; its contents are the Console section's resident rows now, and
@@ -2253,7 +2253,7 @@
 
                                 <!-- CANVAS TOOLBAR (spec 5.6, 5.1; TB-1, TB-2, TB-4). The 5.6 navigation cluster -- a 56 x 160 column
                that stood at the canvas's left edge above the minimap -- is deleted and its contents are rotated into
-               one horizontal bar centred on the live canvas rect: left 50% with translateX(-50%) on the 832-wide
+               one horizontal bar centered on the live canvas rect: left 50% with translateX(-50%) on the 832-wide
                canvas, bottom 12. That is TB-4's "nothing else on" offset: the cat dataset has no Time role, so there
                is no time slider, and the Data table drawer is closed (82 with the slider, 272 with the drawer, 342
                with both).
@@ -2263,7 +2263,7 @@
                divider; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F); divider; Views, whose caret
                points up and whose menu opens upward, bottom edge 4px above the bar. Zoom out precedes Zoom in because
                horizontally magnitude should increase rightward.
-               The item set is fixed -- nothing appears or disappears with selection, because a centred bar that
+               The item set is fixed -- nothing appears or disappears with selection, because a centered bar that
                changes width moves every item under the pointer -- so Zoom to selection stays drawn and merely
                disables, carrying floor item 4's reason a control is disabled: "Zoom to selection (F). Select
                something first". Nothing is selected on this board. The zoom percentage is not in the bar; the status
@@ -2273,7 +2273,7 @@
                the legend is 256 wide at right 12 (x 564 to 820) and clears it by 25. Both are over TB-3's 16px
                minimum, so neither permanent overlay rises onto a second line -- that rule fires below 622px of
                canvas and this canvas is 832. The AI panel is a 280px column to the left of the canvas rect and does
-               not overlap the bar, which is centred on the canvas and never on the window.
+               not overlap the bar, which is centered on the canvas and never on the window.
                THE FOURTH OBJECT IN THIS BAND IS TRANSIENT AND IS GOVERNED SEPARATELY: the Console pop-out runs
                canvas-local x 8 to 288, so it clears the bar's 293 by 5 and covers the minimap's top 70 px. A
                transient surface is not on TB-3's ladder and does not push a permanent overlay anywhere; the rule
@@ -2909,7 +2909,7 @@
                                 >
                                     <!-- title row: the plain-and-technical pair on one line, first mention in this surface (Decision B).
                  Deleted by rule: the DONE badge -- a finished result is the resting state of a result card, and only
-                 the deviations (running, cancelled, failed, partial) draw a badge (Rule 7a); the card's copy glyph,
+                 the deviations (running, canceled, failed, partial) draw a badge (Rule 7a); the card's copy glyph,
                  which is now the one copy control in the inspector header above (RT-8);
                  and the 20px row that held nothing but that copy glyph. -->
                                     <div
@@ -3486,12 +3486,12 @@
                    loudest box on the card, which is the wrong emphasis for a destructive verb sitting beside a
                    result the user just got, and RT-7's plain 11px/500 text button is the right shape. The INK was
                    the defect, and it was the opposite mistake: at #a3a8b1 the only irreversible verb on the panel
-                   was drawn in the same grey as "Node size" beside it, quieter than every link on the board, so
+                   was drawn in the same gray as "Node size" beside it, quieter than every link on the board, so
                    nothing marked it as the one control that destroys something. #eb4949 is what the same verb
                    carries on AnalyzeSweep, CategoryTable, ExplorerAfterCard, GroupProfilePopout and
                    HistoryPopover -- five boards and three containers -- and this board was the only one drawing it
-                   as bare grey text. Same shape as AnalyzeSweep's, which is the borderless form, now the same
-                   colour too. -->
+                   as bare gray text. Same shape as AnalyzeSweep's, which is the borderless form, now the same
+                   color too. -->
                                         <div
                                             style="
                                                 display: inline-flex;
@@ -3648,22 +3648,22 @@
            row's top and past the 32 px at which a surface stops being anchored at all. So the second move is
            taken and the edge line flips to its opposite pair -- bottom to bottom. The pop-out is [336, 644,
            280 x 190] and its bottom edge is 834 on the row's bottom edge 834, exactly. Nothing else moved: the
-           gap stayed 8, the width stayed on the 280 rung, no width rung was dropped, and the centred fallback
+           gap stayed 8, the width stayed on the 280 rung, no width rung was dropped, and the centered fallback
            was never reached.
          - Caret (VOCAB 14.2), 6 px on the leading edge, the left edge for an activity-panel pop-out so it points
-           back at the panel. It wants the vertical centre of its opener's row, y 818, which is 174 px down the
-           pop-out; the 12 px corner clamp caps it at 166, so it is drawn at 166 and its centre lands at 816,
-           2 px above the row centre. That 2 px is structural rather than sloppy: under a bottom-to-bottom flip
-           the opener's centre is always 16 px above the pop-out's bottom, and 16 is inside the clamp's 18.
+           back at the panel. It wants the vertical center of its opener's row, y 818, which is 174 px down the
+           pop-out; the 12 px corner clamp caps it at 166, so it is drawn at 166 and its center lands at 816,
+           2 px above the row center. That 2 px is structural rather than sloppy: under a bottom-to-bottom flip
+           the opener's center is always 16 px above the pop-out's bottom, and 16 is inside the clamp's 18.
            Recorded so a later pass does not "fix" it by breaking the edge line.
            NOTE ON A CONTRADICTION IN THE SOURCES, resolved here rather than silently: 6.11 and DECISIONS-1.8 B3
            both write "the left edge for an inspector pop-out, the right edge for an activity-panel one", which
            puts the caret on the side facing AWAY from the opener. VOCAB 14.2's snippet, which is the drawable
-           one and is labelled "activity-panel pop-out: caret on the LEFT edge, pointing back at the panel", is
+           one and is labeled "activity-panel pop-out: caret on the LEFT edge, pointing back at the panel", is
            the geometry that can be true. The board follows the snippet.
          - Clearances, measured. The legend is floor item 5 and is the one overlay a pop-out may not cover: it
            runs x 892 to 1148, and this pop-out ends at x 616, so it clears it by 276 and no sliding was needed.
-           The canvas toolbar is centred on the 832-wide canvas rect and spans x 621 to 867; the pop-out clears
+           The canvas toolbar is centered on the 832-wide canvas rect and spans x 621 to 867; the pop-out clears
            it by 5. The minimap, x 340 to 500 and y 764 to 864, IS covered across its top 70 px, and that is the
            licensed outcome rather than a fault: a pop-out may cover the toolbar and the minimap, which are
            dismissible chrome, and only the legend is floor item 5.
@@ -3673,7 +3673,7 @@
          - Height caps. Half the owning region (836 / 2 = 418) and the region height less 32 (804); the smaller
            binds, and 190 is under both. The pop-out scrolls internally and never scrolls the panel behind it.
 
-       THE PIN IS DRAWN, AND IT IS EARNED. E2 closes the pin's set at four comparative surfaces -- the colour
+       THE PIN IS DRAWN, AND IT IS EARNED. E2 closes the pin's set at four comparative surfaces -- the color
        and gradient picker, Selection statistics with a pin active, the group profile, and THE AI CONSOLE -- and
        withdraws it from every other pop-out. The console is on the list because its transcript is comparative
        across what the canvas is doing: a reader holds one run's output still while changing what it describes.
@@ -3685,7 +3685,7 @@
 
        WHAT IS INSIDE, from 5.3 AI tier 2 and nothing invented: the transcript, the one-line input over the same
        command registry the assistant calls, the completion drawn as ghost text after the typed characters, and
-       Run script for a pasted block. Up-arrow history and the registry list are behaviour, not rows, and no
+       Run script for a pasted block. Up-arrow history and the registry list are behavior, not rows, and no
        menu is drawn open over this surface -- a pop-out may open a menu, but two transients of different
        classes may not be drawn at once.
        The transcript is the script form of the step list above it, which is not a Rule 8 restatement but the

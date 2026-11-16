@@ -148,7 +148,7 @@ Key count: about 20 to reach the sample library, 21 more to open Les Miserables 
 
 **Did I finish?** Yes. Les Miserables is open, a layer "Married women" (name contains "Mme") paints 6 nodes purple (#800080), everyone else unchanged. There are **6**: Mme Burgon, Mme de R, Mme Hucheloup, Mme Magloire, Mme Pontmercy, Mme Thenardier.
 
-**Ease: 4 of 7.** Every step could be done from the keyboard -- no pointer needed anywhere, which I count in its favour. Focus rings were visible nearly everywhere, menus showed their shortcuts, the new layer put me straight into its name, "Add a condition" and the condition's text box received focus on their own, and Escape closed menus and returned focus to where I was. The cost was in getting there.
+**Ease: 4 of 7.** Every step could be done from the keyboard -- no pointer needed anywhere, which I count in its favor. Focus rings were visible nearly everywhere, menus showed their shortcuts, the new layer put me straight into its name, "Add a condition" and the condition's text box received focus on their own, and Escape closed menus and returned focus to where I was. The cost was in getting there.
 
 **What confused me / cost me:**
 - "Samples" (top bar and the landing card) scrolls to a library further down the same page but leaves focus on the button. Nothing visible had focus; my first attempt Tabbed straight back up into the hero and I thought the library had closed. Typing into what looked like the search box typed nothing. Focus should move into the library (its search box).

@@ -37,10 +37,10 @@
   Compaction 1.6: the activity panel and the inspector are rebuilt on the ten row types; the canvas,
   its two legends, the compare toolbar and the status bar are untouched. Panel and inspector words
   242 -> 147, of which 31 are card A's Details disclosure, which is now closed like card B's.
-  Revision 1.7: the navigation cluster became the bottom-centre canvas toolbar, 246 x 36 at bottom offset 12 --
+  Revision 1.7: the navigation cluster became the bottom-center canvas toolbar, 246 x 36 at bottom offset 12 --
   the plain case of A1's four offsets, because this board draws neither the time slider nor the Data table drawer
   (TB-1, TB-2, TB-4). The freed 56 x 160 column at the left edge is canvas now (TB-3). This is the one board in the
-  set with three boxes on the 12 px baseline -- minimap, legend A, legend B -- and a centred 246 bar spans canvas
+  set with three boxes on the 12 px baseline -- minimap, legend A, legend B -- and a centered 246 bar spans canvas
   x 293..539, straight through legend A at 244..404, so TB-3's two-line rule fires here on the box count, not on
   canvas width: 172 + 16 + 160 + 16 + 246 + 16 + 184 = 810 against 832 of canvas, and legend A cannot move left
   without hitting the minimap. All three rise to bottom: 60 and share one raised baseline, and the bottom band
@@ -50,7 +50,7 @@
   right-pointing form permanently (POP-13b). The one-line run record itself is untouched on both cards (floor 3).
   No word on the canvas, in the compare toolbar, in the diff legend or in the status bar changed.
   Review fixes F-03 and F-12, both on the canvas. F-03: legend B prints the Size block in full; its header no
-  longer reads "(size as A)". F-12: the two colour keys are broken apart -- groups are A1..A4 in view A and
+  longer reads "(size as A)". F-12: the two color keys are broken apart -- groups are A1..A4 in view A and
   B1..B11 in view B, on the legends, on both result cards and in the inspector Group row -- both legends gain an
   outline block keying the red ring as Moved, and the Difference chip gains the info circle that defines Moved.
   Net cost, measured off the rendered DOM: 288 visible words to 293. The relabel gives one word back on each of
@@ -724,7 +724,7 @@
              (floor 3 puts the timestamp and the duration behind the chevron); the word "Details" beside its own
              chevron; "members" on every row -> one column caption (Rule 9); "See all 4 groups" and
              "See all 11 groups" -> the table glyph, since both meant "open this list" (the same verb twice);
-             "Encoded as node color / Change encoding" -> the resident colour chip in the RT-7 state slot, with
+             "Encoded as node color / Change encoding" -> the resident color chip in the RT-7 state slot, with
              the canvas legend carrying the channel in words (floor 5, Rule 8).
              STATE CHANGED, and reported as such: card A's Details disclosure was drawn open and is now closed,
              like card B's. Its 32 words are counted as a state change, not as compaction.
@@ -1233,7 +1233,7 @@
                                                 >
                                             </div>
                                         </div>
-                                        <!-- RT-7. Left of the group: the resident state chip -- this result drives node colour in half A,
+                                        <!-- RT-7. Left of the group: the resident state chip -- this result drives node color in half A,
                    which the canvas legend also states in words (floor 5). Right: the actions.
                    Menu, full text (6.8 twin, mandatory): Run again with changes / Run and compare /
                    Change encoding / Select members (Coming) / Filter to this group (Coming) /
@@ -2792,7 +2792,7 @@
                                     </div>
                                 </div>
 
-                                <!-- CANVAS TOOLBAR (5.6, TB-1). One bar, centred on the full two-view canvas, because the views are linked (TB-1 names this board).
+                                <!-- CANVAS TOOLBAR (5.6, TB-1). One bar, centered on the full two-view canvas, because the views are linked (TB-1 names this board).
                Bottom offset 12: this board draws no time slider and no Data table drawer, so it is the plain case of A1's four
                offsets (12 / 82 / 272 / 342). Width 246 at height 36, the derived desktop figure of TB-2:
                3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders. The item set is fixed and nothing appears or disappears with
@@ -3049,8 +3049,8 @@
                                 </div>
 
                                 <!-- C5: the shared-channel strip. Size is encoded identically in both halves, so it is drawn once.
-               Bottom 60 = 12 (toolbar offset) + 36 (toolbar height) + 12 (gap). Centred on the canvas rect, the
-               same centre the toolbar takes, 256 wide so the strip and the legends are one component at one width.
+               Bottom 60 = 12 (toolbar offset) + 36 (toolbar height) + 12 (gap). Centered on the canvas rect, the
+               same center the toolbar takes, 256 wide so the strip and the legends are one component at one width.
                Measured: 63 tall (block 49 + 12 padding + 2 border), spanning canvas x 288..544, bottom 60..123.
                It clears the minimap (canvas x 12..172, bottom 12..96) by 116 px horizontally and sits directly
                over the toolbar's 293..539, which is what makes it read as the toolbar's own line rather than a
@@ -3111,7 +3111,7 @@
                a thumbnail with a viewport rectangle names itself; the caption returns only in the heatmap form.
                R2-M07 puts it back on the 12 px baseline, which is its 5.1 position. It had been raised 48 px so
                that all three boxes shared one line, but down here it collides with nothing: 12..172 against the
-               centred bar's 293..539 is 121 px of clearance, and it rose for tidiness rather than for a fit.
+               centered bar's 293..539 is 121 px of clearance, and it rose for tidiness rather than for a fit.
                With both legends now fixed at the one set width of 240, half A cannot hold the minimap and a
                legend side by side -- 12 + 160 + 16 + 240 + 12 = 440 against the 416 px of half A -- so TB-3's
                two lines are now drawn by the fit rather than by the box count: the bottom band holds the toolbar
@@ -3298,7 +3298,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3314,7 +3314,7 @@
                C5, THE SHARED CHANNEL AND THE DIFF KEY. Each half draws only the channels whose encoding DIFFERS
                between the halves. Size is encoded identically in both, so it is drawn once, in the shared strip
                that rides 12 px above the canvas toolbar, and it is no longer printed here. The diff key is gone
-               from this legend too: the Difference chip at canvas top 48 already draws the grey "Same group 178"
+               from this legend too: the Difference chip at canvas top 48 already draws the gray "Same group 178"
                and the red-ringed "Moved 22" and carries the full rule on its info circle, and 5.1's One fact, one
                region assigns it to that chip. Floor item 5 is not breached -- C5 states the exception in its own
                words, and the exported image of a Compare view carries one composed legend that names both halves
@@ -3440,7 +3440,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3455,7 +3455,7 @@
                C5, THE SHARED CHANNEL AND THE DIFF KEY. Each half draws only the channels whose encoding DIFFERS
                between the halves. Size is encoded identically in both, so it is drawn once, in the shared strip
                that rides 12 px above the canvas toolbar, and it is no longer printed here. The diff key is gone
-               from this legend too: the Difference chip at canvas top 48 already draws the grey "Same group 178"
+               from this legend too: the Difference chip at canvas top 48 already draws the gray "Same group 178"
                and the red-ringed "Moved 22" and carries the full rule on its info circle, and 5.1's One fact, one
                region assigns it to that chip. Floor item 5 is not breached -- C5 states the exception in its own
                words, and the exported image of a Compare view carries one composed legend that names both halves
@@ -3465,7 +3465,7 @@
                C3 cut 3 fires here and nowhere else on the board: the five largest groups keep their own rows
                (31 / 27 / 24 / 23 / 21 = 126) and the remaining six roll up into one Other row in the neutral
                #6b7480 -- 74 nodes of 200, 37% -- which carries the coverage footer and opens the groups table.
-               B6..B11 keep their canvas colours: the Other row is a roll-up, not a colour key. C3 cut 1, checked
+               B6..B11 keep their canvas colors: the Other row is a roll-up, not a color key. C3 cut 1, checked
                and empty: this legend draws no state-row block, and the selection state on this board is named by
                the inspector header and the status bar, which is why the legend never had one.
                TWO OBLIGATIONS (6.10 item 5, as split by DECISIONS-1.8 C2). EXPORT, ABSOLUTE: every exported image
@@ -3626,9 +3626,9 @@
                             <!-- INSPECTOR, 280 wide: one node selected, metrics from A and B with a delta column (5.4).
              REBUILT UNDER COMPACTION 1.6.
              Row types used here: RT-10 (the reading), RT-8 (section headers, 32px, the header carries the
-             section's verbs), RT-6 (the metric grid, the attribute rows and the neighbour chips -- the user's
+             section's verbs), RT-6 (the metric grid, the attribute rows and the neighbor chips -- the user's
              own strings and values, the one place a left-hand text label column is correct), RT-3 (the
-             In / Out / All neighbour filter), RT-7 (the pinned action block).
+             In / Out / All neighbor filter), RT-7 (the pinned action block).
              Floor kept: the reading in full; every id, label, attribute name and value; both names on every
              metric row (Decision B, first mention in this surface); "Expand 37 neighbors" keeps its words and
              its count, because expand neighbors has no glyph (register 1.6) and floor 4 wants the scope a

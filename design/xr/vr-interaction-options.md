@@ -1520,7 +1520,7 @@ already place nodes by measures with edges drawn. It also gives graphty-element 
   measured axis needs a reference plane to read against.
 - The evidence for the base idea is exploratory: ImAxes (Cordeil et al. 2017; Weak). Cluster
   finding in VR scatterplots helped (Kraus et al. 2020, N=18; Moderate, but scatterplots, an
-  analogue only).
+  analog only).
 
 **Criteria scores.** As first scored: 3 on undo, silence and provenance; Low-confidence 3s on
 structure reading, best representation, sets, spatial arrangement and delight; index 76. As
@@ -2064,10 +2064,10 @@ The graph studies below are read in full, with their numbers and limits, in
 - Kotlarek, J., Kwon, O.-H., Ma, K.-L., Eades, P., Kerren, A., Klein, K. and Schreiber, F. "A
   study of mental maps in immersive network visualization." IEEE PacificVis 2020.
   https://arxiv.org/abs/2001.06462 [lab; N=20]
-- Feyer et al. "2D, 2.5D, or 3D? An exploratory study on multilayer network visualisations in
+- Feyer et al. "2D, 2.5D, or 3D? An exploratory study on multilayer network visualizations in
   virtual reality." IEEE TVCG 2024, N=22. https://arxiv.org/html/2307.10674v2 [exploratory lab]
 - Kraus, M. et al. IEEE TVCG 2020, N=18. https://doi.org/10.1109/tvcg.2019.2934395 [lab;
-  scatterplots, an analogue]
+  scatterplots, an analog]
 - Whitlock, Smart, Szafir. "Graphical perception for immersive analytics." IEEE VR 2020, N=42.
   https://cmci.colorado.edu/visualab/3DPerception/3DPerception.pdf [lab; scatterplots, no main
   effect of display]

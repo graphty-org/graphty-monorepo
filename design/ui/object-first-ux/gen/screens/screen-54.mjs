@@ -1,7 +1,7 @@
 // Screen 54: following a node (round-3/navigate-select.md, "Follow"). Screen
 // 9's state with the dock closed and the layout re-running: the reader chose
 // Follow in BrighamYoung's "..." menu (drawn open under the header's "...",
-// the row highlighted), and the camera now keeps the node centred at the
+// the row highlighted), and the camera now keeps the node centered at the
 // current zoom while it moves (canvas.camera.center). The pill reads
 // "Following BrighamYoung" with an x that stops it.
 import s9 from "./screen-9.mjs";

@@ -3,7 +3,7 @@
  * needs, choose the one-buffer arena upload (the hot prefix, or the full arena when a cold segment is needed and
  * fits), one buffer per array, or arc windows over the arc-indexed arrays. No GPU object is touched here:
  * GraphResidency (./residency.ts) executes arena and perArray plans and P4 executes windowed plans (P1-P3 only
- * plan them). Every byte length comes from counts and flags, so an identity permutation is never materialised
+ * plan them). Every byte length comes from counts and flags, so an identity permutation is never materialized
  * (spec 4.1), and every arithmetic step uses `%` and Math.floor, never a bitwise operator: arc indices and byte
  * offsets exceed 2^31 at the 10M / 100M tier (graph-format invariant I3, spec 4.2).
  */

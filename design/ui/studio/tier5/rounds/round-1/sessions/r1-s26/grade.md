@@ -31,7 +31,7 @@ Route: Data (via the top bar's filter count), a click on the card (swaps its cou
 Or..., depth_cm, 140 + Tab, Done, the layer's row "installed before 2000", the date box with
 Ctrl+A, 2005 and Tab, Done. This is the key's path, including the extra Edit click it names.
 
-Wrong turns 0: the card click that only revealed Edit is on the key's path; nothing was cancelled,
+Wrong turns 0: the card click that only revealed Edit is on the key's path; nothing was canceled,
 undone or removed.
 
 False done 0: the claim of done at step 10 matches the screen and the records.
@@ -49,7 +49,7 @@ count turned into an Edit button instead of the card opening).
    (07.png) and 11.png: A 7 or B 3 with a total of 9 of 11; nothing says one gauge (G09) is in
    both, so he had to reason it out before trusting the result.
 3. **The range boxes' 48 and 210 look like set values** (severity 1, wording). Step 5 (06.png):
-   the grey bounds left him unsure whether a range was already applied.
+   the gray bounds left him unsure whether a range was already applied.
 4. **Nothing says whether a minimum includes the bound** (severity 1, wording). Step 6 (07.png):
    he learned "min 140" includes 140 only because Cedar Bend (140) appeared in the list.
 5. **"Up to the end of 2004" had to be translated to "before 2005"** (severity 1, opinion).

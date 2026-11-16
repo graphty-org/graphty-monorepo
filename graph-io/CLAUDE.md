@@ -10,7 +10,7 @@ package layout or the conformance suite's fixtures, oracles and generative layer
 @graphty/graph-io is the importer / exporter companion of @graphty/graph-format. It parses GEXF,
 GraphML, GML, DOT, Pajek, CSV, JSON and Neo4j into a `GraphSink` (`GraphBuilder` or a caller's sink)
 and writes the same formats back out from a `GraphSnapshot`. The core format stays zero-dependency
-and so does this package at runtime: every format is parsed by a hand-written streaming tokeniser
+and so does this package at runtime: every format is parsed by a hand-written streaming tokenizer
 (one shared XML tokenizer for GEXF and GraphML, one shared RFC 4180 record reader for CSV and
 Neo4j, line and token readers for Pajek, GML and DOT). It also owns the io contract types that need
 the DOM lib (`ReadableStream`, `AbortSignal`).

@@ -11,7 +11,7 @@
  * The other direction -- a scene-unit position written INTO the simulation, which is what a drag,
  * a pin and a seed are -- is pinned over a real graph in
  * `test/browser/simulation-layout-engine.test.ts`, against the simulation's own array: a published
- * position cannot pin it, because this rule normalises any consistent pair of unit systems to the
+ * position cannot pin it, because this rule normalizes any consistent pair of unit systems to the
  * same picture.
  */
 import { assert, describe, it } from "vitest";
@@ -19,7 +19,7 @@ import { assert, describe, it } from "vitest";
 import { measureEnvelope } from "../../src/layout/SimulationLayoutEngine";
 
 /**
- * The furthest any row of an arrangement ends up from the arrangement's centre, once the measured
+ * The furthest any row of an arrangement ends up from the arrangement's center, once the measured
  * envelope has been applied to it.
  * @param positions - The simulation-unit coordinates, stride 3.
  * @param scalingFactor - The scene-unit radius they are to be published at.
@@ -75,7 +75,7 @@ describe("the envelope a simulation's arrangement is published in", () => {
 
     it("measures the rows a layout has placed and ignores the ones it has not", () => {
         // NaN is the element's "not laid out yet", and it reaches the simulation's array through
-        // every row a freeze has just added. Counted, it would poison the centre and the radius
+        // every row a freeze has just added. Counted, it would poison the center and the radius
         // for the whole graph.
         const withGaps = [Number.NaN, Number.NaN, Number.NaN, 10, 20, 30, 30, 40, 50];
         const { scale, centre, box } = measureEnvelope(withGaps, 3, 100);
@@ -115,7 +115,7 @@ describe("the envelope a simulation's arrangement is published in", () => {
 
     it("reports how many rows it measured, so a caller can tell a measurement from the identity", () => {
         // The identity is what a graph with nothing to fit answers, and it is indistinguishable
-        // from a real measurement of a unit-radius arrangement centred on the origin. The bridge
+        // from a real measurement of a unit-radius arrangement centered on the origin. The bridge
         // keeps its previous map rather than adopting this one, and the count is how it knows.
         assert.strictEqual(measureEnvelope([1, 2, 3], 1, 100, () => true).placed, 0);
         assert.strictEqual(measureEnvelope([1, 2, 3], 1, 100, () => true).scale, 1);

@@ -1,6 +1,6 @@
 /**
  * @file Framing keeps every node whole on screen, out to the box it is drawn in, whatever its shape
- * (issues #3087 and #2668). Zoom-to-fit measured each node as its centre plus or minus half its style
+ * (issues #3087 and #2668). Zoom-to-fit measured each node as its center plus or minus half its style
  * size: a default sphere is drawn larger than that, and a tetrahedron's point reaches far past it, so
  * the node at the edge of the frame was cut off.
  */

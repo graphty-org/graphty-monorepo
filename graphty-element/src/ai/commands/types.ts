@@ -52,7 +52,7 @@ export interface CommandContext {
      */
     tx: TransactionScope;
     /**
-     * Fires when the message is cancelled, or undone while it is still going. A command stops
+     * Fires when the message is canceled, or undone while it is still going. A command stops
      * on it: once it has fired, every `tx` call rejects.
      */
     abortSignal: AbortSignal;

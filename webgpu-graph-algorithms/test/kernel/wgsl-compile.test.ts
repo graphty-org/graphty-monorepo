@@ -2,7 +2,7 @@
  * The WGSL compile matrix (spec 5.1, 11.3; contract 5.5 P2): every OVERRIDE_MATRIX case compiles through the
  * PipelineCache on the real device and on Dawn's backend=null adapter, twin cases on both feature settings; the
  * matrix is bounded (its size is pinned per phase); matrixCovers accepts every key these compiles created and
- * canonicalises the ways a factory may spell an override set. The browser twin is test/browser/compile-matrix.test.ts;
+ * canonicalizes the ways a factory may spell an override set. The browser twin is test/browser/compile-matrix.test.ts;
  * the completeness half (every key the node suite creates is a case) is test/setup/global.ts's teardown, whose
  * pieces are unit-tested here too.
  */

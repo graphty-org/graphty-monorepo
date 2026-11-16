@@ -36,15 +36,15 @@ import { closingRefs } from "./merged.mjs";
  * @typedef {{ for: string, failures: import("./classify.mjs").Failure[] }} Underlying the failed jobs
  *   under the failing summary checks whose check run ids `for` names
  * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING" | "CANCELLED"} CheckState `CANCELLED` is no
- *   result: the run was cancelled (by hand, by a newer push, or because no runner picked its jobs
+ *   result: the run was canceled (by hand, by a newer push, or because no runner picked its jobs
  *   up), so it counts as neither failing nor passing, the way PENDING does
  * @typedef {{id: number, workflow: string, rerun?: "started" | "spent" | "draft"}} CancelledRun the newest
- *   run of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
+ *   run of a workflow on the head whose required checks were canceled and nothing in it failed; `rerun`
  *   is set by the daemon: githerd re-ran it this poll, it was re-run before and is not re-run again, or
  *   it started while the pull request was a draft and a re-run would skip CI again
  * @typedef {{workflow: string, cancelledAt: string | null, pending: boolean, failedAt: string[]}} RunNote
- *   one workflow run of the head: the latest start of a cancelled required check of it (null when none
- *   was cancelled, "" when it has no start time), whether a check of it is pending, and the starts of
+ *   one workflow run of the head: the latest start of a canceled required check of it (null when none
+ *   was canceled, "" when it has no start time), whether a check of it is pending, and the starts of
  *   its failed checks
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
@@ -78,7 +78,7 @@ import { closingRefs } from "./merged.mjs";
  *   were all the owner's, whatever else fails beside it
  */
 
-// CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
+// CANCELLED is not here: a run canceled because no runner took it (a GitHub outage) is no verdict
 // on the head. STARTUP_FAILURE is: GitHub reports it for a workflow that could not start, most often
 // an invalid workflow file, which a push must fix.
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
@@ -171,8 +171,8 @@ export function newestContexts(contexts) {
 }
 
 /**
- * Notes one context in its workflow run's summary: a run is cancelled when a required check of it
- * was cancelled, and open while a check of it is pending or failed (`runOpen` judges the failures).
+ * Notes one context in its workflow run's summary: a run is canceled when a required check of it
+ * was canceled, and open while a check of it is pending or failed (`runOpen` judges the failures).
  * @param {Map<number, RunNote>} runs the runs, updated
  * @param {any} ctx the context
  * @param {CheckState} state its state
@@ -197,8 +197,8 @@ function noteRun(runs, ctx, state, isRequired) {
 }
 
 /**
- * Whether a run with a cancelled required check is still open: a check of it is pending, or one
- * failed that started before the cancelled required check did. A failure that started at or after it
+ * Whether a run with a canceled required check is still open: a check of it is pending, or one
+ * failed that started before the canceled required check did. A failure that started at or after it
  * is a job downstream of the cancellation (ci.yml's "Queue Checks Pass" fails whenever "All Checks
  * Pass" did not succeed, #490), not a failure of the code.
  * @param {RunNote} r the run's note
@@ -255,7 +255,7 @@ function replacedRun(c, inFlight) {
  * @returns {{ required: Record<string, CheckState>, failing: string[], queueFailing: string[], startedAt: string | null,
  *   committedAt: string | null, committer: string | null, cancelledRuns: CancelledRun[] }} required
  *   verdicts, every failing context, the latest start of a failing required check run, the head
- *   commit's date and committer email, and the runs whose required checks were only cancelled
+ *   commit's date and committer email, and the runs whose required checks were only canceled
  */
 function readChecks(node, requiredChecks, queueChecks) {
     const commit = node.commits?.nodes?.[0]?.commit;
@@ -729,7 +729,7 @@ export function greenAndClean(rec) {
 
 /**
  * Why the merge queue's dequeue still holds a pull request, from what githerd reads of it.
- * @param {PrRecord} rec the record, labelled `dequeued`
+ * @param {PrRecord} rec the record, labeled `dequeued`
  * @param {string | null} releasePattern the config's release commit pattern
  * @returns {string} the reason
  */
@@ -743,7 +743,7 @@ function dequeuedWhy(rec, releasePattern) {
 }
 
 /**
- * The reasons about cancelled required checks and githerd's re-runs of their runs.
+ * The reasons about canceled required checks and githerd's re-runs of their runs.
  * @param {PrRecord} rec the record
  * @returns {string[]} the reasons
  */

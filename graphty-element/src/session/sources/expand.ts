@@ -215,7 +215,7 @@ function startRun(host: SourceHost, ids: readonly NodeId[], options: ExpandOptio
 }
 
 /**
- * Wait on a running expansion that asked the same. When its own caller cancelled it and this one
+ * Wait on a running expansion that asked the same. When its own caller canceled it and this one
  * did not, this caller asks again.
  * @param host - the session pieces
  * @param id - the seed

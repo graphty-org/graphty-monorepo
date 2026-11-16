@@ -19,7 +19,7 @@
  *                                 type-only or side-effect-only import does not count
  *   parser-dependency             graphty-element src imports papaparse or fast-xml-parser
  *   hand-written-parser           graphty-element/src/data holds csv-variant-detection.ts, parsePajek
- *                                 or a tokeniser (tokenize, tokenizeLine, a *Tokenizer or *Lexer, ...)
+ *                                 or a tokenizer (tokenize, tokenizeLine, a *Tokenizer or *Lexer, ...)
  *
  * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
  * so a name that gains @deprecated is caught without editing this file.

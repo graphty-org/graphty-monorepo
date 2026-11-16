@@ -47,7 +47,7 @@ source are listed. Most severe first.
   value per algorithm everywhere". `decided-doors.md`: "Default scope of a run: the filtered graph". The app
   already names sibling runs by scope (`graphty/src/workspace/runWords.ts`, "whole graph" vs "visible"). So a
   filter card that reads community makes a second Louvain run beside Analyze's, and both appear in Results on both
-  hosts. In the filter, Analyze's (visible) run must be greyed (section 2: reading the filtered picture is
+  hosts. In the filter, Analyze's (visible) run must be grayed (section 2: reading the filtered picture is
   circular), and Louvain is no longer in "not yet run" (section 4 item 3) -- the filter picker offers no way to
   get a full-graph Louvain.
 - **Fix.** Say it: the filter's Results section lists only full-graph runs; for an algorithm whose only runs are

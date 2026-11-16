@@ -67,7 +67,7 @@ export type OperationCategory =
     //   element.viewMode = "2d";
     //   element.layout = "circular";
     //
-    // -- queued the switch and then cancelled it, and the element went on reporting "2d" from its
+    // -- queued the switch and then canceled it, and the element went on reporting "2d" from its
     // own property while the graph drew a perspective 3D scene. Reversing the two lines, or
     // setting the mode again a moment later, worked; nothing said why.
     | "view-mode" // Switch between the 2d, 3d, vr and ar views
@@ -415,7 +415,7 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Whether a running operation is far enough along that it is not cancelled.
+     * Whether a running operation is far enough along that it is not canceled.
      * @param operation - The operation.
      * @returns True when it is running and past the cancellation threshold.
      */
@@ -714,7 +714,7 @@ export class OperationQueueManager implements Manager {
             // operation's own signal, not by the shape of the throw: a body that checks
             // `context.signal.aborted` and gives up throws whatever it likes, and a `fetch` deep
             // inside a body that ran to completion can raise an `AbortError` of its own that has
-            // nothing to do with this queue. A cancelled operation resolves and is not reported;
+            // nothing to do with this queue. A canceled operation resolves and is not reported;
             // anything else is the caller's error and the graph's.
             const cancelled = operation.abortController?.signal.aborted === true;
 
@@ -746,8 +746,8 @@ export class OperationQueueManager implements Manager {
      * can obsolete it, and a rejection there would print an error on the console of every page
      * that sets a layout, for the element doing precisely what it was built to do.
      *
-     * The resolvers are dropped as they are called, so an operation that is cancelled and then
-     * finishes anyway, or is cancelled twice, settles once.
+     * The resolvers are dropped as they are called, so an operation that is canceled and then
+     * finishes anyway, or is canceled twice, settles once.
      * @param operation - The operation nobody will hear from again.
      */
     private settleResolved(operation: Operation): void {
@@ -940,7 +940,7 @@ export class OperationQueueManager implements Manager {
      */
     clear(): void {
         // Cancel every operation that has not finished. A finished one keeps its controller until
-        // its cleanup runs, and is not cancelled: its work is done.
+        // its cleanup runs, and is not canceled: its work is done.
         this.activeControllers.forEach((controller, id) => {
             if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
@@ -1044,7 +1044,7 @@ export class OperationQueueManager implements Manager {
 
         if (!operation) {
             // The operation was gone before the resolvers could be hung on it, which means it was
-            // cancelled. Attaching them to nothing and returning the promise anyway is what used
+            // canceled. Attaching them to nothing and returning the promise anyway is what used
             // to leave the caller waiting for ever.
             return Promise.resolve();
         }
@@ -1091,11 +1091,11 @@ export class OperationQueueManager implements Manager {
     /**
      * Cancel a specific operation
      * @param operationId - ID of the operation to cancel
-     * @returns True if the operation was cancelled, false otherwise
+     * @returns True if the operation was canceled, false otherwise
      */
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
-        // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
+        // A finished operation keeps its controller until its cleanup runs; it is not canceled.
         if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
 
@@ -1146,7 +1146,7 @@ export class OperationQueueManager implements Manager {
     /**
      * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
-     * @returns Number of operations cancelled
+     * @returns Number of operations canceled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
@@ -1250,7 +1250,7 @@ export class OperationQueueManager implements Manager {
      * the nodes after a data change -- and no caller holds its promise. Discarding that promise
      * with `void` meant a repaint that threw reached nobody: not the host, not
      * `emitGraphError`, only the page's unhandled-rejection channel, where it reads as a stray
-     * error with no graph attached to it. Being cancelled is the ordinary end of such an
+     * error with no graph attached to it. Being canceled is the ordinary end of such an
      * operation -- a second load arrives and the repaint queued behind the first is not wanted --
      * so an abort passes in silence and everything else is reported as the graph's own error.
      * @param work - The promise nobody is holding.

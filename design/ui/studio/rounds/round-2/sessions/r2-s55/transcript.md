@@ -39,7 +39,7 @@ Elena: "Pia! OK. 'Degree 4' -- I guess she knows 4 people? I thought she looked 
 
 Command: `--click-at 680,864` -> 05.png ("at 680,864: button "Analyze"")
 
-Saw: a popup list, "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a grey one-line description.
+Saw: a popup list, "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a gray one-line description.
 
 Elena: "Ugh, Betweenness, Eigenvector, Katz... this is the stuff I was afraid of. But one says 'Start here' -- fine, I'll do what it says. PageRank, like Google?"
 Hesitation: almost closed the list when she saw the names; the "Start here" tag is what kept her going.
@@ -81,7 +81,7 @@ Hesitation: expected a ranked list; got a styling panel.
 
 Command: `--click "Values"` -> 10.png
 
-Saw: a row of grey bars (a histogram, all about the same height), "0.04382 ... 0.06608", "20 of 20 have a value, ... median 0.04736". Then "Top 10": Farah 0.06608, Ava 0.06423, Hana 0.05883, Ivan 0.05575, Gus 0.0547, Jada 0.0483, Theo, Sana, Ravi, Quinn. Then "Made with: Analysis PageRank, Ran Oct 7, Damping factor 0.85, Weight None".
+Saw: a row of gray bars (a histogram, all about the same height), "0.04382 ... 0.06608", "20 of 20 have a value, ... median 0.04736". Then "Top 10": Farah 0.06608, Ava 0.06423, Hana 0.05883, Ivan 0.05575, Gus 0.0547, Jada 0.0483, Theo, Sana, Ravi, Quinn. Then "Made with: Analysis PageRank, Ran Oct 7, Damping factor 0.85, Weight None".
 
 Elena: "THERE it is. A top 10. Farah, Ava, Hana are the top three. That's the list I wanted -- this I could paste in Slack: 'Farah, Ava and Hana are the hubs of the running club.' Where is Farah on the picture though? Let me click her name."
 

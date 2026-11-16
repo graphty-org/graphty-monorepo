@@ -15,12 +15,12 @@
  * `test/browser/logging-integration/URLParamIntegration.test.ts` -- and they still pass either
  * way, because they call `parseLoggingURLParams()` themselves and never mount an element. No
  * test anywhere mounted the element and asked what the URL did to it, which is exactly why the
- * behaviour survived as long as it did.
+ * behavior survived as long as it did.
  *
  * THIS FILE FAILS UNTIL THE READING IS DELETED, and that is what it is for. The deletion is
  * three hunks in `src/graphty-element.ts` -- the `parseURLParams` method, the call to it in
  * `connectedCallback`, and the now-unused `./logging` import -- and that file belongs to
- * another piece of work in flight. The failure message names the real behaviour: mounting the
+ * another piece of work in flight. The failure message names the real behavior: mounting the
  * element reconfigured global logging because of the page's query string. Do not weaken it;
  * land the deletion.
  *
@@ -74,7 +74,7 @@ async function mount(): Promise<Graphty> {
     container.appendChild(element);
 
     await element.updateComplete;
-    // Connected, initialised and done with everything it queued while coming up.
+    // Connected, initialized and done with everything it queued while coming up.
     await vi.waitFor(() => {
         assert.isTrue(element.graph.initialized, "the element initialised its graph");
     });

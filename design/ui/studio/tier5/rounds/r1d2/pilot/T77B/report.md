@@ -44,7 +44,7 @@ Data; Add filter; depth_cm; type 140; Enter (02.png: "depth_cm min 140 -- Filter
 worked: Undo is no longer "Undo changing node color on Oldest" but plain "Undo".
 
 - 03.png: the card is gone, top bar 7 of 11, and the node table now reads "7 of 11 nodes" with the 7
-  telemetry rows (the previous build kept the cancelled card's "Shown 1 of 11", G09 only). Undo is
+  telemetry rows (the previous build kept the canceled card's "Shown 1 of 11", G09 only). Undo is
   disabled.
 - 04.png: hovering Undo: tooltip "Nothing to undo".
 - 05.png (Ctrl+Z) and 06.png (Ctrl+Shift+Z): nothing changes; the card does not come back, Oldest
@@ -97,6 +97,6 @@ walked in their own pilots. This targeted pass asks for no keyboard walk of T77 
 ## For the answer key
 
 The c3100058ab build note "after Cancel on a new filter card that had a result, the node table keeps
-that cancelled card's rows" no longer holds on d3fda9f2b6: the table follows the top bar after Cancel
+that canceled card's rows" no longer holds on d3fda9f2b6: the table follows the top bar after Cancel
 (touched-2 03.png, touched-9 03.png). The table's Shown and All are not buttons by name on this build
 ("All" also names the installed column's buttons), which only matters to scripted routes.

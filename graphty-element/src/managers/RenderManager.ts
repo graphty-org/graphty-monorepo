@@ -60,8 +60,8 @@ import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, Shader
  */
 interface RenderManagerConfig {
     /**
-     * The engine to draw with, already initialised. Left out, a WebGL engine is built on the
-     * canvas. A WebGPU engine has to be passed in: its initialisation is asynchronous and a scene
+     * The engine to draw with, already initialized. Left out, a WebGL engine is built on the
+     * canvas. A WebGPU engine has to be passed in: its initialization is asynchronous and a scene
      * cannot be built on it before that finishes -- see {@link openWebGPUEngine}.
      */
     engine?: Engine | WebGPUEngine;
@@ -235,7 +235,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
- * @returns The initialised engine, or the reason there is none.
+ * @returns The initialized engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
@@ -368,7 +368,7 @@ function forgetDisposedScene(): void {
  * frame still queued for the context. On a software GPU a graph of 1000 labels that was drawn
  * faster than SwiftShader keeps up with leaves minutes of frames queued, and losing the context
  * at once blocked `dispose()` for that long. So a fence goes in after the last command, and the
- * context is lost only once the fence has signalled, which costs the page nothing.
+ * context is lost only once the fence has signaled, which costs the page nothing.
  * @param gl - The context of an engine that has just been disposed.
  */
 function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
@@ -974,7 +974,7 @@ export class RenderManager implements Manager {
         }
     };
     private readonly resizeHandler: () => void;
-    /** The one skybox dome, and the image it shows; null while the background is a colour. */
+    /** The one skybox dome, and the image it shows; null while the background is a color. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
     /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
     private shaderBackground: ShaderBackground | null = null;
@@ -1551,7 +1551,7 @@ export class RenderManager implements Manager {
      * Skipping a tick while the last frame is unfinished keeps the queue at one frame.
      * On WebGPU the same holds through `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames`
      * asks for it.
-     * @returns True while the last frame's fence is unsignalled.
+     * @returns True while the last frame's fence is unsignaled.
      */
     private gpuBehind(): boolean {
         if (this.webGpuFrameInFlight !== null) {
@@ -1589,7 +1589,7 @@ export class RenderManager implements Manager {
             return;
         }
 
-        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
+        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignaled; the
         // newer one signals after it, so the older is no longer needed.
         if (this.lastFrameFence !== null) {
             gl.deleteSync(this.lastFrameFence);
@@ -1753,7 +1753,7 @@ export class RenderManager implements Manager {
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
      * anything the last frame drawn moved while it was drawn -- the camera, the canvas size, the
-     * background colour. The last is what keeps a camera gliding to rest when something moves it
+     * background color. The last is what keeps a camera gliding to rest when something moves it
      * only inside a frame (an onBeforeRender observer), so the loop draws until a frame leaves it
      * where it began.
      * @returns True when this tick draws nothing.
@@ -2052,11 +2052,11 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background, bottom to top: the clear colour (its own, else the
+     * Draw the graph against a background, bottom to top: the clear color (its own, else the
      * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
      * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
-     * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
+     * The scene holds at most one dome. A color disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
      * builds nothing.
      * @param background - The background, parsed.
@@ -2188,16 +2188,16 @@ export class RenderManager implements Manager {
         this.requestFrame();
     }
 
-    /** The graph's own background colour, last applied. */
+    /** The graph's own background color, last applied. */
     #backgroundColor = DEFAULT_BACKGROUND_COLOR;
 
-    /** A colour drawn in place of the graph's background (a globe's look), or null. */
+    /** A color drawn in place of the graph's background (a globe's look), or null. */
     #backgroundOverride: string | null = null;
 
     /**
-     * Clear the canvas to a colour in place of the graph's background colour, or null to draw the
+     * Clear the canvas to a color in place of the graph's background color, or null to draw the
      * graph's own again. A skybox, when the graph has one, still covers it.
-     * @param color - Hex colour string, or null.
+     * @param color - Hex color string, or null.
      */
     set backgroundOverride(color: string | null) {
         if (color === this.#backgroundOverride) {

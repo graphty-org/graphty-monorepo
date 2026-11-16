@@ -16,7 +16,7 @@
  *
  * The seed: `frontierCount` is NEVER seeded, because the first boundary rotates it out unread. A BFS driver calls
  * `reset(queue, source, { nextFrontierCount: 1, level: U32_MAX })`: the first boundary rotates the 1 in, adds it into
- * `visitedCount`, and wraps `level` to 0, so the level-0 expansion claims the source's neighbours at `level + 1 == 1`.
+ * `visitedCount`, and wraps `level` to 0, so the level-0 expansion claims the source's neighbors at `level + 1 == 1`.
  * `reset` is a queue write, ordered before the submit that follows, and it puts the source on side 0.
  *
  * Every buffer comes from the caller's ONE lease (`scope.scratch`) so the algorithm's dispose()

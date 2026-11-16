@@ -14,7 +14,7 @@
 // deferred (tools/full-run.mjs file-deferred) instead. A verdict that did not defer already decided, so nothing,
 // except when only the Verdict job failed after deciding a verdict that is not red (an error in the screenshot gate,
 // the promotion decision or the hold, each of which says "re-run the failed jobs"): that job is re-run once. A
-// second attempt that ended cancelled with no verdict of its own (a newer dispatch replaced it while it was pending)
+// second attempt that ended canceled with no verdict of its own (a newer dispatch replaced it while it was pending)
 // files what attempt 1 deferred, since nothing else will.
 // Every other run (GPU, the weekly paired benchmark, a legacy or shadow Release) is re-run once only when all it lost
 // was its machine.dev runner (tools/gpu-runner-lost.sh), as gpu-rerun-on-runner-loss.yml did.
@@ -59,10 +59,10 @@ export const modeOf = (title) => /^Release \(([a-z-]+)\)$/.exec(title ?? "")?.[1
  * @param o.workflow its workflow's name
  * @param o.title its display title
  * @param o.attempt its attempt
- * @param o.conclusion its conclusion (failure, cancelled when a job timed out, timed_out)
+ * @param o.conclusion its conclusion (failure, canceled when a job timed out, timed_out)
  * @param o.record its attempt-1 verdict record (verdict-1.json), or null
  * @param [o.record2] its attempt-2 verdict record (verdict-2.json), or null
- * @param o.failed the names of its failed or cancelled jobs
+ * @param o.failed the names of its failed or canceled jobs
  * @param o.lostRunner () => whether every failed job only lost its runner
  * @returns "rerun", "file" or "none"
  */
@@ -75,11 +75,11 @@ export function decide({ workflow, title, attempt, conclusion, record, record2 =
 
 // decide() for a full, restart or candidate Release run
 function decideFullRun({ attempt, conclusion, record, record2, failed }) {
-    // the re-run attempt was cancelled before its verdict (replaced while pending in the release-train group): attempt
+    // the re-run attempt was canceled before its verdict (replaced while pending in the release-train group): attempt
     // 1's deferred red is filed here, or it is lost
     if (attempt === 2 && conclusion === "cancelled") return record?.deferred && !record2 ? "file" : "none";
     if (attempt !== 1 || conclusion === "success") return "none";
-    // a job that hits its timeout-minutes ends cancelled, and so does the run: a deferred verdict is acted on whatever
+    // a job that hits its timeout-minutes ends canceled, and so does the run: a deferred verdict is acted on whatever
     // the run's conclusion, or nothing re-runs it and nothing files it
     if (record?.deferred) return failed.length && failed.every(rerunnable) ? "rerun" : "file";
     // the verdict decided, then a later step of its job failed (the screenshot gate, the promotion decision, the
@@ -132,7 +132,7 @@ function facts(env) {
         .split("\n")
         .filter(Boolean);
     const dir = mkdtempSync(join(tmpdir(), "release-rerun-"));
-    // no verdict ran on attempt 1 (a failed pick, a cancelled run): it deferred nothing
+    // no verdict ran on attempt 1 (a failed pick, a canceled run): it deferred nothing
     const record = verdictRecord(env, dir, 1);
     const record2 = Number(env.ATTEMPT) === 2 ? verdictRecord(env, dir, 2) : null;
     const lostRunner = () => {
@@ -220,7 +220,7 @@ function fileDeferred(env, f) {
         env: { ...env, GITHUB_OUTPUT: "" },
     });
     const field = (k) => new RegExp(`^${k}=(.*)$`, "m").exec(out)?.[1] ?? "";
-    // release-due cancelled the run to restart on a merged fix: nothing to announce or hold
+    // release-due canceled the run to restart on a merged fix: nothing to announce or hold
     if (field("fixed")) return;
     execFileSync(
         "node",

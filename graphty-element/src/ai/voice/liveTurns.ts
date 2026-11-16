@@ -13,7 +13,7 @@
  * next press or when the connection closes. Tool calls no press asked for never run. A held batch
  * or a question hands off: the provider gets the message's code for its open calls and the
  * connection closes after that response, so the turns path answers what is pending. A message
- * cancelled, undone or failed before its last response closes the connection, so nothing the
+ * canceled, undone or failed before its last response closes the connection, so nothing the
  * provider still sends runs. Reached only by `import()`.
  * @module ai/voice/liveTurns
  */
@@ -475,7 +475,7 @@ export class LiveTurnEngine implements AiEngine {
     /**
      * A message ended. Something pending hands off: its open calls get the message's code and the
      * connection closes after that response. A message that ended before reading its last response
-     * (cancelled, undone, failed), or whose changes were taken back, leaves the provider answering
+     * (canceled, undone, failed), or whose changes were taken back, leaves the provider answering
      * or remembering what no longer holds: the connection closes, and the next press opens another
      * with the conversation as saved.
      * @param utterance - Its press.

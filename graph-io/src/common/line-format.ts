@@ -1,7 +1,7 @@
 /**
  * defineLineFormat(): an importer for a text format with one node or one edge per line, built from
  * one function that reads a line. Everything else an importer must do (options, decoding, the
- * report and its counts, ids, direction, weights, attribute types, cancelling) is done here.
+ * report and its counts, ids, direction, weights, attribute types, canceling) is done here.
  */
 
 import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
@@ -80,7 +80,7 @@ const USED = new Set<keyof CommonImportOptions>(["ids", "defaultDirected", "weig
 /**
  * Make an importer for a text format with one node or one edge per line. You write `parseLine`,
  * which reads one line; the importer handles every input graph-io takes, the options every importer
- * takes, the import report and its counts, cancelling and progress. Register the result with
+ * takes, the import report and its counts, canceling and progress. Register the result with
  * `registry.registerImporter()`.
  * @example
  * ```ts

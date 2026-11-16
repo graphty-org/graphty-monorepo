@@ -24,7 +24,7 @@ Screenshot 05.png: Yes / No list. Picking Yes so only the trained people stay.
 
 ## Step 6
 Command: --step --click-at 1178,226 (option "Yes")
-Screenshot 06.png: "trained Yes -- 15 of 24", top bar says 15 of 24 nodes, 25 of 63 edges. 9 "No match" greyed out. That's what I want. Clicking Done.
+Screenshot 06.png: "trained Yes -- 15 of 24", top bar says 15 of 24 nodes, 25 of 63 edges. 9 "No match" grayed out. That's what I want. Clicking Done.
 
 ## Step 7
 Command: --step --click "Done"
@@ -88,7 +88,7 @@ What confused me / friction:
 - The picture was already orange from my friend's PageRank coloring, so my "orange" staff didn't stand out at all until I found the eye on the PageRank row. Nothing told me that; I had to guess. Someone in a hurry would ship a slide where "staff in orange" is invisible.
 - Clicking the Color box gave me only a text cursor, no palette. I guessed that typing a color name works; it did, but a swatch list would be faster than guessing hex codes.
 - "Which nodes" -- fine once you've seen it, but I'd call them people.
-- Small grey text (the "4 of 15 nodes" under the legend, "Edges: not styled") is hard to read without my glasses.
+- Small gray text (the "4 of 15 nodes" under the legend, "Edges: not styled") is hard to read without my glasses.
 - Not sure whether hiding PageRank changes what my friend sees next time she opens her project -- is that saved into her file?
 
 ## Follow-up

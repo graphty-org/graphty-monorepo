@@ -3,7 +3,7 @@
  * recomputed from `pos[i]` and the state (PD-10); for an inside node the coarsest level minus the 3x3 (3x3x3)
  * around its coarsest cell, then at every finer level the 6x6 (6x6x6) block that is the parent's 3x3 minus this
  * level's own 3x3 -- space tiled exactly once, no theta -- plus the centroid of each of the 2^dim outside
- * pseudo-cells, one per orthant about the grid centre (issue #90); for an outside node the coarsest level in full and
+ * pseudo-cells, one per orthant about the grid center (issue #90); for an outside node the coarsest level in full and
  * no pseudo-cell. Every cell term is the per-cell law on the mass-weighted
  * centroid (Gephi Region semantics), softened by `eps^2`: `LAW` 0 (FA2) `d * (k m_i M / d2)` with `|d|^2` first
  * floored at 0.01^2 like K3's pair law (issue #89), `LAW` 1 (FR, 7.20)

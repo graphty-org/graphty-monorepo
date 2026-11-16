@@ -1,7 +1,7 @@
 /**
  * @file The pieces drawn over a node's face: a pie's slices, a striped fill's bands and an image's
  * placement (`pie`, `stripes` and `image` of a node style), as plain geometry in the node's own
- * plane, centred on the node, y up. No Babylon.js, so it is tested on its own.
+ * plane, centered on the node, y up. No Babylon.js, so it is tested on its own.
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
@@ -143,7 +143,7 @@ export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: nu
 /**
  * A striped fill's bands over a node `width` x `height`: bands following one another top to bottom
  * (`direction` "down", the default) or left to right ("right"), each its share of the box, over a
- * box `size` times the node's, centred on it.
+ * box `size` times the node's, centered on it.
  * @param stripes - The node style's stripes block.
  * @param width - The node's width.
  * @param height - Its height.

@@ -180,16 +180,16 @@ default runner for other tests."
 
 ### 1.3 Decisions inherited from the graph-format design (not relitigated)
 
-| Design section | Inherited decision | How this plan honours it |
+| Design section | Inherited decision | How this plan honors it |
 | --- | --- | --- |
-| 10.1 (lines 2327-2350) | The arrays a GPU package binds: `rowPtr`, `colIdx`, `weights`, `arcToEdge`, `edgeToArc`, `reverse()`, `coo().src`, `edgeList()`, degrees, `degreeOrder(opts).perm / segmentOffsets`, `mate()`, `gpuView()` columns; the weighted-degree normaliser is computed on the device; `override USE_PERM` with `colIdx` / `rowPtr` as never-read dummies for identity permutations; `segmentOffsets` read on the CPU. | 4.1 (residency keys), 6 row 3 (segmented reduce), 3.5 (WGSL prelude declares `USE_PERM`). |
+| 10.1 (lines 2327-2350) | The arrays a GPU package binds: `rowPtr`, `colIdx`, `weights`, `arcToEdge`, `edgeToArc`, `reverse()`, `coo().src`, `edgeList()`, degrees, `degreeOrder(opts).perm / segmentOffsets`, `mate()`, `gpuView()` columns; the weighted-degree normalizer is computed on the device; `override USE_PERM` with `colIdx` / `rowPtr` as never-read dummies for identity permutations; `segmentOffsets` read on the CPU. | 4.1 (residency keys), 6 row 3 (segmented reduce), 3.5 (WGSL prelude declares `USE_PERM`). |
 | 10.2 (2352-2373) | 4-byte arrays over plain `ArrayBuffer`; `u8` via `paddedU32View()` + `unpack4xU8`; `bool` / masks as u32 bitmaps LSB-first; `components: 3` read as `array<f32>` with `3*i`, never `array<vec3<f32>>`; `f64` via the cached f32 `gpuView()`. | 4.3 (column uploads), 7.3 (positions as `array<f32>`). |
 | 10.3 (2375-2441) | Upload plan: whole arena when the arena AND every segment fit the device limits; else per array (also the `arena === null` path); else windows. | 4.2 (planner), with one refinement marked DEPARTURE-2 in 1.5. |
 | 10.4 (2443-2465) | `gpuEligibility`; results attach by reference through `nodes.set()`. | 9.7. |
-| 10.5 (2467-2491) | Invariants the GPU may assume; never bind a zero-length array; guard division by weight sums; rows are sorted by target (I4). | 5.6 (empty ranges), 8.2 (PageRank normaliser), 8.5 (triangle merge). |
+| 10.5 (2467-2491) | Invariants the GPU may assume; never bind a zero-length array; guard division by weight sums; rows are sorted by target (I4). | 5.6 (empty ranges), 8.2 (PageRank normalizer), 8.5 (triangle merge). |
 | 10.6 (2493-2520) | 1D dispatch legal iff `ceil(count / WG) <= maxComputeWorkgroupsPerDimension` (65,535 x 256 = 16,776,960, NOT 2^24); 2D grid or grid-stride above; windows start at 64-arc boundaries computed with `%`. | 5.2 (`plan1d` / `plan2d` / `planGridStride`), 4.2 (window planner). |
 | 10.7 (2522-2543) | Readback conventions: index-aligned `Uint32Array` / `Float32Array`, `foldArcs` for per-arc results, copy out before `unmap()`, `dest?` on every algorithm. | 3.3 (`dest?` in `GpuRunOptions`), 4.4 (Readback). |
-| 10.8 (2545-2550) | Device queries, chunking, 2D dispatch, frontier queues, scans, dense relabelling and "GPU unavailable" behaviour belong to the GPU package; it never falls back. | 2.4, 5, 6. |
+| 10.8 (2545-2550) | Device queries, chunking, 2D dispatch, frontier queues, scans, dense relabeling and "GPU unavailable" behavior belong to the GPU package; it never falls back. | 2.4, 5, 6. |
 | 14.2 (line 3738) | Label results are `{ labels: Uint32Array; count: number; groups(): Uint32Array[] }`; labels dense in first-seen order (`renumberPartition`, line 2978). | 3.3, 8.3, 9.7. |
 | 14.3 (3959-4019) | `LayoutSimulation { load, step, settled, setFixed, setPosition, dispose }`; positions are the owner's stride-3 scene-unit array read AND written in place; the GPU buffer is authoritative while stepping; FA2 default mass `outDegree() + 1`; weights via `snapshot.weights` (`weight === true`) or a named edge column; `LayoutSimulation` and the position helpers are OWNED by `@graphty/layout`. | 7.19, 9.3. Two DEPARTURES: the formulas (DEPARTURE-3) and the device position layout under the stride-3 contract (DEPARTURE-7). |
 | 14.4 (4048-4211) | `DataManager` owns the builder and the position array; `snapshot-replaced { previous, next, report }` triggers `accelerator.release(previous)`; adapters call `getSnapshot()` once and run `indexed.*` "(or the injected GPU accelerator)"; layouts get `dm.undirected(s).snapshot`; drag writes `simulation.setPosition`; `column.markDirty()` once per frame. | 9.4. |
@@ -245,7 +245,7 @@ default runner for other tests."
 | DEPARTURE-6 | 16.2 line 4545: "`1e-5` for f32 GPU parity". | `1e-4` relative for betweenness (f32 accumulation over many sources, 9.7) and for the one-iteration force parity of 11.4 (f32 tile summation order against an f64 oracle); `1e-5` everywhere else. | Both are f32 accumulation-length effects the design's blanket number did not anticipate (Q-24); recorded here so 16.2 is amended at W1 rather than silently missed. |
 | DEPARTURE-7 | 14.3 lines 3997-3999: `LayoutSimulation` "kernels take the position STRIDE (3) as a uniform and operate on the owner's stride-3 column directly, so no per-frame `withComponents` copy exists in either direction". | The kernels operate on the simulation's own `array<vec4f>` device buffer (xyz + mass; D23, 7.3); the owner's stride-3 array is read once at `load()` / `setPosition` (repacked with the inverse unit scale) and written by every readback through the `toScene` kernel (7.18). No `withComponents` copy exists in either direction, so the sentence's outcome holds; its mechanism (the stride as a uniform, kernels on the stride-3 column) does not. | One aligned 16-byte load per gather instead of three scalar loads plus a separate `mass` fetch: the sorted near field at 1M nodes drops 1.80 -> 0.92 ms uniform and 2.94 -> 1.79 ms with outliers (7.3 [M]), and the repack rides on the unit conversion `toScene` performs anyway. 14.3 is amended in the L1 PR alongside DEPARTURE-3. |
 
-Everything else in sections 10, 14.3-14.6, 15 and 16 is honoured as written.
+Everything else in sections 10, 14.3-14.6, 15 and 16 is honored as written.
 
 ### Review notes (section 1)
 
@@ -462,7 +462,7 @@ with `src/browser/**` in its `ignores`, and the mirror rule that
 `src/browser/**` and `src/node/**` are imported by nothing in `src/` outside
 themselves. `caps.software` is read inside `src/` by exactly two functions,
 `isSoftwareAdapter` (which computes it) and `planGridStride` (a performance
-default for the workgroup count, 5.2, never a behaviour decision); a test greps
+default for the workgroup count, 5.2, never a behavior decision); a test greps
 for any third reader.
 
 ### 2.5 Subpath exports and keeping the native module out of browser bundles
@@ -507,7 +507,7 @@ Mechanisms, each with the test that guards it:
    `pnpm run build` at the workspace root, which is `pnpm -r run build:all`
    (`packages/package.json` line 8), never the tsc-only `pnpm -r run build`.
 2. The vite library build (`scripts/build-bundle.js`, copied from
-   `packages/graph-io/scripts/build-bundle.js` lines 33-47 which externalise
+   `packages/graph-io/scripts/build-bundle.js` lines 33-47 which externalize
    every `dependencies` + `peerDependencies` name) marks `webgpu` and
    `@graphty/graph-format` external, so a consumer's bundler resolves them --
    and only resolves `webgpu` if the consumer imported `./node`.
@@ -551,14 +551,14 @@ hint.
 | Difference (note 05) | Dawn-node 0.4.0 | Browsers | What the device layer does |
 | --- | --- | --- | --- |
 | `adapter.info.isFallbackAdapter` (`@webgpu/types` 0.1.72 puts it on `GPUAdapterInfo`, `dist/index.d.ts` line 2229) | `undefined` | boolean | `isSoftwareAdapter(info)` tests `architecture` first, `isFallbackAdapter` second. |
-| `forceFallbackAdapter`, `powerPreference` | ignored | honoured | Node adapter choice is `adapter=` / `backend=` strings only. |
+| `forceFallbackAdapter`, `powerPreference` | ignored | honored | Node adapter choice is `adapter=` / `backend=` strings only. |
 | One device per adapter | `requestDevice` a second time -> `OperationError: adapter is "consumed"` [M] | same (spec 3.5.1) | `create({ adapter })` on a used adapter -> `E_NO_DEVICE { reason: "consumed" }`; the test harness requests a fresh adapter for every device it creates (11.2); recovery after loss starts from `requestAdapter()`. |
 | `minStorageBufferOffsetAlignment` / `minUniformBufferOffsetAlignment` | ADAPTER reports 16 / 64; a default DEVICE is 256 unless a smaller value is requested [M] | 256 | always align to 256 (graph-format arena is 256-aligned); never assert `=== 256`; never request the adapter's smaller value. |
 | `maxBufferSize` on the adapter | 1 TiB (driver value) | 4 GiB | plan against `device.limits`; wrap large `createBuffer` in `pushErrorScope("out-of-memory")`. |
 | `wgslLanguageFeatures` | 9 incl. `uniform_buffer_standard_layout` and `subgroup_id` | 4 in Chromium 139 (no `subgroup_id`) | uniform structs generated with strict 16-byte layout by `UniformBlock` (5.3); every variant compiled on BOTH runtimes in CI (11.3); subgroup slots allocated without `@builtin(subgroup_id)` (D16). |
 | `shader-f16` on NVIDIA | absent | absent (present on lavapipe) | never required; not used in v1. |
 | `subgroups` size | 32 (NVIDIA), 8 (lavapipe); min == max on both | 32 (NVIDIA), 4 (SwiftShader); Intel Xe / Arc report 8-32, AMD 32-64 | kernels read `@builtin(subgroup_size)` at runtime (available in Dawn 0.4.0, `tmp/webgpu-plan/review/probes/design-probe-*.log` item 5) and take only `SUBGROUP_MAX = adapter.info.subgroupMaxSize` as a compile-time constant (D16); a faked-caps test with `min != max` asserts no result depends on the override. |
-| `timestamp-query` resolution | unquantised: 1,024 ns ticks [M] (`design-probe-nvidia.log` item 6) | 100 us quantised (Chrome 121+) | profiler reports `quantised: true` in browsers; per-kernel profiling is a Node activity. |
+| `timestamp-query` resolution | unquantized: 1,024 ns ticks [M] (`design-probe-nvidia.log` item 6) | 100 us quantized (Chrome 121+) | profiler reports `quantised: true` in browsers; per-kernel profiling is a Node activity. |
 | `getMappedRange()` after `device.destroy()` | stays attached in 0.4.0 (0.6.1 adds a shim) | detached | `Readback` always `unmap()`s / `destroy()`s its staging buffers itself. |
 | `mapAsync` round trip | 0.03-0.04 ms [M] | 0.10-0.15 ms [M] | both are far below one frame; batching decisions are made for the browser number. |
 | Uncaptured validation errors | printed to stderr, no throw | console, no throw | `uncapturederror` listener + error scopes in both. |
@@ -944,7 +944,7 @@ export function createNodeGpuContext(options?: NodeGpuOptions): Promise<GpuConte
 export function probeNodeWebGpu(options?: NodeGpuOptions): Promise<ProbeResult>;
 ```
 
-### 3.5 WGSL source organisation and composition
+### 3.5 WGSL source organization and composition
 
 Decision D9: WGSL is TypeScript. Each kernel is `src/wgsl/<name>.wgsl.ts`
 exporting `const <name>Wgsl = /* wgsl */ \`...\`` (the `/* wgsl */` tag gives
@@ -1018,7 +1018,7 @@ Two WGSL rules every kernel body obeys, both enforced by the compile matrix
 because Tint makes a violation a shader-creation ERROR:
 
 1. Uniformity. `workgroupBarrier`, `subgroupAdd` and every other
-   synchronisation or subgroup builtin must be reached in UNIFORM control
+   synchronization or subgroup builtin must be reached in UNIFORM control
    flow: per-invocation values are computed under the `i < n` guard into
    locals (`var sw = 0.0; if (valid) { ... }`), and every workgroup / subgroup
    reduction runs in unconditional code after the guard; an early `return`
@@ -1144,7 +1144,7 @@ Identity permutations (note 07 section 2.2): `core()` never touches
 `fwdArc`); it returns `{ perm: null }` and the kernel is compiled with
 `USE_PERM = false`, binding `colIdx` in the `arcToEdge` slot and `rowPtr` in
 the `edgeToArc` slot (design 10.1). A test asserts that after `core()`,
-`snapshot.byteLength({ views: true })` is unchanged (no materialisation).
+`snapshot.byteLength({ views: true })` is unchanged (no materialization).
 
 ### 4.2 Upload planner: arena hot prefix, per array, windowed
 
@@ -1194,7 +1194,7 @@ array objects (note 07 section 1.6), so `residency.view(s, "reverse")` resolves
 to the SAME buffers as `core()` with no upload -- the WeakMap key is the array
 object. `degreeOrder().segmentOffsets` is read on the CPU (5 numbers) and
 passed as uniform scalars (design 10.1 line 2342). `weightedOutDegree()` is
-never uploaded (F64); the normaliser is computed on the device (section 6 row
+never uploaded (F64); the normalizer is computed on the device (section 6 row
 3). `packViews` (graft: A 4.3): `view(s, "reverse", { packViews: true })`
 concatenates the four reverse arrays of a DIRECTED snapshot into one buffer with
 256-aligned offsets (the arena layout applied to a view) when the total fits
@@ -1498,12 +1498,12 @@ Same-pass write-then-indirect-read is verified on Dawn 0.4.0 [M]
 When `timestamp-query` was granted, `ctx.profiler` wraps compute passes with
 `timestampWrites` (begin / end per pass) into a query set of 256 slots,
 resolves into a buffer read back with the batch's staging buffer, and reports
-`{ label, ns }` per pass. Chromium quantises to 100 us (note 05 section 3.1)
+`{ label, ns }` per pass. Chromium quantizes to 100 us (note 05 section 3.1)
 while Dawn-node does not (1,024 ns ticks [M], `design-probe-nvidia.log` item
 6); the profiler reports `quantised: true` in browsers. Per-kernel profiling is a
 Node activity (benchmarks, section 11.6); the layout's `stats.msPerIteration`
 is derived from it when present, else from `performance.now()` around the
-batch (wall time including queue latency, labelled as such). Gate numbers
+batch (wall time including queue latency, labeled as such). Gate numbers
 (10.4) always use wall time around `await step()`.
 
 ### 5.6 Empty ranges, zero-length arrays
@@ -1518,15 +1518,15 @@ is no work. The FA2 attraction dispatch is skipped when `arcCount === 0`.
 
 ### 5.7 Error handling: validation, out-of-memory, device loss, cancellation
 
-| Event | Detection | Behaviour |
+| Event | Detection | Behavior |
 | --- | --- | --- |
-| Validation error during pipeline / bind-group creation | `pushErrorScope("validation")` around creation | thrown from the awaiting call as `E_VALIDATION { label, message }`; the message includes the buffer / pipeline label (every object is labelled) |
+| Validation error during pipeline / bind-group creation | `pushErrorScope("validation")` around creation | thrown from the awaiting call as `E_VALIDATION { label, message }`; the message includes the buffer / pipeline label (every object is labeled) |
 | Validation error at submit time (a kernel bug) | `uncapturederror` listener | routed to `options.onError`; otherwise stored in the context's pending-error slot. Under Dawn-node the event is delivered BEFORE `queue.submit()` returns [M], so `CommandBatch` checks the slot right after `submit()` and rejects ITS OWN readback with `E_VALIDATION { batchId, label }` (an invalid command buffer is a no-op submit, so the readback would otherwise resolve with stale staging bytes); in browsers delivery is asynchronous and the stored error is thrown from the NEXT public call, so a silent stderr block cannot pass a test (note 05 section 2.2); the browser test project drains the slot in `afterEach` after `onSubmittedWorkDone()` |
 | Out of memory | `pushErrorScope("out-of-memory")` around every `createBuffer` above 16 MiB | `E_OUT_OF_MEMORY { requested, resident }`; the layout / algorithm releases what it allocated in the failing call |
 | Device lost | `device.lost` | `ctx.state = "lost"`, all pending promises reject with `E_DEVICE_LOST { reason, message }`, residency cleared, every simulation enters `disposed`; the CALLER decides whether to create a new context -- always from a fresh `gpu.requestAdapter()`, the old adapter being consumed (2.2 step 1) -- and `load()` again (note 05 section 7.4); in the element the `./webgpu` entry point's device-loss handler detaches the accelerator, which re-creates the running layout on the CPU (9.4 item 1) and publishes `acceleration.state = "error"` with `E_DEVICE_LOST`. A test destroys the device mid-batch on both runtimes. |
 | An unused adapter passed to `create({ adapter })` has already created a device | `requestDevice` rejects | `E_NO_DEVICE { reason: "consumed" }` (2.2 step 1) |
 | A graph-format accessor the package calls on the caller's behalf throws | `gpuView()` on a string / list / json column, `nodes.get(name)` on a column name that does not exist (`nodeMass: "<name>"`, 7.14) | the `GraphFormatError` (`E_GPU_INELIGIBLE`, `E_UNKNOWN_NODE`) propagates UNCHANGED (D12); these are the only non-`WebGpuGraphError` errors a public call can raise, and the JSDoc of every affected entry names them |
-| `AbortSignal` (`GpuRunOptions.signal`) | checked between batches | the algorithm stops recording, releases its lease and rejects with `E_ABORTED`; `GpuLayoutSimulation.run()` honours the same signal; a batch already submitted completes on the device and its readback is discarded once its staging slot is returned (4.4; Q-15) |
+| `AbortSignal` (`GpuRunOptions.signal`) | checked between batches | the algorithm stops recording, releases its lease and rejects with `E_ABORTED`; `GpuLayoutSimulation.run()` honors the same signal; a batch already submitted completes on the device and its readback is discarded once its staging slot is returned (4.4; Q-15) |
 | Wrong argument (source index >= n, mask too short, `dest` too small, a directed snapshot to an undirected-only kernel or to a layout's `load()` (Q-11: "pass `toUndirected().snapshot`"), `SharedArrayBuffer`-backed input) | argument checks before any GPU work | `E_INVALID_ARGUMENT` / `E_SNAPSHOT` with the offending value in `details`; state unchanged |
 | Snapshot too large for the current plan | `planUpload` / planner | `E_TOO_LARGE { needed, limit, path, algorithm }` before allocation |
 | Snapshot released while still bound | residency tombstone | `E_RELEASED { serial }` from the next call that binds it |
@@ -1578,13 +1578,13 @@ needs the primitive (section 13).
 | 2 | `scan` | `exclusiveScan(batch, src, count, out, totalOut?)` (u32) | reduce-then-scan: (a) workgroup scan of 256 (Hillis-Steele in workgroup memory, or `subgroupExclusiveAdd` + cross-subgroup fixup) writing block sums, (b) scan of block sums (recursive when > 256 blocks: at most 3 levels for 16.7M items, 4 above), (c) add-back; no decoupled look-back in v1 (WGSL atomics are relaxed; note 04 section 2.1) | O(count), 3-7 dispatches | sequential prefix sum | P4 (grid), P8 (frontier) |
 | 3 | `segmentedReduce` | `segmentedReduce(batch, graph: CoreBinding, tiers: DegreeTiers, per: "arc" -> value snippet, op, out)` | THREE pipelines from one module with a `TIER` override: thread-per-row for `[midEnd, n)` -- NOT `[midEnd, lowEnd)`: graph-format's `segmentOffsets = [0, hiEnd, midEnd, lowEnd, n]` puts degree-0 rows in `[lowEnd, n)` (`DEGREE_TIER_LOW = 1`, `src/snapshot/views.ts` lines 568-604), and the thread-per-row dispatch is the one that writes their identity element, so its range runs to `n` -- subgroup-per-row for `[hiEnd, midEnd)` when `subgroups` exists (without the feature the mid tier is a 32-invocations-per-row variant of the workgroup kernel, 8 rows per 256-wide workgroup, so no device ever runs a 1,000-arc row on one thread), workgroup-per-row for `[0, hiEnd)` (degree >= 1024) with a 256-wide workgroup reduce whose early exit keys on `workgroup_id` (3.5 rule 1); rows visited through `degreeOrder(opts).perm` with `override USE_PERM` (identity when the caller passes no tiers, then one dispatch over `[0, n)`); the value snippet is Gunrock's `neighborreduce` functor (note 04 section 2.2) and may reference only `(row, arc, target, weight)`; Kahan compensation in the workgroup-per-row loop | O(A), 1-3 dispatches | per-row loop in f64 | P3 (attraction, thread-per-row tier), P4 (the two upper tiers, gated at G4), P7 (PageRank) |
 | 4 | `compact` | `compact(batch, flags: Binding, count, out, outCount)` and `dedupe(batch, queue, count, owner: Binding, out, outCount)` | flag + scan + scatter (3-7 dispatches); dedupe by Davidson's ownership trick (note 04 section 2.3) written race-free for WGSL: `owner` is `array<atomic<u32>>`, dispatch A does `atomicStore(&owner[v], myIndex)` for every queue entry, dispatch B reads `atomicLoad(&owner[v])` and keeps the entry iff equal (a plain store read back in the SAME dispatch is a data race and a dynamic error under WGSL 6.5.7; two dispatches with relaxed atomics make last-writer-wins well defined) | O(count) | filter / Set | P4 (grid hub cells), P7 (WCC), P8 |
-| 5 | `histogram` / counting sort | `histogram(batch, keys, count, bins, out)`; `countingSortByKey(batch, keys, count, bins, outIndex, outStart)` | `atomicAdd(&count[key], 1u)` (u32); privatised in workgroup memory ONLY for <= 256 bins (1 KiB; radix digits), global atomics above that so a 4,096-bin histogram never consumes the whole 16 KiB budget (judge finding on draft A 6.5); scan; scatter with a per-bin `atomicAdd` cursor; order inside a bin is nondeterministic (documented); used by COO->CSR and the grid build's `deterministic: false` fast path | O(count + bins) | bucket loop | P4 (grid), P11 (COO->CSR) |
+| 5 | `histogram` / counting sort | `histogram(batch, keys, count, bins, out)`; `countingSortByKey(batch, keys, count, bins, outIndex, outStart)` | `atomicAdd(&count[key], 1u)` (u32); privatized in workgroup memory ONLY for <= 256 bins (1 KiB; radix digits), global atomics above that so a 4,096-bin histogram never consumes the whole 16 KiB budget (judge finding on draft A 6.5); scan; scatter with a per-bin `atomicAdd` cursor; order inside a bin is nondeterministic (documented); used by COO->CSR and the grid build's `deterministic: false` fast path | O(count + bins) | bucket loop | P4 (grid), P11 (COO->CSR) |
 | 6 | `radixSort` | `radixSort(batch, keys, values, count, bits: 8 \| 16 \| 24 \| 32)` (LSD, key-value, stable) | 8 bits per pass, per pass: per-workgroup 256-bin histogram stored DIGIT-MAJOR (`hist[digit * groups + group]`, the layout a stable LSD scatter needs so that the scan of `groups x 256` (a `scan` call) yields, for each digit, the offsets of the workgroups in workgroup order), stable scatter using per-workgroup local ranking in workgroup memory (the GraphWaGu / Fuchsia structure, note 03 section 2.2, re-derived, MIT); `bits` limits passes (grid cell keys of 18 bits need 3 passes); scratch `2 x (keys + values)` from the pool; onesweep rejected for the same reason as decoupled look-back | O(count x passes), 4-5 dispatches per pass | `Array.sort` with a stable comparator; stability asserted | P4 (grid), P11 (Louvain) |
 | 7 | `Frontier` | `class Frontier { readonly vertices: [Binding, Binding]; readonly count: [Binding, Binding]; readonly args: Binding; swap(); reset(batch, seed: number[]) }` | 2 x n-slot vertex queues, 2 x 4-byte counters (`atomic<u32>`), one `INDIRECT` args buffer with `k x candidates` slots and the `finalizeArgs` selector kernel (5.4); an edge-frontier buffer of `A` entries whenever `4A <= maxBufferSize` (80 MB at the 1M / 10M tier: no overflow is possible), else `capacity = floor(maxBufferSize / 4)` entries with an explicit OVERFLOW RULE: `expand` appends with a workgroup-granular `atomicAdd` and clamps its writes to the capacity, `finalizeArgs` compares the unclamped total with the capacity and, when it is larger, records `chunkStart` on the device and re-dispatches `expand` for the remaining source range (one indirect slot per chunk, at most `ceil(A / capacity)` chunks per level, all recorded in the batch); silent truncation is never possible, and G8 tests a level whose degree sum exceeds a FAKED capacity of 4,096 | O(1) per round + the advance | JS arrays | P8 |
 | 8 | `advance` | `advance(batch, graph, frontier, functor: { visit: snippet, filter: snippet }, tiers?)` | Gunrock `block_mapped` (note 04 section 2.5): each workgroup loads 256 frontier vertices, scans their degrees in workgroup memory (the workgroup scan runs in uniform control flow after the guarded loads, 3.5 rule 1), then every invocation strips `[local, aggregate)` with a binary search (`upper_bound`) over the scanned degrees to find its source; a `WORKGROUP_PER_ROW` tier for rows above 1,024 arcs (from `degreeOrder().segmentOffsets`, or a per-frontier degree check when the frontier is small); subgroup tier only with the feature; output appended with one `atomicAdd` per workgroup on the queue counter (workgroup-granular allocation, note 04 section 1 table); the frontier degree sum the workgroup scans produce is also accumulated into a device counter that `finalizeArgs` reads; a fused expand-contract variant for tiny frontiers (< 4,096 entries) is SELECTED PER LEVEL ON THE DEVICE by `finalizeArgs` (5.4: both variants are recorded for every level, the threshold is a uniform, the unselected slot gets `(0, 0, 1)`), never by the host, which sees a frontier size only every 32 levels; functor snippets may reference only `(u, arc, v, weight, level)` | O(frontier degree sum) | edge loop | P8 |
-| 9 | `spmv` (pull) | `spmvPull(batch, rev: CoreBinding, xNorm: Binding, y: Binding, personalization?: Binding, alpha, beta, tiers)` | `segmentedReduce` specialised: `y[v] = beta + alpha * sum_{u in in(v)} w * xNorm[u]` where `xNorm[u] = x[u] / norm[u]` is PRE-SCALED by the caller's per-node kernel (8.2), so the pull binds no normaliser; tiered by IN-degree (`degreeOrder({ of: "reverse" })`, whose `perm` occupies group 0 slot 3 even when identity) | O(A) | f64 loop | P7 |
+| 9 | `spmv` (pull) | `spmvPull(batch, rev: CoreBinding, xNorm: Binding, y: Binding, personalization?: Binding, alpha, beta, tiers)` | `segmentedReduce` specialized: `y[v] = beta + alpha * sum_{u in in(v)} w * xNorm[u]` where `xNorm[u] = x[u] / norm[u]` is PRE-SCALED by the caller's per-node kernel (8.2), so the pull binds no normalizer; tiered by IN-degree (`degreeOrder({ of: "reverse" })`, whose `perm` occupies group 0 slot 3 even when identity) | O(A) | f64 loop | P7 |
 | 10 | `cooToCsr` | `cooToCsr(batch, src, dst, w?, count, n) -> { rowPtr, colIdx, weights }` on the device | histogram by `src`, scan, scatter with cursors (Gunrock `from_coo`, note 04 section 2.7); rows NOT sorted by target (invariant I4 applies to format snapshots, not device-internal graphs; Louvain's contraction sorts arcs by (community(src), community(dst)) with `radixSort` first so rows come out sorted) | O(count + n) | `fromEdgeArrays` then compare | P11 |
-| 11 | `bbox` | fused into the FA2 integrate kernel's `vec4f` min / max partials (7.4); standalone `bbox(batch, positions, n, dim, out)` = `reduce` with `op: "min"` / `"max"` | two-level f32 reduce, deterministic; GraphWaGu's i32 fixed-point `atomicMin/Max` (note 03 section 2.2 item 6) is documented as the cheaper alternative and NOT used (a fixed-point scale of 1000 on a unit-scale layout quantises the finest cell to 1e-3, coarse against a 512-cell grid of a [-1, 1] box, judge finding on draft C 7.5) | O(n), 0-4 dispatches | `Math.min/max` loop | P3 / P4 |
+| 11 | `bbox` | fused into the FA2 integrate kernel's `vec4f` min / max partials (7.4); standalone `bbox(batch, positions, n, dim, out)` = `reduce` with `op: "min"` / `"max"` | two-level f32 reduce, deterministic; GraphWaGu's i32 fixed-point `atomicMin/Max` (note 03 section 2.2 item 6) is documented as the cheaper alternative and NOT used (a fixed-point scale of 1000 on a unit-scale layout quantizes the finest cell to 1e-3, coarse against a 512-cell grid of a [-1, 1] box, judge finding on draft C 7.5) | O(n), 0-4 dispatches | `Math.min/max` loop | P3 / P4 |
 | 12 | `grid` | `buildGrid(batch, positions, n, dim, spec: GridSpec) -> GridBinding` (mass is the `.w` lane of `positions`, D23); `farField`, `nearField` | cell id from the ROBUST extent of 7.7 (`floor((p - gridMin) / cellSize)` per axis, clamped to the boundary cell; a node outside the extent gets the boundary cell's key and an `outside` flag), stable `radixSort` by cell id with node index as value (3 passes; bitwise deterministic within a cell) OR `countingSortByKey` (`deterministic: false`, fewer dispatches), `cellStart[cells + 2]` as the EXCLUSIVE SCAN of a per-cell `u32` histogram over the real cells plus the outside pseudo-cell of 7.7 (a scan over marks in the sorted keys would yield ranks of occupied cells only and leave every empty cell -- the majority -- unreadable; `atomicAdd` counts are order-independent, so the histogram is deterministic), per-cell `[sum m*x, sum m*y, sum m*z, sum m]` as `array<vec4f>` by a thread-per-cell segmented reduce over the sorted ranges (no atomics, no fixed point) that SKIPS cells above 1,024 entries and appends their ids to a device hub list (`atomicAdd` on `hubCount`; results are per cell, so the list order does not matter), a one-workgroup `finalize` that turns `hubCount` into indirect args (5.4), and a workgroup-per-cell dispatch over the hub list (indirect); then one `downsample` dispatch per coarser level (each parent sums 4 / 8 children) | O(n x passes + cells x levels), ~24 + levels dispatches | JS grid | P4 |
 
 Subgroup variants (D16): reduce, scan, segmentedReduce, advance and the FA2
@@ -1650,7 +1650,7 @@ The deliverable is `createForceAtlas2(ctx, options)` returning a
    at 10^6);
 5. runs identically in Node (batch: `run()` until settled) and in the browser
    (per frame: `step(stepMultiplier)`);
-6. honours `setFixed` every step and `setPosition` during a drag, un-settles on
+6. honors `setFixed` every step and `setPosition` during a drag, un-settles on
    both, survives a topology change through `load` without losing placed
    coordinates (the bridge re-applies the pin mask through `report.nodeRemap`,
    9.4 item 4), in 2D uploads `z = 0`, never integrates it and writes `z =
@@ -1687,7 +1687,7 @@ table's third column is therefore NetworkX, not the port:
 | Attraction (linear) | `F_i += (p_j - p_i) * w` (lines 288-297) | same | same | -- | |
 | Attraction (linlog) | `F_i += (p_j - p_i) * w * log(1 + d) / d` (lines 271-285) | same | same | `LINLOG: bool` | |
 | Distributed action | `F_i /= m_i` after the row sum | same | same | `DISTRIBUTED: bool` | |
-| Gravity centre | centroid of positions (lines 335-364) | centroid (the port; drag and pins want a centroid pull) | same | `GRAVITY_CENTER: u32` (0 centroid, 1 origin as Gephi / cuGraph) | documented; Q-1 row |
+| Gravity center | centroid of positions (lines 335-364) | centroid (the port; drag and pins want a centroid pull) | same | `GRAVITY_CENTER: u32` (0 centroid, 1 origin as Gephi / cuGraph) | documented; Q-1 row |
 | Gravity law | regular `-g m_i q / \|q\|` when `\|q\| > 0.01`, strong `-g m_i q` | same | same | `STRONG_GRAVITY: bool` | |
 | Swing / traction per node | `swing_i = m_i \|update_i\|`, `traction_i = 0.5 m_i \|2 p_i + update_i\|` from positions (lines 379-390) | `swing_i = m_i \|F_i(t) - F_i(t-1)\|`, `traction_i = 0.5 m_i \|F_i(t) + F_i(t-1)\|` (paper; Gephi `ForceAtlas2.java`; cuGraph `compute_local_speed`) | NetworkX: `swing_i = m_i \|p_i - F_i\|`, `traction_i = 0.5 m_i \|p_i + F_i\|` (positions and forces mixed, as upstream computes them; note 01 section 2.1.9) | `SWING_MODE: u32` (0 paper, 1 networkx) | the force form is what the speed controller was designed for; mode 1 reproduces NetworkX trajectories bit-for-bit up to f32 and needs no `oldForce` buffer |
 | Global swing / traction | summed fresh every iteration (port) versus accumulated from 1 across iterations (NetworkX); the port sums over every node | fresh every iteration (Gephi = cuGraph), summed over FREE nodes only (Gephi `ForceAtlas2.java` lines 283-293: `if (!n.isFixed())`), so a dragged or pinned hub cannot halve `speedEfficiency` every iteration | ACCUMULATED across iterations from `swing = traction = 1` over free nodes (every node in NetworkX, which has no pins; free only since #3255, so K4 can see that nothing is free and hold; K4 adds to `state.swing` / `state.traction` instead of overwriting, `load()` and `reheat()` reset them to 1) | `SWING_MODE` (same override) | NetworkX's accumulation is the outlier but it is what NetworkX users have; the L1 rewrite adopts the fixed-node exclusion in both modes |
@@ -1699,7 +1699,7 @@ table's third column is therefore NetworkX, not the port:
 | Initial positions | LCG in `[-1, 1)` per axis (port lines 57-65; `utils/random.ts` `m = 2^35 - 31, a = 185852, c = 1`) | the same LCG on the CPU in index order for NaN rows (note 01 section 2.5.1), seed 0 = unseeded (quirk preserved); `seedPositions` writes into a `Float32Array`, and every oracle consumes that f32-valued array (f64 arithmetic on f32 inputs), so "iteration 0 is bit-identical" is true by construction rather than off by up to 2^-24 | same | -- | a seed gives the same start on both paths; cross-tested against the real `RandomNumberGenerator` at W1 on the f32-rounded values (graft: C G4) |
 | Termination | `totalMovement < 1e-10` (never fires) or `maxIter` | `maxIter` OR the settle rule of 7.17 | same | -- | |
 
-These are documented behaviour changes for the CPU FA2 too; the L1 Chromatic
+These are documented behavior changes for the CPU FA2 too; the L1 Chromatic
 re-baseline commit already planned by design 14.3 lines 4041-4046 carries
 them. The GPU kernel takes them as constants, never rediscovers them (note 01
 section 2.1.9 recommendation). Gate G0 (section 13) requires the owner's
@@ -1952,7 +1952,7 @@ per-iteration extent on the device; graft: A 7.7 table):
 | finest grid per axis `G` | `clamp(nextPow2(2 sqrt(n)), 8, gridMax2D = 512)` (cosmos: `2 sqrt(n)` capped at 512; the cap is cosmos's WebGL texture limit carried over and is re-checked in {512, 1024, 2048} at 1M in the P4 decision record, Q-32) | `clamp(nextPow2(2 cbrt(n)), 8, gridMax3D = 128)` (Q-21) |
 | grid extent (per iteration, by K1) | `extent = min(bboxExtent, extentFactor * rmsRadius)`, `extentFactor = 6` by default (Q-32), `rmsRadius = sqrt(sum \|p - c\|^2 / n)` from the `.w` lane of partials A (7.3), `bboxExtent` = the largest axis of `state.min / max` with a 1% margin; `gridMin = c - extent / 2` per axis. The bbox wins on a clean uniform or Gaussian core; the RMS bound wins under outliers. Why: with the 7.2 laws (`k m_i m_j / d` repulsion against a gravity of CONSTANT magnitude `g m_i`) an isolated node or a small component settles at `r = k M / g` (4.2e7 layout units at the 1M / 10M tier, `M = sum(deg + 1)`) while the core's radius is ~1e4, so a bbox-derived cell size collapses the whole core into a few finest cells: ONE node at 10x the core radius puts 95.5% of 1M nodes into cells above `nearMax` (`tmp/webgpu-plan/review/probes/grid-occupancy.mjs`), 0.2% of nodes at 2-4x already puts 88.5% over capacity (`near-field-order.mjs`). cosmos avoids this only by clamping positions into a fixed `spaceSize` (`update-position.frag` lines 56-57), which this package does not do; cuGraph's quadtree deepens under an outlier, a uniform grid cannot. A plain `extentFactor * rmsRadius` would quadruple core occupancy on a uniform disk (RMS = R / sqrt(2)), hence the `min`. | same rule |
 | cell size | `max(extent, 1e-6) / G` (square cells; the floor keeps an all-coincident or single-node load from producing `cellSize = 0` and NaN keys); recomputed every iteration; never a fixed `spaceSize` | `max(extent, 1e-6) / G` (cubic) |
-| nodes outside the extent | their CELL KEY is the OUTSIDE PSEUDO-CELL `G^2` (`G^3`), one past the last real cell, so the sort groups them, `cellHist` / `cellStart` have `cells + 2` entries, and G4 / G4b compute the pseudo-cell's mass-weighted centroid like any cell's (no atomics, no special pass). An inside node adds the pseudo-cell as one more far-field term (its true neighbours are all far away, so one centroid is the right approximation); an outside node gets the far field of every real level, NO pseudo-cell term (it would include itself) and a near field over the pseudo-cell alone, Horvitz-Thompson-sampled at `nearMax` like any over-full cell; no real cell's `count` ever includes a stray, so a boundary cell that would otherwise collect a thousand strays does not scale its 64 samples up a thousandfold. `stats.outsideGrid` reports their number | same |
+| nodes outside the extent | their CELL KEY is the OUTSIDE PSEUDO-CELL `G^2` (`G^3`), one past the last real cell, so the sort groups them, `cellHist` / `cellStart` have `cells + 2` entries, and G4 / G4b compute the pseudo-cell's mass-weighted centroid like any cell's (no atomics, no special pass). An inside node adds the pseudo-cell as one more far-field term (its true neighbors are all far away, so one centroid is the right approximation); an outside node gets the far field of every real level, NO pseudo-cell term (it would include itself) and a near field over the pseudo-cell alone, Horvitz-Thompson-sampled at `nearMax` like any over-full cell; no real cell's `count` ever includes a stray, so a boundary cell that would otherwise collect a thousand strays does not scale its 64 samples up a thousandfold. `stats.outsideGrid` reports their number | same |
 | far-field softening | `eps = 0.25 * cellSize`, written by K1 into `state.eps` (7.2: never an absolute constant) | same |
 | levels (coarsest 4 per axis) | `log2(G / 4) + 1`: 8 levels at G = 512 (4^2 .. 512^2) | 6 levels at G = 128 (4^3 .. 128^3) |
 | finest cells | 262,144 at the cap | 2,097,152 at the cap (34 MB; 256^3 would be 268 MB and is not offered, note 03 section 8.2) |
@@ -1983,7 +1983,7 @@ iterations) is a P4 decision item, not v1.
 | G4a | `grid-hub-finalize` | 1 workgroup | hubCounters, hubArgs (2) | the 5.4 finalize: `hubCount` -> indirect `(x, y, 1)`; a 3D grid's 2.1M cells would make a fixed workgroup-per-cell dispatch with early exit 8,192 mostly-empty workgroups per iteration, so the compaction is used in both dimensions |
 | G4b | `grid-centroid-hub` | indirect over `hubList` | sortedIdx, cellStart, positions, pyramid, hubList (5) | workgroup per hub cell: a 256-wide strided sum with a workgroup reduce (uniform control flow) -> `level0[c]`; without it the thread-per-cell loop of G4 is serial over the largest cell (up to 1M dependent gathers on one thread under a collapsed extent) |
 | G5 | `grid-downsample` x (levels - 1) | `ceil(cells_L / WG)` each | pyramid (1; two offsets) | `parent = sum of 4 (8) children` -- one dispatch per level, no atomics; the pseudo-cell (index `cells` of level 0) is outside the grid and is never downsampled |
-| G6 | `grid-far-field` | `ceil(n / WG)`, sorted order | positions, sortedIdx, pyramid, state, force (5) | per node `i = sortedIdx[t]` (its cell recomputed from `positions[i]` and `state`, pseudo-cell included): for an inside node, at the coarsest level sum over every cell except the 3x3 (3x3x3) neighbourhood; at each finer level sum the 6x6 (6x6x6) block aligned to the parent's 3x3 minus this level's own 3x3 (3x3x3): space tiled exactly once, no theta (cosmos `force-level.frag` lines 60-96); plus the centroid of each of the 2^dim outside pseudo-cells, one per orthant about the grid centre (`design/decisions/2026-09-24-grid-outside-nodes-aggregated-per-orthant.md`); for an outside node the coarsest level's 16 (64) cells in full -- it is far from all of them -- and NO pseudo-cell term (G7 sums the outside nodes pair by pair); per cell `F += d * (k m_i M_cell / (max(\|d\|^2, 1e-4) + state.eps^2))` (the floor for FA2 only, issue #89) with `d = p_i - centroid_cell` (mass-weighted centroid, Gephi `Region` semantics); loop bounds are compile-time per `override LEVELS` |
+| G6 | `grid-far-field` | `ceil(n / WG)`, sorted order | positions, sortedIdx, pyramid, state, force (5) | per node `i = sortedIdx[t]` (its cell recomputed from `positions[i]` and `state`, pseudo-cell included): for an inside node, at the coarsest level sum over every cell except the 3x3 (3x3x3) neighborhood; at each finer level sum the 6x6 (6x6x6) block aligned to the parent's 3x3 minus this level's own 3x3 (3x3x3): space tiled exactly once, no theta (cosmos `force-level.frag` lines 60-96); plus the centroid of each of the 2^dim outside pseudo-cells, one per orthant about the grid center (`design/decisions/2026-09-24-grid-outside-nodes-aggregated-per-orthant.md`); for an outside node the coarsest level's 16 (64) cells in full -- it is far from all of them -- and NO pseudo-cell term (G7 sums the outside nodes pair by pair); per cell `F += d * (k m_i M_cell / (max(\|d\|^2, 1e-4) + state.eps^2))` (the floor for FA2 only, issue #89) with `d = p_i - centroid_cell` (mass-weighted centroid, Gephi `Region` semantics); loop bounds are compile-time per `override LEVELS` |
 | G7 | `grid-near-field` | `ceil(n / WG)`, sorted order | positions, sortedIdx, cellStart, state, force, oldForce, fixed, partials (8) | per node `i = sortedIdx[t]`: recompute its own finest cell from `positions[i]` and `state`; for each of the 9 (27) finest cells (an outside node: the pseudo-cell alone) iterate `sortedIdx[cellStart[c] .. cellStart[c+1])` with the EXACT pair force of 7.6 (`max(d^2, 1e-4)` floor, no softening), bounded by `nearMax = 64` entries per cell; above the cap take entries `[h, h + nearMax) mod count` with a per-iteration hashed offset `h = lowbias32(cell ^ (iteration * 0x9E3779B9u) ^ seed) % count` and scale the cell's sum by `others / sampled` -- for the node's OWN cell `(count - 1) / (nearMax - 1)` with the node itself excluded from both counts, for the other cells `count / nearMax` (Horvitz-Thompson, cosmos `force-nearfield.frag` lines 120-121 and 139; unbiased, no depth peeling because the sorted range is indexable); coincident points get the 7.2 kick; fused epilogue (gravity, `force +=`, swing / traction partials B over free nodes) exactly as K3's, with the reduction in uniform control flow |
 
 No displacement clamp (D25). The plan's earlier `dp = clamp_length(dp, 2 *
@@ -2190,7 +2190,7 @@ list closes it with bookkeeping only. During a drag graphty-element's
 01 section 4.5); the element bridge (9.4) additionally marks the dragged node
 fixed for the duration of the drag (a temporary bit OR-ed into the mask upload)
 so the integrate kernel does not fight the pointer; `pinOnDrag` decides whether
-the bit stays at drag end. Neighbours lag by one batch, as they do with
+the bit stays at drag end. Neighbors lag by one batch, as they do with
 ngraph's one-step-per-frame today.
 
 ### 7.13 2D and 3D
@@ -2211,26 +2211,26 @@ rejected (`E_INVALID_ARGUMENT`).
 
 | Option | CPU default (`forceatlas2.ts` lines 26-42) | Element schema (`ForceAtlas2LayoutEngine.ts` lines 99-115) | GPU v1 | Binding |
 | --- | --- | --- | --- | --- |
-| `maxIter` | 100 | int > 0, default 100 | honoured: total iteration budget across `step` calls (7.17) | host counter |
-| `jitterTolerance` | 1.0 | > 0, default 1.0 | honoured | uniform |
-| `scalingRatio` | 2.0 | > 0, default 2.0 | honoured | uniform |
-| `gravity` | 1.0 | > 0, default 1.0 | honoured; 0 accepted (schema loosened at E1) | uniform |
-| `strongGravity` | false | bool | honoured | `override STRONG_GRAVITY` |
-| `distributedAction` | false | bool | honoured | `override DISTRIBUTED` |
-| `linlog` | false | bool | honoured | `override LINLOG` |
+| `maxIter` | 100 | int > 0, default 100 | honored: total iteration budget across `step` calls (7.17) | host counter |
+| `jitterTolerance` | 1.0 | > 0, default 1.0 | honored | uniform |
+| `scalingRatio` | 2.0 | > 0, default 2.0 | honored | uniform |
+| `gravity` | 1.0 | > 0, default 1.0 | honored; 0 accepted (schema loosened at E1) | uniform |
+| `strongGravity` | false | bool | honored | `override STRONG_GRAVITY` |
+| `distributedAction` | false | bool | honored | `override DISTRIBUTED` |
+| `linlog` | false | bool | honored | `override LINLOG` |
 | `nodeMass` | null -> degree + 1 | `Record \| null` | resolved by graph-format ROLE (D28; Q-30, decided 2026-09-14): `null` -> the node column with role `mass` when the snapshot has one (`nodes.byRole("mass")`, any numeric dtype through `gpuView`), else `outDegree() + 1`; a `Float32Array(n)` -> used as is; a column NAME -> `nodes.get(name)` (E_INVALID_ARGUMENT when absent or non-numeric); a `Record` -> `E_UNSUPPORTED` with the message "write a role 'mass' node column (`nodes.set(name, vec, { role: 'mass', replaceRole: true })`) or pass a Float32Array; `@graphty/layout`'s `resolveNodeVector` does this on the CPU path". graphty-element writes its `nodeMass` config as the role column once at engine creation (9.4 item 10), so both simulations find it the same way and the GPU package parses no ids | the `.w` lane of `positions` |
 | `weight` | null | `weightPath: string \| null` (inert today, note 01 section 7.1) | `true` -> `snapshot.weights` (the role-`weight` column's arc array, design 3.7), a node-independent edge column NAME -> `expandEdges(snapshot, nodes.get(name))` at `load()` (7.5; D28), or `null` -> ones; BECOMES LIVE (documented change, Q-10) | `weights` binding |
-| `seed` | null | `number \| null` | honoured for NaN rows via the CPU LCG; `0` means unseeded (LCG quirk preserved); also seeds the near-field hash | CPU + uniform |
-| `dim` | 2 | 2..3 | honoured; fixed at `load()` | uniform |
+| `seed` | null | `number \| null` | honored for NaN rows via the CPU LCG; `0` means unseeded (LCG quirk preserved); also seeds the near-field hash | CPU + uniform |
+| `dim` | 2 | 2..3 | honored; fixed at `load()` | uniform |
 | `pos` | null | `Record \| null` | replaced by the owner's array: finite rows are kept (inverse-scaled), NaN rows seeded (design 14.4 lines 4075-4077); the missing-axis fill of note 01 section 2.1.2 applies per row | `positions` |
 | `nodeSize` / `adjustSizes` | null | `Record \| null` | DEFERRED: throws `E_UNSUPPORTED { option: "nodeSize" }` when set (sign-suspect on the CPU, 7.2; Q-25) | -- |
 | `dissuadeHubs` | ignored (`_dissuadeHubs`) | bool (schema lines 66-73) | accepted and ignored, exactly like the CPU | -- |
 | `scale`, `center` (`CommonLayoutOptions`) | n/a (always unit ball) | `scalingFactor` 100 | applied at `load()` (inverse) and in `toScene` (7.18); never per-step rescaling | uniform |
-| `settleThreshold`, `settleWindow` (layout-owned options, L1, 9.3; the CPU simulation honours them too) | -- (added by L1) | -- (E1 exposes them) | 7.17; defaults `1e-3`, 10 (Q-8) | host |
+| `settleThreshold`, `settleWindow` (layout-owned options, L1, 9.3; the CPU simulation honors them too) | -- (added by L1) | -- (E1 exposes them) | 7.17; defaults `1e-3`, 10 (Q-8) | host |
 | `iterationsPerStep` (layout-owned, L1; package default 1 -- the element passes its `stepMultiplier`), `maxInFlight` (layout-owned, L1; default 2; the CPU simulation ignores it) | -- (added by L1) | `behavior.layout.*` (9.4 item 7) | 7.19 | host |
 | GPU-only: `repulsion`, `exactMaxNodes`, `nearMax`, `deterministic`, `gridMax2D`, `gridMax3D`, `extentFactor`, `compat` (`GpuLayoutTuning`, 3.3) | -- | -- (not reachable through the element in v1) | 7.7, 7.2; defaults `"auto"`, 16,384 (Q-6), 64, true, 512, 128 (Q-21), 6 (Q-32), `"paper"`; reach a simulation the element creates ONLY as the defaults given to `createAccelerator(ctx, { layout })` (9.5); a Node caller passes them to `createForceAtlas2` directly | overrides / uniform |
 
-### 7.15 The float-atomics workaround, summarised
+### 7.15 The float-atomics workaround, summarized
 
 WGSL has `atomic<u32>` / `atomic<i32>` only (note 05 section 6 item 1). Every
 accumulation in this layout is therefore a GATHER owned by one invocation
@@ -2239,7 +2239,7 @@ sorted ranges) or a tree REDUCTION (centroid, bbox, swing, traction,
 displacement, grid centroids, downsampling). No kernel scatters a float. The
 only atomics are `u32` counters in the optional counting-sort path and the
 radix sort's histograms. cuGraph's edge-parallel `atomicAdd(float)` attraction
-(`fa2_kernels.cuh` lines 77-80), Burtscher's spin-wait summarisation and
+(`fa2_kernels.cuh` lines 77-80), Burtscher's spin-wait summarization and
 d3-force-webgpu's racy link kernel are explicitly NOT ported (note 03 section
 8.1, note 04 section 1 table).
 
@@ -2258,7 +2258,7 @@ the swing / traction / speed trace, never coordinates (note 01 section 8.7).
 
 `settled` is `iterationsDone >= maxIter` OR `settledCount >= settleWindow`,
 where K1 increments `settledCount` when `meanDisplacement <= settleThreshold *
-rmsRadius` and resets it otherwise. The normaliser is the RMS radius
+rmsRadius` and resets it otherwise. The normalizer is the RMS radius
 `sqrt(sum |p - centroid|^2 / n)` (the `.w` lane of partials A, 7.3), NOT the
 bounding-box radius `max |p - centroid|`: with the 7.2 laws one isolated node
 sits thousands of core radii out (7.7), so `settleThreshold * maxRadius` would
@@ -2278,7 +2278,7 @@ speed controller (`speed = 1`, `speedEfficiency = 1`, a `writeBuffer` into
 when a force LAW changes (a `compat` / `linlog` / `strongGravity` /
 `distributedAction` switch), never for a numeric tweak; matching d3's reheat on
 `setNodePosition` / `unpin` and ngraph's counter reset on topology change (note
-01 sections 3.1-3.2), and Gephi, which initialises `speed` once. The element
+01 sections 3.1-3.2), and Gephi, which initializes `speed` once. The element
 must see `settled === true` within `maxIter` steps regardless of the threshold
 (screenshots and label animations wait for it, note 01 section 4.3). The
 settle test of 11.4 includes the isolated-node fixture and the all-fixed mask;
@@ -2294,7 +2294,7 @@ so the simulation runs in LAYOUT units (the CPU's `[-1, 1)` seed scale) in
 semantics, design 14.3 line 3972) while it repacks them into `vec4f` (D23),
 and `setPosition` inverts its three floats. No `rescaleLayout` per step (it would
 move pinned / dragged nodes and change the camera framing every frame, note 01
-section 8.4). The CPU FA2's final unit-ball normalisation is therefore NOT
+section 8.4). The CPU FA2's final unit-ball normalization is therefore NOT
 reproduced by the steppable engine; the element's `scalingFactor` (default
 100) sets the scene scale as it does for `SimpleLayoutEngine` today.
 
@@ -2396,7 +2396,7 @@ are:
   (their `settled` / `stats` updates apply); nothing else is submitted; the
   simulation keeps its buffers, its `speed` and its settle window; the
   owner's array is current the moment `inFlight === 0`, which `flush()`
-  awaits (a screenshot after a pause or a serialisation waits on it). A
+  awaits (a screenshot after a pause or a serialization waits on it). A
   paused simulation holds its GPU memory (10.1) until `dispose()`.
 - Resume = call `step()` again. No implicit `reheat()`: a simulation paused
   at `settled === true` stays settled and `step()` resolves without a
@@ -2452,7 +2452,7 @@ Fruchterman-Reingold (`fruchterman-reingold.ts` lines 24-160, note 01 section
 | `k` | `1 / sqrt(n)` in `[0, 1]` units | same (layout units) |
 | initial positions | uniform `[0, 1)` per axis from ONE LCG (the single-RNG fix of design 14.3 line 4045) | same, on the CPU, for NaN rows |
 | repulsion | `k^2 / d` along `delta / d`, `d = \|delta\| \|\| 0.1` (an exact 0 becomes 0.1, otherwise unclamped -- replicated) | the same exact-tile / grid kernels with `override LAW = FR` (component `d * k^2 / len^2`, `mass = 1`) |
-| attraction | per edge `d^2 / k` toward the neighbour (unweighted; the CPU ignores weights) | CSR gather `F_i += (p_j - p_i) * len / k` per arc (both endpoints by construction) |
+| attraction | per edge `d^2 / k` toward the neighbor (unweighted; the CPU ignores weights) | CSR gather `F_i += (p_j - p_i) * len / k` per arc (both endpoints by construction) |
 | temperature | `t = 0.1`, `dt = t / (iterations + 1)`, `t -= dt` per iteration (lines 81-83, 154) | the batch's `k` temperatures written into its uniform slots on the host (a batch knows them in advance); `reheat()` sets the iteration to `floor(0.7 * iterations)` so a drag gets a small temperature (graft: A 7.16) |
 | apply | move along `disp` by `min(\|disp\|, t)`; skip `fixed` | integrate variant `FR_APPLY` with the fixed mask |
 | termination | fixed `iterations` (50) | `settled` at `iterations` or the 7.17 movement rule |
@@ -2585,7 +2585,7 @@ note 02 section 7.2's `value x speedup / risk`.
 
 Strategy (cuGraph `pagerank_impl.cuh` lines 222-320, note 04 section 5): pull
 over `reverse()`. Once per call: `outWeightSum` by `segmentedReduce` over
-forward `rowPtr` / `weights` (the device-side normaliser design 10.1 line 2340
+forward `rowPtr` / `weights` (the device-side normalizer design 10.1 line 2340
 prescribes; guard `sum == 0`: a node with out-arcs and zero weight sum is
 dangling). Per iteration, three dispatches: (a) `pr-scale` (`ceil(n / WG)`):
 `xNorm[u] = rankIn[u] / outWeightSum[u]` (0 for dangling), and per-workgroup
@@ -2614,8 +2614,8 @@ separate block; the descriptor test of 11.3 names these 8. The scale kernel
 binds `rankIn`, `rankPrev`, `outWeightSum`, `xNorm`, `partials` (5); the
 finalize binds `partials` (1). f32 accumulation with Kahan in the
 workgroup-per-row tier; documented tolerance `1e-5` relative (design 16.2). HITS alternates two pulls
-(forward and reverse) with sum normalisation; eigenvector adds an L2
-normalise and converges on `delta < n * eps`; Katz is `alpha * SpMV + beta`.
+(forward and reverse) with sum normalization; eigenvector adds an L2
+normalize and converges on `delta < n * eps`; Katz is `alpha * SpMV + beta`.
 WebGPU adjustment: no push / float atomics (Gunrock's `pr.hxx` push form is the
 counter-example). The `outWeightSum` buffer is registered against the snapshot
 in the residency so a second PageRank call on the same snapshot reuses it.
@@ -2623,7 +2623,7 @@ in the residency so a second PageRank call on the same snapshot reuses it.
 ### 8.3 Connected components (A3, score 8)
 
 Afforest from GAP `gapbs/cc.cc` lines 40-150 (note 04 section 8): `comp[v] = v`;
-2 sampled link rounds over the r-th neighbour of every vertex (`colIdx[rowPtr[v]
+2 sampled link rounds over the r-th neighbor of every vertex (`colIdx[rowPtr[v]
 + r]` when `r < degree`), compress (pointer jumping; reads through `atomicLoad`
 on the same `array<atomic<u32>>` because WGSL forbids mixing atomic and plain
 access to one element), a 1,024-entry histogram readback to find the giant
@@ -2701,7 +2701,7 @@ need a CAS loop on the bit pattern.
 Closeness (A5): batched multi-source BFS (32 sources per `u32` word as a
 bit-parallel frontier for unweighted graphs; repeated near-far for weighted),
 per-source distance rows reduced on the device (sum, sum of 1/d, max) without
-materialising `n x n` (note 04 section 7); batch size from `maxBufferSize`.
+materializing `n x n` (note 04 section 7); batch size from `maxBufferSize`.
 
 Betweenness (A7; McLaughlin-Bader CACM 2018 from the author's mirror
 https://davidbader.net/publication/2018-mb/2018-mb.pdf, note 04 section 6):
@@ -2730,7 +2730,7 @@ with `foldArcs(s, vec, "first")` (design 10.7), halved on undirected snapshots
 as both papers do. Cost model per source: `levels x dispatches x
 per-dispatch overhead + 2 x A x bytes / bandwidth` (one forward BFS plus one
 backward sweep, each streaming the arcs once at ~16 B per arc), the overhead
-term divided by the batch size k (batching amortises dispatch latency, not
+term divided by the batch size k (batching amortizes dispatch latency, not
 bandwidth): at 1M / 10M that is `2 x 20M x 16 B` = 640 MB per source, ~1.5-3
 ms at 200-400 GB/s achieved, plus ~10 levels x 3 dispatches x 2-6 us; 256
 sampled sources at 100k / 1M is therefore 0.5-2 s and at 1M / 10M 2-20 s [X]
@@ -2741,7 +2741,7 @@ adapter defaults to sampled BC above 50k nodes, Q-13).
 
 k-core (cuGraph `core_number_impl.cuh` lines 97-230, note 04 section 9): counts
 start at degree; rounds of "frontier of vertices with count < k" -> `atomicSub`
-neighbour counts -> compaction; `k` increases when the frontier empties; `O(max
+neighbor counts -> compaction; `k` increases when the frontier empties; `O(max
 core)` host-visible rounds, batched 32 per submit. Triangle counting: orient
 edges low-to-high degree (tie by id) as a compaction of arcs, intersect rows by
 merge (rows are sorted by target, invariant I4; binary search into the longer
@@ -2757,7 +2757,7 @@ Afforest's compress; edge set identical to Kruskal on distinct weights,
 
 ### 8.6 Community: label propagation (A8), Louvain (A14)
 
-Label propagation: per node the (weighted) mode of neighbour labels via a
+Label propagation: per node the (weighted) mode of neighbor labels via a
 per-row group-by-key -- rows <= 256 arcs sort keys in workgroup memory (2 KiB
 per row: 256 keys + 256 f32), larger rows use a global open-addressing hash
 region sized `2 x degree` (nu-Louvain's layout, note 04 section 10) --
@@ -2768,7 +2768,7 @@ planted-partition recovery.
 Louvain (cuGraph `louvain_impl.cuh` lines 172-215, `detail/common_methods.cuh`
 lines 70-152 and 402-446, note 04 section 10): per level, vertex weights by
 `segmentedReduce`; synchronous best-move pass with `delta_Q = 2 * ((new - old)
-/ total - resolution * (a_new k - a_old k + k^2) / total^2)` per neighbouring
+/ total - resolution * (a_new k - a_old k + k^2) / total^2)` per neighboring
 community, deterministic tie-break, move only if `delta_Q > minGain` AND the
 direction matches `up_down` (flips every pass); cluster weights RECOMPUTED by
 reduce-by-key after each pass (never adjusted atomically; no float atomics,
@@ -2802,8 +2802,8 @@ feeds Kamada-Kawai's `dist` (design 14.3 lines 4013-4014) and
 | Order | Algorithm | Score (note 02) | New primitive it pulls in | Views | Phase | Why here |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | PageRank + personalized | 25 | `spmvPull` (tiered segmented reduce by in-degree), multi-channel reduce | `reverse()` (aliases forward when undirected), device out-weight sums | P7 | one pull kernel, two reductions, no atomics; first parity test against `indexed.pageRank`; the SpMV primitive serves HITS / eigenvector / Katz for free |
-| 2 | HITS, eigenvector, Katz | 15 | none (same SpMV, sum / L2 normalise) | forward + `reverse()` | P7 | same kernel, different normalisation |
-| 3 | WCC (Afforest) | 8 | edge map with CAS, compress, histogram sample, `compact` | `edgeList()`, `rowPtr` / `colIdx` for the r-th neighbour | P7 | proves the edge-list path and `renumberPartition` |
+| 2 | HITS, eigenvector, Katz | 15 | none (same SpMV, sum / L2 normalize) | forward + `reverse()` | P7 | same kernel, different normalization |
+| 3 | WCC (Afforest) | 8 | edge map with CAS, compress, histogram sample, `compact` | `edgeList()`, `rowPtr` / `colIdx` for the r-th neighbor | P7 | proves the edge-list path and `renumberPartition` |
 | 4 | BFS (+ direction-optimizing) | 5.3 | `Frontier`, `advance`, `dedupe`, bitset, indirect dispatch | `rowPtr`, `colIdx`, `reverse()` (directed), `degreeOrder()` | P8 | builds the frontier machinery every later traversal reuses |
 | 5 | Closeness / harmonic / eccentricity | 5.3 | batched multi-source BFS (32 sources per word) | as BFS | P8 | same machinery |
 | 6 | SSSP near-far, Bellman-Ford | 4 / 6 | `atomicMin` on f32 bits, far-pile histogram, CAS relax | `rowPtr`, `colIdx`, `weights`, flags; `edgeList()` | P8 | predecessor pass; the `flags.allWeightsOne` route to BFS |
@@ -3135,7 +3135,7 @@ is a precondition of this list, 9.8):
    `const s = dm.getSnapshot(); const r = await accelerated(this.graph.accelerator)
    .pageRank(s, opts); for (i < n) addNodeResult(s.ids.idOf(i), "rank",
    r.scores[i]);` -- ONE result-writing loop for CPU and GPU (the `*Pct`
-   normalisation is an O(n) pass over the readback, CPU side, unchanged); the
+   normalization is an O(n) pass over the readback, CPU side, unchanged); the
    SSSP adapters call `r.pathTo(t)` on both paths because the dispatcher
    attaches it (9.2). Adapters whose algorithm is not a GPU target call
    `indexed.x(s)` directly. Undirected adapters pass `dm.undirected(s).snapshot`
@@ -3327,7 +3327,7 @@ depend on the native module, note 02 section 4.3).
 | `connectedComponents` | `{ labels: U32, count, groups() }` | partition equality; IDENTICAL labels after first-seen renumbering | `component` per node |
 | `breadthFirstSearch` | `{ depth, parent, order, visitedCount, levels, switches }` | `depth` exact; `parent[v]` any vertex with `depth[parent] === depth[v] - 1` and an arc to `v`; `order` grouped by level | as today (visited set, order) |
 | `sssp` / `bellmanFord` | `{ dist: F32 (+Inf unreached), predArc: U32, hasNegativeCycle? }`; the dispatcher attaches `pathTo` / `pathEdges` (9.2) | `dist` within `1e-5` relative; `predArc` any arc attaining `dist`; negative-cycle flag exact | `distance`, `isInPath` via the attached `pathTo()` -- the same call on both paths |
-| `betweennessCentrality` | `F32(n)` raw, same normalisation convention as `indexed`, `sourcesUsed`, `sigmaOverflow` | `1e-4` relative (f32 accumulation over many sources; DEPARTURE-6); top-k order; exact sources only (sampled BC is compared against sampled CPU BC with the same `sources` list, which A2 adds to the shared option type; Spearman >= 0.9 on a 10k subgraph) | `score`, min-max `scorePct` (`BetweennessCentralityAlgorithm.ts:59-78`) |
+| `betweennessCentrality` | `F32(n)` raw, same normalization convention as `indexed`, `sourcesUsed`, `sigmaOverflow` | `1e-4` relative (f32 accumulation over many sources; DEPARTURE-6); top-k order; exact sources only (sampled BC is compared against sampled CPU BC with the same `sources` list, which A2 adds to the shared option type; Spearman >= 0.9 on a 10k subgraph) | `score`, min-max `scorePct` (`BetweennessCentralityAlgorithm.ts:59-78`) |
 | `edgeBetweennessCentrality` | `F32(edgeCount)` via `foldArcs` | same | per edge through `edgeRemap` (design 14.4 lines 4110-4113) |
 | `closenessCentrality` | `F32(n)` | `1e-5` (integer distances before division) | as today |
 | `allPairsShortestPath` | `{ dist: F32(n*n), n }` | exact unweighted, `1e-5` weighted | KK `dist` input |
@@ -3474,7 +3474,7 @@ loosened in the test file.
 | T-10 | BFS 1M / 10M RMAT (diameter ~10) <= 100 ms; 1000 x 1000 grid (~2,000 levels) <= 1.5 s with `mapAsync` calls <= levels / 32 + 1 | [P] Merrill 3.3 GTEPS (2011); [M] Chromium round trip 0.10 ms | G8 (P8) |
 | T-11 | Betweenness, 100k / 1M, 256 sampled sources <= 5 s; karate exact <= 20 ms | per source = one BFS + one backward sweep (the 8.4 model: 0.5-2 s expected) | G9 (P9) |
 | T-12 | Default CI lane (lavapipe + SwiftShader) <= 15 min; GPU lane <= 20 min (the ONE lane budget; G2 and 12.6 cite these numbers); the 1M 200-iteration exact-vs-grid run of 11.4 is excluded from the lane and runs in the nightly benchmark job | wgpu budgets 5-15 min for its lavapipe job (note 06 section 3.5) | G1 onward |
-| T-13 | Benchmark regression: any tracked median (of 5 runs) > 3x its checked-in baseline for the runner class fails the GPU lane's `bench:compare` step (design 15.5 policy); `bench:compare` SKIPS (does not fail) when `gpu-report.json` shows GPU utilisation > 10% or memory in use by other processes during its 10-second sample (`nvidia-smi --query-gpu=utilization.gpu,memory.used`), because the runner is the owner's interactive dev GPU, and a nightly tracking issue is opened only after two consecutive failures (12.6) | -- | G3 onward |
+| T-13 | Benchmark regression: any tracked median (of 5 runs) > 3x its checked-in baseline for the runner class fails the GPU lane's `bench:compare` step (design 15.5 policy); `bench:compare` SKIPS (does not fail) when `gpu-report.json` shows GPU utilization > 10% or memory in use by other processes during its 10-second sample (`nvidia-smi --query-gpu=utilization.gpu,memory.used`), because the runner is the owner's interactive dev GPU, and a nightly tracking issue is opened only after two consecutive failures (12.6) | -- | G3 onward |
 | T-14 | FR 10k / 100k nodes per-iteration numbers recorded | -- | G5 (P5) |
 | T-15 | Louvain 1M / 10M and 100k / 1M end-to-end recorded with the CPU comparison (expected 2-10x) | [P] nu-Louvain | G11 (P11) |
 
@@ -3511,14 +3511,14 @@ move (note 05 section 9.3).
 
 ### 11.2 Device policy in tests (`test/setup/gpu.ts`)
 
-Generalises `packages/graph-format/test/audit/gpu-upload.test.ts` `acquire()`
+Generalizes `packages/graph-format/test/audit/gpu-upload.test.ts` `acquire()`
 (lines 38-63): dynamic `import("webgpu")`, install globals, `create([...])`
 with `adapter=${GRAPHTY_GPU_ADAPTER}` when set and
 `enable-dawn-features=${GRAPHTY_DAWN_FEATURES}` when set, then a FRESH
 `requestAdapter()` for every device it creates (an adapter is consumed by one
 `requestDevice`, 2.2 step 1, so the harness never hands a used adapter to
 `GpuContext.create({ adapter })`; graph-format's `acquire()` returns `{ gpu,
-adapter, device }` and must not be generalised into a cached adapter),
+adapter, device }` and must not be generalized into a cached adapter),
 `adapter.info`, `requestDevice` with raised limits; each failure is an
 `E_NO_ADAPTER: ...` reason. `acquire({ subgroups: false })` creates a context
 with `optionalFeatures: []` for the twin tests (D16); `GRAPHTY_GPU_NO_SUBGROUPS=1`
@@ -3545,7 +3545,7 @@ graph-format harness, `packages/graph-format/benchmarks/datasets.ts`).
 | Kind | What | Oracle |
 | --- | --- | --- |
 | Planner unit tests (no device) | `planUpload` (four caps tables x {arena, no arena} x {fits, exceeds buffer, exceeds binding}; a row longer than a window split on arc ranges; `start % 64 === 0` computed with `%`, including a case above 2^31 arcs as a pure computation), `plan1d` / `planGridStride` (the `(16,776,960, 16,777,216]` boundary), `UniformBlock` offsets, pipeline cache keys, `BufferPool` size classes | hand-computed expectations under faked caps: spec defaults, SwiftShader-like, lavapipe-like, NVIDIA-like (`test/helpers/caps-tables.ts`, note 05 section 4) |
-| Upload contract | arena hot prefix bindings equal CPU views; per-array path on a `fromCsr` snapshot (`arena === null`) and on `transpose()`; windowed path on a 64-arc boundary; windowed EXECUTION of `degree` with a FAKED `maxStorageBufferBindingSize = 1 MiB` on the 100k / 1M graph (>= 8 windows) and with a hub row longer than a window (graft: C G2); `arena.byteOffset !== 0` from `fromBytes`; packed `u8` / `bool` columns; identity permutations never materialised (`byteLength({ views: true })` unchanged); `release` destroys every buffer (`stats().buffers === 0`, `pool.liveBytes === 0`, no uncaptured error); `E_RELEASED` on the next bind | copied from `gpu-upload.test.ts` lines 254-666 (note 07 section 6) |
+| Upload contract | arena hot prefix bindings equal CPU views; per-array path on a `fromCsr` snapshot (`arena === null`) and on `transpose()`; windowed path on a 64-arc boundary; windowed EXECUTION of `degree` with a FAKED `maxStorageBufferBindingSize = 1 MiB` on the 100k / 1M graph (>= 8 windows) and with a hub row longer than a window (graft: C G2); `arena.byteOffset !== 0` from `fromBytes`; packed `u8` / `bool` columns; identity permutations never materialized (`byteLength({ views: true })` unchanged); `release` destroys every buffer (`stats().buffers === 0`, `pool.liveBytes === 0`, no uncaptured error); `E_RELEASED` on the next bind | copied from `gpu-upload.test.ts` lines 254-666 (note 07 section 6) |
 | Primitive differential | each primitive vs `test/oracle/<name>.ts` on random and adversarial inputs (sizes 0, 1, 255, 256, 257, 4097; all-equal keys; one giant row; empty; exactly 16,776,960 and +1 items in `node-limits`) | f64 CPU references; exact for u32 |
 | Algorithm differential | vs `test/oracle/<name>.ts` (independent index-based references written from design Ports 1-6: FIFO BFS, heap Dijkstra, union-find, Brandes, tens of lines each) always, PLUS `indexed.*` as a second oracle from W1 (the independent references are kept: a GPU tested only against the CPU package shares its design and its bugs); on the empty graph, one node, one self-loop, karate, grids, paths (high diameter), stars (hub), complete graphs, seeded G(n, m) with self-loops and parallels, planted partitions, a 10k-degree hub graph, directed and undirected, weighted (incl. zero weights) and not; `validate({ checksum: true })` after every call (no write into a view) | tolerances of 9.7 |
 | Layout parity | 11.4 | CPU FA2 / FR oracle (post-L1 the real `ForceAtlas2Simulation`) |
@@ -3604,10 +3604,10 @@ graph-format harness, `packages/graph-format/benchmarks/datasets.ts`).
   expected). An unmeetable number here is re-fixed by the owner-decision rule
   of 10.4, never loosened in the test.
 - Distributional parity (same seed, 100 iterations): stress, edge-length
-  distribution quantiles, per-node nearest-neighbour distance histogram and
+  distribution quantiles, per-node nearest-neighbor distance histogram and
   inter-component separation within 10% between GPU and CPU. Coordinates are
   never compared.
-- Existing behaviour pins from `layout/test/forceatlas2-layout.test.ts` (note
+- Existing behavior pins from `layout/test/forceatlas2-layout.test.ts` (note
   01 section 2.1.8) re-expressed on the GPU: empty graph, single node,
   disconnected components separated by > 0.03 after 100 iterations, `maxIter`
   respected, `completeGraph(6)` spread > 0.3, same seed -> same layout (bitwise
@@ -3643,7 +3643,7 @@ graph-format harness, `packages/graph-format/benchmarks/datasets.ts`).
   benchmark job; two runs are bitwise identical with `deterministic: true`;
   3D at 27 / 216 loops with the pyramid asserted <= 40 MB; the settle test
   runs on the isolated-node fixture and asserts the core is still moving when
-  `settled` would have fired under a bbox-radius normaliser (7.17).
+  `settled` would have fired under a bbox-radius normalizer (7.17).
 - Force-sum invariant (the corrected form of draft C's "momentum" test): with
   `gravity = 0` and `distributedAction = false`, after one iteration
   `|sum_i F_i| <= 1e-4 * sum_i |F_i|` on every fixture (Newton's third law over
@@ -3691,7 +3691,7 @@ when `navigator.gpu` is absent (simulated by passing `undefined` to `probe`);
 `probe()` reports `software` correctly and the vendor assertion holds under
 `GRAPHTY_GPU_REQUIRE=nvidia`; (2) the skeleton of 11.5; (3) `createForceAtlas2`
 on a 500-node graph: `load`, `step(10)` five times with `maxInFlight = 2`,
-positions written back, `setPosition` / `setFixed` honoured, `dispose` clean,
+positions written back, `setPosition` / `setFixed` honored, `dispose` clean,
 plus the 11.4 frame-loop test; (4) one PageRank, one BFS and one CC on karate
 vs the oracle; (5) a subgroup-variant kernel when `features.has("subgroups")`
 (SwiftShader size 4); (6) the WGSL compile matrix of 11.3 (the bounded
@@ -3732,7 +3732,7 @@ with the runner class defined in 10.4; sessions record adapter vendor /
 architecture / device, driver and requested limits so 4070, CI-runner and
 browser numbers never mix. The GPU lane uploads the output JSON (90-day
 retention) and `bench:compare` fails on `> 3x` the checked-in baseline for its
-runner class (T-13), with the quiet-GPU skip rule of T-13 (utilisation sampled
+runner class (T-13), with the quiet-GPU skip rule of T-13 (utilization sampled
 by `gpu-report.js` over 10 s; medians of 5 runs). Software adapters never time
 anything. Browser numbers (T-3, T-5) come from the browser project's
 `bench`-tagged tests appending records to the same output file through the
@@ -3805,13 +3805,13 @@ Four mechanisms, all mechanical, all part of the gates from P1 on:
 4. Run twice, compare bitwise. Every kernel test runs its kernel twice on
    the same adapter with the same inputs (`deterministic: true` where the
    option exists) and asserts bitwise-identical outputs before comparing to
-   any oracle; a race, an uninitialised read, an out-of-bounds read that the
+   any oracle; a race, an uninitialized read, an out-of-bounds read that the
    driver clamps, or a missing barrier shows up as run-to-run disagreement
    long before it shows up as a wrong answer. The cross-adapter checks of
    11.5 (bitwise for `u32`, within the derived tolerance for f32) are the
    same idea across implementations: Dawn on lavapipe, SwiftShader, NVIDIA
    and the T4 lane share no driver code, so a result they agree on is not
-   an artefact of one of them.
+   an artifact of one of them.
 
 What this does NOT do: prove performance (the T-table gates do, with
 measured numbers), or prove the element integration (G6's story on the real
@@ -3843,7 +3843,7 @@ and this section's sensitivity checks are what green means.
 | Lane | Workflow / runner | Adapter | Runs | Required check | Contents |
 | --- | --- | --- | --- | --- | --- |
 | default | `ci.yml` on `ubuntu-latest` (GitHub-hosted, free for public repos) | Dawn-in-Node on Mesa lavapipe (`apt-get install mesa-vulkan-drivers libvulkan1`; `create(["adapter=llvmpipe"])` -- the `webgpu` npm package's own CI pattern, also wgpu and three.js, note 06 section 3.5) + Chromium on bundled SwiftShader (`--enable-unsafe-webgpu --use-angle=swiftshader --enable-unsafe-swiftshader`; verified bit-identical `u32` results to NVIDIA on the probe kernel) | every push and PR | YES | build (`build:all`), lint (incl. the strict-consumer compile), knip, the whole `node` project with coverage and thresholds, the no-subgroups pass over `test/primitives test/layouts`, the `browser` smoke project |
-| GPU | `gpu.yml` -- its OWN workflow file -- on a GitHub-hosted GPU larger runner (Linux, 4 vCPU, 28 GB, one NVIDIA Tesla T4 16 GB, the NVIDIA partner image; runner group `gpu`, runner name `gpu-linux-t4`, `runs-on: gpu-linux-t4`; 12.4) | NVIDIA T4 via Vulkan, `GRAPHTY_GPU_REQUIRE=nvidia` (the image's llvmpipe = failure) | push to `master`, nightly (skipped when `master` has not moved since the last green run, 12.6), `workflow_dispatch`, and same-repo PRs labelled `gpu` by a maintainer | NO -- and "not required" means NOT A JOB OF THE `CI` WORKFLOW: a job of `CI` cannot be optional in the monorepo, because `release.yml` and `coverage.yml` are `workflow_run` on `CI` gated on `conclusion == 'success'` (`release.yml` lines 3-19, `coverage.yml` lines 3-16 and 51), a failed GPU job would block every package's release, and a job waiting for an offline self-hosted runner is queued for 24 hours before GitHub cancels it (docs.github.com/en/actions/reference/limits), delaying every release by a day; a powered-off box must not block the team | `gpu-report.json`, graph-format's `gpu-upload.test.ts` on NVIDIA as a canary (graft: C Q-14; it proves NVIDIA only because the preceding `gpu-report` step exits non-zero unless the default `create([]) + requestAdapter()` pick -- the same acquisition the audit uses -- is NVIDIA, and because the step greps the audit's printed `vendor=nvidia` line and fails on a skip), `node` + `node-limits` on NVIDIA, the no-subgroups pass over the whole `node` project, the tsx benchmarks with baseline comparison, `browser` smoke on the real GPU, artifacts |
+| GPU | `gpu.yml` -- its OWN workflow file -- on a GitHub-hosted GPU larger runner (Linux, 4 vCPU, 28 GB, one NVIDIA Tesla T4 16 GB, the NVIDIA partner image; runner group `gpu`, runner name `gpu-linux-t4`, `runs-on: gpu-linux-t4`; 12.4) | NVIDIA T4 via Vulkan, `GRAPHTY_GPU_REQUIRE=nvidia` (the image's llvmpipe = failure) | push to `master`, nightly (skipped when `master` has not moved since the last green run, 12.6), `workflow_dispatch`, and same-repo PRs labeled `gpu` by a maintainer | NO -- and "not required" means NOT A JOB OF THE `CI` WORKFLOW: a job of `CI` cannot be optional in the monorepo, because `release.yml` and `coverage.yml` are `workflow_run` on `CI` gated on `conclusion == 'success'` (`release.yml` lines 3-19, `coverage.yml` lines 3-16 and 51), a failed GPU job would block every package's release, and a job waiting for an offline self-hosted runner is queued for 24 hours before GitHub cancels it (docs.github.com/en/actions/reference/limits), delaying every release by a day; a powered-off box must not block the team | `gpu-report.json`, graph-format's `gpu-upload.test.ts` on NVIDIA as a canary (graft: C Q-14; it proves NVIDIA only because the preceding `gpu-report` step exits non-zero unless the default `create([]) + requestAdapter()` pick -- the same acquisition the audit uses -- is NVIDIA, and because the step greps the audit's printed `vendor=nvidia` line and fails on a skip), `node` + `node-limits` on NVIDIA, the no-subgroups pass over the whole `node` project, the tsx benchmarks with baseline comparison, `browser` smoke on the real GPU, artifacts |
 
 Why a GitHub-hosted GPU runner (owner decision Q-3, 2026-09-14: "I don't want
 to self-host the runner, I'm happy to pay for a hosted runner"): it is the only
@@ -3854,7 +3854,7 @@ sections 3.1-3.2): larger runners require GitHub Team or Enterprise Cloud and
 `gh api /orgs/graphty-org` reports `plan: free`, so `graphty-org` moves to
 Team ($4 per user per month); the T4 runner bills $0.052 per minute even on
 public repositories; a 20-minute nightly is ~$1.04, ~$32 per month, plus the
-labelled PR runs -- an org-level Actions spending limit (12.2) caps the total.
+labeled PR runs -- an org-level Actions spending limit (12.2) caps the total.
 Capability: the T4 (2018, 8.1 TFLOPS f32, 320 GB/s) runs every correctness
 test and the browser smoke on real NVIDIA hardware; it is NOT the machine the
 T-table performance targets are measured on -- those numbers come from the dev
@@ -4265,15 +4265,15 @@ P7 / P8 infrastructure ahead of P3.
 | P0 Reset + package skeleton | create the PUBLIC repository `graphty-org/webgpu-graph-algorithms`, push the reset scaffold as its first commit, set `repository.url` / `directory`, create the `gpu` label, provision the hosted GPU runner and the spending limit per 12.4 (Q-3, Q-28); scaffold triage per note 07 section 5 (delete `src/types/index.ts` `CSRGraph`, the empty `src/*` dirs, `test/setup/*`, `test/helpers/*`, `vitest.config.ts`, `vite.config.ts`, `tsconfig.json`, `eslint.config.js`, `knip.json`, `.husky`, `package-lock.json`, `.env*`, `.github/workflows/test.yml`, `examples/`, `STRATEGY.md`, `IMPLEMENTATION_CHECKLIST.md`; keep `CLAUDE.md`; move `HEADLESS_GPU_REPORT.md` under the package `docs/`); create `packages/webgpu-graph-algorithms/` mirroring graph-io (3.1) with its entries in `packages/pnpm-workspace.yaml` and `packages/knip.config.ts` (both enumerate packages by name); `src/index.ts` exporting only `WebGpuGraphError` and constants; `test/setup/gpu.ts` (acquisition with a fresh adapter per device, the `GRAPHTY_GPU_REQUIRE` policy through `scripts/gpu-policy.js`, uncapturederror hook), `test/setup/browser.ts`; `scripts/gpu-report.js`, `scripts/run-browser-project.js`; the 12.3 `ci.yml` and `gpu.yml` with one trivial device test; the runner recipe of 12.4 executed by the owner on the host; the owner's sign-off on the 7.2 formula table recorded in this PR (D21) | a buildable, lintable, knip-clean package; both vitest projects run one device test; default lane green; GPU lane registered and green | G0: the default lane ran on GitHub; `pnpm run build` (= `build:all`), `lint` (incl. `typecheck:strict-consumer`), `knip` pass; the `node` project acquires an adapter and prints `adapter.info` on the dev box (NVIDIA), the dev box with `GRAPHTY_GPU_ADAPTER=llvmpipe`, and `ubuntu-latest` (lavapipe); the `browser` project acquires SwiftShader on `ubuntu-latest` and NVIDIA locally with the four flags; the deliberate red run (`GRAPHTY_GPU_REQUIRE=nvidia` on the software lane fails) recorded in the PR; `gpu-report.js` exits non-zero on a software adapter under `nvidia` and the step is red (no `tee`); the 7.2 sign-off recorded; the Vitest 3 per-instance `launch` spelling recorded in `CLAUDE.md` | 2-3 ed |
 | P1 Walking skeleton | `GpuContext` in `src/context.ts` over `src/device/` (probe / create / from / caps / error scopes / lost / dispose, D26), `./browser`, `./node`, `webgpu-constants`, `planUpload` (arena / perArray; windowed PLANNING), minimal `GraphResidency` (core + `outDegree()` view + one column, `release`, `stats`), `BufferPool`, `Readback` ring, `PipelineCache`, `Kernel` with layouts derived from `spec.bindings`, `plan1d` / 2D, `UniformBlock` (uniform + storage modes), `composeWgsl` + prelude with interpolated constants, `kernels.ts`, the `degree` kernel, ONE exact-tile FA2 repulsion iteration (K3 with its swing / traction epilogue plus the one-workgroup K4 speed finalize, both written to the 3.5 uniformity rule and the 7.2 table signed off at G0) and the state-block trace readback, `reduce` (section 6 row 1) with its twin, `test/helpers/leak-counter.ts`, the tsx benchmark harness with `upload` and `roundtrip` groups | `degree(ctx, snapshot)` correct in Node and browser; the skeleton test of 11.5 | G1: 11.5 in full on lavapipe, SwiftShader and NVIDIA (`u32` results bitwise identical across adapters, the FA2 iteration within `1e-5` across adapters and bitwise per adapter); upload contract tests ported from `gpu-upload.test.ts`; `build-output.test.ts` proves no `webgpu` import specifier in the root / browser bundles with the bundle present (hard-fail under `CI`); T-1 / T-2 / T-3 recorded; coverage >= 80/80/75/80 on `--project=node` (thresholds active, 11.8) | 4-6 ed |
 | P2 Batch + dispatch infrastructure (what P3 needs, and only that) | `Lease`, `CommandBatch` (with the post-submit pending-error check), `UniformRing` dynamic offsets, `Profiler`, pipeline warm-up, device-loss state, `residentBytes` + warning; `segmentedReduce` in its thread-per-row tier (over `[midEnd, n)`) with the twin mechanism; `test/helpers/caps-tables.ts`, `test/helpers/override-matrix.ts`, the `test/oracle/` skeleton; the WGSL compile matrix on both runtimes. NOT in P2 (rule (b)): windowed upload EXECUTION and the `node-limits` project (P4), `scan` / `compact` / `histogram` (P4), the indirect finalize (P4: first needed by the grid's hub-cell tier G4a), grid-stride dispatch and `packViews` (P7), the mid / high tiers of `segmentedReduce` (P4, gated at G4) | the kernel layer of section 5 complete with tests; the primitives P3 needs | G2: `planUpload` unit tests for every path x caps table; the `(16,776,960, 16,777,216]` boundary and a WGSL `linear_id` test at the boundary on lavapipe; `reduce` / thread-per-row `segmentedReduce` equal their oracles at scaled sizes 0..2^24 incl. all-equal keys and one hub row, subgroup variant and twin in-process, bitwise deterministic across two runs; `UniformBlock` negative test rejected on Chromium and the `state` round trip green; `E_DEVICE_LOST` mid-readback on both runtimes with recovery from a fresh adapter; a bad bind group rejects its own batch's readback under Dawn-node; leak counter 0 after `release` and `dispose`; GPU lane green with `GRAPHTY_GPU_REQUIRE=nvidia` and `gpu-report.json` uploaded; default lane <= 15 min (T-12) | 4-6 ed |
-| P3 ForceAtlas2, exact tier, as a `LayoutSimulation` (FIRST DELIVERABLE) | `ForceSimulation` state machine with the `ForceModel` hook interface (7.19), `createForceAtlas2` with the exact tier (7.4-7.6, 7.9-7.11, 7.17-7.18; `vec4f` positions D23; no clamp D25), the `compat` overrides (7.2), `setFixed` / `setPosition` override list (7.12), `reheat` (D8), `setParams`, `run()` batch driver, `stats` + trace, LCG seeding (`seed.ts`, f32), `inputs.ts` (role-`mass` column, `Float32Array` or column-name `nodeMass`; `true` / column-name weights; D28), `toScene`, the CPU FA2 oracle in `test/oracle/forceatlas2.ts` (f64 and an f32 variant, index-based, the 7.2 table; the SPEC of the L1 `ForceAtlas2Simulation`, moved -- not copied -- into `layout/` if L1 wants it) cross-checked against committed NetworkX trajectory fixtures in `compat: "networkx"` (11.4), the `frame-loop.ts` helper, browser smoke (3) and the 10k `bench`-tagged browser test of 11.6, `layout-exact` benchmarks; `createAccelerator` with `forceAtlas2` and the layout tuning defaults | a usable GPU FA2 from Node (`benchmarks/layout-run.ts` lays out the 100k / 1M graph end to end on the exact tier: ~18 ms per iteration, correct) and from the browser frame loop | G3: 11.4 layout parity in full (oracle independence vs the NetworkX fixtures (1, 5, 50 iterations in `networkx` mode; iteration-0 forces cover `paper` mode; the two-line `SWING_MODE` unit test); force 1e-4; trace 1e-4 vs the f32 oracle / 5e-2 vs f64; distributional 10%; the behaviour pins; every option combination incl. `compat`, 2D / 3D, seeded / unseeded, `arcCount === 0`, a pinned node); 11.3 properties for layouts (all-fixed mask, `z === center.z`, pin survives a remapped `load`, `speed` not reset by `setPosition`) and the force-sum invariant incl. the coincident fixture; the FA2 kernels' subgroup twins identical (`1e-6`) in-process; lifecycle (`dispose` leak 0, `E_RELEASED` after `release` during a live simulation, device loss); the frame-loop test (600 ticks, at most `maxInFlight` in flight, `setPosition` never clobbered) also in the browser on SwiftShader and NVIDIA; T-4 met and the exact curve recorded; `exactMaxNodes` re-fixed by the 7.8 rule and written into `constants.ts` with the citation; T-5 at 10k in Chromium from the `bench`-tagged test; lavapipe runs the whole FA2 suite at `gpuScale` sizes in <= 3 min; the 11.9 sabotage matrix for K1-K5 (at least three mutations per kernel, each failing its parity test by >= 10x the tolerance), stage-by-stage `inspect()` parity for K2, K3, the epilogue, K4 and K5 against the oracle's stages, and every 11.4 tolerance traced to the noise-floor file | 8-10 ed |
+| P3 ForceAtlas2, exact tier, as a `LayoutSimulation` (FIRST DELIVERABLE) | `ForceSimulation` state machine with the `ForceModel` hook interface (7.19), `createForceAtlas2` with the exact tier (7.4-7.6, 7.9-7.11, 7.17-7.18; `vec4f` positions D23; no clamp D25), the `compat` overrides (7.2), `setFixed` / `setPosition` override list (7.12), `reheat` (D8), `setParams`, `run()` batch driver, `stats` + trace, LCG seeding (`seed.ts`, f32), `inputs.ts` (role-`mass` column, `Float32Array` or column-name `nodeMass`; `true` / column-name weights; D28), `toScene`, the CPU FA2 oracle in `test/oracle/forceatlas2.ts` (f64 and an f32 variant, index-based, the 7.2 table; the SPEC of the L1 `ForceAtlas2Simulation`, moved -- not copied -- into `layout/` if L1 wants it) cross-checked against committed NetworkX trajectory fixtures in `compat: "networkx"` (11.4), the `frame-loop.ts` helper, browser smoke (3) and the 10k `bench`-tagged browser test of 11.6, `layout-exact` benchmarks; `createAccelerator` with `forceAtlas2` and the layout tuning defaults | a usable GPU FA2 from Node (`benchmarks/layout-run.ts` lays out the 100k / 1M graph end to end on the exact tier: ~18 ms per iteration, correct) and from the browser frame loop | G3: 11.4 layout parity in full (oracle independence vs the NetworkX fixtures (1, 5, 50 iterations in `networkx` mode; iteration-0 forces cover `paper` mode; the two-line `SWING_MODE` unit test); force 1e-4; trace 1e-4 vs the f32 oracle / 5e-2 vs f64; distributional 10%; the behavior pins; every option combination incl. `compat`, 2D / 3D, seeded / unseeded, `arcCount === 0`, a pinned node); 11.3 properties for layouts (all-fixed mask, `z === center.z`, pin survives a remapped `load`, `speed` not reset by `setPosition`) and the force-sum invariant incl. the coincident fixture; the FA2 kernels' subgroup twins identical (`1e-6`) in-process; lifecycle (`dispose` leak 0, `E_RELEASED` after `release` during a live simulation, device loss); the frame-loop test (600 ticks, at most `maxInFlight` in flight, `setPosition` never clobbered) also in the browser on SwiftShader and NVIDIA; T-4 met and the exact curve recorded; `exactMaxNodes` re-fixed by the 7.8 rule and written into `constants.ts` with the citation; T-5 at 10k in Chromium from the `bench`-tagged test; lavapipe runs the whole FA2 suite at `gpuScale` sizes in <= 3 min; the 11.9 sabotage matrix for K1-K5 (at least three mutations per kernel, each failing its parity test by >= 10x the tolerance), stage-by-stage `inspect()` parity for K2, K3, the epilogue, K4 and K5 against the oracle's stages, and every 11.4 tolerance traced to the noise-floor file | 8-10 ed |
 | P-ENV Environment move (one change) | the dev container and the runner image move to Ubuntu 24.04 (glibc 2.39, Mesa 25.x lavapipe, `libegl1` present); `webgpu` bumped from 0.4.0 to the current 0.6.x in both lanes, in graph-format's devDependencies and in this package's devDependency and `E_NO_WEBGPU` install hint (the peer range `>=0.4.0 <1.0.0` already admits it, 2.5); the `LD_LIBRARY_PATH` workaround removed; the 0.6.x unmap-on-destroy shim noted as redundant with `Readback`'s own `unmap` | one environment change between the exact and grid phases (draft C's question Q-10; here Q-4) | G-ENV: G1-G3 re-run green on both lanes with the new image; `gpu-report.json` shows the new driver / Mesa versions; benchmark baselines re-recorded for the new runner class | 1-2 ed (+ owner time on the host) |
 | P4 Scale: grid pyramid + degree tiers | `scan`, `compact`, `histogram` / counting sort, `radixSort` (digit-major histograms), the indirect `finalize` kernel and `planIndirect`, windowed upload EXECUTION for row-walking kernels (`ArcWindow`, rebase uniform, row clamping) and the `node-limits` project, the grid kernels G1-G7 with G4a / G4b (7.7) in 2D and 3D with the robust extent, the outside pseudo-cell, `state.eps`, the sorted-order dispatch (D24), `repulsion: "auto"` crossover, `calibrateLayout()`, the mid / high attraction and `segmentedReduce` tiers over `degreeOrder()` (7.5, 6 row 3), `nearMax` / `gridMax` / `extentFactor` options, `stats.maxCellOccupancy` / `outsideGrid`, the exact-vs-approximate fixtures and tests (11.4), `layout-grid` benchmarks on the grid ladder in 2D and 3D, hub-heavy and isolated-node fixtures | FA2 usable at 10^5-10^6 nodes | G4: 11.4 exact-vs-grid in full at 20k / 100k / 262k (RMS <= 5%, p99 <= 25% on uniform, clumpy and isolated-node fixtures with the floored denominator; unbiasedness; distributional 15% over 200 iterations; EXPANSION PARITY within 25% at 50 and 200 iterations; an isolated node's force equals gravity; bitwise determinism with `deterministic: true`; pyramid <= 40 MB in 3D) and the one-iteration + unbiasedness checks at 1M in `node-limits`; the settle test on the isolated-node fixture; `radixSort` equals a stable `Array.sort` on 8 / 16 / 24 / 32-bit keys with values, sizes 0..2^22 (scaled), all-equal keys; `histogram` / counting sort equal their oracles with one hot bucket; `cellStart` correct with empty cells and a 1M-entry hub cell dispatched through G4b; windowed `degree` with a FAKED 1 MiB binding limit (>= 8 windows) and a hub row longer than a window equals `outDegree()`; `node-limits`: a real 2 GiB binding request succeeds on the 4070, a 200 MB per-array upload is bound windowed at defaults, a real 2D dispatch on 100M items; the upper `segmentedReduce` tiers equal their oracles with the 10k-degree hub, twin in-process; T-6 and T-7 met; T-5 at 100k in Chromium; the crossover re-checked and `exactMaxNodes` adjusted if the grid is faster below it; a decision record on: option B (cluster tree) -- default no; `gridMax2D` in {512, 1024, 2048} at 1M and `extentFactor` (Q-32); a near-field force bound (D25) and adaptive `nearMax` (R-24) -- default neither; the position permutation of note 03 8.3 item 5 -- default no; lavapipe runs the grid suite at `gpuScale` sizes in <= 4 min; the 11.9 sabotage matrix for G1-G7 (dropped pseudo-cell, plain store for the histogram atomic, off-by-one cell bound, wrong level offset) and stage-by-stage `inspect()` parity of `cellKey` / `sortedIdx` / `cellStart` / every pyramid level / the far-field and near-field forces against the oracle's stages | 10-14 ed |
 | P5 Fruchterman-Reingold + the spring-electrical preset | `createFruchtermanReingold` (7.20: `LAW = FR`, temperature slots, `FR_APPLY`, `fixed`, the `\|\| 0.1` guard, `reheat` at 0.7, `FruchtermanReingoldStats`), `createSpringElectrical` (the preset of 7.20 with the velocity integrator, ngraph's option names and settle rule, `SpringElectricalStats`), FR oracle, browser smoke, `layout-fr` benchmarks; `GpuAccelerator.fruchtermanReingold` / `springElectrical` | second and third layouts; the element can route `spring` (FR) and offer `spring-electrical`; routing `ngraph` to the preset stays a product decision (Q-9) | G5: one-iteration displacement parity with the CPU FR oracle (<= 1e-4), fixed nodes immobile, output NOT rescaled when `fixed` is given; the preset settles within 1,000 steps on the 150-node / 250-edge "Performance/Large Graph" story graph to an edge-length distribution within 25% of ngraph's (ngraph run on the CPU in the test, devDependency of the test only); T-14 recorded | 4-5 ed |
 | P6 Integration PRs (monorepo) | `algorithms`: 9.2 interfaces + `accelerated()` with the ported methods + `pathTo` / `pathEdges` decoration + `sources` / `k` + fake tests (first A2 commit); `layout`: 9.3 `LayoutSimulation`, `LayoutAccelerator`, `SimulationOptions`, `createSimulation` with the type table, steppable CPU FA2 / FR with the 7.2 formulas, `resolveNodeVector` / `resolveWeights` / `seedPositions`, Chromatic re-baseline; `graphty-element`: 9.4 items 1-9 incl. the `accelerator-changed` consumer, the release list, the pin re-application and the `acceleration.minNodes` evaluation, with the E1 element tests, plus the 9.5 `./webgpu` entry point | the GPU layout "detected" by graphty-element; a Storybook story the owner can open on the dev box to see the GPU FA2 animate with drag and pins | G6: element tests + stories green with a fake accelerator (incl. late injection, mid-run removal, pin survival across a remap); the story on the real GPU locally settles, drags and pins (screenshot checked with the Playwright + nanobanana routine the owner's rules require for visual work); the GPU package's structural mirrors match the real interfaces (type test run manually against the monorepo checkout until W1); the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics) | 8-10 ed (across three packages, on top of the design's E1 refactor, which is a precondition and NOT sized here); PREPARED on branches after A1 merges, MERGED only after F2 (design 13.5 rule 5) |
-| P7 SpMV family + WCC + the algorithm accelerator surface | grid-stride dispatch, `packViews`, `spmvPull` over pre-scaled `xNorm`, the device out-weight normaliser, PageRank (+ personalized) with `pr-scale` / `pr-finalize` and `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC (with the two-dispatch atomic dedupe), `renumberPartition` on readback, `reverse()` residency (identity when undirected; `fwdArc` never touched), `degreeOrder({ of: "reverse" })` tiers, the `AlgorithmAccelerator` structural interface and `GpuAccelerator` methods, oracles (NetworkX-semantics PageRank matching `pagerank.ts`, union-find), `pagerank` / `wcc` benchmarks | first algorithms through the accelerator interface | G7: 9.7 parity on all fixtures (<= 1e-5, top-k, `iterations` +-1 through `firstConvergedIteration`, `converged` identical; weighted with zero-weight arcs and dangling nodes; directed and undirected; personalization one-hot and uniform); the PageRank pull kernel binds exactly the 8 of 8.2 and every 8.10 kernel matches its count (descriptor test); no host readback inside a batch of 8 iterations (`mapAsync` count through the leak counter); SpMV twin identical in-process; WCC partition equality after renumbering incl. directed inputs treated weakly, singletons, giant component + dust, `arcCount === 0`; T-8 and T-9 recorded; browser smoke (4) green | 8-10 ed (may start after P2 in parallel with P3-P5; coordinate on `segmentedReduce`) |
+| P7 SpMV family + WCC + the algorithm accelerator surface | grid-stride dispatch, `packViews`, `spmvPull` over pre-scaled `xNorm`, the device out-weight normalizer, PageRank (+ personalized) with `pr-scale` / `pr-finalize` and `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC (with the two-dispatch atomic dedupe), `renumberPartition` on readback, `reverse()` residency (identity when undirected; `fwdArc` never touched), `degreeOrder({ of: "reverse" })` tiers, the `AlgorithmAccelerator` structural interface and `GpuAccelerator` methods, oracles (NetworkX-semantics PageRank matching `pagerank.ts`, union-find), `pagerank` / `wcc` benchmarks | first algorithms through the accelerator interface | G7: 9.7 parity on all fixtures (<= 1e-5, top-k, `iterations` +-1 through `firstConvergedIteration`, `converged` identical; weighted with zero-weight arcs and dangling nodes; directed and undirected; personalization one-hot and uniform); the PageRank pull kernel binds exactly the 8 of 8.2 and every 8.10 kernel matches its count (descriptor test); no host readback inside a batch of 8 iterations (`mapAsync` count through the leak counter); SpMV twin identical in-process; WCC partition equality after renumbering incl. directed inputs treated weakly, singletons, giant component + dust, `arcCount === 0`; T-8 and T-9 recorded; browser smoke (4) green | 8-10 ed (may start after P2 in parallel with P3-P5; coordinate on `segmentedReduce`) |
 | P8 Frontier family | `Frontier` with the sized / chunked edge queue, `advance` (block_mapped + workgroup tier + subgroup variant), `dedupe`, bitset, the multi-candidate indirect args and the device-side `finalizeArgs` selector (5.4); BFS (+ direction-optimizing, `switches` as a device counter, `atomicMin` claims), closeness / harmonic / eccentricity, SSSP near-far with the two-pass predecessor, Bellman-Ford, window-aware advance (lifting the `E_TOO_LARGE`), oracles (FIFO BFS, binary-heap Dijkstra, Bellman-Ford), `bfs` benchmarks | BFS, closeness, SSSP, Bellman-Ford | G8: BFS `depth` exact and parent / order level-consistent on all fixtures incl. the 1000 x 1000 grid and a 10k-degree star; the fused and two-phase kernels agree and the device-side selection picks each at least once on an RMAT fixture; the direction-optimizing path agrees with top-down and `switches > 0` on an RMAT fixture; a level whose degree sum exceeds a FAKED 4,096-entry edge-frontier capacity gives exact depths (the chunked overflow rule); SSSP `dist` within 1e-5 incl. zero weights, `predArc` attains `dist`, `E_UNSUPPORTED` on negative weights, `flags.allWeightsOne` routes to BFS; Bellman-Ford detects a planted negative cycle; `mapAsync` count <= levels / 32 + 1 on the grid fixture; the indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe); subgroup tier identical on / off at sizes 4 / 8 / 32; T-10 recorded | 10-14 ed |
-| P9 Betweenness + APSP | McLaughlin-Bader forward pass (u32 sigma with `sigmaOverflow`, `S` / `ends`), successor-pull backward pass writing `n x k` deltas, the per-batch `bc` gather (no float races), tagged multi-source batching planned from `maxBufferSize`, the online work-efficient / edge-parallel switch, sampling (`sources` / `k`), edge BC via `foldArcs(..., "first")` halved on undirected, normalisation identical to the CPU, `onProgress` / `signal`; blocked Floyd-Warshall and BFS-based APSP with the binding-size bound of 8.7; Brandes oracle | BC (sampled and exact for small n), APSP | G9: exact BC on karate, path, star, cycle, grid, random 2k <= 1e-4 relative and top-k; analytic sums on path and star; edge BC folded correctly (both arcs equal before folding, asserted); sampled BC (256 sources) on a 100k-node RMAT has Spearman >= 0.9 with exact BC on a 10k subgraph and equals the CPU's sampled result on the same `sources` list; the overflow flag fires on a constructed small-world graph; batch planning honours a faked `maxBufferSize` (k shrinks; results equal); APSP exact unweighted / 1e-5 weighted in `node-limits`, `E_TOO_LARGE` above the 8.7 bound; T-11 recorded | 5-7 ed |
-| P10 Move-in (W1) | `packages/README.md` checklist verbatim; the 12.5 `ci.yml` diff, the monorepo `gpu.yml` and the root touch points; the structural mirrors are deleted for `import type` from the optional peers `@graphty/algorithms` / `@graphty/layout` (D27) and `test/types/conformance.test-d.ts` is retired; `indexed.*` ADDED as a second oracle beside `test/oracle/`; `seedPositions` cross-test against the real `RandomNumberGenerator`; the self-hosted runner registered for the monorepo; design 10.3 / 14.5 / 14.6 / 16.2 / 16.7 amendments (DEPARTURE-1, -2, -4, -5, -6; DEPARTURE-3 and -7 amend 14.3 in the L1 PR); README performance table regenerated from `benchmarks/results/` | the package in the monorepo, both CI lanes live, first release `0.1.0` with provenance | G10: monorepo default shards green on lavapipe + SwiftShader with the strict-consumer compile inside `lint`; the `test-gpu` job of `gpu.yml` green on a labelled PR and on master with `ci.yml`'s `on:` untouched; `all-checks` unchanged; coverage merged by `tools/merge-coverage.sh --ci` with the new package in PACKAGES; `nx release` dry run versions the package independently; `expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>()` and the reverse compile; every differential test passes against BOTH oracles with the 9.7 tolerances (a mismatch is a bug in one of the two packages and blocks W1) | 3-4 ed |
+| P9 Betweenness + APSP | McLaughlin-Bader forward pass (u32 sigma with `sigmaOverflow`, `S` / `ends`), successor-pull backward pass writing `n x k` deltas, the per-batch `bc` gather (no float races), tagged multi-source batching planned from `maxBufferSize`, the online work-efficient / edge-parallel switch, sampling (`sources` / `k`), edge BC via `foldArcs(..., "first")` halved on undirected, normalization identical to the CPU, `onProgress` / `signal`; blocked Floyd-Warshall and BFS-based APSP with the binding-size bound of 8.7; Brandes oracle | BC (sampled and exact for small n), APSP | G9: exact BC on karate, path, star, cycle, grid, random 2k <= 1e-4 relative and top-k; analytic sums on path and star; edge BC folded correctly (both arcs equal before folding, asserted); sampled BC (256 sources) on a 100k-node RMAT has Spearman >= 0.9 with exact BC on a 10k subgraph and equals the CPU's sampled result on the same `sources` list; the overflow flag fires on a constructed small-world graph; batch planning honors a faked `maxBufferSize` (k shrinks; results equal); APSP exact unweighted / 1e-5 weighted in `node-limits`, `E_TOO_LARGE` above the 8.7 bound; T-11 recorded | 5-7 ed |
+| P10 Move-in (W1) | `packages/README.md` checklist verbatim; the 12.5 `ci.yml` diff, the monorepo `gpu.yml` and the root touch points; the structural mirrors are deleted for `import type` from the optional peers `@graphty/algorithms` / `@graphty/layout` (D27) and `test/types/conformance.test-d.ts` is retired; `indexed.*` ADDED as a second oracle beside `test/oracle/`; `seedPositions` cross-test against the real `RandomNumberGenerator`; the self-hosted runner registered for the monorepo; design 10.3 / 14.5 / 14.6 / 16.2 / 16.7 amendments (DEPARTURE-1, -2, -4, -5, -6; DEPARTURE-3 and -7 amend 14.3 in the L1 PR); README performance table regenerated from `benchmarks/results/` | the package in the monorepo, both CI lanes live, first release `0.1.0` with provenance | G10: monorepo default shards green on lavapipe + SwiftShader with the strict-consumer compile inside `lint`; the `test-gpu` job of `gpu.yml` green on a labeled PR and on master with `ci.yml`'s `on:` untouched; `all-checks` unchanged; coverage merged by `tools/merge-coverage.sh --ci` with the new package in PACKAGES; `nx release` dry run versions the package independently; `expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>()` and the reverse compile; every differential test passes against BOTH oracles with the 9.7 tolerances (a mismatch is a bug in one of the two packages and blocks W1) | 3-4 ed |
 | P11 Structure + community | k-core, triangle counting / k-truss, label propagation, Boruvka MST (two-pass min), `cooToCsr`, per-row group-by-key (workgroup sort / global hash), Louvain (move phase with `up_down`, reduce-by-key cluster weights, device contraction), Leiden refinement if time allows; oracles for each; the 8.10 binding counts asserted | the long tail, each merged separately | G11: `radixSort` on 32-bit keys with values and `cooToCsr` output passing `fromCsr(...).validate({ level: "full" })`; k-core exact; triangles exact per node and total; k-truss support exact; LPA recovers planted partitions (ARI >= 0.9) on 10 seeds; Boruvka `totalWeight` within 1e-5 and edge set identical on distinct weights; Louvain modularity within 0.02 of the CPU on karate / planted partitions and never below the CPU's by more than 0.05 on random fixtures; every level's contraction preserves `totalWeight`; no mixed atomic / non-atomic access (the compile matrix on both runtimes); T-15 recorded | 12-16 ed |
 | P12 Element polish (W2) | `acceleration.minNodes` default from measurements, `iterationsPerStep` auto-raise above 250k nodes, `calibrateLayout()` + `createAccelerator` defaults wiring in the element's `./webgpu` entry point, the real-GPU stories under a `gpu` tag in graphty-element, device-loss UX (`acceleration.state = "error"` published to every bound view + the CPU simulation taking over the running layout), docs (README with the one-import browser recipe and the Node recipe) | the acceleration status chip and stories | G12: stories green; nightly GPU lane green for a week; README numbers regenerated from `benchmarks/results/` | 4-6 ed |
 
@@ -4327,26 +4327,26 @@ coordination at A2 / L1 / E1.
 | R-9 | Windowed bindings for the 10M tier are supported only by row-walking kernels until P8; frontier algorithms on > 33M arcs at default limits throw `E_TOO_LARGE` | low / medium | raised limits on discrete GPUs make windows rare; `E_TOO_LARGE` carries the numbers; window-aware advance lands in P8 | accept until P8 |
 | R-10 | Dawn-node's `uniform_buffer_standard_layout` masks a layout bug that only Chromium rejects | medium / medium | `UniformBlock` generates padded structs; the compile matrix runs on both runtimes; the negative test | generated layouts only (D20) |
 | R-11 | Float accumulation error (f32 tile sums, PageRank pull, BC over many sources) exceeds the tolerances on adversarial graphs | medium / low | tree-shaped partials, Kahan in hub loops, documented tolerances scaled by iteration count; f64 CPU results remain the reference; `precision: "f32"` on results | keep tolerances; document (Q-24) |
-| R-12 | Behaviour change: `weight` becomes live for FA2 through the snapshot; parallel arcs sum in the gather | medium / low | documented in the L1 / E1 changelogs and the design (14.3 line 4037, 14.4 `weightFromPath`) | accept (Q-10) |
+| R-12 | Behavior change: `weight` becomes live for FA2 through the snapshot; parallel arcs sum in the gather | medium / low | documented in the L1 / E1 changelogs and the design (14.3 line 4037, 14.4 `weightFromPath`) | accept (Q-10) |
 | R-13 | `browser.close()` hangs after GPU work on the NVIDIA path | high / low | job-level timeouts, `timeout -k 10 600` around the browser step with the JSON reporter, exit 124 accepted iff every test passed (11.6), `fileParallelism: false` | hard kill backstop that cannot turn a green run red |
 | R-14 | The element's synchronous frame loop with a coalescing bridge changes perceived layout speed versus ngraph (one physics step per `step()`) | medium / low | `iterationsPerStep = stepMultiplier`; settle semantics unchanged; the frame-loop test; stories compare feel | coalesce, document |
-| R-15 | Timestamp-query quantisation (Chromium 100 us; Dawn-node unquantised, 1,024 ns ticks [M]) makes browser per-kernel profiling noisy | low / low | gates use wall-clock around `await step()`; the profiler is a benchmark aid; per-kernel profiling is a Node activity | wall-clock gates |
+| R-15 | Timestamp-query quantization (Chromium 100 us; Dawn-node unquantized, 1,024 ns ticks [M]) makes browser per-kernel profiling noisy | low / low | gates use wall-clock around `await step()`; the profiler is a benchmark aid; per-kernel profiling is a Node activity | wall-clock gates |
 | R-16 | Louvain on the GPU gives only 2-10x and loses parallelism at coarse levels | high / low | scheduled last; expectation stated up front; no in-package CPU handoff -- the caller chooses the CPU package for small graphs | ship with the measured number (Q-14) |
 | R-17 | Design 14.5 says "browser-only vitest project"; leaving it unamended confuses W1 | certain / low | amend 14.5, 14.6 and 16.7 in the W1 PR | amend (Q-2) |
 | R-18 | A consumer that never calls `release` leaks GPU memory (nothing is freed by GC) | medium / medium | per-snapshot record; `release` from `snapshot-replaced` is in the design; `residentBytes`, `stats()` and the once-only warning above `warnUnreleasedSnapshots` | counter + warning |
 | R-19 | Dawn-node process lifetime: a CLI that keeps the `GPU` object reachable never exits | low / low | `createNodeGpu().dispose()` drops the reference; vitest `forks` kills workers | dispose in `afterAll` |
 | R-20 | Vitest 3 -> 4 changes the browser provider API | medium / low | flags in one exported constant; the monorepo already pins overrides for both majors | follow the monorepo |
 | R-21 | The 1M-node interactive tier depends on the element rendering 10^6 meshes, which it cannot today (note 01 section 6) | certain / low | 1M is a Node batch tier until instanced rendering exists; the layout itself is measured (T-6) regardless | batch tier now |
-| R-22 | Unverified platform facts (Firefox / Safari exposure of `subgroups` / `timestamp-query`; lavapipe on an actual GitHub runner; the exact Vitest 3 launch spelling; `pool: "threads"` with the Dawn addon; mobile / Safari 26 behaviour). SETTLED by the review probes and no longer open: a default Dawn-node device carries the spec-default limits with offset alignments 256 [M]; Dawn-node timestamps are unquantised [M]; an over-limit indirect dispatch runs nothing without an error [M]; same-pass write-then-indirect works [M]; `uncapturederror` fires synchronously under Dawn-node [M]; an adapter is consumed by one `requestDevice` [M]; `backend=null` yields an adapter under webgpu@0.4.0 [M] | medium / low | P0 / P1 verify each remaining item and record the answer in the package `CLAUDE.md` "Verified Platform Facts"; the finalize kernel makes the indirect question moot either way; `forks` is the verified pool | verify at G0 / G1 (Q-16) |
+| R-22 | Unverified platform facts (Firefox / Safari exposure of `subgroups` / `timestamp-query`; lavapipe on an actual GitHub runner; the exact Vitest 3 launch spelling; `pool: "threads"` with the Dawn addon; mobile / Safari 26 behavior). SETTLED by the review probes and no longer open: a default Dawn-node device carries the spec-default limits with offset alignments 256 [M]; Dawn-node timestamps are unquantized [M]; an over-limit indirect dispatch runs nothing without an error [M]; same-pass write-then-indirect works [M]; `uncapturederror` fires synchronously under Dawn-node [M]; an adapter is consumed by one `requestDevice` [M]; `backend=null` yields an adapter under webgpu@0.4.0 [M] | medium / low | P0 / P1 verify each remaining item and record the answer in the package `CLAUDE.md` "Verified Platform Facts"; the finalize kernel makes the indirect question moot either way; `forks` is the verified pool | verify at G0 / G1 (Q-16) |
 | R-23 | graphty-element's `useWebGPU` render path (present, unwired, 1.2) is switched on while an accelerator is injected: two devices on one adapter, the layout readback still copies through the CPU, and the element's Babylon device is not the accelerator's | low / low | nothing breaks (two devices are legal); `GpuContext.from(engine._device)` is the wiring point when the element exposes its engine's device, and it removes the readback (Q-7) | document; wire at the element's `WebGPUEngine` milestone, not in v1 |
 | R-24 | Near-field resampling of an over-capacity cell changes a node's force estimate every iteration; with `speedEfficiency` floored at 0.05 such nodes may never reach zero displacement and delay `settled` (7.7) | medium / low | measured at G4 on the hub-cell fixture; mitigation if it shows: raise `nearMax` adaptively while `maxCellOccupancy > nearMax` persists for `settleWindow` iterations, or bound the near-field force sum inside G7 (cosmos's placement, D25) | measure at G4, decide in the P4 record |
-| R-25 | The T4 is a shared-tenant cloud GPU: run-to-run benchmark medians vary, and a nightly that opens tracking issues for noise trains people to ignore it | medium / low | medians of 5 runs; the 3x regression threshold against the T4's OWN baseline; `gpu-report.js` records clocks and utilisation so an outlier is explainable; an issue only after two consecutive nightly failures (T-13, 12.6); the T-table targets are measured on the dev box by hand, never on the T4 | tolerate, never fail on a single slow run |
+| R-25 | The T4 is a shared-tenant cloud GPU: run-to-run benchmark medians vary, and a nightly that opens tracking issues for noise trains people to ignore it | medium / low | medians of 5 runs; the 3x regression threshold against the T4's OWN baseline; `gpu-report.js` records clocks and utilization so an outlier is explainable; an issue only after two consecutive nightly failures (T-13, 12.6); the T-table targets are measured on the dev box by hand, never on the T4 | tolerate, never fail on a single slow run |
 
 ### 14.2 Open questions (each with the recommended default; silence means the default stands)
 
 | Id | Question | Recommended default |
 | --- | --- | --- |
-| Q-1 | DECIDED 2026-09-14: the published laws (Jacomy 2014 / Gephi / cuGraph) are the default, with a `compat: "networkx"` option that reproduces NetworkX `forceatlas2_layout`; the port's own variants are dropped (7.2, D5, DEPARTURE-3). Gravity toward the centroid (port, NetworkX) confirmed by the owner; `GRAVITY_CENTER: 1` (origin, Gephi / cuGraph) stays an override for tests. The 7.2 table as amended is the G0 sign-off artefact (D21). | -- |
+| Q-1 | DECIDED 2026-09-14: the published laws (Jacomy 2014 / Gephi / cuGraph) are the default, with a `compat: "networkx"` option that reproduces NetworkX `forceatlas2_layout`; the port's own variants are dropped (7.2, D5, DEPARTURE-3). Gravity toward the centroid (port, NetworkX) confirmed by the owner; `GRAVITY_CENTER: 1` (origin, Gephi / cuGraph) stays an override for tests. The 7.2 table as amended is the G0 sign-off artifact (D21). | -- |
 | Q-2 | Node-first testing departs from design 14.5 "browser-only vitest project". | Amend 14.5, 14.6 and 16.7 when this plan is accepted |
 | Q-3 | DECIDED 2026-09-14: no self-hosted runner; a paid hosted GPU runner. The plan uses GitHub's own GPU larger runner (T4; needs the Team plan, ~$4 per user per month plus $0.052 per minute), with `machine.dev` as the drop-in alternative if the plan upgrade is unwanted (12.1, 12.4). Owner: "whatever is easier and more maintainable" -> GitHub Team + T4 (one vendor, one bill, GitHub-managed VMs, a runner group the monorepo joins at W1, no third-party account or runner lifecycle to maintain); `machine.dev` stays documented as the fallback only. | -- |
 | Q-4 | `webgpu@0.4.0` pin versus moving the dev container / runner image to Ubuntu 24.04. | Stay on 0.4.0 through P3; move both images at P-ENV in one change |
@@ -4355,7 +4355,7 @@ coordination at A2 / L1 / E1.
 | Q-7 | Readback at 1M nodes in the browser (~30 ms per batch) is frame-limiting. (cited from 7.19, R-4) | `iterationsPerStep` auto-raise above 250k nodes; the structural fix (sharing the Babylon `WebGPUEngine` device, R-23) is not scheduled; the rendering-side notes are in 14.3 |
 | Q-8 | Settlement threshold for FA2: relative `1e-3` of the RMS layout radius over 10 iterations (7.17), with `maxIter` as the hard stop? (cited from 7.14, 7.17) | Yes; tune from stories |
 | Q-9 | The `spring-electrical` preset (7.20) is BUILT in P5 as its own `SimulationType`; should the element also ROUTE its default `ngraph` layout to it above a node-count threshold? (cited from 7.20, 9.3) | Build the preset (P5); do not route `ngraph` to it in v1 -- the GPU layout is selected by type (`forceatlas2` / `spring` / `spring-electrical`); graphty-element decides any threshold later |
-| Q-10 | `weight` becomes LIVE for FA2 through the snapshot (inert in the element today). | Accept the documented behaviour change at L1 / E1 |
+| Q-10 | `weight` becomes LIVE for FA2 through the snapshot (inert in the element today). | Accept the documented behavior change at L1 / E1 |
 | Q-11 | Directed snapshots passed directly to a GPU layout in Node. (cited from 7.1 through `load()`'s argument checks, 5.7) | `E_SNAPSHOT` ("pass `toUndirected().snapshot`"), matching `toLayoutSnapshot`; graphty-element always passes the undirected copy and releases it (4.5) |
 | Q-12 | Labels renumbered on the CPU in first-seen order (identical `groups()`) cost O(n) per CC readback. | Do it (parity is worth ~1 ms at 1M nodes); `renumber: false` returns raw roots |
 | Q-13 | Betweenness at 1M nodes is seconds to tens of seconds even sampled (2-20 s for 256 sources by the 8.4 model). | `sources` / `k` become part of the SHARED `BetweennessCentralityOptions` at A2 so both paths accept them; `onProgress` and `signal` are reachable only through the GPU package's own functions; the element's adapter defaults to exact for n <= 10k and 256 sampled sources above 50k (a product decision for E1 / W2), which is the right default at either figure because exact BC is O(n m) |
@@ -4420,8 +4420,8 @@ phase's critical path.
    buffer with a stable layout (stride 3 f32, scene units, 7.18) that a
    vertex stage can read (`VERTEX` usage is added by an option when the
    device is shared); `setPosition` / `setFixed` work with no CPU copy of
-   the positions; `flush()` remains the synchronisation point for anything
-   that must see the array on the CPU (serialisation, screenshots).
+   the positions; `flush()` remains the synchronization point for anything
+   that must see the array on the CPU (serialization, screenshots).
 
 Ordering when the element takes this up: thin instances first (they pay off
 on the WebGL engine today), device sharing second (it needs the element's
@@ -4434,7 +4434,7 @@ WebGPU render path).
 Local (read-only unless stated):
 
 - `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md` -- sections 10 (GPU contract, lines 2320-2553), 13.5 (versioning rules, 3638-3680), 14.2 (result conventions, line 3738), 14.3 (`LayoutSimulation`, layout ports, 3959-4047), 14.4 (graphty-element ownership, `snapshot-replaced`, 4048-4211), 14.5 (WebGPU package move-in, 4212-4243), 14.6 (landing order, 4245-4278), 15 (performance model, 4279-4449), 16 (testing, 4450-4657).
-- `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/01-layout-needs.md` .. `07-format-api-and-conventions.md` -- the seven research notes this plan is built on (each carries its own URL list); `draft-A.md`, `draft-B.md`, `draft-C.md` -- the three drafts synthesised here.
+- `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/01-layout-needs.md` .. `07-format-api-and-conventions.md` -- the seven research notes this plan is built on (each carries its own URL list); `draft-A.md`, `draft-B.md`, `draft-C.md` -- the three drafts synthesized here.
 - `/home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/src/index.ts` (the exact export list), `src/types/columns.ts`, `src/types/snapshot.ts` (`SnapshotFlags` lines 161-181), `src/snapshot/views.ts`, `src/snapshot/derived.ts` (`renumberPartition` line 1155), `src/builder/arena.ts`, `src/util/mask.ts`, `src/columns/column.ts` -- the implemented format API.
 - `/home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/test/audit/gpu-upload.test.ts` (`acquire()` lines 38-63, the 65,535 dispatch assertion line 186-191, the upload contract lines 254-666), `gpu-contract.test.ts` -- Dawn-in-Node device acquisition and the upload contract audit.
 - `/home/apowers/Projects/webgpu-graph-algorithms/packages/graph-io/package.json`, `scripts/*.js`, `tsconfig*.json`, `vitest.config.ts`; `packages/README.md` (move checklist lines 44-198); `packages/pnpm-workspace.yaml`; `packages/move/root-touch-points.diff` -- the package skeleton mirrored and the monorepo touch points.
@@ -4443,7 +4443,7 @@ Local (read-only unless stated):
 - `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/probe/*.mjs` -- the measurements cited (`dawn-perf.mjs` exact tile 1.11 ms at 20k NVIDIA / 388 ms lavapipe; `dawn-latency.mjs`, `chromium-latency.mjs` round trips; `bench-node.mjs`, `bench-browser.mjs` gather kernel and checksums).
 - `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/review/` -- the 2026-09-14 adversarial review: six `*-review.md` / `*-verdicts.md` pairs (PERF, DESIGN, MAINT, INTEG, VERIFY, COMPLETE) and `probes/` with the scripts and logs cited in this plan as [M]: `exact-tile.mjs` (the 7.6 curve), `near-field-order.mjs` / `far-field-order.mjs` (sorted-order dispatch, `vec4f` positions), `grid-occupancy.mjs` (isolated-node collapse), `clamp-expansion.mjs` / `verify-clamp-throttle.mjs` (the displacement clamp), `verify-wgsl-mixing.mjs` (operator precedence), `uniformity-probe-nvidia.log` (uniform control flow), `design-probe-nvidia.log` / `design-probe-llvmpipe.log` and `dawn-facts.mjs` (default-device limits, timestamps, indirect dispatch, adapter consumption, `backend=null`), `uncaptured-order-probe.mjs` (synchronous `uncapturederror`, consumed adapter), `binding-mismatch-probe.mjs` / `maint-sync-probe.mjs` (layout and override mismatches), `serial-sharing.mjs` (sibling serials, undirected copies), `arena-bytes.mjs` (arena sizes), `verify-checksum-cross-adapter.mjs` (f32 cross-adapter noise), `verify-uncapturederror.mjs`; `wgsl-spec.html`, `wgsl-tr.html`, `webgpu-spec.html` (the specs grepped).
 - `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/repos/*` and `papers/*` -- cloned sources and extracted paper texts behind the [P] facts (cosmos, GraphWaGu, cugraph, cugraph-algos, gunrock, gapbs, gephi, d3, d3-force-webgpu, GraphGPU, analytics, antv-webgpu-graph, hybrid_BC, cuda-ffi, wgpu and three.js CI files).
-- `/home/apowers/Projects/graphty-monorepo/layout/src/layouts/force-directed/forceatlas2.ts` (lines 26-42, 184-230, 233-434), `fruchterman-reingold.ts`, `layout/src/utils/random.ts`, `layout/test/forceatlas2-layout.test.ts` -- the CPU layouts, the LCG and the behaviour pins reproduced.
+- `/home/apowers/Projects/graphty-monorepo/layout/src/layouts/force-directed/forceatlas2.ts` (lines 26-42, 184-230, 233-434), `fruchterman-reingold.ts`, `layout/src/utils/random.ts`, `layout/test/forceatlas2-layout.test.ts` -- the CPU layouts, the LCG and the behavior pins reproduced.
 - `/home/apowers/Projects/graphty-monorepo/graphty-element/src/layout/{LayoutEngine,NGraphLayoutEngine,ForceAtlas2LayoutEngine,D3GraphLayoutEngine}.ts`, `src/managers/{LayoutManager,UpdateManager,DataManager,RenderManager}.ts`, `src/algorithms/{Algorithm,PageRankAlgorithm,BetweennessCentralityAlgorithm,LouvainAlgorithm}.ts`, `src/config/GraphBehavior.ts`, `src/ai/providers/index.ts`, `vite.config.ts`, `package.json` -- the element seams changed in 9.4.
 - `/home/apowers/Projects/graphty-monorepo/algorithms/src/algorithms/centrality/pagerank.ts` (line 83), `algorithms/src/optimized/*` -- the sync CPU entry points and the code the design deletes.
 - `/home/apowers/Projects/graphty-monorepo/.github/workflows/ci.yml` (shard matrix lines 236-351, Playwright cache 413-427, `all-checks` 705-738), `release.yml` (lines 36-52), `coverage.yml`, `nx.json`, `commitlint.config.js`, `tools/merge-coverage.sh`, `tools/prepush.sh`, `package.json` (lines 130, 148, 158, 160) -- the CI shard matrix, release process and version pins slotted into in 12.5.
@@ -4472,7 +4472,7 @@ External (URLs; what each was used for):
 - https://raw.githubusercontent.com/d3/d3-force/main/src/manyBody.js -- the d3 1/d law cosmos reproduces.
 - https://arxiv.org/abs/2303.03964 -- t-FDP (FFT far field), noted as a non-pursued option.
 - https://gpuweb.github.io/gpuweb/ , https://gpuweb.github.io/gpuweb/wgsl/ -- limits, `requestDevice`, `dispatchWorkgroupsIndirect`, error scopes, device loss; WGSL atomics (6.2.8), recursion (11.4), overrides (7.2.2), uniform layout (14.4.5), `bool` not host-shareable (6.5.2), subgroups (17.12).
-- https://github.com/gpuweb/gpuweb/wiki/Implementation-Status , https://developer.chrome.com/blog/new-in-webgpu-120 , -121 , -128 , -134 , https://mozillagfx.wordpress.com/2025/07/15/shipping-webgpu-on-windows-in-firefox-141/ , https://webkit.org/blog/17333/webkit-features-in-safari-26-0/ -- browser availability and feature timeline (subgroups Chrome 134, timestamp quantisation, `adapter.info`, `maxStorageBuffersPerShaderStage` 10 as an adapter maximum).
+- https://github.com/gpuweb/gpuweb/wiki/Implementation-Status , https://developer.chrome.com/blog/new-in-webgpu-120 , -121 , -128 , -134 , https://mozillagfx.wordpress.com/2025/07/15/shipping-webgpu-on-windows-in-firefox-141/ , https://webkit.org/blog/17333/webkit-features-in-safari-26-0/ -- browser availability and feature timeline (subgroups Chrome 134, timestamp quantization, `adapter.info`, `maxStorageBuffersPerShaderStage` 10 as an adapter maximum).
 - https://registry.npmjs.org/webgpu , https://github.com/dawn-gpu/node-webgpu , https://github.com/dawn-gpu/node-webgpu/issues , https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/node/README.md , https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Toggles.cpp -- the `webgpu` npm package versions, glibc requirements, `create()` options, `adapter=llvmpipe`, Dawn toggles.
 - https://raw.githubusercontent.com/dawn-gpu/node-webgpu/main/.github/workflows/build.yml , https://raw.githubusercontent.com/dawn-gpu/node-webgpu/main/test/webgpu.js , https://raw.githubusercontent.com/gfx-rs/wgpu/trunk/.github/workflows/ci.yml , https://raw.githubusercontent.com/gfx-rs/wgpu/trunk/.github/actions/install-mesa/action.yml , https://raw.githubusercontent.com/mrdoob/three.js/dev/.github/workflows/ci.yml , https://raw.githubusercontent.com/mrdoob/three.js/dev/test/e2e/puppeteer.js -- lavapipe / SwiftShader CI patterns, budgets, the `browser.close()` hang.
 - https://github.com/chromium/chromium/blob/main/docs/gpu/swiftshader.md , https://groups.google.com/a/chromium.org/g/blink-dev/c/yhFguWS_3pM , https://developer.chrome.com/docs/web-platform/webgpu/troubleshooting-tips , https://github.com/jasonmayes/headless-chrome-nvidia-t4-gpu-support -- SwiftShader flags, `--enable-unsafe-swiftshader`, headless Chromium on NVIDIA.
@@ -4483,7 +4483,7 @@ External (URLs; what each was used for):
 - https://cirun.io/ , https://runs-on.com/runners/gpu/ , https://machine.dev/docs/platform-specifications/gpu-runners/ -- third-party GPU runner options (not evaluated beyond their pages).
 - https://betatim.github.io/posts/github-action-with-gpu/ , https://davesnider.com/posts/gputests -- practitioner reports (label-gated GPU jobs; headless Chromium on a T4 needing Vulkan flags).
 - https://github.com/dorny/paths-filter -- optional path gating for the GPU job (not used in v1).
-- https://vite.dev/guide/assets -- `?raw` imports (rejected in favour of `.wgsl.ts`).
+- https://vite.dev/guide/assets -- `?raw` imports (rejected in favor of `.wgsl.ts`).
 - https://docs.npmjs.com/cli/v10/configuring-npm/package-json -- optional peer dependency semantics.
 - https://pnpm.io/workspaces -- `workspace:*` is published as an exact version and `workspace:^` as a caret range (2.5, Q-31).
 - https://www.npmjs.com/package/@antv/webgpu-graph , https://g.antv.antgroup.com/en/api/gpgpu/webgpu-graph -- @antv/webgpu-graph (cautionary; the `updatePred` two-pass idea).
@@ -4495,10 +4495,10 @@ pages in depth; the RAPIDS cuGraph FA2 performance blog (403); Naim et al.
 2017 (paywalled); the Gunrock paper; RunsOn pricing; GitHub GPU runner
 concurrency limits; Firefox / Safari optional-feature exposure; `pool:
 "threads"` with the Dawn addon; lavapipe on a real hosted runner (only the
-local container run); whether `webgpu@0.4.0` honours `backend=` other than
+local container run); whether `webgpu@0.4.0` honors `backend=` other than
 `null` (only `adapter=` and `backend=null` were exercised); every [X] number
-in sections 7.21 and 10 (Dawn-node timestamp quantisation is now verified:
-unquantised, 2.6).
+in sections 7.21 and 10 (Dawn-node timestamp quantization is now verified:
+unquantized, 2.6).
 
 ---------------------------------------------------------------------------
 
@@ -4514,7 +4514,7 @@ BEFORE this pass.
 
 | Lens | Reviewer findings | Confirmed | Downgraded (applied as narrowed) | Refuted (not applied) | Verifier additions (applied) |
 | --- | --- | --- | --- | --- | --- |
-| PERF (performance realism) | 16 | 12 | 3 (PERF-6, -9, -13) | 1 (PERF-14: the 12 MB Chromium readback figure is correctly labelled [X]) | 2 (PERF-MISSED-1, -2) |
+| PERF (performance realism) | 16 | 12 | 3 (PERF-6, -9, -13) | 1 (PERF-14: the 12 MB Chromium readback figure is correctly labeled [X]) | 2 (PERF-MISSED-1, -2) |
 | DESIGN (design confidence, WGSL feasibility) | 21 | 19 | 2 (DESIGN-10, -15) | 0 | 4 (DESIGN-MISSED-1..4) |
 | MAINT (maintainability) | 20 | 10 | 9 (MAINT-2, -3, -5, -6, -8, -9, -13, -15, -17) | 1 (MAINT-12: dropping the DOM lib would silently weaken `writeBuffer` typing) | 6 (MAINT-M1..M6) |
 | INTEG (integration, API conformance) | 23 | 20 | 3 (INTEG-7, -8, -16) | 0 | 5 (INTEG-M-1..M-5) |
@@ -4557,7 +4557,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | --- | --- | --- |
 | PERF-1 | 7.7, 7.3, 11.4, R-3, 3.3, P4 | grid extent = `min(bbox, extentFactor * rmsRadius)`; RMS radius in the `sum p` `.w` lane; outside pseudo-cell; `stats.outsideGrid`; isolated-node fixture |
 | PERF-2 | 7.7, D24, 7.21 | G6 / G7 dispatched in cell-sorted order; measurements recorded; brackets marked conservative |
-| PERF-3 | 7.17, D8, R-24 | settle normalised by the RMS radius; resampling noise recorded as a risk with a measured mitigation |
+| PERF-3 | 7.17, D8, R-24 | settle normalized by the RMS radius; resampling noise recorded as a risk with a measured mitigation |
 | PERF-4 | 8.2, 3.5, 6 row 9, G7 | PageRank pull rebound to 8 named bindings via pre-scaled `xNorm` and scalars in `partials` |
 | PERF-5 | 6 row 7, 8.4, 10.1, G8 | edge frontier sized to `A` or chunked with an explicit overflow rule; faked-capacity test |
 | PERF-6 | 7.7, Q-32 | the inverted `gridMax` lever corrected; cap re-check recorded as a P4 decision |
@@ -4586,7 +4586,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | DESIGN-12 | 6 row 12, 7.7, 7.3 | `cellStart` from a per-cell histogram + scan; hub-cell compaction |
 | DESIGN-13 | 7.2, 7.6, 7.7 | kick magnitude `/ 0.01`, antisymmetric hash, own-cell HT weight |
 | DESIGN-14 | 8.4, 6 row 4 | `atomicMin` visit claim; two-dispatch atomic ownership dedupe |
-| DESIGN-15 | 2.2, 2.6, 5.3, 5.4, 5.5, 5.7, R-22, Q-16 | device-level alignments, unquantised timestamps, over-limit indirect, consumed adapters recorded as [M] |
+| DESIGN-15 | 2.2, 2.6, 5.3, 5.4, 5.5, 5.7, R-22, Q-16 | device-level alignments, unquantized timestamps, over-limit indirect, consumed adapters recorded as [M] |
 | DESIGN-16 | 11.3, 11.5 | u32 bitwise, f32 within tolerance between twins and across adapters |
 | DESIGN-17 | 8.7, 8.1 | APSP bound by the binding size: 5,792 / 23,170 / 32,767 |
 | DESIGN-18 | 7.7, 11.4 | `cellSize` floor; floored parity denominator |
@@ -4640,7 +4640,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | INTEG-16 | 2.4, 12.5 | package-local `eslint.config.js` extending the root |
 | INTEG-17 | 11.8, 12.3, 12.5 | as MAINT-8 |
 | INTEG-18 | 1.3, 2.5, 3.1, 9.8, Q-31 | `workspace:^`; the design rule flagged |
-| INTEG-19 | 2.2, 3.4, 9.5 | `ProbeResult.adapter` reused; `create()` honours `rejectSoftware` |
+| INTEG-19 | 2.2, 3.4, 9.5 | `ProbeResult.adapter` reused; `create()` honors `rejectSoftware` |
 | INTEG-20 | 1.2, R-23, 7.19 | the `useWebGPU` branch described as present and unwired; risk row |
 | INTEG-21 | 9.1, 9.4, 9.8 | real-GPU stories in graphty-element; the GPU package is the element's optional peer |
 | INTEG-22 | 9.4, 9.8, P6 | the design-E1 refactor named as a precondition |
@@ -4669,7 +4669,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | VERIFY-17 | 11.4, 11.1 | 262k / 1M in `node-limits`; `gridMax2D = 32` saturation case for software adapters |
 | VERIFY-18 | 5.1, 11.3, 11.6, 3.1 | `override-matrix.ts`: a bounded, asserted-complete compile matrix |
 | VERIFY-19 | 12.3 | `overwrite: true` on artifact uploads |
-| VERIFY-20 | T-13, 11.7, 12.3, 12.6, R-25 | utilisation sample; skip on a busy GPU; two nightly failures before an issue |
+| VERIFY-20 | T-13, 11.7, 12.3, 12.6, R-25 | utilization sample; skip on a busy GPU; two nightly failures before an issue |
 | VERIFY-21 | 10.4, 11.4 | the owner-decision rule covers 11.4; the `1e-4` leg against an f32 oracle |
 | VERIFY-MISSED-1 | 12.3, P0 | `pnpm/action-setup` reads `packages/package.json`; workspace and knip entries in P0 |
 | VERIFY-MISSED-2 | 7.2, 9.3, 11.4 | `seedPositions` writes f32; the oracle reads the same array |
@@ -4679,7 +4679,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | COMPLETE-1 | 8.2, 3.5, Summary | as PERF-4 |
 | COMPLETE-2 | 3.3, 9.4, 9.5, P12 | as MAINT-M2 / INTEG-3 |
 | COMPLETE-3 | 9.4, 2.4, 7.19 | `accelerator-changed` consumer; `acceleration.minNodes` evaluated on load / reload; `.catch` once per promise; device-loss re-creation |
-| COMPLETE-4 | D7, 3.1, 7.8, 7.21, Q-6 | 16,384 labelled conservative; `calibrateLayout` ladder aligned with T-4; 32k row "exact or grid" |
+| COMPLETE-4 | D7, 3.1, 7.8, 7.21, Q-6 | 16,384 labeled conservative; `calibrateLayout` ladder aligned with T-4; 32k row "exact or grid" |
 | COMPLETE-5 | 13 (P2, P4, P7, P8), 7.5, 6 row 3 | P2 rescoped to what P3 needs; tiers and primitives moved to the phases that need them |
 | COMPLETE-6 | 7.20, Q-9, P5 | the preset is BUILT in P5; routing stays a product decision |
 | COMPLETE-7 | 3.1, 12.1, P0, Q-28 | the public repository created in P0 |
@@ -4741,7 +4741,7 @@ it makes to statements above, PENDING the owner's confirmation at the G0
 sign-off of the 7.2 table (D21); until then the contract's reading is what
 P0-P3 implement:
 
-1. 7.2 gravity-centre row and Q-1: NetworkX 3.4.2 `forceatlas2_layout` pulls
+1. 7.2 gravity-center row and Q-1: NetworkX 3.4.2 `forceatlas2_layout` pulls
    toward the ORIGIN (`layout.py` lines 1466-1471: `-gravity * mass * pos /
    |pos|`), not the centroid; `compat: "networkx"` therefore compiles
    `GRAVITY_CENTER = 1`, and the "centroid (port, NetworkX)" wording is wrong
@@ -4784,16 +4784,16 @@ reading is what the code and tests implement:
    x1.1-1.5 per iteration, so the f64 oracle misses both caps against ITSELF
    under a one-ulp start perturbation (0.86-1.71 through 50 iterations), and
    a seed sweep shows the same for `networkx` mode at 50 iterations (7 of 8
-   karate seeds over 5e-2). A re-synchronised comparison (a fresh oracle
+   karate seeds over 5e-2). A re-synchronized comparison (a fresh oracle
    seeded with the GPU's iteration-start state for ONE iteration, over 50
    iterations, both modes, both oracles) agrees at 1e-7..1e-5 on every
    fixture with zero controller-branch mismatches, which is what the tests
    now assert (tolerances derived from measured floors: f32 6.8e-5, f64
-   1e-4; the twins' re-synchronised trace at 1e-6); the free-running legs
+   1e-4; the twins' re-synchronized trace at 1e-6); the free-running legs
    stay asserted only for `networkx` mode over the first 10 iterations at
    the derived 2.1e-5 (seed 7; seed-bound on NVIDIA -- owner item G3-F3 (2))
    and are printed otherwise. The sabotage rows of K1-K5 fail the
-   re-synchronised assertions by >= 1.2e3x. The distributional cases of 11.4
+   re-synchronized assertions by >= 1.2e3x. The distributional cases of 11.4
    are re-selected on the same basis (the f64 oracle against itself under
    one-ulp perturbations): grid10 / paper, karate / networkx 2D and the
    isolated-node fixture in paper mode land in different basins (0.16-0.22)
@@ -4801,7 +4801,7 @@ reading is what the code and tests implement:
 7. 11.3 "Property" row "speed NOT reset by setPosition": restated as D8
    promises it -- `state.speed` / `speedEfficiency` untouched at the moment of
    the call, the next iteration continuing from them (checked through the
-   re-synchronised oracle over 200 drags) -- instead of comparing across a
+   re-synchronized oracle over 200 drags) -- instead of comparing across a
    batch that legitimately ran.
 
 Host matrix (2026-09-16, owner request after the WebKit finding): a third,
@@ -4859,7 +4859,7 @@ workflows outside CI -- 12.6's reason holds, an offline runner must never
 stall a pull request -- but `release.yml` gained a `gate` job that waits for
 both workflows' runs on the released commit (Hosts only when its paths
 changed, the GPU lane always) and publishes only when every one succeeded;
-a red or cancelled lane blocks the release until it is re-run green. 12.1's
+a red or canceled lane blocks the release until it is re-run green. 12.1's
 "the GPU lane is never a required check" is amended accordingly.
 
 Graph-format 1.0.0 (2026-09-18, phase F2 of the graph-format design's
@@ -4967,7 +4967,7 @@ stays as the independent reference R-1 and G10 rely on (integration plan DEP-E,
 D-16). `test/layouts/seed-cross.test.ts` pins the last shared piece:
 `seedPositions` and `Lcg` from `src/layouts/seed.ts` and from `@graphty/layout`
 write BIT-IDENTICAL `Float32Array`s over seeds 1 / 7 / 42 / 123456, dims 2 and 3,
-scale 1 and 5, a null and a non-null centre, both draw ranges, and an all-NaN and
+scale 1 and 5, a null and a non-null center, both draw ranges, and an all-NaN and
 a half-finite input. The two copies are line-for-line identical except four
 argument-validation throw sites, where the GPU throws
 `WebGpuGraphError("E_INVALID_ARGUMENT")` and layout a `RangeError`
@@ -4993,7 +4993,7 @@ element API: `design/webgpu/plans/2026-09-21-webgpu-m6-graphty-element-v2.md` re
 `plans/2026-09-19-webgpu-m6-graphty-element.md` and carries five departures from this document and
 from the element API design, each with its own record under `design/decisions/`. 9.4 item 6: a
 `spring-electrical` registration is offered ALWAYS and `setLayout` fails with `E_NO_ACCELERATOR`
-when no accelerator implements it, with the catalogue row declaring `requires.accelerator`
+when no accelerator implements it, with the catalog row declaring `requires.accelerator`
 (`2026-09-21-spring-electrical-fails-loudly-on-set.md`). 9.4 item 10: `nodeMass` is resolved to a
 `Float32Array` at every load rather than written as a role column, and `nodeSize` is not offered at
 all because the GPU factory refuses any value but null
@@ -5073,7 +5073,7 @@ edges. Today the only way to run an algorithm on the visible graph is to build a
 the CPU (graph-format's `filterEdges` / `inducedSubgraph`) and upload it, which at the 1M / 10M tier
 costs the T-1 upload (125 ms on the dev box, 256 ms on the T4) for every change of the filter, and a
 second resident copy. cuGraph attaches a packed edge mask to a graph view instead
-(`graph_view.hpp` lines 775-786) and every primitive honours it; its triangle counting and k-truss
+(`graph_view.hpp` lines 775-786) and every primitive honors it; its triangle counting and k-truss
 build their working subgraph purely by stacking masks.
 
 Decision: masks become an input of the GPU package with graph-format's own types. `NodeMask` and
@@ -5087,7 +5087,7 @@ LSB-first, `ceil(n / 32)` and `ceil(edgeCount / 32)` words; k-truss in section 8
    caller cannot express a one-directional hole in an undirected graph, which is the invariant
    graph-format's I7 already imposes on the snapshot itself). The CPU seam gains the same optional
    member on its option records so `accelerated(acc)` passes it through unchanged; the indexed CPU
-   ports honour it by the same semantics (9.2 keeps the two sides member for member).
+   ports honor it by the same semantics (9.2 keeps the two sides member for member).
 2. Expansion on the device, once per (snapshot, mask) pair. One kernel expands the node and edge
    masks into a packed ARC mask per view (forward, and reverse when the algorithm pulls) through the
    view's `arcToEdge` map and the arc's endpoints, and writes it into the residency keyed on the
@@ -5101,7 +5101,7 @@ LSB-first, `ceil(n / 32)` and `ceil(edgeCount / 32)` words; k-truss in section 8
      snippet) consumes a MASKED WEIGHT array: a per-arc f32 array equal to `weight` (or 1) where the
      arc is present and 0 where it is absent, produced by the expansion kernel and bound in the
      existing `weights` slot with `HAS_WEIGHTS` forced on. No binding is added, `spmv-pull` stays at
-     eight, and the normalisers (the PageRank out-weight sum, the degree used by Katz) are
+     eight, and the normalizers (the PageRank out-weight sum, the degree used by Katz) are
      automatically the masked ones because they are computed from the same array.
    - The structural family (traversal, components, k-core, triangles, Boruvka) consumes the packed
      arc mask through a `HAS_MASK` override and one added `storage-ro` binding in group 3, testing
@@ -5133,9 +5133,9 @@ every algorithm the phase ships.
 ## 17. Future work: algorithms not scheduled, with the GPU case for each
 
 Sections 8 and 13 schedule the GPU algorithms through P11. This register lists what cuGraph ships and
-what `@graphty/algorithms` already runs on the CPU that neither section covers, with a judgement of
+what `@graphty/algorithms` already runs on the CPU that neither section covers, with a judgment of
 whether a device implementation is worth having. "GPU case" is the honest expectation: a family whose
-work is a neighbour intersection, a sort or a sparse product gains an order of magnitude on a resident
+work is a neighbor intersection, a sort or a sparse product gains an order of magnitude on a resident
 graph; one that is a single query, a sequential walk or a tiny problem does not, and the CPU package
 stays the right home. Nothing here is committed; each row becomes a phase only through a plan of its
 own when an owner picks it.
@@ -5144,7 +5144,7 @@ own when an owner picks it.
 | --- | --- | --- | --- | --- |
 | Triangle counting, local clustering coefficient, transitivity | cuGraph; not in graphty | strong: a merge intersection per arc over a resident graph, 10-100x at 1M edges; also the UX design's missing "clustering coefficient" | the P11 orientation and intersection kernels | inside P11 (8 row "Triangles" already sketches the kernel; add the per-node coefficient as its epilogue) |
 | k-truss | cuGraph; not in graphty | strong, once triangles exist: peeling by support over `edgeToArc` | P11 triangles, `EdgeMask` (16.4) | inside P11, after triangles |
-| Jaccard, overlap, Sorensen, cosine similarity, weighted variants, all-pairs top-k | cuGraph; graphty has only common neighbours and Adamic-Adar on the CPU | strong for the per-pair kernel (the same intersection as triangles); all-pairs needs batching by the two-hop neighbourhood | the P11 intersection kernel, `radixSort` for top-k | a P11b slice after triangles; the CPU package gains the four scorers first so the seam has something to dispatch to |
+| Jaccard, overlap, Sorensen, cosine similarity, weighted variants, all-pairs top-k | cuGraph; graphty has only common neighbors and Adamic-Adar on the CPU | strong for the per-pair kernel (the same intersection as triangles); all-pairs needs batching by the two-hop neighborhood | the P11 intersection kernel, `radixSort` for top-k | a P11b slice after triangles; the CPU package gains the four scorers first so the seam has something to dispatch to |
 | Leiden | graphty CPU; cuGraph | moderate: Louvain's move phase plus a refinement pass of independent moves; cuGraph disables random moves in refinement | P11 Louvain, `radixSort` | after P11 Louvain is stable, as section 8 already says |
 | ECG (ensemble Louvain) | cuGraph; not in graphty | moderate: `k` Louvain runs with random initial partitions, an edge co-membership count, one final Louvain; gains whatever Louvain gains | P11 Louvain | with Leiden, if Louvain's measured gain justifies it |
 | Strongly connected components | graphty CPU (Tarjan); cuGraph | moderate: forward-backward reachability with the coloring trick (Slota et al.) is two BFS families per round; gains on large graphs with few big components, poor on many small ones | P8 frontier family | after P8 |
@@ -5153,10 +5153,10 @@ own when an owner picks it.
 | Girvan-Newman | graphty CPU | weak: repeated edge betweenness over a shrinking graph; the GPU betweenness helps each step but the step count is `O(E)` | P9 edge betweenness | dispatch each betweenness step through P9's kernel; no phase of its own |
 | Hierarchical (agglomerative) clustering | graphty CPU | weak at graph scale: pairwise distances are `O(n^2)` memory | none | stays on the CPU |
 | Delta PageRank | graphty CPU | moderate: an incremental update on a mutated graph; the GPU wins only if the snapshot stays resident across mutations, which the element's E0 design provides | P7 PageRank with a resident diff | after M6 lands the resident snapshot |
-| Random walks: uniform, biased, node2vec | cuGraph; not in graphty | strong for many walks at once (embedding workloads): one step is a per-walk random neighbour pick, node2vec adds an intersection lookup | a random-select primitive over CSR rows, the P11 intersection for node2vec | a phase of its own only if the product wants embeddings; not scheduled |
-| Neighbour sampling (uniform, biased, temporal, negative) | cuGraph, for graph neural network loaders | none for this product: a training-loader workload, not a visualisation one | -- | not planned |
-| Maximal independent set, maximal matching, vertex colouring | cuGraph (MIS, matching) | moderate: Luby-style rounds are cheap on the GPU and MIS is a building block for Leiden's refinement and for colouring-based SCC | `reduce`, `compact` | when SCC or Leiden needs them |
-| Ego graph, induced subgraph, two-hop neighbourhood, symmetrize | cuGraph structure utilities; graph-format has `inducedSubgraph` on the CPU | weak as algorithms; on the GPU they are the masks of 16.4 plus a `compact` | 16.4 masks | covered by 16.4 |
+| Random walks: uniform, biased, node2vec | cuGraph; not in graphty | strong for many walks at once (embedding workloads): one step is a per-walk random neighbor pick, node2vec adds an intersection lookup | a random-select primitive over CSR rows, the P11 intersection for node2vec | a phase of its own only if the product wants embeddings; not scheduled |
+| Neighbor sampling (uniform, biased, temporal, negative) | cuGraph, for graph neural network loaders | none for this product: a training-loader workload, not a visualization one | -- | not planned |
+| Maximal independent set, maximal matching, vertex coloring | cuGraph (MIS, matching) | moderate: Luby-style rounds are cheap on the GPU and MIS is a building block for Leiden's refinement and for coloring-based SCC | `reduce`, `compact` | when SCC or Leiden needs them |
+| Ego graph, induced subgraph, two-hop neighborhood, symmetrize | cuGraph structure utilities; graph-format has `inducedSubgraph` on the CPU | weak as algorithms; on the GPU they are the masks of 16.4 plus a `compact` | 16.4 masks | covered by 16.4 |
 | A-star, bidirectional Dijkstra | graphty CPU | none: a single query, latency-bound; a submit round trip already exceeds the CPU search on graphs that fit the app | -- | stays on the CPU |
 | Bipartite matching (Hopcroft-Karp), subgraph isomorphism | graphty CPU | none / poor: augmenting-path and backtracking searches are sequential | -- | stays on the CPU |
 | Maximum flow, minimum cut | graphty CPU (Ford-Fulkerson) | poor to moderate: push-relabel has GPU formulations but they are large, and the app's use is small graphs | -- | stays on the CPU |

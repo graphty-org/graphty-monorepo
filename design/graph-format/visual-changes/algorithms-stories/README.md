@@ -23,7 +23,7 @@ the node list at the default six nodes. It is not changed here.
 | ![before](pagerank-before.png) | ![after](pagerank-after.png) |
 
 What changed: the panel and the status line say "14 iterations" where they said 13. The scores
-agree to the sixth decimal place, so the colours and node sizes are the same to the eye (node
+agree to the sixth decimal place, so the colors and node sizes are the same to the eye (node
 radii differ by about 2e-6 pixels).
 
 Why: 2.x `pageRank` ran the delta PageRank engine; 3.0 `pageRank` is the snapshot port's power
@@ -36,7 +36,7 @@ iteration, which on this graph reaches the tolerance one iteration later.
 | ![before](louvain-before.png) | ![after](louvain-after.png) |
 
 What changed: three communities (6, 3 and 3 nodes, modularity 0.2288) where there were four of
-three nodes each (modularity 0.2083); node and edge colours follow.
+three nodes each (modularity 0.2083); node and edge colors follow.
 
 Why: 2.x `louvain` was the old implementation; 3.0 `louvain` is the snapshot port, which visits
 nodes in another seeded order and stops at another partition, here one of higher modularity.

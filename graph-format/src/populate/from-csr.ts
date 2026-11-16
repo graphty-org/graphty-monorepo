@@ -288,7 +288,7 @@ function maxValue(array: U32): number {
 /**
  * Resolve the optional core arrays and counts (design section 8.1). For a directed input an absent
  * `arcToEdge` is the identity and a supplied one that happens to be the identity is dropped (the
- * snapshot materialises identity permutations lazily, design section 3.1); an undirected input must
+ * snapshot materializes identity permutations lazily, design section 3.1); an undirected input must
  * supply `arcToEdge` (E_INVALID_SNAPSHOT, invariant I5). `edgeCount` defaults to the arc count
  * (directed) or to max(arcToEdge) + 1 (undirected). `selfLoopCount` is the number of loop arcs.
  * @param input - the input

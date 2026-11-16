@@ -4,7 +4,7 @@
  * THE DEFECT THIS PINS (issue #405). `DEFAULT_LIMITS` published a render ceiling nothing
  * enforced, and the renderer past its real ceiling did not degrade -- the renderer process ran
  * out of memory and the page never drew another frame. The limits are mocked small here so the
- * behaviour at the ceiling is testable without loading a hundred thousand records; the numbers
+ * behavior at the ceiling is testable without loading a hundred thousand records; the numbers
  * themselves are pinned by test/session/limits.test.ts.
  */
 

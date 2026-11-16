@@ -480,7 +480,7 @@ interface KeyScanState {
 }
 
 /**
- * Open an object or array: push its frame, labelled by the key or index it sits under.
+ * Open an object or array: push its frame, labeled by the key or index it sits under.
  * @param state - the scanner state
  * @param ch - `{` or `[`
  */

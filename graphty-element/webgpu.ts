@@ -37,7 +37,7 @@
  * device over, and before any of the graph goes near it. A wrong word comes back as an
  * `E_DEVICE_INCORRECT` decline, which this file turns into the element's `E_DEVICE_INCORRECT`
  * error; the element then reports acceleration unavailable with that code and draws the graph on
- * the CPU. The peer memoises the result per device, so the 14 to 20 milliseconds are paid once.
+ * the CPU. The peer memoizes the result per device, so the 14 to 20 milliseconds are paid once.
  *
  * That is detection, not a fallback: the decision is made before any accelerated work starts.
  * The peer also guards its own compute entry points, so a device that somehow gets past the
@@ -222,7 +222,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
             description: caps.description === "" ? caps.device : caps.description,
         },
         // Every GPU kernel in the peer computes in single precision, which is why a run that
-        // used one is labelled f32 and the same run on the CPU path is labelled f64.
+        // used one is labeled f32 and the same run on the CPU path is labeled f64.
         precision: "f32",
         // The element watches this. A device the element itself destroyed also resolves it, and
         // the controller ignores a loss reported for an accelerator it has already released.

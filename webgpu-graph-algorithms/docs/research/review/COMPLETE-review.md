@@ -10,12 +10,12 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   `n=100000: hot=16,400,128 total=28,400,128`; `n=1000000: hot=164,000,256 total=284,000,256`;
   `n=10000000: hot=1,640,000,256 total=2,840,000,256`.
 - `dawn-facts.mjs` -- against the installed `webgpu@0.4.0` on the RTX 4070 SUPER:
-  `backend=null` IS honoured (returns an adapter with empty vendor/architecture); a device
+  `backend=null` IS honored (returns an adapter with empty vendor/architecture); a device
   requested with NO `requiredLimits` reports the spec defaults (maxBufferSize 268,435,456,
   binding 134,217,728, 8 storage buffers/stage, 16 KiB workgroup storage, 256 invocations,
   minStorageBufferOffsetAlignment 256 on the DEVICE although the adapter says 16);
   `timestamp-query` deltas of 26624 / 24576 / 24576 / 24576 / 25600 ns for a ~25 us pass,
-  i.e. NOT quantised to 100 us in Dawn-node; a Dawn-node adapter is "consumed" after one
+  i.e. NOT quantized to 100 us in Dawn-node; a Dawn-node adapter is "consumed" after one
   `requestDevice()` (a second call throws `OperationError`).
 
 ## 0. Mechanical checks
@@ -50,7 +50,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 
 ## 2. Design contradictions not declared as DEPARTURE
 
-- 1.3 claims to honour design 14.5's injection form `runAlgorithm(snapshot, { accelerator: gpu })`
+- 1.3 claims to honor design 14.5's injection form `runAlgorithm(snapshot, { accelerator: gpu })`
   (plan line 164) but 9.2 defines `accelerated(acc).pageRank(s)`; 1.3 claims 16.2's blanket
   `1e-5` f32 parity (line 168) but 9.7 uses `1e-4` for betweenness. Both are defensible; both
   are undeclared (COMPLETE-17).
@@ -190,7 +190,7 @@ null)`; specify that the bridge attaches `.catch` once per distinct promise.
   every `setPosition` during a drag) and `load()` both need it.
 - Fix: change the usage column to `storage read_write, COPY_SRC, COPY_DST` and say `reheat()` is a
   16-byte `writeBuffer` into the speed block (or a flag in the next batch's first uniform slot that K1
-  honours).
+  honors).
 
 ### COMPLETE-9 (minor) -- The build-output test is unsatisfiable against the plan's own API
 
@@ -271,9 +271,9 @@ github.event_name == 'schedule'` and `permissions: { issues: write }`; keep the 
 
 ### COMPLETE-17 (minor) -- Two undeclared departures in the "inherited decisions" table
 
-- Lines: 164 (1.3: honours 14.5 "injected as `runAlgorithm(snapshot, { accelerator: gpu })`") vs
+- Lines: 164 (1.3: honors 14.5 "injected as `runAlgorithm(snapshot, { accelerator: gpu })`") vs
   2259-2320 (9.2 defines `accelerated(acc).pageRank(s)`; D3 line 177 calls this a decision the design
-  "left open"); 168 (1.3: honours 16.2 "`1e-5` relative for f32 GPU parity") vs 2510 (9.7 BC
+  "left open"); 168 (1.3: honors 16.2 "`1e-5` relative for f32 GPU parity") vs 2510 (9.7 BC
   `1e-4`) and 3257 (Q-24).
 - Claim: the plan's own rule is that any other contradiction is a defect; both are reasonable but
   must be declared (DEPARTURE-5 / -6) or the 1.3 rows reworded ("14.5's sketch; concrete form in 9.2";

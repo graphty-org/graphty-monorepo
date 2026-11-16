@@ -1,5 +1,5 @@
 /**
- * @file A selected node keeps its own colour; the halo shows as a ring around it.
+ * @file A selected node keeps its own color; the halo shows as a ring around it.
  *
  * The halo is a translucent sphere a little larger than the node. Drawn with both faces, its
  * front hemisphere sat between the camera and the node, so every selected node was seen through
@@ -20,7 +20,7 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 const WIDTH = 640;
 const HEIGHT = 480;
 
-/** How far a channel may drift between the selected and the unselected node's centre. */
+/** How far a channel may drift between the selected and the unselected node's center. */
 const SAME = 12;
 
 type Rgb = { r: number; g: number; b: number };
@@ -88,9 +88,9 @@ describe("the selection halo rings a node without tinting it", () => {
     }
 
     /**
-     * The mean colour of a 3x3 patch.
+     * The mean color of a 3x3 patch.
      * @param pixels - The frame.
-     * @param at - The patch centre.
+     * @param at - The patch center.
      * @returns The channels.
      */
     function patch(pixels: Uint8Array, at: { x: number; y: number }): Rgb {
@@ -155,7 +155,7 @@ describe("the selection halo rings a node without tinting it", () => {
         assert.isNotNull(camera);
 
         // A unit-diameter source, so this scaling puts the sphere's surface twice the camera's
-        // distance from its centre: the camera is inside, and the far wall is in front of it.
+        // distance from its center: the camera is inside, and the far wall is in front of it.
         halo.scaling.setAll(4 * Vector3.Distance(camera.globalPosition, halo.absolutePosition));
         graph.scene.render();
         const { engine } = graph;

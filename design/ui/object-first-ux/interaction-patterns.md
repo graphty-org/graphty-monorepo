@@ -7,7 +7,7 @@ dialog. Each rule is written so that a reviewer can hold one screen against it a
 fail.
 
 It sits beside `visual-language.md` in this folder. That document says how things LOOK (sizes,
-type, colour, spacing, which compact-mantine component draws which part). This one says how they
+type, color, spacing, which compact-mantine component draws which part). This one says how they
 BEHAVE and where they LIVE. Where the two touch (menus, popovers, disclosure, the keyboard),
 `visual-language.md` owns the measurements and the component names, and this document owns the
 decision of which surface to use and what happens when the reader acts. They do not repeat each
@@ -30,7 +30,7 @@ Sources, and which wins:
   comparison with Figma, and the corrected model in which the objects are what the reader makes
   from the data).
 - How Figma actually behaves, measured: `/home/apowers/Projects/graphty-monorepo/design/ui/figma/`
-  (`flows.md` for behaviour over time, `components.md` for every part, the area READMEs for
+  (`flows.md` for behavior over time, `components.md` for every part, the area READMEs for
   detail). Cited below as "Figma flows" or "Figma components" with a section number.
 - The mocks: `mocks/v2/screen-<n>.png` (102 screens, drawn before round 4), cited as "screen n".
   Screens 103 to 114 are specified in `round-4/revision-round-4.md` section 9.1 and not yet drawn.
@@ -60,14 +60,14 @@ or a file format.
   Members, Style, Record). **Section**: a titled block of rows inside a tab or a panel, with a
   40 px header.
 - **Row**: one 32 px line of a panel, holding one thing.
-- **Toolbar**: the floating bar at the bottom centre of the canvas. **Tool**: a toolbar button
+- **Toolbar**: the floating bar at the bottom center of the canvas. **Tool**: a toolbar button
   that creates an object. **Arm**: pressing a tool turns it blue and waits for the reader; it
   does not run yet. **Secondary bar**: the smaller bar above the toolbar while a tool is armed,
   holding what will run, on what, at what cost, and the button that runs it. **Flyout**: the dark
   menu behind a tool's chevron that lists its variants.
 - **Popover**: a light 240 px floating panel of settings, opened from a button and anchored
   beside it (Figma's "light popover"). **Menu**: a dark list of verbs or choices that drops from
-  a button or opens at the pointer. **Dialog** (or **modal**): a centred panel that takes the
+  a button or opens at the pointer. **Dialog** (or **modal**): a centered panel that takes the
   keyboard until it is answered. **Toast**: a small dark message above the toolbar that goes
   away by itself. **Dock**: the drawer under the canvas (Table, History). **Status bar**: the
   24 px strip across the bottom of the window.
@@ -136,7 +136,7 @@ job.
 | Kind | What it is | Where it lives | Made by | Its inspector tabs |
 |---|---|---|---|---|
 | Dataset | the loaded data: nodes, edges, columns, positions; the root row | the tree's root; its data in the Data panel, its picture in the Styles panel | a load | Overview, Layout |
-| Set | a named collection of nodes or edges: a filter, a path, a neighbourhood, a hand-picked selection, a combination, a Top N cut | a tree row | Filter, Path, Structure tools; Ctrl+G on a selection; Combine; a Measure's Top N | Define, Members, Style, Record |
+| Set | a named collection of nodes or edges: a filter, a path, a neighborhood, a hand-picked selection, a combination, a Top N cut | a tree row | Filter, Path, Structure tools; Ctrl+G on a selection; Combine; a Measure's Top N | Define, Members, Style, Record |
 | Measure | one value per element: a centrality, a score, a numeric column in use | a tree row | Rank tool; a column's "Colour by" or "Size by" | Values, Define, Style, Record |
 | Grouping | one label per element, which is also a family of Groups: communities, components | a tree row with Group children | Groups tool; a column's "Group by" | Groups, Define, Style, Record |
 | Group | one label of a Grouping | a child row of its Grouping | its Grouping only | Members, Style, Define, Record |
@@ -224,7 +224,7 @@ Component names are compact-mantine's, as `visual-language.md` section 7.1 lists
 |---|---|---|---|---|---|---|---|
 | **Inline in a row** | reading a value; editing one property of the selection; toggles (eye, lock, pin); a "-" to remove the row | anything needing more than one control; prose | always there | -- | a row control may open a menu (a select) or a popover (a chit, a gear) | stays on the control; Enter commits | `PanelField`, `CompactColorInput`, `ToggleIconButton`, `ActionRow` |
 | **Inspector tab / section** | the properties of the selection, grouped by job (Define, Members, Style, Record) | anything about another object; a tool's form; an export sheet; whole-session actions | selecting something | selecting something else | -- | -- | `Tabs`, `ControlSection`, `FieldRow` |
-| **Popover** (light, anchored beside its trigger) | settings of ONE row or object that do not fit a row: a colour picker, a rule builder, a layout engine's options, one column operation, the settings of one export; an armed tool's parameters (above the secondary bar) | anything that commits a whole-session change; confirmations; a list the reader browses; results and charts; a second popover | a click on an icon button, a chit, a "+" that needs a choice, a "gear" | Escape, its close button, a click outside, opening another overlay | no: opening another popover replaces it; a select inside it opens its list box, which is not a second popover; it may open the browser's file picker, never an app dialog | into its first field (a colour picker focuses itself); back to the trigger on close | `Popout`, `AdvancedButton` |
+| **Popover** (light, anchored beside its trigger) | settings of ONE row or object that do not fit a row: a color picker, a rule builder, a layout engine's options, one column operation, the settings of one export; an armed tool's parameters (above the secondary bar) | anything that commits a whole-session change; confirmations; a list the reader browses; results and charts; a second popover | a click on an icon button, a chit, a "+" that needs a choice, a "gear" | Escape, its close button, a click outside, opening another overlay | no: opening another popover replaces it; a select inside it opens its list box, which is not a second popover; it may open the browser's file picker, never an app dialog | into its first field (a color picker focuses itself); back to the trigger on close | `Popout`, `AdvancedButton` |
 | **Dropdown menu** (dark, from a button) | choosing a verb or a value from a short list: the file menu, a tool's flyout, the Export menu, the view-mode menu, a "+" that must pick a kind, the matches under a field that autocompletes | forms, fields, sliders, checkboxes, sentences, two-line rows, a "..." button inside a row | a click on its trigger | choosing a row, Escape, a click outside | submenus only (one level, opened by hover or Right arrow) | the first row (keyboard) or stays with the pointer; back to the trigger | `Menu` |
 | **Context menu** (right-click) | the same verbs as the "..." of the thing under the pointer, plus the select and route verbs that need a pointer | anything not also reachable elsewhere; settings | right-click, Shift+F10, the Menu key | as a dropdown menu | submenus only | the first row; back to the canvas | `ContextMenu` |
 | **Select list box** | choosing one value for a field | verbs | the select's chevron, Ctrl+Down | choosing, Escape | no | the selected option; back to the field | `Select`, `StyleSelect` |
@@ -266,7 +266,7 @@ These are the rules the table implies, stated so they can be checked one at a ti
    graph is the Import dialog's Into choice, not a dialog of its own).
 4. **A popover edits one thing.** Its title names the row or object that opened it ("Bridges",
    "Label style", "Colour"). It has at most one commit button, and none when its fields commit on
-   their own (a colour picker, a label style). **A tool's parameters popover has no commit
+   their own (a color picker, a label style). **A tool's parameters popover has no commit
    button and repeats nothing the secondary bar shows** (variant, scope, count, cost): the bar
    owns the one commit, so Run or Create is drawn once **(decided here**: round 2 pass 3 had the
    bar's button dim while the popover carried its own; two buttons for one action is the
@@ -334,7 +334,7 @@ seven empty sections after a load.
 - An empty collection is its section header with a "+" and nothing else: no "No notes yet", no
   ghost row, no placeholder, no illustration.
 - Clicking the "+" or the empty header's title adds an item at once with a sensible default (a
-  Colour paint row in the next palette colour, an empty note with its text field focused).
+  Color paint row in the next palette color, an empty note with its text field focused).
 - When the kind of item must be chosen first (a paint row's channel, a Findings computation), the
   "+" opens a short dark menu of kinds; choosing one adds the item and, if it has settings, opens
   its popover. Never a dialog, never a wizard.
@@ -545,11 +545,11 @@ when right-click and "..." differ, two doors disagree.
   ```
 - Right-click on a tree row opens exactly the same list. Right-click on the canvas opens the list
   for the thing under the pointer, with the select and route verbs that need a pointer added AT
-  THE TOP (Select neighbours, Path from here...), then that same order.
+  THE TOP (Select neighbors, Path from here...), then that same order.
 - A menu holds only verbs. A row that cannot run now is disabled with the reason as its tooltip.
 - Every other thing with a menu uses the same frame of groups, in the same order: its edit verbs
   (rename, duplicate), its own verbs, the select and navigate verbs (Zoom to selection, Follow, Show in
-  table), copy verbs, Export..., the destructive verb last. A node: Select neighbours, Select
+  table), copy verbs, Export..., the destructive verb last. A node: Select neighbors, Select
   connected part, Path from here, Path to here | Zoom to selection, Follow, Pin | Note..., Style this
   node..., Add to set > | Show what breaks if removed, Expand from server | Copy id, Copy as JSON
   | Remove from data... . A View: Rename, Duplicate | Present from here | Export image... |
@@ -719,7 +719,7 @@ every keystroke for an expensive object; write units in the label ("Width (px)")
 **Component.** `NumberInput` / `PanelField kind="number"`, `Select`, `SegmentedControl`, `Switch`,
 `CompactColorInput`.
 
-**Screens.** 4 (parameters), 90 (domain and palette), 93 (one node's colour).
+**Screens.** 4 (parameters), 90 (domain and palette), 93 (one node's color).
 
 ## 3.11 Selection and hover
 
@@ -831,7 +831,7 @@ reader does something else, without a blocking dialog.
 
 - **The cost gate decides, not the reader's patience.** Work the element estimates as too long to
   start unasked is created waiting, never started and never asked about in a dialog.
-- **Cancel** is on the row's inspector header and the status chip; cancelling leaves the object
+- **Cancel** is on the row's inspector header and the status chip; canceling leaves the object
   waiting (or removes it, if it was just created: undo of the creation cancels too).
 - **Loads** follow the same rule: the Dataset row computes, with progress and Cancel in the same
   places. The first load of a session, when there is no Dataset row yet, is the one blocking
@@ -857,7 +857,7 @@ picture and without a dialog.
 
 **Rule.**
 - Every non-current state has a glyph on the tree row and a word plus the one recovery action at
-  the top of the inspector. Each state's glyph has its own shape, not only its own colour (a dot
+  the top of the inspector. Each state's glyph has its own shape, not only its own color (a dot
   and a ring differ by more than hue), and its tooltip is the state word ("Stale: ran on 34
   nodes, now 40"), so the row never needs a word that would truncate the name.
 - **A tree row never holds an action button.** Run, Re-run and Retry live at the top of the
@@ -868,7 +868,7 @@ picture and without a dialog.
 | waiting | hollow circle; "not run" in place of the count | [Run (about 4 min)] [Approximate instead] | nothing |
 | stale | amber dot; name at 50 percent; old count | "Stale: ran on 34 nodes, now 40" and [Re-run (about 3 s)] | "3 stale [Re-run all]" only when two or more |
 | failed | red triangle | the cause in one sentence with its code, [Retry] focused; for a GPU error also [Retry on the CPU (about 40 min)] | nothing when the object is visible in the tree; "Bridges failed [Show]" only while the Objects panel is closed |
-| frozen | grey snowflake | "Frozen: 'Degree > 10' was deleted. Members kept as a fixed list." | nothing |
+| frozen | gray snowflake | "Frozen: 'Degree > 10' was deleted. Members kept as a fixed list." | nothing |
 
 - A stale object keeps painting its old values. A mask (Focus, a time window) never makes
   anything stale.
@@ -876,7 +876,7 @@ picture and without a dialog.
 - Nothing falls back to the CPU by itself: the CPU retry is a button with its cost.
 
 **Do.** Put the action next to the reason. **Don't.** Blank the picture; show a dialog for a
-failure; mark stale by colour alone.
+failure; mark stale by color alone.
 
 **Component.** `Tree` state glyphs, `Button` (secondary) for Re-run and Retry.
 
@@ -956,7 +956,7 @@ style change.
 
 ## 3.17 Toasts
 
-**Problem.** Without a rule, toasts multiply into a notification centre, or events leak into the
+**Problem.** Without a rule, toasts multiply into a notification center, or events leak into the
 status bar and panels as permanent text.
 
 **Rule.** A toast is a one-line report of something that just happened, and:
@@ -976,7 +976,7 @@ status bar and panels as permanent text.
 - One toast at a time; a new one replaces the old. At most one action button. About 3 s for under
   20 characters, about 6 s for longer; a toast with an action stays until acted on or replaced.
   It never takes keyboard focus; it is announced (`role=alert`).
-- It sits centred above the toolbar (16 px), never over a panel.
+- It sits centered above the toolbar (16 px), never over a panel.
 
 **Do.** Offer Undo on removals. **Don't.** Toast "Saved successfully"; stack toasts; put two
 buttons on one; use a toast for a failure the reader must fix.
@@ -1092,7 +1092,7 @@ Ctrl+Shift+I); make Escape do two things at once.
 
 **Problem.** The same count written five ways (the mocks once did) reads as five different things.
 
-**Rule.** `visual-language.md` section 9.3 has the exact spellings; the behaviour rules are:
+**Rule.** `visual-language.md` section 9.3 has the exact spellings; the behavior rules are:
 
 - A count is never abbreviated or truncated ("12k" is not allowed); thousands take a comma.
 - A pair is "34 nodes  78 edges"; a part of a whole is "412 of 1,204 nodes"; a tree row carries
@@ -1138,7 +1138,7 @@ Export styles).
 
 | It changes | It lives in | Examples |
 |---|---|---|
-| one object | that object's inspector (a tab, or a popover from one of its rows) | an algorithm's damping; a Set's colour; a Grouping's palette |
+| one object | that object's inspector (a tab, or a popover from one of its rows) | an algorithm's damping; a Set's color; a Grouping's palette |
 | the data (for every object) | the Data panel, or the Dataset's inspector | column roles; import rules; joins |
 | the picture as a whole | the Styles panel | the look, background, default node and edge, labels, legend, tooltips |
 | the camera and presenting | the Views panel and the framing menu | saved views, compare, present |
@@ -1247,7 +1247,7 @@ specs into the drawn UI.
 
 # Part 4. The review checklist
 
-Each check is pass or fail for one screen (a mock or the built app). They check behaviour and
+Each check is pass or fail for one screen (a mock or the built app). They check behavior and
 placement; `visual-language.md` section 12 checks measurements. A screen passes when every check
 that applies to it passes. The pattern each check comes from is in brackets. Part 5 cites these
 numbers.
@@ -1383,7 +1383,7 @@ Not listed: the frame changes round 4 already schedules for every screen (the ra
 toolbar, the Views list leaving the tree, the Assistant leaving the dock, the "?" leaving the
 status bar, the Dataset losing its Canvas and Data tabs). The screens are being regenerated in the
 round-4 frame, so some PNGs already show the rail and some do not; the breaks below are about
-behaviour and placement and hold in either frame. Measurement and colour breaks are
+behavior and placement and hold in either frame. Measurement and color breaks are
 `visual-language.md` section 13's.
 
 ## 5.1 The breaks that repeat across screens
@@ -1399,7 +1399,7 @@ damage the model.
 | 4 | Menus hold sentences, fields and buttons: prose rows ("Replaces Karate Club; asks to save first", "A look sets defaults, never an object's Style"), a checkbox and a segmented control inside tool flyouts, "..." buttons inside flyout rows, costs in the key column | 11, 16, 51, 69, 73, 74, 76, 83, 87, 92, 96, 97, 100 | 11 | One line per row, verbs or values only; a one-line noun heading at most; settings move to the secondary bar or its popover; costs sit at the row's right in secondary ink |
 | 5 | Two overlays open at once: a tool's flyout with its parameters popover, and an autocomplete list with a popover | 4, 61, 74 | 6 | The flyout closes when its row's parameters button is pressed; the popover opens above the secondary bar; draw the second overlay as an inset |
 | 6 | A tool's commit is drawn twice: the parameters popover has its own Run or Create while the secondary bar has one too; the popover repeats the bar's scope, count and cost; the bar holds up to three commit verbs | 4, 11, 59, 60, 61, 62, 64, 74 | 9, 32 | The bar alone holds the commit (Run, or Select plus a Create split button); the popover holds only parameters the bar does not show, with no footer button |
-| 7 | Objects that are not current carry an action button in the tree row ("Run (4 min)"), or only a coloured dot with no distinct shape or tooltip | 5, 19, 32, 42, 45, 46, 82 | 36, 37 | A distinct glyph per state with the state word as tooltip; Run, Re-run and Retry at the top of the inspector and in the "..." menu |
+| 7 | Objects that are not current carry an action button in the tree row ("Run (4 min)"), or only a colored dot with no distinct shape or tooltip | 5, 19, 32, 42, 45, 46, 82 | 36, 37 | A distinct glyph per state with the state word as tooltip; Run, Re-run and Retry at the top of the inspector and in the "..." menu |
 | 8 | The tree and the Objects panel hold things that are not objects: suggestion rows ("Find groups (G)"), the four ways to load as rows, a Find result drawn as a Set that does not exist yet | 1, 2, 20, 28, 29, 31, 33, 50 | 1 | Remove the suggestion rows; the ways in live in the Data panel's empty state; a Find result is a result row until "Make a set" |
 | 9 | Things float on the canvas that have a home elsewhere: the Welcome card, the scatter plot, the "Without node 1" preview card, a note drawn as a permanent callout, the keyboard readout | 1, 27, 58, 70, 77, 81 | 14 | Welcome content in the Data panel; the plot as a dock tab; the removal preview in the node inspector's section; note text on hover; the readout in the status bar |
 | 10 | The inspector does not show the selection: the Dataset's Layout tab while nodes are selected, or an object's inspector while other nodes are selected on the canvas | 68, 70, 85, 86 | 4 | Show the selection; start "Arrange only these" from the selection's inspector and keep its rows there; add members through "Add to set >" on the node selection |
@@ -1677,7 +1677,7 @@ Each row: the screen, what is wrong, the check it fails, and the fix.
 | Screen | What is wrong | Check | Fix |
 |---|---|---|---|
 | 78 | "Combine takes Sets and Groups; these are Groupings" at rest | 43 | Omit Combine for Groupings, or disable it with that tooltip |
-| 78 | "Make a set" here, "Make a Measure", "Make a Grouping" elsewhere | 41 | Kind names capitalised as nouns in every "Make a ..." |
+| 78 | "Make a set" here, "Make a Measure", "Make a Grouping" elsewhere | 41 | Kind names capitalized as nouns in every "Make a ..." |
 | 78, 80 | "Cameras [on] linked", "Colours [on] kept stable" | 40 | "Link cameras", "Keep colours" |
 | 79 | The Time popover's first row is "Time attribute, window, mode, step: above" | 43 | Remove |
 | 79 | The series over time is drawn in the popover, the Dataset's Findings and the dock | 44 | The dock's Findings tab is the home; the Findings row opens it |
@@ -1726,10 +1726,10 @@ Each row: the screen, what is wrong, the check it fails, and the fix.
 | 91 | "Colour  not set" drawn as a paint row with eye and "-" | 16, 43 | Omit unset channels |
 | 91 | A time window is on but the transport bar is absent | 41 | Draw the transport bar |
 | 92 | The Nodes "+" menu ends with a sentence listing the Edges channels | 11 | Remove |
-| 92 | The collapsed Colour block's summary is "on" | 29 | "by conference, 12 colours" |
+| 92 | The collapsed Color block's summary is "on" | 29 | "by conference, 12 colours" |
 | 93 | "Add a channel with Nodes +; click an inherited chit to override it here. ..." | 43 | Remove |
 | 93 | Reading "One node, styled on its own; it paints above every other object." | 43 | A reading about the data, or none |
-| 93 | Two rows labelled "Colour" (override and inherited); the inherited ones carry a lock | 41, 24 | The inherited row reads "from Conference" with a link glyph |
+| 93 | Two rows labeled "Colour" (override and inherited); the inherited ones carry a lock | 41, 24 | The inherited row reads "from Conference" with a link glyph |
 | 93, 100 | Rows that are not selected carry the selected tint | 41 | Tint only the selected row; "new" as a badge only |
 | 94 | "Covered by nothing" | 43 | Remove |
 | 94, 93 | Saved styles are a section here and one row on 93; Reset is a button here and in the "..." per the spec | 41, 44 | One form: a "Saved style" row with Apply and "Save this style..."; Reset in the "..." |
@@ -1737,7 +1737,7 @@ Each row: the screen, what is wrong, the check it fails, and the fix.
 | 95 | "Image copied to the clipboard" in the status bar | 13 | A toast |
 | 95 | Prose about Copy image and the browser's formats | 43 | Remove; the key is on the menu row |
 | 95 | "Quality" folds settings | 28 | A gear on the Format row |
-| 95 | Two filled "Export" buttons (the header's menu and the sheet's commit) | 48 | The popover's commit is the one primary while it is open, labelled "Export image" |
+| 95 | Two filled "Export" buttons (the header's menu and the sheet's commit) | 48 | The popover's commit is the one primary while it is open, labeled "Export image" |
 | 96 | The Format menu ends with "The project file keeps everything: Ctrl+S" | 11 | Remove |
 | 96 | "An object column is one value per node: ..." | 43 | Tooltip on "Include object columns" |
 | 96 | "about 6 KB" twice in one surface | 43 | Once, beside the commit |

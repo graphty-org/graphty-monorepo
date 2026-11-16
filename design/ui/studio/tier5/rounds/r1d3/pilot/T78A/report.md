@@ -49,7 +49,7 @@ nothing.
 
 The success path first (11 of 24, orange), then Data > Add filter; role; tick staff; Cancel. The
 layer keeps its 11 and its orange; Undo now names the participant's last real action, "Undo
-changing node color on Layer 1", so the cancelled card left no undo step. Ctrl+Z then takes back
+changing node color on Layer 1", so the canceled card left no undo step. Ctrl+Z then takes back
 the orange ("Undid changing node color on Layer 1.", Redo offered), which is what that Undo said
 it would do; Which nodes stays 11 of 24.
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/r1d3/pilot/T78A/touched-2/18.png,
@@ -82,7 +82,7 @@ card, nothing to undo.
 Replayed the previous pass's route: a filter card "shifts min 2" (31 of 63 edges), Edit, change
 the min to 3 (20 of 63), Cancel. All 5 steps matched. The card is back to "shifts min 2" and the
 top bar to "24 of 24 nodes, 31 of 63 edges"; Undo names "editing the filter "shifts 2 or more"",
-not the cancelled edit.
+not the canceled edit.
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/r1d3/pilot/T78A/touched-6/05.png,
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/r1d3/pilot/T78A/touched-6/06.png
 

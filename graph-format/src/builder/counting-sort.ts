@@ -1,6 +1,6 @@
 /**
  * The two stable counting-sort passes of the freeze pipeline (design section 6.3 steps 3-6, 8): arc
- * materialisation (doubled storage for undirected graphs, self-loops once, invariant I7), the
+ * materialization (doubled storage for undirected graphs, self-loops once, invariant I7), the
  * identity check for directed input that is already grouped by source and sorted by target (step 4),
  * pass 1 by target, pass 2 by source into rowPtr with the scatter writing colIdx / arcToEdge /
  * edgeToArc straight into the target arrays (the arena, for a "keep" freeze), and the flag
@@ -28,9 +28,9 @@
  * - Sequential post-passes derive edgeToArc from arcToEdge (directed), gather the arc weights
  *   through arcToEdge, and test adjacent targets within each row for the multigraph flag.
  *
- * Every loop lives in its own small function: V8 optimises a hot loop by on-stack replacement of the
+ * Every loop lives in its own small function: V8 optimizes a hot loop by on-stack replacement of the
  * function that contains it, and a function invoked once per freeze with a dozen loops in it is
- * re-entered through stale OSR code that deoptimises at every loop exit.
+ * re-entered through stale OSR code that deoptimizes at every loop exit.
  *
  * Transients of the non-identity path: 2 x U32(n + 1), U32(2A), and for an undirected graph a bitmap
  * of A bits.
@@ -122,11 +122,11 @@ function nanWeight(e: number, w: number): GraphFormatError {
  * refused (invariant I8, the bulk-input re-check, naming the lowest such edge), and the smallest and
  * largest STORED values -- the values as the f32 arc array holds them (invariant I9: an f64 that
  * rounds to 1, to -0 or to Infinity counts as its rounded value) -- are left in `bounds[0]` and
- * `bounds[1]`. They are written from inside the loop whenever they change, so the loop's optimised
+ * `bounds[1]`. They are written from inside the loop whenever they change, so the loop's optimized
  * code has no exit path without type feedback.
  * @param edgeWeights - the staging weights
  * @param edgeCount - how many edges to inspect; at least 1
- * @param bounds - two slots initialised to +Infinity / -Infinity; receive the minimum and the maximum
+ * @param bounds - two slots initialized to +Infinity / -Infinity; receive the minimum and the maximum
  */
 function scanStoredWeights(edgeWeights: F32 | F64, edgeCount: number, bounds: F64): void {
     let min = Infinity;
@@ -525,7 +525,7 @@ export function sortIntoCore(input: SortInput, useArena: boolean): SortResult {
     } else if (arcToEdge !== null && edgeToArc !== null) {
         multigraph = sortByTwoPasses(input, arcCount, { targetStart, rowCount }, core, { arcToEdge, edgeToArc });
     } else {
-        // allocateCoreArrays materialises both permutations whenever the sort is not the identity
+        // allocateCoreArrays materializes both permutations whenever the sort is not the identity
         throw new GraphFormatError("E_UNSUPPORTED", "unreachable: a non-identity core without permutation arrays", {
             directed,
             arcCount,

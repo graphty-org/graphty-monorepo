@@ -224,7 +224,7 @@ export function statusOf(scope: Scope, sources: StatusSources): SetStatus {
     return new StatusWalk(sources).scope(scope);
 }
 
-/** One status call: memoises each kept set's status so a chain of sets walks each once. */
+/** One status call: memoizes each kept set's status so a chain of sets walks each once. */
 class StatusWalk {
     private readonly memo = new Map<SetId, SetStatus>();
     private readonly entered = new Set<SetId>();

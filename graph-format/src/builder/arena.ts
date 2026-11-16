@@ -88,7 +88,7 @@ export function allocateSeparateCore(shape: CoreShape): CoreArrays {
  * size, every non-empty segment starting at a multiple of 256 bytes, ordered rowPtr, colIdx, weights,
  * arcToEdge, edgeToArc. `hotByteLength` is the end of the weights segment (or of colIdx when
  * unweighted). For the worked example of section 10.3 (n = 100,000, A = 2,000,000, E = 1,000,000,
- * weighted, permutations materialised) the segments start at 0 / 400,128 / 8,400,128 / 16,400,128 /
+ * weighted, permutations materialized) the segments start at 0 / 400,128 / 8,400,128 / 16,400,128 /
  * 24,400,128 and the arena is 28,400,128 bytes.
  * @param shape - the core shape
  * @returns the arrays as views into the arena, plus its layout

@@ -120,7 +120,7 @@ function labels(r: Result, cy: cytoscape.Core): number[] {
 }
 
 /**
- * The adjusted Rand index of two labellings.
+ * The adjusted Rand index of two labelings.
  * @param a - labels
  * @param b - labels
  * @returns 1 for identical partitions, about 0 for unrelated ones

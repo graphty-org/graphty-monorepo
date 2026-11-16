@@ -24,7 +24,7 @@ The consequence for a graph traversal that batches thirty-two levels per submit 
 level (the standard WebGPU way to run a data-dependent level loop without a host round trip per level): 224 indirect
 dispatches per submit, about 87 ms, around under a millisecond of actual kernel work. The clamp is a correctness
 guard the spec requires in some form, but it costs the same as a full pipeline drain per dispatch, which suggests it
-is being implemented with a barrier that serialises the queue rather than as a cheap pass. We worked around it by
+is being implemented with a barrier that serializes the queue rather than as a cheap pass. We worked around it by
 dispatching directly over a host-bounded grid and having the kernels read their counts from a buffer; the report is
 so that the cost is known.
 

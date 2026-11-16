@@ -23,7 +23,7 @@ defineAlgorithm({
                 next.set(node.id, 0.15 / n + 0.85 * from.reduce((sum, m) => sum + (rank.get(m.id) ?? 0) / m.degree, 0));
             }
             rank = next;
-            await progress(pass / options.passes); // lets the page draw, and stops a cancelled run
+            await progress(pass / options.passes); // lets the page draw, and stops a canceled run
         }
         return rank;
     },

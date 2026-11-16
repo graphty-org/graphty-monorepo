@@ -1,18 +1,18 @@
 /**
- * @file An arrow's own size, colour and opacity, from the layer that asks for them to the parsed
+ * @file An arrow's own size, color and opacity, from the layer that asks for them to the parsed
  * style the renderer builds the cap from.
  *
  * WHY THIS FILE EXISTS. `EdgeStyle.arrowHead` has carried `size`, `color` and `opacity` since
  * 1.x, `EdgeMesh.createArrowHead` reads all three, and for the whole of the 2.0 branch no public
  * route wrote any of them: the channel table published `edge.arrowHead` -- the cap's TYPE -- and
- * nothing else. The renderer drew an arrow at any size in any colour and nothing could ask it to.
+ * nothing else. The renderer drew an arrow at any size in any color and nothing could ask it to.
  * Three Storybook stories that demonstrated exactly that were deleted rather than migrated.
  *
- * The second half of the file is the colour pin, which is a wrong picture rather than a missing
+ * The second half of the file is the color pin, which is a wrong picture rather than a missing
  * one. `defaultEdgeStyle.arrowHead` named `darkgrey` and `ArrowStyle.color` defaulted to white,
- * so `EdgeStyle.parse` filled a colour into every painted head while an `arrowTail` -- optional,
+ * so `EdgeStyle.parse` filled a color into every painted head while an `arrowTail` -- optional,
  * and absent from the defaults -- got none and fell back to its line. One edge, two ends, two
- * colours, and `docs/guide/styling.md` saying an arrow follows the line it caps.
+ * colors, and `docs/guide/styling.md` saying an arrow follows the line it caps.
  */
 
 import { assert, describe, it } from "vitest";
@@ -218,10 +218,10 @@ describe("what a layer that writes them paints", () => {
         const held = harness();
 
         // The CAP ITSELF IS THE SAME on every edge -- same type, same size, same end -- so the
-        // only thing the two keys below can disagree about is the colour. A test that switched
+        // only thing the two keys below can disagree about is the color. A test that switched
         // the cap on for one edge and not the other would pass on the cap type alone, which is
-        // how the defect this pins survived: the colour was never in the key at all, because a
-        // resolved colour is an object and the interner pushed every object as "nothing painted
+        // how the defect this pins survived: the color was never in the key at all, because a
+        // resolved color is an object and the interner pushed every object as "nothing painted
         // this".
         await held.styles.add({
             name: "red heads everywhere",

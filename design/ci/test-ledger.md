@@ -283,7 +283,7 @@ of the same files fast-forwards in seconds, and no other push reuses it. `PREPUS
 gate key (`laneEnv()` in `tools/prepush-inputs.mjs`), so `PREPUSH_EXONERATE=0` really runs a strict gate.
 `golden-verified` does not move past the failure, and cuts wait for the fix.
 
-**Issues.** One per signature, titled `Failing on golden: <first line>`, labelled `bug`,
+**Issues.** One per signature, titled `Failing on golden: <first line>`, labeled `bug`,
 `priority:high`, `effort:medium`, listing tests, keys, commit and log, with a `<!-- test-ledger
 signature=<sig> -->` marker. Filed by a land check whose re-run reproduced the failure, and by
 verification for a failure that is not reproduced or that comes back in the next verification. Never for a

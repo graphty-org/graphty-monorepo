@@ -14,7 +14,7 @@
  * than a rounded float, again with one warning.
  *
  * JSON awaits the whole text (design section 8.4: `JSON.parse` on 100 MB is fine; a streaming
- * tokeniser is a later improvement). The parsed records are iterated in place; the importer never
+ * tokenizer is a later improvement). The parsed records are iterated in place; the importer never
  * builds an intermediate array of node or edge objects. Ids are coerced per `ids` ("keep" by
  * default: JSON values are already typed); node ids that are JSON `true` / `false` / `null` are
  * reported as `unsupported` and coerced with `String(v)` only under `ids: "string"`. Attribute
@@ -24,7 +24,7 @@
  * DirectionResolver of design section 8.4; per-element errors are aggregated into the ImportReport
  * until the error limit (design section 8.6).
  *
- * Fatal errors (ImportError at once): empty input, invalid JSON, an unrecognised top-level shape, a
+ * Fatal errors (ImportError at once): empty input, invalid JSON, an unrecognized top-level shape, a
  * section that is not an array / object. Recoverable errors (an issue, the element skipped): a
  * missing nodes or edges array, a node without an id, an edge without an endpoint, a bad index
  * endpoint, a declared field of the wrong type, an unknown Cytoscape parent, an id the coercion rule

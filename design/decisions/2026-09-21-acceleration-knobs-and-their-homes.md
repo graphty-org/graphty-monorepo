@@ -60,7 +60,7 @@ repository that finds half the call sites.
 Also rejected: a `ConfigValues` key for each of the two layout knobs NOW, ahead of the
 configuration document. The keys would have to be implemented twice -- once against today's frozen
 config object and once against the document -- and the second implementation would be the one that
-changed their behaviour.
+changed their behavior.
 
 ## What we are giving up
 
@@ -72,5 +72,5 @@ them through `layoutBehavior` on mount. The threshold does round-trip, through t
 
 The layout transport moving to `session.layout` (see
 `design/decisions/2026-09-21-m6-bridge-is-a-layout-engine.md`). If the per-frame drive becomes a
-property of the layout API rather than of the element's behaviour object, the two knobs move with
+property of the layout API rather than of the element's behavior object, the two knobs move with
 it, and the `ConfigValues` keys named above are the thing that stays put.

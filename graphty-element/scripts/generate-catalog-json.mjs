@@ -60,7 +60,7 @@ const document = {
     /** Every file format the element can import or export, with its options. */
     formats: catalog.FORMAT_DESCRIPTORS,
 
-    /** Every colour palette, with its colours and which colour-vision deficiencies it survives. */
+    /** Every color palette, with its colors and which color-vision deficiencies it survives. */
     palettes: catalog.PALETTE_DESCRIPTORS,
 
     /** Every scale that maps a data range onto a visual channel. */

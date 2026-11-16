@@ -38,7 +38,7 @@ Tom: Big heading "Replace: team-v2.csv -- Was 12 nodes, 16 edges; now 14, 21". T
 ## Step 7
 `--step $S --click "Replace"` -> 07.png
 
-Tom: It took it. Top says "Graph team-v2.csv", right side Nodes 14, Edges 21. My PageRank row is still there with 12 and the colours are still on, so I didn't lose my work. The legend now says "PageRank, out of date", and there are two small blue balls -- I'd guess those are Mo and Nia, the new ones, not ranked yet. Small blue vs brown I can tell apart fine. Now "redo the ranking": I'll click my PageRank row and see if it offers to run again.
+Tom: It took it. Top says "Graph team-v2.csv", right side Nodes 14, Edges 21. My PageRank row is still there with 12 and the colors are still on, so I didn't lose my work. The legend now says "PageRank, out of date", and there are two small blue balls -- I'd guess those are Mo and Nia, the new ones, not ranked yet. Small blue vs brown I can tell apart fine. Now "redo the ranking": I'll click my PageRank row and see if it offers to run again.
 
 ## Step 8
 `--step $S --click "PageRank"` -> 08.png

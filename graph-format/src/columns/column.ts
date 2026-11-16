@@ -1439,7 +1439,7 @@ class StringColumnImpl extends ColumnImpl<"string"> implements StringColumn {
     }
 
     /**
-     * Whether the Utf8 store has been materialised (the wire writer asks before encoding).
+     * Whether the Utf8 store has been materialized (the wire writer asks before encoding).
      * @returns true when offsets and utf8 exist without being computed
      */
     hasStore(): boolean {
@@ -1459,7 +1459,7 @@ class StringColumnImpl extends ColumnImpl<"string"> implements StringColumn {
     }
 
     protected override storageDetached(): boolean {
-        // a materialised store is detached when its offsets vanished; undecoded rows then cannot be read
+        // a materialized store is detached when its offsets vanished; undecoded rows then cannot be read
         return this.offsetsStore !== null && this.offsetsStore.length === 0;
     }
 
@@ -1500,7 +1500,7 @@ class StringColumnImpl extends ColumnImpl<"string"> implements StringColumn {
     }
 
     /**
-     * Materialise the Utf8 store from the decoded strings on first need (design section 5.7); a
+     * Materialize the Utf8 store from the decoded strings on first need (design section 5.7); a
      * store that was transferred away is E_DETACHED.
      */
     private store(): void {
@@ -1516,7 +1516,7 @@ class StringColumnImpl extends ColumnImpl<"string"> implements StringColumn {
         const encoded = encodeStrings(dense);
         this.offsetsStore = encoded.offsets;
         this.utf8Store = encoded.utf8;
-        // the column is the first holder of the store it materialises (design section 9.1)
+        // the column is the first holder of the store it materializes (design section 9.1)
         claimHolder(encoded.offsets.buffer);
         claimHolder(encoded.utf8.buffer);
     }
@@ -2002,11 +2002,11 @@ export function partsOf(column: Column): MutableColumnParts {
 }
 
 /**
- * The distinct backing buffers of a column's materialised typed storage (data or codes, validity,
- * a materialised Utf8 store, a list's offsets and child), for the owner count of design section
+ * The distinct backing buffers of a column's materialized typed storage (data or codes, validity,
+ * a materialized Utf8 store, a list's offsets and child), for the owner count of design section
  * 9.1: a table claims them when it attaches the column, so a buffer viewed from two tables (a
- * zero-copy slice, a same-realm wire receiver) is recognised as shared. A string store that has not
- * been materialised is not encoded by asking.
+ * zero-copy slice, a same-realm wire receiver) is recognized as shared. A string store that has not
+ * been materialized is not encoded by asking.
  * @param column - the column
  * @returns the buffers, each once
  */

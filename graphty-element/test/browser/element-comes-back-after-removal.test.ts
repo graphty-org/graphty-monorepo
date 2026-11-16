@@ -27,7 +27,7 @@ function box(): HTMLDivElement {
 }
 
 /**
- * Waits until the element's current graph has finished initialising.
+ * Waits until the element's current graph has finished initializing.
  * @param element - The element.
  */
 async function initialised(element: Graphty): Promise<void> {

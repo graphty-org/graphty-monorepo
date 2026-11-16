@@ -84,7 +84,7 @@ describe("Kamada-Kawai against networkx", () => {
     // The Kamada-Kawai cost has many local minima, so even networkx does not always return ITS OWN
     // layout: nudging its circular start by 1% noise moves karate by up to 0.06 (0.021, 0.043 and
     // 0.061 in ten runs) and Les Miserables by up to 0.011. The port reads 0.021 on karate -- a
-    // converged neighbouring minimum, cost 38.17 against networkx's 37.94 -- and 0.000 on Les
+    // converged neighboring minimum, cost 38.17 against networkx's 37.94 -- and 0.000 on Les
     // Miserables. The port before its L-BFGS fix read 0.45 on karate and 0.998 on Les Miserables.
     const TOLERANCE = 0.05;
 
@@ -100,7 +100,7 @@ describe("Kamada-Kawai against networkx", () => {
     // In 3D the minima crowd closer still: networkx moves by up to 0.15 from its own layout when its
     // start is nudged by 1% noise. So no single start says much, and the port is held to networkx
     // over ten recorded starts instead. It lands on networkx's own layout (disparity below 0.001)
-    // from five of them and reads 0.010, 0.026, 0.030, 0.070 and 0.167 from the rest: neighbouring
+    // from five of them and reads 0.010, 0.026, 0.030, 0.070 and 0.167 from the rest: neighboring
     // minima whose cost is within 3% of networkx's, in either direction.
     it("draws networkx's 3D layouts of karate from networkx's own random starts", () => {
         const fixture = load("karate-3d");

@@ -24,7 +24,7 @@ Session folder: tmp/studio-sessions/tier2/rounds/round-4/sessions/r4-s47 (all co
 8. `--step --click "role=radio:2"`
    -> 09.png. "Ava and 14 connections". Names listed: Ben, Chloe, Dev, Eli, Farah, Gus, Hana, Ivan, Jada, Kofi, Quinn, Ravi, Sana, Theo -- I count 14 names myself. Selection reads 15 (Ava plus 14). Answer: 14, not counting Ava. The weights column is gone at 2 hops, fine. Now press "Filter to neighbors" to make the drawing just these.
 9. `--step --click "Filter to neighbors"`
-   -> 10.png. Top bar now says "15 of 20 nodes" with a filter icon; 5 dots gone from the top right. Legend says "PageRank, full graph" -- good, it tells me the sizes still count the whole club. Filter button greyed (already applied). Before I trust it I check one link: Eli is on the list but not one of her six. Search Eli to see who ties him in.
+   -> 10.png. Top bar now says "15 of 20 nodes" with a filter icon; 5 dots gone from the top right. Legend says "PageRank, full graph" -- good, it tells me the sizes still count the whole club. Filter button grayed (already applied). Before I trust it I check one link: Eli is on the list but not one of her six. Search Eli to see who ties him in.
 10. `--step --click "Find nodes, edges, values" --type "Eli"`
    -> 11.png. Eli: Ben -> Eli, Dev -> Eli, Eli -> Farah. Ben and Dev are two of Ava's six, so Eli is in by two links. The link held. Drawing still shows 15 of 20. I am done; ending.
 11. `--end`

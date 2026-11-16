@@ -5,7 +5,7 @@
  * ci.yml's build job calls this once and hands the result to the test job as its matrix, so a
  * pull request runs only the shards of the packages it affects (the packages it changed plus
  * every package that depends on them) instead of all of them. Why: each pull request run used to
- * be about 30 jobs, and the organisation's plan runs about 60 at once, so two open pull requests
+ * be about 30 jobs, and the organization's plan runs about 60 at once, so two open pull requests
  * queued each other. A push to master and a manual dispatch pass the full project list as the
  * affected list, so they still run every shard.
  *

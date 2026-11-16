@@ -1,18 +1,18 @@
 /**
  * @file Which arrangement suits a graph, decided from the graph's own shape and the layout
- * catalogue.
+ * catalog.
  *
  * The decision belongs to the element because both halves of it do. The shape -- how many nodes,
  * how many edges, how many of them already carry a coordinate -- is a fact about the graph, and
  * which arrangements exist, what each one costs at a given size and what extra input each one
- * needs are facts about this package's own catalogue. A consumer that made this call itself would
+ * needs are facts about this package's own catalog. A consumer that made this call itself would
  * be holding a copy of both, and the copy would fall out of step the first time the element gained
  * or lost an engine.
  *
  * THE RULE READS THE CATALOGUE. Every arrangement a rule names is looked up in
  * `LAYOUT_DESCRIPTORS` before it is recommended, and one that is missing, that needs an input the
- * caller has not supplied, or that the catalogue rates below this graph's size is skipped for the
- * next rule. So a catalogue edit changes what is recommended instead of producing a recommendation
+ * caller has not supplied, or that the catalog rates below this graph's size is skipped for the
+ * next rule. So a catalog edit changes what is recommended instead of producing a recommendation
  * the element cannot serve.
  *
  * WHAT "CANNOT SERVE" MEANS HERE, precisely: an arrangement whose descriptor declares a
@@ -76,7 +76,7 @@ export interface LayoutRecommendation {
  * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered at random instead of settling a force simulation |
  * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
  * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
- * | `recommend.first-servable` | No rule named an arrangement the catalogue can serve, so this is the first one that can place a graph this size |
+ * | `recommend.first-servable` | No rule named an arrangement the catalog can serve, so this is the first one that can place a graph this size |
  * | `recommend.graphviz-file` | The file is a Graphviz file with no coordinates, so it is drawn by the engine it names (its `layout` attribute, or dot); `params.engine` names it |
  * | `recommend.graphviz-unavailable` | The file asked for a Graphviz engine but `@hpcc-js/wasm-graphviz` is not installed, so the arrangement the next rule chose is used; `params.engine` names the engine it asked for |
  *
@@ -153,7 +153,7 @@ const ROUTE_ATTRIBUTES = ["splines", "sep", "esep"] as const;
 
 /** One rule of the table: the arrangement it names, when it fires, and what it would say. */
 interface LayoutRule {
-    /** The arrangement's public name, looked up in the catalogue before it is recommended. */
+    /** The arrangement's public name, looked up in the catalog before it is recommended. */
     readonly id: LayoutId;
     /**
      * Whether this rule fires for this graph.
@@ -180,10 +180,10 @@ interface RuleInput {
 }
 
 /**
- * The table, read top to bottom: the first rule that fires AND names an arrangement the catalogue
+ * The table, read top to bottom: the first rule that fires AND names an arrangement the catalog
  * can serve at this size wins.
  *
- * The last rule fires for every graph, so the table always has an answer as long as the catalogue
+ * The last rule fires for every graph, so the table always has an answer as long as the catalog
  * serves the force arrangement -- which it does, at any size, with no structural input.
  */
 const LAYOUT_RULES: readonly LayoutRule[] = [
@@ -228,11 +228,11 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
 ];
 
 /**
- * Whether the catalogue can serve an arrangement for a graph this size with no further input.
+ * Whether the catalog can serve an arrangement for a graph this size with no further input.
  *
  * Two tests, and they mean different things. `structuralInputs` is a CAPABILITY question: the
  * engine needs a root, a partition or an ordering that nobody has supplied, and it refuses without
- * one. `sizeRating` is the catalogue's own advice -- the largest graph the default engine is
+ * one. `sizeRating` is the catalog's own advice -- the largest graph the default engine is
  * recommended for -- so an arrangement rated below this graph is passed over for the next rule
  * rather than recommended with a caveat nobody reads.
  * @param descriptor - The arrangement.
@@ -270,13 +270,13 @@ function factOf(code: LayoutRecommendationCode, input: RuleInput): CodedFact<Lay
  * Which arrangement suits this graph.
  *
  * It never names an arrangement the element cannot serve: every candidate is resolved against the
- * layout catalogue and skipped if it is missing, if it needs an input the caller has not supplied,
- * or if the catalogue rates it below this graph's size.
+ * layout catalog and skipped if it is missing, if it needs an input the caller has not supplied,
+ * or if the catalog rates it below this graph's size.
  * @param statistics - The graph's shape, from `session.data.statistics()`.
  * @param options - How many nodes carry a coordinate, and the large-graph threshold to use.
- * @returns The recommendation, or undefined when the catalogue serves no arrangement that needs no
- *     further input -- which the shipped catalogue always does, so a consumer sees this only after
- *     the catalogue has been cut down.
+ * @returns The recommendation, or undefined when the catalog serves no arrangement that needs no
+ *     further input -- which the shipped catalog always does, so a consumer sees this only after
+ *     the catalog has been cut down.
  * @example
  * ```ts
  * const advice = recommendLayout(session.data.statistics(), {
@@ -461,7 +461,7 @@ function recommendByRules(input: RuleInput): LayoutRecommendation | undefined {
         }
     }
 
-    // Every rule named an arrangement the catalogue could not serve, which the shipped catalogue
+    // Every rule named an arrangement the catalog could not serve, which the shipped catalog
     // never does. Anything servable beats answering nothing, because a consumer with no
     // recommendation has to invent one, and an invented one is the copy this function exists to
     // stop.

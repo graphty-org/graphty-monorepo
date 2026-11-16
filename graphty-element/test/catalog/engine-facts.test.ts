@@ -1,8 +1,8 @@
 /**
  * @file Writes and checks `src/catalog/engine-facts.json`, the snapshot of the static fields the
- * catalogue reads from the built-in algorithm and layout classes (#890).
+ * catalog reads from the built-in algorithm and layout classes (#890).
  *
- * The catalogue reads the snapshot so `./session` and `./catalog` carry no algorithm or layout
+ * The catalog reads the snapshot so `./session` and `./catalog` carry no algorithm or layout
  * implementation. The classes stay the source: this test computes the snapshot from them and fails
  * when the committed file disagrees. Run it with `UPDATE_ENGINE_FACTS=1` to rewrite the file.
  */

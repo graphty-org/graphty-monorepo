@@ -273,7 +273,7 @@ Class: fix now (with crash, blocks or spoils, and its unit), decided, backlog, o
 15. (sev 1, detour-3) Quick actions finds nothing for 'ask'. **BACKLOG**, friction. 'assistant' finds it. [T92B/detour-3/09.png, 12.png]
 16. (sev 1, keyboard) 'Stopped. Changes taken back.' on a turn that changed nothing. **BACKLOG**, wording. Harmless wording. [keyboard walk, near the end]
 17. (sev 1, detour-1) 'Undid Show me those 7 genes.' with the panel open beside Undone. **BACKLOG**, wording. Wording. [T92B/detour-1/07.png]
-18. (sev 0, keyboard) Stop's cancelled call prints as a failed request. **DECIDED**. decided.md, "Esc in the composer stops a run": the app aborting its own fetch, no defect [keyboard walk]
+18. (sev 0, keyboard) Stop's canceled call prints as a failed request. **DECIDED**. decided.md, "Esc in the composer stops a run": the app aborting its own fetch, no defect [keyboard walk]
 
 ### T93A
 

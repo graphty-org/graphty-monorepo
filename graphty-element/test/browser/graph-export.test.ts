@@ -174,7 +174,7 @@ describe("what an export carries", () => {
         const degreeColumn = session.results.path(root.runId, "value");
         const rankColumn = session.results.path(root.runId, "rank");
 
-        // GEXF holds positions, colours and sizes, and attributes of any name.
+        // GEXF holds positions, colors and sizes, and attributes of any name.
         const gexfOut: ExportResult = await graph.exportGraph("gexf");
         const gexfText = await gexfOut.text();
         assert.include(gexfText, "<viz:position", "positions are written");

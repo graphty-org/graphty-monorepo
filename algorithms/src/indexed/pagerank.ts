@@ -12,7 +12,7 @@ export interface PageRankOptions {
     readonly tolerance?: number | undefined;
     /** Use the snapshot's arc weights; default false. */
     readonly weighted?: boolean | undefined;
-    /** Starting rank per node index, normalised to sum 1 (when the sum is positive); default uniform. */
+    /** Starting rank per node index, normalized to sum 1 (when the sum is positive); default uniform. */
     readonly initialRanks?: F32 | F64 | undefined;
     /**
      * How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over
@@ -48,7 +48,7 @@ export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankRes
 
 /**
  * Personalized PageRank, as the legacy function computes it: the personalization vector,
- * normalised to sum 1, replaces the uniform `1 / n` in the teleport, and each node receives
+ * normalized to sum 1, replaces the uniform `1 / n` in the teleport, and each node receives
  * `d * dangling / n` of the dangling mass scaled by its personalization. That keeps only a
  * `1 / n` share of the dangling mass, so on a graph with a dangling node the scores sum to less
  * than 1 (networkx spreads all of it). An all-zero vector gives plain PageRank, as the legacy
@@ -176,7 +176,7 @@ function inflow(
  * @returns The change, by the chosen norm
  * @param arrays - The adjacency and out-weights
  * @param revW - The reverse-arc weights, or null when unweighted
- * @param p - The normalised personalization, or null for the uniform teleport
+ * @param p - The normalized personalization, or null for the uniform teleport
  * @param d - The damping factor
  * @param useMax - Measure the change by the max norm rather than L1
  * @param rank - The current ranks
@@ -223,7 +223,7 @@ export function checkPageRankOptions(s: GraphSnapshot, o: PageRankOptions | unde
 /**
  * The shared power iteration.
  * @param s - The snapshot
- * @param p - The normalised personalization, or null for the uniform teleport
+ * @param p - The normalized personalization, or null for the uniform teleport
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
  */
@@ -288,11 +288,11 @@ function rowSums(s: GraphSnapshot, perArc: F64): F64 {
 }
 
 /**
- * Check a per-node mass vector and normalise it to sum 1.
+ * Check a per-node mass vector and normalize it to sum 1.
  * @param v - The caller's vector
  * @param n - The node count
  * @param name - The option's name, for the message
- * @returns A normalised copy, or null when every entry is 0
+ * @returns A normalized copy, or null when every entry is 0
  */
 function distribution(v: F32 | F64, n: number, name: string): F64 | null {
     if (v.length !== n) {

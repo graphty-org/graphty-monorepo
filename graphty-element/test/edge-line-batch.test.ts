@@ -203,7 +203,7 @@ describe("EdgeLineBatch", () => {
         }
 
         /**
-         * One slot's first fourteen floats -- the piece, its neighbours and where it is along the
+         * One slot's first fourteen floats -- the piece, its neighbors and where it is along the
          * edge -- read back through the GPU buffer the batch uploads.
          */
         function slotOf(drawn: EdgeLineBatch, slot: number): number[] {
@@ -286,7 +286,7 @@ describe("EdgeLineBatch", () => {
             const spacing = slotOf(drawn, slots[0])[13];
             assert.strictEqual(slotOf(drawn, slots[1])[13], spacing);
             // The first dash starts the edge and the last one ends it, as PatternedLineMesh lays
-            // dashes along a straight line: centres from 0.3 to 6.7 in equal steps.
+            // dashes along a straight line: centers from 0.3 to 6.7 in equal steps.
             const steps = (7 - 0.6) / spacing;
             assert.closeTo(steps, Math.round(steps), 1e-4);
             assert.isAbove(spacing, 0.6, "dashes are apart, not touching");

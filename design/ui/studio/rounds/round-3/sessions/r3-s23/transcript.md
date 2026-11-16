@@ -53,13 +53,13 @@ Grace: There it is -- Size. Click it.
 ## Step 9
 
 Command: `--step --click "Size"`
-Saw (09.png): a "Size by attribute" popup: Fixed size; under PageRank: "PageRank", "PageRank rank", "PageRank percentile"; greyed out: id, name ("Holds groups, not amounts").
+Saw (09.png): a "Size by attribute" popup: Fixed size; under PageRank: "PageRank", "PageRank rank", "PageRank percentile"; grayed out: id, name ("Holds groups, not amounts").
 Grace (brief hesitation between "PageRank" and "PageRank rank"): plain "PageRank" is the score itself, so bigger score = bigger dot. I'll pick that.
 
 ## Step 10
 
 Command: `--step --click-at 1195,416`
-Saw (10.png): the dots now differ in size -- one very big dark dot in the middle, a second big one lower left, a few medium ones. The key at top left now has two rows: "Size: PageRank 0.003299 -- 0.07543" (a grey wedge) and "Color: PageRank 0.003299 -- 0.07543" (light to dark orange). In the Style panel a new row "Size: 1 to 3".
+Saw (10.png): the dots now differ in size -- one very big dark dot in the middle, a second big one lower left, a few medium ones. The key at top left now has two rows: "Size: PageRank 0.003299 -- 0.07543" (a gray wedge) and "Color: PageRank 0.003299 -- 0.07543" (light to dark orange). In the Style panel a new row "Size: 1 to 3".
 Grace: That's it. Both the size and the color now show the PageRank score: the bigger and darker the dot, the more the network leans on that character. The middle one is clearly the main one.
 
 ## End

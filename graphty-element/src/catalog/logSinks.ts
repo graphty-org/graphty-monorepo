@@ -1,5 +1,5 @@
 /**
- * @file The log destination catalogue: where the element's log records can be delivered.
+ * @file The log destination catalog: where the element's log records can be delivered.
  *
  * WHY LOGGING HAS A CATALOGUE TABLE AT ALL. The alternative was to write down that Logging is
  * exempt from the "appears in `session.catalog`" clause. It is not exempt: once a destination has
@@ -35,8 +35,8 @@ const SHIPPED_LOG_SINKS = Object.freeze([
                 // TRUE BECAUSE THAT IS WHAT THE ELEMENT ACTUALLY DOES. The console the element
                 // attaches reads `format.colors ?? true`, so a descriptor saying false made a
                 // settings panel built from this table show "Colored output: off" while the
-                // element was colouring, and `configure({ sinks: [{ use: "console" }] })`
-                // silently turned colour off by filling in a default nobody chose.
+                // element was coloring, and `configure({ sinks: [{ use: "console" }] })`
+                // silently turned color off by filling in a default nobody chose.
                 default: true,
                 description: "Tint each line by its level.",
             },

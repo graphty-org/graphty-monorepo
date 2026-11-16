@@ -7,7 +7,7 @@
  * lazily populated member (the identity permutations of design section 3.1, the view cache of
  * section 7.2, the checksum records of section 5.8, the content hash, the edge id index) lives in
  * one mutable state record reachable only through a private field, which `Object.freeze` does not
- * reach. `arcToEdge` / `edgeToArc` are prototype getters that materialise an identity permutation on
+ * reach. `arcToEdge` / `edgeToArc` are prototype getters that materialize an identity permutation on
  * first access outside the arena (never on the wire, never in `byteLength()`); `rowPtr`, `colIdx`
  * and `weights` are plain data properties so hot loops pay nothing. Every method that reads the core
  * throws `E_DETACHED` once the core buffer was transferred away (`detached` is derived:
@@ -147,19 +147,19 @@ function cloneGuard(): void {
 
 /** The FNV-1a records of design section 5.8, kept when the snapshot was built with `checksum: true`. */
 interface ChecksumRecords {
-    /** Core array name -> digest (identity permutations recorded when materialised). */
+    /** Core array name -> digest (identity permutations recorded when materialized). */
     readonly core: Map<string, string>;
     /** Immutable column -> digest, at construction. */
     readonly columns: WeakMap<Column, string>;
-    /** "<view>.<member>" -> digest, at first materialisation. */
+    /** "<view>.<member>" -> digest, at first materialization. */
     readonly views: Map<string, string>;
 }
 
 /** The mutable state behind a frozen snapshot object. */
 interface SnapshotState {
-    /** The arc -> edge permutation, or null until an identity permutation is materialised. */
+    /** The arc -> edge permutation, or null until an identity permutation is materialized. */
     arcToEdge: U32 | null;
-    /** The edge -> arc permutation, or null until an identity permutation is materialised. */
+    /** The edge -> arc permutation, or null until an identity permutation is materialized. */
     edgeToArc: U32 | null;
     /** The view cache (one slot per ViewName). */
     readonly views: ViewCache;
@@ -332,11 +332,11 @@ function verifyTableChecksums(records: ChecksumRecords, tableName: string, table
  * attribute tables, the flags and a per-instance view cache. Topology, counts, flags, id map and
  * immutable columns never change after construction (invariant I17); the column SET of `nodes` /
  * `edges` / `graph` and the CONTENTS of columns declared mutable are mutable side tables (design
- * section 5.8). Every view is a pure function of the core, memoised once and SHARED: a call returns
+ * section 5.8). Every view is a pure function of the core, memoized once and SHARED: a call returns
  * the cached array itself, so writing into a view is a contract violation; call `.slice()` for
  * scratch. Index-taking queries are total for in-range arguments and unchecked otherwise (design
  * section 11.1). Instances come from `createSnapshot()` (the builder, `fromCsr`, `fromWire` and the
- * derived-graph methods); `isGraphSnapshot()` recognises them structurally by brand and
+ * derived-graph methods); `isGraphSnapshot()` recognizes them structurally by brand and
  * formatVersion.
  */
 export class GraphSnapshot implements GraphSnapshotContract {
@@ -471,7 +471,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * Logical edge of every arc (invariant I5); an identity permutation is materialised on first
+     * Logical edge of every arc (invariant I5); an identity permutation is materialized on first
      * access as a separate 4-byte-aligned array outside the arena. GPU code tests
      * `flags.arcToEdgeIsIdentity` before reading it.
      * @returns arcCount entries; E_DETACHED after a consuming transfer
@@ -488,7 +488,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
 
     /**
      * The arc holding the declared orientation of every logical edge (invariant I5); an identity
-     * permutation is materialised on first access outside the arena.
+     * permutation is materialized on first access outside the arena.
      * @returns edgeCount entries; E_DETACHED after a consuming transfer
      */
     get edgeToArc(): U32 {
@@ -649,7 +649,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * rowPtr differences materialised; a self-loop counted once. Cached and shared: call `.slice()`
+     * rowPtr differences materialized; a self-loop counted once. Cached and shared: call `.slice()`
      * before writing.
      * @returns Uint32Array(n)
      */
@@ -810,7 +810,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     /**
      * Compute a set of views eagerly (inside freeze() through FreezeOptions.prepare, or off the critical
      * path).
-     * @param views - the views to materialise
+     * @param views - the views to materialize
      * @returns this snapshot
      */
     prepare(views: readonly ViewName[]): this {
@@ -821,7 +821,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * Release every cached view (and every identity permutation materialised on demand) and every
+     * Release every cached view (and every identity permutation materialized on demand) and every
      * cached `gpuView()` f32 copy of an f64 column (design section 7.2); they are recomputed on
      * demand. The checksum records of the dropped views are dropped with them.
      */
@@ -993,7 +993,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     // ---------------------------------------------------------------- memory, transfer, checks (9, 11)
 
     /**
-     * Resident bytes of the core (an identity permutation counts zero even when materialised), plus
+     * Resident bytes of the core (an identity permutation counts zero even when materialized), plus
      * the side structures selected by the options.
      * @param options - which side structures to include
      * @returns the byte count
@@ -1042,7 +1042,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * The plain-object wire form (design section 9.1): a JSON-serialisable manifest plus the backing
+     * The plain-object wire form (design section 9.1): a JSON-serializable manifest plus the backing
      * buffers. With `transfer: true` only exclusively owned buffers are listed as transferables and
      * shared ones are copied.
      * @param options - transfer mode, views and columns to include
@@ -1172,7 +1172,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * Record the digests of a freshly materialised view when checksums are on.
+     * Record the digests of a freshly materialized view when checksums are on.
      * @param name - the view name
      * @param value - the view
      */
@@ -1217,7 +1217,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * Throw E_INVALID_SNAPSHOT when a materialised view no longer matches its recorded digest.
+     * Throw E_INVALID_SNAPSHOT when a materialized view no longer matches its recorded digest.
      * @param records - the recorded digests
      */
     private verifyViewChecksums(records: ChecksumRecords): void {
@@ -1268,7 +1268,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
-     * Materialise one named view (the prepare() dispatch).
+     * Materialize one named view (the prepare() dispatch).
      * @param name - the view name
      */
     private materialiseView(name: ViewName): void {
@@ -1412,7 +1412,7 @@ function sameElements(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
 /**
  * Compare the core arrays and id maps of two snapshots element by element (design section 7.5):
  * directedness, counts, rowPtr, colIdx, weights (both absent or equal), arcToEdge / edgeToArc
- * (identity compared without materialising) and every id (SameValueZero).
+ * (identity compared without materializing) and every id (SameValueZero).
  * @param a - the first snapshot
  * @param b - the second snapshot
  * @returns true when the topologies and id maps are equal
@@ -1460,7 +1460,7 @@ export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean {
 }
 
 /**
- * Resident bytes of the materialised views (reverseDegreeOrder counts zero when it shares
+ * Resident bytes of the materialized views (reverseDegreeOrder counts zero when it shares
  * degreeOrder's array).
  * @param snapshot - the snapshot
  * @param views - its view cache
@@ -1493,7 +1493,7 @@ function columnsByteLength(snapshot: GraphSnapshot): number {
 }
 
 /**
- * Record the digests of a materialised view in the checksum records, when the snapshot keeps any.
+ * Record the digests of a materialized view in the checksum records, when the snapshot keeps any.
  * @param snapshot - the snapshot
  * @param state - its state record
  * @param name - the view name
@@ -1548,10 +1548,10 @@ export function peekView<K extends ViewName>(snapshot: GraphSnapshot, name: K): 
 }
 
 /**
- * Whether the snapshot's permutation arrays are held (materialised) rather than lazy, for tests of
- * the identity rule and for the wire module (which never serialises an identity permutation).
+ * Whether the snapshot's permutation arrays are held (materialized) rather than lazy, for tests of
+ * the identity rule and for the wire module (which never serializes an identity permutation).
  * @param snapshot - the snapshot
- * @returns true when arcToEdge has been materialised or was supplied
+ * @returns true when arcToEdge has been materialized or was supplied
  */
 export function permutationMaterialised(snapshot: GraphSnapshot): boolean {
     const state = STATES.get(snapshot);

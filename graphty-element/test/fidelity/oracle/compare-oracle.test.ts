@@ -1,6 +1,6 @@
 /**
  * The oracle comparison's pure half -- association of raw SVG primitives with graph elements,
- * the similarity fit and the per-property judgement -- on hand-built primitives, so each rule is
+ * the similarity fit and the per-property judgment -- on hand-built primitives, so each rule is
  * pinned without a browser: a markup-named drawing and an unnamed one associate the same way, a
  * drawing judged against itself under a similarity passes everything, and each defect the owner
  * reported (a fivefold arrowhead, a bold label, a missing outline, a missing annotation box, a
@@ -1342,7 +1342,7 @@ describe("oracle comparison", () => {
         const g = graphtyScene();
         const labelled = { ...g.edges[0], id: "e3", arrows: [], label: text("L", 300, 100) };
         g.edges.push(labelled);
-        // the program drew the labelled edge first: the same two lines, the label on the other one
+        // the program drew the labeled edge first: the same two lines, the label on the other one
         const o: PScene = {
             ...g,
             side: "oracle",
@@ -1649,7 +1649,7 @@ describe("bodies found by geometry", () => {
             ...oraclePrims({ named: false }),
             prim({ points: dot, stroke: stroke("#cccccc", 0.6) }),
             prim({ points: dot, fill: fill("#ffffff") }),
-            // a neighbour's arrowhead beside it
+            // a neighbor's arrowhead beside it
             prim({
                 tag: "polygon",
                 corners: 3,

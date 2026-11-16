@@ -33,11 +33,11 @@ root `/home/apowers/Projects/graphty-monorepo`.
 ### 1.1 What this is
 
 This document specifies a new public API for graphty-element: the names, the types, the
-behaviour, and the reasons. It is a design for review, not an implementation plan. It is
+behavior, and the reasons. It is a design for review, not an implementation plan. It is
 concrete enough that an engineer can build from it and a stranger can learn from it.
 
 graphty-element is a web component that puts a graph on a page and lets a person or a program
-work with it: load data, measure it, colour it, filter it, arrange it, select things, export
+work with it: load data, measure it, color it, filter it, arrange it, select things, export
 what they found. It is one `<script>` tag away from a working graph and one `import` away from
 a full analysis surface. It runs with or without a GPU, with or without a framework, and -- for
 the analysis half -- with or without a screen.
@@ -48,11 +48,11 @@ Four consumers, in the order their needs decide arguments in this document.
 
 1. **A stranger with an afternoon.** They found the package on npm. They will read one page,
    paste one example, and change three things. If they cannot put 50,000 nodes on a page,
-   colour them by a centrality metric, handle a click and export a PNG with a legend from that
+   color them by a centrality metric, handle a click and export a PNG with a legend from that
    one page, the API failed.
 2. **A coding agent.** It has the docs and no ability to read this repository. It needs names
-   that are guessable, a machine-readable catalogue of everything the element can do, and one
-   serialisation for every operation so that "do this" and "record that you did this" are the
+   that are guessable, a machine-readable catalog of everything the element can do, and one
+   serialization for every operation so that "do this" and "record that you did this" are the
    same artifact.
 3. **An application.** Today that is the graphty app; tomorrow it is a third party's. It needs
    every fact the element already knows to be readable rather than recomputable, and every
@@ -97,7 +97,7 @@ link in the published README points at `graphty.app/docs/graphty/`, which is a 4
 Where two placements are defensible -- does this belong to the renderer on the page, or to the
 model behind it? -- one rule decides, and it decides for capabilities nobody has invented yet:
 
-> **If two synchronised views of one dataset would disagree about it, it belongs to the view.
+> **If two synchronized views of one dataset would disagree about it, it belongs to the view.
 > Otherwise it belongs to the session.**
 
 Two views disagree about the camera, the pointer, the hovered element, the view mode, the
@@ -144,7 +144,7 @@ graph above `config.exactComputationCap` switches to its sampled method and says
 
 `dist/graphty.bundle.js` is a self-contained build with Babylon and Lit inlined. The npm entry
 keeps them as bundled implementation detail rather than peers; the CDN entry exists because
-today's build externalises `@babylonjs/core` and `lit` (`graphty-element/vite.config.ts`
+today's build externalizes `@babylonjs/core` and `lit` (`graphty-element/vite.config.ts`
 `rollupOptions.external`), which is why the package's own example page has to hand-write an
 import map (`graphty-element/examples/basic.html:24-30`). A stranger must never hand-write an
 import map. **Breaking: a self-contained `./bundle` entry is added; the default entry stops
@@ -203,7 +203,7 @@ only when they need them.
 | 4   | `Scope`                                | where work happens: visible, selection, a saved set, a predicate                                    | a parameter               |
 | 5   | `Selection`                            | the two selected sets (nodes, edges), shared by every surface                                       | `session.selection`       |
 | 6   | `Filter`                               | the visibility mask; the time window is the same mask                                               | `session.visibility`      |
-| 7   | `Command`                              | the plain-JSON form of any operation; what serialises and replays                                   | `./commands`              |
+| 7   | `Command`                              | the plain-JSON form of any operation; what serializes and replays                                   | `./commands`              |
 | 8   | `session`                              | the headless model: everything about the graph that needs no screen                                 | `./session`, `el.session` |
 | 9   | `session.layout` + `session.positions` | the arrangement and its transport                                                                   | session                   |
 | 10  | `view.camera`                          | where this renderer is looking                                                                      | view                      |
@@ -262,7 +262,7 @@ only when they need them.
 
 Three requirements make it structural rather than stylistic.
 
-1. **Compare.** Putting two pictures of one network side by side, with synchronised pan and
+1. **Compare.** Putting two pictures of one network side by side, with synchronized pan and
    zoom, a "same positions" button and a "copy the left view's positions to the right one"
    button, is a thing people do constantly and the thing the product asks for first. Two views
    of one dataset is one model and two renderers. Today `Graph`'s constructor takes an element
@@ -272,7 +272,7 @@ Three requirements make it structural rather than stylistic.
    (`graphty-element/src/graphty-element.ts:27-35`). Two views of one dataset is not
    expressible.
 
-    Compare has two modes and the split serves both. **Synchronised** Compare -- the same
+    Compare has two modes and the split serves both. **Synchronized** Compare -- the same
     picture from two camera angles -- is two views assigned the same session. **Divergent**
     Compare -- the same network with a different time slice, or a different algorithm result, on
     each side -- is two sessions over one shared immutable data core
@@ -294,7 +294,7 @@ Three requirements make it structural rather than stylistic.
    without one.
 
 A fourth reason is packaging. The element has no entry point that carries pure data: the one
-entry point drags in Babylon, so the app copies the element's ten viridis colour anchors
+entry point drags in Babylon, so the app copies the element's ten viridis color anchors
 verbatim (`graphty/src/components/shell/defaults/nodeMetricStyle.ts:176`) and imports element
 source by relative path in a test
 (`graphty/src/constants/__tests__/style-options.test.ts:8`). A session entry point that carries
@@ -308,8 +308,8 @@ that build and execute those commands; `session.run(command)` executes one direc
 
 > **Every method is a command, and every command is a method.**
 
-The rule buys one serialiser with five consumers -- a console transcript, an AI tool layer,
-"Copy as command", recipe export and journal export -- and it invents no serialisation format
+The rule buys one serializer with five consumers -- a console transcript, an AI tool layer,
+"Copy as command", recipe export and journal export -- and it invents no serialization format
 at all to get there. The union
 is emitted at build as `dist/graphty-commands.json` plus a JSON Schema, so an agent can read the
 whole surface without parsing TypeScript.
@@ -819,7 +819,7 @@ derived from the interfaces in section 4 rather than chosen:
   `visibility.summary`/`.filter`/`.window`, `positions.complete`, and the MASK accessors
   `selection.nodeMask()`/`.edgeMask()`, `visibility.nodeMask()`/`.edgeMask()`,
   `positions.pinnedMask()` (a `Uint8Array` is bounded and transferable; a set of every visible
-  id is neither, which is why the id-array forms are lazy materialisations and not the
+  id is neither, which is why the id-array forms are lazy materializations and not the
   boundary types),
   `runs.list()`/`.bindings(id)`/`.queue`, `styles.list()`, `scope.list()`,
   `layout.id`/`.kind`/`.state`/`.step`/`.dimensions`.
@@ -950,7 +950,7 @@ interface GraphData {
 `source`/`target` are canonical. **Breaking: `Edge.id` becomes an element-assigned counter
 rather than `${src}:${dst}`, and the default edge-weight field becomes `weight` rather than
 `value`.** These two, plus the changed raw centrality values for adapters that currently mirror
-a directed graph, are behaviour changes the move onto the shared `@graphty/graph-format`
+a directed graph, are behavior changes the move onto the shared `@graphty/graph-format`
 snapshot already commits the element to. They are named here as breaking changes because they
 are observable through public events and results; letting them arrive later as "a minor" is
 exactly the second major version this design exists to avoid.
@@ -1056,7 +1056,7 @@ interface ImportReport {
 ```
 
 `import()` streams: it reports progress by node count, yields to the render loop between
-chunks, honours `signal`, and the graph is interactive with the loaded prefix. The whole import
+chunks, honors `signal`, and the graph is interactive with the loaded prefix. The whole import
 is one journal entry with one inverse. **Breaking: edges whose endpoints do not resolve are
 reported, not buffered in silence** -- today they are buffered silently and nothing says so.
 
@@ -1087,13 +1087,13 @@ type SampleDatasetId =
     "karate" | "les-miserables" | "football" | "dolphins" | "power-grid" | "cat-social" | (string & {});
 ```
 
-#### 4.3.3 Mutation, and inverses that serialise
+#### 4.3.3 Mutation, and inverses that serialize
 
 > **Superseded in part by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md),
 > sections 2 and 4). The element now owns the undo history as well as the inverses:
 > `session.undo()`, `redo()`, `history` and `transaction()`. Inverses are no longer published as
 > commands, because an inverse that holds a previous snapshot or a run result by reference
-> cannot be serialised. The `Mutation` kinds below stand, with `update-rows` added.
+> cannot be serialized. The `Mutation` kinds below stand, with `update-rows` added.
 
 ```ts
 type Mutation =
@@ -1175,8 +1175,8 @@ warn-above-500 and block-above-2,000 rules the consumer's to render rather than 
 #### 4.3.4 The computed-attribute formula language
 
 People need to derive new numbers from the ones they already have -- a ratio of two
-attributes, a centrality divided by degree, a value compared against the neighbourhood average
--- and then filter, colour and export by the result as if it had been in the file. The grammar
+attributes, a centrality divided by degree, a value compared against the neighborhood average
+-- and then filter, color and export by the result as if it had been in the file. The grammar
 is written out in full here, because an undefined grammar is an unimplementable one.
 
 ```
@@ -1196,7 +1196,7 @@ Function set, closed and enumerable from `catalog.functions`:
 `min max abs sqrt log log10 exp round floor ceil pow clamp`;
 `if(condition, a, b)`; `normalize(x)` (min-max over the current scope);
 `percentile(x)`; `rank(x)`;
-and the neighbour aggregates `neighborSum(x)`, `neighborAvg(x)`, `neighborCount()`,
+and the neighbor aggregates `neighborSum(x)`, `neighborAvg(x)`, `neighborCount()`,
 `neighborMin(x)`, `neighborMax(x)`, `neighborStddev(x)`, each taking an optional second
 argument `"in" | "out" | "all"`.
 
@@ -1294,7 +1294,7 @@ maintained struct.
 `statistics()` and `neighbors()` are here because the app wrote 353 + 196 lines to compute them
 (`graphty/src/components/shell/analysis/graphShape.ts` and `.../elementBridge.ts`), including a
 hand-written union-find, and the shell holds a flattened second copy of the entire graph in
-React state purely to count things (`graphty/src/components/Graphty.tsx:306-329` materialises
+React state purely to count things (`graphty/src/components/Graphty.tsx:306-329` materializes
 both maps on every call). `graphShape.ts:13-15` states the reason plainly: "graphty-element has
 no graph-level directed flag". `directedness` is a real tri-state because on most formats the
 element genuinely cannot know.
@@ -1346,7 +1346,7 @@ exported from `./commands` so a consumer can validate before running.
 builders: it renders any `Command` as the JavaScript line that would produce it
 (`g.run("betweenness", { scope: "visible" })`). That is the one primitive behind "Copy as
 command", "Export as script" and the console transcript, all three of which must emit _the
-same_ script text. Without it each consumer writes its own serialiser and the three drift.
+same_ script text. Without it each consumer writes its own serializer and the three drift.
 
 #### 4.3.6 Export
 
@@ -1550,14 +1550,14 @@ algorithm name or `{ algorithm, params?, style?, seed?, as? }` -- the subset of 
 that means something before the data exists. `signal`, `onProgress` and `queue` steer a run
 someone is watching; `scope` names a view of data that is not there yet; `timeBoxMs`, `exact`
 and `sample` answer a cost estimate nobody has seen. Each entry becomes one `runs.start` with no
-per-algorithm branch, so `{ algorithm: "pagerank", style: { size: [1, 5] } }` colours and sizes
+per-algorithm branch, so `{ algorithm: "pagerank", style: { size: [1, 5] } }` colors and sizes
 exactly as the call does. The object is strict: a malformed entry or an unknown option is refused
 with `E_BAD_COMMAND` naming the entry and its index. The type is `AlgorithmOnLoad`
 (`graphty-element/src/config/DataConfig.ts`).
 
 **What an ungated `run()` does on a graph that is too big.** A stranger's first line is
 `g.run("betweenness")` with nothing in front of it, on whatever graph they happened to load, so
-this behaviour has to be defined rather than left to luck. The failure it prevents is on
+this behavior has to be defined rather than left to luck. The failure it prevents is on
 record: the one consumer's cost model was wrong by 6.9x at n = 200,000, so a 70,000-node graph
 was estimated at 2.10 s, the button showed no confirmation, and the frame then locked for 10.4 s
 (`graphty/src/components/shell/analysis/metricCost.ts`, its own history at :120-148). The
@@ -1587,9 +1587,9 @@ render loop between chunks (`AlgorithmContext.yieldNow`, 4.14.1) whatever its si
 `(algorithmKey, canonical params, scope digest)` -- never from an execution counter. An
 auto-numbered slot such as `louvain_2` would mean a saved recipe, layer or template resolves
 differently depending on the order runs happened to execute, and making ids deterministic
-afterwards is a behavioural break in anything that was persisted. A run id is documented as
+afterwards is a behavioral break in anything that was persisted. A run id is documented as
 opaque but stable, matches `/^[a-z][a-z0-9_-]*$/`, and `as:` is **required** the moment an
-artifact naming it is persisted: the element refuses to serialise a document that references a
+artifact naming it is persisted: the element refuses to serialize a document that references a
 derived id, with `E_UNSTABLE_RUN_ID`.
 
 Starting the same triple twice returns the existing `Run` and re-executes it in place if the
@@ -1624,7 +1624,7 @@ interface ResultsApi {
 call.
 
 **A path going into an expression is quoted first, and the element publishes the quoting.** A
-run id carries its algorithm's name and ten of the twenty-four catalogue algorithms are
+run id carries its algorithm's name and ten of the twenty-four catalog algorithms are
 hyphenated -- `shortest-path`, `min-cut`, `bipartite-matching` -- while the selector grammar
 reads a bare hyphen as subtraction. So `` `${results.path(run)} >= \`3\`` ``is not a comparison
 at all on those runs: it parses as one column minus another and the layer is refused outright.`quotePath`, exported from `./session`alongside`resultPath`, writes any segment that is not a
@@ -1665,13 +1665,13 @@ type ResultShape =
 ```
 
 Ten, rather than a shorter list, because each shape declares its required fields and its
-primary action, and folding two shapes together discards declared behaviour to save an enum
+primary action, and folding two shapes together discards declared behavior to save an enum
 member. Two folds are safe and are taken: an anomaly score is a `node-metric`, and a set of
 scenarios is a batch of `node-set`s. A removal-impact result is a `node-set` carrying a
 per-scenario `graph` table, which is what keeps that fold from losing the per-scenario
 numbers.
 
-**Uniform field names per shape.** A result path is guessable without opening the catalogue,
+**Uniform field names per shape.** A result path is guessable without opening the catalog,
 for every algorithm, forever.
 
 | shape                         | per-element fields            | graph fields                                                              |
@@ -2164,7 +2164,7 @@ three sit under a sentence very like "a repaint is an O(n) pass".
 
 **The budget.** A single-layer edit on 50,000 nodes completes in **under 16 ms** of main-thread
 work -- one frame. This is asserted by a CI benchmark, not by review. The design already writes
-CI tests into itself for the event catalogue and for scoped selectors; performance is the one
+CI tests into itself for the event catalog and for scoped selectors; performance is the one
 place it would otherwise assert a cost that nothing checks.
 
 For scale, measured against the dependencies pinned today: the same edit currently costs
@@ -2190,12 +2190,12 @@ For scale, measured against the dependencies pinned today: the same edit current
    unioned with those the previous version of that layer matched, and only the layers at or above
    the edit in the stack. A layer that matches nothing repaints nothing.
 5. **The repaint's internal representation is columnar.** `ResolvedStyle` is a 23-key object and
-   materialising one per element costs 46.7 ms at 50,000 nodes, so it is materialised only where
+   materializing one per element costs 46.7 ms at 50,000 nodes, so it is materialized only where
    a caller asks for one element: `styles.explain()` and `ElementView`. The repaint merges
    channel columns.
 6. **Style identity is a structural hash, not a scan.** Interning by linear `isEqual` over every
-   style ever seen is O(S), and a continuous colour encoding makes S equal to the element count:
-   measured at 515 ms for 500 distinct styles and 2.1 s for 1,000. Colour and opacity are
+   style ever seen is O(S), and a continuous color encoding makes S equal to the element count:
+   measured at 515 ms for 500 distinct styles and 2.1 s for 1,000. Color and opacity are
    per-instance GPU state and must not key a source mesh; shape and size may.
 
 **What this costs the API.** Rule 6 is why `ChannelValue` carries a numeric RGBA alongside the
@@ -2232,8 +2232,8 @@ that did run is not merged into a style id. The documented public door for addin
 not apply the layer. That defect is the entire reason
 `graphty/src/components/shell/analysis/elementBridge.ts` exists.
 
-**Element-owned drawing is not in the layer list.** The selection highlight and its neighbour
-outlines, the hover highlight, the marquee, the drag ghost and the canvas clear colour are drawn
+**Element-owned drawing is not in the layer list.** The selection highlight and its neighbor
+outlines, the hover highlight, the marquee, the drag ghost and the canvas clear color are drawn
 by construction. The base and selection layers that _are_ listed carry
 `source.by === "element"` and `locked: true`; removing one is `E_PROTECTED`. Today the app
 identifies them **by name** (`graphty/src/components/shell/defaults/nodeMetricStyle.ts:347,358`)
@@ -2330,7 +2330,7 @@ severity:
 2. **It is the bug.** `CalculatedValue.run` has no try/catch, and neither does
    `ChangeManager.runAllCalculatedValues`, so one throw aborts the repaint loop part way through
    and every node after the offender keeps its old style. Section 8 traces the throw.
-3. **It does not serialise meaningfully.** A string of JavaScript cannot be diffed, validated,
+3. **It does not serialize meaningfully.** A string of JavaScript cannot be diffed, validated,
    legend-derived or retargeted at another dataset.
 
 Anything genuinely beyond the closed grammar is a **registered scale**, which is code shipped by
@@ -2355,9 +2355,9 @@ object (section 12) rather than a scalar --
 which is why `StaticStyle` is a per-channel value type and not
 `Partial<Record<Channel, string | number | boolean>>`. **A channel that is not in this list and
 is not reachable through a registered scale is a missing API, to be added in a minor with a
-catalogue entry; it is never a reason to reopen an expression evaluator.**
+catalog entry; it is never a reason to reopen an expression evaluator.**
 
-**Two encoding behaviours a quickstart hits on its first real dataset, defined rather than
+**Two encoding behaviors a quickstart hits on its first real dataset, defined rather than
 left to the implementation.** A value that is zero or negative under `log` or `neglog10` takes
 the `missing` branch -- by default `"skip"`, so it is not painted -- and is counted in
 `LegendBlock.departures` as "N not plottable on a log scale"; it is never `NaN`, never clamped
@@ -2365,18 +2365,18 @@ to the domain floor, and never silently reassigned. Betweenness has zeros on eve
 so this is the common case, not the edge case. And a categorical or ordinal encoding with more
 distinct values than `PaletteDescriptor.capacity` follows `Binding.overflow`:
 
-- `"other"` -- **what `encode()` writes by default** onto a categorical colour binding that names
-  no palette. The N largest groups (N = the palette's capacity, 8 for Okabe-Ito) keep its colours
-  in palette order, largest first; every remaining group is painted one grey, #505050 (Delta E
-    > = 15 from every Okabe-Ito colour, >= 2:1 on the background -- the light greys fail), and the
+- `"other"` -- **what `encode()` writes by default** onto a categorical color binding that names
+  no palette. The N largest groups (N = the palette's capacity, 8 for Okabe-Ito) keep its colors
+  in palette order, largest first; every remaining group is painted one gray, #505050 (Delta E
+    > = 15 from every Okabe-Ito color, >= 2:1 on the background -- the light grays fail), and the
     > legend's last row reads "other: K groups".
 - `"shape"` -- node encodings only; refused with `E_BAD_COMMAND` from `encode()` and `E_BAD_LAYER`
-  from a hand-written edge layer. Group i is colour i mod N and node shape floor(i / N) from
+  from a hand-written edge layer. Group i is color i mod N and node shape floor(i / N) from
   icosphere (the default), box, octahedron, cylinder, cone, torus; past N x 6 groups the rest fold
-  to the grey. `encode()` writes the `node.shape` binding into the SAME layer as the colour, so
+  to the gray. `encode()` writes the `node.shape` binding into the SAME layer as the color, so
   the two are added, scoped and removed together.
-- `"extend"` -- a distinct colour per group: the smallest categorical palette that fits, else the
-  sequential default sampled once per group; with a named palette, its colours then samples of
+- `"extend"` -- a distinct color per group: the smallest categorical palette that fits, else the
+  sequential default sampled once per group; with a named palette, its colors then samples of
   the sequential default. Distinctness past the capacity is not guaranteed.
 
 With no `overflow`, the older rule holds: `Binding.other` when declared; a palette the element
@@ -2390,7 +2390,7 @@ one consumer refused the element's Louvain layer.
 `{ match: "has", path: "results.<runId>.<field>" }`, scoped to exactly the elements the run
 measured. The consumer never writes it and therefore cannot get it wrong. `missing` defaults to
 `"skip"`: an element the algorithm has nothing to say about is not painted, not even to a muted
-grey. Painting the unmeasured is a reader's choice; it must be asked for by name, and asking is
+gray. Painting the unmeasured is a reader's choice; it must be asked for by name, and asking is
 recorded in the layer document so an export explains itself.
 
 #### 4.6.3 Legend, explain, template
@@ -2462,7 +2462,7 @@ which is the shape the app is otherwise forced into.
 Each is a separate file because each has a different lifetime and a different owner. A style
 outlives the dataset it was authored against and is meant to be applied to the next one. A
 recipe is the point: a domain expert's order of operations, replayed against a graph that has
-never been analysed. Column roles belong to a data source, not to an appearance. Notes belong to
+never been analyzed. Column roles belong to a data source, not to an appearance. Notes belong to
 a reader. Bundling them is what makes "import a style" able to spend compute and rewrite column
 roles, which is the defect this splits apart.
 
@@ -2531,7 +2531,7 @@ nothing: they need logFC and padj." Three defined outcomes per layer -- bind, im
 re-run gate and an estimate, or import disabled with the reason -- because a silently missing
 layer is worse than a disabled one.
 
-#### 4.6.4 Worked example: colour by a metric, then ask why one node is that colour
+#### 4.6.4 Worked example: color by a metric, then ask why one node is that color
 
 ```js
 const run = el.run("betweenness"); // a Run. Awaiting it gives the RunResult;
@@ -2797,7 +2797,7 @@ const pdf = await el.report({
 
 ### 4.10 Events
 
-Two catalogues and one rule between them:
+Two catalogs and one rule between them:
 
 > **Session events fire for every change, whatever caused it. View DOM events fire for user
 > interaction in that view, plus `ready` and `error`, plus four documented mirrors.**
@@ -2830,7 +2830,7 @@ costs nothing, so a read in a render function is safe. A struct that returns a f
 read reopens on the property path exactly the re-render loop the event rule above closes on the
 event path.
 
-**Breaking: the event catalogue is replaced.** Twenty-three prefixed, typed, declared DOM events;
+**Breaking: the event catalog is replaced.** Twenty-three prefixed, typed, declared DOM events;
 thirteen session events; the counts are the two tables in 4.10.1 and 4.10.2 and the CI test of
 8.5 asserts against them, so this sentence cannot drift from them; `on()` returns its own unsubscribe so there is no `off` to learn; `detail`
 carries no engine reference. Today the element blanket-forwards roughly fifty unprefixed
@@ -2850,7 +2850,7 @@ emitted, and every emitted event is subscribable.**
 
 #### 4.10.1 DOM events (view)
 
-All `graphty-` prefixed, kebab-case, `bubbles: true`, `composed: true`, `detail` serialisable.
+All `graphty-` prefixed, kebab-case, `bubbles: true`, `composed: true`, `detail` serializable.
 The `detail` of each is spelled out in the reference table rather than named as a type defined
 elsewhere.
 
@@ -3144,7 +3144,7 @@ reader loses the ability to undo a layout before they lose the record that it ha
 artifact behind "do all of that again on next month's file", and it is the same shape as
 `{op: "batch"}`, so a recipe is a
 command and "Export as script", "Copy as command", the AI tool call and the journal row are all
-`JSON.stringify`. **One serialiser, five consumers, achieved by inventing no serialisation
+`JSON.stringify`. **One serializer, five consumers, achieved by inventing no serialization
 format.**
 
 **Worked example: undo, and a recipe replayed on another file.**
@@ -3325,9 +3325,9 @@ writes the attribute when it mounts the element.
 applying a preset or a template, stepping the time window, and moving the camera to focus
 something -- and every
 operation that can animate takes a per-call `transitionMs` on its `RunOptions` to override it.
-`0` disables animation, and the element honours `prefers-reduced-motion` by treating the
+`0` disables animation, and the element honors `prefers-reduced-motion` by treating the
 default as `0` unless a call names a duration. `performanceMode` is the manual toggle: `"auto"`
-is today's behaviour, `"on"` forces reduced detail, `"off"` refuses it, and
+is today's behavior, `"on"` forces reduced detail, `"off"` refuses it, and
 `view.rendered.performanceMode` reports the resulting `mode` and `reasons` either way.
 
 **WebGPU activation is one import, and that is the consumer's entire integration:**
@@ -3606,7 +3606,7 @@ picker, a partition picker or an ordering picker instead of a raw text field.
 
 ---
 
-### 4.15 Catalogue, attributes, metrics
+### 4.15 Catalog, attributes, metrics
 
 #### 4.15.1 One expression root, published
 
@@ -3680,7 +3680,7 @@ interface MetricAvailability {
 ```
 
 `catalog.metrics()` includes **metrics that have not been run**, which is what fills a "not
-computed yet" group in a metrics panel and what makes the catalogue self-describing: a stranger
+computed yet" group in a metrics panel and what makes the catalog self-describing: a stranger
 can see everything the element could compute, with a cost and an availability reason beside
 each entry, before computing anything. `applicable()` is a runtime query, not a static list, because
 availability depends on the accelerator and on the graph's shape. It is the one call that
@@ -3714,7 +3714,7 @@ paths are resolved against the current run list and `data.attributes()`:
 may be a literal or a reference (`{ from: "graph.maxCore" }`, `{ from: "graph.nodeCount" }`),
 and `optionsFor` returns the descriptors with those references resolved against this graph, so
 a k-core slider bounded by "up to the largest core in this graph" renders correctly instead of
-guessing. The static descriptor is still plain JSON and still ships in the catalogue.
+guessing. The static descriptor is still plain JSON and still ships in the catalog.
 
 **Every descriptor carries a plain name and a technical name.** Both are always renderable and
 which is primary is the consumer's preference. Names are data on the descriptor, never strings
@@ -3770,7 +3770,7 @@ consumer that walks it cannot lose a note by accident.
 storage and text with the consumer -- was the first shape of this design, and it fails the same
 test the rest of the API is built on: every consumer would write the same store, and no note
 would be portable between two of them. It also undoes the reason annotations exist. A note is
-how a reader records a judgement about a graph WITHOUT editing the graph, so the data can stay
+how a reader records a judgment about a graph WITHOUT editing the graph, so the data can stay
 immutable; that property is worth nothing if the notes are trapped in one application's local
 storage while the data travels. Marker clustering above 200 markers on a 64 px screen-space grid
 stays the element's for a different reason: it needs screen positions every frame.
@@ -3803,19 +3803,19 @@ for (const opt of algo.options.filter((o) => !o.internal && !o.advanced)) {
 Every area of section 4 ends with a runnable example, because an example separated from its
 signatures is an example that goes stale. The index:
 
-| Example                                                             | Where    |
-| ------------------------------------------------------------------- | -------- |
-| A status bar with no session                                        | 4.1.3    |
-| Compare (two views, one session) and a session in a Node test       | 4.2.4    |
-| Inspect, correct the mapping, import, inspect one node's neighbours | 4.3.7    |
-| A cost-gated sweep with a queue and a cancel                        | 4.4.6    |
-| Filter, count before applying, select the survivors                 | 4.5.4    |
-| Colour by a metric, then ask why one node is that colour            | 4.6.4    |
-| Recommend a layout, settle it, pin the selection                    | 4.7      |
-| Estimate an export, capture a PNG with a legend, build a report     | 4.9      |
-| Undo from a serialisable inverse; replay a recipe on another file   | 4.11.2   |
-| Build an options form with no hard-coded list                       | 4.15.4   |
-| The first graph, from a CDN and from npm                            | 2.1, 2.2 |
+| Example                                                            | Where    |
+| ------------------------------------------------------------------ | -------- |
+| A status bar with no session                                       | 4.1.3    |
+| Compare (two views, one session) and a session in a Node test      | 4.2.4    |
+| Inspect, correct the mapping, import, inspect one node's neighbors | 4.3.7    |
+| A cost-gated sweep with a queue and a cancel                       | 4.4.6    |
+| Filter, count before applying, select the survivors                | 4.5.4    |
+| Color by a metric, then ask why one node is that color             | 4.6.4    |
+| Recommend a layout, settle it, pin the selection                   | 4.7      |
+| Estimate an export, capture a PNG with a legend, build a report    | 4.9      |
+| Undo from a serializable inverse; replay a recipe on another file  | 4.11.2   |
+| Build an options form with no hard-coded list                      | 4.15.4   |
+| The first graph, from a CDN and from npm                           | 2.1, 2.2 |
 
 ## 6. Packaging
 
@@ -3870,7 +3870,7 @@ signatures is an example that goes stale. The index:
 `.` deliberately keeps its side effect: every web component package defines its tag on the
 default import, and a stranger's CDN one-liner depends on it. Splitting that into `/define`
 buys tree-shaking for a bundle dominated by a 3D engine anyway. The real pain is elsewhere --
-the app cannot import a colour ramp without pulling in Babylon, and works around it three
+the app cannot import a color ramp without pulling in Babylon, and works around it three
 ways: a copied `VIRIDIS_RAMP`
 (`graphty/src/components/shell/defaults/nodeMetricStyle.ts:176`), a relative-path import of
 element source in a test (`graphty/src/constants/__tests__/style-options.test.ts:8`), and a
@@ -3889,10 +3889,10 @@ graphty-element" must not be a 41 MB download for someone evaluating the library
 
 Three rules, each with a failure mode.
 
-1. **Every `@graphty/*` sibling is externalised in the build**, and `@graphty/graph-format` is
+1. **Every `@graphty/*` sibling is externalized in the build**, and `@graphty/graph-format` is
    declared in **both** `dependencies` (`workspace:^`) and `peerDependencies` (`^1.0.0`), as
    graph-io and webgpu-graph-algorithms already do. Today `graphty-element/vite.config.ts`
-   externalises only Babylon, web-llm and Lit, so `@graphty/algorithms` and `@graphty/layout`
+   externalizes only Babylon, web-llm and Lit, so `@graphty/algorithms` and `@graphty/layout`
    are inlined into a 2.5 MB `dist/graphty.js`; a consumer who also installs
    `@graphty/algorithms` gets two copies. _Silent failure:_ "delegate to a peer" is a fiction
    until this changes, and a duplicated graph-format means two `.d.ts` identities that do not
@@ -3916,7 +3916,7 @@ exports classes with those names. Three incompatible pairs cannot coexist in one
 **Breaking: the AI surface (~45 exports) moves to `./ai`, and the three `@ai-sdk/*` packages, `ai`
 and `encrypt-storage` become optional peers.** Three LLM provider SDKs and an encrypted key
 store are not runtime dependencies of a graph renderer. What an agent actually needs -- the
-command union and the catalogue -- is published as data by `./commands` and `./catalog`.
+command union and the catalog -- is published as data by `./commands` and `./catalog`.
 
 ### 6.3 Framework interop
 
@@ -4021,7 +4021,7 @@ The wider sweep, briefly: `zodSchemaParser.ts` (249) and `OptionsForm.tsx`'s cop
 dies with `layout.recommend()`; `types/ai.ts` (~200) dies with `./ai`. Roughly half of
 `styleBridge.ts` (918) dies with **Breaking: units and spellings are settled once in the element** --
 opacity is `0..1` everywhere, shape names have one spelling, `effect` is not sometimes
-`effects`. The other half dies with `./schema` exporting the canonicalisers
+`effects`. The other half dies with `./schema` exporting the canonicalizers
 `normalizeNodeStyle` / `normalizeEdgeStyle`, so a consumer cannot mint a duplicate interned
 style id by writing a non-canonical shape.
 
@@ -4061,9 +4061,9 @@ correctly scoped, so the pattern is already the majority and these seven are the
    synchronously, so a form can say it before the user commits. Today `addLayer` does no
    validation whatsoever, so a malformed layer is accepted in silence and simply never matches.
 3. **`encode()` generates the selector**, so the easy path is the scoped path and nobody
-   hand-writes a selector to colour by a metric.
+   hand-writes a selector to color by a metric.
 4. **`missing` defaults to `"skip"`**, so even a hand-written over-broad selector does not paint
-   an unmeasured element -- not to a default, not to grey, not to full opacity.
+   an unmeasured element -- not to a default, not to gray, not to full opacity.
 5. **`E_UNSCOPED_RUN_ENCODING`**: a universal selector combined with a run-bound encoding is a
    validation error. There is no accepted spelling of "paint the whole graph from one run's
    values". This is the mechanism that closes the case the other four leave open, a deliberately
@@ -4071,7 +4071,7 @@ correctly scoped, so the pattern is already the majority and these seven are the
 6. **Suggested layers are derived, not authored.** An algorithm declares its shape and fields;
    the element derives the layer. There is no per-algorithm styling code to get wrong, so the
    seven non-compliant files disappear as a class rather than one at a time. A CI test asserts
-   that every catalogue entry's derived layer has a scoped selector and `missing: "skip"` -- the
+   that every catalog entry's derived layer has a scoped selector and `missing: "skip"` -- the
    rule is in root `CLAUDE.md` today and is enforced by nothing.
 
 **Breaking: the seven algorithms' pictures change, and PageRank stops writing `style.shape.size`**,
@@ -4147,7 +4147,7 @@ has no case and ends in `throw new TypeError` (`src/managers/EventManager.ts:450
 `void`, so a listener can never be removed; and the element forwards roughly fifty unprefixed
 internal names to the DOM.
 
-**Structural.** The catalogue is closed and declared in one place: the twenty-three DOM events of
+**Structural.** The catalog is closed and declared in one place: the twenty-three DOM events of
 the table in 4.10.1, each with `@fires`, and the thirteen session events of 4.10.2, all in
 `custom-elements.json` and in `GraphtyEventMap`. A CI test asserts the three lists agree, and
 asserts them against the two tables in this document rather than against a number written in
@@ -4176,7 +4176,7 @@ does it. Everything named here is specified in section 4.
   rename, and the policies for repeated edges, unknown endpoints and self-loops -- and hand it
   to `data.import()`.
 - _Load something large without freezing the page._ `import()` streams, reports progress by
-  node count, yields to the render loop between chunks, honours an `AbortSignal`, and leaves
+  node count, yields to the render loop between chunks, honors an `AbortSignal`, and leaves
   the graph interactive with the prefix that has arrived. `ImportOptions` adds a random subset,
   a byte-offset resume and a memory budget.
 - _Find out what the import could not do._ `ImportReport` counts self-loops, repeated edges,
@@ -4197,7 +4197,7 @@ does it. Everything named here is specified in section 4.
   O(1): node and edge counts, density, a genuine tri-state directedness, whether it is
   weighted, self-loop and repeated-edge counts, the degree range, and the connected components
   with their size distribution and a per-node lookup.
-- _Look at one node's neighbourhood._ `data.neighbors()` pages, filters by edge type, sorts by
+- _Look at one node's neighborhood._ `data.neighbors()` pages, filters by edge type, sorts by
   degree, weight, recency or label, and returns counts per edge type.
 - _Find a node by name or id._ `data.find()`, over an index the element builds at load.
 - _Find every place a shape occurs._ `data.match()`, over a subgraph pattern or its one-line
@@ -4278,7 +4278,7 @@ does it. Everything named here is specified in section 4.
 **Arranging it**
 
 - _Ask for an arrangement by what it does, not by which library implements it._ `force`,
-  `radial`, `hierarchical` and the rest; which engine runs underneath is catalogue data.
+  `radial`, `hierarchical` and the rest; which engine runs underneath is catalog data.
 - _Drive a live layout._ `play`, `pause`, `tick`, `stop`, and `settle()`, which resolves with
   whether it converged -- including with no view at all, in a Node test.
 - _Keep positions a person chose._ `positions.pin()`, pin-on-drag, and layout scoped to the
@@ -4396,11 +4396,11 @@ steal a host page's keyboard.
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Several named graphs open at once                                                                                                                                           | 2.1                                    | graph identity is already a session, so a collection is `Map<string, GraphSession>` and no signature changes                                                                                                                                 |
 | Working inside a headset: world-space panels, forearm anchoring, grab-and-scale, ray, pinch and gaze selection, snap turn behind a comfort vignette, AR passthrough framing | 2.1                                    | no current product workflow depends on it, and the parts that would be expensive to retrofit -- one shared selection set, the session lifecycle and the degradation report -- ship in 2.0, so the rest is additive                           |
-| Fetching neighbours lazily from a server                                                                                                                                    | 2.1                                    | the `data-source` plugin kind and its two hooks are declared in 2.0, so the contract does not move                                                                                                                                           |
-| Loading what is in the viewport first                                                                                                                                       | 2.1                                    | the subset, resume and memory-budget options ship in 2.0, so the progressive-load surface already exists; prioritising by viewport needs the camera, which makes it view work rather than session work, and no signature moves when it lands |
+| Fetching neighbors lazily from a server                                                                                                                                     | 2.1                                    | the `data-source` plugin kind and its two hooks are declared in 2.0, so the contract does not move                                                                                                                                           |
+| Loading what is in the viewport first                                                                                                                                       | 2.1                                    | the subset, resume and memory-budget options ship in 2.0, so the progressive-load surface already exists; prioritizing by viewport needs the camera, which makes it view work rather than session work, and no signature moves when it lands |
 | Ego-radial and Sugiyama layout engines                                                                                                                                      | 2.0, as implementation rather than API | `defineLayout` already expresses both                                                                                                                                                                                                        |
 | Named layer groups and per-group opacity                                                                                                                                    | 2.1                                    | additive on `Layer`; nothing in the stack model changes                                                                                                                                                                                      |
-| Algorithms beyond the twenty-three wired today                                                                                                                              | rolling minor releases                 | `@graphty/algorithms` exports about 130 symbols; `defineAlgorithm` plus a catalogue entry makes each one mechanical, and `catalog.algorithms()` stays honest about what exists                                                               |
+| Algorithms beyond the twenty-three wired today                                                                                                                              | rolling minor releases                 | `@graphty/algorithms` exports about 130 symbols; `defineAlgorithm` plus a catalog entry makes each one mechanical, and `catalog.algorithms()` stays honest about what exists                                                                 |
 | Hosting the model in a worker                                                                                                                                               | whenever the host is ready             | the interface is identical either way, and until the host exists asking for one throws with a stated reason                                                                                                                                  |
 | Note content, and the undo stack                                                                                                                                            | not the element's at all               | the reasoning is in section 9.2                                                                                                                                                                                                              |
 
@@ -4418,7 +4418,7 @@ See design/element-api/element-api-migration.md
 | A self-contained `./bundle` entry; Babylon and Lit stop being required peers                                                          | 2.1        |
 | `source`/`target` canonical; aliases resolved and reported; `E_EDGE_ENDPOINTS_UNRESOLVED`                                             | 2.2        |
 | Option schemas cross as plain JSON descriptors, not Zod objects                                                                       | 3.4        |
-| Layout names become semantic; the engine is catalogue data                                                                            | 4 preamble |
+| Layout names become semantic; the engine is catalog data                                                                              | 4 preamble |
 | `element.graph`, the eleven manager classes and the ten manager getters are removed                                                   | 4.1        |
 | `dispose()` releases everything; the element is re-attachable                                                                         | 4.1        |
 | The element stops reading `window.location.search`                                                                                    | 4.1        |
@@ -4437,7 +4437,7 @@ See design/element-api/element-api-migration.md
 | `StyleTemplate` splits into `StyleDocument`, `DataPlan`, `ViewPreset`, `Recipe`, `AnnotationSet`                                      | 4.6.3      |
 | Notes become element-owned and a document; `GraphtyDocument` carries any subset                                                       | 4.6.3a     |
 | An unknown layout name fails loudly; one layout setter                                                                                | 4.7        |
-| The event catalogue is replaced: 22 DOM and 13 session events, typed, declared, unsubscribable                                        | 4.10       |
+| The event catalog is replaced: 22 DOM and 13 session events, typed, declared, unsubscribable                                          | 4.10       |
 | Double registration is defined                                                                                                        | 4.14       |
 | The algorithm contract takes data and returns results; no render objects, no side effects                                             | 4.14.1     |
 | The exports map becomes a map; `customElements` is declared                                                                           | 6.1        |
@@ -4452,10 +4452,10 @@ See design/element-api/element-api-migration.md
 
 | Decision                                                                                              | Why it went this way                                                                                                                                                                                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Graph state lives on a model, and only camera-like state lives on the view                            | It is the only structure in which two synchronised views, several named graphs, worker hosting and headless testing all fall out of one choice rather than four. The cost is a second object a single-view consumer does not need, which is why the element forwards the eight verbs a first graph uses. |
-| Every method is also a command, and every command is also a method                                    | Autocomplete is how a stranger and an agent both discover an API; serialisation is what recipes, history, a console and tool calls need. Generating one from the other costs a build step and buys both.                                                                                                 |
+| Graph state lives on a model, and only camera-like state lives on the view                            | It is the only structure in which two synchronized views, several named graphs, worker hosting and headless testing all fall out of one choice rather than four. The cost is a second object a single-view consumer does not need, which is why the element forwards the eight verbs a first graph uses. |
+| Every method is also a command, and every command is also a method                                    | Autocomplete is how a stranger and an agent both discover an API; serialization is what recipes, history, a console and tool calls need. Generating one from the other costs a build step and buys both.                                                                                                 |
 | The JavaScript expression evaluator is deleted rather than sandboxed                                  | Sandboxing would fix the repaint abort but would still leave the element dead under a strict content security policy, and would still leave encodings impossible to diff, derive a legend from, or retarget at another dataset.                                                                          |
-| Ten result shapes rather than a folded-down handful                                                   | Each shape declares its required fields and its primary action, so folding one away deletes declared behaviour to save an enum member.                                                                                                                                                                   |
+| Ten result shapes rather than a folded-down handful                                                   | Each shape declares its required fields and its primary action, so folding one away deletes declared behavior to save an enum member.                                                                                                                                                                    |
 | One `plan()` for previews, plus a separate synchronous `estimate()`                                   | A promise cannot gate a button click, and five different spellings of look-before-you-leap is five things to remember.                                                                                                                                                                                   |
 | Run ids are author-assigned or deterministically derived, never auto-numbered                         | An id whose value depends on execution order makes a saved recipe or layer bind to something different on replay, and fixing that afterwards breaks everything already persisted.                                                                                                                        |
 | `Run` is awaitable itself rather than exposing a separate `done` promise                              | An element driven by clicks, a console and an agent is fire-and-forget most of the time; an awaitable run with an internal no-op rejection handler makes that safe without taking `await` away.                                                                                                          |
@@ -4474,14 +4474,14 @@ Only decisions a human has to make. Each carries a recommendation.
 `encrypt-storage` as hard runtime dependencies.
 _Recommendation: `./ai`, with those five as optional peers._ It keeps a real product surface
 reachable while removing an LLM toolchain from the install weight of a graph renderer. What an
-agent actually needs -- `dist/graphty-commands.json` and the catalogue -- ships from
+agent actually needs -- `dist/graphty-commands.json` and the catalog -- ships from
 `./commands` and `./catalog` regardless, so the decision does not gate agent support. A separate
 package is the alternative and can be taken later without another element major.
 
 **Q2. Does a run paint by default?** This design says the element applies a derived encoding
 layer on a run's first completion, suppressed when a user layer drives the channel, once per
 batch, with `{ style: false }` to opt out (4.4.5).
-_Recommendation: yes, by default._ It changes today's behaviour, where the one consumer always
+_Recommendation: yes, by default._ It changes today's behavior, where the one consumer always
 passes `applySuggestedStyles: false` -- but it passes it because the element's own suggested
 layers are the broken ones (8.1), and this design removes the reason for the refusal. A stranger
 who runs betweenness and sees nothing happen will conclude the run failed.
@@ -4510,7 +4510,7 @@ _Recommendation: records both ways, with `session.snapshot(): GraphSnapshot` -- 
 docs. This also keeps `./format` genuinely optional for a consumer who never touches typed
 arrays.
 
-**Q6. Does 2.0 land the graph-format behaviour changes?** `Edge.id` becoming an
+**Q6. Does 2.0 land the graph-format behavior changes?** `Edge.id` becoming an
 element-assigned counter, the default edge weight field becoming `weight`, and the changed raw
 centrality values for adapters that currently mirror a directed graph are decided work,
 currently scheduled to land after 2.0.
@@ -4529,7 +4529,7 @@ silent CPU fallback in a GPU run.
 _Recommendation: bundle it._ "Install three packages and match versions" is friction a
 self-sufficient element should not impose, and the CDN reader cannot install anything at all.
 The known cost is a consumer who already uses Babylon getting two copies; the mitigation is that
-`@babylonjs/core` stays an **optional** peer, so a consumer who declares it gets the externalised
+`@babylonjs/core` stays an **optional** peer, so a consumer who declares it gets the externalized
 build. That mitigation needs an owner's blessing because it means shipping two artifacts.
 
 ---

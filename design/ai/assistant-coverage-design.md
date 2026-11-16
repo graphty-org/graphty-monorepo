@@ -910,6 +910,6 @@ DOM (the new catalog data is plain data).
 - **A temporary set of what a held change would affect**: not built; the preview's first 10 ids
   and the selector serve the reader, and milestone 3 can add a set if hosts ask.
 - **`results cancel` refused outside the assistant's runs**: held for approval instead, since
-  cancelling the reader's slow run is a legitimate request.
+  canceling the reader's slow run is a legitimate request.
 - **Per-tier release gating**: kept as a report only; at 20 to 30 tasks a tier cannot detect a
   change smaller than 15 points.

@@ -55,15 +55,15 @@
   Shared edge line: the chip's top edge and the pop-out's top edge are the same y. Nothing forces
   the flip to bottom-to-bottom -- the pop-out is 98 tall inside a dialog rect of 500, so it clears
   the footer with room, and B1's ladder (slide, then flip the edge line, then drop a width rung,
-  then go centred) never gets past its first rung.
+  then go centered) never gets past its first rung.
   Fit: the amount column is the ONLY column in this dialog whose 280 pop-out fits rightward inside
   the dialog rect, which is why the spec puts this board on the Weight chip and not on ts or type.
-  The dialog is 720 wide and centred, so its inner right edge is at 1063; the amount chip ends at
+  The dialog is 720 wide and centered, so its inner right edge is at 1063; the amount chip ends at
   695, so the pop-out runs 703 to 983 and clears that edge by 80. Anchored to ts (chip ends 830)
   the same pop-out would run to 1118 and leave the rect; anchored to type it would leave the frame.
   Caret: 6px on the leading edge, which for a surface that opens rightward is the LEFT edge (VOCAB
-  14.2). It is centred on the opener's row and clamped 12px inside the pop-out's own corners (B3).
-  The chip is 20px tall, so its centre sits 10px below the shared edge line and the clamp moves the
+  14.2). It is centered on the opener's row and clamped 12px inside the pop-out's own corners (B3).
+  The chip is 20px tall, so its center sits 10px below the shared edge line and the clamp moves the
   caret 2px down to 12. That 2px is the rule working, not a drafting slip, and it is recorded so a
   later pass does not "fix" it back to 10.
   THE NAMED OBSTRUCTION, which B4's review clause requires this board's own comment to record.
@@ -71,7 +71,7 @@
   cells of the first preview row. That was checked against B1's ladder rather than accepted:
   sliding along the shared-edge axis is the first rung, and the only slide that clears the header
   row is 82px downward, which puts the edge line 82px from the anchor box -- past the 32px limit at
-  which B1 says a surface "is not anchored, and must take the centred form and say so". A centred
+  which B1 says a surface "is not anchored, and must take the centred form and say so". A centered
   form is exactly what this board exists to disprove. Flipping the edge line to bottom-to-bottom
   moves the pop-out UP, into the format row, which is worse. 280 is the bottom rung of the width
   ladder. So the pop-out stays on the line and covers two column headers, which is what a pop-over
@@ -88,7 +88,7 @@
   No return strip: the return strip (VOCAB 14.3) is drawn only when the opener has scrolled out of
   its region. This dialog does not scroll and the chip is in view, so the caret is drawn and the
   strip is not.
-  No pin: E2 closes the pin set at four comparative surfaces -- the colour and gradient picker,
+  No pin: E2 closes the pin set at four comparative surfaces -- the color and gradient picker,
   Selection statistics, the group profile and the AI console. A pop-out holding the parameters of
   the row that opened it has nothing to hold still, so it loses the pin glyph and its header is a
   title, a spacer and the close X.
@@ -183,7 +183,7 @@
   the graph. The words stay.
 
   Under the scrim: the rail with Data active and Explore, Analyze, Style, Present disabled; no
-  inspector; the Data panel at tier 1; the Welcome block centred in the 1112 by 836 canvas; status
+  inspector; the Data panel at tier 1; the Welcome block centered in the 1112 by 836 canvas; status
   bar "No data loaded".
   IC-1 gate: "Show help text in place" is off, so every taught sentence sits behind an info circle
   and nothing taught is drawn inline. The pop-over's Treat as row carries the set-wide
@@ -2595,8 +2595,8 @@
                                             "
                                         >
                                             <!-- The caret, VOCAB 14.2: 6px, on the LEADING edge, which for a surface that opens
-                     rightward is the left edge. Centred on the opener's row and clamped 12px inside the
-                     pop-out's own corners (B3) -- the chip's centre is 10px below the shared edge line, so
+                     rightward is the left edge. Centered on the opener's row and clamped 12px inside the
+                     pop-out's own corners (B3) -- the chip's center is 10px below the shared edge line, so
                      the clamp moves the caret down to 12. Those 2px are the rule working, not a drafting
                      slip. The offset reads 5 rather than 6 because an absolutely positioned child resolves
                      against the padding box and this shell carries a 1px border: 5 + 1 + 6 = 12. -->

@@ -1,5 +1,5 @@
-// Probe: (1) does webgpu@0.4.0 honour backend=null; (2) default device limits without requiredLimits
-// vs adapter limits; (3) timestamp-query granted and whether results look quantised.
+// Probe: (1) does webgpu@0.4.0 honor backend=null; (2) default device limits without requiredLimits
+// vs adapter limits; (3) timestamp-query granted and whether results look quantized.
 import { createRequire } from "node:module";
 const require = createRequire("/home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/package.json");
 const { create, globals } = await import(require.resolve("webgpu"));

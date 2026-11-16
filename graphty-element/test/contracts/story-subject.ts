@@ -23,7 +23,7 @@
  * - a field of a `labelStyle` value, so `Styles/Label::FontSize` is satisfied by `sizePx`;
  * - an element setting, so `Styles/Selection Highlight::Color`, which configures the halo round
  *   a selected node rather than painting a channel, is satisfied by `selectionStyle.color`;
- * - a hex colour in a label style field, so `Styles/Label::BackgroundColor` is satisfied by
+ * - a hex color in a label style field, so `Styles/Label::BackgroundColor` is satisfied by
  *   `background: "#10B981"`. The label vocabulary names its fields after what they paint rather
  *   than after what they hold, so the word "colour" is in the story's name, in the value, and
  *   nowhere in between.
@@ -41,11 +41,11 @@
  * `layout` it sets, the `dataSource` it loads, or the algorithm it runs or is built for. What
  * each tree is checked for, and where its keys come from, is {@link SUBJECT_TREES}:
  *
- * - `Layout/` -- the layout engine: every engine name the layout catalogue lists, so
+ * - `Layout/` -- the layout engine: every engine name the layout catalog lists, so
  *   `Layout/2D::KamadaKawai` must name `"kamada-kawai"`.
- * - `Data` -- the format: every format id the format catalogue lists, so `Data::CsvNeo4j` must
+ * - `Data` -- the format: every format id the format catalog lists, so `Data::CsvNeo4j` must
  *   name `"csv"`.
- * - `Algorithms/` -- the algorithm: every catalogue key and every older address the catalogue
+ * - `Algorithms/` -- the algorithm: every catalog key and every older address the catalog
  *   still answers to, so `Algorithms/Shortest Path::Dijkstra` must name `"dijkstra"` or
  *   `"graphty:dijkstra"`.
  *
@@ -162,7 +162,7 @@ function normalise(word: string): string {
  * `edge.arrowHeadSize` is four words, `Styles/Node Tooltip` is three, `TwoLayerNodeColors` is
  * four. Digits end a word, so `TwoDAllArrows` does not smear into one.
  * @param text - The text to split.
- * @returns Its words, normalised.
+ * @returns Its words, normalized.
  */
 function words(text: string): string[] {
     return text
@@ -285,7 +285,7 @@ export interface SubjectTree {
     readonly tree: string;
     /** What a key in this tree is, in a failure message. */
     readonly subject: string;
-    /** Every key, read from the element's own catalogue. */
+    /** Every key, read from the element's own catalog. */
     readonly keys: () => readonly string[];
     /** Every string that counts as writing a key: the key, and any address it is also run by. */
     readonly spellings: (key: string) => readonly string[];

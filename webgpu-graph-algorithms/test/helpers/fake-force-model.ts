@@ -354,7 +354,7 @@ export function nextTurn(): Promise<void> {
 }
 
 /**
- * A batch created by step() is submitted on the serialised chain (after the bind promise, which compiles on the
+ * A batch created by step() is submitted on the serialized chain (after the bind promise, which compiles on the
  * first step); a test that must act while it is IN FLIGHT waits for the submission (a poll every timer turn, about
  * 1 ms in Node, so the test's continuation runs before any readback callback, which Dawn delivers from a later
  * macrotask) and uses a heavy batch (heavyFake(): heavyN() nodes, 256 iterations, 8 positions fills each) so the

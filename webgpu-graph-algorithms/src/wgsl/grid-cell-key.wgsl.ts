@@ -1,8 +1,8 @@
 /**
  * G1, the `grid-cell-key` kernel body (spec 7.7; P4-T8): the finest cell of every node from the state's robust extent,
- * `floor((p - gridMin) * invCellSize)` (a multiply, correctly rounded everywhere: PD-10), linearised when every axis
+ * `floor((p - gridMin) * invCellSize)` (a multiply, correctly rounded everywhere: PD-10), linearized when every axis
  * is in [0, G), and otherwise one of the 2^dim outside pseudo-cells `cells + orthant`, the orthant of the cell about the
- * grid centre (bit a set when `c[a] >= G / 2`; issue #90); `cellVal[i] = i`. The clamp before the floor keeps a
+ * grid center (bit a set when `c[a] >= G / 2`; issue #90); `cellVal[i] = i`. The clamp before the floor keeps a
  * far-away or NaN coordinate out of an out-of-range float-to-int conversion. Body only; normative text.
  */
 export const gridCellKeyWgsl = /* wgsl */ `

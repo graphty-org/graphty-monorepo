@@ -305,10 +305,10 @@ const POINTER_AWAY_FROM: Partial<Record<AttachPosition, PointerDirection>> = {
 };
 
 /**
- * A colour with an opacity applied over its own alpha.
- * @param color - The colour, in any spelling the element accepts; anything else (a gradient) is kept.
- * @param opacity - The opacity, 0-1; unset or 1 leaves the colour as it is.
- * @returns The colour, as `#rrggbbaa` when an opacity below 1 changed it.
+ * A color with an opacity applied over its own alpha.
+ * @param color - The color, in any spelling the element accepts; anything else (a gradient) is kept.
+ * @param opacity - The opacity, 0-1; unset or 1 leaves the color as it is.
+ * @returns The color, as `#rrggbbaa` when an opacity below 1 changed it.
  */
 function withOpacity<T>(color: T, opacity: number | undefined): T | string {
     if (opacity === undefined || opacity >= 1 || typeof color !== "string" || color === "transparent") {
@@ -335,14 +335,14 @@ const INSIDE: Record<InsidePosition, { x: Side; y: Side }> = {
 };
 
 /**
- * Where a label inside its target's bounds sits, measured from their centre: against the side
- * `side` names, the label's half and the offset in from it, or at the centre along an axis it names
- * no side of (and at the centre when the label is larger than the bounds, unless it keeps its side).
+ * Where a label inside its target's bounds sits, measured from their center: against the side
+ * `side` names, the label's half and the offset in from it, or at the center along an axis it names
+ * no side of (and at the center when the label is larger than the bounds, unless it keeps its side).
  * @param side - The side.
  * @param half - Half the bounds' extent on this axis, in the label's units.
  * @param gap - The label's half extent on this axis plus the offset.
  * @param keepSide - Whether a label larger than the bounds stays against the side, its far end past them.
- * @returns The coordinate from the centre.
+ * @returns The coordinate from the center.
  */
 function inward(side: Side, half: number, gap: number, keepSide: boolean): number {
     return side * (keepSide ? half - gap : Math.max(0, half - gap));
@@ -350,7 +350,7 @@ function inward(side: Side, half: number, gap: number, keepSide: boolean): numbe
 
 /**
  * Place a label in front of its target, toward the camera (see `parentTo`), in the frame of the
- * pivot at the target's centre: in the middle, or inside against the side an inside position names.
+ * pivot at the target's center: in the middle, or inside against the side an inside position names.
  * The pivot undoes the target's stretch, so the bounds are measured as drawn and the label's own
  * size as it is.
  * @param at - The label's position, changed in place.
@@ -405,7 +405,7 @@ const SIDES: Record<Exclude<AttachPosition, InsidePosition>, { x: Side; y: Side 
 
 /**
  * Place a label beside its target's bounds: past the side `position` names, by half the label and
- * the offset, or centred on the bounds along an axis it names no side of.
+ * the offset, or centered on the bounds along an axis it names no side of.
  * @param at - The label's position, changed in place.
  * @param position - Which side of the target.
  * @param bounds - The target's bounds, in the frame `at` is in.
@@ -447,10 +447,10 @@ function placeBeside(
 
 /**
  * One coordinate of a label beside its target.
- * @param side - -1 before the bounds, 1 after them, 0 centred on them.
+ * @param side - -1 before the bounds, 1 after them, 0 centered on them.
  * @param min - The bounds' lower edge.
  * @param max - Their upper edge.
- * @param gap - How far past the edge the label's centre sits.
+ * @param gap - How far past the edge the label's center sits.
  * @returns The coordinate.
  */
 function along(side: Side, min: number, max: number, gap: number): number {
@@ -521,7 +521,7 @@ export class RichTextLabel {
     private stopScreenFit: (() => void) | null = null;
     /** What the label hangs beside, in its parent's coordinates, once attached. */
     private placementBounds: PlacementBounds | null = null;
-    /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
+    /** What a "center" label hangs from: a point at its node's center that faces the camera. */
     private centerPivot: TransformNode | null = null;
     /** Between the pivot and the label: slides the label onto its node's line of sight; see labelEyeLine. */
     private eyeLineShift: TransformNode | null = null;
@@ -780,7 +780,7 @@ export class RichTextLabel {
             finalOptions.backgroundPadding = 0;
         }
 
-        // An opacity of the border or of the outline is drawn as their colour's alpha.
+        // An opacity of the border or of the outline is drawn as their color's alpha.
         finalOptions.borderColor = withOpacity(finalOptions.borderColor, finalOptions.borderOpacity);
         finalOptions.textOutlineColor = withOpacity(finalOptions.textOutlineColor, finalOptions.textOutlineOpacity);
 
@@ -794,7 +794,7 @@ export class RichTextLabel {
             ];
         }
 
-        // An opacity of the words or of the panel is drawn as their colour's alpha.
+        // An opacity of the words or of the panel is drawn as their color's alpha.
         finalOptions.textColor = withOpacity(finalOptions.textColor, finalOptions.textOpacity);
         finalOptions.backgroundColor = withOpacity(finalOptions.backgroundColor, finalOptions.backgroundOpacity);
 
@@ -2331,7 +2331,7 @@ export class RichTextLabel {
                 keepSide: this.options.box === "words-at-side" || this.options.box === "target-width",
             });
             // What a screen fit places it beside: the bounds in the pivot's frame, whose origin is
-            // the node's centre.
+            // the node's center.
             const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
             this.placementBounds = {
                 min: bounds.min.subtract(centre),
@@ -2375,7 +2375,7 @@ export class RichTextLabel {
     /**
      * Keep the label clear of a ring drawn around what it is attached to -- a node's halo -- the
      * way it keeps clear of the target itself, and put it back beside the target when the ring
-     * goes. The ring is a sphere around the target's centre whose radius is `scale` times the
+     * goes. The ring is a sphere around the target's center whose radius is `scale` times the
      * target's largest half-extent.
      * @param scale - The ring's radius over the target's largest half-extent, or null for no ring.
      * @returns True when the label moved.
@@ -2457,7 +2457,7 @@ export class RichTextLabel {
             // A label with nothing to hang from sits exactly where it was put.
             get placement() {
                 const at = options.attachPosition;
-                // A label inside its target is fitted as a centred one.
+                // A label inside its target is fitted as a centered one.
                 return options.attachTo && !Object.hasOwn(INSIDE, at) ? (at as LabelPlacement) : "center";
             },
             get offset() {
@@ -2488,13 +2488,13 @@ export class RichTextLabel {
      * Parent the label to the mesh it is attached to.
      *
      * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
-     * mesh hid it. It hangs from a pivot at the node's centre instead, and the pivot, not the
+     * mesh hid it. It hangs from a pivot at the node's center instead, and the pivot, not the
      * label, turns like the camera: in the pivot's frame the camera looks down +z, so a label placed
      * one bounding radius along -z is in front of the node from wherever it is seen. Between the
      * two, a shift slides the label onto the node's own line of sight (see labelEyeLine), so a
      * centered label is drawn over the node's center anywhere in the view.
      * @param target - The mesh the label belongs to.
-     * @param center - The mesh's bounds when the label sits at its centre, otherwise null.
+     * @param center - The mesh's bounds when the label sits at its center, otherwise null.
      * @returns The origin of the frame the label is now positioned in.
      */
     private parentTo(target: AbstractMesh, center: { min: Vector3; max: Vector3 } | null): Vector3 {
@@ -2554,7 +2554,7 @@ export class RichTextLabel {
             }
 
             // WHERE THE CAMERA REALLY IS. The 3D camera is parented to a pivot, so its `position`
-            // is an offset from that pivot -- (0, 0, -distance) however the graph is centred or
+            // is an offset from that pivot -- (0, 0, -distance) however the graph is centered or
             // turned. Measuring from that faded labels as if the camera sat near the origin, and
             // orbiting changed nothing. The world matrix carries the pivot.
             camera.getWorldMatrix().getTranslationToRef(cameraAt);

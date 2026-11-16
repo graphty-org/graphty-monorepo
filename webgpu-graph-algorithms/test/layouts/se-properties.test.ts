@@ -215,7 +215,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
                         sim.load(s, positions);
                         sim.setFixed(pinMask(n, i));
                         await sim.step(1);
-                        // the velocity is not reset by the call (the spring analogue of "speed is not reset")
+                        // the velocity is not reset by the call (the spring analog of "speed is not reset")
                         const velocityBefore = asF32(await read("velocity"));
                         sim.setPosition(i, x, y, 0);
                         const velocityAfter = asF32(await read("velocity"));

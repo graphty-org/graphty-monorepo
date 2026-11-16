@@ -250,7 +250,7 @@ format reads best, when it reads at least half its values. The graph-samples dat
 work with no options. When only one of Latitude and Longitude is set, the other is found by name
 and reported as filled. If nothing is found the layout refuses with `layout.needs-location`,
 naming the role nothing fills and the attributes it saw: in its cost estimate before it is chosen
-(so a picker greys it out with the reason), and when it starts (so the previous layout stays drawn).
+(so a picker grays it out with the reason), and when it starts (so the previous layout stays drawn).
 Separate latitude and longitude columns also read a hemisphere letter before or after the number
 ("51.5074 N") and a decimal comma ("48,8566").
 
@@ -789,7 +789,7 @@ Four reviews of the prototype were sorted into decisions
 here are prototype names and open (15.1).
 
 - **A map that cannot run says why.** The cost estimate refuses `location-map` with
-  `layout.needs-location` (`{ layout, missing, attributes }`), so the Layout list greys Map out with
+  `layout.needs-location` (`{ layout, missing, attributes }`), so the Layout list grays Map out with
   the app's words; the layout refuses again when it starts, before it becomes the active layout,
   so the previous layout stays drawn and the form never says Applied. It throws no sentence: a
   `GraphtyError` whose `details.refusal` is the coded fact.

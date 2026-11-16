@@ -1,5 +1,5 @@
 /**
- * @file Set algebra and the resolve step of the materialising doors (design/sets/sets-design.md
+ * @file Set algebra and the resolve step of the materializing doors (design/sets/sets-design.md
  * sections 4.1, 5.1, 7 and 13.3).
  *
  * `combineMasks` is the edge rule of section 7 over bitmaps: every operand induced gives an
@@ -140,7 +140,7 @@ export interface Concrete {
     readonly createdFrom: SetCreatedFrom;
 }
 
-/** The resolve step of the materialising doors. Injectable, so a test can hold it open. */
+/** The resolve step of the materializing doors. Injectable, so a test can hold it open. */
 export interface Materialiser {
     /**
      * A scope's or an offer's current members as a fixed definition (design 15.2 `createFrom`
@@ -574,7 +574,7 @@ function edgeIdsOf(graph: GraphSnapshot): (row: number) => EdgeId {
  * Group selected edges by the unordered pair of nodes they join: each pair is one logical step.
  * @param graph - The snapshot.
  * @param edgeIds - The selected session edge ids.
- * @returns Each pair's edges and rows, and each node's neighbours across the pairs.
+ * @returns Each pair's edges and rows, and each node's neighbors across the pairs.
  * @throws `E_BAD_COMMAND`, `details.reason: "ambiguous-path"`, on a self-loop.
  */
 function stepGroupsOf(

@@ -101,7 +101,7 @@ Changing the subject while a sentence is unfinished never loses it: the sentence
 
 2. **Get oriented.**
     - **What you do:** Quick-pinch empty space beside the graph to make the graph the subject. Pinch on the stream and move the hand a little right, toward "About". Pinch with both hands and drag to turn the graph a little.
-    - **What you see:** The stream shows the graph's verbs with Undo greyed at the top (nothing to undo yet). As you steer over About, the readout card fills: "16 families, 20 marriages, 2 pieces (Pucci has no marriages), undirected", and the attributes the sample carries. You let go before Go; About is a reading, so nothing was needed.
+    - **What you see:** The stream shows the graph's verbs with Undo grayed at the top (nothing to undo yet). As you steer over About, the readout card fills: "16 families, 20 marriages, 2 pieces (Pucci has no marriages), undirected", and the attributes the sample carries. You let go before Go; About is a reading, so nothing was needed.
     - **Controls:** quick pinch (graph), steer, release, two-hand pinch and drag.
 
 3. **Find the Medici.**

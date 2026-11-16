@@ -71,7 +71,7 @@ export interface DetectionInput {
 
 /**
  * The graph-io importers behind the element's built-in formats, in graph-io's registry order,
- * which is also its tie-break order when two recognise the same bytes equally well.
+ * which is also its tie-break order when two recognize the same bytes equally well.
  *
  * NEO4J IS THE ELEMENT'S "csv". The element has no separate Neo4j format: its CSV reader takes
  * neo4j-admin files as a variant. So a neo4j-admin header is answered "csv".
@@ -104,7 +104,7 @@ export function builtInImporter(id: string): GraphImporter | undefined {
 /**
  * How sure a graph-io sniffer must be before the element names its format from content alone.
  *
- * Below this a sniffer is tolerating the bytes, not recognising them: graph-io's GraphML answers
+ * Below this a sniffer is tolerating the bytes, not recognizing them: graph-io's GraphML answers
  * 0.05 for any XML prolog. Answering it would hand a file the element cannot read to a reader
  * that then reports a parse error instead of "unknown format". CSV has its own test, below.
  */
@@ -133,7 +133,7 @@ function isReadableTable(content: number, sample: string): boolean {
 }
 
 /**
- * The element's built-in formats that recognise the bytes, best first, as graph-io's sniffers
+ * The element's built-in formats that recognize the bytes, best first, as graph-io's sniffers
  * rank them.
  * @param sample - The first bytes of the file, trimmed.
  * @returns The format ids, best first, each once.
@@ -183,7 +183,7 @@ function extensionOf(filename: string): string | null {
  * ambiguity: a consumer can offer both rather than being handed a guess with the alternative
  * thrown away.
  * @param input - The file name, the first bytes, or both.
- * @returns The format ids, best first. Empty when nothing recognises the file.
+ * @returns The format ids, best first. Empty when nothing recognizes the file.
  */
 export function detectFormats(input: DetectionInput): readonly FormatId[] {
     const sample = input.sample?.trim() ?? "";
@@ -239,7 +239,7 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
 /**
  * The format that can read this file.
  * @param input - The file name, the first bytes, or both.
- * @returns The format id, or null when nothing recognises the file.
+ * @returns The format id, or null when nothing recognizes the file.
  */
 export function detectFormat(input: DetectionInput): FormatId | null {
     return detectFormats(input)[0] ?? null;
@@ -267,7 +267,7 @@ function knownFormatIds(): readonly FormatId[] {
  * A CODE RATHER THAN A SENTENCE. This used to be a `TypeError` in one place and a plain `Error`
  * naming a hard-coded list of the element's own seven in two others, so a consumer whose format
  * WAS registered could still be told the element supports seven formats and theirs is not one.
- * `details.available` is read from the catalogue, so it names whatever this page actually has.
+ * `details.available` is read from the catalog, so it names whatever this page actually has.
  * @param name - The format name the caller asked for.
  * @returns The error to throw.
  */
@@ -295,8 +295,8 @@ export function unknownFormat(name: string): GraphtyError {
 }
 
 /**
- * The refusal for a file nothing recognised.
- * @param describes - How to name the thing that was not recognised, such as a file name or a url.
+ * The refusal for a file nothing recognized.
+ * @param describes - How to name the thing that was not recognized, such as a file name or a url.
  * @param hint - The call that would have settled it, written the way a caller would type it.
  * @returns The error to throw.
  */

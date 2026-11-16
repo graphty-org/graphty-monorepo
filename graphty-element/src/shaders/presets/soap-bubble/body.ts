@@ -3,7 +3,7 @@
  * 7.5), ported from the shader lab's soap bubble thin-film, community "shields" mode.
  *
  * A soap film is a few hundred nanometers thick, and light reflecting off its front and back
- * surfaces interferes, so each wavelength is brightened or cancelled by the film's thickness. The
+ * surfaces interferes, so each wavelength is brightened or canceled by the film's thickness. The
  * body computes that per color channel from a swirling thickness field that drains thinner
  * toward the top, adds a fresnel-weighted reflection of the studio and two catchlights, and leaves
  * the middle of the bubble almost clear, so the group's nodes show through it.

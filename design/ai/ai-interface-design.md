@@ -2218,7 +2218,7 @@ class ConversationHistory {
 
 - [ ] Streaming responses show progress/thinking state
 - [ ] Errors provide helpful feedback (not raw stack traces)
-- [ ] Commands can be cancelled mid-execution
+- [ ] Commands can be canceled mid-execution
 - [ ] Voice transcription shows interim results
 - [ ] Loading indicators follow duration guidelines (1s, 3s, 10s thresholds)
 

@@ -1,6 +1,6 @@
 # Object-first graphty: a UX exploration
 
-This folder is a design exploration of a graphty app organised the way Figma is organised:
+This folder is a design exploration of a graphty app organized the way Figma is organized:
 around the things you have made rather than around activities. In graphty the things you make
 from the data are groups, paths, rankings and filtered sets, not drawings; the left panel is a
 tree of those objects, the toolbar holds the tools that make them, and the right panel is the
@@ -62,7 +62,7 @@ Every document defines its terms at the top and stands alone.
 | `round-3/data-editing.md` | Editing and joining data: import report, load rules, column menu and operations, join and identifier mapping, formulas, editing, removing, merging, expanding, adding by hand (screens 33-42). |
 | `round-3/history-errors.md` | Undo and History, the object menu, failed runs, stale results, a lost view, empty results (screens 43-48, 102). |
 | `round-3/navigate-select.md` | Right-click menus, Find, framing and 3D, minimap, saved Views, follow, selecting many, edges, Focus, the keyboard; the settled key set (screens 49-58). |
-| `round-3/filters-sets.md` | Filters by values, range and rule, edge filters, patterns, neighbours, combining, members, all routes, editing a Set (screens 59-68). |
+| `round-3/filters-sets.md` | Filters by values, range and rule, edge filters, patterns, neighbors, combining, members, all routes, editing a Set (screens 59-68). |
 | `round-3/analysis-results.md` | Values, scatter plots, groups, summary graphs, the record, batches, scope, findings, removal impact, comparison, time, notes, the Assistant (screens 69-82). |
 | `round-3/visualization-export.md` | Layout, pinning, the canvas look, labels, hover, palettes, channels, saved styles, the Export sheet, Present, VR (screens 83-100). |
 | `mocks/v2/index.html` | The gallery of all 102 screens, grouped by area. |
@@ -87,7 +87,7 @@ Every document defines its terms at the top and stands alone.
 | File | What it is |
 |---|---|
 | `proposal.md` | The recommended UX on one page, the decisions the owner must make, what to prototype first, and the risks; section 5 is round 2's summary (what changed, settled and open decisions, the element work sized, the rough edges). |
-| `analysis.md` | The analysis: the objects, the interaction model, the visual language, how consistency and restraint are achieved, the rough edges with options and recommendations, the feature-fit review summarised, and the element work sized; section 8 is round 2. |
+| `analysis.md` | The analysis: the objects, the interaction model, the visual language, how consistency and restraint are achieved, the rough edges with options and recommendations, the feature-fit review summarized, and the element work sized; section 8 is round 2. |
 | `object-model.md` | The one model the mocks are drawn from: the object taxonomy, the tools, every inspector row by row, states, nesting and precedence, the eye and Focus, selection, where every non-object capability lives, the element gaps, and 28 decisions with the reason for each. |
 | `mocks/index.html` | The gallery: a pointer to the round-2 gallery first, then the eight round-1 screens and the kit. |
 | `mocks/screens.md` | The spec of each screen: purpose, exact state, every panel row by row, and the interaction it illustrates; with a revision note after the consistency audit. |

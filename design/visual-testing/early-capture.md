@@ -165,8 +165,8 @@ to the genuinely empty hours, and bound every slice to a few jobs of a few minut
 **Where it runs: after green master builds, not in pull request runs.** A pull request run renders its
 merge tree, a commit that never exists on master (master moves on before and after it merges), so its
 pictures cannot make up a current set of master without breaking the freshness rule. Pull request runs
-are also the merge critical path, and many are cancelled by a newer push (99 of 244 on 2026-10-26); a
-fixed slice in each would add to every merge's wait and be thrown away with every cancelled run. A master
+are also the merge critical path, and many are canceled by a newer push (99 of 244 on 2026-10-26); a
+fixed slice in each would add to every merge's wait and be thrown away with every canceled run. A master
 build is one per merge, off the critical path, and its Storybooks are already built.
 
 **How it is started.** Not as a job inside ci.yml's master build: a failing slice must never make master
@@ -198,7 +198,7 @@ hold its unit's age down for ever.
    `base` slice is 2 bins, an `idle` slice 6.
 
 Because the order comes from the store's record of what was captured (section 4c), a slice that was
-cancelled, skipped or failed leaves its units oldest, so the next one takes them. Nothing depends on every
+canceled, skipped or failed leaves its units oldest, so the next one takes them. Nothing depends on every
 master build getting its slice.
 
 **Capture.** Each bin runs the built-Storybook capture with `--stories`, as the Stories jobs and the full
@@ -234,7 +234,7 @@ key move as its first part.
 
 **The decision** (a pure function, `decideSlice(history, store, now)`, with a unit-tested table):
 
-- **Never** when a slice run is in flight (so no pending run is ever replaced and cancelled, which would
+- **Never** when a slice run is in flight (so no pending run is ever replaced and canceled, which would
   pollute the health dashboard's cancel metrics), when any cap below is used up, or when the collector
   or the store did not answer.
 - **Quiet** means: no job queued and `ci.saturated_ms` 0 in each of the last 6 cycles (30 minutes), and
@@ -261,7 +261,7 @@ The base share is reserved: idle slices can never spend it, so the afternoon's m
 slices after a busy idle night. The hourly idle limit spreads idle capture. With master merging about every
 19 minutes, "every story captured at the newest commit" is never reached on a busy day, so idle capture is
 stopped by the freshness target and the caps, not by catching up. Used minutes are summed from GitHub's
-job durations of every `story-slices.yml` run (plan, bins, failed and cancelled ones), which the collector
+job durations of every `story-slices.yml` run (plan, bins, failed and canceled ones), which the collector
 reads once per finished slice run (1 to 3 job-list calls).
 
 **As built (plan step 5).** `tools/pipeline-health/src/collector/slices.ts` holds `decideSlice()` and its unit-tested
@@ -296,7 +296,7 @@ runner-minutes on a day (10-29), well under the caps; the oldest capture reached
 6-hour target. 9 of the 53 started in a bucket followed by queued jobs (the yield cost the trial measures).
 The main reason for so few quiet windows: in 66 of 375 buckets 1 or 2 jobs sat queued while the pool was not
 saturated, 53 of them for over 20 minutes -- jobs that are not waiting for a runner (an environment approval,
-a macOS queue, a ghost the collector does not yet recognise). Both "no job queued" and "wait 5 minutes or
+a macOS queue, a ghost the collector does not yet recognize). Both "no job queued" and "wait 5 minutes or
 less" count them. Not changed here: the 7-day series of plan step 1 decides whether "queued" should leave out
 jobs queued while the pool has free runners (recorded as an open question in section 7).
 
@@ -512,7 +512,7 @@ approve; they never approve, gate or promote anything.
 | Failure                                             | What happens                                                                                                                                      |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A flaky render                                      | The in-job second shot makes it `unstable`: "Not ready", filed flaky, never offered. A one-off is replaced by the next slice.                     |
-| A slice job fails or is cancelled                   | Its units stay oldest; the next slice takes them. Three consecutive failed slices file one issue (`bug`, `priority:high`).                        |
+| A slice job fails or is canceled                    | Its units stay oldest; the next slice takes them. Three consecutive failed slices file one issue (`bug`, `priority:high`).                        |
 | X's Storybook artifact is gone                      | The bin fails; it never uses another commit's build.                                                                                              |
 | Runners busy or saturated                           | Nothing starts until 30 quiet minutes. Freshness drops and shows on the dashboard; the full run still gates.                                      |
 | A burst arrives during a slice                      | At most 7 jobs finish their few minutes; no new slice until quiet again. Measured as slice minutes held while saturated (section 6).              |

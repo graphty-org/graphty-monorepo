@@ -15,7 +15,7 @@ Notes: Two rows left: P06 with "Northgate Center" in orange in the site column, 
 ## Step 03
 Command: --step <session> --hover-at 860,509
 Screenshot: 03.png
-Notes: Hovered the triangle on "site". It's just labelled "Issues in site", no tooltip, plain cursor. Doesn't tell me what the issue is. Next: click the orange "Northgate Center" cell itself.
+Notes: Hovered the triangle on "site". It's just labeled "Issues in site", no tooltip, plain cursor. Doesn't tell me what the issue is. Next: click the orange "Northgate Center" cell itself.
 
 ## Step 04
 Command: --step <session> --click-at 823,542

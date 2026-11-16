@@ -72,7 +72,7 @@ async function reopened(): Promise<Graphty> {
 /**
  * Where the seed is drawn.
  * @param element - The element.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function seedAt(element: Graphty): Point {
     const position = element.nodeScreenPosition(PEOPLE_SEED.id);

@@ -39,7 +39,7 @@ edges to start. I'll press the plus next to Filters.
 `node ../tool/real.mjs --step $S --click-at 276,285` -> button "Add filter step".
 
 A "New filter step" panel on the right: Keep = "an attribute's value", Attribute = empty, "Add
-step" greyed out. Fine, that reads like Gephi's attribute range filter. I'll open the Attribute
+step" grayed out. Fine, that reads like Gephi's attribute range filter. I'll open the Attribute
 dropdown.
 
 ### 05 -- Attribute list

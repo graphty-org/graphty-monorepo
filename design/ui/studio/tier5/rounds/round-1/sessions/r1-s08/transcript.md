@@ -16,7 +16,7 @@ Screenshot 03.png: checkboxes yes (7) and no (4). Top has "Condition..." and "Or
 
 ## Step 3 -- tick "no"
 Command: --step <folder> --click-at 1143,209
-Screenshot 04.png: 4 of 11 nodes (Cedar Bend, Old Bridge, Heron Marsh, Birch Hollow). Others greyed. Now "Or..." to add the 1990s part.
+Screenshot 04.png: 4 of 11 nodes (Cedar Bend, Old Bridge, Heron Marsh, Birch Hollow). Others grayed. Now "Or..." to add the 1990s part.
 
 ## Step 4 -- "Or..."
 Command: --step <folder> --click "Or..."
@@ -63,4 +63,4 @@ Besides the drawing I looked at three things, and two of them did the real work:
 - The A / B / No match list on the left of the editor with its counts (A 4, B 3, No match 5). That helped the most -- I could check each half against my own count.
 - The header "6 of 11 nodes, 2 of 13 edges". Helped: it caught the overlap (4 + 3 is not 7, Old Bridge is in both). Without it I might have reported 7.
 - The table under the drawing with the Group column (A/B) next to station and installed date. Helped -- that is where I actually confirmed Lake Inlet Oct 1999 was in, and it is where I trust numbers more than dots.
-What got in the way a little: the "Group colors / Styled / Table" buttons up top -- I didn't know if touching them would change my picture, so I avoided them and they cost me a second look each time. And the Filters card in the left sidebar still read "telemetry no -- Editing" while it was really telemetry-no OR the 1990s; that mislabel made me double-check I hadn't lost the B half. The drawing itself was the least useful: small, and the greyed dots are hard to tell apart from the kept ones.
+What got in the way a little: the "Group colors / Styled / Table" buttons up top -- I didn't know if touching them would change my picture, so I avoided them and they cost me a second look each time. And the Filters card in the left sidebar still read "telemetry no -- Editing" while it was really telemetry-no OR the 1990s; that mislabel made me double-check I hadn't lost the B half. The drawing itself was the least useful: small, and the grayed dots are hard to tell apart from the kept ones.

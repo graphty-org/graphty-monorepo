@@ -481,7 +481,7 @@ projection (Bipartite projection...); compose (Combine graphs...); community gra
 graph...); annotation, comment (Add note); metanode (Collapse); difference, XOR (Subtract, Exclude);
 diff (Compare with...); brokers, bridging, influence and every retired catalog plain name (the
 algorithm it named); template, load style, load recipe (Apply recipe); theme, dark mode (a Look, and
-the reader's theme in Preferences); ordered set, sequence (path); neighbour, colour, catalogue
+the reader's theme in Preferences); ordered set, sequence (path); neighbor, color, catalog
 (American spellings); command palette, palette (Quick actions). Typing "search" ranks Find first and Search full graph second.
 
 ## Sources

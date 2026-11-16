@@ -459,7 +459,7 @@ const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"
     const outside = element.graph
         .getNodes()
         .filter((node) => {
-            // The drawn node, not only its centre: a node at the rim must not be cut off.
+            // The drawn node, not only its center: a node at the rim must not be cut off.
             const at = element.nodeScreenPosition(node.id);
             if (at === undefined || !at.visible) {
                 return true;

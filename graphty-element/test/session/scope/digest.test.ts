@@ -1,6 +1,6 @@
 /**
  * @file The `d1:` membership digest (design/sets/sets-design.md section 6.4): a masked sum over
- * the hash columns, versioned, lazy and memoised on the resolution.
+ * the hash columns, versioned, lazy and memoized on the resolution.
  */
 
 import { assert, describe, it } from "vitest";

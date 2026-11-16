@@ -7,7 +7,7 @@ and "Spring list, checked against the sign-up sheet" with the chip "Graph". The 
 reopened from Recent projects ("friends -- In this browser -- 20 nodes -- Oct 8, 2026, 11:52 PM",
 `21.png`, `22.png`), and both notes were listed again in the Notes place (`23.png`). Tom named the
 Notes place, and the inspector's "1 note" under Farah, as where he would read them. No note was
-ever saved on a wrong target: his first note form said "About PageRank" and he cancelled it before
+ever saved on a wrong target: his first note form said "About PageRank" and he canceled it before
 typing (`03.png`, `04.png`), so the answer key's SD case (a note on the wrong target, fixed later)
 does not apply. The detour it cost is counted below as wrong turns.
 
@@ -36,7 +36,7 @@ session is not void.
     1. Steps 2 to 4 (`02.png` to `04.png`): "Add note" from the Notes place opened a form "About
        PageRank", because the inspector was showing the PageRank run the setup left open. Tom
        wanted a note on the whole club; the form offers no way to change its subject, so he
-       cancelled. He recovered at once by choosing "Everything" in the Graph place (`06.png`),
+       canceled. He recovered at once by choosing "Everything" in the Graph place (`06.png`),
        after which the form said "About Graph" (`08.png`).
        Steps 17 to 20 (opening the main menu to check whether the project was kept, then Save) were
        the task's own save, not a detour.
@@ -57,7 +57,7 @@ Severity runs from 0 to 4 (Nielsen).
 1. **Severity 3 -- "Add note" silently takes whatever the inspector shows as the note's subject,
    including a calculation run, and the form gives no way to change it.** With nothing selected
    on the drawing but the PageRank run open in the inspector, the note became "About PageRank".
-   The only sign is a small grey "About PageRank" label above the text box; the user has to guess
+   The only sign is a small gray "About PageRank" label above the text box; the user has to guess
    that choosing "Everything" in the Graph place is what makes a note "About Graph". Tom worried
    that a note on the ranking would be lost if the ranking were redone. A user who typed without
    reading that label would have saved the club reminder on PageRank. Tom caught it, so this

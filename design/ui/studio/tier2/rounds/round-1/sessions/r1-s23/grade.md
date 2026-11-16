@@ -79,7 +79,7 @@ answer key says it does, and no step was spent on a broken control.
    reader's own word for a path.** "chain" found nothing; she found the entry only because the
    ranking entries' descriptions happened to say "shortest paths". r1-s01 met the same with
    "quickest" for the same entry. Evidence: `09.png`, `10.png`, debrief ("If I hadn't read those
-   little grey lines I'd have been stuck reading friends lists by hand").
+   little gray lines I'd have been stuck reading friends lists by hand").
 3. **Severity 2 (confirmed: this session and r1-s19) -- Shortest path sits below the fold of the
    Analyze list, under a long run of ranking entries.** She saw Degree, Betweenness, Katz, HITS and
    others and "the one I needed was further down, under a heading I never saw until I filtered".

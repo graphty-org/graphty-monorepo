@@ -3,7 +3,7 @@
  * runs and jobs answers of the GitHub REST API.
  *
  * - **Lane verdict**, per workflow: the newest completed run on master by sighting order. A
- *   cancelled or skipped run is recorded as the newest run but leaves the verdict as it was.
+ *   canceled or skipped run is recorded as the newest run but leaves the verdict as it was.
  * - **Red since**: the first red run of the current red stretch, and the failure keys every red
  *   run of the stretch named (a red master is a set of keys, each handled on its own).
  * - **Green commit**: the newest master commit on which every gating lane's newest run is green
@@ -47,7 +47,7 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
 /**
  * The outcome class of a run.
  * @param {WorkflowRun} run the run
- * @returns {Outcome} green, red, running, or neutral (cancelled, skipped, neutral, action_required)
+ * @returns {Outcome} green, red, running, or neutral (canceled, skipped, neutral, action_required)
  */
 function outcomeOf(run) {
     if (run.status !== "completed") return "running";

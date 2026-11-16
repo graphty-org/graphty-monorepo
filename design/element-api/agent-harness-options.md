@@ -29,7 +29,7 @@ the `stopWhen` option, and that omission is the entire reason the agent takes ex
 
 So the recommendation is: **extend what exists, on a bigger substrate that is already installed.**
 Upgrade `ai` from 5 to 7, delete the hand-written controller and provider layer (about 1,850 lines)
-in favour of the SDK's agent loop (about 700 lines of new host code), and keep the 5,400 lines that
+in favor of the SDK's agent loop (about 700 lines of new host code), and keep the 5,400 lines that
 actually know about graphs. Then build MCP, skills and memory on top -- because no candidate
 supplies them for a page, so they cost the same no matter which harness sits underneath.
 
@@ -213,7 +213,7 @@ that runs eight turns silently is unusable in a page.
 
 _graphty-element implements streaming on all three providers and never calls it._ The status value
 named "streaming" and the stream-chunk event both fire exactly once, after the entire response has
-already arrived. The status vocabulary describes behaviour the code does not have.
+already arrived. The status vocabulary describes behavior the code does not have.
 
 ### Checkpoint and resume
 
@@ -334,7 +334,7 @@ Footnotes to Table A:
     it is not stale. What kills it is its dependency list: a Node HTTP request handler, two proxy
     agents, the AWS Bedrock client, and no browser field or condition. Confirming the diagnosis: a
     sibling package exists whose stated purpose is to be a CORS and authentication proxy for it.
-11. Decisive dependencies, not judgement: a process spawner and a WebSocket library (Mastra, 31
+11. Decisive dependencies, not judgment: a process spawner and a WebSocket library (Mastra, 31
     direct dependencies); Node-specific tracing and a file globber (VoltAgent, 44); a Durable Object
     backend (Cloudflare); an HTTP server framework and a hosted durable-execution platform (Inngest
     AgentKit, last published 2025-11-13 and ten months stale); Node type packages and a Node parser
@@ -482,8 +482,8 @@ One structural caveat worth recording rather than discovering later. `ai@7`'s br
 a property of `ai` itself. It statically imports a gateway package, which statically imports a
 Vercel identity-token package, whose own dependency tree reaches a process-spawning library two
 hops further down. It does not reach a page, because that identity package declares a browser
-condition in its own exports map and a browser-targeted bundler honours it -- verified in the build
-metafile, and the spawner is never even installed. Vite honours that condition for client builds.
+condition in its own exports map and a browser-targeted bundler honors it -- verified in the build
+metafile, and the spawner is never even installed. Vite honors that condition for client builds.
 A bundler configured otherwise would pull a process spawner into a page. This deserves a build
 assertion in the test suite, and the repository already has the right precedent: a test that fails
 the build if any of five entry points stops being free of Babylon.js, Lit and the DOM.
@@ -695,7 +695,7 @@ none do.
 authentication, complete an OAuth redirect that navigates away from the page and back -- which
 means **the embedding site has to host a callback route on its own origin**, a meaningful ask for a
 drop-in web component. One mitigation is worth knowing: dynamic client registration is now
-deprecated in favour of hosting a static metadata document at an HTTPS URL and using that URL as
+deprecated in favor of hosting a static metadata document at an HTTPS URL and using that URL as
 the client id, which removes registration and client secrets entirely and is the difference between
 workable and not for a library distributed to many origins.
 
@@ -742,7 +742,7 @@ port cleanly and the third has an honest answer.
   Identical in a page.
 - **Level 2, the body.** Replace bash with a tool call. Define a `load_skill` tool that takes a
   name and returns the Markdown body plus a list of the skill's resources and scripts. The model
-  asks for a skill the same way it asks for anything else. Identical behaviour, no shell.
+  asks for a skill the same way it asks for anything else. Identical behavior, no shell.
 - **Level 3a, reference files.** A second tool, `read_skill_resource`, over a source interface
   specified as bytes rather than paths -- so the backing store can be a bundled object, an
   IndexedDB row, a fetched URL or a database, and none of them need to look like a filesystem.
@@ -827,7 +827,7 @@ Safari gives a cross-origin frame roughly a tenth of its parent's quota.
 
 1. **Preferences as a small, named, human-readable store.** Not embeddings and not summarization: a
    handful of keys the agent may read and write. "Prefer 2D over 3D." "Always use the
-   colourblind-safe palette." "When I say important nodes I mean betweenness centrality." This is
+   colorblind-safe palette." "When I say important nodes I mean betweenness centrality." This is
    the requirement as the owner stated it, it needs no new dependency, and the store is small enough
    to load wholesale into the system prompt every turn. It is also the tier where an end user can
    _see_ the entire memory in a settings panel, which resolves most of the privacy question by
@@ -851,9 +851,9 @@ written by somebody who did not write the code that wrote it.
 - **Off by default, enabled by an explicit named call.** The existing key manager already sets this
   precedent in this repository: persistence is opt-in and the caller supplies the encryption key.
 - **Listable and deletable through public API** -- list, read, delete one, delete all. The embedder
-  will be asked for a deletion and cannot honour it through an API that does not exist. It is also
-  just the obvious behaviour: a user who says "forget that" must be able to make it true.
-- **Encryption at rest is mostly theatre and should be described as such.** Anything the page can
+  will be asked for a deletion and cannot honor it through an API that does not exist. It is also
+  just the obvious behavior: a user who says "forget that" must be able to make it true.
+- **Encryption at rest is mostly theater and should be described as such.** Anything the page can
   decrypt, script on that origin can decrypt. It defends against a shared machine and casual
   inspection, not against cross-site scripting. Related and worth doing anyway: the pinned
   encryption library is at 2.14.7 (published 2025-07-08, fourteen months old) over an older crypto
@@ -1000,7 +1000,7 @@ adapter -- none do -- the 217-line key store, the 383 lines of input adapters, a
 cheapest quarter to write.** What a candidate must actually be judged on is: whether the existing
 command shape -- name, description, Zod schema, examples, and an async execute taking the graph, the
 parsed parameters and a context -- survives translation into its tool format, specifically the abort
-signal, the parse-and-transform boundary where colour names become hex and defaults land, and the
+signal, the parse-and-transform boundary where color names become hex and defaults land, and the
 description-as-getter trick; whether it can host an in-process engine rather than only HTTP
 endpoints; and what it adds beyond a stop condition, which delivers the multi-turn requirement by
 itself.
@@ -1052,7 +1052,7 @@ with the two redundant selector engines.
 Add a build assertion, in the style of the existing test that keeps five entry points free of
 Babylon.js, Lit and the DOM: **a test that fails if the AI entry point stops producing a working
 browser bundle.** `ai@7`'s browser safety depends on a browser condition three dependency hops away
-in a package that is not Vercel's AI SDK at all, and on the bundler honouring it. That is fine and it
+in a package that is not Vercel's AI SDK at all, and on the bundler honoring it. That is fine and it
 should not be a silent assumption.
 
 ### Phase 2 -- skills, instructions only

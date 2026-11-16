@@ -280,7 +280,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
-     * The settle normaliser of design 7.17.
+     * The settle normalizer of design 7.17.
      * @returns the RMS radius about the centroid in layout units after the last iteration
      */
     get rmsRadius(): number {
@@ -605,7 +605,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
-     * Attractive forces between connected nodes (lines 118-134): per arc, d^2 / k toward the neighbour; the two arcs
+     * Attractive forces between connected nodes (lines 118-134): per arc, d^2 / k toward the neighbor; the two arcs
      * of an undirected edge are the edge loop's two contributions (source -= and target +=).
      */
     private attract(): void {
@@ -617,7 +617,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
                 const v = colIdx[a];
                 if (this.isInert(v)) {
-                    continue; // an inert neighbour pulls nothing
+                    continue; // an inert neighbor pulls nothing
                 }
                 // Difference vector (line 120)
                 const dx = ux - pos[3 * v];

@@ -1535,7 +1535,7 @@ export function isReadableStream(
 }
 
 /**
- * Iterate a ReadableStream through a reader, cancelling the stream (with the signal's reason) when
+ * Iterate a ReadableStream through a reader, canceling the stream (with the signal's reason) when
  * iteration stops early or the signal fires, also while a read is pending.
  * @param stream - the stream
  * @param signal - the cancellation signal, or null

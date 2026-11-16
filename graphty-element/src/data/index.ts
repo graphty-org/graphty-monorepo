@@ -61,7 +61,7 @@ function xgmmlTime(snapshot: GraphSnapshot): TimeField | null {
     return nodes || edges ? { ...(nodes ? { nodes: source } : {}), ...(edges ? { edges: source } : {}) } : null;
 }
 
-// Read by graph-io with no reader of their own: each is the importer and its catalogue entry.
+// Read by graph-io with no reader of their own: each is the importer and its catalog entry.
 DataSource.register(
     DataSource.fromImporter(xgmmlImporter, builtIn("xgmml"), { statedBy: xgmmlDirection, time: xgmmlTime }),
 );

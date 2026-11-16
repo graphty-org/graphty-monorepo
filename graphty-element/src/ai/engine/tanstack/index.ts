@@ -88,7 +88,7 @@ export interface ResponseRecord {
     status?: number;
     /** How long the provider asked to wait, from `retry-after-ms` or `retry-after`. */
     retryAfterMs?: number;
-    /** The request never got a response (and was not cancelled). */
+    /** The request never got a response (and was not canceled). */
     networkError: boolean;
 }
 
@@ -392,7 +392,7 @@ function limitCause(message: string, code: string | undefined): "quota" | "rate-
  * @param message - What failed, in the provider's or the SDK's words.
  * @param response - What the turn's request got back.
  * @param settings - The provider and the key, which is scrubbed from the message.
- * @param signal - The turn's signal: when it fired, the turn was cancelled.
+ * @param signal - The turn's signal: when it fired, the turn was canceled.
  * @param code - The provider's own error code, from an error the stream carried.
  * @returns The error event.
  */
@@ -893,7 +893,7 @@ export async function* providerApiTurn(
             }
         }
 
-        // The stream ended with neither a finish nor an error: cancelled, or dropped.
+        // The stream ended with neither a finish nor an error: canceled, or dropped.
         if (signal.aborted) {
             yield failure("The turn was cancelled.", response, settings, signal);
         }

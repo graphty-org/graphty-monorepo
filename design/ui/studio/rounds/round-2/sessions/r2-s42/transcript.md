@@ -31,7 +31,7 @@ Next: click it.
 
 Command: `--step --click "Layout"` -> 04.png
 
-Saw: a menu. "Force" is checked and tagged "Recommended". Then Circle, Rings around a node (select a node first), Grid, Rings by group (needs a node attribute to group by), Spiral, Spectral, No crossings (greyed: "G is not planar" -- raw error text, but at least honest), Random, Tree (select a node first), Two columns and Columns by group (need an attribute), Keep positions.
+Saw: a menu. "Force" is checked and tagged "Recommended". Then Circle, Rings around a node (select a node first), Grid, Rings by group (needs a node attribute to group by), Spiral, Spectral, No crossings (grayed: "G is not planar" -- raw error text, but at least honest), Random, Tree (select a node first), Two columns and Columns by group (need an attribute), Keep positions.
 In character: "'Force.' Which force? Fruchterman-Reingold? ForceAtlas2? There is no ForceAtlas2 by name, and 'Recommended' by whom? No parameters visible -- no gravity, no scaling, no LinLog." Disappointed. "Rings by group" and "Columns by group" are interesting -- that's a partition-driven layout, but I have no modularity class yet.
 Hesitation: what the current layout actually is.
 Next: hover "Force" to see if it tells me the algorithm.
@@ -48,7 +48,7 @@ Next: click "Force" anyway, to see whether choosing it opens its settings (that'
 
 Command: `--step --click-at 594,446` -> 06.png
 
-Saw: a "Force" settings page in the menu: "Pulls connected nodes together and pushes unconnected ones apart until the shape stops moving, in three dimensions or, with 'dim: 2', flat." Shape 3D/2D (3D selected), Spring length 30, Gravity -1.2, an "Advanced" section, "Under a second", button "Applied" (greyed).
+Saw: a "Force" settings page in the menu: "Pulls connected nodes together and pushes unconnected ones apart until the shape stops moving, in three dimensions or, with 'dim: 2', flat." Shape 3D/2D (3D selected), Spring length 30, Gravity -1.2, an "Advanced" section, "Under a second", button "Applied" (grayed).
 In character: "So it IS a 3D drawing. That's my first problem -- the hairball is partly occlusion, nodes stacked behind each other. And 'dim: 2' in a sentence for users is someone's config key leaking. Spring length and gravity -- a spring-electrical model, so not ForceAtlas2. Negative gravity? In what units? Still no name I could cite."
 Next: switch Shape to 2D -- that alone should untangle part of it -- and apply.
 
@@ -78,7 +78,7 @@ Next: into Force, then Advanced.
 
 Command: `--step --click-at 594,446 --click "Advanced"` -> 10.png
 
-Saw: Advanced opened: Spring Coefficient 0.0008, Theta 0.8, Drag Coefficient 0.02, Time Step 20, Seed 1 with an x and "Reshuffle". "Applied" greyed.
+Saw: Advanced opened: Spring Coefficient 0.0008, Theta 0.8, Drag Coefficient 0.02, Time Step 20, Seed 1 with an x and "Reshuffle". "Applied" grayed.
 In character: "Theta 0.8 -- Barnes-Hut approximation, so this is a classic spring-electrical simulation; 'gravity' here is the charge, negative means repulsion. That's not ForceAtlas2 and nothing says which implementation, but at least there is a seed and it is shown. I can write the seed down. That's more than Gephi gives me." No LinLog, no prevent overlap, no dissuade hubs.
 Next: push the groups apart: stronger repulsion (Gravity -1.2 -> -4) and shorter springs (30 -> 20), so cliques stay tight and separate. Then Apply.
 
@@ -142,9 +142,9 @@ Next: the menu said "Rings by group" needs an attribute -- now I have one. Try i
 
 Command: `--step --click "Layout"` -> 18.png
 
-Saw: "Rings by group" and "Columns by group" are still greyed with "Needs a node attribute to group by" -- even though I just computed a community for every node and the panel shows it.
+Saw: "Rings by group" and "Columns by group" are still grayed with "Needs a node attribute to group by" -- even though I just computed a community for every node and the panel shows it.
 In character: "I have a partition. It's right there. Why doesn't the layout see it? Does the Louvain result not count as an attribute?"
-Hesitation: is it really disabled, or just styled grey?
+Hesitation: is it really disabled, or just styled gray?
 Next: click "Rings by group" anyway.
 
 ## Step 19

@@ -337,7 +337,7 @@ export class RowTable {
     }
 
     /**
-     * At least the widest half extent of any row, on any axis: what a box around the rows' centres
+     * At least the widest half extent of any row, on any axis: what a box around the rows' centers
      * grows by to hold the rows. It never shrinks until the dataset is cleared, so it may be wider.
      * @returns The half extent.
      */

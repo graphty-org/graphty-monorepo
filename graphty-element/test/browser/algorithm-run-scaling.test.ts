@@ -100,7 +100,7 @@ function assertMeasuredAll(result: RunResult | undefined, size: number): void {
 /**
  * Assert the session holds a finished run of `algorithm` that measured every node.
  * @param graph - The graph.
- * @param algorithm - The catalogue key.
+ * @param algorithm - The catalog key.
  * @param size - The node count.
  */
 function assertRunPublished(graph: Graph, algorithm: string, size: number): void {

@@ -20,7 +20,7 @@ Session folder: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio
 
     --step <session> --click "Filters"
 
-03.png: Left side switched to Data: Les Miserables, 77 nodes, 254 edges. Node table 77 rows, edge table 254 rows. Written down: 77 characters, 254 ties. A "Filters" section with a plus. Edge attribute "shared_chapters". Right side: "New filter step", Keep "an attribute's value", Attribute (empty), "Add step" greyed out. Next: pick shared_chapters as the attribute.
+03.png: Left side switched to Data: Les Miserables, 77 nodes, 254 edges. Node table 77 rows, edge table 254 rows. Written down: 77 characters, 254 ties. A "Filters" section with a plus. Edge attribute "shared_chapters". Right side: "New filter step", Keep "an attribute's value", Attribute (empty), "Add step" grayed out. Next: pick shared_chapters as the attribute.
 
 ## Step 3 -- open the Attribute list
 

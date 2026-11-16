@@ -22,7 +22,7 @@ export interface IsomorphismResult {
 }
 
 /**
- * Count the distinct neighbours of `u` other than itself in one adjacency.
+ * Count the distinct neighbors of `u` other than itself in one adjacency.
  * @param view - The adjacency to read the row of
  * @param u - The node
  * @returns The simple degree, and whether `u` has a self-loop
@@ -66,7 +66,7 @@ function signatures(s: GraphSnapshot): Float64Array {
 /**
  * The order the nodes of `s1` are mapped in: BFS over out- and in-arcs, one component after another
  * from the lowest unvisited index. Every node after a component's first is adjacent to an earlier
- * one (its parent), so its candidates are the neighbours of the parent's image.
+ * one (its parent), so its candidates are the neighbors of the parent's image.
  * @param views - The forward adjacency, and on a directed snapshot the reverse one
  * @param n - The node count
  * @returns The order, each node's BFS parent (INVALID_INDEX for a component's first node) and
@@ -93,7 +93,7 @@ function matchOrder(views: readonly AdjacencyView[], n: number): { order: U32; p
 }
 
 /**
- * Append every unseen out- and in-neighbour of `u` to the BFS order, recording `u` as its parent.
+ * Append every unseen out- and in-neighbor of `u` to the BFS order, recording `u` as its parent.
  * @param views - The forward adjacency, and on a directed snapshot the reverse one
  * @param u - The node being expanded
  * @param bfs - The order, parents and parent views being filled
@@ -139,9 +139,9 @@ interface Vf2State {
     readonly core1: U32;
     /** Preimage in s1 of every node of s2, INVALID_INDEX while unmapped. */
     readonly core2: U32;
-    /** Per view, the search step that last stamped each node of s2 as a neighbour of the candidate. */
+    /** Per view, the search step that last stamped each node of s2 as a neighbor of the candidate. */
     readonly stamp: Uint32Array[];
-    /** Per view, the arc of s2 from the candidate to each stamped neighbour. */
+    /** Per view, the arc of s2 from the candidate to each stamped neighbor. */
     readonly arcTo: Uint32Array[];
     step: number;
     readonly nodeMatch: IsomorphismOptions["nodeMatch"];
@@ -229,11 +229,11 @@ function nodesCompatible(st: Vf2State, u1: number, u2: number): boolean {
 }
 
 /**
- * Stamp every simple neighbour of u2 in view k with the current step and its arc.
+ * Stamp every simple neighbor of u2 in view k with the current step and its arc.
  * @param st - The search state
  * @param k - The view index
  * @param u2 - The candidate image in s2
- * @returns How many of those neighbours are already mapped
+ * @returns How many of those neighbors are already mapped
  */
 function stampNeighbours(st: Vf2State, k: number, u2: number): number {
     const g2 = st.views2[k];
@@ -257,12 +257,12 @@ function stampNeighbours(st: Vf2State, k: number, u2: number): number {
 }
 
 /**
- * Check every mapped simple neighbour of u1 in view k: its image must be a stamped neighbour of
+ * Check every mapped simple neighbor of u1 in view k: its image must be a stamped neighbor of
  * the candidate and the edge between them must pass the edge predicate.
  * @param st - The search state
  * @param k - The view index
  * @param u1 - Node of s1
- * @returns How many neighbours are mapped, or -1 when one fails
+ * @returns How many neighbors are mapped, or -1 when one fails
  */
 function countMappedNeighbours(st: Vf2State, k: number, u1: number): number {
     const { s1, s2, edgeMatch } = st;
@@ -316,7 +316,7 @@ function feasible(st: Vf2State, u1: number, u2: number): boolean {
 }
 
 /**
- * The candidates for depth d: every node for a component's first node, else the neighbours of
+ * The candidates for depth d: every node for a component's first node, else the neighbors of
  * the image of its BFS parent, in the view the parent reached it through.
  * @param st - The search state
  * @param w - The walk
@@ -436,7 +436,7 @@ function search(
 }
 
 /**
- * Whether two snapshots are isomorphic, by a VF2-style search. Neighbourhoods are simple-graph:
+ * Whether two snapshots are isomorphic, by a VF2-style search. Neighborhoods are simple-graph:
  * parallel arcs count once and a self-loop maps only to a self-loop. On a directed snapshot both
  * arc directions are preserved.
  * @param s1 - The first graph
@@ -461,7 +461,7 @@ export function isGraphIsomorphic(
 }
 
 /**
- * Every isomorphism from `s1` to `s2`, with the neighbourhood rules of {@link isGraphIsomorphic}.
+ * Every isomorphism from `s1` to `s2`, with the neighborhood rules of {@link isGraphIsomorphic}.
  * Two empty graphs have one, the empty mapping.
  * @param s1 - The first graph
  * @param s2 - The second graph

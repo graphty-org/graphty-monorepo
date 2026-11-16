@@ -71,6 +71,6 @@ Session ended.
 - "Follow: Out / All" -- I left it on All because introductions go both ways, but I did not know what "Out" would change. One line saying "All = either direction" would settle it.
 - The result says "5 nodes, 4 edges" and "4 hops". I had to translate: 4 hops = 4 introductions, 3 people in between. A plain "3 people between them" would have saved a second look.
 - The second run replaced the first. The left list still shows one "Shortest path" row, now Ben to Nora; Chloe to Milo is gone from the screen. If I needed both on one slide I would not know where the first one went.
-- Labels in the right panel and the "Made with" notes are small grey text; fine on the big monitor, hard on the laptop.
+- Labels in the right panel and the "Made with" notes are small gray text; fine on the big monitor, hard on the laptop.
 
 **So what:** For my supply data the same thing would answer "how does this part reach that plant", but only where I have the links -- which past Tier 1 I mostly do not.

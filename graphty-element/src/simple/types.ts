@@ -94,7 +94,7 @@ export interface DefinitionBase<O extends OptionsShorthand> {
     readonly id: string;
     /** What pickers show. Default: the id in sentence case ("acme-hop-reach" reads "Acme hop reach"). */
     readonly name?: string;
-    /** One sentence for pickers and the catalogue. Default: "". */
+    /** One sentence for pickers and the catalog. Default: "". */
     readonly description?: string;
     /** The options a reader may set, in short form: `{ spacing: 2, weight: { type: "attribute", on: "edge" } }`. */
     readonly options?: O;
@@ -146,7 +146,7 @@ export interface NodeView {
      * edges().length: a self-loop counts ONCE and each parallel edge counts. This is NOT the
      * built-in "degree" algorithm's number, which counts a self-loop twice and a repeated edge
      * (same ends, same direction) once. NetworkX and igraph count a self-loop twice: add
-     * edgesTo(node).length to match them. For the number of distinct neighbours, use
+     * edgesTo(node).length to match them. For the number of distinct neighbors, use
      * neighbors().length.
      */
     readonly degree: number;
@@ -233,12 +233,12 @@ export interface AlgorithmContext<V> {
     readonly options: V;
     /** The whole graph. */
     readonly graph: GraphView;
-    /** Aborted when the run is cancelled. Only a whole-graph function needs it. */
+    /** Aborted when the run is canceled. Only a whole-graph function needs it. */
     readonly signal: AbortSignal;
     /**
      * Only a whole-graph function needs it: the share of the work done, 0 to 1. AWAIT it inside a
      * loop: the promise lets the page draw a frame, and rejects with the abort reason when the run
-     * was cancelled.
+     * was canceled.
      */
     progress(fraction: number): Promise<void>;
     /** A sentence for the run record's caveats ("Dangling mass returns to the seeds."). */
@@ -361,24 +361,24 @@ export interface LayoutDefinition<O extends OptionsShorthand> extends Definition
 // Palette
 // =============================================================================================
 
-/** A colour-vision deficiency a palette may claim to stay distinguishable under. */
+/** A color-vision deficiency a palette may claim to stay distinguishable under. */
 export type ColorVisionDeficiency = PaletteDescriptor["colorblindSafe"][number];
 
-/** What definePalette takes: an id, a kind and the colours. */
+/** What definePalette takes: an id, a kind and the colors. */
 export interface PaletteDefinition {
     /** Permanent id: lower case, hyphenated, vendor-prefixed ("acme-brand"). */
     readonly id: string;
-    /** "categorical" (one colour per group), "sequential" (low to high) or "diverging" (through a middle). */
+    /** "categorical" (one color per group), "sequential" (low to high) or "diverging" (through a middle). */
     readonly kind: PaletteDescriptor["kind"];
     /**
-     * Any colour CSS can parse EXCEPT var(), which definePalette refuses with the fix in the
-     * message. Normalised to six-digit hex, so an alpha channel is discarded. A categorical
-     * palette has one colour per group; the element never wraps. A ramp needs at least two.
+     * Any color CSS can parse EXCEPT var(), which definePalette refuses with the fix in the
+     * message. Normalized to six-digit hex, so an alpha channel is discarded. A categorical
+     * palette has one color per group; the element never wraps. A ramp needs at least two.
      */
     readonly colors: readonly string[];
     /** What pickers show. Default: the id in sentence case. */
     readonly name?: string;
-    /** One sentence for pickers and the catalogue. */
+    /** One sentence for pickers and the catalog. */
     readonly description?: string;
     /** A claim the element takes on trust. Default: no claim. */
     readonly colorblindSafe?: readonly ColorVisionDeficiency[];
@@ -386,11 +386,11 @@ export interface PaletteDefinition {
 
 /**
  * The consumer call the simple tier adds to the element and to session.styles: the palette a
- * colour binding uses when it names none, one per kind, resolved when a layer is written.
+ * color binding uses when it names none, one per kind, resolved when a layer is written.
  */
 export interface DefaultPaletteControls {
     /**
-     * Choose the palette each kind of colour binding uses when it names none. Call it before
+     * Choose the palette each kind of color binding uses when it names none. Call it before
      * adding layers; `{ reapply: true }` repaints layers already written with the previous default.
      * Settles once those layers are repainted; rejects when one could not be.
      */
@@ -433,7 +433,7 @@ export interface LogDestinationDefinition {
     readonly id: string;
     /** What a destination picker shows. Default: the id in sentence case. */
     readonly name?: string;
-    /** One sentence for the catalogue. */
+    /** One sentence for the catalog. */
     readonly description?: string;
     /** The least severe level delivered. Default "warn". */
     readonly level?: LogLevelName;

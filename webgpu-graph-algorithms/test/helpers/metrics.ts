@@ -1,6 +1,6 @@
 /**
  * Layout-quality metrics for the distributional parity of spec 11.4 (contract 5.2 test/helpers/metrics.ts): stress
- * against BFS graph distances, edge-length quantiles, the self-normalised nearest-neighbour distance histogram, the
+ * against BFS graph distances, edge-length quantiles, the self-normalized nearest-neighbor distance histogram, the
  * inter-component separation and the spread. Pure CPU. Every function reads a stride-3 array (x, y, z per node) and
  * uses its first `dim` components, so scene-unit and layout-unit arrays both work as long as both sides of a
  * comparison use the same units. Callers never compare coordinates (spec 7.16) -- only these summaries.
@@ -8,7 +8,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-/** Bins of the nearest-neighbour histogram in layoutMetrics(). */
+/** Bins of the nearest-neighbor histogram in layoutMetrics(). */
 const NN_BINS = 8;
 /** The histogram spans nn / mean(nn) in [0, NN_RANGE); larger ratios land in the last bin. */
 const NN_RANGE = 2;
@@ -141,7 +141,7 @@ function componentLabels(s: GraphSnapshot): { readonly labels: Int32Array; reado
 }
 
 /**
- * Normalised stress: the mean over connected pairs (i < j) of ((|p_i - p_j| - d_ij) / d_ij)^2 where d_ij is the hop
+ * Normalized stress: the mean over connected pairs (i < j) of ((|p_i - p_j| - d_ij) / d_ij)^2 where d_ij is the hop
  * distance; 0 when no pair is connected.
  * @param s - the snapshot
  * @param positions - stride-3 positions
@@ -205,7 +205,7 @@ export function edgeLengthQuantiles(
 }
 
 /**
- * The self-normalised nearest-neighbour histogram: the fraction of nodes whose nn / mean(nn) falls in each of `bins`
+ * The self-normalized nearest-neighbor histogram: the fraction of nodes whose nn / mean(nn) falls in each of `bins`
  * equal bins over [0, 2) (ratios >= 2 land in the last bin; a zero mean puts every node in bin 0). Scale-free, so
  * two layouts of different extent but the same local structure agree.
  * @param positions - stride-3 positions
@@ -286,8 +286,8 @@ export function spread(positions: ArrayLike<number>, n: number, dim: 2 | 3): num
 
 /**
  * Every metric above as one record, for the "within 10%" comparisons of spec 11.4: stress, edge-length quantiles
- * (edgeQ10 / edgeQ50 / edgeQ90), nearest-neighbour distance quantiles (nnQ10 / nnQ50 / nnQ90), spread, the
- * separation (only when finite, i.e. at least two components) and the 8 self-normalised nn bins (nnBin0 .. nnBin7).
+ * (edgeQ10 / edgeQ50 / edgeQ90), nearest-neighbor distance quantiles (nnQ10 / nnQ50 / nnQ90), spread, the
+ * separation (only when finite, i.e. at least two components) and the 8 self-normalized nn bins (nnBin0 .. nnBin7).
  * @param s - the snapshot
  * @param positions - stride-3 positions
  * @param dim - components compared

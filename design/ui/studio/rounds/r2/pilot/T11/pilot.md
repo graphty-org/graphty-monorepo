@@ -24,10 +24,10 @@ moved.
 | Groups (Columns by group)    | 2 more: Layout + Columns by group; Apply                                                          | `groups/11.png` six colored columns, one per group                                                     |
 
 The round 3 change landed: before any community run, Rings by group, Two columns and Columns by
-group are greyed with "Needs a node attribute to group by" (`main/03.png`, correct: the sample has
+group are grayed with "Needs a node attribute to group by" (`main/03.png`, correct: the sample has
 nothing to group by). After Louvain finished, Rings by group and Columns by group are enabled and
 their forms open with "Group by: Communities" already chosen (`groups/07.png`, `groups/08.png`,
-`groups/10.png`). Two columns stays greyed on Louvain's six groups, as the answer key predicts.
+`groups/10.png`). Two columns stays grayed on Louvain's six groups, as the answer key predicts.
 
 Did it help (an opinion, not graded):
 

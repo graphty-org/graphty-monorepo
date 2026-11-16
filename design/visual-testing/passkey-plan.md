@@ -248,7 +248,7 @@ and the WebAuthn call: the challenge is fetched before the button is shown.
 1. `finishTarget`: fetch `/api/finish-prepare` together with `/api/target`; when `required`, add a
    line "Face ID approves this record: N accepts, M rejects" to the question and label the yes
    button "Approve with Face ID and finish"; on yes, call `approve(prepared)` first, before any
-   `await`, then `POST /api/finish` with the approval. A `NotAllowedError` (cancelled, or Safari
+   `await`, then `POST /api/finish` with the approval. A `NotAllowedError` (canceled, or Safari
    refused the gesture) gives up with "Not approved: nothing was changed" and leaves the Finish
    button on, so a second press tries again.
 2. A "Register passkey" button on the targets screen next to the signing-key block: it calls
@@ -398,7 +398,7 @@ success pushes `visual/passkey-*` to the fake remote and opens a pull request th
 400, a stale challenge 409, a bad approval 403, and a good one starts the job.
 
 `page.test.mjs` (Chromium, virtual authenticator): register, then Finish with Face ID end to end;
-a cancelled approval (virtual authenticator with `isUserVerified: false`, refused by
+a canceled approval (virtual authenticator with `isUserVerified: false`, refused by
 `userVerification: "required"`) leaves nothing changed and the Finish button on.
 
 The existing fault and journey tests keep calling Finish with no key known, so they do not change.

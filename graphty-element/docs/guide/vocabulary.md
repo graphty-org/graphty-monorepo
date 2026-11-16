@@ -131,7 +131,7 @@ session.on("progress:changed", (change) => console.log(change.task, change.phase
 `task` is `"load"`, `"prepare"` (reading a load draft) or `"run"` (more may be added, so handle one
 you do not know); a run's report
 also carries `run`, the run's id. Every task sends `phase: "end"` once when it stops, whether it
-succeeded, failed or was cancelled. A load cannot know its size in advance, so `completed` counts
+succeeded, failed or was canceled. A load cannot know its size in advance, so `completed` counts
 the node and edge records read so far and `total` and `fraction` are `null`. On the element,
 steps are sent at most every 100 ms per task; the first change and the end always arrive.
 

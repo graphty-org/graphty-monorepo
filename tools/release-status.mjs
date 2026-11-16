@@ -130,9 +130,9 @@ export function reportsFailure(body, run, attempt) {
 }
 
 /**
- * Was this run cancelled before any of its jobs started? That is a pending run the release-train concurrency
+ * Was this run canceled before any of its jobs started? That is a pending run the release-train concurrency
  * group replaced with a newer one (cancel-in-progress is off, but GitHub keeps one pending run per group): not
- * news. A run a person cancelled after it started has jobs.
+ * news. A run a person canceled after it started has jobs.
  * @param opts - the run
  * @param opts.request - (method, path, body) => parsed JSON
  * @param opts.repo - owner/name

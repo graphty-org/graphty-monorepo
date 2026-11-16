@@ -243,7 +243,7 @@ export class AttributeTable implements AttributeTableContract {
     }
 
     /**
-     * Typed read of one cell honouring the column's declared default.
+     * Typed read of one cell honoring the column's declared default.
      * @param name - the column name; E_UNKNOWN_COLUMN when absent
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the default for an unset row, or undefined for an unset row without a default

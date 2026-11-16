@@ -17,7 +17,7 @@ Next: say "No thanks" to the usage box (I don't share anything I don't have to),
 
 Command: `--step --click "No thanks" --click "Les Miserables"` -> 02.png
 
-Saw: a cloud of blue dots joined by grey lines, no names on any of them. Right side says Nodes 77,
+Saw: a cloud of blue dots joined by gray lines, no names on any of them. Right side says Nodes 77,
 Edges 254, Density, Components -- numbers I don't need. "Undirected, from the file: directed 0"
 means nothing to me. Top left there is a box "Find nodes, edges, values". That's the obvious place.
 
@@ -27,7 +27,7 @@ Next: click the Find box and type Javert.
 
 Command: `--step --click "Find nodes, edges, values" --type "Javert"` -> 03.png
 
-Tool said nothing is called that (the grey words in the box are only a hint), so nothing was typed.
+Tool said nothing is called that (the gray words in the box are only a hint), so nothing was typed.
 (Tool mechanics, not the app.) Pointing at the box instead.
 
 ## Step 4 -- type Javert

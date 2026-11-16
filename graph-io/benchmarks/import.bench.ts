@@ -3,7 +3,7 @@
  * end) plus the streaming checks of section 8.4: every importer over its generated fixture
  * (benchmarks/fixtures.ts) through a 64 KiB file stream, as a Uint8Array and as a string, with the
  * median of `runs` wall times, the timer-sampled heap peak and the heap retained after a full GC;
- * the doubling ratios that expose super-linear behaviour; and every exporter over a 1M-edge
+ * the doubling ratios that expose super-linear behavior; and every exporter over a 1M-edge
  * snapshot written to /dev/null in chunks.
  *
  *   pnpm run benchmark -- [--runs N] [--quick]        (benchmarks/run.ts calls runImportBenchmarks)

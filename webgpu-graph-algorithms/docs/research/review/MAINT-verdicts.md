@@ -140,7 +140,7 @@ runtime version and the `typeof indexed` mapped type are optional niceties, not
 defects; structural typing at the app's typecheck is the plan's stated guard.
 Fix (revised): at W1 KEEP the structural mirrors in `src/types/accelerator.ts` as the
 published contract and ADD the mutual-assignability type test against the real packages
-(devDependencies) -- this honours "no peer" as written; OR declare `@graphty/algorithms`
+(devDependencies) -- this honors "no peer" as written; OR declare `@graphty/algorithms`
 and `@graphty/layout` as optional peerDependencies (types) and switch to `import type`.
 Reword 2533 and P10 (3169) accordingly.
 
@@ -222,7 +222,7 @@ independent; determinism is promised per device only, 7.16). The maintainability
 that survives: the plan does not say where `caps.software` may be read inside `src/`,
 so the scoped promises are easy to widen by accident.
 Fix (narrowed): state in 2.4 that `caps.software` is read in `src/` only by
-`isSoftwareAdapter` and `planGridStride` (a performance default, never a behaviour
+`isSoftwareAdapter` and `planGridStride` (a performance default, never a behavior
 decision), and let tests override it through `GpuContextOptions` tuning if they need a
 fixed dispatch shape.
 
@@ -289,7 +289,7 @@ move `degree` to `test/` or document it as a public diagnostic.
 ### MAINT-18 -- confirmed, minor (fix revised)
 
 Design 4239-4240 reads "graphty-element injects it as `runAlgorithm(snapshot, {
-accelerator: gpu })`"; the plan's own 1.3 row (164) quotes that spelling as honoured
+accelerator: gpu })`"; the plan's own 1.3 row (164) quotes that spelling as honored
 by section 9, while 9.2 / 9.4 (2313, 2404-2406) use `accelerated(acc).pageRank(s)`.
 `runAlgorithm` is a one-line sketch in the design (no signature anywhere: grep finds
 only line 4239), so this is a spelling departure, not a mechanism departure. Design
@@ -320,7 +320,7 @@ in Q-18 say that "Review notes" and graft markers are dropped on acceptance.
 Probe re-run on both adapters reproduces both facts. Note the plan never says "once
 per worker" (no such text; 505 says "acquire() per project") and never claims adapter
 reuse -- but 2.2's `options.adapter -> requestDevice` path plus a harness returning `{
-gpu, adapter, device }` (the graph-format `acquire()` it generalises, lines 38-63) is
+gpu, adapter, device }` (the graph-format `acquire()` it generalizes, lines 38-63) is
 exactly the trap: passing that `adapter` into `GpuContext.create` after the harness
 already called `requestDevice` fails. The uncaptured-error fact matters for 1202: an
 invalid command buffer is a no-op submit, so the batch's readback resolves with STALE
@@ -406,5 +406,5 @@ the type level; every future model widens the union.
 Fix: `GpuLayoutSimulation<Options, Stats extends LayoutStatsBase>` with
 `ForceAtlas2Stats` / `FruchtermanReingoldStats` subtypes (or `null` for absent
 fields), `setParams(patch: Partial<Options>)`; `createForceAtlas2` /
-`createFruchtermanReingold` return the specialised type; `LayoutAccelerator` keeps
+`createFruchtermanReingold` return the specialized type; `LayoutAccelerator` keeps
 returning `LayoutSimulation`.

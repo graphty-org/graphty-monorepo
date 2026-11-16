@@ -536,7 +536,7 @@ Read in full:
   Immersive Analytics. Computer Graphics Forum 40(7), 2021. https://arxiv.org/abs/2109.09547
   (accepted manuscript).
 - Drogemuller, A., Cunningham, A., Walsh, J., Thomas, B. H., Cordeil, M. and Ross, W. Examining
-  virtual reality navigation techniques for 3D network visualisations. Journal of Computer
+  virtual reality navigation techniques for 3D network visualizations. Journal of Computer
   Languages 56, 2020, 100937. https://doi.org/10.1016/j.cola.2019.100937 -- read at
   https://researchmgt.monash.edu/ws/files/298969984/298969574_oa.pdf
 - Huang, H. H., Pfister, H. and Yang, Y. Is embodied interaction beneficial? A study on navigating
@@ -546,7 +546,7 @@ Read in full:
   mental maps in immersive network visualization. IEEE PacificVis 2020.
   https://arxiv.org/abs/2001.06462 (preprint).
 - Feyer, S. P., Pinaud, B., Kobourov, S., Brich, N., Krone, M., Kerren, A., Behrisch, M., Schreiber,
-  F. and Klein, K. 2D, 2.5D, or 3D? An exploratory study on multilayer network visualisations in
+  F. and Klein, K. 2D, 2.5D, or 3D? An exploratory study on multilayer network visualizations in
   virtual reality. IEEE TVCG 2024. https://arxiv.org/abs/2307.10674 (preprint; the supplement with
   most significance tests was not read).
 - McGuffin, M. J., Servera, R. and Forest, M. Path Tracing in 2D, 3D, and Physicalized Networks. 2022. https://arxiv.org/abs/2207.11586 (preprint; error rates appear only in figures).
@@ -588,7 +588,7 @@ Checked only to see whether a research idea had been done (abstract or summary o
 - SeamlessVR. TVCG 2025. https://www.cs.purdue.edu/xrlab/assets/pdf/SeamlessVR25.pdf
 - A Design Space for Visualization Transitions in Hybrid AR-Desktop Environments.
   https://arxiv.org/abs/2506.22250
-- Analyzing User Behaviour Patterns in a Cross-Virtuality Immersive Analytics System. TVCG 2024.
+- Analyzing User Behavior Patterns in a Cross-Virtuality Immersive Analytics System. TVCG 2024.
   https://dl.acm.org/doi/10.1109/TVCG.2024.3372129
 - Habibi and Chattopadhyay. Bimanual Mid-Air Multi-Object Manipulation of Graph Data. CHI EA 2026.
   https://doi.org/10.1145/3772363.3798391

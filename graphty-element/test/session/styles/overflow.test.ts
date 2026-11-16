@@ -1,5 +1,5 @@
 /**
- * @file What a categorical colour encoding does with more groups than its palette can keep apart.
+ * @file What a categorical color encoding does with more groups than its palette can keep apart.
  *
  * `encode({ overflow })` picks one of three answers, and the default is written into the layer by
  * `encode()` itself, so a saved document says which one it was drawn with.

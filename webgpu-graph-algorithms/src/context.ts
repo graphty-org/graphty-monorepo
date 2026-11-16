@@ -5,7 +5,7 @@
  * watcher) and step 6 (the AllocationTracker, GraphResidency, BufferPool, Readback and PipelineCache) run
  * in the private constructor. The Profiler is constructed when "timestamp-query" is on the device (contract
  * 3.5; P2-T1) with `quantised` = runtime !== "node" (Dawn-node is the only runtime whose ticks are known
- * unquantised, spec 2.6). This file never imports ./kernels.js or ./wgsl/**.
+ * unquantized, spec 2.6). This file never imports ./kernels.js or ./wgsl/**.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -272,7 +272,7 @@ export class GpuContext {
 
     /**
      * Zero-cost adoption of a device the caller owns (ownsDevice false, runtime "unknown" unless info says
-     * otherwise). The context is labelled with the device's label, or "GpuContext.from" when it has none.
+     * otherwise). The context is labeled with the device's label, or "GpuContext.from" when it has none.
      * @param device - the device to adopt
      * @param info - what the caller knows about the adapter, if anything
      * @param options - see FromOptions

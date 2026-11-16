@@ -18,7 +18,7 @@ PageRank). Tool commit `71ed347b39a5`, no uncommitted changes.
 
 - **Marked links (right).** `07.png`: three blue bands on the full drawing; the inspector's
   "Selected edges" table and the three shaded rows of the data table match the key row for row.
-- **Nothing taken off the drawing (right).** All 10 stops and the grey links still drawn; the data
+- **Nothing taken off the drawing (right).** All 10 stops and the gray links still drawn; the data
   table reads "17 edges"; `work.json` shows no filter step and nothing removed.
 - **Count (right).** "Three links take 10 minutes or more", read from the line under the box, the
   inspector and the table.

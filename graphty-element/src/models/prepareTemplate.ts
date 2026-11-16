@@ -14,7 +14,7 @@
  *   material blends, and merged within each group, so draw calls grow with the groups and never
  *   with the nodes.
  * - Materials reflect the scene's environment, or the bundled neutral one when it has none, are
- *   compiled for instances with the instanced colour buffer, and frozen before any node draws them.
+ *   compiled for instances with the instanced color buffer, and frozen before any node draws them.
  *
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
@@ -431,7 +431,7 @@ function mergeGroups(
         mesh.isVisible = false;
         mesh.isPickable = false;
         mesh.metadata = { graphtyModelGroup: key };
-        // The instanced colour is always there, white by default: tint is then one write per
+        // The instanced color is always there, white by default: tint is then one write per
         // instance, and no node's tint can change the template's shader. Babylon names it
         // "color", the same kind as per-vertex colors, so a group with vertex colors registers
         // Babylon's "instanceColor", which its shaders multiply into the vertex colors

@@ -34,7 +34,7 @@ Think-aloud: "Gone. Fine."
 
 `--step $S --click "Florentine families"` -> 03.png
 
-Saw: a drawing of 15 blue balls joined by grey lines, no names on any of them. Left panel: a box
+Saw: a drawing of 15 blue balls joined by gray lines, no names on any of them. Left panel: a box
 "Find nodes, edges, values", "Selection", "Everything". Right panel: "Overview -- Nodes 15, Edges
 20, Undirected, from the file: directed 0, Density 0.1905, Components 1, Edges per n... 1 to 6,
 mean 2.667". A toolbar at the bottom with icons only.

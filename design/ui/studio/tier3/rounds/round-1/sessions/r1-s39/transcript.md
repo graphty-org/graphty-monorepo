@@ -60,7 +60,7 @@ Notes: A Color box with "A9A9A9" already highlighted -- a hex code, like in Exce
 
 ## Step 15 (15.png)
 Command: `--step <folder> --type "FF0000" --key Enter`
-Notes: The family lines are red now, and a key popped up: "Edge color: Family ties, 8 of 30 edges" -- handy for the slide. The others stayed grey. Now thick: + next to Line again, then Width.
+Notes: The family lines are red now, and a key popped up: "Edge color: Family ties, 8 of 30 edges" -- handy for the slide. The others stayed gray. Now thick: + next to Line again, then Width.
 
 ## Step 16 (16.png)
 Command: `--step <folder> --click-at 1404,340` (button "Add to edge line")
@@ -72,7 +72,7 @@ Notes: Width box shows "8" selected, but the red lines look just as thin as befo
 
 ## Step 18 (18.png)
 Command: `--step <folder> --type "20" --key Enter`
-Notes: Now the red family lines are clearly thicker than the grey ones. The people still look the same blue balls, the other ties still thin grey, and the panel says "Nodes: not styled". The layer count says 8, matching the 8 family rows. Autosave says saved. I'm done.
+Notes: Now the red family lines are clearly thicker than the gray ones. The people still look the same blue balls, the other ties still thin gray, and the panel says "Nodes: not styled". The layer count says 8, matching the 8 family rows. Autosave says saved. I'm done.
 
 ## Wrap-up (in character)
 - Did I finish? Yes. neighbors.csv came in with 16 people and 30 ties (matched my 30 rows), and the 8 family ties are now thick and red; people and the other ties are unchanged.

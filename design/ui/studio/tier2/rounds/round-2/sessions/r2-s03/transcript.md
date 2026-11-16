@@ -70,7 +70,7 @@ so I'll type the word I'd use: "route".
 Command: `--step --type "route"`
 
 Screenshot 09.png: two hits. "Shortest path -- The fewest steps, or the shortest path by weight,
-between two nodes" and "Guided route -- Select 2 nodes first" (greyed). Shortest path it is.
+between two nodes" and "Guided route -- Select 2 nodes first" (grayed). Shortest path it is.
 
 ## Step 10
 

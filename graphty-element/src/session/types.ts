@@ -8,7 +8,7 @@
  * backs a rendered view backs a Node test with no GPU, and two views of one dataset are one of
  * these and two renderers.
  *
- * The rule that decides whether a thing belongs here or on the view: if two synchronised views
+ * The rule that decides whether a thing belongs here or on the view: if two synchronized views
  * of one dataset would DISAGREE about it, it belongs to the view. A camera disagrees. Node
  * count, coordinates and statistics do not.
  */
@@ -26,9 +26,9 @@ import type {
     Capabilities,
     GraphAccelerator,
 } from "../acceleration";
-// EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
+// EdgeId comes from the ELEMENT's catalog rather than from graph-format, which is the one line
 // that makes `const id: EdgeId = record.id` type-check. This entry point used to publish two
-// different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
+// different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalog's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
 import type { CameraState } from "../camera/types";
@@ -147,7 +147,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
  * direction policy and the id coercion rule.
  *
- * It is the configuration the session's own behaviour reads, which is why it is the part of the
+ * It is the configuration the session's own behavior reads, which is why it is the part of the
  * configuration a session carries. The style layers, the camera defaults and the XR settings are
  * the view's, and they are not here.
  */
@@ -759,7 +759,7 @@ export interface ComponentStatistics {
  *
  * WHY THE SOURCE IS PUBLISHED AND NOT ONLY THE ANSWER. "This graph is directed" and "this file
  * said it is directed" are different claims, and a reader deciding whether to trust the first one
- * needs the second. A properties panel that prints "Directed" on a CSV nobody labelled is stating
+ * needs the second. A properties panel that prints "Directed" on a CSV nobody labeled is stating
  * the element's own default as though it were a fact about the data; the same word on a GEXF file
  * whose header says so is reporting what the author wrote. Without this, a consumer cannot tell
  * those apart, and the only alternative is to re-parse the file they already handed over.
@@ -822,7 +822,7 @@ export interface GraphStatistics {
     /** The smallest and the largest total degree in the graph; `[0, 0]` when there are no nodes. */
     readonly degreeRange: readonly [number, number];
     /**
-     * The mean total degree, over the same measure {@link GraphStatistics.degreeRange} summarises:
+     * The mean total degree, over the same measure {@link GraphStatistics.degreeRange} summarizes:
      * both ends of every edge counted, so a self-loop contributes two. Zero for an empty graph.
      *
      * It is published because the alternative is every consumer deriving it from the edge count,
@@ -833,7 +833,7 @@ export interface GraphStatistics {
     readonly meanDegree: number;
     /**
      * How the total degree is distributed: the same measure {@link GraphStatistics.degreeRange}
-     * summarises, binned the way `RunResult.histogram` bins a count. One bar per degree when there
+     * summarizes, binned the way `RunResult.histogram` bins a count. One bar per degree when there
      * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
      * {@link GraphStatistics.nodeCount}.
      *
@@ -2020,7 +2020,7 @@ export interface SessionDataApi {
      *
      * Without a `type`, the format is detected the way `loadFromUrl` and `loadFromFile` detect
      * it: from the file name or the URL's extension, then from the first bytes, fetching the URL
-     * once when its name says nothing. A format nothing recognises rejects with
+     * once when its name says nothing. A format nothing recognizes rejects with
      * `E_UNKNOWN_FORMAT`, naming the formats this element reads.
      * @param source - The data source's name, or none to detect it, and its options: inline
      *     `data`, a `url` or a `file`.
@@ -2244,14 +2244,14 @@ export interface SessionDataApi {
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     /**
      * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
-     * with its parameters (each one left out takes its catalogue default). The same name and
+     * with its parameters (each one left out takes its catalog default). The same name and
      * parameters give the same graph on every platform. A random generator's `seed` picks which
      * graph.
      * @param name - The generator's name, e.g. `"barabasi-albert"`.
      * @param params - Its parameters by name, e.g. `{ n: 500, m: 3 }`.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_GENERATOR` for a name the
-     *     catalogue does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
+     *     catalog does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
      *     and `E_OPTION_RANGE` for a value it refuses; nothing is recorded then.
      */
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
@@ -3382,7 +3382,7 @@ export interface ImportOptions {
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or
-     * cancelled by `undo()` (while it is pending `canUndo` is false unless later work is), the
+     * canceled by `undo()` (while it is pending `canUndo` is false unless later work is), the
      * steps recorded before it was called are dropped once it is in, and work dispatched while it
      * was pending is kept as its own steps.
      */
@@ -3431,7 +3431,7 @@ export interface RowUpdate<Id> {
 }
 
 /**
- * The part of the catalogue a session can answer today: the seven capability tables, which are
+ * The part of the catalog a session can answer today: the seven capability tables, which are
  * plain data and need no graph, plus `metrics()`, which needs one.
  *
  * Six of the seven -- algorithms, cameras, formats, layouts, log destinations and palettes --
@@ -3440,7 +3440,7 @@ export interface RowUpdate<Id> {
  * extension. `scales` is the element's own table alone.
  *
  * `metrics()` is the graph-dependent half's first member, and it is here because everything it
- * reads now exists: the catalogue declares what each algorithm requires of a graph, the cost model
+ * reads now exists: the catalog declares what each algorithm requires of a graph, the cost model
  * answers what one would take over the scope a run would cover and reports a requirement the graph
  * does not meet as an unavailability rather than a throw, and the runs API holds what has already
  * been run. A consumer wanting only the metrics that CAN run filters on `available`; both lists
@@ -3466,7 +3466,7 @@ export interface ProjectConfig {
     readonly data: SessionDataConfig;
     /** Whether the algorithms in `data.algorithms` run once data has loaded. */
     readonly runAlgorithmsOnLoad: boolean;
-    /** What the graph is drawn against: a colour or a skybox, and a shader over either. */
+    /** What the graph is drawn against: a color or a skybox, and a shader over either. */
     readonly background: GraphBackgroundConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
@@ -3492,7 +3492,7 @@ export interface ProjectConfig {
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
      * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a
-     * Ghost row (the elements outside the time window, grey at low opacity, when the timeline draws
+     * Ghost row (the elements outside the time window, gray at low opacity, when the timeline draws
      * them: `session.time.setSettings({ outside: "ghost" })`). The rows are ordinary data: a reader
      * may delete or change any of them, and no later setting adds, removes or rewrites one.
      * @since 3.26.0
@@ -3518,7 +3518,7 @@ export interface ProjectConfig {
      */
     readonly runPlacement: RunPlacement;
     /**
-     * The layout-behaviour settings a project file saves. The rest of the element's
+     * The layout-behavior settings a project file saves. The rest of the element's
      * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
      * view and not a project setting.
      */
@@ -4447,14 +4447,14 @@ export interface SessionHistory {
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
-     * @returns Every item cancelled; empty when the id is not pending.
+     * @returns Every item canceled; empty when the id is not pending.
      */
     cancel(pending: PendingId): readonly PendingStep[];
     /**
      * Drop every step: the current state becomes the baseline. Pending work that has already
-     * changed something (an open transaction that wrote, a layout moving nodes) is cancelled,
+     * changed something (an open transaction that wrote, a layout moving nodes) is canceled,
      * since its step would undo to a state older than the baseline. By default the rest of the
-     * pending work is cancelled too; pass `{ pending: "keep" }` to let it finish and record its
+     * pending work is canceled too; pass `{ pending: "keep" }` to let it finish and record its
      * steps over the new baseline, so a run started just before (one a reader began while a graph
      * was loading) is not lost.
      * @param options - What happens to pending work that has changed nothing yet.
@@ -4467,7 +4467,7 @@ export interface HistoryRestoreOptions {
     /**
      * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
      * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
-     * abandoned (a cancelled edit) leaves nothing to redo.
+     * abandoned (a canceled edit) leaves nothing to redo.
      */
     readonly redo?: "keep" | "drop";
 }
@@ -4528,7 +4528,7 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
     "data.import-source": Promise<void>;
-    /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
+    /** Settles once the neighborhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
     /** Settles once the expansion is recorded and drawn. Experimental. */
     "data.source-expand": Promise<void>;
@@ -4789,11 +4789,11 @@ export interface SessionHidden {
  * Which layout draws the graph, and in how many dimensions: the project's `layout` slice.
  *
  * Choosing a layout and switching between 2D and 3D are undoable steps, and undo puts back the
- * engine that was chosen with its own options, not the catalogue's default. Until one is chosen
+ * engine that was chosen with its own options, not the catalog's default. Until one is chosen
  * it reads the element's default, the `force` layout drawn by `ngraph` in 3D.
  */
 export interface SessionLayout {
-    /** The catalogue id, such as `"force"`. */
+    /** The catalog id, such as `"force"`. */
     readonly id: LayoutId;
     /** The engine that draws it, such as `"d3"`. */
     readonly engine: string;
@@ -4810,8 +4810,8 @@ export interface SessionLayout {
     readonly arrangedDimension: "2d" | "3d";
     /**
      * Choose the layout. One step.
-     * @param id - The catalogue id; a registered engine name is read as the id it serves.
-     * @param options - The engine, when not the catalogue's default for `id`, and its options.
+     * @param id - The catalog id; a registered engine name is read as the id it serves.
+     * @param options - The engine, when not the catalog's default for `id`, and its options.
      * @param options.engine - The engine that draws it, such as `"d3"`.
      * @param options.options - The engine's options.
      * @returns Settles once the step is recorded and the layout has taken its pre-steps.
@@ -4917,7 +4917,7 @@ export interface SessionLayout {
      * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
      * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
      * effect disabled, or offering only that value, with words for the code.
-     * @param id - The layout's catalogue id.
+     * @param id - The layout's catalog id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
      * @returns The answer; every other option is `setting.inEffect`.
@@ -5046,9 +5046,9 @@ export interface StyleProblem {
  * A graph with no view attached.
  *
  * The session holds the graph data, the coordinates, the runs and their results, the scope,
- * selection and visibility models, the style layers, the status, the catalogue, the configuration
+ * selection and visibility models, the style layers, the status, the catalog, the configuration
  * and the measured capabilities of the machine. A renderer binds to one; a Node test uses one on
- * its own; two synchronised views of one dataset share one.
+ * its own; two synchronized views of one dataset share one.
  *
  * With no renderer it still runs layouts: `layout.play()`, `tick()` and `settle()` move the
  * nodes, and `positions` reads and places them.
@@ -5185,7 +5185,7 @@ export interface GraphSession {
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
     /**
-     * The experiments this session switched on, and the requested ids it did not recognise.
+     * The experiments this session switched on, and the requested ids it did not recognize.
      * Settled when the session is created (for an element's session, when the element first
      * renders) and the same object afterwards.
      */
@@ -5276,7 +5276,7 @@ export interface GraphSession {
     /**
      * Do one thing, as a command.
      *
-     * The same verb `runs.start` offers, reached through the serialisable form -- so a recipe, a
+     * The same verb `runs.start` offers, reached through the serializable form -- so a recipe, a
      * journal entry and an agent's tool call all replay through one door rather than three.
      * @param command - What to do.
      * @param options - The signal, the progress handler and how the call joins the queue.
@@ -5350,7 +5350,7 @@ export interface GraphSession {
      * Which layout suits the graph this session holds: `recommendLayout` over its statistics, the
      * nodes its data placed (`seededNodeCount`), and whether its nodes carry geographic locations
      * the location map layout can read.
-     * @returns The recommendation, or undefined when the catalogue serves none.
+     * @returns The recommendation, or undefined when the catalog serves none.
      * @since 3.37.0
      */
     recommendLayout(): LayoutRecommendation | undefined;
@@ -5384,7 +5384,7 @@ export interface GraphSession {
  * Both extras exist for the same reason and it is a shape disagreement rather than a privilege.
  * A consumer reads the selection as a list of ids and the visible set as a set of ids; the render
  * loop needs the mask OBJECTS, so that it can test one element at a time and key its "have I
- * already drawn this?" bookkeeping on a mask's version without materialising a list of fifty
+ * already drawn this?" bookkeeping on a mask's version without materializing a list of fifty
  * thousand ids every frame. Nothing here decides anything a consumer could not decide -- the
  * verbs are the same verbs -- which is why the renderer is not a privileged consumer, merely a
  * per-element one.
@@ -5402,7 +5402,7 @@ export interface ElementSession extends GraphSession {
      * The third member of the same shape disagreement. A consumer asks what one element looks
      * like through `styles.explain(...)`, which answers in whole sentences about layers; a render
      * loop asks fifty thousand times a second which source mesh an element belongs to and what
-     * colour to write into its instance, and it asks by dense index. Neither the questions nor
+     * color to write into its instance, and it asks by dense index. Neither the questions nor
      * the verbs differ -- the stack is still the one that decides -- only the shape of the answer.
      */
     readonly paint: ElementPaint;

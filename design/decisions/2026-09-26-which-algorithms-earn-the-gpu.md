@@ -76,12 +76,12 @@ label propagation 31x / 337x / 508x and Louvain 5.3x / 47x / 294x on the minima 
 and 17-31x of each of those gaps at 100k belongs to the missing CPU port (Louvain's 20x was
 assumed; the port, once built, measured 1.8x at 100k -- see the re-derivation below).
 
-### All-pairs measured, not modelled (2026-09-27)
+### All-pairs measured, not modeled (2026-09-27)
 
-The all-pairs row above was modelled. It has now been measured, in Node on Dawn on the reference
+The all-pairs row above was modeled. It has now been measured, in Node on Dawn on the reference
 card (the RTX 4070 SUPER, driver 580.173.02), not in Chromium. The GPU arm is
 `allPairsShortestPath` of `@graphty/webgpu-graph-algorithms`, timed end to end INCLUDING the upload
-and the `4 n^2`-byte readback of the matrix. The CPU arms are the two this row was modelled
+and the `4 n^2`-byte readback of the matrix. The CPU arms are the two this row was modeled
 against: the shipped `floydWarshall` of `@graphty/algorithms` (the Map-of-Maps legacy code), and
 an indexed port -- a row-major `Float64Array` swept k-i-j, the port the model priced at 1.5 ns per
 inner step. No such port ships, so it was written for the measurement. Graphs are this record's
@@ -111,7 +111,7 @@ same load put the device ahead at 64 in three of four passes (0.86x, 1.20x, 1.18
 Against the legacy code the device won at every size measured, 16 nodes included, so that crossover
 is below 16. Chromium was not measured. The model charges Chromium a 2.0 ms round trip that Node
 does not pay, and the port reaches 2 ms at about 115 nodes (1.3 ms at 96, 2.8 at 128), so the
-modelled Chromium crossover of about 130 is consistent with this row, but it is still modelled.
+modeled Chromium crossover of about 130 is consistent with this row, but it is still modeled.
 
 Two findings move the large-n speedups, in opposite directions. The port is FASTER than the model
 assumed: 1.0 ns per inner step at 2,048 nodes (8.36 s for 8.6 billion steps), not 1.5. And the
@@ -189,7 +189,7 @@ it now earns. On the cuGraph-derived bound it still loses. So Louvain is no long
 model this record was decided on, but it is not settled either: which of the two models holds is
 exactly the per-row group-by rate that section 3.7 says has no WebGPU measurement behind it.
 
-### Sampled betweenness, measured rather than modelled (2026-09-27)
+### Sampled betweenness, measured rather than modeled (2026-09-27)
 
 The betweenness rows above are the model's. Once `betweennessCentrality` existed in
 `@graphty/webgpu-graph-algorithms` (pull request #552) the crossover was measured directly, on
@@ -277,7 +277,7 @@ reference, copied from `cpu-bench.ts` unchanged).
 ### Measured: triangle counting and label propagation (2026-09-27)
 
 Issue #422 built both on the device, so their rows no longer rest on the model. The crossovers
-below are MEASURED, not modelled: both arms ran on the same graph in the same process, in headless
+below are MEASURED, not modeled: both arms ran on the same graph in the same process, in headless
 Chromium 143 on the RTX 4070 SUPER (the NVIDIA adapter, not SwiftShader -- the run required it) and
 in Node on Dawn, with the CPU and device passes interleaved (the order reversed every round, so
 background load lands on both) and the MEDIAN of 11 rounds up to 10k nodes, 7 at 20k-50k and 5 at
@@ -292,7 +292,7 @@ Chromium run whose speedups are given in brackets; Node 7.3 / 11.1 / 10.7 to 7.5
 The CPU baselines are the ones this record used. Triangles: the CSR sorted-intersection reference
 of `cpu-measurements.md` (the package has no CPU triangle count), verbatim. Label propagation: the
 package has no indexed port, so two baselines are timed. "port" is a typed-array CSR label
-propagation with exactly the device's rules (weighted mode of the neighbours' labels, lowest label
+propagation with exactly the device's rules (weighted mode of the neighbors' labels, lowest label
 on a tie, synchronous, down-only on even passes and up-only on odd ones, stop after two still
 passes); its labels were IDENTICAL to the device's at every size, so both arms do the same work.
 "model" is this record's estimate of a port, six indexed PageRank-100 calls, measured and scaled
@@ -325,18 +325,18 @@ trip this record charges at 2 ms.
 
 What the measurement says, in Chromium on the reference card:
 
-- **Triangle counting earns, by half the modelled margin.** Crossover 7k nodes (0.79x at 5k,
-  1.02-1.07x at 7k; 7k-10k cold), against 6.6k modelled on the CPU minima. 4.5-4.8x at 100k and
-  4.0x at 1M, against 9.7x and 23x modelled; the 3x point lies between 20k (2.1-2.6x) and 50k
+- **Triangle counting earns, by half the modeled margin.** Crossover 7k nodes (0.79x at 5k,
+  1.02-1.07x at 7k; 7k-10k cold), against 6.6k modeled on the CPU minima. 4.5-4.8x at 100k and
+  4.0x at 1M, against 9.7x and 23x modeled; the 3x point lies between 20k (2.1-2.6x) and 50k
   (3.5-3.8x). The two halves of the gap are about equal: the device call at 100k is 22.5 ms
   where the model predicted 14.7 ms, and the CPU reference ran in 100.5 ms where the record's
   minimum was 142 ms (a quieter box). The record gated triangles on a merge step at or under
   1.9 ns; the measured 100k row sits between the model's assumed rate (9.7x) and its pessimistic
   bracket (2.3x) and above the 3x line, so the class stands. In Node the crossover is between 2k
   and 3k.
-- **Label propagation earns, by a quarter of the modelled margin.** Against the measured port the
+- **Label propagation earns, by a quarter of the modeled margin.** Against the measured port the
   crossover is between 4k (0.74x at 35 passes) and 5k (1.15-1.19x at 100 passes), against 2.5k
-  modelled; 2.6x at 10k, 4.1-5.3x at 100k and 7.3x at 1M, against 4.0x / 20x / 73x modelled; the
+  modeled; 2.6x at 10k, 4.1-5.3x at 100k and 7.3x at 1M, against 4.0x / 20x / 73x modeled; the
   3x point lies between 10k and 20k. Against this record's own estimate of a port (6 x
   PageRank-100) the crossover is between 3k and 4k and the speedups 4.0x / 8.0x / 20x. The gap to
   the model has two roughly equal halves: the measured port at 100k (1,016 ms) is 1.9x faster
@@ -346,7 +346,7 @@ What the measurement says, in Chromium on the reference card:
   between 1k and 1.5k.
 
 Both are routed nowhere yet: graphty-element has no triangle-count algorithm, and its label
-propagation calls `@graphty/algorithms`' seeded randomised implementation with no accelerator, so
+propagation calls `@graphty/algorithms`' seeded randomized implementation with no accelerator, so
 there is no element floor to set. When the element routes either, these crossovers -- 7,000 nodes
 for triangles, 5,000 for label propagation -- are the floors, and label propagation also needs
 the element to accept the device's deterministic rule in place of the seeded one.
@@ -372,7 +372,7 @@ they have ten edges a node, to find the kernel's own crossover. Every graph is u
 PageRank's and HITS's, which are directed, as the element runs them. Katz was also run on graphs
 with one edge a node and on a 200-wide grid. At the default `alpha` the dispatcher sends Katz to
 the device only where the series provably converges (`alpha` squared times the largest product of
-two neighbours' degrees below 1) and the in-degrees are uneven: sparse and bounded-degree graphs,
+two neighbors' degrees below 1) and the in-degrees are uneven: sparse and bounded-degree graphs,
 such as those two. On ten edges a node it stayed on the CPU at every size, marked "(CPU)" below.
 
 Each size ran the arms interleaved, flipping the order every round. One discarded pass of each arm
@@ -463,7 +463,7 @@ What this settles:
   again. Issue #623. The Katz rows below have no cold column.
 
 **Label propagation's two definitions.** The element now defaults to no seed, which runs
-synchronous passes: every node takes the lowest of its neighbours' best-voted labels, all at once,
+synchronous passes: every node takes the lowest of its neighbors' best-voted labels, all at once,
 with passes alternating between moving labels only up and only down. That is the device's rule.
 Below the floor, and with no accelerator, the CPU runs the same rule through the dispatcher's new
 `labelPropagationSynchronous`, which calls the port of that name. The two differ in three details:
@@ -659,7 +659,7 @@ The full measurements:
 ### Measured: the minimum spanning tree (2026-09-30)
 
 Issue #646 built Boruvka's minimum spanning forest in webgpu-graph-algorithms
-(`src/algorithms/mst.ts`) and routed graphty-element's `kruskal` to it. Its row above was modelled;
+(`src/algorithms/mst.ts`) and routed graphty-element's `kruskal` to it. Its row above was modeled;
 these numbers are measured.
 
 **What the device computes.** Each round, every edge whose two ends lie in different components
@@ -730,7 +730,7 @@ not used for a floor. The script and logs are in `tmp/boruvka/` of the branch's 
   keeps a second floor of 100,000 for a graph whose edges all weigh the same, which is what a graph
   with no `weight` attribute is.
 - **The crossover moved down from the model's 6,000 (11,000 on the minima).** The model charged
-  eight synchronisations of 2 ms; four rounds per submit leaves two.
+  eight synchronizations of 2 ms; four rounds per submit leaves two.
 - **The cold call** (the upload inside the number) still wins from 5,000 nodes on weighted graphs,
   and 4.4x at 100,000.
 
@@ -945,7 +945,7 @@ derived from one by arithmetic shown in the model note:
   resident karate / 1k / 10k BFS rows of 7.2 / 6.9 / 7.8 ms; the 9 ms Chromium traversal floor is
   ASSUMED, because no post-direct Chromium traversal row exists -- the empirical model brackets
   the whole Chromium floor, syncs included, at 12.9-17 ms);
-- one host-device round trip per synchronisation point: 0.10 ms in Node, 2.0 ms in Chromium
+- one host-device round trip per synchronization point: 0.10 ms in Node, 2.0 ms in Chromium
   (one measurement inside a real Chromium traversal, cross-checked against the 2.5 ms WGLog
   reports, https://arxiv.org/html/2607.17571v1);
 - one dispatch: 1 us in Node, 10 us in Chromium;
@@ -967,7 +967,7 @@ Minimum spanning tree at 100k in Chromium: floor 6.2 ms + 8 syncs x 2 ms + 7 rou
 (minimum of 14; loaded median 276 ms): 7.6x (10.4x).
 
 The model was checked against the rows that ARE measured before it was trusted on the rows
-that are not: resident BFS at 10k / 100k / 1M is modelled at 8.12 / 9.33 / 63.0 ms against
+that are not: resident BFS at 10k / 100k / 1M is modeled at 8.12 / 9.33 / 63.0 ms against
 7.8 / 9.2 / 61.7 measured; SSSP at 10.2 / 25.6 / 136 ms against 8.7 / 24.3 / 133; PageRank for
 100 iterations at 100k / 1M at 12.9 / 72.8 ms against 10.4 resident / 70-82 derived; the
 1000 x 1000 grid BFS at 425 ms against 427 measured. Every reconciled figure is within 1.3x of
@@ -1034,7 +1034,7 @@ Numbers are Chromium on the RTX 4070 SUPER unless stated.
 7. **BFS as a routed single-source call.** 0.03x / 0.50x / 3.1x (0.69x at 100k on the loaded
    median); 3x only near 950k; on the 1000 x 1000 grid the CPU is 7.4x (Node) to 12x (Chromium)
    faster (57 ms against 425 / 684 ms; the 57 ms is the 1M random-graph CPU rate of 14.3 ns/arc
-   applied to the grid's 4M arcs, not a measured grid row, and the Chromium 684 ms is modelled --
+   applied to the grid's 4M arcs, not a measured grid row, and the Chromium 684 ms is modeled --
    only the Node 427 ms is measured).
    It stays as the primitive under betweenness and closeness, where its 7-9 ms floor is paid
    once per hundred traversals.
@@ -1180,7 +1180,7 @@ Section 17's other rows agree with the model and are not overruled: the similari
 follows the triangle row (earns, unverified); strongly connected components are two BFS sweeps
 per iteration (marginal at best); spectral clustering follows PageRank's row (earns; f32
 precision is the risk); delta PageRank follows PageRank if the snapshot is resident; Markov
-clustering cannot be modelled without a sparse-matrix product primitive.
+clustering cannot be modeled without a sparse-matrix product primitive.
 
 ## The argument that was rejected
 
@@ -1273,7 +1273,7 @@ which assumes the GPU's cost stays flat until the crossover. It does not: at 100
 traversal kernels are already well above their floor, so the true crossing is at 141,000 nodes for
 breadth-first search rather than the 24,000 that method gives. The crossovers in this record's main
 table were computed from both cost curves and are the ones to use; the element's per-capability
-floors, which were measured end to end rather than modelled, agree with them.
+floors, which were measured end to end rather than modeled, agree with them.
 
 **The model scores an algorithm alone, and some algorithms are only worth building for what they
 carry.** Applied before any of this existed, the method would have recommended against building
@@ -1343,7 +1343,7 @@ substrate justified by a consumer that is never built is pure loss. The frontier
 case today: it was defended by sampled betweenness, betweenness lives in the betweenness and
 all-pairs phase, and that phase has not started. What the frontier machinery carries right now is
 closeness, which the element may not route above 30,000 nodes, and two traversals the element
-routes to the CPU below 141,000 and 107,000 nodes. So the shared-machinery defence of that phase
+routes to the CPU below 141,000 and 107,000 nodes. So the shared-machinery defense of that phase
 is a promissory note, and sampled betweenness is what pays it. That makes betweenness the highest
 priority of the unbuilt work -- not for its own 14x, but because it is what settles a phase
 already paid for. The rule that follows: a substrate and the consumer that justifies it belong in

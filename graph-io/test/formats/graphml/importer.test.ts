@@ -645,7 +645,7 @@ describe("graphmlImporter ids and endpoints", () => {
         expect(codes(report)).toEqual([SINK_OPTION_CODE, "E_UNKNOWN_NODE"]);
         expect(report.issues[0]).toMatchObject({ element: "selfLoops", category: "coercion" });
         expect(report.issues[0].message).toMatch(/selfLoops: "drop" requested but the sink uses "keep"/);
-        // addMissingNodes: true against a refusing sink cannot be honoured; nodeIdFrom has no GraphML meaning
+        // addMissingNodes: true against a refusing sink cannot be honored; nodeIdFrom has no GraphML meaning
         const strict = await load(
             doc(body),
             { nodeIdFrom: "label", addMissingNodes: true },

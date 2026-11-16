@@ -16,7 +16,7 @@ import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 // ------------------------------------------------------------------ independent helpers
 
 /**
- * Each node's summed vote per neighbour label, read from s.edgeList() rather than the CSR rows the
+ * Each node's summed vote per neighbor label, read from s.edgeList() rather than the CSR rows the
  * ports walk: self-loops dropped, a directed edge voting at both ends.
  */
 function tallies(s: GraphSnapshot, labels: ArrayLike<number>, weighted: boolean): Map<number, number>[] {
@@ -125,7 +125,7 @@ function lcg(seed: number): () => number {
 describe("indexed.labelPropagationSemiSupervised", () => {
     it("spreads one seed per planted group over its whole group (issue #959)", () => {
         // Free nodes used to start with a label of their own, so a lone seed was outvoted by its
-        // unlabeled neighbours and stayed in a cluster of one: sizes [1, 19, 1, 19, 20, 1, 19].
+        // unlabeled neighbors and stayed in a cluster of one: sizes [1, 19, 1, 19, 20, 1, 19].
         const sample = plantedPartitionGraph({ groups: 4, groupSize: 20, pIn: 0.5, pOut: 0.02, seed: 3 });
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < sample.nodeCount; i++) {
@@ -500,8 +500,8 @@ describe("indexed.labelPropagationSynchronous", () => {
     });
 
     it("takes the tied label of lowest priority, not the lowest label (issue #652)", () => {
-        // The centre of a two-leaf star sees labels 1 and 2 once each. The first pass moves only to a
-        // label of higher priority than the centre's own 0 (whose priority, scramble(0), is 0), so it
+        // The center of a two-leaf star sees labels 1 and 2 once each. The first pass moves only to a
+        // label of higher priority than the center's own 0 (whose priority, scramble(0), is 0), so it
         // takes whichever of 1 and 2 scrambles lower.
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < 3; i++) {

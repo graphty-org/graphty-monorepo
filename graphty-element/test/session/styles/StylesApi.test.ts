@@ -1309,9 +1309,9 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
 
-    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+    /* Two runs stacked on node color: each run-made layer is scoped `{match:"has"}` to the
        elements its run measured, so a cover test that only believed `{match:"everything"}`
-       never reported one run's colours hidden under another's. */
+       never reported one run's colors hidden under another's. */
     describe("a layer above that selects every element this one does", () => {
         /**
          * A session whose selector source can enumerate the elements a column holds a value for,

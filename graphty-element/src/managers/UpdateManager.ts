@@ -71,7 +71,7 @@ interface FramingBox {
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
  * grows this one by the labels.
  *
- * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
+ * NO MARGIN on top. A fixed one is paid by every graph, labeled or not, and on a small graph it is
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
@@ -326,7 +326,7 @@ export function framingBox(
 }
 
 /**
- * One set of elements the renderer honours, as the session holds it.
+ * One set of elements the renderer honors, as the session holds it.
  *
  * A MASK, not a list of ids: membership is one array read per element, the bytes are bounded at
  * the element count however many elements are in the set, and the `version` counter is what lets
@@ -873,7 +873,7 @@ export class UpdateManager implements Manager {
      * Say where the renderer reads the selection and visibility masks from.
      *
      * Binding is how the element's own model reaches the render loop: the masks belong to the
-     * session, one per dataset, and every view of that dataset honours the same two. Passing null
+     * session, one per dataset, and every view of that dataset honors the same two. Passing null
      * unbinds them, which draws the whole graph with no highlight.
      * @param masks - The two mask sources, or null.
      */
@@ -1037,7 +1037,7 @@ export class UpdateManager implements Manager {
      * not moved, so the cost lands only while records are actually arriving.
      */
     syncViewMasks(): void {
-        // An unbound renderer is not a renderer that stops honouring the masks: it is one whose
+        // An unbound renderer is not a renderer that stops honoring the masks: it is one whose
         // session says nothing about them, which means the whole graph is drawn and nothing is
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
@@ -1522,7 +1522,7 @@ export class UpdateManager implements Manager {
      *
      * An element whose paint has not changed still costs nothing: `Node.applySessionPaint` and
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
-     * screen and rebuild only when it differs, so a colour change on a node is one buffer write
+     * screen and rebuild only when it differs, so a color change on a node is one buffer write
      * and no geometry at all.
      * @param budgetMs - How long this frame may spend applying paint before it leaves the rest
      *     for the next frame; each kind of element paints at least one batch. Unbounded when absent.
@@ -3809,7 +3809,7 @@ export class UpdateManager implements Manager {
      *
      * WHY IT ASKS THE NODES RATHER THAN BEING TOLD. A flag set wherever something moves cannot be
      * trusted: a node's position is written by the layout, by a drag (which Babylon's own drag
-     * behaviour writes straight onto the mesh, through no method of ours), by the two-dimensional
+     * behavior writes straight onto the mesh, through no method of ours), by the two-dimensional
      * mode switch, and by a restore. Missing one of those would leave edges hanging in mid-air
      * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
      * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
@@ -3842,7 +3842,7 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // neighbor's slot behind. The store's version says so, and catches one removed and one
         // added, which leave a count alone. An engine's array is counted as well, for an engine
         // that takes an edge up after the store told it: read off the array's own length, since
         // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
@@ -4481,7 +4481,7 @@ export class UpdateManager implements Manager {
     /**
      * Whether the camera is looking at something other than what it looked at last frame.
      *
-     * Read rather than signalled, because a camera is moved by a reader's mouse, by an animation,
+     * Read rather than signaled, because a camera is moved by a reader's mouse, by an animation,
      * by zoom-to-fit and by the XR rig, and a frozen scene keeps whatever was inside the frustum
      * when it froze. Six numbers cover the orbit camera the element uses and the free cameras.
      * @returns True when the view has changed.

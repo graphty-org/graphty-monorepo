@@ -141,7 +141,7 @@ export class OrbitInputController {
         if (!evt.repeat) {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
             this.owed.set(action, (this.owed.get(action) ?? 0) + TAP_FRAMES);
-            // A press the other way ends what is left of the last step, rather than cancelling
+            // A press the other way ends what is left of the last step, rather than canceling
             // itself against it.
             const opposite = OPPOSITE_ACTION[action];
             if (opposite !== undefined) {

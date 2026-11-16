@@ -1,7 +1,7 @@
 /**
  * Dispatch planning (spec 5.2; contract 3.9): the 16,776,960 rule. `ceil(items / wg)` workgroups as a 1D dispatch
  * while the count fits one dimension (65,535 groups x 256 = 16,776,960 items, NOT 2^24), else a 2D grid whose
- * kernels linearise their id with the prelude's `linear_id()` and guard `id >= items`. Pure functions with no
+ * kernels linearize their id with the prelude's `linear_id()` and guard `id >= items`. Pure functions with no
  * device: every branch is unit-tested against faked capability tables.
  */
 
@@ -19,9 +19,9 @@ export interface DispatchPlan {
 }
 
 /**
- * The per-dimension workgroup limit a plan honours. PLAN DECISION: the minimum of the spec constant and the table's
+ * The per-dimension workgroup limit a plan honors. PLAN DECISION: the minimum of the spec constant and the table's
  * `maxComputeWorkgroupsPerDimension`; the two are asserted equal on a real device at create() (spec 2.2), so every
- * capability table of the tests yields the same plans and a faked table below the constant is still honoured.
+ * capability table of the tests yields the same plans and a faked table below the constant is still honored.
  * @param caps - the capability table
  * @returns the limit
  */

@@ -1,6 +1,6 @@
 /**
  * @file Layouts over a set (design/sets/sets-design.md section 11): which engines accept a scope,
- * how the catalogue learns it, and the hold -- the nodes outside the scope, which no layout step
+ * how the catalog learns it, and the hold -- the nodes outside the scope, which no layout step
  * may move and which each live engine also fixes in its own state.
  *
  * The simulation bridge is compared against a hand-pinned run over a real graph in

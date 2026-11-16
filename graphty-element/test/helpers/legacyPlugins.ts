@@ -1,5 +1,5 @@
 /**
- * @file Plugin algorithms that declare no catalogue descriptor, registered under the `fixture`
+ * @file Plugin algorithms that declare no catalog descriptor, registered under the `fixture`
  * namespace, for the tests that check a plugin run is one undoable step. Importing this module
  * registers them.
  */

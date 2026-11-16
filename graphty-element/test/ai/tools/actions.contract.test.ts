@@ -49,7 +49,7 @@ const RENDERER = {
     exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
 };
 
-/** A renderer whose layout behaviour fetches a node's neighbors: node "a" is joined to a new "x". */
+/** A renderer whose layout behavior fetches a node's neighbors: node "a" is joined to a new "x". */
 const EXPANDING = {
     ...RENDERER,
     getNode: (id: string) => ({ id }),
@@ -1010,7 +1010,7 @@ const MORE: Record<string, Row[]> = {
 };
 
 /**
- * A session whose runs never finish until cancelled: a run read while it is going.
+ * A session whose runs never finish until canceled: a run read while it is going.
  * @returns The session.
  */
 async function stalledSession(): Promise<GraphSession> {

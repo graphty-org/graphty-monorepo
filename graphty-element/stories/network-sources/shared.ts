@@ -194,7 +194,7 @@ export function labelLayer(field: string, sizePx: number = LABEL_STYLE.sizePx): 
 
 /**
  * Once the graph has settled, step the camera back a little from the element's own fit, which
- * frames the nodes' centres: the labels above the outermost nodes then fit on the canvas too.
+ * frames the nodes' centers: the labels above the outermost nodes then fit on the canvas too.
  * @param element - The element.
  * @returns Settles once the new frame is drawn.
  */
@@ -330,11 +330,11 @@ export function installFetchReplay(recordings: Recordings): () => void {
     };
 }
 
-/** Movies-database layers: people labelled by name in blue, films by title in orange. */
+/** Movies-database layers: people labeled by name in blue, films by title in orange. */
 export const MOVIE_LAYERS: readonly LayerSpec[] = [
     { ...labelLayer("name"), set: { "node.color": "#3b6fd4", "node.labelStyle": LABEL_STYLE } },
     { ...labelLayer("title"), set: { "node.color": "#e8890c", "node.labelStyle": LABEL_STYLE } },
 ];
 
-/** People-service layers: each person labelled by name. */
+/** People-service layers: each person labeled by name. */
 export const PEOPLE_LAYERS: readonly LayerSpec[] = [labelLayer("name")];

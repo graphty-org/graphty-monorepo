@@ -333,7 +333,7 @@ describe("built-in algorithm catalogue", () => {
 
         it("gives the all-pairs sweep a key of its own rather than a switch on shortest-path", () => {
             // A run fixes its result shape from its descriptor once, at creation, so a parameter
-            // that changed the shape would make the catalogue wrong about every run of that key:
+            // that changed the shape would make the catalog wrong about every run of that key:
             // the all-pairs sweep measures every node where shortest-path names one route.
             assert.isUndefined(descriptorFor("shortest-path").options.find((option) => option.name === "allPairs"));
             assert.strictEqual(descriptorFor("shortest-path").shape, "path");

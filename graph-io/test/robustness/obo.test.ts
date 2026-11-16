@@ -1,5 +1,5 @@
 /**
- * Robustness of the OBO flat-file importer: hostile, damaged, truncated and mislabelled input.
+ * Robustness of the OBO flat-file importer: hostile, damaged, truncated and mislabeled input.
  * Every test pins one condition: the import either recovers with the named issue codes and the
  * recoverable data kept, or rejects with ImportError carrying the named code. Conditions already
  * pinned by test/formats/obo/importer.test.ts or the audit suite are not repeated here.

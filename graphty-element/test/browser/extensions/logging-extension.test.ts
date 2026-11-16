@@ -24,7 +24,7 @@
  * WHAT THIS FILE PROVES. One dummy destination, written the way a customer would write one, put
  * through what it receives, what it can refuse, how it is turned on, and how it behaves beside
  * the element's own. Every assertion reads an OUTCOME -- what the collector is holding, what the
- * console printed, what the catalogue offers, which error code came back -- rather than checking
+ * console printed, what the catalog offers, which error code came back -- rather than checking
  * that a call did not throw.
  *
  * THE DUMMY. `acme-collector` keeps the most recent records in memory and renders each one
@@ -165,7 +165,7 @@ function createCollector(spec: CollectorSpec, built: Readonly<Record<string, unk
     return collector;
 }
 
-/** What the catalogue publishes about the collector, and what a settings panel would render. */
+/** What the catalog publishes about the collector, and what a settings panel would render. */
 const ACME_COLLECTOR: LogSinkDescriptor = {
     id: "acme-collector",
     plainName: "Acme in-page collector",

@@ -550,8 +550,8 @@ describe("binding a palette to a scale", () => {
     });
 
     it("never wraps a categorical palette round to its first colour", () => {
-        // Group eight sharing a colour with group zero says nothing, silently. Twelve groups
-        // against an eight-colour palette is a layer that gets disabled with a reason.
+        // Group eight sharing a color with group zero says nothing, silently. Twelve groups
+        // against an eight-color palette is a layer that gets disabled with a reason.
         const twelve = Array.from({ length: 12 }, (_unused, index) => `g${index}`);
 
         assert.strictEqual(

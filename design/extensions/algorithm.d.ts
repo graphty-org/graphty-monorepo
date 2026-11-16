@@ -1,6 +1,6 @@
 /**
- * Algorithm extension point. NORMATIVE for shapes; behaviour in design/extensions/algorithm.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
+ * Algorithm extension point. NORMATIVE for shapes; behavior in design/extensions/algorithm.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/AlgorithmDescriptor.
  */
 import type { Column, EdgeMask, GraphSnapshot, GraphSnapshotContract, NodeMask } from "./extend-snapshot";
@@ -43,7 +43,7 @@ export interface FieldDescriptor {
     path: string;
 }
 
-/** One algorithm, as the catalogue publishes it. IMPLEMENTED BY EXTENSIONS (as static descriptor). */
+/** One algorithm, as the catalog publishes it. IMPLEMENTED BY EXTENSIONS (as static descriptor). */
 export interface AlgorithmDescriptor {
     /** MUST equal the class's static type. */
     key: AlgorithmKey;
@@ -98,11 +98,11 @@ export interface RunProgressReport {
 
 /** What a run gives compute. CALLED BY EXTENSIONS. */
 export interface AlgorithmRunContext {
-    /** Aborted when the run is cancelled. Throw its reason; never swallow it. */
+    /** Aborted when the run is canceled. Throw its reason; never swallow it. */
     readonly signal: AbortSignal;
     report(progress: RunProgressReport): void;
     /**
-     * Hand the frame back. Await it between chunks of work. It never rejects, cancelled or not:
+     * Hand the frame back. Await it between chunks of work. It never rejects, canceled or not:
      * check `signal` (signal.throwIfAborted()) beside it. The simple tier's progress() does both.
      */
     yieldNow(): Promise<void>;
@@ -218,7 +218,7 @@ export interface AlgorithmStatics {
 export declare abstract class DeclaredAlgorithm<
     TOptions extends Record<string, unknown> = Record<string, unknown>,
 > extends Algorithm<TOptions> {
-    /** REQUIRED for catalogue parity. Without it the class is callable only by its legacy address. */
+    /** REQUIRED for catalog parity. Without it the class is callable only by its legacy address. */
     static descriptor?: AlgorithmDescriptor;
     /** Compute and RETURN the result; never write it anywhere. Null when there was nothing to compute. */
     abstract compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null>;
@@ -265,7 +265,7 @@ export declare function metricFieldSpecs(
 /** Fill the caveats every exact double-precision run shares. */
 export declare function declaredCaveats(init: Partial<Caveats> & { method: string; direction: RunDirection }): Caveats;
 
-/** Walk items in frame-sized chunks, reporting progress and yielding. Honours the signal. */
+/** Walk items in frame-sized chunks, reporting progress and yielding. Honors the signal. */
 export declare function forEachChunked<T>(
     context: Pick<AlgorithmRunContext, "signal" | "report" | "yieldNow">,
     phase: string,

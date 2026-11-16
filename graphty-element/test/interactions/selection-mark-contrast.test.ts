@@ -3,7 +3,7 @@
  * marked on screen, the mark stands at least 3:1 off the canvas (WCAG 1.4.11) on the light
  * default background and on a dark one, and deleting the Selected row takes the mark away.
  *
- * The contrast is computed from the rendered pixels, not from the configured colours, so a mark
+ * The contrast is computed from the rendered pixels, not from the configured colors, so a mark
  * drawn see-through, blended or tinted by light is measured as it is drawn.
  */
 
@@ -37,7 +37,7 @@ afterEach(() => {
 type Rgb = readonly [number, number, number];
 
 /**
- * A colour's relative luminance (WCAG 2).
+ * A color's relative luminance (WCAG 2).
  * @param rgb - 0-255 channels.
  * @returns 0 (black) to 1 (white).
  */
@@ -50,8 +50,8 @@ function luminance(rgb: Rgb): number {
 }
 
 /**
- * The WCAG contrast ratio of two colours.
- * @param left - One colour.
+ * The WCAG contrast ratio of two colors.
+ * @param left - One color.
  * @param right - The other.
  * @returns 1 to 21.
  */
@@ -61,7 +61,7 @@ function contrast(left: Rgb, right: Rgb): number {
 }
 
 /**
- * A hex colour's channels.
+ * A hex color's channels.
  * @param hex - `#rrggbb`.
  * @returns 0-255 channels.
  */
@@ -72,7 +72,7 @@ function rgbOf(hex: string): Rgb {
 
 /**
  * The element on the page, with the starting rows on, two nodes and the edge between them, in 2D.
- * @param background - The canvas colour; the default background when absent.
+ * @param background - The canvas color; the default background when absent.
  * @returns The element.
  */
 async function mounted(background?: string): Promise<Graphty> {
@@ -112,7 +112,7 @@ async function applied(element: Graphty): Promise<void> {
  * Where a node is drawn and how big.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre and radius in CSS pixels.
+ * @returns Its center and radius in CSS pixels.
  */
 function at(element: Graphty, id: string): Point & { radius: number } {
     const position = element.nodeScreenPosition(id);
@@ -144,10 +144,10 @@ async function read(element: Graphty): Promise<Frame> {
 }
 
 /**
- * The colour at a point.
+ * The color at a point.
  * @param frame - The frame.
  * @param point - CSS pixels from the element's top-left corner.
- * @returns The colour.
+ * @returns The color.
  */
 function pixel(frame: Frame, point: Point): Rgb {
     const x = Math.round(point.x * frame.scale);
@@ -157,11 +157,11 @@ function pixel(frame: Frame, point: Point): Rgb {
 }
 
 /**
- * The drawn pixels in a square that are the selection mark's colour, give or take antialiasing.
+ * The drawn pixels in a square that are the selection mark's color, give or take antialiasing.
  * @param frame - The frame.
- * @param center - The square's centre, CSS pixels.
+ * @param center - The square's center, CSS pixels.
  * @param half - Half its side, CSS pixels.
- * @param mark - The mark's configured colour.
+ * @param mark - The mark's configured color.
  * @returns The matching pixels.
  */
 function markPixels(frame: Frame, center: Point, half: number, mark: Rgb): Rgb[] {
@@ -180,7 +180,7 @@ function markPixels(frame: Frame, center: Point, half: number, mark: Rgb): Rgb[]
 /**
  * The least contrast any marked pixel stands off the canvas.
  * @param marked - The mark's pixels.
- * @param canvas - The canvas colour as drawn.
+ * @param canvas - The canvas color as drawn.
  * @returns The ratio.
  */
 function leastContrast(marked: readonly Rgb[], canvas: Rgb): number {

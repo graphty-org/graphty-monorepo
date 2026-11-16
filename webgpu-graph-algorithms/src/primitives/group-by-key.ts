@@ -3,7 +3,7 @@
  * row's arcs by the key of their target (`keyIn[colIdx[a]]`), sum the weights per key, and write the key with the
  * largest sum to `bestKey[v]` -- on a tie the row's own key `keyIn[v]` when it is among the tied, else the LOWEST,
  * which makes the answer independent of the visiting order -- and its summed weight to `bestScore[v]`. An empty row gets `INVALID_INDEX` and 0. Label propagation's step
- * is its first caller: the best key of a row is the weighted mode of the neighbours' labels.
+ * is its first caller: the best key of a row is the weighted mode of the neighbors' labels.
  *
  * Sums are u32 fixed point at a per-row power-of-two scale (the kernel header says how), so the two tiers and any
  * reference that follows the same arithmetic agree bitwise. A key must be below `INVALID_INDEX`.

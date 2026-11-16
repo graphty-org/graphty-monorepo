@@ -1119,7 +1119,7 @@ export interface SourcesReadContext {
     readonly links: readonly Record<string, unknown>[];
     /** Whether a source id is registered in this release. */
     readonly isRegistered: (source: string) => boolean;
-    /** Whether a name is one of the catalogue's generators. */
+    /** Whether a name is one of the catalog's generators. */
     readonly isGenerator: (name: string) => boolean;
     /** The time of opening, RFC 3339. */
     readonly now: string;

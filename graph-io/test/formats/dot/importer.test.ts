@@ -101,7 +101,7 @@ function dtypeOf(column: Column | null): string | null {
     return column === null ? null : column.dtype;
 }
 
-/** Container nodes the importer synthesises per corpus file, on top of the manifest's node count. */
+/** Container nodes the importer synthesizes per corpus file, on top of the manifest's node count. */
 const CONTAINERS: Record<string, string[]> = {
     "hello.gv": [],
     "cluster.gv": ["cluster_0", "cluster_1"],

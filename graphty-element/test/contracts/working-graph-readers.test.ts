@@ -177,7 +177,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "groups.expand()": "writes",
     // The groups the project holds collapsed: project state, kept whatever a filter hides.
     "groups.list()": "state",
-    // The colours the drawing paints: the drawing already leaves out what a filter hides.
+    // The colors the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
     "assets.add()": "writes",
     "assets.allowHosts()": "writes",

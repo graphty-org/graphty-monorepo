@@ -8,7 +8,7 @@ import { blues, greens, inferno, oranges, plasma, viridis } from "../../src/util
 import { holds } from "../assertions";
 
 /**
- * The colour ramps this story draws.
+ * The color ramps this story draws.
  *
  * Gathered here rather than imported as one namespace: `StyleHelpers` existed to be in scope
  * inside a `calculatedStyle` expression string, and it went with the evaluator. The ramps

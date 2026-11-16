@@ -280,12 +280,12 @@ says only which rows draw.
   or Create path to style (`interaction-patterns.md` 3.2), and its routed rows follow.
 - **Several elements of both kinds:** the channels whose name exists for both kinds, derived from the channel
   descriptors (color, opacity, label and label style on master), each drawn as for several elements.
-- **On elements, a commit on a row writes the Overrides layer** as one step
-  (`interaction-patterns.md` 3.2); Override (4.2) reaches a channel that has no row.
+- **On elements, a commit on a row adds an ordinary layer on top** whose selector names them, as
+  one step (`interaction-patterns.md` 3.2); Override (4.2) reaches a channel that has no row.
 
 **Blocked** (7.4): Selection colors on several elements (the resolved-value row); the target icon
-(the painted row); the own row (the object's-own-layer row); Override (the Overrides row). The app never fakes
-an override with an ordinary layer and an id selector.
+(the painted row); the own row (the object's-own-layer row); Override (the element's Override command). The app never builds
+that layer itself; the element's command does.
 
 ## 4. The inspector
 
@@ -430,7 +430,7 @@ section) never take a slot.
 
 | Kind | Line 1 | Line 2 | Verbs | Overflow |
 |---|---|---|---|---|
-| Nothing | the graph's name | Graph | -- | the graph's commands; Clear all overrides |
+| Nothing | the graph's name | Graph | -- | the graph's commands |
 | One node | its label | Node; Pinned when pinned | Select neighbors (split: hops, direction, edge type, Filter to neighbors), Filter to, Pin or Unpin | Create set, Shortest path from..., Filter out, Hide on canvas or Show on canvas, Add note, Override, Remove |
 | One edge | source -> target on a directed graph, A -- B on an undirected one; each end a link | Edge; the edge key when parallel edges exist | Select neighbors, Filter to, Create set | Filter out, Hide on canvas or Show on canvas, Add note, Override, Remove |
 | Several elements | N selected | Nodes, Edges, or Nodes and edges when mixed (a mixed selection offers only Filter to and Create set, then Filter out, Hide on canvas or Show on canvas and Add note) | Select neighbors (split: hops, direction, edge type, Filter to neighbors), Filter to, Create set | Filter out, Add selection to step, Hide on canvas or Show on canvas, Create path, Merge nodes, Add note, Override, Remove |
@@ -442,11 +442,11 @@ section) never take a slot.
 Rename, Duplicate and Delete are on the object's row (`output-homes.md` 3), as in Figma's layers
 panel. A rule set's rule is edited from its Rule property row. A definition's verbs are in its
 editor's header and its row's context menu (`interface-templates.md` 10); the set operations are in the context menu of
-focused set rows. Add note, Select painted, Override, Clear all overrides, Compare with..., and Hide
+focused set rows. Add note, Select painted, Override, Compare with..., and Hide
 on canvas and Show on canvas are blocked (7.4). "Hide on canvas or Show on canvas" is one slot whose
-label follows the selection, as "Pin or Unpin" does. Clear all overrides is the graph-wide reset
-(`figma-crosswalk.md` 4.2, "Reset all changes resets one instance's overrides"); Reset on an
-overridden style row is the fine reset. The order Create path takes its nodes in is
+label follows the selection, as "Pin or Unpin" does. A hand edit is undone by deleting its layer,
+or by Reset on its channel row (`figma-crosswalk.md` 4.2, "Reset all changes resets one instance's
+overrides"). The order Create path takes its nodes in is
 `interaction-pattern-entries.md` 4.1's.
 
 ### 4.3 Tab order

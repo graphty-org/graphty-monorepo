@@ -318,6 +318,8 @@ export interface WorkspaceState {
      * showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "nodes" | "edges";
+    /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
+    readonly analyzeOn: string | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -438,6 +440,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
+    analyzeOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,

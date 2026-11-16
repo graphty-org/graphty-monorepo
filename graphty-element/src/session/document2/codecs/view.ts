@@ -22,6 +22,7 @@ import type { Layer } from "../../styles/Layer";
 import type { GraphSession, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
+import { canonicalText as canonical } from "../framing";
 import type {
     DocumentProblem,
     ElementRefs,
@@ -49,7 +50,6 @@ import { heldTypeSelector } from "./style";
 import {
     cameraJson,
     cameraOf,
-    canonical,
     fileIdsOf,
     fileLayerId,
     isObject,

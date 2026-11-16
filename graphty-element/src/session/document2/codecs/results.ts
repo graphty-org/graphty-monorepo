@@ -15,7 +15,7 @@ import { createRunResult, type ResultElementValues } from "../../results/RunResu
 import type { RunResult } from "../../results/types";
 import { type Caveats, ENGINE_VERSIONS, type Run, type RunOutcome } from "../../runs";
 import type { GraphSession } from "../../types";
-import { isJsonObject } from "../framing";
+import { canonicalText as canonical, isJsonObject } from "../framing";
 import { projectMemory } from "../memory";
 import type {
     BuildStamp,
@@ -27,7 +27,7 @@ import type {
     WriteContext,
 } from "../types";
 import { jsonSafe, numericCell } from "./dataRefs";
-import { canonical, mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
+import { mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
 
 /**
  * A value as a document holds it (spec 11), undefined as null so a column keeps its length.

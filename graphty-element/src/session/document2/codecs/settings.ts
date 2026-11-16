@@ -215,14 +215,7 @@ function patchOf(
             continue;
         }
 
-        const parts = key.split(".");
-        const leaf = parts.pop() as string;
-        let parent = patch;
-        for (const part of parts) {
-            parent[part] ??= {};
-            parent = parent[part] as JsonObject;
-        }
-        parent[leaf] = value;
+        setAt(patch, key, value);
         count++;
     }
 
@@ -341,6 +334,23 @@ async function readSettings(settings: unknown, at: string, context: ReadContext,
 }
 
 /**
+ * Write a value into a nested patch at a dotted config key, making the objects on the way.
+ * @param patch - The patch.
+ * @param key - The dotted key.
+ * @param value - The value.
+ */
+function setAt(patch: JsonObject, key: string, value: unknown): void {
+    const parts = key.split(".");
+    const leaf = parts.pop() as string;
+    let parent = patch;
+    for (const part of parts) {
+        parent[part] ??= {};
+        parent = parent[part] as JsonObject;
+    }
+    parent[leaf] = value;
+}
+
+/**
  * Every key this section holds that a section leaves out, at its default, as a nested patch. A key
  * whose default is no value (an optional one) is left as it is.
  * @param settings - The `settings` member as read.
@@ -354,14 +364,7 @@ function defaultsFor(settings: JsonObject): JsonObject {
             continue;
         }
 
-        const parts = key.split(".");
-        const leaf = parts.pop() as string;
-        let parent = patch;
-        for (const part of parts) {
-            parent[part] ??= {};
-            parent = parent[part] as JsonObject;
-        }
-        parent[leaf] = unset.data;
+        setAt(patch, key, unset.data);
     }
 
     return patch;

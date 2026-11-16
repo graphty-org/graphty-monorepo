@@ -156,31 +156,6 @@ export function isObject(value: unknown): value is JsonObject {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * A value as JSON text with members sorted, so two values holding the same members compare equal.
- * Only for comparing; never written.
- * @param value - The value.
- * @returns The text.
- */
-export function canonical(value: unknown): string {
-    if (Array.isArray(value)) {
-        return `[${value.map((each) => canonical(each ?? null)).join(",")}]`;
-    }
-
-    if (isObject(value)) {
-        const names = Object.keys(value)
-            .filter((name) => value[name] !== undefined)
-            .sort((a, b) => (a < b ? -1 : Number(a > b))); // code-unit order is all a comparison needs
-        const members = names.map((name) => {
-            const member = JSON.stringify(name);
-            return `${member}:${canonical(value[name])}`;
-        });
-        return `{${members.join(",")}}`;
-    }
-
-    return JSON.stringify(value ?? null);
-}
-
 // ---------------------------------------------------------------------------------------------
 // Cameras (spec 4.7 rule 2, section 7)
 // ---------------------------------------------------------------------------------------------

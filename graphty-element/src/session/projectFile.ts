@@ -49,8 +49,9 @@ import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
 import { openDocument2, saveDocument2 } from "./document2/document";
-import { assertIJson, isJsonObject, isVersion2, parseDocument } from "./document2/framing";
+import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } from "./document2/framing";
 import { migrateDocument1 } from "./document2/migration";
+import { DTYPES } from "./document2/migrationParts";
 import { SECTION_CODECS } from "./document2/registry";
 import {
     DOCUMENT_SECTIONS,
@@ -540,14 +541,6 @@ export function answeringFromProject(execute: RunExecutor, canned: CannedOutcome
 type SavedColumn =
     | { readonly dtype: "f64" | "f32" | "i32" | "u8"; readonly data: string; readonly absent?: readonly number[] }
     | readonly unknown[];
-
-/** Bytes per value, and the reader, of each dtype. */
-const DTYPES: Readonly<Record<string, readonly [number, (view: DataView, at: number) => number]>> = {
-    f64: [8, (view, at) => view.getFloat64(at, true)],
-    f32: [4, (view, at) => view.getFloat32(at, true)],
-    i32: [4, (view, at) => view.getInt32(at, true)],
-    u8: [1, (view, at) => view.getUint8(at)],
-};
 
 /**
  * A column as a file holds it: an all-number column (gaps aside) as f64 bytes, any other as JSON.
@@ -2909,15 +2902,6 @@ export function markProjectUnsaved(session: GraphSession): void {
 }
 
 /**
- * A fresh project id: 128 random bits in hex.
- * @returns The id.
- */
-function newProjectId(): string {
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/**
  * A saved project id, when it is one: a string of 1 to 128 letters, digits, `-` and `_`.
  * @param value - What the file holds.
  * @returns The id, or undefined.
@@ -2956,7 +2940,7 @@ export function projectOf(
     },
 ): ProjectApi {
     const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
-    let id = newProjectId();
+    let id = newDocumentId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -3109,7 +3093,7 @@ export function projectOf(
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.
         const before = id;
-        id = projectIdOf(state?.id) ?? newProjectId();
+        id = projectIdOf(state?.id) ?? newDocumentId();
         projectChanged?.();
         try {
             await session.transaction(
@@ -3332,7 +3316,7 @@ export function projectOf(
                     refuseUnsaved(isDirty(), options.discard);
                     (session.assets as AssetsApiInternal).forgetProjectStorage();
                     projectBoundary(session, "open");
-                    id = wrapperId ?? newProjectId();
+                    id = wrapperId ?? newDocumentId();
                     projectChanged?.();
                 },
                 name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),

@@ -101,8 +101,8 @@ export function keyText(id: unknown): string {
 // The version 1 column encoding (projectFile.ts `encodeColumn`)
 // ---------------------------------------------------------------------------------------------
 
-/** Bytes per value, and the reader, of each version 1 dtype. */
-const DTYPES: Readonly<Record<string, readonly [number, (view: DataView, at: number) => number]>> = {
+/** Bytes per value, and the reader, of each version 1 dtype; projectFile.ts's columns share it. */
+export const DTYPES: Readonly<Record<string, readonly [number, (view: DataView, at: number) => number]>> = {
     f64: [8, (view, at) => view.getFloat64(at, true)],
     f32: [4, (view, at) => view.getFloat32(at, true)],
     i32: [4, (view, at) => view.getInt32(at, true)],

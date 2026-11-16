@@ -286,6 +286,7 @@ export interface GraphtyElementJSXProps {
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
+    "preserve-drawing-buffer"?: boolean;
     "reduced-motion"?: string;
     "render-on-demand"?: boolean;
     "render-path"?: string;
@@ -348,6 +349,7 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     reducedMotion?: Graphty["reducedMotion"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];

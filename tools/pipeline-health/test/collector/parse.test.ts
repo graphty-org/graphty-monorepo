@@ -344,6 +344,38 @@ describe("runner use: jobs our own workflow holds", () => {
     });
 });
 
+describe("runner use: stuck runs and jobs", () => {
+    // 2026-11-15: CodeQL run 43448526218 sat queued with no jobs for 2 days while new pull request runs got runners;
+    // it alone held ci.longest_queued at 3341 min and ci.not_assigned red (issue #8316)
+    const base = jobs("jobs-pr-40238975833.json")[0];
+    const at = (min: number) => new Date(NOW - min * MIN).toISOString();
+    const running = { ...base, status: "in_progress", labels: ["ubuntu-24.04"], created_at: at(5) };
+
+    it("a days-old queued run with no jobs while newer jobs run is stuck, not waiting for a runner", () => {
+        const run = { created_at: at(3341), status: "queued" } as GhRun;
+        const use = runnerUse([running], [run], NOW);
+        expect(use).toMatchObject({ stuck: 1, queuedOver2: 0, longestQueuedMs: 0 });
+        expect(runnerFlags(use, 300)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("an old queued job while newer jobs run is left out of the longest wait", () => {
+        const old = { ...base, status: "queued", labels: ["ubuntu-24.04"], created_at: at(3000) };
+        const fresh = { ...old, created_at: at(3) };
+        const use = runnerUse([running, old, fresh], [], NOW);
+        expect(use).toMatchObject({ heldByRun: 1, queuedOver2: 1, longestQueuedMs: 3 * MIN });
+    });
+
+    it("with nothing running, an old queued run still reads as waiting (an Actions outage)", () => {
+        const run = { created_at: at(600), status: "queued" } as GhRun;
+        expect(runnerUse([], [run], NOW)).toMatchObject({ stuck: 0, queuedOver2: 1, longestQueuedMs: 600 * MIN });
+    });
+
+    it("waiting and pending jobs are not counted in the longest wait", () => {
+        const waiting = { ...base, status: "waiting", labels: ["ubuntu-24.04"], created_at: at(300) };
+        expect(runnerUse([waiting, { ...waiting, status: "pending" }], [], NOW).longestQueuedMs).toBe(0);
+    });
+});
+
 describe("runner use: waiting is not queued", () => {
     it("a lone job waiting for an environment approval does not read as runners not assigned", () => {
         const base = jobs("jobs-pr-40238975833.json")[0];

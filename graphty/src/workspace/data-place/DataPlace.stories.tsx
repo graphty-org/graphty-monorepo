@@ -253,6 +253,8 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 /**
  * With the selection workspace on, a new card opens in a modal over the whole app, whose scrim
  * takes every click until it closes: Done closes it, as a reader would, before the next "Add filter".
+ * The card is a draft until Done writes it (design/working-graph/design.md, section 3), so a story
+ * waits for the written condition after Done.
  * Off, the card opens in the Data place and there is nothing to close.
  * @param element - the element.
  */
@@ -286,13 +288,13 @@ export const FilterCards: Story = {
         const from = await within(document.body).findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
-        await holds(element, 1);
         await done(element);
+        await holds(element, 1);
 
         // The largest component.
         await addFilter(canvasElement, "Largest component");
-        await holds(element, 2);
         await done(element);
+        await holds(element, 2);
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -300,8 +302,8 @@ export const FilterCards: Story = {
             await session.selection.apply({ nodes: [marius] });
         }
         await addFilter(canvasElement, "Neighbors of selection");
-        await holds(element, 3);
         await done(element);
+        await holds(element, 3);
 
         // An old filter step, as a saved project opens it: All, then Except.
         await session.visibility.addCondition({

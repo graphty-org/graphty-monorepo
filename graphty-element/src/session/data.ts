@@ -2030,7 +2030,7 @@ export class SessionData implements SessionDataApi {
                         const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
                         pairs.add(pairKeyOf(source, target));
                         if (!snapshot.directed) {
-                            pairs.add(pairKeyOf(target, source)); // NOSONAR(S2234): the reverse pair, so an undirected edge matches either way
+                            pairs.add(pairKeyOf(target, source)); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
                         }
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };

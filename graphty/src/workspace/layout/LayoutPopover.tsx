@@ -182,7 +182,7 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
 
     return (
         <Stack gap={4} className="ws-analyze" onKeyDown={onKeyDown}>
-            <div // NOSONAR(S6819): an ARIA listbox of rich options; a native select cannot draw them
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA listbox of rich options; a native select cannot draw them
                 className="ws-analyze-list"
                 role="listbox"
                 aria-label="Layouts"
@@ -190,7 +190,7 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
                 onKeyDown={onListKeyDown}
             >
                 {sections.map(({ title, rows }) => (
-                    <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside an ARIA listbox; optgroup needs a native select
                         role="group"
                         key={title}
                         aria-label={title}
@@ -199,7 +199,7 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
                             {title}
                         </Text>
                         {rows.map((choice) => (
-                            <UnstyledButton // NOSONAR(S6811): aria-description is the ARIA 1.3 attribute that gives an option its one-line gloss
+                            <UnstyledButton // eslint-disable-line jsx-a11y/role-supports-aria-props -- aria-description is the ARIA 1.3 attribute that gives an option its one-line gloss
                                 component="div"
                                 role="option"
                                 key={choice.key}

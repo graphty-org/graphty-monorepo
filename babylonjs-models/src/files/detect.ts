@@ -9,7 +9,7 @@
  */
 
 /** A loader id. The element's own are {@link BuiltInModelFormat}; extensions may add more. */
-export type ModelFormat = string; // NOSONAR(S6564): published, documented name for the open union of model format ids
+export type ModelFormat = string; // eslint-disable-line sonarjs/redundant-type-aliases -- published, documented name for the open union of model format ids
 
 /** The model formats this package reads itself. */
 export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";

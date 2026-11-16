@@ -651,8 +651,7 @@ export const GROUP_MEMBER_SECONDS = {
     "cytoscape-extensions-storybook": 54,
 };
 
-// Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
-// and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
+// Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls. The webgpu browser smoke never uploaded coverage (the node shards measure the
 // package); graphty-storybook, algorithms-storybook, layout-storybook and cytoscape-extensions-storybook write none (their packages' own shards measure them); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 // Nor do the On shards: coverage is judged on the Off run.

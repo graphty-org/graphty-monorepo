@@ -697,7 +697,7 @@ export class Autosaver {
             this.#stash.delete(name);
         } else {
             // A JSON round trip on purpose: the stash keeps exactly what the entry will hold.
-            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // NOSONAR(S7784): JSON semantics wanted, not a structured clone
+            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // eslint-disable-line unicorn/prefer-structured-clone -- JSON semantics wanted, not a structured clone
         }
 
         if (this.#quiet > 0 && !this.#restoring) {

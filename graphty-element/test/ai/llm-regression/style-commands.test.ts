@@ -14,7 +14,13 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { GraphSession } from "../../../session";
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import {
+    assertAction,
+    assertNotRefused,
+    callLines,
+    type LlmRegressionResult,
+    LlmRegressionTestHarness,
+} from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 import { edgesPainted, nodesPainted } from "./red";
 
@@ -71,8 +77,37 @@ function edgeWidth(session: GraphSession, id: string): number {
 describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
     let session: GraphSession;
+    /** The prompts' results, printed with each call's outcome when a test fails. */
+    let results: LlmRegressionResult[];
 
-    beforeEach(async () => {
+    /**
+     * Send a prompt, keeping its result for the failure report.
+     * @param text - The prompt.
+     * @returns Its result.
+     */
+    async function prompt(text: string): Promise<LlmRegressionResult> {
+        const result = await harness.testPrompt(text);
+        results.push(result);
+        return result;
+    }
+
+    /**
+     * Assert the prompt's last style add or encode call took effect.
+     * @param result - The prompt's result.
+     */
+    function assertStyled(result: LlmRegressionResult): void {
+        assertNotRefused(result, assertAction(result, "style", ["add", "encode"]));
+    }
+
+    beforeEach(async ({ onTestFailed }) => {
+        results = [];
+        // The calls with their arguments and outcomes: the paint checks alone cannot say whether
+        // the model or the check was wrong.
+        onTestFailed(() => {
+            for (const result of results) {
+                console.log(`[llm-regression] calls "${result.prompt}"\n${callLines(result).join("\n") || "none"}`);
+            }
+        });
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -85,19 +120,19 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
     describe("style nodes", () => {
         it("calls style for 'Make all nodes red'", async () => {
-            const result = await harness.testPrompt("Make all nodes red");
+            const result = await prompt("Make all nodes red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             assert.deepStrictEqual(nodesPainted(session, NODES, "red"), ALL_NODE_IDS, "every node is red");
         });
 
         it("calls style for 'Highlight server nodes in blue'", async () => {
             const colorBefore = nodeChannel(session, "node.color");
-            const result = await harness.testPrompt("Highlight server nodes in blue");
+            const result = await prompt("Highlight server nodes in blue");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             // The default node color may itself read as blue, so "only the server nodes change"
             // is what pins the target; the hue check pins the color.
             const blue = nodesPainted(session, NODES, "blue");
@@ -111,10 +146,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
         it("calls style for 'Make all nodes bigger'", async () => {
             const sizeBefore = nodeChannel(session, "node.size");
-            const result = await harness.testPrompt("Make all nodes bigger");
+            const result = await prompt("Make all nodes bigger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             const sizeAfter = nodeChannel(session, "node.size");
             for (const id of ALL_NODE_IDS) {
                 assert.isAbove(
@@ -128,10 +163,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         it("calls style for 'Make database nodes green and larger'", async () => {
             const colorBefore = nodeChannel(session, "node.color");
             const sizeBefore = nodeChannel(session, "node.size");
-            const result = await harness.testPrompt("Make database nodes green and larger");
+            const result = await prompt("Make database nodes green and larger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             // Both halves of the request, on the database node alone.
             assert.deepStrictEqual(nodesPainted(session, NODES, "green"), ["3"], "the database node is green");
             assert.deepStrictEqual(
@@ -154,10 +189,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
     describe("style edges", () => {
         it("calls style for 'Make all edges green'", async () => {
-            const result = await harness.testPrompt("Make all edges green");
+            const result = await prompt("Make all edges green");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             assert.deepStrictEqual(
                 edgesPainted(session, "green"),
                 session.data.edges().map((edge) => edge.id),
@@ -166,10 +201,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         });
 
         it("calls style for 'Make high-weight edges thicker'", async () => {
-            const result = await harness.testPrompt("Make high-weight edges thicker");
+            const result = await prompt("Make high-weight edges thicker");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             // "High" names no threshold, so a filter at any cut or an encoding on weight both
             // answer it; either way the heaviest edge (2->3, weight 1.0) ends wider than the
             // lightest (4->1, weight 0.3), which all edges' default width does not.
@@ -181,10 +216,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         });
 
         it("calls style for 'Color edges with latency > 50 as red'", async () => {
-            const result = await harness.testPrompt("Color edges with latency > 50 as red");
+            const result = await prompt("Color edges with latency > 50 as red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
             assert.deepStrictEqual(
                 edgesPainted(session, "red"),
                 [edgeId(session, "4", "1")],
@@ -195,7 +230,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
     describe("clear styles", () => {
         it("calls style clear_mine for 'Remove all styling'", async () => {
-            const result = await harness.testPrompt("Remove all styling");
+            const result = await prompt("Remove all styling");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             assertAction(result, "style", ["clear_mine", "remove"]);
@@ -214,7 +249,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
                     set: { "node.color": "#ffcc00" },
                     source: { by: "plugin", name: "graphty-ai" },
                 });
-            const result = await harness.testPrompt("Clear the highlight style");
+            const result = await prompt("Clear the highlight style");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             assertAction(result, "style", ["clear_mine", "remove"]);
@@ -236,11 +271,11 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     describe("command result validation", () => {
         it("returns command result for styling nodes", async () => {
             // Use explicit prompt that reliably triggers the tool
-            const result = await harness.testPrompt("Apply red color to all nodes");
+            const result = await prompt("Apply red color to all nodes");
 
             // Verify the LLM called the correct tool
             assert.ok(result.toolWasCalled, "Expected the style tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
@@ -249,11 +284,11 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
         it("returns command result for styling edges", async () => {
             // Use explicit prompt that reliably triggers the tool
-            const result = await harness.testPrompt("Color all edges green");
+            const result = await prompt("Color all edges green");
 
             // Verify the LLM called the correct tool
             assert.ok(result.toolWasCalled, "Expected the style tool to be called");
-            assertAction(result, "style", ["add", "encode"]);
+            assertStyled(result);
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
@@ -262,7 +297,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
         it("returns command result for clearing styles", async () => {
             // Use explicit prompt that reliably triggers the tool
-            const result = await harness.testPrompt("Clear all styles from the graph");
+            const result = await prompt("Clear all styles from the graph");
 
             // Verify the LLM called the correct tool
             assert.ok(result.toolWasCalled, "Expected the style tool to be called");

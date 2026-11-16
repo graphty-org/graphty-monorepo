@@ -115,8 +115,9 @@ describe("Pajek styles: Pajek's rules", () => {
             "ellipse",
             "rectangle",
             "polygon",
-            "triangle",
-            "other:cross",
+            // Pajek 6.02 draws `Triangle` (a capital T is no shape keyword to it) and `cross` as ellipses
+            "ellipse",
+            "ellipse",
             "none",
         ]);
         // Pajek's diamond has its top and bottom cut q wide (q 0.001 by default): six corners
@@ -139,9 +140,8 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "labelPosition").slice(2, 4)).toEqual(["center", "center"]);
         expect(drawn(styles, snapshot, "node", "labelOffsetX").slice(2, 4)).toEqual([5.176380902, -28.190778624]);
         expect(drawn(styles, snapshot, "node", "labelOffsetY").slice(2, 4)).toEqual([14.121016526, 5.0631043]);
-        // `cross` has no name in the neutral vocabulary: kept as other:cross and noted; the line pattern `Dashed` is
-        // no Pajek keyword: noted
-        expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE", "W_STYLE_UNKNOWN_VALUE"]);
+        // the line pattern `Dashed` is no Pajek keyword: noted
+        expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE"]);
     });
 
     it("reads line color, width and pattern, carried from line to line, and Pajek's arc and edge defaults", async () => {
@@ -620,7 +620,7 @@ describe("Pajek styles: writing", () => {
         const { snapshot } = await load(doc);
         const out = await registry.exportGraphToString(snapshot, "pajek");
         expect(out).not.toContain("graphty.styles");
-        expect(out).toMatch(/^4 wedge 0\.85 0\.8 0\.5 triangle x_fact 8 y_fact 2 ic Tan lc Black lr 30 lphi 200$/m);
+        expect(out).toMatch(/^4 wedge 0\.85 0\.8 0\.5 Triangle x_fact 8 y_fact 2 ic Tan lc Black lr 30 lphi 200$/m);
     });
 });
 

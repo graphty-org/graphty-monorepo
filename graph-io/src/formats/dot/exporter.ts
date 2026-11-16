@@ -20,7 +20,14 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
-import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
+import {
+    capabilities,
+    checkCapabilities,
+    countMixedEdges,
+    LOSS,
+    type SanitizedIds,
+    sanitizeIds,
+} from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
@@ -28,6 +35,7 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -309,6 +317,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
 function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
     const resolved = resolveExportOptions(options);
     const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        idsAsText: true,
         positionDtype: "f64",
         roles: KEPT_ROLES,
         roleNames: ROLE_NAMES,
@@ -509,6 +518,8 @@ class ExportPlan {
     private readonly position: Column | null;
 
     private readonly positionDims: 2 | 3;
+    /** The position column's rows in Graphviz's spelling (center, y up), or null to write them as stored. */
+    private readonly spelled: Float64Array | null;
 
     private readonly parent: Column | null;
 
@@ -567,6 +578,8 @@ class ExportPlan {
         const { nodes, edges, graph } = snapshot;
         this.position = nodes.byRole("position");
         this.positionDims = positionDims(this.position);
+        // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Graphviz draws it
+        this.spelled = respelledPositions(snapshot, this.position, {});
         this.parent = nodes.byRole("parent");
         const cluster = nodes.get(CLUSTER_COLUMN);
         this.cluster = cluster !== null && cluster.dtype === "bool" ? cluster : null;
@@ -1063,8 +1076,9 @@ class ExportPlan {
             return null;
         }
         const format = column.dtype === "f32" ? formatF32 : formatF64;
-        const base = i * components;
-        const { data } = column;
+        const { spelled } = this;
+        const [data, stride] = spelled === null ? [column.data, components] : [spelled, 3];
+        const base = i * stride;
         const parts = [format(data[base]), format(data[base + 1])];
         if (this.positionDims === 3) {
             parts.push(format(components === 3 ? data[base + 2] : 0));
@@ -1176,13 +1190,17 @@ class ExportPlan {
     }
 
     /**
-     * The id text of a node.
+     * The id text of a node: String(id), with a suffix for an id whose text an earlier id has (sanitizeIds).
      * @param i - the node index
-     * @returns String(id)
+     * @returns the text
      */
     private idText(i: number): string {
-        return idText(this.snapshot.ids.idOf(i));
+        this.written ??= sanitizeIds(this.snapshot, CAPABILITIES.idCharset, this.resolved.sanitizeIds);
+        return idText(this.written.idAt(i));
     }
+
+    /** The node ids to write, made on first use. */
+    private written: SanitizedIds | null = null;
 }
 
 /**

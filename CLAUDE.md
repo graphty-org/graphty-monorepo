@@ -74,12 +74,8 @@ These all count as working around the element, and all of them are forbidden:
 - translating between two spellings or two unit conventions the element never settled
 
 **The tell is a comment.** If a file in the app explains why the element could not be used here,
-that comment is a bug report that was never filed. Every one found in the 2026-09-19 audit was
-accurate, well reasoned, and pointed at a real element defect: suggested-style layers that
-overwrite the whole graph, a calculated value that throws on an unmeasured node and aborts the
-repaint loop, `StyleManager.addLayer` not repainting at all, and an entry point that drags in
-Babylon.js so a constants import is impossible. The app was right every time, and every defect
-survived because being right in the app fixed nothing.
+that comment is a bug report that was never filed. Every one found in the 2026-09-19 audit pointed
+at a real element defect (graphty/CLAUDE.md, "graphty-element Feedback").
 
 When the element fix genuinely cannot land first -- a release is in flight, the change is large --
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
@@ -181,15 +177,7 @@ Full wording: design/owner-standing-rules.md.
 
 ### Why
 
-The failure mode this prevents is silent and expensive: a capability lands "in the product"
-because the app wires it up, the element ships without it, and every third-party consumer either
-reimplements the wiring or never discovers the feature exists. By the time that is noticed, the
-wiring is public API in the wrong package and moving it is a breaking change.
-
-The workaround rule closes the same trap from the other side. Without it, the element's defects
-become invisible: the app absorbs each one, the element's API never improves because nothing
-pushes back on it, and the first third-party consumer meets every unfixed problem at once with no
-workarounds available to them and no way to know they are not alone.
+Why these rules exist, and the defects that showed it: graphty/CLAUDE.md, "graphty-element Feedback".
 
 ## Naming Conventions
 
@@ -207,6 +195,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
 | `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-models` (unscoped; `/files` and `/detect` subpaths), in `babylonjs-models/` | **babylonjs-models** | "@graphty/babylonjs-models" (no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -223,6 +212,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
 | `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
 | `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 0.0.0 | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -350,22 +340,15 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
 2. Before opening it, run the pre-push checklist in `.claude/skills/pipeline-round/shared.md` ("Subagent rules"):
    lint, typecheck, build and the tests your change touches, never whole shards (CI runs the rest). A human, or a
-   long-lived branch below, may run `pnpm run check:quick` instead (in the background, through
-   `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI, `node tools/sonar-gate.mjs`
-   and every check of CI's Checks job except the whole-repository format check; CI's Docs job builds the docs
-   site). A long-lived branch -- open more than about two
-   days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
-   needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
-   upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also
-   runs the app's dry run: `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs` after
-   `pnpm exec nx run graphty:build`. Fix every failed route before opening the pull request
-   (design/ci/ai-checked-acceptance-tests.md, 10.4).
+   long-lived branch, may run `pnpm run check:quick` instead, in the background. A long-lived branch (open about two
+   days or more, or after a large change such as a refactor of a shared component) whose change reaches the graphty
+   app also runs the app's dry run: `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs`
+   after `pnpm exec nx run graphty:build`, and fixes every failed route before opening the pull request. What
+   counts as long-lived and what check:quick runs: tools/README.md, "Before opening a pull request".
 3. When the work is finished -- never earlier, auto-merge merges the first green commit -- write a Proof file (the
    commands you ran and what they showed) and run `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for
-   `Refs #N`, `--title` for a better title). It merges GitHub's copy of the branch, refuses a conflict with master
-   (exit 2: merge `origin/master`, resolve, run again), runs a fresh-context review (exit 3: fix it, or answer it
-   in the Proof and pass `--review-answered`), scans for secrets, pushes, opens the pull request, arms auto-merge
-   and returns in seconds. Never wait for CI.
+   `Refs #N`, `--title` for a better title); it returns in seconds (its steps and exit codes: tools/README.md,
+   "Before opening a pull request"). Never wait for CI.
 4. A red pull request stays open with auto-merge armed: fix it with ordinary commits and push them once. Never
    merge past a check, never `--admin`.
 5. Auto-merge stays off, and the owner merges, for a change to a file guarding the owner (`GUARD_PATHS` in
@@ -390,11 +373,9 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
   and red pull requests; `issue-round` starts issue work.
 
 **Rolling out a change to this flow.** Sessions read `CLAUDE.md`, the skills and `.claude/settings.json` from the
-main checkout at their start, and `worktree-new.sh` runs from `.worktrees/land-live`. Put such a change live as soon
-as it is committed, without waiting for its pull request: `tools/live.sh workspace <commit>` merges it into the main
-checkout and `tools/live.sh land <commit>` into the land copy; then restart every running session, `/loop` included.
-The rounds keep the main checkout following master by merging `origin/master` into it (not only a fast-forward,
-since a live change puts a merge there first).
+main checkout at their start: put such a change live as soon as it is committed, without waiting for its pull
+request, with `tools/live.sh workspace <commit>` (and `land` for `worktree-new.sh`), then restart every running
+session, `/loop` included (tools/README.md, "Where a change takes effect").
 
 ## Working beside other agents
 

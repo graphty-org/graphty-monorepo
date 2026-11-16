@@ -65,6 +65,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
@@ -127,7 +128,7 @@ import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
-import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
+import type { HiddenNotDrawn, SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
  * What `session.capabilities` reports: acceleration and XR, and the limits a load is refused above
@@ -298,7 +299,10 @@ export interface RecordPageOptions {
     readonly offset?: number;
     /** The most records the page holds; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
-    /** Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`. */
+    /**
+     * Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent, records come in the graph's own order: the order they were added, which
@@ -423,8 +427,9 @@ export interface FindOptions {
     /** What to list. Default `["node", "edge"]`. */
     readonly kinds?: readonly FindKind[];
     /**
-     * Where to search. Default the whole graph: a hit the visibility filter hides is still
-     * listed, and carries `excludedBy`.
+     * Where to search. Default `"visible"`, what is shown, while the session's `workingGraph`
+     * option is on (the default); name `"graph"` to find hidden items too. Over the whole graph a
+     * hit the visibility filter hides is still listed, and carries `excludedBy`.
      */
     readonly scope?: ScopeInput;
     /**
@@ -647,7 +652,10 @@ export interface NeighborOptions {
      * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
      */
     readonly weight?: WeightMeaning | null;
-    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    /**
+     * Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent: strongest first when the page has a weight (largest first for a
@@ -1005,6 +1013,25 @@ export interface TypeChangePreview {
 }
 
 /**
+ * One computed column: a data column whose values an expression reads, what
+ * `session.data.derivedColumns()` lists. Its values are read at `data.<name>` like any column's.
+ */
+export interface DerivedColumn {
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The column's name. */
+    readonly name: string;
+    /** The expression its values are read with, such as `data.nickname || data.name`. */
+    readonly expression: Query;
+}
+
+/** Options for `session.data.derive`. */
+export interface DeriveOptions {
+    /** Whether nodes or edges carry the column. Default `"node"`. */
+    readonly kind?: "node" | "edge";
+}
+
+/**
  * How one data column's values are distributed: what `session.data.histogram(column)` returns.
  *
  * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
@@ -1224,15 +1251,23 @@ export interface SessionDataApi {
     /**
      * Every node, in the graph's order: the records {@link node} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which nodes.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
+     *     every node; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every node while it is off.
      * @returns the records, deep-frozen
      */
-    nodes(): readonly NodeRecord[];
+    nodes(options?: { readonly scope?: "graph" | "visible" }): readonly NodeRecord[];
     /**
      * Every edge, in the graph's order: the records {@link edge} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which edges.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
+     *     every edge; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every edge while it is off.
      * @returns the records, deep-frozen
      */
-    edges(): readonly EdgeRecord[];
+    edges(options?: { readonly scope?: "graph" | "visible" }): readonly EdgeRecord[];
     /**
      * How many nodes and edges the graph holds, read without building a record: what a
      * "1,234 nodes" label reads instead of `nodes().length`.
@@ -1240,9 +1275,13 @@ export interface SessionDataApi {
      * ```ts
      * const { nodes, edges } = session.data.count();
      * ```
+     * @param options - What to count.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
+     *     for the whole graph; absent, the working graph (what the filters show, the time window
+     *     aside) while the session's `workingGraph` is on (the default), the whole graph while it is off.
      * @returns the node count and the edge count
      */
-    count(): { readonly nodes: number; readonly edges: number };
+    count(options?: { readonly scope?: "graph" | "visible" }): { readonly nodes: number; readonly edges: number };
     /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,
@@ -1612,12 +1651,17 @@ export interface SessionDataApi {
      * One node's structure value, as a column of a table reads it.
      * @param id - The node.
      * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @param options - Where to measure.
+     * @param options.scope - `"visible"` measures among what the filter and the time window leave
+     *     shown, where a hidden node has no value; `"graph"` the whole graph. Default `"graph"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on (since 3.40.0).
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      * @example
      * const degree = session.data.structureValue("Valjean", "graphty.degree");
      */
-    structureValue(id: NodeId, path: Path): number | undefined;
+    structureValue(id: NodeId, path: Path, options?: { readonly scope?: "graph" | "visible" }): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1706,6 +1750,33 @@ export interface SessionDataApi {
      */
     renameColumn(column: ColumnRef, name: string): Promise<void>;
     /**
+     * Add a computed column, as one undoable step: every node (or edge) gets the value an
+     * expression reads, in the expression language of selectors and filters, from its other
+     * columns and from finished runs' results. The values follow their inputs: an edit, a load, a
+     * run finishing or a run removed brings them up to date in that same step. The project saves
+     * the expression, not the values, and works them out again on open. Undo takes the column away.
+     *
+     * ```ts
+     * await session.data.derive("display", "data.nickname || data.name");
+     * session.data.node("ada")?.display; // the nickname, or the name when there is none
+     * ```
+     * Deriving a computed column's name again replaces its expression.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param expression - what each value is, such as `data.age >= \`18\``
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_SELECTOR` for an expression that does not parse,
+     *     `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for one that reads a value nothing answers, and
+     *     `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"` or `"reads-itself"`) for
+     *     a name it cannot take.
+     */
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    /**
+     * Every computed column, in the order {@link SessionDataApi.derive} added them.
+     * @returns the columns
+     */
+    derivedColumns(): readonly DerivedColumn[];
+    /**
      * Hide columns, or show them again, as one undoable step saved with the project. A hidden
      * column keeps its values and reads `hidden: true` in {@link SessionDataApi.attributes}; what a
      * consumer leaves out for it (a table, a field list) is the consumer's choice.
@@ -1771,12 +1842,19 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param options - `bins`: how many bars, or how many values a categorical column lists (20
-     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it;
+     *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
+     *     `"graph"` every element -- default `"graph"`, or the working graph (what the filters
+     *     leave shown, the time window aside) while the session's `workingGraph` option is on
+     *     (since 3.40.0)
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(
+        column: ColumnRef,
+        options?: HistogramOptions & { readonly scope?: "graph" | "visible" },
+    ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
      * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
@@ -1791,16 +1869,23 @@ export interface SessionDataApi {
      * @param options - What to count.
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
+     * @param options.scope - `"visible"` counts only what the filter and the time window leave
+     *     shown (`total` included), `"graph"` every element. Default `"graph"`, or the working graph
+     *     (what the filters leave shown, the time window aside) while the session's `workingGraph`
+     *     option is on (since 3.40.0).
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
-    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
+    valueCounts(
+        path: Path,
+        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" },
+    ): ValueCounts;
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
      * more often than chance: count in the group against the expected count, with the
      * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
-     * value tested. Group by a community run's `group` field or any node path. Walks the nodes on
-     * every call.
+     * value tested. Group by a community run's `group` field or any node path. Reads what is shown
+     * while `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
      *
      * ```ts
      * const profile = session.data.overRepresented(session.results.path("louvain", "group"));
@@ -1816,7 +1901,8 @@ export interface SessionDataApi {
     /**
      * One row per group of the nodes -- a community run's `group`, a component, any node path --
      * with its size and the summaries of numeric columns the caller asks for. Write it as a file
-     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Walks the nodes on every call.
+     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Reads what is shown while
+     * `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
      *
      * ```ts
      * const table = session.data.groupTable("results.louvain.group", {
@@ -1834,7 +1920,9 @@ export interface SessionDataApi {
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
-     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on.
      * @returns the statistics
      */
     statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
@@ -3481,6 +3569,20 @@ export interface ProjectConfig {
      * @since 3.38.0
      */
     readonly framing?: GraphFraming;
+    /**
+     * The smallest a node and an edge are drawn, so no mark vanishes on screen or in print: `node`
+     * in the units of the `node.size` channel, `edge` in the units of `edge.width`. A node or edge
+     * whose layers paint it smaller, a size or width of 0 included, is drawn at the minimum; what
+     * the layers wrote, and every reading of it (`styles.explain()`, the legend), is unchanged.
+     * Absent (the default), or 0, every mark is drawn at the size its layers paint, and an edge
+     * of width 0 draws no line.
+     *
+     * ```ts
+     * await session.config.set({ minMarkSize: { node: 0.5, edge: 1 } });
+     * ```
+     * @since 3.40.0
+     */
+    readonly minMarkSize?: { readonly node?: number; readonly edge?: number };
 }
 
 /** How the element frames the graph: see {@link ProjectConfig.framing}. */
@@ -3523,6 +3625,8 @@ export interface ProjectConfigPatch {
     readonly viewRotation?: number;
     /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
     readonly framing?: GraphFraming;
+    /** See {@link ProjectConfig.minMarkSize}; replaced whole, and `undefined` draws every mark as painted. */
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -3618,6 +3722,28 @@ export interface GroupOutlineClick {
 }
 
 /**
+ * Where the hovered node was drawn in the frame the pointer's hover was read from, in CSS pixels
+ * from the canvas's top-left corner (the pixels `Graph.worldToScreen` returns and a pointer's
+ * `offsetX` / `offsetY` use).
+ *
+ * Hover can answer a frame or two after the frame it read: on WebGPU the node under the pointer
+ * is read back from the GPU. A running layout may have moved the node by then, so where it stands
+ * now (`Graph.nodeScreenPosition`) is not where the pointer found it. This is.
+ * @since 3.40.0
+ */
+export interface HoverDrawn {
+    /** The node's center, from the left edge. */
+    readonly x: number;
+    /** The node's center, from the top edge. */
+    readonly y: number;
+    /**
+     * The radius hover picks the node within: the radius it is drawn at, but never under 1.5
+     * device pixels, so a node drawn smaller than a pixel can still be pointed at.
+     */
+    readonly radius: number;
+}
+
+/**
  * What a session publishes to whoever is watching it.
  *
  * A map rather than a bare handler, so that the events arriving with the layout, the camera and
@@ -3649,9 +3775,17 @@ export interface SessionEventMap {
      *
      * A `{ match: "state", state: "hovered" }` layer's `styles.counts` moves with it, so a host
      * showing such a count reads it again here; nothing else publishes the hover.
+     *
+     * `drawn` says where `after` was drawn in the frame the pointer found it in (see
+     * {@link HoverDrawn}); it is present when the pointer moved onto a node in a graph that draws,
+     * and absent for `selection.hover(id)` and when no node is hovered.
      * @since 3.34.0
      */
-    "selection:hover-changed": { readonly before: NodeId | null; readonly after: NodeId | null };
+    "selection:hover-changed": {
+        readonly before: NodeId | null;
+        readonly after: NodeId | null;
+        readonly drawn?: HoverDrawn;
+    };
     /**
      * A click landed on empty canvas: no node and no edge under it.
      *
@@ -3697,6 +3831,15 @@ export interface SessionEventMap {
     };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
+    /**
+     * What `visibility.notDrawn` lists changed: something asked to be drawn outside what is
+     * shown is, or is no longer, kept from drawing by the `workingGraph` option (the option
+     * toggled, `showContext` set, a branches view's hold started or ended, time ghosts asked for).
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.40.0
+     * @beta
+     */
+    "visibility:not-drawn-changed": { readonly notDrawn: readonly HiddenNotDrawn[] };
     /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @experimental timeline
@@ -4025,6 +4168,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.merge-nodes` | `count`: how many nodes became one |
+ * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
@@ -4042,6 +4186,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.rename-column` | `kind`; `column`: the old name; `name`: the new name |
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
+ * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -4114,6 +4259,8 @@ export type HistoryCode =
     | "data.replace-nodes"
     | "data.replace-edges"
     | "data.merge-nodes"
+    | "groups.collapse"
+    | "groups.expand"
     | "data.import"
     | "data.import-source"
     | "data.expand"
@@ -4132,6 +4279,7 @@ export type HistoryCode =
     | "data.hide-columns"
     | "data.show-columns"
     | "data.columns"
+    | "data.derive"
     | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
@@ -4394,6 +4542,8 @@ export interface CommandOutcomeMap {
     "data.label": Promise<void>;
     /** Settles once the column settings are recorded. */
     "data.columns": Promise<void>;
+    /** Settles once the computed columns and their values are recorded. */
+    "data.derive": Promise<void>;
     /** Settles once the style values are recorded. */
     "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -4944,6 +5094,12 @@ export interface GraphSession {
      */
     readonly network: NetworkApi;
     /**
+     * Collapsing a group of nodes (a community, a component, the nodes sharing a value) to one
+     * node, and expanding it again: each call one undoable step, saved with the project. Experimental.
+     * @beta
+     */
+    readonly groups: GroupsApi;
+    /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command
      * wrote. Undo does not read it; `history` is the undo record.
@@ -5051,6 +5207,27 @@ export interface GraphSession {
      * the new policy, and `capabilities:changed` reports where that left the hardware.
      */
     acceleration: AccelerationPolicy;
+    /**
+     * Whether readers read the working graph: the part of the graph the filters leave shown. A
+     * filter means the subset you work with, so layouts, counts, styles, framing and algorithms read
+     * it. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout. The graph itself is unchanged -- edits, undo and the project file act on all
+     * of it, and hidden nodes keep their positions, styles and results -- and a reader that names
+     * the whole graph (`scope: "graph"`) still reads all of it.
+     *
+     * On, nothing a filter hides is drawn: `visibility.showContext`, and a `styles.showBranches`
+     * view's `hold` and `base: "full"`, are kept but draw no hidden node, and `visibility.notDrawn`
+     * lists each one as a `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each
+     * change). Time ghosts (`outside: "ghost"`) are drawn either way. Off, everything draws as
+     * before.
+     *
+     * On by default. Off keeps every reader on the whole graph, as before 3.40.0. Settable; a session
+     * setting that records no undo step and is not saved in a project file. Set it when creating the
+     * session with `createGraphSession({ workingGraph: false })`, or on the element with
+     * `working-graph="false"`.
+     * @since 3.40.0
+     */
+    workingGraph: boolean;
     /**
      * Attach an accelerator the caller built, or detach the current one with `null`.
      *
@@ -5308,6 +5485,13 @@ export interface CreateGraphSessionOptions {
      * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
      */
     readonly features?: readonly string[];
+    /**
+     * Start with the working graph on: readers that name no scope read what the filters leave
+     * shown (never the time window). Default true; false keeps them on the whole graph. See
+     * `GraphSession.workingGraph`.
+     * @since 3.40.0
+     */
+    readonly workingGraph?: boolean;
 }
 
 /**

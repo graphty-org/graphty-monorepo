@@ -486,6 +486,13 @@ export const ID_TEXT_TYPE_CODE = "W_ID_TEXT_TYPE";
 export const ID_TEXT_COLLISION_CODE = "E_ID_TEXT_COLLISION";
 
 /**
+ * Two node ids would be written as the same text (the number 5 and the text "5") and `sanitizeIds` is "mangle": every
+ * id after the first with that text is written with a suffix (`5_2`, `5_3`...), so the two read back as two nodes.
+ * @category Issue and loss codes
+ */
+export const ID_TEXT_RENAMED_CODE = "W_ID_TEXT_RENAMED";
+
+/**
  * A `<column>.text` companion the format cannot carry.
  * @category Issue and loss codes
  */

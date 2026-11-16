@@ -1051,6 +1051,21 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
 }
 
 /**
+ * How far below an icon node's center vis-network centers its label (vis-network 9.1.9 Icon.draw): half its height,
+ * `icon.size` (50) plus its top and bottom margins (5 unless given), then 5 more (`iconTextSpacing`), the label's
+ * lines centered there on a "middle" baseline (Label.calculateLabelSize).
+ * @param layer - the node's merged layer
+ * @returns the distance down
+ */
+function visIconLabelDrop(layer: VisLayer): number {
+    const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
+    const m = layer.margin;
+    const side = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : VIS_MARGIN);
+    const [top, bottom] = isJsonObject(m) ? [side(m.top), side(m.bottom)] : [side(m), side(m)];
+    return (size + top + bottom) / 2 + 5;
+}
+
+/**
  * vis-network's `imagePadding`: one number for every side, or `{ top, right, bottom, left }` (each 0 unless given).
  * @param raw - the option
  * @returns the four sides, or null for no padding
@@ -1516,7 +1531,8 @@ function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hangin
         );
     }
     const shape = typeof layer.shape === "string" ? layer.shape : "ellipse";
-    return VIS_SIZED.has(shape) ? "hanging" : "middle";
+    // an icon's label is drawn on a "middle" baseline (Icon.draw passes none to Label.draw)
+    return VIS_SIZED.has(shape) && shape !== "icon" ? "hanging" : "middle";
 }
 
 /**
@@ -1678,9 +1694,10 @@ type PutRow = (p: string, v: StyleValue | null) => void;
 function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.shape !== undefined) {
         put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
-        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`
+        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`; an
+        // icon's label is centered a fixed distance below its center (visIconLabelDrop), so it is placed from there
         if (typeof layer.shape === "string") {
-            put("labelPosition", VIS_SIZED.has(layer.shape) ? "bottom" : "center");
+            put("labelPosition", VIS_SIZED.has(layer.shape) && layer.shape !== "icon" ? "bottom" : "center");
         }
     }
     if (sized && layer.size !== undefined) {
@@ -1724,7 +1741,10 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
  */
 function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.edgeOpacity !== undefined) {
-        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+        // as on a node, only a hex or rgb() color takes it: a named color is drawn opaque (EdgeBase.getColor,
+        // overrideOpacity; json-vis-synth 42->52, "blue" at opacity 0.4)
+        const opacity = canonOpacity(layer.edgeOpacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.edgeColor) ? opacity : null);
     }
     if (layer.width !== undefined) {
         put("width", canonNumber(layer.width, site("width")));
@@ -1981,7 +2001,7 @@ function visNodeRow(
     const shaped = sized
         ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
         : visFitShape(merged, shape);
-    if (sized && merged.label !== undefined) {
+    if (sized && shape !== "icon" && merged.label !== undefined) {
         const size =
             visLabelScaled(merged, range) ?? (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
         // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
@@ -2062,7 +2082,11 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
     Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
     if (shape === "icon") {
         // an icon node is its glyph alone: vis-network draws no body, no fill and no border for it (Icon.draw)
-        Object.assign(row, { shape: "none" }, visIcon(merged, site("glyphColor")));
+        Object.assign(
+            row,
+            { shape: "none", labelOffsetY: visIconLabelDrop(merged) },
+            visIcon(merged, site("glyphColor")),
+        );
     }
     // vis-network's triangleDown: its triangle turned over, a corner down
     if (shape === "triangleDown") {

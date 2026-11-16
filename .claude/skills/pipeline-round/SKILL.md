@@ -329,11 +329,13 @@ Every round, over `marked` in the state file and the branch list above (no extra
 - An idle claim (see "Idle claims" in the shared file): ask its session once, and in a later round with no answer
   and still no activity, release it or treat its branch as stranded.
 - An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
-- A stranded branch (see "Stranded" in the shared file; at most one per round, only when nothing above acted): a
-  branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is provably
-  gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened, and whose
-  worktree has no process inside. Its issue still open and the work still wanted:
-  mark the issue and hand the branch to a fix subagent to merge `origin/master`, finish, and open its pull request.
+- Every stranded branch (see "Stranded" in the shared file), every round, even when a step above acted or ended the
+  round: a branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is
+  provably gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened,
+  and whose worktree has no process inside. Its issue still open and the work still wanted: mark the issue and start
+  one background fix subagent per branch to merge `origin/master`, finish, and open its pull request, oldest commit
+  first, with no fixed number (only issue-round's limits on test slots, load, memory and disk, and its start rate,
+  checked again before each start). Branches left when a limit stops the starts wait for the next round.
   Not wanted: a `stranded branch` marker with the reason; never delete the branch. A branch with no issue gets one
   first (`node tools/branch-note.mjs new-issue --title "<what it does>" --branch <b>`).
 

@@ -514,6 +514,45 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
     });
 
+    it("draws a plain GML file as Tk draws the draft's graphics: colors, stipples, outlines, pictures, smooth lines", async () => {
+        const node = (id: number, graphics: string): string =>
+            `  node [ id ${String(id)} graphics [ x ${String(id * 40)} y 0 w 20 h 20 ${graphics} ] ]`;
+        const doc = [
+            "graph [",
+            node(1, 'type "oval" fill "#FFF888000" outline "#505050" width 1'),
+            node(2, 'type "oval" fill "#FFFF88880000" outline "#505050" width 0'),
+            node(3, 'type "oval" fill "light blue" stipple "gray25" width 2'),
+            node(4, 'type "image" fill "#C8C8C8" outline "#505050" width 1 image "a.png"'),
+            node(5, 'type "bitmap" fill "#0000FF" outline "#505050" width 1 bitmap "a.xbm"'),
+            node(6, 'type "oval" fill "#C8C8C8" stipple "questhead"'),
+            '  edge [ source 1 target 2 graphics [ fill "#505050" width 4 stipple "gray50" ] ]',
+            '  edge [ source 2 target 3 graphics [ fill "#505050" smooth 1 Line [ point [ x 40 y 0 ] point [ x 60 y 30 ] point [ x 80 y 0 ] ] ] ]',
+            '  edge [ source 3 target 4 graphics [ fill "#505050" smooth 1 Line [ point [ x 120 y 0 ] point [ x 160 y 0 ] ] ] ]',
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const node_ = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "node", p, snapshot);
+        const edge = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "edge", p, snapshot);
+        // Tk_GetColor: 3- and 4-digit components, and X11 names written with spaces
+        expect(node_("fill").slice(0, 3)).toEqual(["#ff8800", "#ff8800", "#add8e6"]);
+        // the gray stipples let that much of the fill or line through; one Tk draws no gray with is noted
+        expect(node_("fillOpacity")).toEqual([null, null, 0.25, null, null, null]);
+        expect(edge("opacity")).toEqual([0.5, null, null]);
+        expect(
+            styles.styles.notes.some(
+                (n) => n.code === "W_STYLE_UNKNOWN_VALUE" && JSON.stringify(n).includes("questhead"),
+            ),
+        ).toBe(true);
+        // an outline is at least a pixel wide; a picture draws a rectangle with none
+        expect(node_("borderWidth")).toEqual([1, 1, 2, 0, 0, null]);
+        expect(node_("shape").slice(3, 5)).toEqual(["rectangle", "rectangle"]);
+        // a smoothed line of three or more points curves through the middles of its segments; two points stay straight
+        expect(edge("curved")).toEqual([null, true, null]);
+        expect(edge("bendCurve")).toEqual([null, "midpoints", null]);
+    });
+
     it("reads a yEd label's fill and outline as its box and keeps them through a save, on nodes and edges alike", async () => {
         const label = 'LabelGraphics [ text "A" fill "#EBEBEB" outline "#FF0000" ]';
         const { snapshot, styles } = await load(

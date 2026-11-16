@@ -29,6 +29,7 @@ import {
     type Pt,
     type PText,
     rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -162,14 +163,20 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
 ): DashClass {
+    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -832,6 +839,9 @@ export function drawnPrimitives(
         const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
         const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
         const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
+        // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is read by its
+        // picture's bounds, as the oracle's side reads one (`nodeFrom`): a box
+        const pictureOnly = d?.picture !== undefined && fill === null && !(borderColor !== null && borderWidth > 0);
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -839,7 +849,7 @@ export function drawnPrimitives(
             // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
             w: n.w - inset - gap,
             h: n.h - inset - gap,
-            shape: SHAPES[n.shape] ?? "other",
+            shape: pictureOnly ? "rect" : (SHAPES[n.shape] ?? "other"),
             fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0
@@ -913,6 +923,7 @@ export function drawnPrimitives(
             d.pattern,
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
         );
         return [
             {

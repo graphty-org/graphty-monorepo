@@ -131,7 +131,16 @@ describe("render loop pacing", () => {
         });
         await frames(10);
         assert.strictEqual(drawn, 2, "two frames are drawn before the unfinished ones hold the loop");
+        // A wait for the final picture asks this, so it cannot end while an older frame is still
+        // on the GPU (issues #8344, #8346).
+        const last = manager.fencedFrames();
+        assert.strictEqual(last, 2, "each frame drawn is fenced");
+        assert.isFalse(manager.gpuFinishedFrame(1), "a frame whose fence is unsignalled is not finished");
         gl.getSyncParameter = real;
+        while (!manager.gpuFinishedFrame(last)) {
+            await frames(1);
+        }
+        assert.isTrue(manager.gpuFinishedFrame(1), "a frame before a finished one is finished");
 
         canvas.remove();
     });

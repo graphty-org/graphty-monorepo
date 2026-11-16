@@ -1571,6 +1571,11 @@ export class Graph implements GraphContext {
         };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
+        // Late-bound: a change of renderer replaces the render manager.
+        this.updateManager.gpuFrames = {
+            fenced: () => this.renderManager.fencedFrames(),
+            finished: (frame) => this.renderManager.gpuFinishedFrame(frame),
+        };
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };

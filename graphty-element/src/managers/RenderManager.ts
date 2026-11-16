@@ -798,7 +798,11 @@ export class RenderManager implements Manager {
      * A fence after each frame drawn that the GPU has not finished yet, oldest first, at most
      * {@link WEBGL_FRAMES_IN_FLIGHT}; see {@link gpuBehind}.
      */
-    private readonly frameFences: WebGLSync[] = [];
+    private readonly frameFences: { sync: WebGLSync; frame: number }[] = [];
+    /** How many WebGL frames have been fenced, so a fence's number in {@link frameFences}. */
+    private framesFenced = 0;
+    /** The number of the newest fenced frame the GPU is known to have finished. */
+    private framesFinished = 0;
     /**
      * The WebGPU twin of {@link frameFences} (one frame in flight): a number for the last frame drawn while its
      * `onSubmittedWorkDone` is unresolved, null once the GPU has finished it.
@@ -917,6 +921,7 @@ export class RenderManager implements Manager {
      */
     private readonly dropFence = (event: Event): void => {
         this.frameFences.length = 0;
+        this.framesFinished = this.framesFenced;
         this.drawOwed = true;
         this.shaderGuard.ignore();
         this.flashCheck = null;
@@ -1444,21 +1449,52 @@ export class RenderManager implements Manager {
             return true;
         }
 
+        this.forgetFinishedFences();
+        return this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT;
+    }
+
+    /**
+     * Drop the fences of the frames the GPU has finished. Fences signal in order, so the oldest
+     * unsignalled one means every newer one is too. A lost context answers null rather than a
+     * status; the fence is dropped as finished.
+     */
+    private forgetFinishedFences(): void {
         if (this.frameFences.length === 0 || !(this.engine instanceof Engine)) {
-            return false;
+            return;
         }
 
         const gl = this.engine._gl;
-        // Fences signal in order, so the oldest unsignalled one means every newer one is too. A
-        // lost context answers null rather than a status; drop the fence and draw.
-        while (
-            this.frameFences.length > 0 &&
-            gl.getSyncParameter(this.frameFences[0], gl.SYNC_STATUS) !== gl.UNSIGNALED
-        ) {
-            gl.deleteSync(this.frameFences.shift() ?? null);
+        let oldest = this.frameFences.at(0);
+        while (oldest !== undefined && gl.getSyncParameter(oldest.sync, gl.SYNC_STATUS) !== gl.UNSIGNALED) {
+            gl.deleteSync(oldest.sync);
+            this.framesFinished = oldest.frame;
+            this.frameFences.shift();
+            oldest = this.frameFences.at(0);
         }
+    }
 
-        return this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT;
+    /**
+     * How many WebGL frames have been fenced so far: the number the next fence follows. Taken
+     * before a frame is drawn, the frame's own fence, when it gets one, is this plus one.
+     * @returns The count; it stays 0 on WebGPU and Babylon's NullEngine, which fence nothing.
+     * @internal
+     */
+    fencedFrames(): number {
+        return this.framesFenced;
+    }
+
+    /**
+     * Whether the GPU has finished the fenced WebGL frame of this number and every one before it.
+     * With {@link WEBGL_FRAMES_IN_FLIGHT} frames allowed in flight, a frame can be drawn, and the
+     * picture called final, while an older frame is still on the GPU; a wait for the final picture
+     * asks this so it ends only once that frame is done (issues #8344, #8346).
+     * @param frame - The frame's number, from {@link fencedFrames}.
+     * @returns True once its fence, or a newer one, has signalled, or the context that made it is gone.
+     * @internal
+     */
+    gpuFinishedFrame(frame: number): boolean {
+        this.forgetFinishedFences();
+        return this.framesFinished >= frame;
     }
 
     /**
@@ -1480,12 +1516,13 @@ export class RenderManager implements Manager {
         // A frame drawn by drawNow while the GPU was behind pushes out the oldest fence still
         // unsignalled; the newer ones signal after it, so it is no longer needed.
         if (this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT) {
-            gl.deleteSync(this.frameFences.shift() ?? null);
+            gl.deleteSync(this.frameFences.shift()?.sync ?? null);
         }
 
         const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
         if (fence !== null) {
-            this.frameFences.push(fence);
+            this.framesFenced++;
+            this.frameFences.push({ sync: fence, frame: this.framesFenced });
         }
 
         if (this.flushesFrameFence()) {

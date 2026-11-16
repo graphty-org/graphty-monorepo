@@ -514,6 +514,7 @@ const config: KnipConfig = {
         "flock",
         "ionice",
         "jq",
+        "log", // macOS unified log (log stream), for webinspectord's registrations (graphty-element/test/lifecycle)
         "mkfifo",
         "nvidia-smi",
         "pkill",

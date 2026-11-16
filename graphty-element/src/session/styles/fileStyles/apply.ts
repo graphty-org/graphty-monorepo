@@ -354,10 +354,16 @@ async function applyRead(
 ): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
     const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
     const dataPath = dataPaths(read.path);
-    const columnPath = columnNamer(command.source.type ?? "file", ids, ctx, (kind, key) => {
-        const carried = carriedColumnOf(key);
-        return carried === null ? null : (dataPath(kind, carried)?.slice(DATA_PREFIX.length) ?? null);
-    });
+    const columnPath = columnNamer(
+        command.source.type ?? "file",
+        ids,
+        ctx,
+        (kind, key) => {
+            const carried = carriedColumnOf(key);
+            return carried === null ? null : (dataPath(kind, carried)?.slice(DATA_PREFIX.length) ?? null);
+        },
+        replacing,
+    );
     const translation = translateFileStyles({
         extracted: read.extracted,
         snapshot: read.snapshot,
@@ -495,6 +501,7 @@ const STRUCTURE_KEYS: Readonly<Record<"node" | "edge", ReadonlySet<string>>> = {
  * @param ids - The element's id of each element index of the load, per kind.
  * @param ctx - The import's context, read once the load's records are in.
  * @param carried - The record key of the data column a key copies, or null when it copies none.
+ * @param replacing - Whether the load replaced the graph, so no earlier layer's reads take a name.
  * @returns For a kind and key, given its values by element index, the `data.` path.
  */
 function columnNamer(
@@ -502,6 +509,7 @@ function columnNamer(
     ids: Readonly<Record<"node" | "edge", readonly (NodeId | EdgeId | null | undefined)[]>>,
     ctx: UndoableContext,
     carried: (kind: "node" | "edge", key: string) => string | null,
+    replacing: boolean,
 ): (kind: "node" | "edge", key: string, values?: readonly (StyleScalar | null)[]) => Path {
     const taken: Partial<Record<"node" | "edge", Set<string>>> = {};
     const named = new Map<string, Path>();
@@ -520,7 +528,10 @@ function columnNamer(
             }
         }
 
-        for (const entry of ctx.state.styles) {
+        // A replacing load's names are free of the earlier layers' reads: no earlier record is left
+        // to keep apart from, and an earlier layer reading a name the load writes reads it as it
+        // would any column the new graph holds (the load then removes it if one the load added restates it).
+        for (const entry of replacing ? [] : ctx.state.styles) {
             for (const path of entry.reads) {
                 if (path.startsWith(DATA_PREFIX)) {
                     names.add(path.slice(DATA_PREFIX.length).split(".")[0]);

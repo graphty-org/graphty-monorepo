@@ -72,3 +72,40 @@ export function layersReadingOnly(stack: readonly CompiledLayer[], gone: Columns
 
     return out;
 }
+
+/**
+ * What a layer does, less the values it paints with: the elements it selects and, per channel it
+ * writes, the column it reads. Two layers with the same key paint the same channels of the same
+ * elements from the same columns, so the later one restates the earlier.
+ * @param layer - The layer.
+ * @returns The key.
+ */
+function shapeOf(layer: CompiledLayer["layer"]): string {
+    const encode = Object.entries(layer.encode ?? {})
+        .map(([channel, binding]) => [channel, (binding as { by?: unknown } | undefined)?.by] as const)
+        .sort(([a], [b]) => a.localeCompare(b));
+    const set = Object.keys(layer.set ?? {}).sort((a, b) => a.localeCompare(b));
+    return JSON.stringify([layer.kind, layer.target, layer.selector, set, encode]);
+}
+
+/**
+ * The earlier layers a replacing load leaves without purpose: those whose every data binding reads
+ * a column the new graph no longer holds, and those of the same shape as a layer the load itself
+ * added -- the same elements, channels and columns (the load's copy stays, so loading the same data
+ * twice keeps one, and a newer version's values replace the older). Every other layer stays,
+ * whoever made it: nothing records which layers a load added, only what each layer reads and does.
+ * @param stack - The style stack after the load.
+ * @param earlier - The ids of the layers the stack held before the load.
+ * @param gone - The columns the earlier graph held and the new one does not, per kind.
+ * @returns The layers to remove, bottom first.
+ */
+export function layersAReloadReplaces(
+    stack: readonly CompiledLayer[],
+    earlier: ReadonlySet<LayerId>,
+    gone: ColumnsByKind,
+): LayerId[] {
+    const old = stack.filter(({ layer }) => earlier.has(layer.id));
+    const added = new Set(stack.filter(({ layer }) => !earlier.has(layer.id)).map(({ layer }) => shapeOf(layer)));
+    const stale = new Set(layersReadingOnly(old, gone));
+    return old.filter(({ layer }) => stale.has(layer.id) || added.has(shapeOf(layer))).map(({ layer }) => layer.id);
+}

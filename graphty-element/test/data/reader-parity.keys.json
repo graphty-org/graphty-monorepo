@@ -3531,15 +3531,15 @@
     },
     "json/fidelity/vis-lesmiserables.json": {
         "nodes": ["group", "id", "label"],
-        "edges": ["from", "source", "target", "to"]
+        "edges": ["from", "to"]
     },
     "json/fidelity/vis-nodelegend.json": {
         "nodes": ["fixed", "group", "id", "label", "physics", "value", "x", "y"],
-        "edges": ["color", "fontColor", "from", "label", "length", "source", "target", "to", "width"]
+        "edges": ["color", "fontColor", "from", "label", "length", "to", "width"]
     },
     "json/fidelity/vis-siblings.json": {
         "nodes": ["URL", "color", "font", "id", "label", "outline", "size"],
-        "edges": ["arrows", "from", "source", "target", "to"]
+        "edges": ["arrows", "from", "to"]
     },
     "json/fidelity/vis-synth.json": {
         "nodes": [
@@ -3576,8 +3576,6 @@
             "label",
             "selfReference",
             "smooth",
-            "source",
-            "target",
             "to",
             "value",
             "width"
@@ -3585,15 +3583,15 @@
     },
     "json/fidelity/vis-transparency.json": {
         "nodes": ["color", "id", "label"],
-        "edges": ["f", "from", "source", "target", "to"]
+        "edges": ["f", "from", "to"]
     },
     "json/fidelity/vis-unix.json": {
         "nodes": ["color", "id", "label"],
-        "edges": ["arrows", "from", "source", "target", "to"]
+        "edges": ["arrows", "from", "to"]
     },
     "json/fidelity/vis-world.json": {
         "nodes": ["id", "label"],
-        "edges": ["arrows", "from", "source", "target", "to"]
+        "edges": ["arrows", "from", "to"]
     },
     "json/generated/cytoscape-graphty-written.json": {
         "nodes": [
@@ -3907,7 +3905,7 @@
     },
     "json/vis-dot-to-graph-softmaint.json": {
         "nodes": ["font", "height", "id", "label", "shape", "width"],
-        "edges": ["arrows", "from", "source", "target", "to"]
+        "edges": ["arrows", "from", "to"]
     },
     "pajek/SamTseng_CATAR__Pajek_format.net": {
         "nodes": ["bc", "ic", "id", "label", "x", "x_fact", "y", "y_fact", "z"],

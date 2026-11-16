@@ -48,7 +48,7 @@ import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/f
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
-import { columnsOf, layersReadingOnly } from "../styles/staleLayers";
+import { columnsOf, layersAReloadReplaces } from "../styles/staleLayers";
 import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
@@ -991,16 +991,10 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
-        // A replacing load removes every earlier source: the layers that read only their columns go with them.
-        if (replacing && command.source.type !== undefined && command.source.config !== undefined) {
-            const gone = {
-                node: columnsOf(ctx.state.graph.nodes.values()),
-                edge: columnsOf(ctx.state.graph.edges.values()),
-            };
-            for (const id of layersReadingOnly(ctx.state.styles, gone)) {
-                await ctx.inline({ op: "style.patch", action: "remove", id });
-            }
-        }
+        // A replacing load removes every earlier source: what the earlier graph and stack held, read
+        // before, so the layers it leaves without purpose go once the load is in.
+        const wipes = replacing && command.source.type !== undefined && command.source.config !== undefined;
+        const earlier = wipes ? earlierOf(ctx) : null;
 
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
         refreshDerivedAfter(ctx);
@@ -1012,6 +1006,10 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        if (earlier !== null) {
+            await settleEarlierLayers(earlier, ctx);
+        }
+
         if (layoutChoiceOf(command) === "recommended") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
             // asked here, before the step seals and the recommendation is read.
@@ -1019,6 +1017,45 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
+
+/** What a replacing load reads of the graph and stack before it loads. */
+interface Earlier {
+    readonly columns: Readonly<Record<"node" | "edge", Set<string>>>;
+    readonly layers: ReadonlySet<LayerId>;
+}
+
+/**
+ * The columns and layers held before a replacing load.
+ * @param ctx - The import's context.
+ * @returns Them.
+ */
+function earlierOf(ctx: UndoableContext): Earlier {
+    return {
+        columns: { node: columnsOf(ctx.state.graph.nodes.values()), edge: columnsOf(ctx.state.graph.edges.values()) },
+        layers: new Set(ctx.state.styles.map(({ layer }) => layer.id)),
+    };
+}
+
+/**
+ * Remove, in the load's step, the earlier layers the load left without purpose: one that reads only
+ * columns the new graph lacks, or one that paints the same channels of the same elements from the
+ * same columns as a layer the load added. Any other layer whose columns remain stays, whoever made it.
+ * @param earlier - What {@link earlierOf} read before the load.
+ * @param ctx - The import's context.
+ */
+async function settleEarlierLayers(earlier: Earlier, ctx: UndoableContext): Promise<void> {
+    const after = {
+        node: columnsOf(ctx.state.graph.nodes.values()),
+        edge: columnsOf(ctx.state.graph.edges.values()),
+    };
+    const gone = {
+        node: new Set([...earlier.columns.node].filter((column) => !after.node.has(column))),
+        edge: new Set([...earlier.columns.edge].filter((column) => !after.edge.has(column))),
+    };
+    for (const id of layersAReloadReplaces(ctx.state.styles, earlier.layers, gone)) {
+        await ctx.inline({ op: "style.patch", action: "remove", id });
+    }
+}
 
 /** A user layer naming edges by id, with each edge's stable identity before a replacing load. */
 interface PickedEdges {

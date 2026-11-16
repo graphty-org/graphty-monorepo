@@ -388,6 +388,21 @@ function groups(history) {
     return by;
 }
 
+/**
+ * Whether a key is back under its lines with room to spare, so its alarm can close. The closing line sits below the
+ * opening one (0.9 x the budget, 1.1 x earlier or under 30 s slower), so a key near the line does not flap.
+ * @param file the parsed ci-budgets.json
+ * @param key the row key
+ * @param recent median of the last 5 runs
+ * @param earlier median of the 10 before, or null
+ * @returns true when the alarm may close
+ */
+export function clearOf(file, key, recent, earlier) {
+    const minutes = budgetKey(file, key)?.minutes;
+    const underBudget = !minutes || recent < 0.9 * minutes * 60;
+    return underBudget && (earlier == null || recent <= 1.1 * earlier || recent - earlier < 30);
+}
+
 function judge(file, rows) {
     const recentRows = rows.slice(-5);
     const recent = median(recentRows.map((r) => r.seconds));
@@ -399,16 +414,18 @@ function judge(file, rows) {
     const line = overBudget ? minutes * 60 : Math.max(1.3 * earlier, earlier + 60);
     const firstOver = rows.findIndex((r, i) => i >= rows.length - 5 && r.seconds > line);
     const range = firstOver > 0 ? `${rows[firstOver - 1].sha.slice(0, 10)}..${rows[firstOver].sha.slice(0, 10)}` : null;
-    return { recent, earlier, alarm: overBudget || overTrend, range, runs: recentRows };
+    const clear = clearOf(file, rows[0].key, recent, earlier);
+    return { recent, earlier, alarm: overBudget || overTrend, clear, range, runs: recentRows };
 }
 
 /**
  * Trend verdicts per key and run kind: `recent` = median of the last 5 runs, `earlier` = median of
- * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower. A key that
+ * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower; `clear` when it
+ * is under the lower closing line (clearOf). A key that
  * stopped getting samples (closeVanished) gets no verdict.
  * @param history stored rows { key, run_kind, seconds, sha, recorded_at, outcome }
  * @param file the parsed ci-budgets.json
- * @returns key, kind, recent, earlier, alarm, range, runs per key and kind
+ * @returns key, kind, recent, earlier, alarm, clear, range, runs per key and kind
  */
 export function trend(history, file) {
     const live = history.filter((r) => r.outcome !== "cancelled");
@@ -437,8 +454,21 @@ function issueBody(v) {
     return `\`${v.key}\` on ${v.kind} runs: median of the last 5 runs ${fmt(v.recent)}, of the 10 before ${fmt(v.earlier)}.\n\n${range}${last}`;
 }
 
+const REOPEN_DAYS = 7;
+
+// The alarming step: verdict under a job: or run: key, in the same run kind: one slowdown, filed once, on the step.
+function alarmingStep(v, verdicts) {
+    const [type, wf] = v.key.split(":");
+    if (type !== "job" && type !== "run") return undefined;
+    const prefix = type === "job" ? `step:${v.key.slice(4)}:` : `step:${wf}:`;
+    return verdicts.find((s) => s.alarm && s.kind === v.kind && s.key.startsWith(prefix));
+}
+
 /**
- * File, comment on or close one issue per key and run kind.
+ * File, comment on, reopen or close one issue per key and run kind. An alarm opens at trend()'s line and closes only
+ * under the lower closing line (`clear`); in between the issue is left as it is. A key whose issue closed in the
+ * last 7 days reopens it instead of filing a new one, and a job or run whose step alarms too comments on the step's
+ * issue instead of filing its own.
  * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
  * @param verdicts trend()'s answer
  * @param owner the owner label of the alarm (`defaults.owner`)
@@ -446,31 +476,52 @@ function issueBody(v) {
  */
 export async function syncIssues(gh, verdicts, owner = "pipeline") {
     const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
+    let closed;
+    const recentlyClosed = async (v) => {
+        closed ??= await gh(`/issues?state=closed&labels=ci-budget&per_page=100`);
+        const since = Date.now() - REOPEN_DAYS * 86_400_000;
+        return closed.find((i) => i.title.startsWith(issuePrefix(v)) && Date.parse(i.closed_at) >= since);
+    };
+    const comment = (number, body) =>
+        gh(`/issues/${number}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+    const issueOf = new Map();
     const done = [];
-    for (const v of verdicts) {
+    // steps first, so a job or run that folds into its step finds the step's issue
+    const ordered = [...verdicts].sort((a, b) => b.key.startsWith("step:") - a.key.startsWith("step:"));
+    for (const v of ordered) {
         const issue = open.find((i) => i.title.startsWith(issuePrefix(v)));
+        const step = v.alarm && !issue ? alarmingStep(v, verdicts) : undefined;
+        const stepIssue = step && issueOf.get(issuePrefix(step));
+        let number = issue?.number;
         if (v.alarm && issue) {
-            await gh(`/issues/${issue.number}/comments`, {
-                method: "POST",
-                body: JSON.stringify({ body: issueBody(v) }),
-            });
-            done.push({ action: "comment", key: v.key, kind: v.kind, number: issue.number });
+            await comment(issue.number, issueBody(v));
+            done.push({ action: "comment", key: v.key, kind: v.kind, number });
+        } else if (stepIssue) {
+            await comment(stepIssue, `Also over the line, same slowdown:\n\n${issueBody(v)}`);
+            done.push({ action: "fold", key: v.key, kind: v.kind, number: stepIssue });
         } else if (v.alarm) {
-            const title = `${issuePrefix(v)}${fmt(v.earlier)} -> ${fmt(v.recent)}`;
-            const labels = [...ISSUE_LABELS, ...(owner === "pipeline" ? [] : [owner])];
-            const made = await gh(`/issues`, {
-                method: "POST",
-                body: JSON.stringify({ title, body: issueBody(v), labels }),
-            });
-            done.push({ action: "file", key: v.key, kind: v.kind, number: made?.number });
-        } else if (issue) {
-            await gh(`/issues/${issue.number}/comments`, {
-                method: "POST",
-                body: JSON.stringify({ body: `Back under both lines: last 5 runs ${fmt(v.recent)}.` }),
-            });
+            const old = await recentlyClosed(v);
+            if (old) {
+                number = old.number;
+                await gh(`/issues/${number}`, { method: "PATCH", body: JSON.stringify({ state: "open" }) });
+                await comment(number, issueBody(v));
+                done.push({ action: "reopen", key: v.key, kind: v.kind, number });
+            } else {
+                const title = `${issuePrefix(v)}${fmt(v.earlier)} -> ${fmt(v.recent)}`;
+                const labels = [...ISSUE_LABELS, ...(owner === "pipeline" ? [] : [owner])];
+                const made = await gh(`/issues`, {
+                    method: "POST",
+                    body: JSON.stringify({ title, body: issueBody(v), labels }),
+                });
+                number = made?.number;
+                done.push({ action: "file", key: v.key, kind: v.kind, number });
+            }
+        } else if (issue && v.clear) {
+            await comment(issue.number, `Back under both lines: last 5 runs ${fmt(v.recent)}.`);
             await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
-            done.push({ action: "close", key: v.key, kind: v.kind, number: issue.number });
+            done.push({ action: "close", key: v.key, kind: v.kind, number });
         }
+        if (v.alarm && number) issueOf.set(issuePrefix(v), number);
     }
     return done;
 }
@@ -542,13 +593,17 @@ async function storeMedians(run, rows) {
  * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
  * @param run the run (`path`)
  * @param rows the run's rows
- * @param answer the answer's `trend`: `{ key, kind, recent, earlier, alarm, range }[]`
+ * @param answer the answer's `trend`: `{ key, kind, recent, earlier, alarm, range }[]`; `clear` is added here
  * @param file the parsed ci-budgets.json
  * @returns syncIssues()'s actions
  */
 export async function applyTrend(gh, run, rows, answer, file) {
     const rowKey = new Map(storeRows(run, rows).map((s, i) => [storeKey(s), rows[i].key]));
-    const verdicts = answer.map((v) => ({ ...v, key: rowKey.get(v.key) ?? v.key }));
+    const verdicts = answer.map((v) => {
+        const key = rowKey.get(v.key) ?? v.key;
+        // the store's answer has no closing line; judge it here against the same budgets
+        return { ...v, key, clear: v.clear ?? clearOf(file, key, v.recent, v.earlier) };
+    });
     return syncIssues(gh, verdicts, file.defaults?.owner);
 }
 

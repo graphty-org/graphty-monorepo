@@ -520,6 +520,8 @@ function raise(gh, number) {
  * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
  * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
  * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
+ * A closed one is reopened when the base commit is newer than its closing, and left closed, with nothing filed, when
+ * the base is older: that flake ran on code from before the fix.
  * Nothing is quarantined: master never reproduced it. base-check.yml runs this after a passing 5-repeat check.
  * @param o the check
  * @param o.file the test file
@@ -532,19 +534,19 @@ function raise(gh, number) {
  * @returns `{ name, number }` for each test; number 0 when GitHub refused
  */
 export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, gh = ghCli) {
-    let open = [];
+    let found = [];
     try {
         const search = `"${file.split("/").at(-1)}" flaky in:title,body`;
-        open = JSON.parse(
+        found = JSON.parse(
             gh([
                 "issue",
                 "list",
                 "--state",
-                "open",
+                "all",
                 "--search",
                 search,
                 "--json",
-                "number,title,body",
+                "number,title,body,state,closedAt",
                 "--limit",
                 "100",
             ]),
@@ -552,9 +554,25 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
     } catch (e) {
         console.log(`run-group: could not search the flaky issues of ${file} (${e.message.split("\n")[0]})`);
     }
+    let baseAt;
+    const baseDate = () => {
+        // ponytail: the commit date only approximates whether base contains the fix; if it misfires, ask
+        // git merge-base --is-ancestor <closing commit> <base> instead
+        try {
+            baseAt ??= Date.parse(
+                gh(["api", `repos/{owner}/{repo}/commits/${base}`, "--jq", ".commit.committer.date"]).trim(),
+            );
+        } catch (e) {
+            console.log(`run-group: could not read the date of ${base} (${e.message.split("\n")[0]})`);
+            baseAt = Number.NaN;
+        }
+        return baseAt;
+    };
     return names.map((name) => {
         const t = { file, name };
-        const had = open.find((i) => namesFlakyTest(i, t))?.number;
+        const matches = found.filter((i) => namesFlakyTest(i, t));
+        const had = matches.find((i) => i.state !== "CLOSED")?.number;
+        const closed = had ? undefined : matches[0];
         const seen = pr ? `pull request #${pr}` : "a pull request";
         const run = runUrl ? ` (${runUrl})` : "";
         const body = [
@@ -568,6 +586,24 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
                 gh(["issue", "comment", String(had), "--body", `Flaky again.\n\n${body}`]);
                 raise(gh, had);
                 return { name, number: had };
+            }
+            if (closed) {
+                if (baseDate() < Date.parse(closed.closedAt)) {
+                    console.log(
+                        `run-group: ${idOf(t)} flaked on ${base}, older than the fix that closed #${closed.number}`,
+                    );
+                    return { name, number: closed.number };
+                }
+                gh(["issue", "reopen", String(closed.number)]);
+                gh([
+                    "issue",
+                    "comment",
+                    String(closed.number),
+                    "--body",
+                    `Flaky again after this issue closed.\n\n${body}`,
+                ]);
+                raise(gh, closed.number);
+                return { name, number: closed.number };
             }
             const url = gh([
                 "issue",

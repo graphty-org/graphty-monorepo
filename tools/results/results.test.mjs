@@ -1315,6 +1315,49 @@ describe("the pull request rules", () => {
         assert.match(create[create.indexOf("--body") + 1], /pull request #42.*\n.*abc1234/s);
     });
 
+    it("a closed flaky issue: left closed when the base predates its closing, reopened when the base is newer", () => {
+        const closed = {
+            number: 8102,
+            title: "Flaky test: x/a.test.ts > d > one",
+            body: "",
+            state: "CLOSED",
+            closedAt: "2026-11-14T12:00:00Z",
+        };
+        const run = (baseDate, issues = [closed]) => {
+            const calls = [];
+            const gh = (args) => {
+                calls.push(args);
+                if (args[1] === "list") return JSON.stringify(issues);
+                if (args[0] === "api") return `${baseDate}\n`;
+                if (args[1] === "create") return "https://github.com/o/r/issues/9\n";
+                return "";
+            };
+            const out = fileFlakyUnrelated(
+                { file: "x/a.test.ts", variant: "f|flags=off|selected", base: "abc1234", names: ["d > one"] },
+                gh,
+            );
+            return { out, calls };
+        };
+
+        const older = run("2026-11-13T12:00:00Z");
+        assert.deepEqual(older.out, [{ name: "d > one", number: 8102 }]);
+        assert.ok(!older.calls.some((a) => a[1] === "create" || a[1] === "reopen"));
+        assert.ok(older.calls.some((a) => a[0] === "api" && a[1] === "repos/{owner}/{repo}/commits/abc1234"));
+
+        const newer = run("2026-11-15T12:00:00Z");
+        assert.deepEqual(newer.out, [{ name: "d > one", number: 8102 }]);
+        assert.ok(newer.calls.some((a) => a[1] === "reopen" && a[2] === "8102"));
+        const comment = newer.calls.find((a) => a[1] === "comment");
+        assert.match(comment[comment.indexOf("--body") + 1], /^Flaky again after this issue closed/);
+        assert.ok(!newer.calls.some((a) => a[1] === "create"));
+
+        const none = run("2026-11-15T12:00:00Z", []);
+        assert.deepEqual(none.out, [{ name: "d > one", number: 9 }]);
+        const create = none.calls.find((a) => a[1] === "create");
+        assert.ok(create.includes("priority:critical"));
+        assert.equal(none.calls.find((a) => a[1] === "list")[none.calls[0].indexOf("--state") + 1], "all");
+    });
+
     it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
         const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
         const seen = new Set();

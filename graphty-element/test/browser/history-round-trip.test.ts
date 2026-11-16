@@ -44,10 +44,19 @@ afterEach(() => {
 /**
  * Settles once the graph's layout has come to rest and a frame has been drawn since, with the
  * render loop running: an edge's length is drawn from where its ends are at each frame.
+ *
+ * An emptied graph has nothing to settle, so the frame loop never stops a layout left running over
+ * it: waiting for it to stop would wait for good. Every graph here is loaded before its command, so
+ * an empty one was emptied, and a layout still running over it is the defect itself (#8360, fixed
+ * by f900c480e6) -- asserted at once rather than waited on until the job's deadline.
  * @param graph - The graph.
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
+    if (graph.getDataManager().nodes.size === 0) {
+        assert.isFalse(graph.getLayoutManager().running, "emptying the graph left its layout stopped");
+    }
+
     while (graph.getLayoutManager().running) {
         await nextFrame();
     }

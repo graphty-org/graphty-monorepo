@@ -27,6 +27,8 @@ export default tseslint.config(
             "**/gh-pages/**",
             "**/tmp/**",
             "**/.worktrees/**",
+            // Built copies of each package that benchmarks/compare checks out and builds (gitignored).
+            "benchmarks/compare/builds/**",
             // Storybook configuration directories, not yet linted. graphty and compact-mantine keep
             // .storybook out of every tsconfig, so a type-aware pass reports "not found by the
             // project service" on each file; the other packages have a handful of real findings

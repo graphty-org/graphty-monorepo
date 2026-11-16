@@ -98,7 +98,7 @@ jobs:
         needs: bundle
         if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/engines.test.ts') || contains(inputs.files, 'test/lifecycle/autosave-engines.bench.test.ts') }}
         runs-on: macos-26
-        timeout-minutes: 45
+        timeout-minutes: 55
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
@@ -122,7 +122,8 @@ jobs:
             # pull request that affects the app.
             - name: The selection workspace's acceptance test (Playwright WebKit)
               if: ${{ !inputs.files }}
-              timeout-minutes: 20
+              # 147 scenarios took about 18 minutes at 3 at a time on macos-26 (three cores)
+              timeout-minutes: 30
               working-directory: .
               run: node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit --out "$RUNNER_TEMP/selection-workspace"
             - name: Keep the screenshots of failed scenarios

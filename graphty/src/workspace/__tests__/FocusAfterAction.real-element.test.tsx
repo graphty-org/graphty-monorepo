@@ -20,7 +20,6 @@ import { withFeatures } from "../../test/features";
 import { openBy } from "../../test/open";
 import { pickSample } from "../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../test/test-utils";
-import { GRAPH_FILE_GML } from "../data-place/fixtures";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { clearRecent } from "../project/recent";
 import { REGISTRATIONS } from "../registrations";
@@ -28,7 +27,7 @@ import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -200,31 +199,6 @@ describe("focus after a command that moves the reader", () => {
         await onInspectorTitle();
     });
 
-    it("Filter to... from a column's menu puts focus in the new card's value", async () => {
-        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
-        render(<Workspace store={store} registrations={REGISTRATIONS} />);
-        const session = await waitFor(() => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        });
-        await session?.data.import({ type: "gml", name: "les-miserables.gml", config: { data: GRAPH_FILE_GML } });
-        await userEvent.click(screen.getByRole("button", { name: /^Table/ }));
-        const dock = await screen.findByRole("region", { name: "Table" });
-        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
-        await userEvent.click(await within(dock).findByRole("button", { name: "Options for value" }));
-        const menu = await screen.findByRole("menu");
-        const item = within(menu).getByRole("menuitem", { name: "Filter to..." });
-        for (let press = 0; press < 8 && document.activeElement !== item; press++) {
-            await userEvent.keyboard("{ArrowDown}");
-        }
-        await userEvent.keyboard("{Enter}");
-        const from = await screen.findByRole("textbox", { name: "value from, number" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, from, focused());
-        });
-    });
-
     it("Enter on the Graph place's title, with the graph already inspected, puts focus on the inspector's heading", async () => {
         await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 }, inspected: { kind: "graph" } }));
         const place = await screen.findByRole("region", { name: "Graph place" });
@@ -262,26 +236,6 @@ describe("focus after a command that moves the reader", () => {
         });
         assert.isNotNull(document.querySelector("[data-step-pane]"), "the step's pane stays");
         assert.strictEqual(document.activeElement, first, focused());
-    });
-
-    it("Escape on Back to analyses steps back to the list", async () => {
-        await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 } }));
-        await userEvent.click(screen.getByRole("button", { name: /^Analyze/ }));
-        const filter = await screen.findByRole("combobox", { name: "Filter analyses" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, filter, focused());
-        });
-        await userEvent.keyboard("deg{Enter}");
-        const back = await screen.findByRole("button", { name: "Back to analyses" });
-        for (let press = 0; press < 12 && document.activeElement !== back; press++) {
-            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
-        }
-        assert.strictEqual(document.activeElement, back, focused());
-        await userEvent.keyboard("{Escape}");
-        const list = await screen.findByRole("combobox", { name: "Filter analyses" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, list, focused());
-        });
     });
 
     it("Open layer from Why this look lands on the line it names first", async () => {

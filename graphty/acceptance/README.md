@@ -74,11 +74,10 @@ each frees up.
 ## The selection workspace's acceptance test
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
-the whole app. It is separate from the dry run and runs against any served build with the
-`selection-workspace` feature on:
+the whole app. It is separate from the dry run and runs against any served build:
 
 ```bash
-tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/?features=selection-workspace"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/"
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
 ```

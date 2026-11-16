@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
-import { selectionWorkspaceOn } from "../features";
 import { Workspace } from "../Workspace";
 import { AUTH_LOG_CSV, GRAPH_FILE_GML, HOSTS_CSV, PLAIN_JSON } from "./fixtures";
 
@@ -213,16 +212,13 @@ async function workspace(): Promise<HTMLElement> {
  */
 async function openPicker(canvasElement: HTMLElement): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    // With the Sources tab (the selection workspace) and two loads, each load's section has its own
-    // "+" too: the first is the one under Data sources, for the filters of every load.
+    // With two loads, each load's section on the Sources tab has its own "+" too: the first is the
+    // one under Data sources, for the filters of every load.
     const [plus] = await place.findAllByRole("button", { name: "Add filter" });
     await userEvent.click(plus);
-    // With the selection workspace on, the new card opens in its modal on the Card list: Value
-    // turns its picker to the attributes, as a reader picks one.
-    const element = canvasElement.querySelector("graphty-element");
-    if (element !== null && selectionWorkspaceOn(element.session)) {
-        await userEvent.click(await within(await workspace()).findByRole("button", { name: "Value" }));
-    }
+    // The new card opens in the selection workspace on the Card list: Value turns its picker to the
+    // attributes, as a reader picks one.
+    await userEvent.click(await within(await workspace()).findByRole("button", { name: "Value" }));
 }
 
 /**
@@ -250,15 +246,10 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
- * With the selection workspace on, a new card opens in a modal over the whole app, whose scrim
- * takes every click until it closes: Done closes it, as a reader would, before the next "Add filter".
- * Off, the card opens in the Data place and there is nothing to close.
- * @param element - the element.
+ * A new card opens in the selection workspace over the whole app, whose scrim takes every click
+ * until it closes: Done closes it, as a reader would, before the next "Add filter".
  */
-async function done(element: GraphtyElement): Promise<void> {
-    if (!selectionWorkspaceOn(element.session)) {
-        return;
-    }
+async function done(): Promise<void> {
     const modal = await workspace();
     await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
     await waitFor(() => {
@@ -280,18 +271,18 @@ export const FilterCards: Story = {
         const { session } = element;
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
 
-        // Group 2 or more, typed in its From box and committed.
+        // Group 2 or more, typed in its From box and committed; each card is written on Done.
         await addFilter(canvasElement, "group");
         const from = await within(document.body).findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
+        await done();
         await holds(element, 1);
-        await done(element);
 
         // The largest component.
         await addFilter(canvasElement, "Largest component");
+        await done();
         await holds(element, 2);
-        await done(element);
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -299,8 +290,8 @@ export const FilterCards: Story = {
             await session.selection.apply({ nodes: [marius] });
         }
         await addFilter(canvasElement, "Neighbors of selection");
+        await done();
         await holds(element, 3);
-        await done(element);
 
         // An old filter step, as a saved project opens it: All, then Except.
         await session.visibility.addCondition({

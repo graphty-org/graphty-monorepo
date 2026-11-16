@@ -9,7 +9,6 @@ import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { selectionWorkspaceOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
@@ -135,7 +134,7 @@ export function Workspace({
         session.scope.setOptions({
             liveMs: 50,
             askAboveMs: 1000,
-            ...(selectionWorkspaceOn(session) ? { branchPalette: cardPalette(session.catalog.palettes()) } : {}),
+            branchPalette: cardPalette(session.catalog.palettes()),
         });
         const defaults =
             project?.id === startProjectId ||

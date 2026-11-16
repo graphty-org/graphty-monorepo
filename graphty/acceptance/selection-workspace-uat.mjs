@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * User acceptance test of the selection workspace (the `selection-workspace` feature): a pairwise matrix
+ * User acceptance test of the selection workspace: a pairwise matrix
  * of card kinds, verbs, starts, card shapes, entry points, datasets, edits and ways of leaving, plus named
  * scenarios for what the matrix cannot reach. It drives a served build with real clicks, drags and keys
  * and checks what a reader sees (the counts on the title bar and the cards, the table's rows and tints,

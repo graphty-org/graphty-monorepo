@@ -4,8 +4,6 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
-import { tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
@@ -32,10 +30,7 @@ interface RunPlan {
     readonly restoreLayer: boolean;
     /** Running it would change nothing: the element holds this answer and its layers show. */
     readonly current: boolean;
-    /**
-     * The kept run was started by a selection's card and paints nothing (the `selection-workspace`
-     * experiment): Run reuses it and adds its suggested layers.
-     */
+    /** The kept run was started by a selection's card and paints nothing: Run reuses it and adds its suggested layers. */
     readonly paint?: boolean;
 }
 
@@ -76,10 +71,7 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
     const layers = session.runs.layers(latest.id);
     const gone = layers?.present.length === 0 && layers.missing.length > 0;
     // A card's run paints nothing; Analyze's Run with the same settings reuses it and adds its layers.
-    const unpainted =
-        selectionWorkspaceOn(session) &&
-        session.runs.painting(latest.id)?.state === "opted-out" &&
-        (layers?.present.length ?? 0) === 0;
+    const unpainted = session.runs.painting(latest.id)?.state === "opted-out" && (layers?.present.length ?? 0) === 0;
     // A run that made a folder of layers (one per group) names them in the plural. Once the folder
     // is deleted the element lists it as the one suggestion that makes it, so a run with groups
     // is plural whatever the count.
@@ -238,15 +230,14 @@ export function AnalyzePopover({
     initialFilter = "",
 }: Readonly<AnalyzePopoverProps>): React.JSX.Element {
     const algorithms = session.catalog.algorithms();
-    // The approved prototype (the `selection-workspace` experiment): a calm list of names, the chosen
-    // row with its settings at its end, Run at the bottom. Only Path keeps its form: it picks its ends.
-    const calm = selectionWorkspaceOn(session);
+    // The approved prototype: a calm list of names, the chosen row with its settings at its end, Run
+    // at the bottom. Only Path keeps its form: it picks its ends.
     const [filter, setFilter] = useState(initialFilter);
     const [picked, setPicked] = useState<AlgorithmDescriptor | undefined>(() =>
-        algorithms.find((a) => a.key === (path ? PATH_ALGORITHM : initialPick) && (!calm || a.key === PATH_ALGORITHM)),
+        algorithms.find((a) => a.key === PATH_ALGORITHM && (path || initialPick === PATH_ALGORITHM)),
     );
     const [chosen, setChosen] = useState<AlgorithmDescriptor | undefined>(() =>
-        calm ? algorithms.find((a) => a.key === initialPick && a.key !== PATH_ALGORITHM) : undefined,
+        algorithms.find((a) => a.key === initialPick && a.key !== PATH_ALGORITHM),
     );
     const [values, setValues] = useState<Record<string, unknown>>({});
     // The entry ArrowUp/Down moved to; null follows the filter (its first match, or none).
@@ -340,24 +331,6 @@ export function AnalyzePopover({
         onClose();
     };
 
-    if (picked !== undefined) {
-        return (
-            <Essentials
-                session={session}
-                descriptor={picked}
-                values={values}
-                onValues={setValues}
-                onBack={() => {
-                    pick(undefined);
-                }}
-                onRun={() => {
-                    runIt(picked);
-                }}
-                onKeyDown={onKeyDown}
-            />
-        );
-    }
-
     const groups = groupAlgorithms(algorithms, filter);
     const recentKeys = [
         ...new Set(
@@ -384,7 +357,7 @@ export function AnalyzePopover({
         if (descriptor === undefined || unavailable(session, descriptor) !== null) {
             return;
         }
-        if (calm && descriptor.key !== PATH_ALGORITHM) {
+        if (descriptor.key !== PATH_ALGORITHM) {
             setChosen(descriptor);
             setValues({});
             return;
@@ -428,85 +401,41 @@ export function AnalyzePopover({
         const reason = unavailable(session, descriptor);
         const i = index++;
         const isChosen = chosen?.key === descriptor.key;
-        if (calm) {
-            return (
-                <div // NOSONAR(S6819): a layout wrapper between the listbox and its option, which no image could be
-                    key={`${String(i)}-${descriptor.key}`}
-                    className="ws-analyze-row"
-                    role="presentation"
-                >
-                    <Tooltip
-                        label={reason ?? words.answers}
-                        disabled={(reason ?? words.answers) === ""}
-                        openDelay={500}
-                    >
-                        <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
-                            component="div"
-                            role="option"
-                            id={optionId(i)}
-                            aria-selected={i === active || isChosen}
-                            className="ws-analyze-entry"
-                            data-chosen={isChosen ? "" : undefined}
-                            aria-disabled={reason !== null}
-                            aria-label={isRecent ? `${words.name}, recent` : words.name}
-                            aria-description={reason ?? words.answers}
-                            onClick={() => {
-                                open(descriptor);
-                            }}
-                        >
-                            <Group gap={8} wrap="nowrap">
-                                <span className="ws-analyze-icon" aria-hidden="true">
-                                    {rowIcon(descriptor)}
-                                </span>
-                                <Text size="sm" c={reason === null ? undefined : "dimmed"} truncate>
-                                    {words.name}
-                                </Text>
-                            </Group>
-                        </UnstyledButton>
-                    </Tooltip>
-                    {isChosen && !isRecent && (
-                        <AnalyzeSettings
-                            session={session}
-                            descriptor={descriptor}
-                            values={values}
-                            onValues={setValues}
-                        />
-                    )}
-                </div>
-            );
-        }
         return (
-            <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
-                component="div"
-                role="option"
-                id={optionId(i)}
+            <div // NOSONAR(S6819): a layout wrapper between the listbox and its option, which no image could be
                 key={`${String(i)}-${descriptor.key}`}
-                aria-selected={i === active}
-                className="ws-analyze-entry"
-                aria-disabled={reason !== null}
-                // The name alone; the mark is part of the description, not of the name.
-                aria-label={isRecent ? `${words.name}, recent` : words.name}
-                aria-description={reason ?? words.answers}
-                onClick={() => {
-                    open(descriptor);
-                }}
+                className="ws-analyze-row"
+                role="presentation"
             >
-                <Group gap={8} wrap="nowrap" align="flex-start">
-                    <span className="ws-analyze-icon" aria-hidden="true">
-                        {rowIcon(descriptor)}
-                    </span>
-                    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                        <Group gap={6} wrap="nowrap">
-                            <Text size="sm" c={reason === null ? undefined : "dimmed"}>
+                <Tooltip label={reason ?? words.answers} disabled={(reason ?? words.answers) === ""} openDelay={500}>
+                    <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
+                        component="div"
+                        role="option"
+                        id={optionId(i)}
+                        aria-selected={i === active || isChosen}
+                        className="ws-analyze-entry"
+                        data-chosen={isChosen ? "" : undefined}
+                        aria-disabled={reason !== null}
+                        aria-label={isRecent ? `${words.name}, recent` : words.name}
+                        aria-description={reason ?? words.answers}
+                        onClick={() => {
+                            open(descriptor);
+                        }}
+                    >
+                        <Group gap={8} wrap="nowrap">
+                            <span className="ws-analyze-icon" aria-hidden="true">
+                                {rowIcon(descriptor)}
+                            </span>
+                            <Text size="sm" c={reason === null ? undefined : "dimmed"} truncate>
                                 {words.name}
                             </Text>
                         </Group>
-                        <Text size="xs" c="dimmed">
-                            {reason ?? words.answers}
-                        </Text>
-                    </Stack>
-                </Group>
-            </UnstyledButton>
+                    </UnstyledButton>
+                </Tooltip>
+                {isChosen && !isRecent && (
+                    <AnalyzeSettings session={session} descriptor={descriptor} values={values} onValues={setValues} />
+                )}
+            </div>
         );
     };
 
@@ -567,7 +496,7 @@ export function AnalyzePopover({
                         </Text>
                     ) : null}
                 </div>
-                {calm && chosen !== undefined && (
+                {chosen !== undefined && (
                     <RunBar
                         session={session}
                         descriptor={chosen}
@@ -724,125 +653,5 @@ function RunBar({
                 {plan.label}
             </Button>
         </Group>
-    );
-}
-
-/** Props for Essentials. */
-interface EssentialsProps {
-    session: GraphSession;
-    descriptor: AlgorithmDescriptor;
-    values: Record<string, unknown>;
-    onValues: (values: Record<string, unknown>) => void;
-    onBack: () => void;
-    onRun: () => void;
-    onKeyDown: (event: React.KeyboardEvent) => void;
-}
-
-/**
- * One algorithm's short form: its options (the advanced ones behind a fold), the cost line and
- * the button, which names what the run it reuses will do: "Run", "Update <name> layer" or "Add
- * <name> layer" (see `runPlan`).
- * @param props - Component props
- * @param props.session - The element's session
- * @param props.descriptor - The algorithm
- * @param props.values - The values set
- * @param props.onValues - Called with the new values
- * @param props.onBack - Back to the list
- * @param props.onRun - Runs it
- * @param props.onKeyDown - The popover's Esc handling
- * @returns The short form
- */
-function Essentials({
-    session,
-    descriptor,
-    values,
-    onValues,
-    onBack,
-    onRun,
-    onKeyDown,
-}: Readonly<EssentialsProps>): React.JSX.Element {
-    const words = wordsFor(descriptor);
-    const { params, plan, available, ready, footnote } = runState(session, descriptor, values);
-    // Focus lands on the button when it can run; when it cannot (the layer is up to date, or the
-    // run is refused), on the form's first live control instead, never on a dead stop.
-    const formRef = useRef<HTMLFormElement>(null);
-    const landed = useRef(false);
-    useEffect(() => {
-        if (landed.current || formRef.current === null) {
-            return;
-        }
-        landed.current = true;
-        if (!ready) {
-            // An option first, else Back: the button that cannot run is never where focus lands.
-            const live = tabStops(formRef.current).filter((stop) => stop.getAttribute("aria-disabled") !== "true");
-            (live.find((stop) => !stop.classList.contains("ws-analyze-back")) ?? live[0])?.focus();
-        }
-    }, [ready]);
-
-    return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
-            ref={formRef}
-            className="ws-analyze"
-            onKeyDown={onKeyDown}
-            aria-label={words.name}
-            onSubmit={(event) => {
-                event.preventDefault();
-                if (ready) {
-                    onRun();
-                }
-            }}
-        >
-            <Stack gap={8}>
-                <Group gap={4} wrap="nowrap">
-                    {/* Its tooltip is its name, as every icon button's is. */}
-                    <Tooltip label="Back to analyses">
-                        <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
-                            <GLYPHS.back size={16} />
-                        </UnstyledButton>
-                    </Tooltip>
-                    <span aria-hidden="true">{rowIcon(descriptor)}</span>
-                    <Text size="sm" fw={600}>
-                        {words.name}
-                    </Text>
-                </Group>
-                {words.answers === "" ? null : (
-                    <Text size="xs" c="dimmed">
-                        {words.answers}
-                    </Text>
-                )}
-                <OptionsForm
-                    session={session}
-                    options={descriptor.options}
-                    values={params}
-                    words={(option) => optionWords(descriptor.key, option)}
-                    weightReads={descriptor.weightMeaning ?? null}
-                    algorithm={descriptor.key}
-                    onChange={(name, value) => {
-                        onValues({ ...values, [name]: value });
-                    }}
-                />
-                <Group justify="space-between" wrap="nowrap">
-                    <Text size="xs" c="dimmed">
-                        {footnote}
-                    </Text>
-                    {/* Focus lands on Run, so Enter runs and Esc steps back (tier1-design.md 5.T7). A
-                        current layer's button stays reachable by Tab, marked disabled so its state is
-                        read; submit is refused while it is. */}
-                    <Button
-                        size="xs"
-                        type="submit"
-                        disabled={!available}
-                        data-disabled={plan.current || undefined}
-                        aria-disabled={plan.current || undefined}
-                        // A bare "Run" names no analysis to a reader who reached it by Tab; the
-                        // other labels already name it ("Update Degree layer").
-                        aria-label={plan.label === "Run" ? `Run ${words.name}` : undefined}
-                        autoFocus={ready}
-                    >
-                        {plan.label}
-                    </Button>
-                </Group>
-            </Stack>
-        </form>
     );
 }

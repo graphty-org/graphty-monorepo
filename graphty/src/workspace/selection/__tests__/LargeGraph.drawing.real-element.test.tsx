@@ -4,7 +4,6 @@
  * who moves on while Done waits for the paint.
  */
 
-import type { Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -12,7 +11,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { firstFrameAfter, oneStep, openGenerated, openLayer, REPAINTED_NODES } from "./large-graph";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the selection editor on 50,000 nodes", () => {
@@ -70,70 +69,6 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.isFalse(session.styles.showingBranches);
         });
-    });
-
-    it("a control the reader moves to while Done waits for the paint keeps focus and every key typed there", async () => {
-        const session = await openGenerated(REPAINTED_NODES);
-        const layer = await openLayer(
-            session,
-            "Moved on",
-            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
-            { "node.size": 2 },
-        );
-        const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
-        if (row === null) {
-            throw new Error("the Style Nodes... line is drawn");
-        }
-        await userEvent.click(row);
-        const values = await screen.findByRole("group", { name: "community values" });
-        await userEvent.click(within(values).getAllByRole("checkbox")[0]);
-        await waitFor(() => {
-            assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
-        });
-        // The close waits on graphty-element's paint; it is held until the reader has moved on, so
-        // the move always lands while the workspace still says "Drawing".
-        const element = document.querySelector("graphty-element");
-        if (element === null) {
-            throw new Error("the element is drawn");
-        }
-        let release = (): void => undefined;
-        const held = new Promise<void>((resolve) => {
-            release = resolve;
-        });
-        const painted = element.waitForPainted.bind(element);
-        element.waitForPainted = async () => {
-            await held;
-            return painted();
-        };
-        const ws = document.querySelector<HTMLElement>(".sel-ws");
-        if (ws === null) {
-            throw new Error("the workspace is open");
-        }
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
-        await waitFor(() => {
-            assert.isNotNull(document.querySelector(".sel-ws-head [data-drawing]"));
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Add to node fill" }));
-        const line = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>(
-                '[data-testid="style-tab"] .ws-row[data-line="node.color"]',
-            );
-            assert.isNotNull(found);
-            assert.isTrue(found?.contains(document.activeElement), "focus is in the new Color line");
-            return found;
-        });
-        release();
-        await waitFor(() => {
-            assert.isNull(document.querySelector(".sel-ws"));
-        });
-        assert.isTrue(line?.contains(document.activeElement), "the closed workspace left focus in the Color line");
-        await userEvent.keyboard("E4572E{Enter}");
-        await waitFor(() => {
-            const now = session.styles.list().find((one: Layer) => one.id === layer.id);
-            const color = now?.set?.["node.color"];
-            assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#E4572E");
-        });
-        assert.isNull(document.querySelector(".sel-ws"), "no key reopened the workspace");
     });
 
     it("opening Which nodes right after adding a layer walks no style agreement before its first frame", async () => {

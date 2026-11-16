@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, SegmentedControl } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -19,14 +19,11 @@ import {
     ActionIcon,
     Button,
     Checkbox,
-    Collapse,
     Group,
     InputBase,
-    Menu,
     NumberInput,
     Select,
     Stack,
-    Switch,
     Text,
     Tooltip,
     UnstyledButton,
@@ -41,9 +38,7 @@ import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
-import { type Verb, verbsAt } from "./model";
 import { ReferencePicker } from "./ReferencePicker";
-import { SelectionMenuItems } from "./SelectionMenu";
 import {
     freshTest,
     type Host,
@@ -70,15 +65,6 @@ const MODAL_HEAD_BOTTOM = 68;
 /** A card's words for the nodes a route runs between, by option name (the approved prototype). */
 const REFERENCE_WORDS: Readonly<Partial<Record<string, string>>> = { source: "From", target: "To" };
 
-/** What a step pane asks its editor to do. */
-interface StepActions {
-    readonly onStep: (patch: Partial<UnionStep>) => void;
-    readonly onToggle: () => void;
-    readonly onMove: (by: -1 | 1) => void;
-    readonly onDuplicate: () => void;
-    readonly onRemove: () => void;
-}
-
 /**
  * A pane's row whose control is named by a caption over it (Start with, Computed on, Edges), the
  * caption Figma's labeled rows draw, the control at the column's full width (ws-polish 2).
@@ -86,7 +72,7 @@ interface StepActions {
  * @param props.children - the control, with its `label`
  * @returns The row
  */
-export function CaptionedRow({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+function CaptionedRow({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     const label = React.isValidElement<{ label?: string }>(children) ? children.props.label : undefined;
     return (
         <Stack gap={4} className="sel-captioned">
@@ -96,42 +82,6 @@ export function CaptionedRow({ children }: Readonly<{ children: React.ReactNode 
             </span>
             {children}
         </Stack>
-    );
-}
-
-/**
- * A step's verb (the owner, ws-polish 2): a narrowing step says no verb, and its one choice is the
- * compact Except switch ("Except Degree min 10"); an Add step says Add. Add and narrowing trade
- * places in the step's "..." menu, since Or... already widens.
- * @param props - Component props
- * @param props.verb - the step's verb
- * @param props.verbs - the verbs that can change the group here
- * @param props.onVerb - takes the new verb
- * @returns The switch, the word Add, or nothing
- */
-function ExceptSwitch({
-    verb,
-    verbs,
-    onVerb,
-}: Readonly<{ verb: Verb; verbs: readonly Verb[]; onVerb: (verb: Verb) => void }>): React.JSX.Element | null {
-    if (verb === "add") {
-        // A group's only verb is no choice: nothing is said.
-        return verbs.length < 2 ? null : <Text size="sm">{VERB_WORDS.add.word}</Text>;
-    }
-    if (verb !== "except" && !verbs.includes("except")) {
-        return null;
-    }
-    return (
-        <Tooltip label={`${VERB_WORDS.except.word} (${VERB_WORDS.except.figma})`}>
-            <Switch
-                size="xs"
-                label={VERB_WORDS.except.word}
-                checked={verb === "except"}
-                onChange={(event) => {
-                    onVerb(event.currentTarget.checked ? "except" : "keep");
-                }}
-            />
-        </Tooltip>
     );
 }
 
@@ -543,7 +493,7 @@ function LinksCondition({
 }
 
 /** Props of a step pane. */
-interface StepPaneProps extends StepActions {
+interface StepPaneProps {
     readonly session: GraphSession;
     readonly rule: UnionLeaf;
     readonly branch: UnionBranch;
@@ -552,30 +502,17 @@ interface StepPaneProps extends StepActions {
     readonly host: Host;
     readonly of: number;
     readonly first: boolean;
-    readonly last: boolean;
-    /** The selection's result count: "N so far" is said only where it differs. */
-    readonly total?: number;
-    /** How many the group held before this step: its head draws the change ("+24", "-20"). */
-    readonly before?: number;
     readonly hostPicks: readonly PickSection[];
-    /** The Done button, drawn last in the first row. */
+    /** The Remove button, drawn last in the value row. */
     readonly done?: React.ReactNode;
-    /** The add actions, drawn first in the first row. */
+    /** The step's verb, drawn first in the value row. */
     readonly adds?: React.ReactNode;
-    /** Whether it draws its first row; false under a title pane that already has one. */
-    readonly head?: boolean;
-    /** Whether it draws the Except switch; false where the step's verb is drawn already (a group card). */
-    readonly verbSwitch?: boolean;
-    /**
-     * Drawn in a group card of the full-screen workspace (the `selection-workspace` experiment): its
-     * head says its change to the group, and a new number step starts over its whole range. Off,
-     * "N so far" is said only where it differs from the result, and a new step starts untested.
-     */
-    readonly cards?: boolean;
+    /** Takes a change to the step. */
+    readonly onStep: (patch: Partial<UnionStep>) => void;
 }
 
 /**
- * The pane of the selected step.
+ * A step on a group card of the selection workspace.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
@@ -585,21 +522,11 @@ interface StepPaneProps extends StepActions {
  * @param props.host - where the selection is edited
  * @param props.of - the base's size
  * @param props.first - it is its group's first step
- * @param props.last - it is its group's last step
- * @param props.total - the selection's result count
- * @param props.before - how many the group held before this step
  * @param props.hostPicks - the host's own value picker entries
- * @param props.done - the Done button
- * @param props.adds - the add actions
- * @param props.head - whether it draws its first row
- * @param props.verbSwitch - whether it draws the Except switch
- * @param props.cards - drawn in a group card of the full-screen workspace
+ * @param props.done - the Remove button
+ * @param props.adds - the step's verb
  * @param props.onStep - takes a change to the step
- * @param props.onToggle - switches the step on or off
- * @param props.onMove - moves it up or down its group
- * @param props.onDuplicate - copies it under itself
- * @param props.onRemove - removes it
- * @returns The pane
+ * @returns The step
  */
 export function StepPane({
     session,
@@ -610,20 +537,10 @@ export function StepPane({
     host,
     of,
     first,
-    last,
-    total,
-    before,
     hostPicks,
     done,
     adds,
-    head = true,
-    verbSwitch = true,
-    cards = false,
     onStep,
-    onToggle,
-    onMove,
-    onDuplicate,
-    onRemove,
 }: StepPaneProps): React.JSX.Element {
     // After a value is picked, focus goes to its test's first control, never back onto the segment.
     const testBox = useRef<HTMLDivElement>(null);
@@ -641,7 +558,6 @@ export function StepPane({
     const { value } = rowWords(session, step, side, reading);
     // Typing in a box is held and written when committed (Enter, leaving the box): one undo step.
     const [draft, setDraft] = useState<Card | null>(null);
-    const [advanced, setAdvanced] = useState(false);
     // Read once per reading, never per render: it reads the step's values and their spread.
     const read = useMemo(
         () => stepCard(session, step, reading, side, rule.within),
@@ -750,7 +666,7 @@ export function StepPane({
         ...(missing === true ? ["Not measured"] : []),
     ];
     const hasAdvanced =
-        (cards && card?.type === "number") ||
+        card?.type === "number" ||
         textCard !== null ||
         canSoFar ||
         linked ||
@@ -759,31 +675,6 @@ export function StepPane({
         step.rule.kind === "touching" ||
         settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
-    const verbs = verbsAt(branch, branch.steps.indexOf(step));
-    // Whether the Except switch (or the word Add) is drawn: as ExceptSwitch decides.
-    const switchShown =
-        verbSwitch && (step.op === "add" ? verbs.length >= 2 : step.op === "except" || verbs.includes("except"));
-    // With the group's count before it, the step's head draws what it changed; else what it holds.
-    const soFarWords = count === undefined ? "" : `${formatNumber(count)} of ${formatNumber(of)} so far`;
-    const change = count === undefined || before === undefined ? undefined : count - before;
-    const changeChip =
-        count === undefined ? null : (
-            <Tooltip label={soFarWords} openDelay={300}>
-                <Text size="sm" className="sel-count sel-step-change" data-change={change ?? ""} aria-hidden>
-                    {change === undefined ? formatNumber(count) : changeWords(change)}
-                </Text>
-            </Tooltip>
-        );
-    const soFarText =
-        count !== undefined && count !== total ? (
-            <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
-                {`${formatNumber(count)} so far`}
-            </Text>
-        ) : null;
-    // In a card the head says the change; elsewhere "so far" is said below, only where it differs.
-    const soFar = cards ? changeChip : null;
-    const cardBelow = !head && count !== total ? changeChip : null;
-    const soFarBelow = cards ? cardBelow : soFarText;
     const paneLabel = [
         step.op === "keep" ? value : `${VERB_WORDS[step.op].word}, ${value}`,
         ...(count === undefined ? [] : [`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`]),
@@ -840,7 +731,7 @@ export function StepPane({
                             side={"field" in card ? card.field.on : side}
                             onChange={onCard}
                             variant="step"
-                            bare={cards}
+                            bare
                         />
                     )}
                     {tieWords !== null && (
@@ -860,7 +751,7 @@ export function StepPane({
         setToLinks(where && step.links === undefined);
         if (!where) {
             onStep({ links: undefined });
-        } else if (cards) {
+        } else {
             setSettingsOpen(false);
         }
     };
@@ -878,7 +769,7 @@ export function StepPane({
     // Advanced's rows: under its disclosure in a pane, behind the settings button on a card.
     const advancedRows = (
         <Stack gap={6}>
-            {cards && card?.type === "number" && (
+            {card?.type === "number" && (
                 <CaptionedRow>
                     <SegmentedControl
                         label="Test"
@@ -925,7 +816,6 @@ export function StepPane({
                 </CaptionedRow>
             )}
             {linked && <LinksChoice where={linksWhere} onChoice={chooseLinks} />}
-            {linked && linksWhere && !cards && linksCondition}
             {readsEnds && (
                 <CaptionedRow>
                     <SegmentedControl
@@ -987,196 +877,26 @@ export function StepPane({
             )}
         </Stack>
     );
-    if (cards) {
-        return (
-            <CardStep
-                label={paneLabel}
-                stepId={step.id}
-                pending={pending}
-                onKeyDown={paneKeys}
-                onBlur={paneBlur}
-                valueRow={
-                    <>
-                        {adds}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <ValueField
-                                session={session}
-                                rule={rule}
-                                branch={branch}
-                                value={step.rule.kind === "nonempty" ? WHILE : (algorithmWords ?? value)}
-                                hostPicks={hostPicks}
-                                host={host}
-                                perAlgorithm
-                                glyph={algorithm === undefined ? undefined : <GLYPHS.analyze size={12} aria-hidden />}
-                                onRule={(stepRule) => {
-                                    setDraft(null);
-                                    toTest.current = true;
-                                    onStep({ rule: stepRule });
-                                }}
-                            />
-                        </div>
-                        {algorithm !== undefined && outputs.length > 1 && step.rule.kind === "measure" && (
-                            <OutputSelect
-                                name={algorithmWords ?? value}
-                                rule={step.rule}
-                                outputs={outputs}
-                                onRule={(next) => {
-                                    setDraft(null);
-                                    onStep({ rule: next });
-                                }}
-                            />
-                        )}
-                        {hasAdvanced && (
-                            // The cards sit at the workspace's start edge, so it opens over the drawing:
-                            // the workspace holds its PopoutManager, outside the modal, so never under it.
-                            <SettingsPopout
-                                label={`Settings for ${algorithmWords ?? value}`}
-                                title={algorithmWords ?? value}
-                                tip={changed.length === 0 ? "Settings" : `Settings: ${changed.join(", ")}`}
-                                changed={changed.length > 0}
-                                opened={settingsOpen}
-                                onOpenChange={setSettingsOpen}
-                                width={280}
-                                placement="right"
-                                boundaryTop={MODAL_HEAD_BOTTOM}
-                            >
-                                {/* A portal: Escape here closes the panel, never the workspace around it. */}
-                                <div data-portal="" className="ws-options-rows">
-                                    {advancedRows}
-                                </div>
-                            </SettingsPopout>
-                        )}
-                        {done}
-                    </>
-                }
-                // The card says no sentence for a missing reference: its reference box shows it empty.
-                state={reasonCode === "no-reference" ? "" : stateShown}
-                test={
-                    <>
-                        {measure !== undefined && algorithm !== undefined && (
-                            <SettingChips
-                                options={settings}
-                                params={measure.params ?? {}}
-                                onOpen={() => {
-                                    setSettingsOpen(true);
-                                }}
-                                onReset={(name) => {
-                                    const { [name]: _gone, ...kept } = measure.params ?? {};
-                                    onStep({ rule: retuned(measure, kept) });
-                                }}
-                            />
-                        )}
-                        {measure !== undefined &&
-                            references.map((option) => (
-                                // A node an algorithm reads (Shortest path's From and To) is chosen on
-                                // the card, by search or on the canvas, never from a list of every node.
-                                <Group key={option.name} gap={6} wrap="nowrap" className="sel-card-ref">
-                                    <Text size="sm" className="sel-card-ref-name">
-                                        {REFERENCE_WORDS[option.name] ?? option.plainName}
-                                    </Text>
-                                    <ReferencePicker
-                                        session={session}
-                                        host={host}
-                                        name={REFERENCE_WORDS[option.name] ?? option.plainName}
-                                        reference={measure.bind?.[option.name]}
-                                        firstStep={first}
-                                        onReference={(reference) => {
-                                            onStep({
-                                                rule: {
-                                                    ...measure,
-                                                    bind: { ...measure.bind, [option.name]: reference },
-                                                },
-                                            });
-                                        }}
-                                    />
-                                </Group>
-                            ))}
-                        {card?.type === "yes-no" ? (
-                            // A yes-or-no output is named as the From and To rows are.
-                            <Group gap={6} wrap="nowrap" className="sel-card-ref">
-                                <Text size="sm" className="sel-card-ref-name">
-                                    {outputName}
-                                </Text>
-                                {testBody}
-                            </Group>
-                        ) : (
-                            testBody
-                        )}
-                        {linked && linksWhere && (
-                            <div className="sel-card-links" data-card-links="">
-                                {linksCondition}
-                            </div>
-                        )}
-                    </>
-                }
-            />
-        );
-    }
     return (
-        <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
-            role="group"
-            aria-label={paneLabel}
-            className="sel-pane"
-            data-step-pane={step.id}
-            data-pending={pending ? "" : undefined}
+        <CardStep
+            label={paneLabel}
+            stepId={step.id}
+            pending={pending}
             onKeyDown={paneKeys}
             onBlur={paneBlur}
-        >
-            <Stack gap={6}>
-                {head && (
-                    <Group gap={4} wrap="nowrap" className="sel-pane-head">
-                        {adds}
-                        <span className="sel-spacer" />
-                        {soFar}
-                        <StepMenu
-                            name={value}
-                            verb={step.op}
-                            verbs={verbs}
-                            onVerb={(op) => {
-                                onStep({ op });
-                            }}
-                            on={step.on !== false}
-                            first={first}
-                            last={last}
-                            onToggle={onToggle}
-                            onMove={onMove}
-                            onDuplicate={onDuplicate}
-                            onRemove={onRemove}
-                        />
-                        {done}
-                    </Group>
-                )}
-                {switchShown || stateShown !== "" ? (
-                    <Group gap={6} wrap="nowrap">
-                        {switchShown && (
-                            <ExceptSwitch
-                                verb={step.op}
-                                verbs={verbs}
-                                onVerb={(op) => {
-                                    onStep({ op });
-                                }}
-                            />
-                        )}
-                        <span className="sel-spacer" />
-                        {soFarBelow}
-                        {stateShown !== "" && (
-                            <Text size="sm" c="dimmed" className="sel-state">
-                                {stateShown}
-                            </Text>
-                        )}
-                    </Group>
-                ) : null}
-                {/* With no switch and no state word above, "so far" sits on the value field's row (ws-polish 3). */}
-                <Group gap={6} wrap="nowrap">
+            valueRow={
+                <>
+                    {adds}
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <ValueField
                             session={session}
                             rule={rule}
                             branch={branch}
-                            // "While ... has nodes" stays whole in its field; the reference picker holds the node.
-                            value={step.rule.kind === "nonempty" ? WHILE : value}
+                            value={step.rule.kind === "nonempty" ? WHILE : (algorithmWords ?? value)}
                             hostPicks={hostPicks}
                             host={host}
+                            perAlgorithm
+                            glyph={algorithm === undefined ? undefined : <GLYPHS.analyze size={12} aria-hidden />}
                             onRule={(stepRule) => {
                                 setDraft(null);
                                 toTest.current = true;
@@ -1184,42 +904,106 @@ export function StepPane({
                             }}
                         />
                     </div>
-                    {!(switchShown || stateShown !== "") && soFarBelow}
-                </Group>
-                {testBody}
-                {hasAdvanced && (
-                    <>
-                        <UnstyledButton
-                            className="sel-advanced"
-                            aria-expanded={advanced}
-                            onClick={() => {
-                                setAdvanced(!advanced);
+                    {algorithm !== undefined && outputs.length > 1 && step.rule.kind === "measure" && (
+                        <OutputSelect
+                            name={algorithmWords ?? value}
+                            rule={step.rule}
+                            outputs={outputs}
+                            onRule={(next) => {
+                                setDraft(null);
+                                onStep({ rule: next });
                             }}
+                        />
+                    )}
+                    {hasAdvanced && (
+                        // The cards sit at the workspace's start edge, so it opens over the drawing:
+                        // the workspace holds its PopoutManager, outside the modal, so never under it.
+                        <SettingsPopout
+                            label={`Settings for ${algorithmWords ?? value}`}
+                            title={algorithmWords ?? value}
+                            tip={changed.length === 0 ? "Settings" : `Settings: ${changed.join(", ")}`}
+                            changed={changed.length > 0}
+                            opened={settingsOpen}
+                            onOpenChange={setSettingsOpen}
+                            width={280}
+                            placement="right"
+                            boundaryTop={MODAL_HEAD_BOTTOM}
                         >
-                            <GLYPHS.expand
-                                size={12}
-                                aria-hidden
-                                style={{ transform: advanced ? undefined : "rotate(-90deg)" }}
-                            />
-                            <Text size="sm" span>
-                                Advanced
-                            </Text>
-                            {changed.length > 0 && (
-                                <Text size="sm" c="dimmed" span ml="auto">
-                                    {changed.join(", ")}
+                            {/* A portal: Escape here closes the panel, never the workspace around it. */}
+                            <div data-portal="" className="ws-options-rows">
+                                {advancedRows}
+                            </div>
+                        </SettingsPopout>
+                    )}
+                    {done}
+                </>
+            }
+            // The card says no sentence for a missing reference: its reference box shows it empty.
+            state={reasonCode === "no-reference" ? "" : stateShown}
+            test={
+                <>
+                    {measure !== undefined && algorithm !== undefined && (
+                        <SettingChips
+                            options={settings}
+                            params={measure.params ?? {}}
+                            onOpen={() => {
+                                setSettingsOpen(true);
+                            }}
+                            onReset={(name) => {
+                                const { [name]: _gone, ...kept } = measure.params ?? {};
+                                onStep({ rule: retuned(measure, kept) });
+                            }}
+                        />
+                    )}
+                    {measure !== undefined &&
+                        references.map((option) => (
+                            // A node an algorithm reads (Shortest path's From and To) is chosen on
+                            // the card, by search or on the canvas, never from a list of every node.
+                            <Group key={option.name} gap={6} wrap="nowrap" className="sel-card-ref">
+                                <Text size="sm" className="sel-card-ref-name">
+                                    {REFERENCE_WORDS[option.name] ?? option.plainName}
                                 </Text>
-                            )}
-                        </UnstyledButton>
-                        <Collapse in={advanced}>{advancedRows}</Collapse>
-                    </>
-                )}
-            </Stack>
-        </div>
+                                <ReferencePicker
+                                    session={session}
+                                    host={host}
+                                    name={REFERENCE_WORDS[option.name] ?? option.plainName}
+                                    reference={measure.bind?.[option.name]}
+                                    firstStep={first}
+                                    onReference={(reference) => {
+                                        onStep({
+                                            rule: {
+                                                ...measure,
+                                                bind: { ...measure.bind, [option.name]: reference },
+                                            },
+                                        });
+                                    }}
+                                />
+                            </Group>
+                        ))}
+                    {card?.type === "yes-no" ? (
+                        // A yes-or-no output is named as the From and To rows are.
+                        <Group gap={6} wrap="nowrap" className="sel-card-ref">
+                            <Text size="sm" className="sel-card-ref-name">
+                                {outputName}
+                            </Text>
+                            {testBody}
+                        </Group>
+                    ) : (
+                        testBody
+                    )}
+                    {linked && linksWhere && (
+                        <div className="sel-card-links" data-card-links="">
+                            {linksCondition}
+                        </div>
+                    )}
+                </>
+            }
+        />
     );
 }
 
 /**
- * A step on a workspace card (the `selection-workspace` experiment): its value row (the value
+ * A step on a workspace card: its value row (the value
  * picker, an algorithm's output and settings), its state word, then its test inline.
  * @param props - Component props
  * @param props.label - the step's accessible name
@@ -1372,138 +1156,4 @@ function SettingChips({
             })}
         </Group>
     );
-}
-
-/**
- * A step's "..." menu: Add instead (or Narrow instead) where both can change the group, Turn off,
- * Duplicate, Move up, Move down | Delete, each with its key.
- * @param props - Component props
- * @param props.name - the step's value
- * @param props.verb - the step's verb
- * @param props.verbs - the verbs that can change the group here
- * @param props.onVerb - takes the new verb
- * @param props.on - whether it is on
- * @param props.first - it is its group's first step
- * @param props.last - it is its group's last step
- * @param props.onToggle - switches it on or off
- * @param props.onMove - moves it up or down
- * @param props.onDuplicate - copies it
- * @param props.onRemove - removes it
- * @returns The menu
- */
-function StepMenu({
-    name,
-    verb,
-    verbs,
-    onVerb,
-    on,
-    first,
-    last,
-    onToggle,
-    onMove,
-    onDuplicate,
-    onRemove,
-}: Readonly<{
-    name: string;
-    verb: Verb;
-    verbs: readonly Verb[];
-    onVerb: (verb: Verb) => void;
-    on: boolean;
-    first: boolean;
-    last: boolean;
-    onToggle: () => void;
-    onMove: (by: -1 | 1) => void;
-    onDuplicate: () => void;
-    onRemove: () => void;
-}>): React.JSX.Element {
-    return (
-        <Menu position="bottom-end" withinPortal>
-            <Menu.Target>
-                <TargetTooltip label="More">
-                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${name}`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
-                </TargetTooltip>
-            </Menu.Target>
-            <Menu.Dropdown data-portal="">
-                <SelectionMenuItems
-                    items={[
-                        ...(verbs.includes("add") && verbs.length > 1
-                            ? [
-                                  {
-                                      id: "verb",
-                                      label: verb === "add" ? "Narrow instead" : "Add instead",
-                                      icon: verb === "add" ? ("intersect" as const) : ("union" as const),
-                                      group: "edit" as const,
-                                      onRun: () => {
-                                          onVerb(verb === "add" ? "keep" : "add");
-                                      },
-                                  },
-                              ]
-                            : []),
-                        {
-                            id: "hide",
-                            label: on ? "Turn off" : "Turn on",
-                            icon: on ? "hide" : "show",
-                            group: "edit",
-                            key: "Shift+Mod+H",
-                            onRun: onToggle,
-                        },
-                        {
-                            id: "duplicate",
-                            label: "Duplicate",
-                            icon: "duplicate",
-                            group: "edit",
-                            key: "Mod+D",
-                            onRun: onDuplicate,
-                        },
-                        {
-                            id: "up",
-                            label: "Move up",
-                            icon: "moveUp",
-                            group: "edit",
-                            key: "Mod+]",
-                            reason: first ? "Already the first step" : null,
-                            reasonDrawn: false,
-                            onRun: () => {
-                                onMove(-1);
-                            },
-                        },
-                        {
-                            id: "down",
-                            label: "Move down",
-                            icon: "moveDown",
-                            group: "edit",
-                            key: "Mod+[",
-                            reason: last ? "Already the last step" : null,
-                            reasonDrawn: false,
-                            onRun: () => {
-                                onMove(1);
-                            },
-                        },
-                        {
-                            id: "delete",
-                            label: "Delete",
-                            icon: "delete",
-                            group: "remove",
-                            key: "Delete",
-                            onRun: onRemove,
-                        },
-                    ]}
-                />
-            </Menu.Dropdown>
-        </Menu>
-    );
-}
-
-/**
- * A step's change to its group, signed: "+24", "-20", "0".
- * @param change - the change.
- * @returns the words.
- */
-function changeWords(change: number): string {
-    if (change === 0) {
-        return "0";
-    }
-    return `${change > 0 ? "+" : "-"}${formatNumber(Math.abs(change))}`;
 }

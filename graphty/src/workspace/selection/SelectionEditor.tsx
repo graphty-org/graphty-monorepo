@@ -1723,8 +1723,6 @@ export function SelectionEditor({
                     host={host}
                     of={of}
                     first={index === 0}
-                    last={index === branch.steps.length - 1}
-                    total={reading.total.count}
                     hostPicks={hostPicks}
                     adds={
                         natural ? undefined : (
@@ -1733,7 +1731,6 @@ export function SelectionEditor({
                             </Text>
                         )
                     }
-                    cards
                     done={
                         index === 0 ? undefined : (
                             <TargetTooltip label="Remove">
@@ -1753,18 +1750,6 @@ export function SelectionEditor({
                     onStep={(patch) => {
                         lastEdited.current = id;
                         onChange(editStep(rule, branchId, id, patch));
-                    }}
-                    onMove={(by) => {
-                        moveStepBy(branch, id, by);
-                    }}
-                    onToggle={() => {
-                        toggle(branch, id);
-                    }}
-                    onDuplicate={() => {
-                        duplicate(branch, id);
-                    }}
-                    onRemove={() => {
-                        removeStepAt(branch, id);
                     }}
                 />
             </div>
@@ -2407,7 +2392,6 @@ export function SelectionEditor({
                                               rule={reading.rule}
                                               title={name}
                                               branch={stripBranch}
-                                              modal
                                           />
                                       )}
                                   </div>

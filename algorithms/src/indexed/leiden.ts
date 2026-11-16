@@ -1,6 +1,6 @@
 import { detExp, type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, type SeedOptions, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights } from "./label-propagation.js";
@@ -11,11 +11,9 @@ import { modularity } from "./modularity.js";
  * `maxIterations` counts something else: see below.
  * @public
  */
-export interface LeidenOptions {
+export interface LeidenOptions extends SeedOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
-    /** Seed of the visit orders; default 42. */
-    readonly randomSeed?: number | undefined;
     /**
      * Cap on whole passes over the original graph, each running as many levels as it needs; default
      * 100. The legacy `leiden` caps levels instead, so its `maxIterations: 1` is one level where
@@ -646,12 +644,9 @@ export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenRes
         );
     }
     const resolution = options.resolution ?? 1;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("leiden", options);
     const maxIterations = options.maxIterations ?? 100;
     const threshold = options.threshold ?? 1e-7;
-    if (!Number.isInteger(randomSeed)) {
-        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
-    }
     const n = s.nodeCount;
     const base = levelOf(s, checkedEdgeWeights(s));
     let m2 = 0;

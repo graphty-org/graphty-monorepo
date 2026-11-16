@@ -1,5 +1,7 @@
 import { type AdjacencyView, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
+import { checkNumber } from "../errors.js";
+
 /** Options of {@link isGraphIsomorphic} and {@link findAllIsomorphisms}. @public */
 export interface IsomorphismOptions {
     /** Whether node `i1` of `s1` may map to node `i2` of `s2`. */
@@ -11,6 +13,12 @@ export interface IsomorphismOptions {
      * it sees every arc, whichever end is mapped last.
      */
     readonly edgeMatch?: ((e1: number, e2: number, s1: GraphSnapshot, s2: GraphSnapshot) => boolean) | undefined;
+    /**
+     * {@link findAllIsomorphisms} only: stop after this many isomorphisms, a positive integer. Default no limit. A
+     * graph with many symmetries has very many: the complete graph on n nodes has n! automorphisms (12 nodes give
+     * 479 001 600), so set this whenever the input is not known to be small or asymmetric.
+     */
+    readonly maxResults?: number | undefined;
 }
 
 /** Result of {@link isGraphIsomorphic}. @public */
@@ -462,18 +470,23 @@ export function isGraphIsomorphic(
 
 /**
  * Every isomorphism from `s1` to `s2`, with the neighbourhood rules of {@link isGraphIsomorphic}.
- * Two empty graphs have one, the empty mapping.
+ * Two empty graphs have one, the empty mapping. The search is exponential in the worst case and the number of
+ * isomorphisms can be factorial in the node count; `maxResults` bounds both the work and the result.
  * @param s1 - The first graph
  * @param s2 - The second graph
- * @param options - Node and edge match predicates
+ * @param options - Node and edge match predicates and the result cap
  * @returns One array per isomorphism: the image in `s2` of every node of `s1`
  * @public
  */
 export function findAllIsomorphisms(s1: GraphSnapshot, s2: GraphSnapshot, options: IsomorphismOptions = {}): U32[] {
     const all: U32[] = [];
+    const { maxResults = Infinity } = options;
+    if (options.maxResults !== undefined) {
+        checkNumber("findAllIsomorphisms", "maxResults", options.maxResults, { min: 1, integer: true });
+    }
     search(s1, s2, options, (m) => {
         all.push(m.slice());
-        return false;
+        return all.length >= maxResults;
     });
     return all;
 }

@@ -31,7 +31,7 @@ export interface ClosenessOptions {
      * `closenessCentrality` ignores them.
      */
     readonly weighted?: boolean | undefined;
-    /** Per-arc weight override, arcCount long, read when `weighted`; a facade passes the exact f64 weights. */
+    /** Per-arc weight override, arcCount long, read when `weighted`; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
     /**
      * Sampled closeness: the source nodes to run from (indices, `{ mask }` or `{ ids }`). Duplicates run twice. Each node's score is then

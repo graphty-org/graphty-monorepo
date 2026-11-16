@@ -813,9 +813,10 @@ export function validate(ledger) {
 
 // The rubric's precondition: a group of two or more opens only once pr-open.sh writes Fixes for every member and
 // pr-review.sh reviews every member's issue (design/ci/issue-grouping.md section 8, step 1, owner-guarded). Until then
-// a group's job holds its lead and its T1 folds, and every other member is a job of its own. Set this to true in the
-// change that lands those two scripts.
-export const EVERY_MEMBER_REVIEWED = false;
+// a group's job holds its lead and its T1 folds, and every other member is a job of its own. True since that change
+// (pull request #8525): pr-open.sh refuses a branch closing an issue besides its own unless the review judged every
+// member, so a group opened before master runs the new pr-review.sh stops at pr-open instead of closing unreviewed.
+export const EVERY_MEMBER_REVIEWED = true;
 
 const reviewable = (members, everyMemberReviewed = EVERY_MEMBER_REVIEWED) => {
     if (everyMemberReviewed) return [members];

@@ -4,6 +4,7 @@ import type { Channel, LayerSpec, NodeId, Scope } from "../../../src/catalog/typ
 import { isGraphtyError } from "../../../src/errors";
 import type { ResolvedScope } from "../../../src/session/runs";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
+import { agreementCounters } from "../../../src/session/styles/explain";
 import {
     type ChannelAgreement,
     type ChannelShare,
@@ -301,5 +302,25 @@ describe("styles.agreement, how several elements look in one read", () => {
         assert.strictEqual(width?.state, "mixed", "the base layer decides the other edge");
         assert.strictEqual(width?.unpainted, 0);
         harness.session.dispose();
+    });
+
+    it("walks the stack once per set of layers that apply, not once per element", async () => {
+        const styles = stylesOver(1000);
+        const ids = Array.from({ length: 1000 }, (_, index) => `n${String(index)}`);
+        const red = await styles.add(on("Red", ids.slice(0, 600), { "node.color": "#ff0000" }));
+        const blue = await styles.add(on("Blue", ids.slice(400), { "node.color": "#0000ff" }));
+
+        const before = agreementCounters.walks;
+        const colour = find(styles.agreement({ nodes: ids }).channels, "node.color");
+
+        // Red alone, both, Blue alone: three looks.
+        assert.strictEqual(agreementCounters.walks - before, 3);
+        assert.deepStrictEqual(
+            colour?.state === "mixed" ? colour.breakdown.map((share) => [share.layerId, share.count]) : [],
+            [
+                [blue.id, 600],
+                [red.id, 400],
+            ],
+        );
     });
 });

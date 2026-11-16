@@ -17,6 +17,11 @@ import { ownChild, processes } from "./processes";
 export interface Safari {
     /** Load a URL in the session's window. */
     navigate(url: string): Promise<void>;
+    /**
+     * Close the current tab and go on in a new one of the same session. Leaving a page by navigating
+     * does not end it in Safari: the back-forward cache keeps it, with its storage connections open.
+     */
+    replaceTab(): Promise<void>;
     /** Run a script in the page; `arguments` holds `args`, and a returned promise is awaited. */
     execute<T>(script: string, args?: unknown[]): Promise<T>;
     /** Hide the window: WebDriver's minimize, else the Dock through AppleScript. */
@@ -159,6 +164,11 @@ export async function startSafariDriver(): Promise<SafariDriver> {
             return {
                 navigate: async (url) => {
                     await call("POST", `${at}/url`, { url });
+                },
+                replaceTab: async () => {
+                    const { handle } = await call<{ handle: string }>("POST", `${at}/window/new`, { type: "tab" });
+                    await call("DELETE", `${at}/window`);
+                    await call("POST", `${at}/window`, { handle });
                 },
                 async execute<T>(script: string, args: unknown[] = []): Promise<T> {
                     // The async form, so a returned promise is awaited the same way in every case; the body

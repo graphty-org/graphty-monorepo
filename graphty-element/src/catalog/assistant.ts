@@ -314,4 +314,4 @@ export const AI_TOOL_CAUSE_CODES = Object.freeze([
 ] as const);
 
 /** One code a tool result carries for the model. OPEN UNION. */
-export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known codes in autocomplete while accepting a session code
+export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {}); // the open-union idiom; keeps the known codes in autocomplete while accepting a session code

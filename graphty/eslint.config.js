@@ -261,4 +261,22 @@ export default tseslint.config(
             ],
         },
     },
+    // Files SonarQube skipped for one rule, carried over with the reason.
+    {
+        // These pass render functions (a table cell's renderer, a tree row's menu) that the table or
+        // tree calls with a row. They are not components, so moving them out of the parent would only
+        // thread its state through props.
+        files: [
+            "src/workspace/data-page/DataPage.tsx",
+            "src/workspace/data-place/Filters.tsx",
+            "src/workspace/join/JoinScreen.tsx",
+        ],
+        rules: { "react/no-unstable-nested-components": "off" },
+    },
+    {
+        // The workspace draws its icons as <GLYPHS.name />, members of one constant map of icon
+        // components (src/workspace/glyphs.ts), which the rule reads as a component named GLYPHS.
+        files: ["src/workspace/**"],
+        rules: { "react/jsx-pascal-case": "off" },
+    },
 );

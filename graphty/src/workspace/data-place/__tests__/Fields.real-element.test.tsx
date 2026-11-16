@@ -94,7 +94,8 @@ async function loadSample(store: WorkspaceStore, name: string): Promise<ElementU
 }
 
 /**
- * The Data place's Fields section, opened from the rail. The rail's Data button only selects the
+ * The Data place's Fields: each load's section on the Sources tab, or with nothing loaded the one
+ * Attributes section, opened from the rail. The rail's Data button only selects the
  * Data place, so it is clicked whether or not the place is already open: a reloaded workspace can
  * reopen the place on its own between a check and a click.
  * @returns queries inside it.
@@ -103,7 +104,8 @@ async function fields(): Promise<ReturnType<typeof within>> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     const place = await screen.findByRole("region", { name: "Data place" });
-    return within(within(place).getByRole("group", { name: "Attributes" }));
+    const sections = place.querySelector<HTMLElement>(".dp-source-sections");
+    return within(sections ?? within(place).getByRole("group", { name: "Attributes" }));
 }
 
 /**
@@ -177,7 +179,7 @@ describe("Data > Fields as a + list on the real element", () => {
         const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
         render(<Workspace store={store} />);
         const element = await openElement();
-        const section = await fields();
+        await fields();
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
         const samples = await screen.findByRole("dialog", { name: "Samples" });
@@ -185,6 +187,8 @@ describe("Data > Fields as a + list on the real element", () => {
             userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
         assert.equal(element.session.data.statistics().nodeCount, 3214);
+        // The load is a section of its own on the Sources tab.
+        const section = await fields();
         await waitFor(() => {
             assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
             assert.include(entries(section, "edges"), "weight");

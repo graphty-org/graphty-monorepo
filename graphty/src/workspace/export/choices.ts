@@ -452,7 +452,7 @@ export function saveBlob(blob: Blob, name: string): void {
 }
 
 /** The outputs, in the dialog's list order. */
-export type OutputId = "image" | "video" | "data" | "styles" | "recipe" | "project";
+export type OutputId = "image" | "video" | "data" | "report" | "styles" | "recipe" | "project";
 
 /** One file exported in this visit, which Recent lists and opens again with its choices. */
 export interface RecentExport {

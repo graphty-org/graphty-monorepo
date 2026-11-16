@@ -29,7 +29,7 @@ describe("the Export dialog", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const list = within(dialog).getByRole("grid", { name: "What to export" });
-        for (const name of ["Image", "Video", "Data", "Styles", "Recipe", "Project"]) {
+        for (const name of ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"]) {
             await userEvent.click(within(list).getByText(name));
             assert.isNotNull(within(dialog).getByRole("heading", { name }));
         }
@@ -57,7 +57,7 @@ describe("the Export dialog", () => {
         // The one Export dialog's outputs (the data prototype), in tier 3's page list.
         assert.deepEqual(
             rows.map((row) => row.textContent),
-            ["Image", "Video", "Data", "Styles", "Recipe", "Project"],
+            ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"],
         );
         assert.strictEqual(rows[0].getAttribute("aria-current"), "page");
         assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));

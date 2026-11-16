@@ -18,6 +18,8 @@ import {
 import { DataOutput } from "./DataOutput";
 import { DocumentOutput } from "./DocumentOutput";
 import { ImageOutput } from "./ImageOutput";
+import { DEFAULT_REPORT, type ReportChoices } from "./report";
+import { ReportOutput } from "./ReportOutput";
 import { VideoOutput } from "./VideoOutput";
 
 /** The outputs, in the list's order. */
@@ -25,6 +27,7 @@ const OUTPUTS: readonly { id: OutputId; name: string }[] = [
     { id: "image", name: "Image" },
     { id: "video", name: "Video" },
     { id: "data", name: "Data" },
+    { id: "report", name: "Report" },
     { id: "styles", name: "Styles" },
     { id: "recipe", name: "Recipe" },
     { id: "project", name: "Project" },
@@ -35,7 +38,8 @@ const RECENT_MAX = 5;
 
 /**
  * The app's one Export dialog: Image (`captureScreenshot`), Video (`captureAnimation`), Data
- * (`exportGraph` with a format, scope and columns), Styles (`styles.toFile`), Recipe
+ * (`exportGraph` with a format, scope and columns), Report (a Markdown write-up of the
+ * graph's notes, data issues, runs and tables, with the reader's summary and findings), Styles (`styles.toFile`), Recipe
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
  * workspace dialog is "export"; it opens on Image, or on Data with CSV and the table the store's
@@ -52,6 +56,7 @@ export function ExportDialog(): React.JSX.Element {
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
     const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
     const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
+    const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
     const [recent, setRecent] = useState<readonly RecentExport[]>([]);
 
     useEffect(() => {
@@ -129,6 +134,8 @@ export function ExportDialog(): React.JSX.Element {
                         onDone={done}
                     />
                 );
+            case "report":
+                return <ReportOutput choices={report} onChange={setReport} onCancel={close} onDone={done} />;
             default:
                 return <DocumentOutput key={output} kind={output} onCancel={close} onDone={done} />;
         }

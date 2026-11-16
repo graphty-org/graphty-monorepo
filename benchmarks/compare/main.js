@@ -390,7 +390,9 @@ async function cosmosAdapter({ dpr }) {
 async function measureRepack(graph, eng) {
     if (!graph.openRowTable) return undefined;
     const table = graph.openRowTable();
-    for (const node of graph.getNodes()) node.update();
+    // getNodes() builds every node the batched path left unbuilt: at 1,000,000 nodes that is about
+    // 5 GB and the renderer dies (issue #8169), so the walk is skipped at that size.
+    if (table.rows < 1000000) for (const node of graph.getNodes()) node.update();
     const gl = graph.engine?._gl;
     table.flush();
     const repack = [];

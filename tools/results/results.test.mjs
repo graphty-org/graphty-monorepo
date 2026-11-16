@@ -896,7 +896,7 @@ describe("planRead", () => {
         });
         assert.match(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).unavailable, /HTTP 500/);
         assert.deepEqual(lines, [
-            '::warning::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
+            '::error::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
         ]);
         // a missing or empty snapshot packs without history, as before
         const none = await logged({ out, snapshot: join(TMP, "no-such.json"), env: {} });

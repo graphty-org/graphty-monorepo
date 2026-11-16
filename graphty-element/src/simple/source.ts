@@ -12,19 +12,21 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
-
 import { edgeSpaceOf } from "../session/scope/spaces";
 import { createSelectorSource } from "../session/styles/sources";
 import type { GraphSession } from "../session/types";
+import type { WorkingSnapshot } from "../session/working/graphs";
 
 /** Which kind of element a path is read on. */
 export type ViewTarget = "node" | "edge";
 
 /** Everything a graph view reads. */
 export interface ViewSource {
-    /** The graph, frozen: the view is built once over it and never follows a later freeze. */
-    readonly snapshot: GraphSnapshot;
+    /**
+     * The graph, frozen: the view is built once over it and never follows a later freeze. Always
+     * the working graph (hidden nodes absent), so a definition never reads a hidden node.
+     */
+    readonly snapshot: WorkingSnapshot;
     /**
      * One node's value at a path.
      * @param row - The node's row in `snapshot`.
@@ -57,10 +59,11 @@ const IDENTITY_KEYS: Readonly<Record<ViewTarget, ReadonlySet<string>>> = {
 /**
  * The view source over a session's graph as it stands now.
  * @param session - The session: an element's (`graph.getSession()`) or a headless one.
- * @returns The source, pinned to the current snapshot.
+ * @param snapshot - The graph to view: the working graph's snapshot, or a run's input over it,
+ *   whose rows carry the same ids. A `WorkingSnapshot`, so the whole graph cannot be passed.
+ * @returns The source, pinned to the snapshot.
  */
-export function viewSourceOf(session: GraphSession): ViewSource {
-    const snapshot = session.data.snapshot();
+export function viewSourceOf(session: GraphSession, snapshot: WorkingSnapshot): ViewSource {
     const edgeIds = edgeSpaceOf(snapshot);
     const values = createSelectorSource({
         snapshot: () => snapshot,

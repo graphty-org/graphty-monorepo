@@ -277,6 +277,19 @@ export const newCard = (field: CardField): Card => newCondition(field);
 export const leafOf: (card: Card) => RuleTree | null = conditionLeaf;
 
 /**
+ * The rule leaf a card makes in a style layer: a Highest or a percentile ranks among what is
+ * shown, so the layer picks the top of what the reader sees (owner decision C,
+ * design/working-graph/design.md). A filter's and a selection's cards keep `leafOf`'s whole-graph
+ * ranking.
+ * @param card - the card.
+ * @returns the leaf, or null while it is unfinished.
+ */
+export function styleLeafOf(card: Card): RuleTree | null {
+    const leaf = leafOf(card);
+    return leaf?.kind === "threshold" && card.type !== "fixed" ? { ...leaf, within: "visible" } : leaf;
+}
+
+/**
  * Whether a card is finished: it makes a leaf, it is the Ends card, or it holds a whole selector
  * that stands alone (edges picked by hand).
  */
@@ -409,8 +422,26 @@ export function edgeCards(session: GraphSession, selector: Selector, fields: rea
  */
 export const nodeLeaves: (selector: Selector) => readonly RuleTree[] | null = nodeConditionLeaves;
 
-/** The selector some cards make (unfinished ones left out), with the node leaves an Ends card brings. */
-export const selectorOf: (cards: readonly Card[], ends?: readonly RuleTree[]) => Selector = conditionSelector;
+/**
+ * The selector some cards make (unfinished ones left out), with the node leaves an Ends card brings.
+ * A style layer's Highest or percentile card ranks among what is shown: see {@link styleLeafOf}.
+ * @param cards - the side's cards.
+ * @param ends - the node leaves an Ends card brings, for the edge part.
+ * @returns the selector.
+ */
+export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = []): Selector {
+    return conditionSelector(cards.map(rankedAmongShown), ends);
+}
+
+/**
+ * A card whose leaf ranks among what is shown, as a fixed card holding that leaf; any other card as it is.
+ * @param card - the card.
+ * @returns the card to combine.
+ */
+function rankedAmongShown(card: Card): Condition {
+    const leaf = card.type === "fixed" ? null : styleLeafOf(card);
+    return leaf?.kind === "threshold" ? { type: "fixed", key: card.key, leaf } : card;
+}
 
 /**
  * Whether two selectors pick the same way, so writing one over the other changes nothing.
@@ -501,6 +532,28 @@ function sourceWords(session: GraphSession, card: Extract<Card, { type: "source"
 }
 
 /**
+ * A Top-N number card in words: "top 5 by degree", "bottom 10% by age".
+ * @param session - the element's session.
+ * @param card - the card, matching its top or bottom.
+ * @param name - its field's name.
+ * @returns the words.
+ */
+function topWords(session: GraphSession, card: CardOf<"number">, name: string): string {
+    if (card.top === undefined) {
+        return `${name}: how many?`;
+    }
+    const end = card.from === "low" ? "bottom" : "top";
+    if (card.percent === true) {
+        return `${end} ${num(card.top)}% by ${name}`;
+    }
+    // A count of every element there is keeps them all, and says so: every element of the
+    // card's base, the whole graph unless it has one.
+    const stats = session.data.statistics({ scope: card.field.within === "visible" ? "visible" : "all" });
+    const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
+    return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
+}
+
+/**
  * A number card in words: its top N, or its range.
  * @param session - the element's session.
  * @param card - the card, matching neither present nor absent.
@@ -509,17 +562,7 @@ function sourceWords(session: GraphSession, card: Extract<Card, { type: "source"
  */
 function numberWords(session: GraphSession, card: CardOf<"number">, name: string): string {
     if (card.match === "top") {
-        if (card.top === undefined) {
-            return `${name}: how many?`;
-        }
-        const end = card.from === "low" ? "bottom" : "top";
-        if (card.percent === true) {
-            return `${end} ${num(card.top)}% by ${name}`;
-        }
-        // A count of every element there is keeps them all, and says so.
-        const stats = session.data.statistics();
-        const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-        return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
+        return topWords(session, card, name);
     }
     if (card.min !== undefined && card.max !== undefined) {
         return `${name} ${num(card.min)} to ${num(card.max)}`;

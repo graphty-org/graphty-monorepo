@@ -799,6 +799,21 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("keep the rest of a look on the batch when a row's mesh was read before the switch to it", async () => {
+        // A mesh read on the objects path left the held row on its look's shared source, which the batch
+        // hides: the switch took every row of that look off the batch (#8073).
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        assert.isFalse(graph.getNode(0)?.mesh.isDisposed(), "the consumer gets the node's own mesh");
+
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "the rest of its look stays on the batch");
+        assert.equal(graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
         const element = await mounted(renderer);
         await loaded(element, view);

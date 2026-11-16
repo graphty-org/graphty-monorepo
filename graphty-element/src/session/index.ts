@@ -20,7 +20,10 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
     ModelPart,
     ModelPartRole,
@@ -37,6 +40,7 @@ export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./groups";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits, LimitsOption } from "./limits";
@@ -84,6 +88,8 @@ export type {
     DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
@@ -125,6 +131,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,

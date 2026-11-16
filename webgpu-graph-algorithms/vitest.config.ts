@@ -319,7 +319,7 @@ const config = defineConfig({
             // Only the root barrel and the template strings are excluded (spec 11.8): src/node/index.ts and
             // src/browser/index.ts carry logic and count.
             exclude: ["**/*.d.ts", "**/*.test.ts", "src/index.ts", "src/wgsl/**"],
-            thresholds: thresholdsActive ? { lines: 80, functions: 80, branches: 75, statements: 80 } : undefined,
+            thresholds: thresholdsActive ? { lines: 90, functions: 90, branches: 90, statements: 90 } : undefined,
         },
         projects: [
             {

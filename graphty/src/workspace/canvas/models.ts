@@ -50,6 +50,7 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
     const record = session.assets.find(ref);
     return record?.plainName ?? (fileStem(record?.path ?? addressOf(ref)) || "Model");
 }
@@ -61,6 +62,7 @@ export function modelName(session: GraphSession, ref: string): string {
  * @returns the name.
  */
 export function pictureName(session: GraphSession, ref: string): string {
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
     return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Picture";
 }
 
@@ -154,6 +156,7 @@ function useModelDraw(
     useModelStates(session);
     const [attempt, setAttempt] = useState(0);
     const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
     const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
     const key =
         record !== undefined && (record.state === "accepted" || standIn)
@@ -261,6 +264,7 @@ export function useModelPreview(
     const { session, element } = useWorkspace();
     useModelStates(session);
     const [attempt, setAttempt] = useState(0);
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
     const record = ref === undefined ? undefined : session?.assets.find(ref);
     const sample = ref !== undefined && session?.catalog.models().some((m) => m.id === ref) === true;
     const key =

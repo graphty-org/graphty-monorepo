@@ -898,7 +898,7 @@ export function CustomModelDialog({
     });
     // What the dialog holds now, after letting go of what it held before and no longer does.
     const holdAll = (next: readonly Held[]): void => {
-        const keep = new Set(next.map(refOf));
+        const keep = new Set(next.map((h) => refOf(h)));
         for (const member of members) {
             if (!keep.has(refOf(member.held))) {
                 letGo(refOf(member.held));
@@ -906,7 +906,7 @@ export function CustomModelDialog({
         }
         // A set loaded again takes the same ids: its new members are drawn off screen again.
         asked.current.clear();
-        setMembers(next.map(memberOf));
+        setMembers(next.map((h) => memberOf(h)));
         setIndex(0);
     };
     // Waiting for parts: files that are not a model go to it, matched by graphty-element.
@@ -915,6 +915,7 @@ export function CustomModelDialog({
         if (!live()) {
             return;
         }
+        // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
         const after = session.assets.find(waiting.url ?? waiting.record.id) ?? waiting.record;
         moved(waiting.record, after);
         change((member) => ({ ...member, held: { ...waiting, record: after } }));
@@ -927,7 +928,7 @@ export function CustomModelDialog({
         controller: AbortController,
         live: () => boolean,
     ): Promise<void> => {
-        if (held?.record.state === "rejected" && files.length > 0 && !files.some(isModelFile)) {
+        if (held?.record.state === "rejected" && files.length > 0 && !files.some((f) => isModelFile(f))) {
             await offer(held, files, live);
             return;
         }
@@ -956,7 +957,9 @@ export function CustomModelDialog({
             }
         }
         if (!live()) {
-            refs.forEach(letGo);
+            for (const r of refs) {
+                letGo(r);
+            }
             return;
         }
         const [record] = records;
@@ -970,7 +973,9 @@ export function CustomModelDialog({
         const kept = records.filter((r) => r.state === "accepted" || waitingIds.has(r.id));
         if (kept.length === 0) {
             const fact = record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} };
-            refs.forEach(letGo);
+            for (const r of refs) {
+                letGo(r);
+            }
             setProblem(fact);
             say(refusalLine(fact));
             return;
@@ -1297,6 +1302,7 @@ export function CustomModelDialog({
                         className="ws-model-files ws-model-scroll"
                         data-testid="model-files"
                         aria-labelledby={`${uid}-files`}
+                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
                         tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
                         <Stack gap={6}>
@@ -1357,6 +1363,7 @@ export function CustomModelDialog({
                         data-testid="model-details"
                         className="ws-model-details ws-model-scroll"
                         aria-labelledby={`${uid}-details`}
+                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
                         tabIndex={0} // NOSONAR(S6845): a scrolling table takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
                         {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (

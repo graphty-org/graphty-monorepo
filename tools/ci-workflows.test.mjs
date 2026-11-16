@@ -4643,6 +4643,20 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
+    it("hands the LLM lane's failing files to the verdict, whose bisect runs only those (#8314)", () => {
+        // a paid bisect of the whole lane cost ~$0.81 a point after #8240; its failing files cost a few cents
+        assert.match(llm, /\n {12}failed_files: \$\{\{ steps\.llm\.outputs\.failed_files \}\}\n/);
+        const tests = llm.slice(llm.indexOf("- name: LLM regression tests"), llm.indexOf("- name: Price the LLM"));
+        assert.match(
+            tests,
+            /echo "failed_files=\$\(node \.\.\/tools\/full-run\.mjs llm-failed "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"\n/,
+        );
+        // after the tests and before the step's own exit, so a red run (the only one bisected) writes it
+        assert.ok(tests.indexOf("llm-failed") > tests.indexOf("--project llm-regression"));
+        assert.ok(tests.indexOf("llm-failed") < tests.indexOf('exit "$status"'));
+        assert.match(job(release, "verdict"), /LLM_FAILED_FILES: \$\{\{ needs\.llm\.outputs\.failed_files \}\}\n/);
+    });
+
     it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
         // no step decides whether the lane is due: every step runs whenever the job runs
         assert.doesNotMatch(llm, /steps\.due|llm-due/);

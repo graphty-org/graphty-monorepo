@@ -311,7 +311,10 @@ export async function runArgs(shard, files) {
         return [
             "--command",
             host.shard,
-            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
+            // vitest matches a filter against the path from graphty-element, so a repo-relative target loses its prefix
+            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files
+                .map((f) => quote(f.replace(/^graphty-element\//, "")))
+                .join(" ")}`.trimEnd(),
         ];
     }
     const { selectedCommand } = await at("tools/test-select.mjs");

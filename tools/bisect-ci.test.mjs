@@ -402,6 +402,14 @@ describe("what a dispatch may name", () => {
         const [, , command] = await runArgs("llm-regression", ["test/ai/a.test.ts", "test/ai/b.test.ts"]);
         assert.match(command, /--project llm-regression 'test\/ai\/a\.test\.ts' 'test\/ai\/b\.test\.ts'$/);
     });
+
+    it("runs a repo-relative LLM target by its path from graphty-element, which vitest matches (#8314)", async () => {
+        const [, , command] = await runArgs("llm-regression", ["graphty-element/test/ai/llm-regression/a.test.ts"]);
+        assert.match(
+            command,
+            /^cd graphty-element && .* --project llm-regression 'test\/ai\/llm-regression\/a\.test\.ts'$/,
+        );
+    });
 });
 
 describe("setupFailed", () => {

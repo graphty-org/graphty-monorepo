@@ -16,6 +16,8 @@ import {
     bestEffort,
     bisectPlan,
     bisectRunName,
+    llmFailedFiles,
+    listOf,
     captureLane,
     changedSummary,
     deferred,
@@ -424,6 +426,44 @@ describe("bisectPlan's paid llm lane", () => {
         assert.ok(bisectPlan({ ...llm, bisected: ["Bisect (llm lane) from other", "Bisect (llm lane)"] }).inputs);
         const ci = { red: ["ci"], sha: "b", good: "g", run: 1, failures: null, bisected: ["Bisect (ci lane) from g"] };
         assert.ok(bisectPlan(ci).inputs, "a free lane bisects again");
+    });
+});
+
+describe("an llm bisect runs only the failing files (#8314)", () => {
+    // the FAIL lines of the 2026-11-16 full run's lane (run 43924294024), colored as vitest prints them
+    const log = [
+        "\x1b[41m\x1b[1m FAIL \x1b[22m\x1b[49m \x1b[30m\x1b[42m llm-regression \x1b[49m\x1b[39m test/ai/llm-regression/style-commands.test.ts\x1b[2m > \x1b[22mStyle Commands > calls style",
+        " ✓ llm-regression test/ai/llm-regression/harness.test.ts (31 tests) 7418ms",
+        "\x1b[41m\x1b[1m FAIL \x1b[22m\x1b[49m llm-regression test/ai/llm-regression/tasks-3.test.ts > Assistant tasks 3/4 > treat-as-undirected (search)",
+        " FAIL  llm-regression test/ai/llm-regression/tasks-3.test.ts > Assistant tasks 3/4 > another",
+        "FAILED treat-as-undirected: expected true to equal false",
+    ].join("\n");
+
+    it("reads the failing files from the lane's log, each once, repo-relative", () => {
+        assert.deepEqual(llmFailedFiles(log), [
+            "graphty-element/test/ai/llm-regression/style-commands.test.ts",
+            "graphty-element/test/ai/llm-regression/tasks-3.test.ts",
+        ]);
+        assert.deepEqual(llmFailedFiles("Test Files 21 passed (21)"), []);
+    });
+
+    it("names them as the bisect's targets, and the whole lane when none is known", () => {
+        const llmFiles = llmFailedFiles(log);
+        const plan = bisectPlan({ red: ["llm"], sha: "b", good: "g", run: 1, failures: null, llmFiles });
+        assert.deepEqual(JSON.parse(plan.inputs.targets), [
+            { shard: "llm-regression", file: llmFiles[0], name: "the whole file" },
+            { shard: "llm-regression", file: llmFiles[1], name: "the whole file" },
+        ]);
+        const whole = bisectPlan({ red: ["llm"], sha: "b", good: "g", run: 1, failures: null });
+        assert.equal(whole.inputs.targets, "[]");
+    });
+
+    it("reads the job's output from the environment, and nothing from an unset or torn one", () => {
+        assert.deepEqual(listOf('["a.test.ts"]'), ["a.test.ts"]);
+        assert.deepEqual(listOf(""), []);
+        assert.deepEqual(listOf(undefined), []);
+        assert.deepEqual(listOf('["a'), []);
+        assert.deepEqual(listOf('{"a":1}'), []);
     });
 });
 

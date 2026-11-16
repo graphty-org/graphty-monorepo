@@ -791,6 +791,8 @@ jobs:
             contents: read
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
+            # the failing test files, JSON: the verdict's llm bisect runs only these (tools/full-run.mjs, #8314)
+            failed_files: ${{ steps.llm.outputs.failed_files }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -846,6 +848,7 @@ jobs:
                   fi
                   npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
+                  echo "failed_files=$(node ../tools/full-run.mjs llm-failed "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
                       echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
@@ -1579,6 +1582,7 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+                  LLM_FAILED_FILES: ${{ needs.llm.outputs.failed_files }}
                   VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}
                   RUN_ATTEMPT: ${{ github.run_attempt }}
                   HELD: ${{ needs.pick.outputs.held }}

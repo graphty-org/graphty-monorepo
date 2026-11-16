@@ -2579,11 +2579,29 @@ function readEdgeRoute(
  * @returns the one control point, or null without a usable arc or line
  */
 function arcControl(arc: unknown, ends: readonly [BendPoint, BendPoint]): BendPoint[] | null {
+    if (arc === undefined) {
+        return null;
+    }
+    const ratio = treeAttr(arc, "type") === "fixedRatio";
+    return yedArcControl(ratio, Number(treeAttr(arc, ratio ? "ratio" : "height")), ends);
+}
+
+/**
+ * The control point of the quadratic Bezier yEd draws an arc edge as (see {@link arcControl}), from its arc type and
+ * its height or ratio: GraphML's `y:Arc` and GML's `arcType`, `arcHeight` and `arcRatio` say the same.
+ * @param ratio - whether it is a `fixedRatio` arc (else `fixedHeight`)
+ * @param value - its ratio, or its height
+ * @param ends - the route's two ends
+ * @returns the one control point, or null without a usable value or line
+ */
+export function yedArcControl(
+    ratio: boolean,
+    value: number,
+    ends: readonly [BendPoint, BendPoint],
+): BendPoint[] | null {
     const [[x0, y0], [x1, y1]] = ends;
     const length = Math.hypot(x1 - x0, y1 - y0);
-    const ratio = treeAttr(arc, "type") === "fixedRatio";
-    const value = Number(treeAttr(arc, ratio ? "ratio" : "height"));
-    if (arc === undefined || length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
+    if (length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
         return null;
     }
     const twice = 2 * (ratio ? (value * length) / 4 : value);

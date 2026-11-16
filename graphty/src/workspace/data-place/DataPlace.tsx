@@ -4,7 +4,6 @@ import type { SourceKey } from "@graphty/graphty-element/session";
 import { Tabs } from "@mantine/core";
 import React from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
 import { useNumberFormats } from "../settings/numberFormat";
@@ -16,9 +15,9 @@ import { Sources } from "./Sources";
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
- * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). In the
- * `selection-workspace` experiment the panel's first row is two tabs, Sources and Calculated (the
- * results), as Figma's panel tabs are (the owner, 2026-11-07); only the chosen tab's body scrolls.
+ * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). The
+ * panel's first row is two tabs, Sources and Calculated (the results), as Figma's panel tabs are (the
+ * owner, 2026-11-07); only the chosen tab's body scrolls.
  * Sources holds Data sources, then each load as a section of its own: its node and edge rows, the
  * columns its rows carry, and its own Filters, which judge only that load's elements. The filters
  * of no load (made before a second load came, or from the toolbar with several loads) sit under
@@ -46,17 +45,6 @@ export function DataPlace(): React.JSX.Element {
 
     const tab = useWorkspaceState((state) => state.dataTab);
     const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
-    if (session === null || !selectionWorkspaceOn(session)) {
-        return (
-            <section className="dp" aria-label="Data place">
-                <h2 className="dp-title">{graphName}</h2>
-                {sourcesSection}
-                <ServerPlace />
-                <Fields sources={sources} selected={selected} />
-                <FiltersSection />
-            </section>
-        );
-    }
     return (
         <section className="dp" data-tabs="" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>
@@ -82,7 +70,7 @@ export function DataPlace(): React.JSX.Element {
                         filters of every load sit here, under Data sources. */}
                     {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
                     <ServerPlace />
-                    <Fields sources={sources} selected={selected} filters />
+                    <Fields sources={sources} selected={selected} />
                 </Tabs.Panel>
                 <Tabs.Panel value="calculated" className="dp-tab-body">
                     <ResultsList />

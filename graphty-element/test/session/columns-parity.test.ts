@@ -72,7 +72,7 @@ function held(session: GraphSession): Held {
         digest: dataDigest(graph, () => session.data.snapshot()),
         fingerprint: session.data.fingerprint(),
         count: session.data.count(),
-        values: JSON.stringify([...graph.values.keys()].sort()), // NOSONAR(S2871): code-unit order, the same in every locale
+        values: JSON.stringify([...graph.values.keys()].sort()), // code-unit order, the same in every locale
     };
 }
 

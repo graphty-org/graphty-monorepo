@@ -177,7 +177,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-                <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the rows of label and value; a fieldset is for form controls
                     ref={summary}
                     role="group"
                     aria-label="Summary values"
@@ -395,7 +395,7 @@ export function NeighborList({
     return (
         // Esc anywhere in the list returns to the center node, unless a control used it first (the
         // Hops field takes back what was typed).
-        <section // NOSONAR(S6848): Esc is a shortcut on the list, not a control; every control in it is native
+        <section // eslint-disable-line jsx-a11y/no-static-element-interactions -- Esc is a shortcut on the list, not a control; every control in it is native
             ref={heading}
             onKeyDown={(event) => {
                 if (event.key === "Escape" && !event.defaultPrevented) {

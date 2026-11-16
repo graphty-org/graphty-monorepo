@@ -282,4 +282,9 @@ export default tseslint.config(
         files: ["test/types/**/*.test-d.ts"],
         rules: { "@typescript-eslint/no-unnecessary-condition": "off" },
     },
+    // a seeded random number generator: the randomness is the point and nothing security-related depends on it
+    {
+        files: ["src/layouts/seed.ts"],
+        rules: { "sonarjs/pseudo-random": "off" },
+    },
 );

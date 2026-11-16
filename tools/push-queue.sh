@@ -11,7 +11,7 @@
 # push log and the gate logs live in the main checkout's tmp/, which every worktree of the
 # repository shares, whichever worktree this runs from; githerd's board reads the tickets
 # (githerd/lib/proc.mjs pushQueueTickets).
-# A commit whose gate already failed a check of its own (build, lint, tests, SonarQube ...) is not
+# A commit whose gate already failed a check of its own (build, lint, tests, duplicate code ...) is not
 # queued again while nothing it depends on changed: same commit, same checkout fingerprint, same gate.
 # PUSH_QUEUE_RETRY=1 pushes it anyway, for a failure you believe was the machine's, not the commit's.
 # Settings, for tests: PUSH_QUEUE_SLOTS (4), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
@@ -147,12 +147,12 @@ fi
 # ignore, tools/prepush-inputs.mjs) and the same gate scripts (the live copy's tools/ and .husky/
 # trees, which a master merge that touches neither leaves alone), on a check whose result is the
 # commit's own -- a [FAIL] of the build, lint, Knip, formatting, the API report, a bundle size, the CI
-# workflow tests, SonarQube's changed lines, or the tests with a shard that exited 1 (a shard killed
+# workflow tests, the duplicate code check, or the tests with a shard that exited 1 (a shard killed
 # or timed out, exit 124 or 137, is the machine's). Never after a failure outside the commit's
-# control: a rejected or failed git push, a screenshot capture, the local GPU lane, a SonarQube step
-# that could not run, a gate that crashed with no [FAIL] line, or a gate in which a process was killed
-# by a signal from outside it (KILLED_RE, below). 2026-10-12: one branch failed the gate 20 times on
-# an unchanged commit, each time on the same test.
+# control: a rejected or failed git push, a screenshot capture, the local GPU lane, a gate that
+# crashed with no [FAIL] line, or a gate in which a process was killed by a signal from outside it
+# (KILLED_RE, below). 2026-10-12: one branch failed the gate 20 times on an unchanged commit, each
+# time on the same test.
 #
 # KILLED_RE: what a step's output shows when one of its processes was killed by SIGTERM or SIGKILL --
 # bash's "Terminated" / "Killed" report, pnpm's "exit code 143", run-tests.sh's "FAILED: exit 137".
@@ -183,12 +183,11 @@ if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; t
         jq -c --arg fp "$fingerprint" --arg gt "$gate_tree" '
             select(.exit != 0 and .fingerprint == $fp and (.gateTree // "") == $gt)
             | (.gate // []) as $g
-            | ($g | map(select(test("^\\[FAIL\\] (Build|Lint|Knip |Formatting|Public API report|Bundle size|CI workflow tests|SonarQube \\(changed lines\\))")))
+            | ($g | map(select(test("^\\[FAIL\\] (Build|Lint|Knip |Formatting|Public API report|Bundle size|CI workflow tests|Duplicate code)")))
                 + (if any($g[]; test("^ *\\[FAIL\\] [^ ]+ \\(exit 1,")) then $g | map(select(test("^ *\\[FAIL\\] (Tests |[^ ]+ \\(exit 1,)"))) else [] end)) as $why
             | select($why | length > 0) | {why: $why, gateLog, at}' 2>/dev/null)
     prev_log="$(jq -r .gateLog <<<"$prev" 2>/dev/null)"
-    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$prev_log" 2>/dev/null &&
-        ! grep -qaE "$KILLED_RE" "$prev_log" 2>/dev/null; then
+    if [ -n "$prev" ] && ! grep -qaE "$KILLED_RE" "$prev_log" 2>/dev/null; then
         {
             echo "push-queue: refused -- commit ${sha:0:12} already failed the gate at $(jq -r .at <<<"$prev"), and nothing it depends on has changed since (same commit, same files, same gate scripts):"
             jq -r '.why[] | "  " + .' <<<"$prev"

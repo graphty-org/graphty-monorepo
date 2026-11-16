@@ -46,7 +46,6 @@ import {
     fileIssue,
     PASSES_TO_LEAVE,
     quarantined,
-    raiseToCritical,
     runShard,
 } from "../test-quarantine.mjs";
 import { call, config, fetchPlan, flushHealth, postInvocation, sendHealth } from "./client.mjs";
@@ -507,6 +506,16 @@ export function namesFlakyTest(issue, t) {
     return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1)));
 }
 
+// raises an issue to priority:critical; a refusal is logged, the comment already landed
+function raise(gh, number) {
+    try {
+        const lower = ["priority:high", "priority:medium", "priority:low"].flatMap((l) => ["--remove-label", l]);
+        gh(["issue", "edit", String(number), "--add-label", "priority:critical", ...lower]);
+    } catch (e) {
+        console.log(`run-group: could not raise #${number} to priority:critical (${e.message.split("\n")[0]})`);
+    }
+}
+
 /**
  * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
  * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
@@ -557,7 +566,7 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
         try {
             if (had) {
                 gh(["issue", "comment", String(had), "--body", `Flaky again.\n\n${body}`]);
-                raiseToCritical(had, gh);
+                raise(gh, had);
                 return { name, number: had };
             }
             const url = gh([

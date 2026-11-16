@@ -3296,10 +3296,12 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid. `node.depthIndependentSize` (off by
-     * default) draws every node in the 3D view as if it stood at the depth the camera turns about,
-     * so a node with a larger size is never drawn smaller because it is farther away -- turn it on
-     * when node size shows a value readers compare. `node.outlineWidth` (unset by default) draws
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `node.sizeSpace` (unset by
+     * default, "scene") is how every node whose style sets no `node.sizeSpace` follows the camera:
+     * "pivot" draws every node in the 3D view as if it stood at the depth the camera turns about,
+     * so a node with a larger size is never drawn smaller because it is farther away -- set it
+     * when node size shows a value readers compare; "screen" keeps every node one size on screen
+     * at any depth and zoom. `node.outlineWidth` (unset by default) draws
      * the band of every outline whose style sets no width (the `node.outlineWidth` channel) at
      * that multiple of its own width. `camera.pivotOnSelection` (off by
      * default) makes the selection the camera's pivot: one selected node, or the average position
@@ -3311,7 +3313,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
-     * element.layoutBehavior = { node: { depthIndependentSize: true } };
+     * element.layoutBehavior = { node: { sizeSpace: "screen" } };
      * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the

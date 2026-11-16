@@ -8,7 +8,7 @@
  * comment names its Sonar key, so a "// NOSONAR(Sxxxx)" in old history can be traced to its rule here.
  *
  * Where it applies, as in SonarQube: the main-code rules to every file except tests, and the test rules to
- * tests only. A test is what sonar-project.properties called one (SONAR_TESTS below). A rule the root
+ * tests only. A test is what the retired sonar-project.properties called one (SONAR_TESTS below). A rule the root
  * config already turns on for the same files is not repeated here, so its options stay as they are.
  *
  * Existing findings are held in each package's eslint-suppressions.json, so only a new one fails lint
@@ -57,7 +57,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import sonarjs from "eslint-plugin-sonarjs";
 import unicorn from "eslint-plugin-unicorn";
 
-/** Test code, as sonar-project.properties sonar.test.inclusions named it. */
+/** Test code, as the retired sonar-project.properties sonar.test.inclusions named it. */
 const SONAR_TESTS = [
     "**/*.test.{ts,tsx,mjs,js}",
     "**/*.spec.{ts,tsx}",

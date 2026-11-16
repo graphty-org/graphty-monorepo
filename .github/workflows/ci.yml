@@ -3857,7 +3857,6 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |
                       tools/results
-                      tools/sonar
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions

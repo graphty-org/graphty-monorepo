@@ -6384,12 +6384,11 @@ describe("the commit and push hooks", () => {
     it("the source-only checks start the commonest failures first and stop at the first failure", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
-        for (const step of [...steps, "SonarQube (changed lines)", "Duplicate code"]) {
+        for (const step of [...steps, "Duplicate code"]) {
             assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
-        // The two commonest failures start first, in the background, before any other check.
+        // The commonest failure starts first, in the background, before any other check.
         const firstRun = checks.indexOf('    run_step "');
-        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
         assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         const steps_ = stepFunctions(checks);
         const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
@@ -6646,10 +6645,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 mode: 0o755,
             });
             writeFileSync(
-                join(dir, "tools/sonar-gate.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
-            );
-            writeFileSync(
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
@@ -6690,7 +6685,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const first = run();
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
-            assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
             assert.match(first.calls, /release/);
             const second = run();
@@ -6713,15 +6707,15 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
     });
 
     it("run from the gate's live copy, use the copy's scripts and check the checkout in PREPUSH_ROOT", () => {
-        // gate/: the real scripts, a sonar step and a link check that log "gate-...". root/: the checkout
-        // being pushed, with a different tools/ (its own link check, sonar step and a decoy copy of the
+        // gate/: the real scripts, an image check and a link check that log "gate-...". root/: the checkout
+        // being pushed, with a different tools/ (its own link check and a decoy copy of the
         // source checks) and no check:legacy-use script, as a branch from before that check would have.
         const dir = mkdtempSync(join(tmpdir(), "prepush-gate-dir-"));
         try {
             const gate = join(dir, "gate");
             const root = join(dir, "root");
             const log = (name) => `#!/bin/sh\necho "${name} $PWD" >> ${dir}/calls\n`;
-            const sonar = (name) =>
+            const stub = (name) =>
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "${name}\\n");\n`;
             for (const d of [
                 join(gate, "tools"),
@@ -6735,13 +6729,11 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
-            writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
-            writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
-            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
-            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
-            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
+            writeFileSync(join(gate, "tools/check-committed-images.mjs"), stub("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), stub("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), stub("gate-saved-format"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), stub("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
-            writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$* $PWD" >> ${dir}/calls\n`, { mode: 0o755 });
             const scripts = sourceCheckScripts();
@@ -6761,13 +6753,12 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             });
             assert.equal(r.status, 0, r.stdout + r.stderr);
             const calls = readFileSync(join(dir, "calls"), "utf8");
-            assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
             assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
             assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
-            assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
+            assert.doesNotMatch(calls, /gate-links|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
             assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
@@ -6781,7 +6772,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
         const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
         assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
-        assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
 

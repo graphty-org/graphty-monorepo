@@ -56,7 +56,7 @@ const WALKS = A.walksDir || `${ROOT}/tmp/design-studio/tier${TIER}`;
 const READING = (A.reading || [`${SD}/report.md`]).join(", ");
 const LAND = A.land !== false;
 // Land every fix pass on master (its own pull request): tier 3's 526 fix commits stayed on the studio branch,
-// so no CI, SonarQube or screenshot review ever saw them and no consumer got them.
+// so no CI, lint or screenshot review ever saw them and no consumer got them.
 const LAND_EACH_PASS = A.landEachPass !== false;
 // One run per worktree: two would share a branch, a staging area, a server and a round folder.
 const LOCK = `${ST}/tmp/design-studio-run.lock`;

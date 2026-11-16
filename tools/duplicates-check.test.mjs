@@ -36,7 +36,7 @@ describe("duplicates check", () => {
     });
 
     it("ignores clones the base had, even with an edited comment or swapped sides", () => {
-        const base = [clone("b/src/y.ts", "a/src/x.ts", "const x = compute(a, b); // NOSONAR(S1): why")];
+        const base = [clone("b/src/y.ts", "a/src/x.ts", "const x = compute(a, b); // old comment: why")];
         const head = [
             clone("a/src/x.ts", "b/src/y.ts", "const x =\n    compute(a, b); // eslint-disable-line r -- why"),
         ];

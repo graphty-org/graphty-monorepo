@@ -539,6 +539,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
 | `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
 | `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
+| `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned" }` (rule 8)                |
 | `sets`          | every set: `{ "id", "name", "definition" }`                                                                                         |
 | `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                                  |
 | `timeline`      | `{ "at" }`, the timeline's playhead, as version 1 spells it                                                                         |
@@ -594,6 +595,17 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 7. **Layout.** The layout record names the layout in `algorithm`, as `layout.set` spells it, and
    `engine` is graphty-element's `EngineVersions`, exactly as in results' `layout` and every run.
    A layout scope (`layoutScope`) is not saved, and the save reports it.
+8. **Collapsed groups.** A collapse replaces a group's members with one node standing in for them;
+   it is the reader's decision, not data. The data section holds the graph expanded: every member,
+   its edges and, in `pinned` and results' `layout`, its pin and coordinates; never the node or
+   edges standing in. `groups` lists each collapse as `groupBy` (the node path the members were
+   grouped by, `data.<column>` or `results.<run id>.<field>`), `group` (their value at it, a string,
+   number or boolean), `position` (where the node standing in stood, when placed) and
+   `"pinned": true` (when it was pinned). A collapse of collapsed groups comes after the groups it
+   holds. A reader collapses each again in order, once the sets and runs are back, places the node
+   standing in at `position` and pins it; one it cannot make is reported as `E_BAD_DOCUMENT` and the
+   rest go on. An edge the reader added to a node standing in names no element of the data: the
+   save leaves it out and reports `W_MEMBER_LEFT_OUT` with field `groups.added`.
 
 ## 5. Placement
 
@@ -840,6 +852,8 @@ kind) is opened through a migration into the sections above:
 - the session's visibility goes into view and its playback into settings; each saved run becomes a
   view run record and its outputs results; pinned nodes become `pinned`, other coordinates the
   layout's results;
+- the session's `groups` (version 1) go into view's `groups`, the data member already holding the
+  graph expanded; its `added` edges are dropped, reported;
 - `styleVersion` and `recipeVersion` are dropped, reported; notes version 1 targets become element
   references; base64 positions and results become plain numbers.
 

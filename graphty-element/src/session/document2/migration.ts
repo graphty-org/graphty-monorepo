@@ -1103,6 +1103,33 @@ function hiddenColumnsOf(session: JsonObject | undefined): JsonObject[] {
 }
 
 /**
+ * Version 1's collapsed groups (the session member's `groups`, version 1) as view's `groups`: the
+ * data member already holds the graph expanded. Edges added to a collapsed node are reported.
+ * @param session - The session member, if any.
+ * @param context - The file.
+ * @returns The collapses, in order.
+ */
+function groupsOf(session: JsonObject | undefined, context: Context): JsonObject[] {
+    const groups = isObject(session?.groups) && session.groups.version === 1 ? session.groups : undefined;
+    if (Array.isArray(groups?.added) && groups.added.length > 0) {
+        context.problems.push(leftOut("graphty-session", "/groups/added"));
+    }
+
+    return objectsOf(groups?.collapsed).flatMap(({ groupBy, group, position, pinned }) =>
+        typeof groupBy === "string" && ["string", "number", "boolean"].includes(typeof group)
+            ? [
+                  {
+                      groupBy,
+                      group,
+                      ...(isObject(position) ? { position } : {}),
+                      ...(pinned === true ? { pinned } : {}),
+                  },
+              ]
+            : [],
+    );
+}
+
+/**
  * The view section: saved views, the selection, the pinned nodes, every set, the visibility,
  * hidden columns, the layer order, the layers that name elements, every run and the layout.
  * @param context - The file.
@@ -1132,12 +1159,14 @@ function migrateView(
         .filter((each) => each.pinned)
         .map((each) => ({ node: each.node, position: { x: each.x, y: each.y, z: each.z } }));
     const hiddenColumns = hiddenColumnsOf(session);
+    const groups = groupsOf(session, context);
     const layout = layoutOf(session, context);
     return {
         ...header("view", context, { bindsTo: { data: data.dataId } }),
         ...(views.length === 0 ? {} : { views }),
         ...(selection === undefined ? {} : { selection: selectionOf(selection, data) }),
         ...(pinned.length === 0 ? {} : { pinned }),
+        ...(groups.length === 0 ? {} : { groups }),
         ...(parts.sets.length === 0 ? {} : { sets: parts.sets }),
         ...(isObject(session?.visibility) ? { visibility: visibilityOf(session.visibility, context, data) } : {}),
         ...(config?.viewRotation === undefined ? {} : { viewRotation: config.viewRotation }),

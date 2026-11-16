@@ -9,6 +9,7 @@
  */
 
 import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId, RunId } from "../../../catalog/types";
+import { expandedGraph } from "../../groups";
 import { graphIdsOf } from "../../projectFile";
 import { createRunResult, type ResultElementValues } from "../../results/RunResult";
 import type { RunResult } from "../../results/types";
@@ -370,6 +371,24 @@ function samePositions(a: Positions, b: Positions): boolean {
 }
 
 /**
+ * Every placed node's coordinates; with a group collapsed, the members' where they stood, as the
+ * data section holds the graph expanded.
+ * @param session - The session.
+ * @returns The coordinates.
+ */
+function positionsNow(session: GraphSession): Positions {
+    const expanded = expandedGraph(session);
+    if (expanded === null) {
+        return session.positions.snapshot();
+    }
+
+    return {
+        order: expanded.positions.map((entry) => entry.id),
+        xyz: Float32Array.from(expanded.positions.flatMap((entry) => [entry.x, entry.y, entry.z ?? 0])),
+    };
+}
+
+/**
  * The layout record (spec 4.5 rule 5), or undefined when no node is placed.
  * @param context - The save.
  * @param stamp - The open data's build stamp.
@@ -377,7 +396,7 @@ function samePositions(a: Positions, b: Positions): boolean {
  */
 function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonObject | undefined {
     const { session } = context;
-    const now = session.positions.snapshot();
+    const now = positionsNow(session);
     const kept = keptOf(session).layout;
     if (kept !== undefined && samePositions(kept, now)) {
         return kept.entry;

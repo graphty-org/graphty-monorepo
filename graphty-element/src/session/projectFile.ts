@@ -1583,7 +1583,8 @@ function graphtyDocumentOf(text: string, parsed?: { readonly value: unknown }): 
  * What version 1 keeps of a session that the version 2 codecs do not write yet, each reported as
  * `W_MEMBER_LEFT_OUT` with the version 1 member and field, so a caller can say so before the file
  * replaces one that held it. The data section writes the column conversions and the ignored and
- * kept issues, and the view section the hidden columns, so only the rest is reported.
+ * kept issues, and the view section the hidden columns and the collapsed groups, so only the rest
+ * is reported.
  * @param session - The session.
  * @param dispatcher - Its dispatcher.
  * @param written - The sections the save wrote.
@@ -1606,6 +1607,8 @@ function leftOutOfVersion2(
         ],
         ["issues", (issues?.fixed ?? []).length > 0],
         ["visibility.steps", session.visibility.steps.length > 0],
+        // The data is written expanded; the collapses are view's, so without view they are lost.
+        ["groups", !written.includes("view") && session.groups.list().length > 0],
     ];
     return fields
         .filter(([, held]) => held)

@@ -215,6 +215,29 @@
                 "unevaluatedProperties": false
             }
         },
+        "groups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "groupBy": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "group": {
+                        "type": ["string", "number", "boolean"]
+                    },
+                    "position": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
+                    },
+                    "pinned": {
+                        "const": true
+                    }
+                },
+                "required": ["groupBy", "group"],
+                "unevaluatedProperties": false
+            }
+        },
         "sets": {
             "type": "array",
             "items": {

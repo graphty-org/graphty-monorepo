@@ -13,8 +13,10 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { sha256Hex } from "../../../utils/sha256";
 import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
+import { expandedGraph } from "../../groups";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { type LoadFacts, redactedParams } from "../../sources/member";
+import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
 import { fileStylePath } from "../../styles/fileStyles/path";
 import {
     asFileStyleStore,
@@ -866,6 +868,15 @@ function nameKeyless(
 }
 
 /**
+ * Every element's loads, members of a collapsed group (out of the graph) included.
+ * @param session - The session.
+ * @returns The loads by id.
+ */
+function suppliedIndex(session: GraphSession): ReturnType<typeof provenanceIndex> {
+    return provenanceIndex(dispatcherOf(session).state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined);
+}
+
+/**
  * The open data as version 2 names it: sources in join order, their copies and copy ids, each
  * node's record key and each edge's reference, from today's loads and records.
  * @param session - The session.
@@ -895,18 +906,27 @@ function dataModelOf(session: GraphSession): DataModel {
     const looks = loadedLooksAsColumns(session);
     const withLooks = <T extends NodeRecord | EdgeRecord>(record: T, extra: JsonObject | undefined): T =>
         extra === undefined ? record : { ...record, ...extra };
-    // The whole graph, whatever the filter shows: a save writes every element.
-    const nodes = session.data
-        .nodes({ scope: "graph" })
-        .map((node) => withLooks(withoutReserved(node, "node", reserved), looks.nodes.get(node.id)));
-    const edges = session.data
-        .edges({ scope: "graph" })
-        .map((edge) => withLooks(withoutReserved(edge, "edge", reserved), looks.edges.get(edge.id)));
+    // The whole graph, whatever the filter shows: a save writes every element. With a group
+    // collapsed it is the graph expanded, the collapse being view's decision (spec 4.7 rule 8),
+    // and a member out of the graph is named by the loads that supplied it.
+    const expanded = expandedGraph(session);
+    const nodes = (expanded?.nodes ?? session.data.nodes({ scope: "graph" })).map((node) =>
+        withLooks(withoutReserved(node, "node", reserved), looks.nodes.get(node.id)),
+    );
+    const edges = (
+        expanded?.edges.map(({ id, record }) => ({ ...record, id }) as EdgeRecord) ??
+        session.data.edges({ scope: "graph" })
+    ).map((edge) => withLooks(withoutReserved(edge, "edge", reserved), looks.edges.get(edge.id)));
+    const loadIndex = expanded === null ? undefined : suppliedIndex(session);
+    const sourcesOf = (id: NodeId | EdgeId, kind: "node" | "edge"): readonly string[] =>
+        loadIndex === undefined
+            ? session.data.sourcesOf(id, { kind })
+            : ((kind === "node" ? loadIndex.nodes.get(id) : loadIndex.edges.get(String(id))) ?? []);
     const nodeLoads = new Map<NodeId, string[]>();
     const nodeRefs = new Map<NodeId, NodeRef>();
     const readerNodes: NodeRecord[] = [];
     for (const node of nodes) {
-        const supplied = loadsOf(session.data.sourcesOf(node.id));
+        const supplied = loadsOf(sourcesOf(node.id, "node"));
         for (const source of supplied) {
             source.nodes.push(node);
         }
@@ -922,7 +942,7 @@ function dataModelOf(session: GraphSession): DataModel {
     const edgeLoads = new Map<EdgeId, string[]>();
     const readerEdges: EdgeRecord[] = [];
     for (const edge of edges) {
-        const supplied = loadsOf(session.data.sourcesOf(edge.id, { kind: "edge" }));
+        const supplied = loadsOf(sourcesOf(edge.id, "edge"));
         if (supplied.length === 0) {
             readerEdges.push(edge);
             edgeLoads.set(edge.id, [READER]);

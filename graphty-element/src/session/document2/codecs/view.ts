@@ -12,9 +12,10 @@
  */
 
 import type { CameraState } from "../../../camera/types";
-import type { AlgorithmKey, FilterCondition, LayerSpec, RuleTree, ScopeInput } from "../../../catalog/types";
+import type { AlgorithmKey, FilterCondition, LayerSpec, NodeId, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { dispatcherOf } from "../../dispatchers";
+import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups";
 import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { Layer } from "../../styles/Layer";
@@ -60,6 +61,7 @@ const MEMBERS = [
     "views",
     "selection",
     "pinned",
+    "groups",
     "sets",
     "visibility",
     "timeline",
@@ -428,11 +430,37 @@ function visibilityJson(w: Writer): JsonObject | undefined {
  * @returns The entries.
  */
 function pinnedJson(w: Writer): JsonObject[] {
-    return [...w.session.positions.pinned].flatMap((id) => {
+    // With a group collapsed the data holds its members: their pins, kept for the expand, are saved.
+    const expanded = expandedGraph(w.session);
+    const where = new Map(expanded?.positions.map((entry) => [entry.id, entry]));
+    const at = (id: NodeId): { x: number; y: number; z?: number } | undefined =>
+        expanded === null ? w.session.positions.get(id) : where.get(id);
+    return [...(expanded?.pinned ?? w.session.positions.pinned)].flatMap((id) => {
         const node = w.refs.nodeRef(id);
-        const at = w.session.positions.get(id);
-        return node === undefined || at === undefined ? [] : [{ node, position: { x: at.x, y: at.y, z: at.z } }];
+        const point = at(id);
+        return node === undefined || point === undefined
+            ? []
+            : [{ node, position: { x: point.x, y: point.y, z: point.z ?? 0 } }];
     });
+}
+
+/**
+ * The `groups` member (rule 8): the collapses, in the order an open makes them again. An edge added
+ * to a node standing in for a group names no element of the data and is left out and reported.
+ * @param w - The writer.
+ * @returns The collapses.
+ */
+function groupsJson(w: Writer): JsonObject[] {
+    const expanded = expandedGraph(w.session);
+    if (expanded === null) {
+        return [];
+    }
+
+    if (expanded.added.length > 0) {
+        w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, field: "groups.added" } });
+    }
+
+    return expanded.collapsed.map((collapse) => ({ ...collapse }));
 }
 
 /**
@@ -485,6 +513,7 @@ function freshBody(w: Writer): JsonObject {
         }),
         selection: compact(selection as JsonObject),
         pinned: pinnedJson(w),
+        groups: groupsJson(w),
         sets: session.sets.list().map((set) => ({
             id: mapper.set(set.id),
             name: set.name,
@@ -972,6 +1001,37 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
 }
 
 /**
+ * Collapse the saved groups again, in order, once the runs they may group by are back, putting
+ * each node standing in for one where it stood, with its pin (rule 8).
+ * @param r - The reader.
+ * @param groups - The member.
+ */
+async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> {
+    const { tx } = r.context;
+    for (const [at, entry] of groups.entries()) {
+        const { groupBy, group, position, pinned } = (isObject(entry) ? entry : {}) as Partial<SavedCollapse>;
+        if (typeof groupBy !== "string" || !["string", "number", "boolean"].includes(typeof group)) {
+            r.context.problems.push({
+                code: "E_BAD_DOCUMENT",
+                params: { section: SECTION, pointer: `${r.section.pointer}/groups/${at}` },
+            });
+            continue;
+        }
+
+        await attempt(r, `groups/${at}`, async () => {
+            const node = await tx.groups.collapse({ groupBy, group: group as GroupValue });
+            if (isObject(position)) {
+                await tx.positions.set([{ id: node, x: position.x, y: position.y, z: position.z }]);
+            }
+
+            if (pinned === true) {
+                await tx.positions.pin([node]);
+            }
+        });
+    }
+}
+
+/**
  * Add the view layers on top of the stack, remembering their file ids.
  * @param r - The reader.
  * @param layers - The layers, bottom first.
@@ -1126,6 +1186,10 @@ async function readView(section: ReadSection, context: ReadContext): Promise<voi
             createSet(r, set, at);
             return Promise.resolve();
         });
+    }
+
+    if (Array.isArray(body.groups)) {
+        await readGroups(r, body.groups);
     }
 
     const own = Array.isArray(body.layers) ? await readLayers(r, body.layers) : [];

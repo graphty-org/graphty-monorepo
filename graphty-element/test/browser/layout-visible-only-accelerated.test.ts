@@ -1,7 +1,9 @@
 /**
- * @file `behavior.layout.visibleOnly` on an accelerated force layout (issue #7964). The hidden nodes are taken out of
- * the accelerated simulation's forces with `setInert`; an accelerator whose simulation has no `setInert` is refused
- * with `E_UNSUPPORTED`, never run over the whole graph in silence.
+ * @file `behavior.layout.visibleOnly` on an accelerated force layout (issue #7964). A node the filter hides gets no
+ * row in the accelerated simulation (the working graph, design/working-graph/design.md section 7), so it exerts no
+ * force and nothing has to be made inert for it. A group that follows its members is still in the simulation and is
+ * taken out of the forces with `setInert`; an accelerator whose simulation has no `setInert` is refused with
+ * `E_UNSUPPORTED` there, never run over the group in silence.
  */
 
 import "../../src/graphty-element";
@@ -21,6 +23,12 @@ const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);
 
 /** Every other node: what the filter shows. */
 const SHOWN = IDS.filter((_id, index) => index % 2 === 0);
+
+/** A Graphviz cluster the file stores no position for: a group the element places round its members. */
+const CLUSTER = `digraph {
+  a -> m1;
+  subgraph clusterC { label="c"; m1; m2; m1 -> m2; }
+}`;
 
 /**
  * A fake accelerator whose ForceAtlas2 simulations cannot take rows out of the forces, as a third-party one may not.
@@ -70,9 +78,32 @@ describe("a filtered force layout on an accelerator", () => {
         await operationQueueOf(graph).waitForCompletion();
     }
 
-    it("takes exactly the hidden nodes out of the accelerated simulation's forces", async () => {
+    it("gives the hidden nodes no row in the accelerated simulation", async () => {
         graph.acceleration.setAccelerator(createFakeAccelerator());
         await showOnly(SHOWN);
+        await graph.setLayout("forceatlas2", { seed: 3 });
+
+        const engine = graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
+        assert.isTrue(engine.isAccelerated, "the layout runs on the accelerator");
+        const { snapshot } = engine.simulation as FakeSimulation;
+        assert.strictEqual(snapshot?.nodeCount, SHOWN.length, "the simulation holds only the shown nodes");
+    });
+
+    it("runs an accelerator with no setInert over only the shown nodes", async () => {
+        graph.acceleration.setAccelerator(withoutSetInert());
+        await showOnly(SHOWN);
+        await graph.setLayout("forceatlas2", { seed: 3 });
+
+        const engine = graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
+        assert.strictEqual(engine.type, "forceatlas2");
+        assert.isTrue(engine.isAccelerated);
+        assert.strictEqual((engine.simulation as FakeSimulation).snapshot?.nodeCount, SHOWN.length);
+    });
+
+    it("takes a group that follows its members out of the accelerated simulation's forces", async () => {
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        await graph.addDataFromSource("dot", { data: CLUSTER });
+        await operationQueueOf(graph).waitForCompletion();
         await graph.setLayout("forceatlas2", { seed: 3 });
 
         const engine = graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
@@ -80,14 +111,15 @@ describe("a filtered force layout on an accelerator", () => {
         const { inert } = engine.simulation as FakeSimulation;
         assert.isNotNull(inert);
         for (const node of graph.getDataManager().nodes.values()) {
-            const hidden = !SHOWN.includes(String(node.id));
-            assert.strictEqual(maskTest(inert ?? new Uint32Array(), node.index), hidden, `${String(node.id)} inert`);
+            const group = String(node.id) === "clusterC";
+            assert.strictEqual(maskTest(inert ?? new Uint32Array(), node.index), group, `${String(node.id)} inert`);
         }
     });
 
-    it("refuses with E_UNSUPPORTED when the accelerated simulation cannot leave the hidden nodes out", async () => {
+    it("refuses with E_UNSUPPORTED when the accelerated simulation cannot leave a following group out", async () => {
         graph.acceleration.setAccelerator(withoutSetInert());
-        await showOnly(SHOWN);
+        await graph.addDataFromSource("dot", { data: CLUSTER });
+        await operationQueueOf(graph).waitForCompletion();
 
         const refused = await graph.setLayout("forceatlas2", { seed: 3 }).catch((error: unknown) => error);
 

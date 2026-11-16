@@ -317,7 +317,9 @@ export function recommendLayout(
         return Object.freeze({
             layout: descriptor,
             fact: { code: "recommend.requested-layout" as const, params },
-            ...(Object.keys(requested.options).length === 0 ? {} : { options: Object.freeze({ ...requested.options }) }),
+            ...(Object.keys(requested.options).length === 0
+                ? {}
+                : { options: Object.freeze({ ...requested.options }) }),
         });
     }
 

@@ -87,9 +87,9 @@ The file's request is an ordinary layout request: a layout id and its options
 source. The recommendation says which rule chose the layout, as a code
 (`recommendLayout(...).fact.code`):
 
-| Code                                     | When                                                                                                                                                       |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `recommend.requested-layout`             | The requested layout is drawn; `params.layout` names it                                                                                                    |
+| Code                                     | When                                                                                                                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recommend.requested-layout`             | The requested layout is drawn; `params.layout` names it                                                                                                           |
 | `recommend.requested-layout-unavailable` | The requested layout cannot be used, so the next rule's layout is; `params.unavailable` is `"package"` (`@hpcc-js/wasm-graphviz` missing), `"size"` or `"layout"` |
 
 To ask whether the layouts can run on this page:

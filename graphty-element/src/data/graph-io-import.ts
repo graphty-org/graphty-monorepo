@@ -878,7 +878,7 @@ export function toRecords(
  * @param mapping - the reader's mapping
  * @returns the mapping without the style slots
  */
-export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
+function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
     const slots = {
         node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
         edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),

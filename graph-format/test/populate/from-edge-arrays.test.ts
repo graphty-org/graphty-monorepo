@@ -11,35 +11,12 @@ import { describe, expect, it } from "vitest";
 import { WEIGHT_COLUMN_NAME } from "../../src/builder/freeze.js";
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
+import { GraphFormatError } from "../../src/errors.js";
 import { fromEdgeArrays, splitOptions } from "../../src/populate/from-edge-arrays.js";
 import { type EdgeArraysInput, type F32, type GraphSnapshot, type U32 } from "../../src/types/index.js";
+import { thrownCode, thrownError } from "../helpers/errors.js";
 import { assertInvariants, assertMatchesSpec } from "../helpers/invariants.js";
 import { type EdgeSpec, type GraphSpec, gridEdges, KARATE_EDGES } from "../helpers/parts.js";
-
-function thrown(fn: () => unknown): GraphFormatError {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err;
-        }
-        throw err;
-    }
-    throw new Error("expected a GraphFormatError");
-}
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 /** The COO arrays of a spec. */
 function cooOf(spec: GraphSpec): { src: U32; dst: U32; weights: F32 | null } {
@@ -221,7 +198,7 @@ describe("fromEdgeArrays: ids", () => {
     });
 
     it("rejects a nodeCount that disagrees with ids (E_COLUMN_LENGTH)", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromEdgeArrays({
                 directed: true,
                 nodeCount: 3,
@@ -236,13 +213,15 @@ describe("fromEdgeArrays: ids", () => {
 
     it("rejects repeated ids (E_DUPLICATE_ID) and illegal ids (E_INVALID_ID)", () => {
         const edges = { src: new Uint32Array([0]), dst: new Uint32Array([1]) };
-        const dup = thrown(() => fromEdgeArrays({ directed: true, ids: ["a", "b", "a"], ...edges }));
+        const dup = thrownError(() => fromEdgeArrays({ directed: true, ids: ["a", "b", "a"], ...edges }));
         expect(dup.code).toBe("E_DUPLICATE_ID");
         expect(dup.details).toMatchObject({ id: "a", index: 0, position: 2 });
-        expect(code(() => fromEdgeArrays({ directed: true, ids: ["a", Number.NaN], ...edges }))).toBe("E_INVALID_ID");
-        expect(code(() => fromEdgeArrays({ directed: true, ids: new Float64Array([1, Infinity]), ...edges }))).toBe(
+        expect(thrownCode(() => fromEdgeArrays({ directed: true, ids: ["a", Number.NaN], ...edges }))).toBe(
             "E_INVALID_ID",
         );
+        expect(
+            thrownCode(() => fromEdgeArrays({ directed: true, ids: new Float64Array([1, Infinity]), ...edges })),
+        ).toBe("E_INVALID_ID");
     });
 });
 
@@ -321,7 +300,9 @@ describe("fromEdgeArrays: weights", () => {
         expect(declared.flags.allWeightsOne).toBe(true);
         const ones = fromEdgeArrays({ ...input, weights: new Float32Array([1]) }, { weighted: false });
         expect(ones.weights).toBeNull();
-        const err = thrown(() => fromEdgeArrays({ ...input, weights: new Float32Array([7]) }, { weighted: false }));
+        const err = thrownError(() =>
+            fromEdgeArrays({ ...input, weights: new Float32Array([7]) }, { weighted: false }),
+        );
         expect(err.code).toBe("E_INVALID_WEIGHT");
         expect(err.details.reason).toBe("unweighted builder");
         expect(fromEdgeArrays(input).weights).toBeNull();
@@ -329,9 +310,9 @@ describe("fromEdgeArrays: weights", () => {
 
     it("rejects NaN weights (E_INVALID_WEIGHT) and a wrong weights length (E_COLUMN_LENGTH)", () => {
         const base = { directed: true, nodeCount: 2, src: new Uint32Array([0, 1]), dst: new Uint32Array([1, 0]) };
-        const nan = thrown(() => fromEdgeArrays({ ...base, weights: new Float32Array([1, Number.NaN]) }));
+        const nan = thrownError(() => fromEdgeArrays({ ...base, weights: new Float32Array([1, Number.NaN]) }));
         expect(nan.code).toBe("E_INVALID_WEIGHT");
-        const short = thrown(() => fromEdgeArrays({ ...base, weights: new Float32Array([1]) }));
+        const short = thrownError(() => fromEdgeArrays({ ...base, weights: new Float32Array([1]) }));
         expect(short.code).toBe("E_COLUMN_LENGTH");
         expect(short.details).toMatchObject({ field: "weights", expected: 2, found: 1 });
     });
@@ -426,11 +407,11 @@ describe("fromEdgeArrays: columns and meta", () => {
     });
 
     it("rejects a column of the wrong length (E_COLUMN_LENGTH) and a taken role (E_DUPLICATE_ROLE)", () => {
-        const short = thrown(() => fromEdgeArrays({ ...base, nodeColumns: { x: new Float32Array([1, 2]) } }));
+        const short = thrownError(() => fromEdgeArrays({ ...base, nodeColumns: { x: new Float32Array([1, 2]) } }));
         expect(short.code).toBe("E_COLUMN_LENGTH");
-        const shortList = thrown(() => fromEdgeArrays({ ...base, edgeColumns: { x: { data: ["a"], decl: {} } } }));
+        const shortList = thrownError(() => fromEdgeArrays({ ...base, edgeColumns: { x: { data: ["a"], decl: {} } } }));
         expect(shortList.code).toBe("E_COLUMN_LENGTH");
-        const role = thrown(() =>
+        const role = thrownError(() =>
             fromEdgeArrays({
                 ...base,
                 nodeColumns: {
@@ -452,7 +433,7 @@ describe("fromEdgeArrays: columns and meta", () => {
         expect(snapshot.meta.extra).toEqual({ source: "test" });
         expect(snapshot.meta.declaredMultigraph).toBe(false);
         expect(snapshot.meta.creator).toBeNull();
-        const err = thrown(() => fromEdgeArrays({ ...base, meta: { extra: { f: () => 1 } } }));
+        const err = thrownError(() => fromEdgeArrays({ ...base, meta: { extra: { f: () => 1 } } }));
         expect(err.code).toBe("E_COLUMN_TYPE");
     });
 });
@@ -468,7 +449,7 @@ describe("fromEdgeArrays: options", () => {
 
     it("splits builder and freeze fields and takes directed from the input", () => {
         // an options.directed that disagrees with the input is refused rather than ignored
-        const err = thrown(() => splitOptions(false, { directed: true }));
+        const err = thrownError(() => splitOptions(false, { directed: true }));
         expect(err.code).toBe("E_DIRECTED");
         expect(err.details).toMatchObject({ reason: "direction mismatch", directed: false, found: true });
         const split = splitOptions(false, {
@@ -489,7 +470,7 @@ describe("fromEdgeArrays: options", () => {
     });
 
     it("applies duplicateEdges: error / keep / merge policies", () => {
-        const err = thrown(() => fromEdgeArrays(parallel, { duplicateEdges: "error" }));
+        const err = thrownError(() => fromEdgeArrays(parallel, { duplicateEdges: "error" }));
         expect(err.code).toBe("E_DUPLICATE_EDGE");
         expect(err.details).toMatchObject({ source: 0, target: 1, edges: [0, 1] });
         const kept = fromEdgeArrays(parallel);
@@ -502,7 +483,7 @@ describe("fromEdgeArrays: options", () => {
     });
 
     it("applies selfLoops: error / drop", () => {
-        const err = thrown(() => fromEdgeArrays(parallel, { selfLoops: "error" }));
+        const err = thrownError(() => fromEdgeArrays(parallel, { selfLoops: "error" }));
         expect(err.code).toBe("E_SELF_LOOP");
         expect(err.details).toMatchObject({ edge: 2, node: 0 });
         const dropped = fromEdgeArrays(parallel, { selfLoops: "drop" });
@@ -530,7 +511,7 @@ describe("fromEdgeArrays: options", () => {
     });
 
     it("rejects an unsupported policy value (E_UNSUPPORTED)", () => {
-        const err = thrown(() => fromEdgeArrays(parallel, { duplicateEdges: "bogus" as unknown as "keep" }));
+        const err = thrownError(() => fromEdgeArrays(parallel, { duplicateEdges: "bogus" as unknown as "keep" }));
         expect(err.code).toBe("E_UNSUPPORTED");
         expect(err.details.field).toBe("duplicateEdges");
     });
@@ -539,15 +520,15 @@ describe("fromEdgeArrays: options", () => {
 describe("fromEdgeArrays: structural rejections", () => {
     it("requires nodeCount without ids (E_INDEX_RANGE) and a non-negative integer nodeCount", () => {
         const edges = { src: new Uint32Array([0]), dst: new Uint32Array([1]) };
-        const missing = thrown(() => fromEdgeArrays({ directed: true, ...edges }));
+        const missing = thrownError(() => fromEdgeArrays({ directed: true, ...edges }));
         expect(missing.code).toBe("E_INDEX_RANGE");
         expect(missing.details.field).toBe("nodeCount");
-        expect(code(() => fromEdgeArrays({ directed: true, nodeCount: -1, ...edges }))).toBe("E_INDEX_RANGE");
-        expect(code(() => fromEdgeArrays({ directed: true, nodeCount: 1.5, ...edges }))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => fromEdgeArrays({ directed: true, nodeCount: -1, ...edges }))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => fromEdgeArrays({ directed: true, nodeCount: 1.5, ...edges }))).toBe("E_INDEX_RANGE");
     });
 
     it("rejects src / dst of different lengths (E_COLUMN_LENGTH)", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromEdgeArrays({ directed: true, nodeCount: 2, src: new Uint32Array([0, 1]), dst: new Uint32Array([1]) }),
         );
         expect(err.code).toBe("E_COLUMN_LENGTH");
@@ -555,7 +536,7 @@ describe("fromEdgeArrays: structural rejections", () => {
     });
 
     it("rejects an endpoint at or above nodeCount (E_UNKNOWN_NODE with details.index)", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromEdgeArrays({ directed: true, nodeCount: 2, src: new Uint32Array([0]), dst: new Uint32Array([2]) }),
         );
         expect(err.code).toBe("E_UNKNOWN_NODE");

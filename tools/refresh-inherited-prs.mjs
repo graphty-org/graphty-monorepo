@@ -20,8 +20,9 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const MASTER_BREAK =
-    /^(Red master:|Full run red:|Failing on master\b|Flaky test( quarantined)?:)|\blane red on master\b/i;
-const FILE = /[\w@.-]+(?:\/[\w@.-]+)*\.(?:test|spec|stories)\.[cm]?[jt]sx?/g;
+    /(^(?:Red master:|Full run red:|Failing on master\b|Flaky test(?: quarantined)?:))|(\blane red on master\b)/i;
+// a test file: one path-like token of an issue's text (split first, so the match never backtracks)
+const TEST_FILE = /^[\w@.-]+(?:\/[\w@.-]+)*\.(?:test|spec|stories)\.[cm]?[jt]sx?$/;
 
 /**
  * The test files an issue names, in its title and body.
@@ -29,7 +30,8 @@ const FILE = /[\w@.-]+(?:\/[\w@.-]+)*\.(?:test|spec|stories)\.[cm]?[jt]sx?/g;
  * @returns file paths, distinct
  */
 export function filesOf(issue) {
-    return [...new Set(`${issue.title ?? ""}\n${issue.body ?? ""}`.match(FILE) ?? [])];
+    const tokens = `${issue.title ?? ""}\n${issue.body ?? ""}`.split(/[^\w@./-]+/);
+    return [...new Set(tokens.filter((t) => TEST_FILE.test(t)))];
 }
 
 // GitHub Actions' app id: its check suites are the CI runs
@@ -53,11 +55,9 @@ export function heldBy(data, files) {
     const wanted = new Set(files);
     const out = [];
     for (const pr of data?.data?.repository?.pullRequests?.nodes ?? []) {
-        const paths = (pr.commits?.nodes ?? []).flatMap((c) =>
-            (c.commit?.checkSuites?.nodes ?? []).flatMap((s) =>
-                (s.checkRuns?.nodes ?? []).flatMap((r) => (r.annotations?.nodes ?? []).map((a) => a.path)),
-            ),
-        );
+        const suites = (pr.commits?.nodes ?? []).flatMap((c) => c.commit?.checkSuites?.nodes ?? []);
+        const runs = suites.flatMap((s) => s.checkRuns?.nodes ?? []);
+        const paths = runs.flatMap((r) => r.annotations?.nodes ?? []).map((a) => a.path);
         if (paths.some((p) => wanted.has(p))) out.push({ number: pr.number, head: pr.headRefOid });
     }
     return out;

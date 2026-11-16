@@ -215,7 +215,8 @@ export function clusterState(q, now, file = CLUSTERS) {
     const why = [];
     if (!c || Number.isNaN(built)) why.push("no cluster file");
     else if (now - built > DAY_MS) why.push(`built ${c.builtAt}, over a day old`);
-    if (c && unclustered.length > 0) why.push(`top issues ${unclustered.map((n) => `#${n}`).join(" ")} in no cluster`);
+    const names = unclustered.map((n) => "#" + n).join(" ");
+    if (c && unclustered.length > 0) why.push(`top issues ${names} in no cluster`);
     const stale = why.length > 0;
     const line = stale
         ? `clusters: stale (${why.join("; ")}) -- start the clustering pass, and group the top issue yourself (issue-round steps 2 and 3)`

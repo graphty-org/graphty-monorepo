@@ -754,7 +754,7 @@ function plan(model: Model, direction: "undo" | "redo", target: number): Pending
 /**
  * Drop canceled work from the model, and check the history canceled exactly it.
  * @param model - The model.
- * @param canceled - The items.
+ * @param cancelled - The items.
  * @param reported - What the history said it canceled.
  * @param when - What happened, for the message.
  */

@@ -50,7 +50,7 @@ export class Profiler {
      * `slots < 2`, so no caller can make the profiler raise a validation error.
      * @param device - the device the query set is created on
      * @param enabled - whether the caller wants profiling (the context passes `features.has("timestamp-query")`)
-     * @param quantized - true in browsers
+     * @param quantised - true in browsers
      * @param slots - query slots, two per pass (default PROFILER_QUERY_SLOTS)
      */
     constructor(device: GPUDevice, enabled: boolean, quantised: boolean, slots?: number) {

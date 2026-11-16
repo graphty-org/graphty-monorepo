@@ -125,7 +125,7 @@ function recordOf(before: F32, after: F32, inGiant: Uint8Array): IterationRecord
  * The iteration at which the 7.17 counter (`settleWindow` consecutive iterations with `disp <= threshold x
  * normalizer`) would have reached the window, replayed over a record; null when it never does.
  * @param records - the per-iteration record (index t - 1 is iteration t)
- * @param normalizer - the normalizer of an iteration
+ * @param normaliser - the normalizer of an iteration
  * @returns the iteration at which the rule fires (K1 of the following iteration reads the count), or null
  */
 function firesAt(records: readonly IterationRecord[], normaliser: (r: IterationRecord) => number): number | null {

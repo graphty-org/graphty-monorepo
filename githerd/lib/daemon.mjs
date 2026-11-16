@@ -4840,7 +4840,7 @@ function refusedPrRuns(nodes, prs, { refused, ran }) {
  * for already (or recorded as a would-do while the group does not act and still does not).
  * @param {ReturnType<typeof createGitHub>} gh the client
  * @param {number | null} n the pull request, null for master
- * @param {any} canceled the run, marked with `rerun`
+ * @param {any} cancelled the run, marked with `rerun`
  * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string, rec: any,
  *   situation?: string}} opts the re-runs asked for by run, whether `worker-writes` acts, the runs'
  *   API path, the poll's time, the pull request's record (its `headSha`), and the ledger's situation

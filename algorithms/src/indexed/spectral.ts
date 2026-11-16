@@ -462,7 +462,7 @@ function inertiaOf(pr: KMeansProblem, assign: Uint32Array): number {
  * The squared distance from row `i` to center `c`.
  * @param pr - The rows and the cluster count
  * @param i - The row
- * @param centers - k centers of length d, row-major
+ * @param centres - k centers of length d, row-major
  * @param c - The center
  * @returns The squared distance
  */
@@ -498,7 +498,7 @@ function drawWeightedRow(nearest: Float64Array, total: number, random: () => num
 /**
  * k-means++ seeding into `centres`.
  * @param pr - The rows and the cluster count
- * @param centers - k centers of length d, row-major
+ * @param centres - k centers of length d, row-major
  * @param random - The seeded generator
  */
 function seedCentres(pr: KMeansProblem, centres: Float64Array, random: () => number): void {
@@ -520,7 +520,7 @@ function seedCentres(pr: KMeansProblem, centres: Float64Array, random: () => num
  * The nearest center of row `i`, the lowest index on a tie.
  * @param pr - The rows and the cluster count
  * @param i - The row
- * @param centers - k centers of length d, row-major
+ * @param centres - k centers of length d, row-major
  * @returns The center
  */
 function nearestCentre(pr: KMeansProblem, i: number, centres: Float64Array): number {
@@ -540,7 +540,7 @@ function nearestCentre(pr: KMeansProblem, i: number, centres: Float64Array): num
  * Moves every non-empty cluster's center to its mean; an emptied cluster keeps its center.
  * @returns The furthest any center moved
  * @param pr - The rows and the cluster count
- * @param centers - k centers of length d, row-major
+ * @param centres - k centers of length d, row-major
  * @param assign - The cluster of every row
  */
 function moveCentres(pr: KMeansProblem, centres: Float64Array, assign: Uint32Array): number {
@@ -630,7 +630,7 @@ function checkSpectralOptions(
  * Writes `L x` into `out`, straight from the symmetric rows.
  * @param g - The symmetric rows
  * @param scale - `D^-1/2`, 0 for a degree-0 node
- * @param normalized - Whether the Laplacian is normalized
+ * @param normalised - Whether the Laplacian is normalized
  * @returns The operator
  */
 function laplacianOperator(
@@ -659,7 +659,7 @@ function laplacianOperator(
  * An upper bound on the Laplacian's largest eigenvalue: 2 for the normalized Laplacian, and the
  * largest d(u) + d(v) over the edges (at least 1) for D - A (Anderson and Morley, 1985).
  * @param g - The symmetric rows
- * @param normalized - Whether the Laplacian is normalized
+ * @param normalised - Whether the Laplacian is normalized
  * @returns The bound
  */
 function spectralShift(g: SymmetricRows, normalised: boolean): number {

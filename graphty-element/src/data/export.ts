@@ -735,7 +735,7 @@ const EXPORT_WEIGHT_KEY = "weight";
 
 /**
  * What each column name and text value goes through, and how many cells it changed.
- * @param neutralize - Guard cells a spreadsheet would run as a formula.
+ * @param neutralise - Guard cells a spreadsheet would run as a formula.
  * @returns The cell function and a counter of the cells it rewrote.
  */
 function formulaGuard(neutralise: boolean): { cell: <T>(value: T) => T | string; count: () => number } {

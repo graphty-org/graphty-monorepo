@@ -6,7 +6,7 @@
 //
 // It reads Markdown and text whole, and only the comments of code (TypeScript and JavaScript), CSS, WGSL,
 // YAML, shell and HTML; other files (JSON, data, fixtures) are not read. Left alone, as names and data that
-// are not ours to respell: code and quotes (`...`, "...", fenced blocks, {@link ...}), camelCase,
+// are not ours to respell: code and quotes (`...`, "...", fenced blocks, {@link ...}, JSDoc @param names), camelCase,
 // snake_case and CONSTANT names (public names keep their spelling until they are renamed with an alias),
 // URLs, link targets and file names, GitHub Actions' cancelled(), event names ending -cancelled, aria-labelledby, and
 // the paths in SKIP (lockfiles, changelogs, transcripts, screenshots, fixtures and test corpora, and the
@@ -333,7 +333,7 @@ export const SKIP = new RegExp(
     ].join("|"),
 );
 const KEEP =
-    /```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|[Ll]abelled[Bb]y/g;
+    /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{[^}]*\}\s*)?\[?[\w.$]+|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|[Ll]abelled[Bb]y/g;
 
 /** Like fix, but leaves code, quotes, names and links alone. */
 export function fixProse(text) {

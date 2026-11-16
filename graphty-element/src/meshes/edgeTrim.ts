@@ -79,7 +79,7 @@ function along(from: Xyz, dir: Xyz, distance: number): Xyz {
 
 /**
  * Where a line leaves a node that is not one of two round ones.
- * @param center - The node's center.
+ * @param centre - The node's center.
  * @param dir - The unit direction toward the other node.
  * @param end - The end.
  * @param span - The distance between the two centers.
@@ -132,7 +132,7 @@ function scaled(x: number, y: number, z: number, by: number): Xyz {
 
 /**
  * Where a line leaves a group: through its outline across the view, its depth carried along.
- * @param center - The group's center.
+ * @param centre - The group's center.
  * @param toward - The other end's center.
  * @param end - The end.
  * @returns The point.

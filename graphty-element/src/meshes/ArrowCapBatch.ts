@@ -395,7 +395,7 @@ export class ArrowCapBatch {
      * what changed. A no-op on a batch whose caps hold them on their material.
      * @param index - The slot.
      * @param size - The cap's length in world units.
-     * @param color - The cap's color, as a hex string.
+     * @param colour - The cap's color, as a hex string.
      * @param opacity - The cap's own opacity, multiplying the batch's.
      */
     setAppearance(index: number, size: number, colour: string, opacity = 1): void {
@@ -1113,7 +1113,7 @@ export class ArrowCap {
     /**
      * Give this cap the size and color the billboard shader draws it at.
      * @param size - Its length in world units.
-     * @param color - Its color, as a hex string.
+     * @param colour - Its color, as a hex string.
      * @param opacity - Its own opacity, multiplying its batch's.
      */
     setAppearance(size: number, colour: string, opacity = 1): void {

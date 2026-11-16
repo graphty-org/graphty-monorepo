@@ -708,7 +708,7 @@ function ringSettles(search: KnnSearch, u: number, r: number): boolean {
  * The arcs u -> each of its k nearest, ascending u then ascending target.
  * @param n - the node count
  * @param k - neighbors per node
- * @param neighbors - k nearest per node, row u at u * k
+ * @param neighbours - k nearest per node, row u at u * k
  * @returns the edges
  */
 function knnArcs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
@@ -726,7 +726,7 @@ function knnArcs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
  * the pairs (min, max) by their smaller end with a counting sort, then sort and dedupe each bucket.
  * @param n - the node count
  * @param k - neighbors per node
- * @param neighbors - k nearest per node, row u at u * k
+ * @param neighbours - k nearest per node, row u at u * k
  * @returns the edges
  */
 function knnPairs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {

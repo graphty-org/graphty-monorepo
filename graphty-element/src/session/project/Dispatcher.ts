@@ -1534,7 +1534,7 @@ export class Dispatcher {
      * redo would: it stops at a step with nothing to move.
      * @param direction - Which way the jump goes.
      * @param passing - The steps, in the order they would be passed.
-     * @param canceled - Collects what was canceled.
+     * @param cancelled - Collects what was canceled.
      * @returns How many, from the first.
      */
     private passable(
@@ -1563,7 +1563,7 @@ export class Dispatcher {
      * @param id - The step it lands just after, or null for the baseline.
      * @param target - Its index: how many steps are done there.
      * @param position - How many are done now.
-     * @param canceled - What it canceled.
+     * @param cancelled - What it canceled.
      * @returns What was done.
      */
     private restoreAt(id: string | null, target: number, position: number, cancelled: PendingStep[]): HistoryOutcome {

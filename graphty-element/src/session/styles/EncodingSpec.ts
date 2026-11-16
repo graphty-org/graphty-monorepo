@@ -524,7 +524,7 @@ function overflowOf(spec: EncodingOptions, scale: string, descriptor: ChannelDes
  * The second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge patterns), written
  * into the same layer as the color.
  * @param spec - The encoding.
- * @param color - The color binding it pairs with.
+ * @param colour - The color binding it pairs with.
  * @param descriptor - The channel, refused when it paints edges.
  * @returns The extra channel bindings, empty unless the policy cycles a second cue.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel, or "pattern"

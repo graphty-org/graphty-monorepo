@@ -677,7 +677,7 @@ export interface NodeScreenPosition {
 
 /**
  * The eight corners of an unturned box, in the world.
- * @param center - Its center, in the transform it is drawn in.
+ * @param centre - Its center, in the transform it is drawn in.
  * @param half - Its half extents.
  * @param half.x - Along x.
  * @param half.y - Along y.
@@ -7068,7 +7068,7 @@ export class Graph implements GraphContext {
 
     /**
      * Where something drawn in the world is on screen, as {@link Graph.nodeScreenPosition} reports a node.
-     * @param center - Its center in the world.
+     * @param centre - Its center in the world.
      * @param worldRadius - Its largest half-extent in the world.
      * @param corners - The corners of its box in the world.
      * @param shown - Whether it is drawn at all.

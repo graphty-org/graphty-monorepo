@@ -323,7 +323,7 @@ export function packedRadius(radii: F32, dimensions: 2 | 3): number {
 
 /**
  * The scene-unit point an arrangement is published around.
- * @param center - Whatever the options carry, in the layout package's `ArrayLike` form.
+ * @param centre - Whatever the options carry, in the layout package's `ArrayLike` form.
  * @returns The three components, defaulting to the origin.
  */
 function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, number, number] {

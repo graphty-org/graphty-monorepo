@@ -716,6 +716,26 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
+ * The engine's image model, as a tool host offers it.
+ * @param engine - The engine.
+ * @returns `{ image }`, or nothing when the engine makes no pictures.
+ */
+function imageOf(engine: AiEngine): Pick<ToolHost, "image"> {
+    const { imageModel } = engine;
+    return imageModel === undefined || engine.generateImage === undefined
+        ? {}
+        : {
+              image: {
+                  model: imageModel,
+                  generate: (prompt, signal) => {
+                      // Present with `imageModel`, so never absent here.
+                      return engine.generateImage?.(prompt, signal) ?? Promise.reject(new Error("no image model"));
+                  },
+              },
+          };
+}
+
+/**
  * Controller that orchestrates LLM providers and command execution.
  * Manages the conversation flow, command dispatch, and status updates.
  */
@@ -1354,6 +1374,8 @@ export class AiController {
             readerText,
             ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
             ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+            provider: this.engine.providerName,
+            ...imageOf(this.engine),
         };
     }
 

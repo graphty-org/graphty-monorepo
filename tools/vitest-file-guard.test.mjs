@@ -56,12 +56,14 @@ describe("vitest-file-guard", () => {
         assert.match(guard.overdue(), /reached test: blocks/);
     });
 
-    it("never stops a measurement", () => {
+    it("stops a hung measurement too: a bench project holds a test slot like any run (#8032)", () => {
         let now = 0;
         const guard = new FileGuard({ limit: 10, now: () => now });
-        guard.onTestModuleQueued(fileOf(["measures"], "bench-browser (chromium)"));
-        now = 1000;
+        guard.onTestModuleQueued(fileOf(["waits on a page"], "bench-browser (chromium)"));
+        now = 9;
         assert.equal(guard.overdue(), undefined);
+        now = 10;
+        assert.match(guard.overdue(), /^\[HANG\] .* file guard; it had reached test: waits on a page$/);
     });
 
     it("watches a run once, however many projects start it, and never watch mode", () => {

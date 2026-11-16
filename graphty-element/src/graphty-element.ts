@@ -14,6 +14,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
+import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -42,6 +43,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
     NODE_EVENT_DOM_NAMES,
@@ -55,7 +57,8 @@ import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/Ren
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { antialiasDefault } from "./meshes/PulledLineBatch";
-import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
+import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
     describeSource,
@@ -97,6 +100,8 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { LegendOverlay } from "./ui/Legend";
+import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
 /**
@@ -127,6 +132,16 @@ const ELEMENT_LAYOUT = "element-layout";
  */
 function antialiasFromAttribute(value: string | null): boolean {
     return value === null ? antialiasDefault.value : value !== "false";
+}
+
+/**
+ * The `preserve-drawing-buffer` attribute's value: only `"false"` turns it off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether the canvas keeps each drawn frame.
+ */
+function preserveDrawingBufferFromAttribute(value: string | null): boolean {
+    return value !== "false";
 }
 
 /**
@@ -193,6 +208,21 @@ export class Graphty extends LitElement {
         [data-pointer-focus] canvas:focus-visible {
             outline: none;
         }
+
+        /* The minimap's defaults: small, in a corner, plain. Restyle it from the page with
+           ::part(minimap); its points and viewport rectangle are drawn in its color. */
+        [part="minimap"] {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 160px;
+            box-sizing: border-box;
+            border: 1px solid #888;
+            background: rgb(255 255 255 / 75%);
+            color: #444;
+            touch-action: none;
+        }
     `;
 
     /**
@@ -216,6 +246,8 @@ export class Graphty extends LitElement {
     #builtGraph: Graph | undefined;
     /** The `antialias` property as set before the engine was built; undefined when it was not. */
     #antialias: boolean | undefined;
+    /** The `preserveDrawingBuffer` property as set before the engine was built; undefined when it was not. */
+    #preserveDrawingBuffer: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -294,6 +326,9 @@ export class Graphty extends LitElement {
             // already present, though its own callback may not have run yet.
             const graph = new Graph(this.#element, false, {
                 antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+                preserveDrawingBuffer:
+                    this.#preserveDrawingBuffer ??
+                    preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer")),
             });
             this.#builtGraph = graph;
             waitFirstFor(
@@ -796,6 +831,10 @@ export class Graphty extends LitElement {
 
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
+        if (this.#minimapOn) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
         this.#reportStrayObjectAttributes();
 
         // Autosave reads its key and options in the task after connecting, so a script that sets
@@ -856,6 +895,10 @@ export class Graphty extends LitElement {
             this.#mirrorVisibilityChange(change);
         });
         this.#screenReader.connect(this.renderRoot);
+        if (this.#legendOn) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
         // A note written from a panel, a console or an undo: plain values, as the other mirrors.
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
@@ -973,13 +1016,18 @@ export class Graphty extends LitElement {
                 return;
             }
 
+            // `error` does not bubble: a bubbling `error` reaches `window`, where every page-wide
+            // error handler (window.onerror, error reporters, test runners) takes it for an uncaught
+            // exception -- a refusal the caller already caught would be reported as a crash (#8231).
+            const bubbles = event.type !== "error";
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
-                    bubbles: true,
-                    composed: true,
+                    bubbles,
+                    composed: bubbles,
                 }),
             );
+            this.#announceSkybox(event);
         });
 
         // Node events reach the DOM too, and under a prefixed name with a reduced detail.
@@ -1116,6 +1164,125 @@ export class Graphty extends LitElement {
         this.#accessibleNodeList = value;
         this.#screenReader.setList(value, this.#wired ? this.renderRoot : undefined);
         this.requestUpdate("accessibleNodeList", oldValue);
+    }
+
+    /** Whether the legend is shown; see {@link Graphty.legend}. */
+    #legendOn = false;
+    /** The corner it sits in; see {@link Graphty.legendPosition}. */
+    #legendCorner: ScreenshotLegendPosition = "top-left";
+    /** Its accessible name; see {@link Graphty.legendLabel}. */
+    #legendName: string | undefined;
+    /** The legend overlay, built on first use. */
+    #legendDrawn: LegendOverlay | undefined;
+
+    /**
+     * The legend overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #legendView(): LegendOverlay {
+        if (this.#legendDrawn === undefined) {
+            this.#legendDrawn = new LegendOverlay({
+                legend: () => this.#graph.getSession().styles.legend(),
+                onDerived: (listener) => this.#graph.getSession().on("project:derived", listener),
+            });
+            this.#legendDrawn.setPosition(this.#legendCorner);
+            this.#legendDrawn.setLabel(this.#legendName);
+        }
+
+        return this.#legendDrawn;
+    }
+
+    /**
+     * Whether a legend is drawn over the graph: a key for every style layer that binds a value,
+     * read from `session.styles.legend()` -- a row with a color chip per category, or a color ramp
+     * between the ends of a continuous domain. It follows every change to the layers and the data,
+     * and hides while no layer binds a value. Every word in it is the data's: the field's name,
+     * the values and the names readers gave them.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step. Off
+     * by default. It is HTML in the shadow root, exposed as `::part(legend)`, so a screen reader
+     * reads its sections and rows; set its size, border, background and color from the page (its
+     * sizes are in `em`, so `font-size` scales the whole key). The corner is
+     * {@link Graphty.legendPosition}. A screenshot draws the same key with
+     * `captureScreenshot({ legend: { position: element.legendPosition } })`. To draw a legend of
+     * your own instead, read `session.styles.legend()` on the session's `project:derived` event.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="bottom-left"></graphty-element>
+     * <style>
+     *     graphty-element::part(legend) { font-size: 14px; max-width: 240px; }
+     * </style>
+     * ```
+     * @returns True when the legend is shown
+     */
+    @property({ attribute: "legend", type: Boolean, reflect: true })
+    get legend(): boolean {
+        return this.#legendOn;
+    }
+    /**
+     * Shows or hides the legend.
+     */
+    set legend(value: boolean) {
+        const oldValue = this.#legendOn;
+        this.#legendOn = value;
+        if (!value) {
+            this.#legendDrawn?.disconnect();
+        } else if (this.#wired) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
+        this.requestUpdate("legend", oldValue);
+    }
+
+    /**
+     * The corner of the graph the legend sits in: `"top-left"` (the default), `"top-right"`,
+     * `"bottom-left"` or `"bottom-right"`.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="top-right"></graphty-element>
+     * ```
+     * @returns The corner
+     */
+    @property({ attribute: "legend-position" })
+    get legendPosition(): ScreenshotLegendPosition {
+        return this.#legendCorner;
+    }
+    /**
+     * Moves the legend to another corner.
+     */
+    set legendPosition(value: ScreenshotLegendPosition) {
+        const oldValue = this.#legendCorner;
+        this.#legendCorner = value;
+        this.#legendDrawn?.setPosition(value);
+        this.requestUpdate("legendPosition", oldValue);
+    }
+
+    /**
+     * The legend's accessible name, which a screen reader announces, in the page's own words.
+     * Unset by default: the legend then has no name of its own, and each field in it is still
+     * named by the field's name.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-label="Leyenda"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "legend-label" })
+    get legendLabel(): string | undefined {
+        return this.#legendName;
+    }
+    /**
+     * Sets the legend's accessible name.
+     */
+    set legendLabel(value: string | undefined) {
+        const oldValue = this.#legendName;
+        // Removing the attribute sets null: that is no name, as unset is.
+        this.#legendName = value ?? undefined;
+        this.#legendDrawn?.setLabel(this.#legendName);
+        this.requestUpdate("legendLabel", oldValue);
     }
 
     /**
@@ -1298,6 +1465,7 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
         this.#screenReader.disconnect();
+        this.#legendDrawn?.disconnect();
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
@@ -3203,6 +3371,91 @@ export class Graphty extends LitElement {
         this.requestUpdate("labelDeclutter", oldValue);
     }
 
+    /** Whether the minimap is shown; see {@link Graphty.minimap}. */
+    #minimapOn = false;
+
+    /** The minimap overlay, built on first use. */
+    #minimapDrawn: Minimap | undefined;
+
+    /** The accessible name the minimap carries; see {@link Graphty.minimapLabel}. */
+    #minimapName = "minimap";
+
+    /**
+     * The minimap overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #minimapView(): Minimap {
+        if (this.#minimapDrawn === undefined) {
+            this.#minimapDrawn = new Minimap(this);
+            this.#minimapDrawn.setLabel(this.#minimapName);
+        }
+
+        return this.#minimapDrawn;
+    }
+
+    /**
+     * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * the view there, a drag scrubs, and with it focused the arrow keys step the view.
+     * @remarks
+     * A preference of this view, not part of the project: switching it, and moving the camera with
+     * it, records no undo step. Off by default. It is a canvas in the shadow root, exposed as
+     * `::part(minimap)`: set its size, place, border and background from the page, and the color
+     * its points and rectangle are drawn in with `color`. To draw a minimap of your own instead,
+     * see {@link Graphty.getOverview}.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap></graphty-element>
+     * <style>
+     *     graphty-element::part(minimap) { left: 8px; right: auto; width: 200px; color: teal; }
+     * </style>
+     * ```
+     * @returns True when the minimap is shown
+     */
+    @property({ attribute: "minimap", type: Boolean, reflect: true })
+    get minimap(): boolean {
+        return this.#minimapOn;
+    }
+    /**
+     * Shows or hides the minimap.
+     */
+    set minimap(value: boolean) {
+        const oldValue = this.#minimapOn;
+        this.#minimapOn = value;
+        if (!value) {
+            this.#minimapDrawn?.detach();
+        } else if (this.#wired) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
+        this.requestUpdate("minimap", oldValue);
+    }
+
+    /**
+     * The minimap's accessible name, which a screen reader announces. `"minimap"` unless set;
+     * a page in another language sets its own word.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap minimap-label="Carte"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "minimap-label" })
+    get minimapLabel(): string {
+        return this.#minimapName;
+    }
+    /**
+     * Sets the minimap's accessible name.
+     */
+    set minimapLabel(value: string) {
+        const oldValue = this.#minimapName;
+        this.#minimapName = value;
+        this.#minimapDrawn?.setLabel(value);
+        this.requestUpdate("minimapLabel", oldValue);
+    }
+
     /**
      * How fast the 3D view turns on its own, in radians per second.
      * @remarks
@@ -3591,8 +3844,10 @@ export class Graphty extends LitElement {
      * @remarks
      * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
      * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
-     * from an image, given as a URL or a base64 PNG, and the element emits
-     * `graphty-skybox-loaded` once its texture has arrived. Either may carry a background
+     * from an image, given as a URL or a base64 PNG, and the element fires
+     * `graphty-skybox-loaded` (`detail.url`) once its texture has arrived, once per new image; an
+     * image that cannot be loaded fires `graphty-skybox-failed` instead, a coded failure
+     * `{ code: "E_IMAGE_LOAD", params: { url } }`. Either may carry a background
      * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
      * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
@@ -3668,7 +3923,8 @@ export class Graphty extends LitElement {
     /**
      * What the map under the `location-map` layout is doing: its source, `state` (`off`, `loading`,
      * `ready`, or `fallback` when its pictures failed and the bundled world image shows instead), and
-     * `attribution`, the credits of everything drawn, which must be visible whenever the map is.
+     * `attribution`, the credits of everything drawn, as data: the element never draws them over the
+     * canvas, and a page may show them elsewhere (an About dialog).
      * @since 3.31.0
      * @returns The status
      */
@@ -3687,37 +3943,6 @@ export class Graphty extends LitElement {
     get mapFrame(): MapFrameFact | null {
         return this.#graph.mapFrame;
     }
-
-    /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
-     * @remarks
-     * The element draws the credits of the map under the `location-map` layout in the canvas's
-     * bottom-right corner, as every map source's terms require. A page that draws its own controls
-     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
-     * the corner. A preference of this view, not saved with the project.
-     * @since 3.31.0
-     * @example
-     * ```html
-     * <graphty-element attribution-offset="56"></graphty-element>
-     * ```
-     * @returns The offset
-     */
-    @property({ attribute: "attribution-offset", type: Number })
-    get attributionOffset(): number {
-        return this.#attributionOffset;
-    }
-    /**
-     * Moves the map's credits up from the corner.
-     */
-    set attributionOffset(value: number) {
-        const oldValue = this.#attributionOffset;
-        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
-        this.#graph.setAttributionOffset(this.#attributionOffset);
-        this.requestUpdate("attributionOffset", oldValue);
-    }
-
-    /** See {@link attributionOffset}. */
-    #attributionOffset = 0;
 
     /**
      * How the globe under the `location-map` layout looks beyond its map.
@@ -3774,6 +3999,45 @@ export class Graphty extends LitElement {
             value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
         );
         this.requestUpdate("cameraTransitionDuration", oldValue);
+    }
+
+    /**
+     * Whether the graph reduces motion for its reader.
+     * @remarks
+     * True: every camera move (fitting the graph, a preset view, the glide to a picked node)
+     * jumps to its end, `autoRotate` holds still, a layout transition is skipped, and a running
+     * layout is drawn once it has settled instead of moving into place. `"auto"`: the same while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default): nothing changes. As an attribute, `reduced-motion` alone or
+     * `reduced-motion="true"` is true, and `reduced-motion="auto"` is `"auto"`. A preference of
+     * this view, not saved with the project.
+     * @since 3.54.0
+     * @example
+     * ```html
+     * <graphty-element reduced-motion="auto"></graphty-element>
+     * ```
+     * @returns true, false or "auto"
+     */
+    @property({
+        attribute: "reduced-motion",
+        converter: (value: string | null): boolean | "auto" => {
+            if (value === "auto") {
+                return "auto";
+            }
+
+            return value !== null && value !== "false";
+        },
+    })
+    get reducedMotion(): boolean | "auto" {
+        return this.#graph.getReducedMotion();
+    }
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    set reducedMotion(value: boolean | "auto") {
+        const oldValue = this.reducedMotion;
+        this.#graph.setReducedMotion(value);
+        this.requestUpdate("reducedMotion", oldValue);
     }
 
     /**
@@ -4144,6 +4408,33 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     *
+     * Every visible node is a filled shape where the canvas draws it, in its color; every visible
+     * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
+     * and `legend` draws the same key `captureScreenshot` draws, as text too. The figure is the
+     * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
+     * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
+     * does.
+     * @param options - The format (`"svg"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const figure = await element.exportFigure({ legend: true });
+     * const svg = await figure.blob.text();
+     * // or hand it straight to the reader:
+     * await element.exportFigure({ legend: true, download: true, downloadFilename: "figure.svg" });
+     * ```
+     */
+    async exportFigure(options?: FigureOptions): Promise<FigureResult> {
+        await this.#graph.waitForStableFrame();
+        return exportFigure(this.#graph, options);
+    }
+
+    /**
      * One node of a shape and color drawn alone, exactly as the graph draws its nodes (the same
      * mesh, material and lighting), on a transparent background: a picture of a 3D shape for a
      * key, a legend or a picker. Each picture is drawn once and kept, by shape, color, size, 2D or
@@ -4171,7 +4462,8 @@ export class Graphty extends LitElement {
      *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected model or one waiting for parts, its first problem's code and params.
+     *     rejected model or one waiting for parts, its first problem's code and params (with
+     *     `standInMissing`, a model waiting only for pictures or materials is drawn without them).
      * @example
      * ```typescript
      * const asset = await element.session.assets.add(input.files);
@@ -4277,12 +4569,45 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop the camera's animated moves: the one under way stops where the camera is now, and
-     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves.
-     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * Stop the camera's animated moves: the one under way stops where the camera is now, moves
+     * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
      */
     cancelCameraAnimation(): boolean {
         return this.#graph.cancelCameraAnimation();
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
+     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
+     * the same tour, pass it as `cameraPath` to `captureAnimation`.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+     * await el.playTour([
+     *     { view: "fitToGraph", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
+    ): Promise<void> {
+        return this.#graph.playTour(path, options);
     }
 
     /**
@@ -5082,6 +5407,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all nodes in the graph.
+     *
+     * On the `"batched"` render path a node's `Node` is built when its element of the array is
+     * first read: the call and `length` stay cheap at a million nodes, but walking the whole array
+     * builds every `Node`. Walk {@link getNodeIds} instead to enumerate a large graph.
      * @returns Array of all nodes
      * @since 1.5.0
      * @example
@@ -5092,6 +5421,23 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object: the way to enumerate the nodes of a
+     * large graph on the `"batched"` render path, where walking all of {@link getNodes} builds a
+     * `Node` for every row.
+     * @returns The ids, in the order `getNodes()` returns the nodes.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * for (const id of element.getNodeIds()) {
+     *     console.log(id);
+     * }
+     * ```
+     */
+    getNodeIds(): (string | number)[] {
+        return this.#graph.getNodeIds();
     }
 
     /**
@@ -5861,6 +6207,55 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * Everything a minimap needs: every placed node seen along the current view direction, laid
+     * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
+     * the part of that frame the camera shows. {@link Graphty.minimap} draws a minimap from this; to
+     * draw your own, read it and redraw on `overview-changed`.
+     *
+     * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
+     * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.
+     * Reading costs one pass over the nodes after the nodes or the view direction moved, and
+     * nothing more while only the viewport moved (a 2D pan or zoom).
+     * @param options - `maxPoints` and `gridSize`.
+     * @returns The overview; empty, with a zero viewport, while no node is placed.
+     * @example
+     * ```ts
+     * element.addEventListener("overview-changed", () => {
+     *     const { points, viewport } = element.getOverview();
+     *     ctx.clearRect(0, 0, 150, 150);
+     *     for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+     *     ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+     * });
+     * ```
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#graph.getOverview(options);
+    }
+
+    /**
+     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
+     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * so it is not an undo step. Does nothing while no node is placed.
+     * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
+     * @param point.x - Frame x.
+     * @param point.y - Frame y.
+     * @param options - Animation options, as for `setCameraState`.
+     * @returns Resolves once the camera is there.
+     * @example
+     * ```ts
+     * minimap.addEventListener("pointerdown", (e) => {
+     *     void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+     * });
+     * ```
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.centerOnOverview(point, options);
     }
 
     /**
@@ -6673,6 +7068,41 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the graph's readers read only what is shown: the part of the graph the filters leave
+     * visible. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout.
+     * @remarks
+     * On by default, since a filter means the subset you work with: a reader that names no scope
+     * reads the working graph. Off, every reader reads
+     * the whole graph, as before this option existed. The graph itself is not copied or
+     * changed -- edits, undo and the project file act on all of it, hidden nodes keep their
+     * positions, styles and results, and a reader that names the whole graph still reads all of it.
+     * A session setting, the same one as `session.workingGraph`: it records no undo step and is not
+     * saved in a project file.
+     * @returns True when on.
+     * @since 3.40.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element working-graph="false"></graphty-element>
+     * ```
+     */
+    @property({
+        attribute: "working-graph",
+        converter: { fromAttribute: (value: string | null): boolean => value !== "false" },
+    })
+    get workingGraph(): boolean {
+        return this.#graph.getSession().workingGraph;
+    }
+    /**
+     * Switches the working graph on or off.
+     */
+    set workingGraph(value: boolean) {
+        const oldValue = this.workingGraph;
+        this.#graph.getSession().workingGraph = value;
+        this.requestUpdate("workingGraph", oldValue);
+    }
+
+    /**
      * Which renderer draws the graph: `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU
      * where the browser has it.
      *
@@ -6785,6 +7215,70 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Whether the WebGL canvas keeps each drawn frame (WebGL's `preserveDrawingBuffer`), so the
+     * page can read the canvas between frames with `canvas.toDataURL()`, `toBlob()` or
+     * `drawImage(canvas)`. `false` saves a full-frame copy on every frame drawn; a read of the
+     * canvas outside a frame then gets a blank image. `captureScreenshot` and `captureAnimation`
+     * work either way. Read once, when the element builds its engine; a WebGPU canvas never keeps
+     * its frames.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_PRESERVE_DRAWING_BUFFER_LATE`, as a `graphty-warning` event.
+     * @example
+     * ```html
+     * <graphty-element preserve-drawing-buffer="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas keeps each drawn frame; true by default.
+     */
+    @property({
+        attribute: "preserve-drawing-buffer",
+        converter: { fromAttribute: preserveDrawingBufferFromAttribute },
+    })
+    get preserveDrawingBuffer(): boolean {
+        return (
+            this.#builtGraph?.preserveDrawingBuffer ??
+            this.#preserveDrawingBuffer ??
+            preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer"))
+        );
+    }
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    set preserveDrawingBuffer(value: boolean) {
+        const oldValue = this.preserveDrawingBuffer;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#preserveDrawingBuffer = value;
+        } else if (value !== built.preserveDrawingBuffer) {
+            this.#warn({
+                code: "W_PRESERVE_DRAWING_BUFFER_LATE",
+                params: { requested: value, active: built.preserveDrawingBuffer },
+            });
+            return;
+        }
+
+        this.requestUpdate("preserveDrawingBuffer", oldValue);
+    }
+
+    /**
+     * Re-dispatches a skybox's graph event under the element's own name, with plain values:
+     * `graphty-skybox-loaded` (`{ url }`) or `graphty-skybox-failed` (`E_IMAGE_LOAD`, `params.url`).
+     * @param event - Any graph event; only the skybox ones are announced.
+     */
+    #announceSkybox(event: GraphEvent): void {
+        if (event.type !== "skybox-loaded" && event.type !== "skybox-failed") {
+            return;
+        }
+
+        const url = typeof event.url === "string" ? event.url : "";
+        const detail: GraphtySkyboxLoadedDetail | CodedFact<"E_IMAGE_LOAD"> =
+            event.type === "skybox-loaded" ? { url } : { code: "E_IMAGE_LOAD", params: { url: url.slice(0, 256) } };
+        this.dispatchEvent(new CustomEvent(`graphty-${event.type}`, { detail, bubbles: true, composed: true }));
     }
 
     /**
@@ -7033,6 +7527,15 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
  */
 export type GraphtyModelChangeDetail = ModelChange;
 
+/**
+ * The detail of `graphty-skybox-loaded`: the skybox image whose texture arrived. Fires once per new
+ * skybox image; one that cannot be loaded fires `graphty-skybox-failed` (`E_IMAGE_LOAD`) instead.
+ */
+export interface GraphtySkyboxLoadedDetail {
+    /** The image, as the background's `data` gave it: a URL or a `data:` address. */
+    readonly url: string;
+}
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
@@ -7085,6 +7588,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -7112,6 +7617,8 @@ declare global {
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 }
 

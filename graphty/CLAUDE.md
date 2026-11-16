@@ -150,6 +150,23 @@ If you encounter bugs or API difficulties with graphty-element while working on 
 - Report it so the graphty-element package can be improved
 - The graphty-element API should be intuitive and easy to use
 
+Why the root CLAUDE.md forbids the app to work around graphty-element ("The app MUST NOT work around
+graphty-element"): every comment found in the 2026-09-19 audit explaining why the element could not be used was
+accurate, well reasoned, and pointed at a real element defect: suggested-style layers that overwrite the whole
+graph, a calculated value that throws on an unmeasured node and aborts the repaint loop, `StyleManager.addLayer`
+not repainting at all, and an entry point that drags in Babylon.js so a constants import is impossible. The app was
+right every time, and every defect survived because being right in the app fixed nothing.
+
+The failure mode this prevents is silent and expensive: a capability lands "in the product"
+because the app wires it up, the element ships without it, and every third-party consumer either
+reimplements the wiring or never discovers the feature exists. By the time that is noticed, the
+wiring is public API in the wrong package and moving it is a breaking change.
+
+The workaround rule closes the same trap from the other side. Without it, the element's defects
+become invisible: the app absorbs each one, the element's API never improves because nothing
+pushes back on it, and the first third-party consumer meets every unfixed problem at once with no
+workarounds available to them and no way to know they are not alone.
+
 ## UI Components
 
 - Use the default components. Never write a bespoke control to work around one

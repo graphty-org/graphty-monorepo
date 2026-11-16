@@ -101,7 +101,10 @@ import {
     RectangleGoggles,
     Redo2,
     RefreshCw,
+    Rotate3d,
+    RotateCcwSquare,
     RotateCw,
+    RotateCwSquare,
     Route,
     Scan,
     Search,
@@ -112,6 +115,7 @@ import {
     Share2,
     Shuffle,
     Sigma,
+    SlidersHorizontal,
     Spline,
     Square,
     SquareArrowOutUpRight,
@@ -258,6 +262,8 @@ export const GLYPHS = {
     open: FolderOpen,
     upload: Upload,
     settings: Settings,
+    // A part's settings page in the Style panel by part.
+    sliders: SlidersHorizontal,
     // A shader's facts in the gallery and its settings: it moves, what it costs, it reacts to light.
     animates: Activity,
     cost: Gauge,
@@ -325,6 +331,10 @@ export const GLYPHS = {
     noPicture: Waypoints,
     // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
     model: Box,
+    // The Load custom model dialog's rotate buttons: a quarter turn about the up axis, and a tip.
+    turnLeft: RotateCcwSquare,
+    turnRight: RotateCwSquare,
+    tip: Rotate3d,
     picture: Image,
     gpu: Zap,
     developer: Code,

@@ -67,18 +67,29 @@ const dirName = (project) => project.replace(/^@graphty\//, "");
  * family's cost is mostly per file -- each file runs alone in the browser and pays 5 to 7.5 s of setup and import
  * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
  * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
- * the 900 s shard budget (#5822); eight bring that to about 630 s.
+ * the 900 s shard budget (#5822); eight brought that to about 630 s. By 2026-11-14 the eight parts ran 907 s median
+ * and 1,123 s p90 in full runs, and the experiments-on twins' five parts 1,021 s and 1,303 s. Ten parts would bring the
+ * p90 to 898 s only if time shrank in exact proportion, but each part also pays a fixed cost (browser launch, vitest
+ * start, package import, coverage write), so twelve: about 750 s by proportion, with margin for that cost (#7849).
  */
-const ELEMENT_BROWSER_PARTS = 8;
+const ELEMENT_BROWSER_PARTS = 12;
+
+/**
+ * How many parts graphty-element's default and mesh tests split into. In one part they ran 908 s median and 1,241 s
+ * p90 in full runs to 2026-11-14 (#7849); two bring the p90 to about 620 s.
+ */
+const ELEMENT_DEFAULT_PARTS = 2;
 
 /**
  * How many parts graphty's tests (graphty-N) and their experiments-on twins (graphty-features-on-N) split into. A
  * part's time is mostly its real-element files, run one at a time, which graphty/test/story-shards.ts places by
  * measured time. In full runs 42921328419 to 42996342490 (2026-11-10 and 11) the five parts held about 6,300 s of
  * vitest together, so even an even split was about 1,260 s a part, and the slowest part reached its job's 30-minute
- * deadline three times (#6620). Six parts, split by measured time, plan about 1,060 s each (the twins about 940 s).
+ * deadline three times (#6620). Six parts, split by measured time, planned about 1,060 s each (the twins about 940 s),
+ * and ran 1,089 s median and 1,333 s p90 in full runs to 2026-11-14. Nine would reach about 890 s only by exact
+ * proportion, with no room for each part's fixed cost; ten bring the p90 to about 800 s by proportion (#7849).
  */
-export const GRAPHTY_PARTS = 6;
+export const GRAPHTY_PARTS = 10;
 const graphtyParts = Array.from({ length: GRAPHTY_PARTS }, (_, i) => i + 1);
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
@@ -214,6 +225,13 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run babylonjs-map:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // babylonjs-models - single shard (Node.js, no browser); its packaging test reads babylonjs-models/dist
+    {
+        shard: "babylonjs-models",
+        package: "babylonjs-models",
+        "test-command": "pnpm exec nx run babylonjs-models:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
@@ -347,13 +365,13 @@ const OFF_SHARDS = [
     // The timing benchmarks (the bench and browser-bench projects) gate nothing: a stopwatch on a
     // busy machine measures the machine. They run in ci.yml's advisory "performance" job; what
     // they time is pinned here by counts (repaint.test.ts, round-trip.test.ts, bulk-teardown.test.ts).
-    {
-        shard: "graphty-element-default",
+    ...Array.from({ length: ELEMENT_DEFAULT_PARTS }, (_, i) => i + 1).map((n) => ({
+        shard: `graphty-element-default-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --shard=${n}/${ELEMENT_DEFAULT_PARTS} --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         // test/packaging/program-wasm.test.ts runs the pages it builds with Vite and webpack in Chromium.
         "needs-browser": true,
-    },
+    })),
     // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
     // "minimum-work" runs the tests of "the picture is final" again with every frame doing the least
@@ -434,6 +452,19 @@ const OFF_SHARDS = [
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),
+    // The drawn fidelity scorecard on the "batched" render path (the forced-batched project). The browser shards run
+    // it on the objects path only, and the whole forced-batched project runs only when render-proof.yml is
+    // dispatched by hand, so a batched-path defect that turned 37 of its 41 samples white went unseen (issue #8221).
+    // One file, a few minutes of browser; no coverage.
+    {
+        shard: "graphty-element-forced-batched-scorecard",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // npx vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts by hand.
+        local: "never",
+    },
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -476,10 +507,10 @@ export const FEATURES_ON_SHARDS = [
         // As its Off twin: test/packaging/program-wasm.test.ts runs the pages it builds in Chromium.
         "needs-browser": true,
     },
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
     })),
     ...[1, 2, 3, 4, 5].map((n) => ({
@@ -572,6 +603,7 @@ export const GROUPS = {
         "graph-format",
         "graph-samples",
         "babylonjs-map",
+        "babylonjs-models",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
         "layout",
@@ -599,6 +631,8 @@ export const GROUP_MEMBER_SECONDS = {
     "graph-format": 78,
     "graph-samples": 39,
     "babylonjs-map": 3,
+    // Measured locally on 2026-11-14 (about 2 s of vitest with coverage); remeasure from the group job's log.
+    "babylonjs-models": 4,
     "cytoscape-extensions": 15,
     "cytoscape-extensions-cytoscape-versions": 25,
     layout: 46,

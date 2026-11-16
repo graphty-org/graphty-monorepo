@@ -1059,12 +1059,14 @@ function readValues(
  * @param columns - What the session can read about elements of the layer's kind.
  * @param index - The element.
  * @param tally - The counts so far, keyed by code and channel.
+ * @param weight - How many elements this one stands for.
  */
 function countAdjustments(
     own: readonly PreparedBinding[],
     columns: ElementColumns,
     index: number,
     tally: Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>,
+    weight: number,
 ): void {
     for (const prepared of own) {
         const code = prepared.adjustment(prepared.path === null ? undefined : columns.value(index, prepared.path));
@@ -1075,9 +1077,9 @@ function countAdjustments(
         const key = `${code} ${prepared.channel}`;
         const entry = tally.get(key);
         if (entry === undefined) {
-            tally.set(key, { code, channel: prepared.channel, count: 1 });
+            tally.set(key, { code, channel: prepared.channel, count: weight });
         } else {
-            entry.count++;
+            entry.count += weight;
         }
     }
 }
@@ -1091,7 +1093,7 @@ interface WinTally {
     /** The tally of the covering layers per channel. */
     readonly perChannel: Map<Channel, Map<LayerId, number>>;
     /** Told each element's walk, to count what the layer wins that draws nothing. */
-    readonly undrawn: (found: ElementWins) => void;
+    readonly undrawn: (found: ElementWins, weight: number) => void;
 }
 
 /**
@@ -1225,6 +1227,7 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
  * @param columns - What the session can read about elements of its kind.
  * @param layerId - The layer.
  * @param tally - The tallies to add to.
+ * @param weight - How many elements this one stands for.
  */
 function countWins(
     stack: readonly StackEntry[],
@@ -1232,7 +1235,9 @@ function countWins(
     columns: ElementColumns,
     layerId: LayerId,
     tally: WinTally,
+    weight: number,
 ): void {
+    countCounters.walks++;
     const found = walkWins(stack, at, columns, layerId);
     const { painted, others, perChannel, undrawn } = tally;
     const covering = coveringShader(
@@ -1244,11 +1249,11 @@ function countWins(
     );
     const cover = (channel: Channel, by: LayerId): void => {
         if (by !== layerId) {
-            others.set(by, (others.get(by) ?? 0) + 1);
+            others.set(by, (others.get(by) ?? 0) + weight);
         }
 
         const covers = perChannel.get(channel) ?? new Map<LayerId, number>();
-        covers.set(by, (covers.get(by) ?? 0) + 1);
+        covers.set(by, (covers.get(by) ?? 0) + weight);
         perChannel.set(channel, covers);
     };
 
@@ -1260,13 +1265,13 @@ function countWins(
         if (covering?.covers.includes(channel) === true && (winner === layerId || channel in found.own)) {
             cover(channel, covering.layerId);
         } else if (winner === layerId || (isShaderListChannel(channel) && channel in found.own)) {
-            painted[channel] = (painted[channel] ?? 0) + 1;
+            painted[channel] = (painted[channel] ?? 0) + weight;
         } else {
             cover(channel, winner);
         }
     }
 
-    undrawn(found);
+    undrawn(found, weight);
 }
 
 /** One shader fact being counted, by its key. */
@@ -1277,14 +1282,20 @@ type ShaderFactTally = Map<string, { code: UndrawnCode; params: Record<string, s
  * @param tally - The tally.
  * @param code - The fact's code.
  * @param params - Its values, without the count.
+ * @param weight - How many elements it is counted for.
  */
-function countFact(tally: ShaderFactTally, code: UndrawnCode, params: Record<string, string | number>): void {
+function countFact(
+    tally: ShaderFactTally,
+    code: UndrawnCode,
+    params: Record<string, string | number>,
+    weight: number,
+): void {
     const key = JSON.stringify([code, params]);
     const entry = tally.get(key);
     if (entry === undefined) {
-        tally.set(key, { code, params: { ...params, count: 1 } });
+        tally.set(key, { code, params: { ...params, count: weight } });
     } else {
-        entry.params.count = Number(entry.params.count) + 1;
+        entry.params.count = Number(entry.params.count) + weight;
     }
 }
 
@@ -1293,21 +1304,27 @@ function countFact(tally: ShaderFactTally, code: UndrawnCode, params: Record<str
  * @param tally - Where facts are counted.
  * @param channel - The list channel.
  * @param use - The use.
+ * @param weight - How many elements it is counted for.
  */
-function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse): void {
+function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse, weight: number): void {
     const descriptor = projectShaderDescriptor(use.shader);
     const target = channel === "node.shaders" ? ["node", "group"] : ["edge"];
     if (descriptor === undefined) {
-        countFact(tally, "shader.unknown", { channel, shader: use.shader });
+        countFact(tally, "shader.unknown", { channel, shader: use.shader }, weight);
     } else if (!target.includes(descriptor.target)) {
-        countFact(tally, "shader.target-mismatch", {
-            channel,
-            shader: use.shader,
-            expected: channel.slice(0, 4),
-            found: descriptor.target,
-        });
+        countFact(
+            tally,
+            "shader.target-mismatch",
+            {
+                channel,
+                shader: use.shader,
+                expected: channel.slice(0, 4),
+                found: descriptor.target,
+            },
+            weight,
+        );
     } else if (use.off !== true && use.place !== undefined && !(descriptor.places ?? []).includes(use.place)) {
-        countFact(tally, "shader.place-unsupported", { channel, shader: use.shader, place: use.place });
+        countFact(tally, "shader.place-unsupported", { channel, shader: use.shader, place: use.place }, weight);
     }
 }
 
@@ -1318,7 +1335,7 @@ function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse
  * @returns The tally, and a function to read it out as facts.
  */
 function shaderTally(target: SelectorTarget): {
-    readonly add: (found: ElementWins) => void;
+    readonly add: (found: ElementWins, weight: number) => void;
     readonly facts: () => readonly CodedFact<UndrawnCode>[];
 } {
     const tally: ShaderFactTally = new Map();
@@ -1327,15 +1344,15 @@ function shaderTally(target: SelectorTarget): {
     let left = 0;
 
     return {
-        add({ own, values }): void {
+        add({ own, values }, weight): void {
             const mine = own[list] as readonly ShaderUse[] | undefined;
             for (const use of mine ?? []) {
-                checkShaderUse(tally, list, use);
+                checkShaderUse(tally, list, use, weight);
             }
 
             const lost = mine === undefined ? 0 : drawnUses(values[list] as readonly ShaderUse[]).left;
             if (lost > 0) {
-                capped++;
+                capped += weight;
                 left = Math.max(left, lost);
             }
         },
@@ -1361,13 +1378,13 @@ const CAPTION_ARROW: Partial<Record<Channel, Channel>> = {
  * @returns The tally, and a function to read it out as facts.
  */
 function captionTally(directed: boolean): {
-    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void;
+    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>, weight: number) => void;
     readonly facts: () => readonly CodedFact<UndrawnCode>[];
 } {
     const counts = new Map<Channel, number>();
 
     return {
-        add(channel, values): void {
+        add(channel, values, weight): void {
             const arrow = CAPTION_ARROW[channel];
             if (arrow === undefined) {
                 return;
@@ -1377,7 +1394,7 @@ function captionTally(directed: boolean): {
             // only on a directed graph, never a tail.
             const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed ? "normal" : "none");
             if (type === "none") {
-                counts.set(channel, (counts.get(channel) ?? 0) + 1);
+                counts.set(channel, (counts.get(channel) ?? 0) + weight);
             }
         },
         facts: () =>
@@ -1390,6 +1407,44 @@ function captionTally(directed: boolean): {
     };
 }
 
+/** Work done by {@link styleCounts}, for a test that counts it rather than times it. */
+export const countCounters = {
+    /** Walks of the stack over one element. */
+    walks: 0,
+};
+
+/**
+ * Whether no binding of the stack or of a layer reads the element's data, so a walk over an
+ * element is decided by which layers apply to it alone.
+ * @param stack - The stack with its bindings.
+ * @param own - The counted layer's bindings.
+ * @returns True when every binding is a literal.
+ */
+function readsNoData(stack: readonly StackEntry[], own: readonly PreparedBinding[]): boolean {
+    return (
+        own.every(({ path }) => path === null) &&
+        stack.every(({ bindings }) => bindings.every(({ path }) => path === null))
+    );
+}
+
+/**
+ * Which layers of the stack apply to one element, as a key: equal keys walk alike.
+ * @param stack - The stack.
+ * @param at - Where the element sits.
+ * @returns One character per layer.
+ */
+function appliesKey(stack: readonly StackEntry[], at: Located): string {
+    let key = "";
+    for (const { entry } of stack) {
+        // A layer of the other kind never applies: left out, the key is as long as the kind's stack.
+        if (entry.layer.target === at.target) {
+            key += applies(entry, at) ? "1" : "0";
+        }
+    }
+
+    return key;
+}
+
 /**
  * Count what one layer covers and where it wins.
  *
@@ -1400,6 +1455,7 @@ function captionTally(directed: boolean): {
  * @param elements - Every node and edge in the session, as dense indices.
  * @param sources - The stack, the prepared encodings and the element columns.
  * @param revision - What the caller says the counts are a reading of.
+ * @param shown - The elements drawn, which a top within what is shown ranks.
  * @returns The counts.
  * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
@@ -1408,6 +1464,7 @@ export function styleCounts(
     elements: AgreementElements,
     sources: ExplainSources,
     revision: string,
+    shown?: AgreementElements,
 ): StyleCounts {
     const { layer, selector, reads } = requireLayer(layerId, sources);
     const own = sources.encoding(layerId);
@@ -1428,43 +1485,66 @@ export function styleCounts(
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
     const adjusted = new Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>();
 
+    const tally: WinTally = {
+        painted,
+        others,
+        perChannel,
+        undrawn: (found, weight) => {
+            for (const [channel, winner] of found.winners) {
+                if (winner === layerId) {
+                    captions.add(channel, found.values, weight);
+                }
+            }
+
+            const lift = found.values["edge.lift"];
+            if (liftFlat && found.winners.get("edge.lift") === layerId && typeof lift === "number" && lift !== 0) {
+                flatLifts += weight;
+            }
+
+            shaders.add(found, weight);
+        },
+    };
+    const count = (index: number, weight: number): void => {
+        matched += weight;
+        const { missing, outside } = readValues(own, columns, index);
+        noValue += missing ? weight : 0;
+        outsideScale += outside ? weight : 0;
+        countAdjustments(own, columns, index, adjusted, weight);
+
+        if (layer.enabled) {
+            countWins(stack, { target: layer.target, index }, columns, layerId, tally, weight);
+        }
+    };
+
+    // WALKED ONCE PER LOOK. With no binding reading data, what an element is painted depends only
+    // on which layers apply to it, so elements the same layers apply to count alike: one walk
+    // stands for all of them (issue #7966: 50,000 nodes under a base row of fixed values took
+    // 450 ms a read). Groups are counted in the order their first element came, which keeps every
+    // tally's order the per-element walk gave.
+    // A disabled layer walks nothing, so it has nothing to group.
+    const groups =
+        layer.enabled && readsNoData(stack, own) ? new Map<string, { index: number; weight: number }>() : null;
     for (const index of indices) {
         if (selector.test !== null && !selector.test(index)) {
             continue;
         }
 
-        matched++;
-        const { missing, outside } = readValues(own, columns, index);
-        noValue += missing ? 1 : 0;
-        outsideScale += outside ? 1 : 0;
-        countAdjustments(own, columns, index, adjusted);
-
-        if (layer.enabled) {
-            countWins(stack, { target: layer.target, index }, columns, layerId, {
-                painted,
-                others,
-                perChannel,
-                undrawn: (found) => {
-                    for (const [channel, winner] of found.winners) {
-                        if (winner === layerId) {
-                            captions.add(channel, found.values);
-                        }
-                    }
-
-                    const lift = found.values["edge.lift"];
-                    if (
-                        liftFlat &&
-                        found.winners.get("edge.lift") === layerId &&
-                        typeof lift === "number" &&
-                        lift !== 0
-                    ) {
-                        flatLifts++;
-                    }
-
-                    shaders.add(found);
-                },
-            });
+        if (groups === null) {
+            count(index, 1);
+            continue;
         }
+
+        const key = appliesKey(stack, { target: layer.target, index });
+        const group = groups.get(key);
+        if (group === undefined) {
+            groups.set(key, { index, weight: 1 });
+        } else {
+            group.weight++;
+        }
+    }
+
+    for (const { index, weight } of groups?.values() ?? []) {
+        count(index, weight);
     }
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
@@ -1486,7 +1566,7 @@ export function styleCounts(
             ...shaders.facts(),
             ...(flatLifts > 0 ? [{ code: "edge.lift-needs-flat-layout" as const, params: { count: flatLifts } }] : []),
         ]),
-        ...topFacts(layer.selector, columns, indices),
+        ...topFacts(layer.selector, columns, indices, layer.target === "node" ? shown?.nodes : shown?.edges),
         adjusted: Object.freeze(facts),
         revision,
     };
@@ -1588,6 +1668,8 @@ interface NamedTop {
     readonly path: Path;
     readonly n: number;
     readonly ties: TopTies;
+    /** Whether it ranks only what is shown. */
+    readonly visible?: boolean;
 }
 
 /**
@@ -1606,7 +1688,12 @@ function topsOf(selector: Layer["selector"]): NamedTop[] {
     const found: NamedTop[] = [];
     const walk = (tree: RuleTree): void => {
         if (tree.kind === "threshold" && tree.top !== undefined) {
-            found.push({ path: tree.path, n: tree.top, ties: tree.ties ?? "fewer" });
+            found.push({
+                path: tree.path,
+                n: tree.top,
+                ties: tree.ties ?? "fewer",
+                ...(tree.within === "visible" ? { visible: true } : {}),
+            });
         } else if (tree.kind === "all" || tree.kind === "any") {
             tree.of.forEach(walk);
         } else if (tree.kind === "not") {
@@ -1624,18 +1711,21 @@ function topsOf(selector: Layer["selector"]): NamedTop[] {
  * @param selector - The layer's selector.
  * @param columns - The layer's kind of element.
  * @param elements - The elements of that kind, as dense indices.
+ * @param shown - The elements drawn, which a top within what is shown ranks.
  * @returns A `top.tie` fact per top a tie stopped short, and a fact per top for what it took.
  */
 function topFacts(
     selector: Layer["selector"],
     columns: ElementColumns,
     elements: readonly number[],
+    shown?: Iterable<number>,
 ): Pick<StyleCounts, "leftOut" | "tops"> {
     const leftOut: CodedFact<LeftOutCode>[] = [];
     const tops: CodedFact<TopFactCode>[] = [];
-    for (const { path, n, ties } of topsOf(selector)) {
+    for (const { path, n, ties, visible } of topsOf(selector)) {
         const population: { id: NodeId; value: number }[] = [];
-        for (const index of elements) {
+        // A top within what is shown is ranked over what is shown, as its selector ranks it.
+        for (const index of visible === true && shown !== undefined ? shown : elements) {
             const value = columns.value(index, path);
             if (typeof value === "number" && Number.isFinite(value)) {
                 population.push({ id: index, value });

@@ -485,6 +485,18 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
     });
 
+    it("fades a vis.js edge by color.opacity only where its color is hex or rgb(), as vis-network does", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [
+                { from: "a", to: "b", color: { color: "#0000ff", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "blue", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "rgb(0,0,255)", opacity: 0.4 } },
+            ],
+        });
+        expect(values(r, "edge", "opacity")).toEqual([0.4, null, 0.4]);
+    });
+
     it("draws a vis.js icon node's code as its glyph, in vis-network's FontAwesome, 50 px and blue unless given", async () => {
         const r = await load({
             nodes: [
@@ -503,6 +515,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "glyphSize")).toEqual([30, 50, null]);
         expect(values(r, "node", "glyphColor")).toEqual(["#d62728", "#2b7ce9", null]);
         expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
+    });
+
+    it("centers a vis.js icon node's label half its icon and margins plus 5 below its center", async () => {
+        // vis-network 9.1.9 Icon.draw: y + (icon.size + margin.top + margin.bottom) / 2 + 5, on a "middle" baseline
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "icon", label: "a", icon: { code: "A", size: 40 } },
+                { id: "b", shape: "icon", label: "b", icon: { code: "B" }, margin: { top: 2, bottom: 10 } },
+                { id: "c", shape: "icon", label: "c", icon: { code: "C", size: 40 }, font: { vadjust: 3 } },
+            ],
+            edges: [{ from: "a", to: "b" }],
+        });
+        expect(values(r, "node", "labelPosition")).toEqual(["center", "center", "center"]);
+        expect(values(r, "node", "labelOffsetY")).toEqual([30, 36, 33]);
     });
 
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {

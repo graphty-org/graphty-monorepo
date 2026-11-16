@@ -155,7 +155,7 @@ Every scope in a reading (`input`, `members`, `result`) is one
 
 `scope.asUnion(rule, { side, within })` turns a flat rule (a leaf, an `all` of leaves and `not`s,
 an `any` of leaves) into one union. `scope.checkStep(step, { side, within, host })` says what a
-host would refuse, so a picker can grey a value with the element's reason.
+host would refuse, so a picker can gray a value with the element's reason.
 `scope.histogram(path, { within })` distributes any value (a column, a run field, degree) over a
 step's input.
 

@@ -84,7 +84,7 @@ and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN
 `{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
 scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
 the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
-elements that joined or left without being touched. A set has no colour of its own -- colouring
+elements that joined or left without being touched. A set has no color of its own -- coloring
 one is this layer. A layer naming a set that was removed keeps painting the members the set's
 kept record names, so removing a set never blanks a layer.
 
@@ -253,11 +253,11 @@ A channel is one visual property with one name. These are all of them:
 
 | Node channel                  | Takes                                                                                                                                            |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `node.color`                  | any CSS colour                                                                                                                                   |
-| `node.gradientColor`          | any CSS colour: fills the node with a gradient from `node.color` into it                                                                         |
+| `node.color`                  | any CSS color                                                                                                                                    |
+| `node.gradientColor`          | any CSS color: fills the node with a gradient from `node.color` into it                                                                          |
 | `node.gradientDirection`      | 0 to 360: which way that gradient runs; 0 left to right, 90 downward                                                                             |
-| `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
-| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
+| `node.gradientColors`         | CSS colors separated by spaces: every color the gradient runs through, start to end, in place of the two above                                   |
+| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient color: where each sits (otherwise evenly spaced)                                          |
 | `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
 | `node.gradientCenterX`        | a radial gradient's middle across the node, 0 (left) to 1 (right); 0.5 by default                                                                |
 | `node.gradientCenterY`        | a radial gradient's middle down the node, 0 (top) to 1 (bottom); 0.5 by default                                                                  |
@@ -273,7 +273,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
 | `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
-| `node.borderColor`            | a colour; black when unset                                                                                                                       |
+| `node.borderColor`            | a color; black when unset                                                                                                                        |
 | `node.borderWidth`            | 0 or more, in the units of `node.size`; 0 draws no border                                                                                        |
 | `node.borderStyle`            | `solid`, `dashed`, `dotted`, `dash-dot`, `double`, `zigzag`, `sinewave`, `forward-slash`, `backward-slash`, `vertical-slash` or `separate-arrow` |
 | `node.cornerRadius`           | 0 or more: a round-rectangle's largest corner radius, in `node.size` units                                                                       |
@@ -285,7 +285,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
-| `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
+| `node.labelColor`             | any CSS color: the label's color                                                                                                                 |
 | `node.labelSize`              | a number: the label's font size                                                                                                                  |
 | `node.labelLetterSize`        | a number: how tall the letters (one font size) are drawn, in scene units                                                                         |
 | `node.labelFont`              | a font family                                                                                                                                    |
@@ -304,12 +304,12 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltip`                | the words to show on hover                                                                                                                       |
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
-| `node.outline`                | a colour                                                                                                                                         |
+| `node.outline`                | a color                                                                                                                                          |
 | `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
-| `node.glow`                   | a colour                                                                                                                                         |
+| `node.glow`                   | a color                                                                                                                                          |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
+| `node.haloColor`              | a color; the selection highlight's when unset (blue, `#0077BB`)                                                                                  |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
 | `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
@@ -318,7 +318,7 @@ A channel is one visual property with one name. These are all of them:
 
 | Edge channel                  | Takes                                                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `edge.color`                  | any CSS colour                                                                                                   |
+| `edge.color`                  | any CSS color                                                                                                    |
 | `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
 | `edge.opacity`                | 0 to 1                                                                                                           |
 | `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
@@ -334,7 +334,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                     |
 | `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                       |
 | `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                        |
-| `edge.arrowHeadColor`         | a colour                                                                                                         |
+| `edge.arrowHeadColor`         | a color                                                                                                          |
 | `edge.arrowHeadOpacity`       | 0 to 1                                                                                                           |
 | `edge.arrowHeadText`          | words drawn beside the head cap                                                                                  |
 | `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                             |
@@ -344,7 +344,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowTail`              | the same arrows                                                                                                  |
 | `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                       |
 | `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                     |
-| `edge.arrowTailColor`         | a colour                                                                                                         |
+| `edge.arrowTailColor`         | a color                                                                                                          |
 | `edge.arrowTailOpacity`       | 0 to 1                                                                                                           |
 | `edge.arrowTailText`          | words drawn beside the tail cap                                                                                  |
 | `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                             |
@@ -404,7 +404,7 @@ full strength, so `edge.opacity` and the fade have no effect on it, and a line u
 not drawn fainter.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
-without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
+without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labeled
 with its own id.
 
 ```typescript
@@ -745,7 +745,7 @@ a value in the data, through a scale:
 
 ```typescript
 await element.session.styles.add({
-    name: "Colour by community",
+    name: "Color by community",
     target: "node",
     selector: { match: "has", path: "data.community" },
     encode: { "node.color": { by: "data.community", scale: "ordinal", palette: "tableau10" } },
@@ -763,14 +763,14 @@ A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quan
 `passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map`, an
 `overflow` policy and a `missing` rule. `missing` defaults to `skip`, which leaves an element with
 no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"`,
-`"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
-`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
+`"pattern"` or `"extend"`) says what a categorical color does with more groups than its palette has colors;
+`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colors).
 
 When every value in the column is the same (a regular graph where every node has degree 3), a
 numeric scale has no spread to place anything in, so it paints the **middle** of its range or
 palette rather than either end, and the binding's legend block carries the fact
 `{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
-legend's swatch shows the same middle colour the canvas paints.
+legend's swatch shows the same middle color the canvas paints.
 
 ### A table of values, and what it leaves alone
 

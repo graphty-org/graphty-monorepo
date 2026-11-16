@@ -182,6 +182,7 @@ Graphty has peer dependencies on Babylon.js and Lit:
 {
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
+        "@babylonjs/loaders": "^8.0.0",
         "lit": "^3.0.0"
     }
 }
@@ -190,7 +191,7 @@ Graphty has peer dependencies on Babylon.js and Lit:
 These are typically installed automatically. If you need to install them manually:
 
 ```bash
-npm install @babylonjs/core lit
+npm install @babylonjs/core @babylonjs/loaders lit
 ```
 
 ## TypeScript Setup

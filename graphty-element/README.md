@@ -13,7 +13,7 @@ A Web Component for 3D/2D graph visualization built with Lit and Babylon.js.
 ## Quick Start
 
 ```bash
-npm install @graphty/graphty-element @babylonjs/core lit
+npm install @graphty/graphty-element @babylonjs/core @babylonjs/loaders lit
 ```
 
 ```html
@@ -69,11 +69,11 @@ npm install @graphty/graphty-element @babylonjs/core lit
 
 ## Browser Support
 
-Graphty works in all modern browsers that support Web Components:
+graphty-element runs in browsers with WebGL2 or WebGPU and the JavaScript its build targets:
 
-- Chrome/Edge 88+
-- Firefox 78+
-- Safari 14+
+- Chrome/Edge 111+
+- Firefox 114+
+- Safari 16.4+ (macOS and iOS)
 
 ## License
 

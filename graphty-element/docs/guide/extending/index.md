@@ -5,7 +5,7 @@ party may build against, and what the element promises not to break.
 
 | Extension point | What you bring                                                                             | Guide                                                |
 | --------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Palette         | A named set of colour anchors a style layer ramps through                                  | [Custom palettes](./custom-palettes)                 |
+| Palette         | A named set of color anchors a style layer ramps through                                   | [Custom palettes](./custom-palettes)                 |
 | File format     | A reader for a graph file the element does not ship, or a graph-io importer wrapped as one | [Custom file formats](./custom-data-sources)         |
 | Camera          | A way of deciding where the viewer stands and what they look at                            | [Custom camera views](./custom-cameras)              |
 | Layout          | An engine that decides where nodes sit                                                     | [Custom layouts](./custom-layouts)                   |
@@ -24,7 +24,7 @@ same route and with types you can import. Concretely, every one of the six:
 - appears in `session.catalog`, so a picker can offer it beside the element's own;
 - is addressable by the key you choose, wherever a built-in name is accepted;
 - is configured through one options mechanism, the plain-JSON `OptionDescriptor` list the
-  catalogue already publishes;
+  catalog already publishes;
 - reports failure as a `GraphtyError` carrying a code you can switch on;
 - is written in TypeScript against a published entry point, with no cast, no re-declared type and
   no reach into the package's source.
@@ -35,7 +35,7 @@ Available from graphty-element 3.0.
 
 Every extension point has two tiers. **The simple tier** is one function per point that takes a
 plain object: an id and the one or two functions that are your own logic. The element fills in
-everything else -- the catalogue entry, the options form, progress, cancellation and the coded
+everything else -- the catalog entry, the options form, progress, cancellation and the coded
 errors. **The advanced tier** is the registration each guide below describes: a descriptor and a
 base class or a registration object, for when you need speed, a result shape the simple tier does
 not produce, or full control.
@@ -50,7 +50,11 @@ not produce, or full control.
 A whole working page, with no build step:
 
 ```html
-<graphty-element id="graph" sample="karate"></graphty-element>
+<graphty-element
+    id="graph"
+    node-data='[{"id": "a"}, {"id": "b"}, {"id": "c"}]'
+    edge-data='[{"source": "a", "target": "b"}, {"source": "b", "target": "c"}]'
+></graphty-element>
 <script type="module">
     import { defineAlgorithm } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
 
@@ -60,7 +64,7 @@ A whole working page, with no build step:
 ```
 
 With a bundler, import the same name from `@graphty/graphty-element/extend`. A simple extension is
-an ordinary extension once it is defined: it appears in the catalogue beside the built-ins, and
+an ordinary extension once it is defined: it appears in the catalog beside the built-ins, and
 you can later rewrite it in the advanced tier under the same id without breaking anything a reader
 saved.
 
@@ -236,7 +240,7 @@ repaint an hour later.
 ## Registering only adds
 
 A page that imports no plugin sees exactly what it saw before. The element's own descriptor tables
-are frozen constants and nothing appends to them; composition happens where the catalogue is read.
+are frozen constants and nothing appends to them; composition happens where the catalog is read.
 Your code runs only when your key is named -- a registered layout lays nothing out, a registered
 palette paints nothing and a registered reader reads no file until a consumer asks for it.
 

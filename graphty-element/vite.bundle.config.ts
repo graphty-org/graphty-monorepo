@@ -101,6 +101,9 @@ export default defineConfig({
         ),
     },
     build: {
+        // The browsers README.md "Browser Support" promises; Vite 8's default, pinned so a Vite major
+        // cannot move it without the README.
+        target: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
         // The library build owns dist/. This one adds a file to it rather than replacing it.
         emptyOutDir: false,
         lib: {

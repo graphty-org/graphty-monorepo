@@ -2,7 +2,7 @@
 
 The element reads JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, XGMML, CX, CX2, Cytoscape sessions
 and OBO. A format it does not ship is a class extending `DataSource`, and registering it puts the
-format everywhere the built-in ones are: in the catalogue an import dialog reads, in extension and content detection, and in every
+format everywhere the built-in ones are: in the catalog an import dialog reads, in extension and content detection, and in every
 call that names a format by string.
 
 There are two ways to write one:
@@ -28,7 +28,7 @@ interface RosterConfig extends BaseDataSourceConfig {
     scoreScale?: number;
 }
 
-/** What the catalogue publishes, and what an import dialog renders. */
+/** What the catalog publishes, and what an import dialog renders. */
 const ROSTER_DESCRIPTOR: FormatDescriptor = {
     id: "roster",
     plainName: "Team Roster",
@@ -53,10 +53,10 @@ class RosterDataSource extends DataSource {
     /** The name a host asks for this format by, and the name the reader is filed under. */
     static override type = "roster";
 
-    /** What the catalogue publishes about it. Registration refuses a reader without one. */
+    /** What the catalog publishes about it. Registration refuses a reader without one. */
     static override descriptor: FormatDescriptor = ROSTER_DESCRIPTOR;
 
-    /** Optional: recognise the format from its first bytes, for a file whose name says nothing. */
+    /** Optional: recognize the format from its first bytes, for a file whose name says nothing. */
     static override detect = (sample: string): boolean => /^(roster|person|knows)\s/m.test(sample);
 
     readonly #config: RosterConfig;
@@ -251,14 +251,14 @@ What the class does around your importer:
 - The `error` issues in your report are aggregated like any reader's errors. Rejecting with
   `ImportError` refuses the whole file: the load fails with `E_PARSE_FAILED`, naming the format
   and the line of the last error, and the graph on screen stays as it was. Take `ImportError` from
-  `./extend`, not from your own copy of graph-io: the element recognises it with `instanceof`,
+  `./extend`, not from your own copy of graph-io: the element recognizes it with `instanceof`,
   which fails across copies.
 - The direction your importer set on the sink is declared as the file's only when `statedBy`
   returns words for it, which the element shows beside the graph's direction. Left out, or
   returning `null`, the file stated no direction and the element's own `data.directed` setting
   stands: a graph-io importer applies its own default to a silent file, and the element cannot
   tell that default from a statement.
-- Your importer's `sniff`, if it has one, recognises the format from content: a file whose
+- Your importer's `sniff`, if it has one, recognizes the format from content: a file whose
   first bytes it rates at 0.5 or more is detected as yours, as the built-in sniffers are.
 - The options your descriptor declares are checked against what a host passes and handed to your
   importer. `importOptions` fixes the rest (graph-io's `CommonImportOptions`, such as `ids`); a
@@ -322,7 +322,7 @@ await graph.loadFromUrl("https://example.com/team.roster");
 ```
 
 ```html
-<graphty-element data-source="roster" data="..."></graphty-element>
+<graphty-element data-source="roster" data-source-config='{"data": "..."}'></graphty-element>
 ```
 
 ## Validating each record
@@ -490,7 +490,7 @@ What the element does around it:
   detection.
 - The snapshot you are handed carries the node and edge attributes, the current positions (the
   `position` role column), every published algorithm result as columns named
-  `results.<runId>.<field>`, and the drawn colour, size, shape and edge width (`color`, `size`,
+  `results.<runId>.<field>`, and the drawn color, size, shape and edge width (`color`, `size`,
   `shape`, `thickness` role columns). Write what your format has a place for; report the rest from
   `check()` as loss notes, which `exportGraph` returns with the document. The element's own
   bookkeeping columns are never in it.
@@ -499,7 +499,7 @@ What the element does around it:
   role columns are left out. What it keeps is your exporter's `styles` member (below).
 - `writerOptions` declares the options your writer takes, as `OptionDescriptor`s. An export that
   names any other option is refused with `E_UNKNOWN_OPTION`, exactly as for the built-in
-  writers; graph-io's `sanitizeIds` and `onMixedDirection` are always accepted. The catalogue
+  writers; graph-io's `sanitizeIds` and `onMixedDirection` are always accepted. The catalog
   entry publishes the whole list as `writerOptions`, so a "Save as" dialog can offer them.
 - A throw from your writer reaches the caller as a `GraphtyError`: `E_UNSUPPORTED` when it carries
   a string `code` (you refused this graph under these options), `E_INTERNAL` otherwise, with your
@@ -538,7 +538,7 @@ application reads it to warn a reader before a save loses their styles.
 ## Deliberate limits
 
 **A reader's descriptor says `canExport: false`.** Writing is registered separately, with
-`registerFormatWriter` (below), which marks the catalogue entry writable. A reader descriptor that
+`registerFormatWriter` (below), which marks the catalog entry writable. A reader descriptor that
 claims `canExport: true` on its own is refused, so a "Save as" menu never offers a format nothing
 writes.
 

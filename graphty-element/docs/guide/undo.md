@@ -36,7 +36,7 @@ A change is undoable when it changes something a project saves, and only then:
 | Sets and saved camera views      | Creating, renaming, redefining, adding and removing members, removing and restoring a set; saving and removing a view |
 | The layout                       | Choosing a layout and what it runs over, switching between 2D and 3D, placing nodes, pinning and unpinning them       |
 | Where nodes came to rest         | The coordinates a layout settles on, recorded with the step that set it moving                                        |
-| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behaviour settings  |
+| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behavior settings   |
 
 Not undoable, because a project does not save them:
 
@@ -176,7 +176,7 @@ before putting it into HTML. `step.label`, an English sentence, is deprecated an
 major release.
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
+dragging a color picker, typing into a filter, moving the time window, placing nodes one at a
 time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
 merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
 queued work.
@@ -187,7 +187,7 @@ To make several changes one step, make them inside `session.transaction` through
 hands you:
 
 ```typescript
-await session.transaction("Load and colour", async (tx) => {
+await session.transaction("Load and color", async (tx) => {
     await tx.data.import({ type: "csv", config: { url: "/flights.csv" } });
     await tx.layout.set("circular");
     await tx.styles.add({
@@ -413,7 +413,7 @@ command registered with `registerCommand` joins that step only through `ctx.tx`:
 ```typescript
 // After enableAiControl(...)
 element.getAiManager()?.registerCommand({
-    name: "colourHubs",
+    name: "colorHubs",
     // ...description and parameters...
     async execute(graph, params, ctx) {
         await ctx.tx.styles.add({
@@ -422,7 +422,7 @@ element.getAiManager()?.registerCommand({
             selector: { match: "everything" },
             set: { "node.color": "#e4572e" },
         });
-        return { success: true, message: "Coloured the hubs" };
+        return { success: true, message: "Colored the hubs" };
     },
 });
 ```
@@ -456,7 +456,7 @@ What happens when the reader edits during a message:
 
 ## Plugin algorithms without a descriptor
 
-An algorithm registered the 1.x way, by `namespace` and `type` with no catalogue descriptor, is
+An algorithm registered the 1.x way, by `namespace` and `type` with no catalog descriptor, is
 still one step. While it runs, the `Graph` it is handed records everything it writes -- node and
 edge values, graph-level results, doors it calls such as `addNodes` or `styles` -- into that one
 step, and undo takes all of it back. Such a plugin needs no change. An algorithm with a descriptor

@@ -589,7 +589,7 @@ if (!check.valid) {
 
 `AI_STATES`, `AI_STAGES` and `AI_TOOL_CALL_STATUSES` list every value `status.state`,
 `status.stage` and a tool call's `status` can take, for a status display keyed by value. The
-catalogue holds no labels and no order: choose your own.
+catalog holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
 from a cancelled command or a failed tool without reading `result.message`, which is English

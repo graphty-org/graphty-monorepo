@@ -187,9 +187,10 @@ describe("every model format and variant, through the Load custom model dialog",
         await choose(dialog, variant);
 
         if (variant.refused?.code === "E_MODEL_AMBIGUOUS") {
-            const files = await within(dialog).findByTestId("model-files");
-            assert.isNotNull(await within(files).findByRole("combobox", { name: "Which file is the model" }));
-            assert.isNull(within(dialog).queryByRole("img"), "no preview until the reader picks one");
+            // Several models in one drop are a set: each is offered, one preview at a time.
+            const position = await within(dialog).findByTestId("model-position");
+            assert.equal(position.textContent, "1 of 2");
+            assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
             return;
         }
         if (variant.refused !== null) {

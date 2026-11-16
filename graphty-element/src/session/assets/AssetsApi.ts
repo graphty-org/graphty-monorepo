@@ -728,10 +728,18 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
         return promise;
     }
 
-    signal.throwIfAborted();
+    const stopped = (): Error => (signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+    // Rejected, never thrown: `ready` and `supply` return this, and a caller chaining `.catch` on
+    // them must hear an already-stopped signal there.
+    if (signal.aborted) {
+        // Nobody waits for the work now, so its own failure is not an unhandled rejection.
+        promise.catch(() => undefined);
+        return Promise.reject(stopped());
+    }
+
     return new Promise<T>((resolve, reject) => {
         const onAbort = (): void => {
-            reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+            reject(stopped());
         };
         signal.addEventListener("abort", onAbort, { once: true });
         promise.then(

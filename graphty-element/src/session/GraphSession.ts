@@ -3279,7 +3279,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
             batched: () => internals.batched?.() === true,
-            visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
+            visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.
             working: () => working,
         },

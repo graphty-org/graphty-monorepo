@@ -23,9 +23,9 @@ const ORIGIN_NAMES = new Set(["fileStyleOf", "FileStyleOrigin", "fileStyleWords"
 
 /**
  * The name a member expression or a property key names, or null when it is computed from a non-literal.
- * @param {import("estree").Node} key - The key.
- * @param {boolean} computed - Whether it is written in brackets.
- * @returns {string | null} The name.
+ * @param key - The key.
+ * @param computed - Whether it is written in brackets.
+ * @returns The name.
  */
 function keyName(key, computed) {
     if (!computed && key.type === "Identifier") return key.name;
@@ -35,8 +35,8 @@ function keyName(key, computed) {
 
 /**
  * Whether an expression is a program source: an identifier named `source` or a member access of `.source`.
- * @param {import("estree").Node} node - The expression.
- * @returns {boolean} Whether it is.
+ * @param node - The expression.
+ * @returns Whether it is.
  */
 function isSource(node) {
     if (node.type === "ChainExpression") return isSource(node.expression);
@@ -46,8 +46,8 @@ function isSource(node) {
 
 /**
  * Whether a module specifier is graph-io or one of its subpaths.
- * @param {unknown} value - The specifier.
- * @returns {boolean} Whether it is.
+ * @param value - The specifier.
+ * @returns Whether it is.
  */
 function isGraphIo(value) {
     return typeof value === "string" && (value === "@graphty/graph-io" || value.startsWith("@graphty/graph-io/"));
@@ -79,7 +79,7 @@ export default {
 
         /**
          * Report every `tool` key an object pattern destructures from a source.
-         * @param {import("estree").ObjectPattern} pattern - The pattern.
+         * @param pattern - The pattern.
          */
         const toolsIn = (pattern) => {
             for (const property of pattern.properties) {

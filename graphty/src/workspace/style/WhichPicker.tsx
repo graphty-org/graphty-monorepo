@@ -613,7 +613,7 @@ function WhichRow({
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
-        <div // NOSONAR(S6819): an undrawn heading around the disclosure button (the accordion pattern); an h3 would restyle the button's text
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an undrawn heading around the disclosure button (the accordion pattern); an h3 would restyle the button's text
             role="heading"
             aria-level={3}
             style={{ display: "contents" }}
@@ -1637,7 +1637,7 @@ export function AddCondition({
                     ))}
             </Combobox.Target>
             <Combobox.Dropdown>
-                <Combobox.Search // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on a combobox
+                <Combobox.Search // eslint-disable-line jsx-a11y/role-supports-aria-props -- aria-description is a global ARIA 1.3 attribute, valid on a combobox
                     value={search}
                     onChange={(event) => {
                         setSearch(event.currentTarget.value);
@@ -2052,7 +2052,7 @@ function CardEditor({
     const name = card.type === "fixed" ? cardWords(session, card) : cardName(card);
     const label = count === undefined ? name : `${name}, ${many(count, side)}`;
     return (
-        <div // NOSONAR(S6819): an ARIA group naming one card's controls; a fieldset draws its own border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming one card's controls; a fieldset draws its own border and legend
             role="group"
             aria-label={label}
             className="ws-card"
@@ -3691,7 +3691,7 @@ function LayerCard({
     );
     const line = words.length > 3 ? `${words.slice(0, 3).join(", ")}, +${String(words.length - 3)}` : words.join(", ");
     return (
-        <div // NOSONAR(S6819): an ARIA group naming one card's controls; a fieldset draws its own border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming one card's controls; a fieldset draws its own border and legend
             role="group"
             aria-label={`${name}, from each layer, ${layers}`}
             className="ws-card"
@@ -3784,7 +3784,7 @@ function LayerLine({
     const count = useLeafCount(session, card === undefined ? null : styleLeafOf(card), side);
     const words = card === undefined ? "no card" : withoutField(cardWords(session, card), field);
     return (
-        <div // NOSONAR(S6819): a list item of an ARIA list drawn as a stack; an li would draw a bullet and indent
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a list item of an ARIA list drawn as a stack; an li would draw a bullet and indent
             role="listitem"
         >
             <UnstyledButton className="ws-card-layer-line" onClick={onPick}>

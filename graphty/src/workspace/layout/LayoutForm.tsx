@@ -532,7 +532,7 @@ export function LayoutForm({
     ) : undefined;
 
     return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls for the host
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the form's own controls for the host
             aria-label={layoutName(descriptor)}
             ref={formRef}
             onKeyDown={onKeyDown}

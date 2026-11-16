@@ -200,7 +200,7 @@ function NumberValues({
                         const to = i === preview.steps.length ? preview.domain?.[1] : preview.steps[i];
                         return (
                             <DataRow
-                                key={i} // NOSONAR(S6479): a step's place is its identity; the steps never reorder
+                                key={i} // eslint-disable-line react/no-array-index-key -- a step's place is its identity; the steps never reorder
                                 stat
                                 name={`${formatNumber(from ?? 0)} to ${formatNumber(to ?? 0)}`}
                                 value={n}

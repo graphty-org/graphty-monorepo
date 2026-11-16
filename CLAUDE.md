@@ -227,8 +227,8 @@ Why these rules exist, and the defects that showed it: graphty/CLAUDE.md, "graph
 This file holds only the rules every session needs. Read the rest when your task reaches it:
 
 - `tools/README.md` -- before running builds, tests, servers or any script under `tools/`: commands, the tools
-  table, the secret scan, SonarQube, starting servers, test projects, the full testing and quarantine rules, where a
-  change takes effect, parallel agents and the GitHub API budget.
+  table, the secret scan, lint and duplicate code findings, starting servers, test projects, the full testing and
+  quarantine rules, where a change takes effect, parallel agents and the GitHub API budget.
 - `.github/workflows/README.md` -- before touching CI, a release, versions, screenshots or the held nightly: the
   channels, every workflow, dead links, the full run and nightly, versions and npm, visual review, sites, the build
   system and grouping breaking changes.
@@ -304,10 +304,11 @@ pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to st
 
 - Tokens live in the root `.env` (gitignored); never read, print or put one on a command line. A secretlint false
   positive goes in `.secretlintignore`.
-- Run `node tools/sonar-gate.mjs` before `pr-open.sh` and fix every finding on your changed lines; a false positive
-  gets `// NOSONAR(<rule>): <reason>` (say so in your reply); a function you edit that scores 16 to 20 comes down
-  to 15 ("touch it, fix it"). Never bypass without saying so; report "SonarQube step cannot run" to the owner. Full
-  rules: tools/README.md, "SonarQube".
+- Fix every lint finding on your changed lines (SonarQube's rules run in ESLint); a false positive gets
+  `// eslint-disable-next-line <rule> -- <reason>` (say so in your reply). Never add to `eslint-suppressions.json`
+  to get a change through, except a deliberate legacy carry-over, and say so. A new duplicate found by
+  `pnpm run check:duplicates` (jscpd) is reused or extracted; a deliberate parallel goes in `.jscpd.json` with a
+  reason. Full rules: tools/README.md, "Lint and duplicate code findings".
 - Only the owner approves screenshots, releases and Figma changes. Agents never press Accept or Finish, never write
   under `visual-baselines/` or `visual-review-approvals/`, never edit `visual-review/passkeys.json`,
   `visual-review/trusted/` or the gate step and story-test jobs in ci.yml, and never make a visual check pass by

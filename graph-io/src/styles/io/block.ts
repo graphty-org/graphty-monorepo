@@ -546,7 +546,7 @@ function columnHash(table: GraphSnapshot["nodes"], column: string, n: number): s
     for (let i = 0; i < n; i++) {
         const text = `${cellText(plainCell(table.value(column, i)))}\u0000`;
         for (let c = 0; c < text.length; c++) {
-            const code = text.charCodeAt(c); // NOSONAR(S7758): hashes UTF-16 code units; code points would change every written hash
+            const code = text.charCodeAt(c); // eslint-disable-line unicorn/prefer-code-point -- hashes UTF-16 code units; code points would change every written hash
             h1 = Math.imul(h1 ^ code, 0x01000193);
             h2 = Math.imul(h2 ^ code, 0x01000193) ^ (h2 >>> 13);
         }

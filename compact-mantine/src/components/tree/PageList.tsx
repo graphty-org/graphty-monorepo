@@ -82,11 +82,11 @@ export const PageRow = forwardRef<HTMLDivElement, PageRowProps>(function PageRow
         );
     }
     return (
-        <div // NOSONAR(S6819): an ARIA grid of divs; table elements cannot hold the roving row layout
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA grid of divs; table elements cannot hold the roving row layout
             role="row"
             className={hasMenu ? "cm-page-row" : undefined}
         >
-            <div // NOSONAR(S6819): an ARIA grid of divs; a td needs a table around it
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA grid of divs; a td needs a table around it
                 ref={ref}
                 role="gridcell"
                 tabIndex={tabIndex}
@@ -105,7 +105,7 @@ export const PageRow = forwardRef<HTMLDivElement, PageRowProps>(function PageRow
                 )}
             </div>
             {hasMenu && (
-                <div // NOSONAR(S6819): an ARIA grid of divs; a td needs a table around it
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA grid of divs; a td needs a table around it
                     role="gridcell"
                     className="cm-page-menu"
                 >

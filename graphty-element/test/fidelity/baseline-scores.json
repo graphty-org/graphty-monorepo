@@ -248,7 +248,7 @@
             "edgeWidth": []
         },
         "cys-annotation-example": {
-            "edgePath": ["YPL248C->YML051W","YPL248C->YML051W#1"],
+            "edgePath": ["YPL248C->YML051W#1"],
             "annotations": ["arrow#2","arrow#3","extra arrow#0","extra arrow#5","extra text#2","extra text#3","extra text#4","text#1","text#4","text#5"]
         },
         "gexf-miserables": {
@@ -259,7 +259,7 @@
             "edgePath": ["5->5"]
         },
         "xgmml-basicdataviz": {
-            "edgePath": ["YPL248C->YML051W","YPL248C->YML051W#1"]
+            "edgePath": []
         }
     },
     "reasons": [

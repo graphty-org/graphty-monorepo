@@ -17,7 +17,7 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 110 | 0 | 107 | 0 |
-| gml | 109 | 109 | 0 | 98 | 4 |
+| gml | 109 | 109 | 0 | 98 | 0 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 427 | 0 | 109 | 0 |
 | neo4j | 45 | 30 | 15 | 29 | 0 |
@@ -193,13 +193,7 @@ No known failures.
 
 ## gml
 
-### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
+No known failures.
 
 ## graphml
 

@@ -706,7 +706,11 @@ function addBlock(
  * @param failure - why graphty-element could not draw the model shown, if it could not
  * @returns Add's tooltip while blocked, or null
  */
-function drawBlock(taking: readonly Member[], current: Member | undefined, failure: CodedFact | undefined): string | null {
+function drawBlock(
+    taking: readonly Member[],
+    current: Member | undefined,
+    failure: CodedFact | undefined,
+): string | null {
     for (const member of taking) {
         if (member !== current && member.checked !== true) {
             return CUSTOM_MODEL.loading(member.name);

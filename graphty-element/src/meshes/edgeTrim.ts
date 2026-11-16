@@ -177,6 +177,15 @@ export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     } else if (span > 0) {
         start = surfaceEnd(src, dir, source, span);
         end = surfaceEnd(dst, back, target, span);
+        // two overlapping nodes meet the line in the wrong order: they have no line between them either
+        if (
+            start !== null &&
+            end !== null &&
+            (end.x - start.x) * dir.x + (end.y - start.y) * dir.y + (end.z - start.z) * dir.z <= 0
+        ) {
+            start = null;
+            end = null;
+        }
     }
 
     if (start !== null && end !== null) {
@@ -293,6 +302,10 @@ EdgeTrimmed edgeTrimEnds(vec3 src, vec3 dst, EdgeTrimEnd source, EdgeTrimEnd tar
     } else if (span > 0.0) {
         ends.hasSrc = edgeTrimSurface(src, dir, source, span, ends.src);
         ends.hasDst = edgeTrimSurface(dst, -dir, target, span, ends.dst);
+        if (ends.hasSrc && ends.hasDst && dot(ends.dst - ends.src, dir) <= 0.0) {
+            ends.hasSrc = false;
+            ends.hasDst = false;
+        }
     }
 
     if (ends.hasSrc && ends.hasDst) {

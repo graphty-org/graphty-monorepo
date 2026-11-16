@@ -237,7 +237,7 @@ This file holds only the rules every session needs. Read the rest when your task
 - The package's own `CLAUDE.md` -- before working in that package (Claude Code loads it there). graphty-element's
   holds WebGPU ownership, graph styling, algorithm styles, the public API review and the module system; graphty's
   holds the UI component rules.
-- `design/` -- architecture and design documents (start at `design/monorepo-design.md`); `.claudehistory/` --
+- `design/` -- architecture and design documents (start at `design/monorepo/monorepo-design.md`); `.claudehistory/` --
   transcripts of past sessions in this repository, for context from earlier work.
 
 `tools/claude-md-size.test.mjs` fails when this file passes 30 KB or a package `CLAUDE.md` passes 20 KB: move

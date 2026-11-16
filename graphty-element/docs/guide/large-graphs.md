@@ -58,7 +58,7 @@ console.log(graph.session.capabilities.limits.renderCeiling); // 1000000
 ```
 
 On `"objects"` the `limits` are ignored and the element fires `limits-warning` with the code
-`W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-more-than-100000-nodes) for the caps on
+`W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-more-than-100-000-nodes) for the caps on
 how many object rows a batched graph may hold.
 
 ## Loading the fastest way

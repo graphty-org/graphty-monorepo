@@ -47,6 +47,9 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `parallel-edges.merged` -- parallel edges were merged into one, every member of a group
  *   carrying the merged value: `{ count, policy }`, how many were merged and how their weights
  *   combined (`"sum"`, `"min"` or `"max"`).
+ * - `direction.mixed` -- the graph mixes directed and undirected edges, and the run read every
+ *   edge alike, with the graph's default direction: `{ directed }`, true when it read them as
+ *   directed.
  * - `input.empty` -- the graph held nothing for the algorithm to measure.
  * - `sampled.instead-of-exact` -- the run sampled rather than computed exactly: `{ method, name,
  *   sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the
@@ -157,6 +160,7 @@ export type CaveatCode =
     | "scope.induced-subgraph"
     | "scope.subgraph"
     | "parallel-edges.merged"
+    | "direction.mixed"
     | "input.empty"
     | "defined.nothing-measured"
     | "defined.long-task"
@@ -298,6 +302,8 @@ const CAVEAT_SENTENCES: Readonly<Record<CaveatCode, (text: Text, params: CodedFa
         `${text("count")} parallel ${params.count === 1 ? "edge was" : "edges were"} merged, ${MERGED_WEIGHTS[text("policy")] ?? text("policy")}, ` +
         "because this algorithm runs over a graph that holds one edge per pair. Every member of a merged " +
         "group carries the merged value.",
+    "direction.mixed": (_, params) =>
+        `The graph mixes directed and undirected edges; every edge was read as ${params.directed === true ? "directed" : "undirected"}.`,
     "input.empty": () => "The graph had nothing for this algorithm to measure.",
     "defined.nothing-measured": (text) =>
         `${text("algorithm")}: no ${text("kind")} was measured -- did the function return NaN or undefined for every ${text("kind")}?`,

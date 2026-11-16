@@ -28,6 +28,13 @@ describe("a caveat fact", () => {
         );
     });
 
+    it("words a mixed graph's direction", () => {
+        assert.strictEqual(
+            caveatSentence(caveat("direction.mixed", { directed: false })),
+            "The graph mixes directed and undirected edges; every edge was read as undirected.",
+        );
+    });
+
     it("words merged parallel edges and an empty input as before", () => {
         assert.strictEqual(
             caveatSentence(caveat("parallel-edges.merged", { count: 1, policy: "min" })),

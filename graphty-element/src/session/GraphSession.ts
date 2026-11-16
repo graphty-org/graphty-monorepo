@@ -11,7 +11,7 @@
  * entry point's import graph and fails if a renderer appears in it.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { directedness, edgeIsDirected, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import {
     ACCELERATION_POLICY_DEFAULT,
@@ -4307,7 +4307,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         transient: () => peekLayers,
-        directed: () => snapshot().directed,
+        // Any edge directed: a file can mix directed and undirected edges (graph-format's role
+        // "directed" column), and a head no layer chose is drawn on each directed one.
+        directed: () => directedness(snapshot()) !== "undirected",
+        edgeDirected: (edge: number) => edgeIsDirected(snapshot(), edge),
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {
             const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;

@@ -166,6 +166,12 @@
             "reason": "Counts the parallel edges a run merges for its caveat, over the original; to count the run's input."
         },
         {
+            "file": "src/managers/AlgorithmManager.ts",
+            "function": "mixedDirection",
+            "case": "not agreed",
+            "reason": "Whether the graph mixes edge directions, for a run's caveat, over the original as mergedParallelEdges reads it."
+        },
+        {
             "file": "src/layout/LayoutEngine.ts",
             "function": "StaticLayoutEngine.#load",
             "case": "not agreed",

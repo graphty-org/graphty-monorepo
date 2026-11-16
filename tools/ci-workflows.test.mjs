@@ -6384,7 +6384,7 @@ describe("the commit and push hooks", () => {
     it("the source-only checks start the commonest failures first and stop at the first failure", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
-        for (const step of [...steps, "SonarQube (changed lines)"]) {
+        for (const step of [...steps, "SonarQube (changed lines)", "Duplicate code"]) {
             assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
         // The two commonest failures start first, in the background, before any other check.

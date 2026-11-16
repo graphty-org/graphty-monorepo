@@ -1484,6 +1484,13 @@ jobs:
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
 
+            # Duplicate code: a new exact clone between two pieces of non-test code, one in a file this change
+            # touches, fails; clones touching tests are listed only. Measured from the merge base with master
+            # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
+            # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
+            - name: Duplicate code
+              run: pnpm run check:duplicates
+
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now

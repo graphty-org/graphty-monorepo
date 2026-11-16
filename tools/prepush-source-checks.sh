@@ -204,6 +204,11 @@ else
         "env -u PUSH_BASE_REF -u BROWSER_SLOT_PRIORITY -u GRAPHTY_SLOT_PRIORITY \$(compgen -e | grep -E '^(PREPUSH_|PUSH_QUEUE_|PUSH_REMOTE_|VISUAL_PREVIEW_)' | sed 's/^/-u /') pnpm run test:ci-workflows" \
         "$ROOT_DIR/tmp/prepush-steps/ci-workflow-tests.log"
 
+    # Duplicate code: jscpd on the checkout and the push base; a new exact clone between two pieces of
+    # non-test code, one of them in a file this push changes, fails (tools/duplicates-check.mjs). About
+    # 15 s, so in the background beside the checks below.
+    bg_step "Duplicate code" "pnpm run check:duplicates" "$ROOT_DIR/tmp/prepush-steps/duplicates.log"
+
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
     # touches. The [s] and [-] keep the patterns from matching this line itself.
     run_step "No signing bypass in tools/ and .husky/" \

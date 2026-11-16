@@ -112,7 +112,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
 }
 
 describe("tools/check-quick.sh", () => {
-    it("runs formatting, lint, the selected tests and SonarQube from the base, without the old gate's settings", () => {
+    it("runs formatting, lint, the selected tests, SonarQube and the duplicate check from the base, without the old gate's settings", () => {
         const { r, pnpm, tests, sonar, gpu } = sandbox();
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec prettier --check --ignore-unknown changed\.ts$/m, "the changed file only");
@@ -130,6 +130,7 @@ describe("tools/check-quick.sh", () => {
         assert.equal(tests.env.GRAPHTY_TEST_SLOTS, "3", "the slot count stays");
         assert.equal(tests.env.GIT_CONFIG_GLOBAL, "/dev/null", "tests read no developer git config");
         assert.equal(sonar.env.PUSH_BASE_REF, "main", "SonarQube measures from the same base");
+        assert.match(pnpm, /^run check:duplicates$/m, "the duplicate code check runs");
         assert.equal(gpu, undefined, "no GPU run when webgpu-graph-algorithms is not affected");
         assert.doesNotMatch(pnpm, /docs:build|check:bundle-size|run size/, "no docs or bundle step when unaffected");
         assert.match(r.stdout, /\[PASS\] quick check/);

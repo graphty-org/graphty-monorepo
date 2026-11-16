@@ -56,6 +56,7 @@ writeFileSync(
     review,
     `#!/bin/bash
 printf '<!-- fresh-review abc123 -->\\n\\nBlocking findings: 0\\n' > ${JSON.stringify(report)}
+echo "$PR_REVIEW_REFS $*" > ${JSON.stringify(join(dir, "review.args"))}
 echo ${JSON.stringify(report)}
 exit "\${FAKE_REVIEW_RC:-0}"
 `,
@@ -165,6 +166,34 @@ describe("pr-open.sh", () => {
         assert.match(body, /^- fix\(tools\): a fix$/m);
         assert.match(body, /^Fixes #1234$/m);
         assert.match(body, /^## Proof\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+    });
+
+    it("writes Fixes for every issue the commits close and Refs for every one they only name", () => {
+        branch("fix/1001-group", { "a.txt": "a\n" }, "fix(tools): the first\n\nFixes #1");
+        writeFileSync(join(work, "b.txt"), "b\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "fix(tools): the second\n\nfixes #2, Refs #3 and resolves: #1 and #1001");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        const body = readFileSync(join(dir, "body.md"), "utf8");
+        assert.match(body, /\n\nFixes #1001\nFixes #1\nFixes #2\nRefs #3\n\n## Proof/);
+        assert.equal(
+            readFileSync(join(dir, "review.args"), "utf8").trim(),
+            "0 --proof " + proof + " --issue 1001 --reuse",
+        );
+    });
+
+    it("keeps a single-issue body as it was, and tells the review its issue is Refs with --refs", () => {
+        branch(
+            "fix/1007-alone",
+            { "a.txt": "a\n" },
+            "fix(tools): alone\n\nFixes #1007, as the prefix and hotfix #9 say",
+        );
+        const r = run(["--proof", proof, "--refs"]);
+        assert.equal(r.code, 0, r.out);
+        const body = readFileSync(join(dir, "body.md"), "utf8");
+        assert.match(body, /^- fix\(tools\): alone\n\nRefs #1007\n\n## Proof/);
+        assert.match(readFileSync(join(dir, "review.args"), "utf8"), /^1 /);
     });
 
     it("logs the whole run's time and the review's, with their exit codes, to the step log", () => {

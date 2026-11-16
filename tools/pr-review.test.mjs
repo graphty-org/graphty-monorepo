@@ -31,21 +31,21 @@ printf '%s\\n' "$FAKE_OUT"
 );
 // The issue as tools/issue-queue.mjs reads it, through `gh api graphql` (#6901: never `gh issue view`).
 const issueJson = join(dir, "issue.json");
-const writeIssue = (author = "graphty-agent") =>
+const writeIssue = (author = "graphty-agent", number = 1234, title = "Build the review script", file = issueJson) =>
     writeFileSync(
-        issueJson,
+        file,
         JSON.stringify({
             data: {
                 repository: {
                     issue: {
-                        number: 1234,
-                        title: "Build the review script",
+                        number,
+                        title,
                         state: "OPEN",
                         createdAt: "2026-11-12T00:00:00Z",
                         author: { __typename: "User", login: author },
                         editor: null,
                         lastEditedAt: null,
-                        body: "The body of the issue.",
+                        body: number === 1234 ? "The body of the issue." : `The body of issue ${number}.`,
                         labels: { nodes: [] },
                         comments: { totalCount: 0, nodes: [] },
                     },
@@ -53,10 +53,17 @@ const writeIssue = (author = "graphty-agent") =>
             },
         }),
     );
+// Another issue N answers from issue-N.json when one is written (writeMember).
 writeFileSync(
     join(bin, "gh"),
-    `#!/bin/bash\n[ "$1 $2" = "api graphql" ] || exit 9\ncat ${JSON.stringify(issueJson)}\n`,
+    `#!/bin/bash
+[ "$1 $2" = "api graphql" ] || exit 9
+for a; do case "$a" in number=*) f=${JSON.stringify(dir)}/issue-\${a#number=}.json; [ -f "$f" ] && exec cat "$f" ;; esac; done
+cat ${JSON.stringify(issueJson)}
+`,
 );
+const writeMember = (number, author = "graphty-agent") =>
+    writeIssue(author, number, `Member problem ${number}`, join(dir, `issue-${number}.json`));
 chmodSync(join(bin, "claude"), 0o755);
 chmodSync(join(bin, "gh"), 0o755);
 
@@ -75,6 +82,7 @@ beforeEach(() => {
     n += 1;
     for (const f of [argsLog, promptLog]) rmSync(f, { force: true });
     writeIssue();
+    for (const m of [1, 2, 3]) writeMember(m);
     const origin = join(dir, `origin-${n}.git`);
     work = join(dir, `work-${n}`);
     git(dir, "init", "-q", "--bare", "-b", "master", origin);
@@ -106,7 +114,109 @@ const patchId = () => {
 };
 const reportPath = () => join(work, "tmp/pr-review/fix/1234-thing/report.md");
 
+// A group: commits that name #1 and #2 as fixed and #3 as referenced, beside the branch's own #1234.
+const group = () => {
+    writeFileSync(join(work, "b.txt"), "b\n");
+    git(work, "add", "b.txt");
+    git(work, "commit", "-q", "-m", "fix(tools): the first\n\nFixes #1");
+    writeFileSync(join(work, "c.txt"), "c\n");
+    git(work, "add", "c.txt");
+    git(work, "commit", "-q", "-m", "fix(tools): the second\n\nCloses: #2\nRefs #3");
+};
+const ALL_ADDRESSED =
+    "Member #1234: addressed -- a.txt\nMember #1: addressed -- b.txt\nMember #2: addressed -- c.txt\n";
+
 describe("pr-review.sh", () => {
+    it("reviews a group against every member's issue text, each in its own tagged section", () => {
+        group();
+        const r = run(undefined, `${ALL_ADDRESSED}\nBlocking findings: 0`);
+        assert.equal(r.code, 0, r.out);
+        const prompt = readFileSync(promptLog, "utf8");
+        const tag = prompt.match(/^===== ISSUE #1234 \(Fixes\) \[([0-9a-f]{16})\] =====$/m)?.[1];
+        assert.ok(tag, prompt);
+        const sections = prompt.split(new RegExp(`^===== (.*) \\[${tag}\\] =====$`, "m"));
+        assert.deepEqual(
+            sections.filter((_, i) => i % 2 === 1),
+            [
+                "ISSUE #1234 (Fixes)",
+                "ISSUE #1 (Fixes)",
+                "ISSUE #2 (Fixes)",
+                "ISSUE #3 (Refs)",
+                "PROOF",
+                "DIFF (git diff origin/master...HEAD)",
+            ],
+        );
+        assert.match(sections[4], /^#1 Member problem 1$/m);
+        assert.match(sections[6], /^#2 Member problem 2$/m);
+        assert.match(sections[8], /^#3 Member problem 3$/m);
+        assert.match(sections[0], /^Fixes #1234\nFixes #1\nFixes #2\nRefs #3$/m);
+        assert.match(sections[0], /Member #N: addressed/);
+        assert.match(
+            readFileSync(reportPath(), "utf8"),
+            /^<!-- review-members Fixes #1234 Fixes #1 Fixes #2 Refs #3 -->$/m,
+        );
+    });
+
+    it("blocks when a member the pull request would close is not addressed, or not answered", () => {
+        group();
+        let r = run(
+            undefined,
+            "Member #1234: addressed -- a\nMember #1: addressed -- b\nMember #2: not addressed -- untouched\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        assert.match(readFileSync(reportPath(), "utf8"), /Blocking findings: 1\n?$/);
+        r = run(
+            ["--proof", proof, "--again"],
+            "Member #1234: addressed -- a\nMember #1: addressed -- b\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, `an unanswered member blocks: ${r.out}`);
+        // the Refs member needs no answer; with --refs the branch's own issue needs none either
+        r = run(
+            ["--proof", proof, "--again"],
+            "Member #1: addressed -- b\nMember #2: addressed -- c\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        const refs = spawnSync("bash", [script, "--proof", proof, "--again"], {
+            cwd: work,
+            env: {
+                ...env,
+                PR_REVIEW_REFS: "1",
+                FAKE_OUT: "Member #1: addressed -- b\nMember #2: addressed -- c\n\nBlocking findings: 0",
+            },
+            encoding: "utf8",
+        });
+        assert.equal(refs.status, 0, refs.stdout + refs.stderr);
+        assert.match(readFileSync(promptLog, "utf8"), /^===== ISSUE #1234 \(Refs\) \[/m);
+    });
+
+    it("refuses a group whose fixed member is untrusted, and withholds an untrusted Refs member", () => {
+        group();
+        writeMember(2, "someone-else");
+        let r = run(undefined, `${ALL_ADDRESSED}\nBlocking findings: 0`);
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /could not read issue #2/);
+        assert.ok(!existsSync(argsLog), "claude was not called");
+        writeMember(2);
+        writeMember(3, "someone-else");
+        r = run(undefined, `${ALL_ADDRESSED}\nBlocking findings: 0`);
+        assert.equal(r.code, 0, r.out);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /\(withheld: tools\/issue-queue\.mjs refused issue #3/);
+        assert.ok(!prompt.includes("Member problem 3"));
+    });
+
+    it("reviews a clean group report again when a member joins", () => {
+        group();
+        assert.equal(run(undefined, `${ALL_ADDRESSED}\nBlocking findings: 0`).code, 0);
+        rmSync(argsLog);
+        assert.equal(run(["--proof", proof, "--reuse"]).code, 0, "the same members reuse the clean report");
+        assert.ok(!existsSync(argsLog));
+        git(work, "commit", "-q", "--allow-empty", "-m", "fix(tools): a joiner\n\nFixes #3");
+        const r = run(["--proof", proof, "--reuse"], `${ALL_ADDRESSED}\nBlocking findings: 0`);
+        assert.equal(r.code, 3, `#3 joined and was not answered: ${r.out}`);
+        assert.ok(existsSync(argsLog), "the joined group was reviewed again");
+    });
+
     it("sends a fresh claude -p the issue, the Proof and the diff, and nothing else", () => {
         const r = run();
         assert.equal(r.code, 0, r.out);

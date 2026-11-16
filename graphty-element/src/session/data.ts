@@ -71,7 +71,7 @@ import {
     resolveLocation,
 } from "../layout/locationMap/source";
 import { eachAdjacentArc } from "./adjacency";
-import { describeAttributes } from "./attributes";
+import { describeAttributes, describeShownFigures } from "./attributes";
 import {
     convertValue,
     isValueType,
@@ -850,6 +850,11 @@ export class SessionData implements SessionDataApi {
     private derived: Derived | null = null;
     /** The statistics of each working graph view read, kept while the view is. */
     private readonly viewStatistics = new WeakMap<WorkingView, GraphStatistics>();
+    /** The columns' figures over what one view shows, and the whole graph's columns they were laid on. */
+    private readonly viewColumns = new WeakMap<
+        WorkingView,
+        { readonly whole: readonly AttributeDescriptor[]; readonly shown: readonly AttributeDescriptor[] }
+    >();
     /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
     private draft: Draft | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
@@ -2510,7 +2515,7 @@ export class SessionData implements SessionDataApi {
             return typeof value === "number" && Number.isFinite(value) ? value : undefined;
         };
         if (asked !== undefined) {
-            resolveColumn(this.attributes(), { kind: "edge", name: asked.attribute });
+            resolveColumn(this.columns(), { kind: "edge", name: asked.attribute });
             return { measuredBy: asked, read: fromRecords(asked.attribute) };
         }
 
@@ -2523,7 +2528,7 @@ export class SessionData implements SessionDataApi {
 
         const meaning = this.readConfig().knownFields.edgeWeightMeaning === "distance" ? "distance" : "strength";
         const measuredBy: WeightMeaning = { attribute, meaning };
-        const carried = this.attributes().some((column) => column.kind === "edge" && column.name === attribute);
+        const carried = this.columns().some((column) => column.kind === "edge" && column.name === attribute);
         // A session with no view holds no record attributes, only the store's weights, where a
         // missing number already weighs 1.
         return {
@@ -3060,7 +3065,7 @@ export class SessionData implements SessionDataApi {
     private foundIssues(): readonly FoundIssue[] {
         const state = this.issueState();
         const snapshot = this.current();
-        const columns = this.attributes();
+        const columns = this.columns();
         const known = this.readConfig().knownFields;
         const gazetteer = gazetteerGeneration();
         const memo = this.issuesMemo;
@@ -3752,7 +3757,7 @@ export class SessionData implements SessionDataApi {
     ): { kind: "node" | "edge"; name: string }[] {
         const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
             new Set(rows.flatMap((row) => Object.keys(row)));
-        const elsewhere = this.columnSources(this.attributes());
+        const elsewhere = this.columnSources(this.columns());
         const gone: { kind: "node" | "edge"; name: string }[] = [];
         for (const [kind, before, after] of [
             ["node", keysOf(nodes.map((each) => each.data)), keysOf(held.nodes)],
@@ -4562,6 +4567,18 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
+        // While the working graph is on, a column's figures are what is shown (design decision
+        // 78); the columns themselves, and what each is, stay the whole graph's.
+        return this.shownColumns(this.columns());
+    }
+
+    /**
+     * Every attribute the graph's records carry, each measured over the whole graph: what the
+     * session's own readers resolve a column with, so naming a column never builds the view.
+     * @returns the descriptors, node attributes first
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    columns(): readonly AttributeDescriptor[] {
         // Keyed on the data revision, which moves on a freeze AND on an attribute write (keyed on the
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
@@ -4629,6 +4646,28 @@ export class SessionData implements SessionDataApi {
                 : Object.freeze(described.map((each) => overlaidAttribute(each, overlay)));
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The columns with their figures (completeness, distinct values, range, samples) measured over
+     * what the working graph shows, built once per view.
+     * @param whole - The whole graph's columns.
+     * @returns The columns, the whole graph's when nothing is hidden.
+     */
+    private shownColumns(whole: readonly AttributeDescriptor[]): readonly AttributeDescriptor[] {
+        const view = this.records === null ? null : this.viewOf(undefined);
+        if (view === null || this.records === null) {
+            return whole;
+        }
+
+        const held = this.viewColumns.get(view);
+        if (held?.whole === whole) {
+            return held.shown;
+        }
+
+        const shown = describeShownFigures(whole, this.current(), this.records, view);
+        this.viewColumns.set(view, { whole, shown });
+        return shown;
     }
 
     /**
@@ -4754,7 +4793,7 @@ export class SessionData implements SessionDataApi {
         return readableValues({
             snapshot,
             directed: ["directed", "mixed"].includes(this.statistics({ scope: "all" }).directedness),
-            attributes: this.attributes(),
+            attributes: this.columns(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
             layersReading: (path, on) =>
@@ -4887,7 +4926,7 @@ export class SessionData implements SessionDataApi {
      */
     async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
         this.requireLive("declare");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         await this.writes.declare({ kind, name }, declaration);
     }
 
@@ -5026,7 +5065,7 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
         const { knownFields } = this.readConfig();
@@ -5070,7 +5109,7 @@ export class SessionData implements SessionDataApi {
     private locationListing(): LocationListing {
         const known = this.readConfig().knownFields;
         const nodes = this.nodes();
-        const columns = this.attributes().flatMap((c) =>
+        const columns = this.columns().flatMap((c) =>
             c.kind === "node" ? [{ name: c.name, values: nodes.map((row) => row[c.name]) }] : [],
         );
         const places = cachedGazetteer();
@@ -5148,7 +5187,7 @@ export class SessionData implements SessionDataApi {
      */
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview {
         this.requireLive("previewType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         SessionData.checkType(type);
         return previewConversion(
             this.rawRows(kind).map((row) => row.data?.[name]),
@@ -5179,7 +5218,7 @@ export class SessionData implements SessionDataApi {
      */
     private async setTypeNow(column: ColumnRef, type: ValueType): Promise<void> {
         this.requireLive("setType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         SessionData.checkType(type);
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
         let fails = 0;
@@ -5244,7 +5283,7 @@ export class SessionData implements SessionDataApi {
      */
     private async renameColumnNow(column: ColumnRef, name: string): Promise<void> {
         this.requireLive("renameColumn");
-        const attributes = this.attributes();
+        const attributes = this.columns();
         const { kind, name: from } = resolveColumn(attributes, column);
         if (typeof name !== "string" || name.trim() === "") {
             throw new GraphtyError({
@@ -5384,7 +5423,7 @@ export class SessionData implements SessionDataApi {
 
         const existing = this.derivedColumns();
         const replacing = existing.some((each) => each.kind === kind && each.name === name);
-        if (!replacing && this.attributes().some((each) => each.kind === kind && each.name === name)) {
+        if (!replacing && this.columns().some((each) => each.kind === kind && each.name === name)) {
             throw refuse("name-taken", `A ${kind} column is already named ${JSON.stringify(name)}.`);
         }
 
@@ -5437,7 +5476,7 @@ export class SessionData implements SessionDataApi {
      */
     async setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void> {
         this.requireLive("setHidden");
-        const attributes = this.attributes();
+        const attributes = this.columns();
         // The id and the ends every record has, even when no column carries them (a graph file).
         const keyField = (column: ColumnRef): boolean =>
             (column.kind === "node" ? column.name === "id" : column.name === "source" || column.name === "target") &&
@@ -5481,7 +5520,7 @@ export class SessionData implements SessionDataApi {
      */
     histogram(column: ColumnRef, options: HistogramOptions & { readonly scope?: WorkingScope } = {}): ColumnHistogram {
         const snapshot = this.current();
-        const descriptor = resolveColumn(this.attributes(), column);
+        const descriptor = resolveColumn(this.columns(), column);
         const { name } = descriptor;
         const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const shown = this.shownOf(descriptor.kind, options.scope);
@@ -5571,7 +5610,7 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         const paths =
             options.columns ??
-            this.attributes()
+            this.columns()
                 .filter(
                     (each) =>
                         each.kind === "node" &&

@@ -3215,6 +3215,42 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Which of some elements' positions the working graph shows, or null while it is off.
+     * @param target - Nodes or edges.
+     * @param indices - The elements, by index.
+     * @returns A test of a position in `indices`, or null when every element counts.
+     */
+    const shownTest = (target: "node" | "edge", indices: readonly number[]): ((at: number) => boolean) | null => {
+        if (sources.workingGraph?.() !== true) {
+            return null;
+        }
+
+        const drawn = elementsOf(DRAWN);
+        const shown = new Set(target === "node" ? drawn.nodes : drawn.edges);
+        return (at) => shown.has(indices[at]);
+    };
+
+    /**
+     * The elements of a scope that the working graph shows: all of them while it is off.
+     * @param scope - The scope.
+     * @returns Its elements, less what a filter hides while the working graph is on.
+     */
+    const shownElementsOf = (scope: Scope): AgreementElements => {
+        const elements = elementsOf(scope);
+        if (sources.workingGraph?.() !== true) {
+            return elements;
+        }
+
+        const drawn = elementsOf(DRAWN);
+        const nodes = new Set(drawn.nodes);
+        const edges = new Set(drawn.edges);
+        return {
+            nodes: [...elements.nodes].filter((index) => nodes.has(index)),
+            edges: [...elements.edges].filter((index) => edges.has(index)),
+        };
+    };
+
+    /**
      * How many of the elements in a scope one layer selects carry each value of a path.
      * @param id - The layer.
      * @param path - The category path.
@@ -5121,12 +5157,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // value does not change while a selection is being picked.
         const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
         if (over === undefined) {
-            return styleAgreement(elementsOf(scope), read, channel);
+            return styleAgreement(shownElementsOf(scope), read, channel);
         }
 
         // The row's elements: those of the scope some layer of the row matches, hidden or not.
         const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
-        const scoped = elementsOf(scope);
+        const scoped = shownElementsOf(scope);
         const nodes = [...scoped.nodes];
         const edges = [...scoped.edges];
         const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
@@ -5834,8 +5870,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return agreementOf(scope, channel, options);
             }
             const { below, over } = options;
-            return kept(JSON.stringify(["agreement", scope, channel ?? null, below ?? null, over ?? null]), () =>
-                agreementOf(scope, channel, options),
+            return kept(
+                JSON.stringify([
+                    "agreement",
+                    scope,
+                    channel ?? null,
+                    below ?? null,
+                    over ?? null,
+                    sources.workingGraph?.() === true,
+                ]),
+                () => agreementOf(scope, channel, options),
             );
         },
 
@@ -5874,14 +5918,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const read = descriptor.target === "node" ? sources.elements.nodeValue : sources.elements.edgeValue;
             const indices = [...(descriptor.target === "node" ? nodes : edges)];
             const column = indices.map((index) => read(index, binding.by));
+            // The scale reads the whole graph (design decision 18); with the working graph on, the
+            // bins count only what is shown (decision 78).
+            const isShown = shownTest(descriptor.target, indices);
             if (options.within === undefined) {
-                return previewColumn(binding, descriptor.channel, column, options);
+                return previewColumn(
+                    binding,
+                    descriptor.channel,
+                    column,
+                    isShown === null ? options : { ...options, counted: column.filter((_, at) => isShown(at)) },
+                );
             }
 
             const { layer, selector } = require(options.within);
             const counted =
                 layer.target === descriptor.target
-                    ? column.filter((_, at) => selector.test === null || selector.test(indices[at]))
+                    ? column.filter(
+                          (_, at) =>
+                              (isShown === null || isShown(at)) &&
+                              (selector.test === null || selector.test(indices[at])),
+                      )
                     : [];
             return previewColumn(binding, descriptor.channel, column, { ...options, counted });
         },

@@ -2336,7 +2336,7 @@ function valueSourceOf(
  */
 function fieldKindsOf(
     path: Path,
-    data: SessionDataApi,
+    data: SessionData,
     fieldsOf: (run: RunId) => readonly { readonly name: string; readonly kind: string }[] | undefined,
 ): readonly string[] {
     // Only edges have ends: an end path is on the edges when its node path is on the nodes.
@@ -2370,7 +2370,7 @@ function fieldKindsOf(
     }
 
     return data
-        .attributes()
+        .columns()
         .filter((attribute) => attribute.path === path)
         .map((attribute) => attribute.kind);
 }
@@ -2385,7 +2385,7 @@ function fieldKindsOf(
  * @param data - The session's data surface.
  * @returns A reader for the labels.
  */
-function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
+function componentLabelsOf(data: SessionData): () => ComponentLabels {
     let against: GraphSnapshot | null = null;
     let held: ComponentLabels = { labels: new Int32Array(0), count: 0 };
 
@@ -2545,10 +2545,10 @@ function peekLayersOf(peeked: {
  * @param target - Whether the asking layer paints nodes or edges.
  * @returns The paths, attributes first.
  */
-function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "edge"): readonly Path[] {
+function answerablePaths(data: SessionData, runs: RunsApi, target: "node" | "edge"): readonly Path[] {
     const paths: Path[] = [];
 
-    for (const attribute of data.attributes()) {
+    for (const attribute of data.columns()) {
         if (attribute.kind === target) {
             paths.push(attribute.path);
         }
@@ -2611,7 +2611,7 @@ function structurePaths(data: SessionDataApi): readonly Path[] {
  * @param data - The session's data surface.
  * @returns The path, or undefined.
  */
-function structureCandidate(name: string, data: SessionDataApi): Path | undefined {
+function structureCandidate(name: string, data: SessionData): Path | undefined {
     const plain = name.replaceAll(/[-_]/g, "");
     return structurePaths(data).find((path) => path.slice("graphty.".length).toLowerCase() === plain);
 }
@@ -2630,7 +2630,7 @@ function structureCandidate(name: string, data: SessionDataApi): Path | undefine
  * @param target - Nodes or edges.
  * @returns Whether it is answered.
  */
-function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
+function answersReadable(data: SessionData, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
     if (path.startsWith("data.")) {
         return answerablePaths(data, runs, target).includes(path);
     }
@@ -2648,7 +2648,7 @@ function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target
  * @param data - The session's data surface, for the readable values.
  * @returns The check.
  */
-function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, data: SessionDataApi): RuleCheck {
+function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, data: SessionData): RuleCheck {
     const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
     const missing = read.filter((path) => !answered(path) && !answered(ATTRIBUTE_PREFIX + path));
     if (missing.length === 0) {
@@ -2683,7 +2683,7 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * @param fileStyles - Reads the file-style store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
     return {
         // A note value is always answerable: it reads nothing until a note names the element. A
         // file-style column is answerable wherever a load holds it.
@@ -2710,7 +2710,7 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
  * @param kind - Nodes or edges.
  * @returns The paths, in `data.readableValues()` order.
  */
-function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Path[] {
+function searchedPaths(data: SessionData, kind: "node" | "edge"): readonly Path[] {
     return data
         .readableValues()
         .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
@@ -2737,11 +2737,11 @@ function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "e
  * @returns A reader for the words, answering undefined for a path nothing in the session names.
  */
 function fieldWordsOf(
-    data: SessionDataApi,
+    data: SessionData,
     runs: RunsApi,
 ): (path: Path, target: "node" | "edge") => FieldWords | undefined {
     return (path: Path, target: "node" | "edge"): FieldWords | undefined => {
-        for (const attribute of data.attributes()) {
+        for (const attribute of data.columns()) {
             if (attribute.path === path && attribute.kind === target) {
                 return { plainName: attribute.plainName, technicalName: attribute.technicalName };
             }
@@ -3798,7 +3798,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         declarations: () => dispatcher.state.attributes,
         columns: () =>
             data
-                .attributes()
+                .columns()
                 .filter((each) => each.origin !== "result")
                 .map((each) => ({ kind: each.kind, name: each.name })),
         dispatcher,
@@ -3810,7 +3810,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
         asDates: (kind, name) => {
-            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            const column = data.columns().find((each) => each.kind === kind && each.name === name);
             if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
                 return undefined;
             }
@@ -4352,7 +4352,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         fileStyles: fileStylesOn,
         runs: encodingSourceOf(runs),
         columns: {
-            attributes: () => data.attributes(),
+            attributes: () => data.columns(),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
         nodeIndex,
@@ -4710,7 +4710,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
-        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
+        nodeAttributes: () => data.columns().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
@@ -5390,7 +5390,7 @@ function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
  */
 function planningContext(
     runsOptions: SessionRunsOptions,
-    data: SessionDataApi,
+    data: SessionData,
     resolveScope: (spec: Scope) => ResolvedScope,
     defaultScope: Scope,
     acceleration: AccelerationControllerLike,

@@ -1,6 +1,6 @@
 /**
  * @file `antialias: "at-rest"`: while anything moves, frames are drawn as `antialias: false` draws
- * them (no multisampling, straight 3D lines on the lean program); once the scene is still, one frame
+ * them (no multisampling, straight lines, 2D and 3D, on the lean program); once the scene is still, one frame
  * is drawn multisampled, the picture `antialias: true` draws, and held. The multisampled frame is
  * counted, not timed: it is drawn once, and the ticks after it draw nothing.
  */
@@ -66,15 +66,18 @@ function loopOf(element: Graphty): RenderManager {
  * a pulled straight line.
  * @param antialias - The element's `antialias`.
  * @param renderer - The renderer.
+ * @param viewMode - The element's `viewMode`.
  * @returns The element and the log of every frame its loop draws from now on.
  */
 async function loaded(
     antialias: Antialias,
     renderer: "webgl" | "webgpu" = "webgl",
+    viewMode: "3d" | "2d" = "3d",
 ): Promise<{ element: Graphty; frames: FrameLog[] }> {
     const element = document.createElement("graphty-element");
     element.antialias = antialias;
     element.renderer = renderer;
+    element.viewMode = viewMode;
     element.renderPath = "batched";
     element.style.display = "block";
     element.style.width = "400px";
@@ -84,7 +87,7 @@ async function loaded(
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
-    await element.graph.setLayout("fixed", { dim: 3 });
+    await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
     const ids = EDGES.map((edge) => edgeBetween(element.graph, edge.src, edge.dst)?.id);
     await element.session.styles.add({
         name: "uncapped",
@@ -218,9 +221,24 @@ describe('antialias "at-rest"', () => {
         assert.strictEqual(differing(atRest, smooth), 0);
     });
 
-    for (const renderer of RENDERERS) {
-        it(`draws moving frames lean and unmultisampled, then one multisampled frame (${renderer})`, async () => {
-            const { element, frames } = await loaded("at-rest", renderer);
+    it("draws 2D straight lines with the lean program under antialias false: 6 vertices an edge", async () => {
+        const { element } = await loaded(false, "webgl", "2d");
+        const batches = [...element.graph.getMeshCache().pulledBatchMap.entries()];
+        const flat = batches.filter(([key]) => key.endsWith("|2d"));
+        assert.isAbove(flat.length, 0, `a 2D line batch: ${JSON.stringify(batches.map(([key]) => key))}`);
+        for (const [key, batch] of flat) {
+            assert.strictEqual(batch.drawnCount, EDGES.length, `${key}: pieces`);
+            assert.strictEqual(batch.mesh.subMeshes[0].verticesCount, EDGES.length * 6, `${key}: vertices drawn`);
+        }
+    });
+
+    const DRAGGED = [
+        ...RENDERERS.map((renderer) => ({ renderer, viewMode: "3d" as const })),
+        { renderer: "webgl" as const, viewMode: "2d" as const },
+    ];
+    for (const { renderer, viewMode } of DRAGGED) {
+        it(`draws moving frames lean and unmultisampled, then one multisampled frame (${renderer}, ${viewMode})`, async () => {
+            const { element, frames } = await loaded("at-rest", renderer, viewMode);
             await untilHeld(element);
             const { ticks } = loopOf(element);
             const down = await dragNode(element, frames);

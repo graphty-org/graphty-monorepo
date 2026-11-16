@@ -18,7 +18,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -75,7 +75,8 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             assert.isNotNull(found, "the workspace is open");
             return found;
         });
-        await userEvent.click(await within(ws).findByRole("button", { name: "Or..." }));
+        // "+ Card" adds an Or group: a new card.
+        await userEvent.click(await within(ws).findByRole("button", { name: "Card" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Largest component");
         await userEvent.keyboard("{Enter}");

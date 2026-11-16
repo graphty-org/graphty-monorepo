@@ -501,6 +501,8 @@ describe("the timeline dock on the real element", () => {
                 store.set({ place: "data" });
             });
             await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            // The new card opens in the selection workspace: its Value list holds the Time window.
+            await userEvent.click(await screen.findByRole("button", { name: "Value" }));
             await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
             const zone = await screen.findByRole("radiogroup", { name: "Zone" });
             assert.equal(session.time.settings.timeZone, "UTC");

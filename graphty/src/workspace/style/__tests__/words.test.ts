@@ -6,6 +6,7 @@ import { modelChip } from "../modelWords";
 import {
     bindLabel,
     cellOfLocation,
+    channelPhrase,
     channelWord,
     clockWords,
     colorName,
@@ -13,6 +14,7 @@ import {
     enumWords,
     failureWords,
     hiddenByWords,
+    isShaderParam,
     locationOfCell,
     logUnexpected,
     madeWords,
@@ -313,5 +315,16 @@ describe("model variant words", () => {
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
+    });
+});
+
+describe("a shader parameter's address in history words", () => {
+    it("tells an address from a channel and names it as the element does", () => {
+        assert.isTrue(isShaderParam("node.shaders.glass-marble.spin"));
+        assert.isFalse(isShaderParam("node.shaders"));
+        assert.isFalse(isShaderParam("node.color"));
+        assert.strictEqual(channelPhrase("node.color"), "node color");
+        // Several rows binding a parameter name the undo step by it, never by a channel word it lacks.
+        assert.match(channelPhrase("node.shaders.glass-marble.spin"), /^[a-z].* spin$/i);
     });
 });

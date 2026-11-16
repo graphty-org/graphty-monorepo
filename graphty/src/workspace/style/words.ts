@@ -15,11 +15,12 @@ import {
     NODE_SHAPE_DESCRIPTORS,
     type ShaderDescriptor,
     type ShaderInput,
+    shaderParamChannel,
     type ShaderPlace,
     type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
+import type { Channel, LabelStyle, ShaderParamAddress } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
     type GraphSession,
@@ -797,14 +798,28 @@ export function settingWord(style: Channel, setting: Channel): string {
     return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
+/** What a binding is written under in a layer's `encode`: a channel, or a shader parameter's address. */
+export type EncodeKey = Channel | ShaderParamAddress;
+
+/**
+ * Whether a key is a shader parameter's address (`node.shaders.<shader>.<parameter>`); every
+ * channel id has one dot.
+ * @param key - the key.
+ * @returns whether it is an address.
+ */
+export function isShaderParam(key: EncodeKey): key is ShaderParamAddress {
+    return key.split(".").length > 2;
+}
+
 /**
  * A property named with its kind, for words that stand away from its line (the history, a
  * notice): "node color", "edge width", so an edge color is never read as a node's.
  * @param channel - the element's channel id.
  * @returns "node color", "edge pattern", ...
  */
-export function channelPhrase(channel: Channel): string {
-    const name = fieldName(channel);
+export function channelPhrase(channel: EncodeKey): string {
+    // A shader parameter goes by the element's name for it ("Glass marble spin").
+    const name = isShaderParam(channel) ? shaderParamChannel(channel).plainName : fieldName(channel);
     return name.charAt(0).toLowerCase() + name.slice(1);
 }
 

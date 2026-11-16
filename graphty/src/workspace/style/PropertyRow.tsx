@@ -43,6 +43,7 @@ import {
     channelWord,
     colorName,
     COMBINE_WORDS,
+    type EncodeKey,
     enumWords,
     failureWords,
     fieldName,
@@ -62,7 +63,7 @@ import {
 const POPOUT_WIDTH = 240;
 
 /** The first choice of a vary list that keeps the field's own value. */
-const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
+const FIXED_LABELS: Partial<Record<EncodeKey, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
 
 /**
  * What the layers beneath a row paint for one channel, when they paint one plain value on all of
@@ -104,7 +105,7 @@ export interface ManyRows {
     /** How many rows are edited together. */
     readonly of: number;
     /** Writes one value or binding to every row. */
-    readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
+    readonly write: (channel: EncodeKey, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
     /**
@@ -123,7 +124,7 @@ export interface ManyRows {
      * The layers Vary by Layer gives a value each, in list order (top first): of those a write
      * reaches, one layer per row, with the row's name.
      */
-    readonly inOrder?: (channel: Channel) => readonly { readonly id: LayerId; readonly name: string }[];
+    readonly inOrder?: (channel: EncodeKey) => readonly { readonly id: LayerId; readonly name: string }[];
     /** Writes each layer of `inOrder` its own plain values, met with the layers beneath by `combine`, as one undo step. */
     readonly writeEach?: (
         channel: Channel,
@@ -1470,6 +1471,7 @@ export function Field({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.to - where the binding is written, when not the descriptor's channel
  * @param props.label - the glyph's name, when the property has no channel word
  * @param props.onFail - says a refused binding
  * @returns The column, empty when the channel takes no binding
@@ -1477,11 +1479,14 @@ export function Field({
 export function VarySlot({
     ctx,
     descriptor,
+    to = descriptor.channel,
     label,
     onFail,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
+    /** Where the binding is written: a shader parameter's address, whose descriptor names its list channel. */
+    to?: EncodeKey;
     /** The glyph's name, when the property is not a channel of its own (a shader parameter). */
     label?: string;
     /** Says a refused binding, when the property has no channel word. */
@@ -1490,11 +1495,11 @@ export function VarySlot({
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
     const bind = (choice: DataChoice): void => {
-        const proposal = propose(ctx.session, choice, descriptor.channel);
+        const proposal = propose(ctx.session, choice, to);
         if (!proposal.ok) {
             return;
         }
-        writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch((error: unknown) => {
+        writeIn(ctx, to, { binding: proposal.binding }).catch((error: unknown) => {
             if (onFail !== undefined) {
                 onFail(error);
                 return;
@@ -1510,6 +1515,7 @@ export function VarySlot({
                 <VaryButton
                     ctx={ctx}
                     descriptor={descriptor}
+                    to={to}
                     label={label}
                     onPick={bind}
                     open={open}
@@ -1525,6 +1531,7 @@ export function VarySlot({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.to - where the binding is written, when not the descriptor's channel
  * @param props.label - the button's name, when not the channel's
  * @param props.onPick - binds the property to the picked value
  * @param props.onLayer - several layers: gives each its own value
@@ -1535,6 +1542,7 @@ export function VarySlot({
 function VaryButton({
     ctx,
     descriptor,
+    to,
     label: named,
     onPick,
     onLayer,
@@ -1543,6 +1551,8 @@ function VaryButton({
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
+    /** Where the binding is written, when not the descriptor's channel: a shader parameter's address. */
+    to?: EncodeKey;
     /** The button's name, when not the channel's ("Spin by attribute"). */
     label?: string;
     onPick: (choice: DataChoice) => void;
@@ -1553,7 +1563,7 @@ function VaryButton({
     onOpenChange: (open: boolean) => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const { channel } = descriptor;
+    const channel = to ?? descriptor.channel;
     const openList = (next: boolean): void => {
         if (!next) {
             openListNext(null);
@@ -1605,7 +1615,7 @@ function VaryButton({
                         // The field keeps its value; focus goes to it to change it, and the list
                         // closing is said, not silent.
                         store.set({
-                            announcement: `${named === undefined ? fieldName(channel) : label} stays a fixed value`,
+                            announcement: `${named === undefined ? fieldName(descriptor.channel) : label} stays a fixed value`,
                         });
                         focusLineNext(ctx.session, channel);
                     }}

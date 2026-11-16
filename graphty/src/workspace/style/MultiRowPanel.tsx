@@ -25,7 +25,7 @@ import {
 import { type KindControl, RowStyle, StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { channelPhrase } from "./words";
+import { channelPhrase, type EncodeKey } from "./words";
 
 /** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
 type Write =
@@ -36,7 +36,7 @@ type Write =
 /** What the last write did, and the rows it left unset, so "Also set those" can write them. */
 interface LastWrite extends BulkReceipt {
     readonly side: Target;
-    readonly channel: Channel;
+    readonly channel: EncodeKey;
     readonly write: Write;
     /** The rows that did not set the channel and were left out. */
     readonly left: readonly string[];
@@ -57,7 +57,7 @@ interface LastWrite extends BulkReceipt {
  */
 function patchOf(
     layer: Layer,
-    channel: Channel,
+    channel: EncodeKey,
     write: LiteralWrite | { readonly binding: DataBinding },
 ): Pick<Layer, "set" | "encode"> {
     if ("value" in write && (write.combine === undefined || write.combine === "replace")) {
@@ -138,7 +138,7 @@ interface Bulk {
  * @param n - how many layers.
  * @returns the words.
  */
-function stepWords(channel: Channel, n: number): string {
+function stepWords(channel: EncodeKey, n: number): string {
     return `changing ${channelPhrase(channel)} on ${count(n, "layer")}`;
 }
 
@@ -161,13 +161,13 @@ function manyOf(
 ): Pick<RowContext, "many" | "beneath"> {
     const layersOf = (row: FoundRow): Layer[] => rowLayers(session, [...treeLayers(session, row.row.id)], side);
     const rows = all.filter((row) => layersOf(row).length > 0);
-    const lineOfRow = (row: FoundRow, channel: Channel): Line | undefined => {
+    const lineOfRow = (row: FoundRow, channel: EncodeKey): Line | undefined => {
         const line = lineOf(layersOf(row), channel);
         return line?.layer.locked === true ? undefined : line;
     };
-    const linesOf = (channel: Channel): (Line | undefined)[] => rows.map((row) => lineOfRow(row, channel));
+    const linesOf = (channel: EncodeKey): (Line | undefined)[] => rows.map((row) => lineOfRow(row, channel));
     // Where a row takes a write: the layer that already sets the channel, else its topmost layer.
-    const homeOf = (row: FoundRow, channel: Channel): Layer | undefined =>
+    const homeOf = (row: FoundRow, channel: EncodeKey): Layer | undefined =>
         lineOfRow(row, channel)?.layer ?? layersOf(row).findLast((layer) => !layer.locked);
     // Copies of one binding differ only in each layer's own table: they count as one value.
     const key = (line: Line): string => {
@@ -175,7 +175,7 @@ function manyOf(
         return JSON.stringify([line.value, line.binding === undefined ? null : binding, line.combine]);
     };
     // The write rule: the rows that already set it, unless none does.
-    const targetsOf = (channel: Channel): FoundRow[] => {
+    const targetsOf = (channel: EncodeKey): FoundRow[] => {
         const lines = linesOf(channel);
         const setting = rows.filter((_, at) => lines[at] !== undefined);
         return setting.length > 0 ? setting : rows;
@@ -183,14 +183,14 @@ function manyOf(
     // Beneath the lowest of them in paint order, so no selected row reads as beneath another.
     const stack = session.styles.list().map((layer) => layer.id);
     // The rows as the tree lists them, top first, by the layer a write of the channel reaches.
-    const topFirst = (targets: readonly FoundRow[], channel: Channel): FoundRow[] =>
+    const topFirst = (targets: readonly FoundRow[], channel: EncodeKey): FoundRow[] =>
         [...targets].sort(
             (a, b) => stack.indexOf(homeOf(b, channel)?.id ?? "") - stack.indexOf(homeOf(a, channel)?.id ?? ""),
         );
     // `from`: where in a Vary by Layer sequence these rows start ("Also set those" goes on after the first write).
     const writeRows = async (
         targets: readonly FoundRow[],
-        channel: Channel,
+        channel: EncodeKey,
         write: Write,
         from = 0,
         after?: HistoryStepId,
@@ -237,7 +237,7 @@ function manyOf(
     // A receipt speaks for its write only while that write is applied: undone, it goes. (Not
     // "the last step": "Also set those" adds a step before the receipt learns of it.)
     const last = bulk.last?.side === side && session.history.position >= bulk.last.position ? bulk.last : null;
-    const record = async (channel: Channel, write: Write, after?: HistoryStepId): Promise<void> => {
+    const record = async (channel: EncodeKey, write: Write, after?: HistoryStepId): Promise<void> => {
         const targets = targetsOf(channel);
         const left = rows.filter((row) => !targets.includes(row));
         const result = await writeRows(targets, channel, write, 0, after);

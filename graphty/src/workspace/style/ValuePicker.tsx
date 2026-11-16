@@ -1,5 +1,4 @@
 import { type QuickAction, QuickActions } from "@graphty/compact-mantine";
-import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
@@ -8,6 +7,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
 import {
+    type EncodeKey,
     FIND_ATTRIBUTE,
     LAYER_SPOKEN,
     LAYER_TOKEN,
@@ -25,7 +25,7 @@ interface ValuePickerProps {
     /** Whose values: nodes' or edges'. @default "node" */
     target?: Target;
     /** The property the pick goes on; what it cannot take folds into one closing row. Without one, nothing is refused. */
-    channel?: Channel;
+    channel?: EncodeKey;
     /** Paths this line reads, listed first under "In use"; a value other lines read is listed under "Used elsewhere". */
     inUse?: readonly string[];
     /** Called with the reader's pick. */
@@ -125,7 +125,7 @@ interface SortedRows {
  * @param channel - the property the pick goes on, if any.
  * @returns the rows.
  */
-function sortRows(session: GraphSession, entries: readonly Entry[], channel: Channel | undefined): SortedRows {
+function sortRows(session: GraphSession, entries: readonly Entry[], channel: EncodeKey | undefined): SortedRows {
     const sorted: SortedRows = { fits: [], used: [], elsewhere: [], refused: [] };
     for (const entry of entries) {
         const proposal = channel === undefined ? null : propose(session, entry.choice, channel);

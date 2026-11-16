@@ -152,6 +152,42 @@ describe("modelPreview", () => {
         await untilMoved(canvas, await shot(canvas));
     });
 
+    it("stops drawing once the picture is still, and draws again when it is turned", async () => {
+        const element = await mount();
+        const cube = await element.session.assets.add({ files: await filesOf("gltf-animated") });
+        const preview = await element.modelPreview(cube.id, previewBox());
+        const { canvas } = preview;
+        cleanups.push(() => {
+            preview.dispose();
+        });
+        const gl = canvas.getContext("webgl2");
+        assert.isNotNull(gl);
+        let draws = 0;
+        for (const name of ["drawElements", "drawArrays", "drawElementsInstanced", "drawArraysInstanced"] as const) {
+            const draw = gl[name].bind(gl) as (...args: unknown[]) => void;
+            Object.defineProperty(gl, name, {
+                value: (...args: unknown[]) => {
+                    draws++;
+                    draw(...args);
+                },
+            });
+        }
+        // A frame goes by with nothing drawn once the model and its pictures are ready: a preview
+        // that drew every frame never got here.
+        for (let before = -1; before !== draws;) {
+            before = draws;
+            await nextFrame();
+        }
+        assert.isAbove(draws, 0, "the model was drawn before it went still");
+        if (!noCdp) {
+            const still = draws;
+            await drag(canvas, { x: 40, y: 80 }, { x: 120, y: 80 });
+            while (draws === still) {
+                await nextFrame();
+            }
+        }
+    });
+
     it("refuses what modelThumbnail refuses, with the same code, and leaves no canvas", async () => {
         const element = await mount();
         const box = previewBox();

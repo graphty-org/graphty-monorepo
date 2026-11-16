@@ -3,7 +3,7 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
 import type { Channel, ChannelValue } from "../catalog/types";
@@ -197,6 +197,12 @@ export class LiveModelPreview implements ModelPreview {
     /** Counts updates: one superseded before it starts is skipped. */
     #asked = 0;
     #disposed = false;
+    /** Something the camera does not show changed (the model, its style, the canvas size): draw again. */
+    #dirty = true;
+    /** The placed model's clip plays, so every frame differs. */
+    #playing = false;
+    /** The camera's view at the last frame drawn. */
+    readonly #drawnView = new Matrix();
 
     /**
      * Make the preview's canvas in `host`, its engine, scene, lights and camera, and start drawing.
@@ -222,6 +228,7 @@ export class LiveModelPreview implements ModelPreview {
                 ? null
                 : new ResizeObserver(() => {
                       this.#engine.resize();
+                      this.#dirty = true;
                   });
         this.#resized?.observe(canvas);
         const scene = new Scene(this.#engine);
@@ -249,11 +256,22 @@ export class LiveModelPreview implements ModelPreview {
         scene.onBeforeRenderObservable.add(() => {
             key.direction = Vector3.TransformNormal(light.keyDirection, camera.getWorldMatrix()).normalize();
         });
-        // ponytail: draws every frame while open; render on demand if a page holds many previews.
+        // Draws only when the picture would change: a still preview drawing every frame kept the
+        // page busy enough under software WebGL that a screenshot never got a frame.
         this.#engine.runRenderLoop(() => {
-            if (this.#placed !== null) {
-                scene.render();
+            if (this.#placed === null) {
+                return;
             }
+            // The camera's input and glide, applied here so an unchanged view can skip the frame.
+            camera.update();
+            const view = camera.getViewMatrix();
+            if (!this.#dirty && !this.#playing && view.equals(this.#drawnView)) {
+                return;
+            }
+            this.#drawnView.copyFrom(view);
+            scene.render(false);
+            // Until every material and picture is ready, the next frame still differs.
+            this.#dirty = !scene.isReady();
         });
     }
 
@@ -270,6 +288,7 @@ export class LiveModelPreview implements ModelPreview {
             }
             const key = templateKey(style);
             const speed = style["node.modelAnimationSpeed"];
+            const clip = style["node.modelAnimation"];
             if (this.#template !== null && key === this.#built) {
                 // The same template: only the color, the clip or its timing changed.
                 this.#placed?.dispose();
@@ -279,6 +298,7 @@ export class LiveModelPreview implements ModelPreview {
                     typeof speed === "number" ? speed : 1,
                     "graphty-model-preview",
                 );
+                this.#drew(clip, speed);
                 return;
             }
             const template = await this.#load(this.#scene, style);
@@ -298,9 +318,20 @@ export class LiveModelPreview implements ModelPreview {
             this.#camera.lowerRadiusLimit = this.#framed * 0.3;
             this.#camera.upperRadiusLimit = this.#framed * 4;
             this.#camera.radius = first ? this.#framed : this.#framed * zoom;
+            this.#drew(clip, speed);
         });
         this.#queue = next.catch(() => undefined);
         return next;
+    }
+
+    /**
+     * Ask for a frame after the model was placed, and note whether its clip plays.
+     * @param clip - `node.modelAnimation`.
+     * @param speed - `node.modelAnimationSpeed`.
+     */
+    #drew(clip: ChannelValue | undefined, speed: ChannelValue | undefined): void {
+        this.#dirty = true;
+        this.#playing = typeof clip === "string" && this.#template?.animation?.clips.has(clip) === true && speed !== 0;
     }
 
     /** Back to the first view. See {@link ModelPreview.resetView}. */

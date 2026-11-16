@@ -200,6 +200,11 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "Which missing edges the shared neighbors suggest.",
         aliases: ["missing links", "recommend", "adamic-adar", "jaccard"],
     },
+    "removal-impact": {
+        name: "Removal impact",
+        answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
+        aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
+    },
 };
 
 /**
@@ -259,6 +264,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
         "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
     "algorithm.link-prediction":
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
+    "algorithm.removal-impact":
+        "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
 };
 
 /**

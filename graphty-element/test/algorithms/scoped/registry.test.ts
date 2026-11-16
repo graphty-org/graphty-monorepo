@@ -55,6 +55,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:min-cut": "on",
     "graphty:pagerank": "on",
     "graphty:prim": "on",
+    "graphty:removal-impact": "on",
     "graphty:scc": "on",
     "graphty:spectral-clustering": "on",
 };
@@ -64,6 +65,7 @@ const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
     "graphty:dijkstra": { source: "a", target: "c" },
     "graphty:astar": { source: "a", target: "c" },
     "graphty:bfs": { source: "a" },
+    "graphty:removal-impact": { nodes: ["a"] },
 };
 
 /*

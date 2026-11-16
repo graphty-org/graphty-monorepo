@@ -1404,12 +1404,18 @@ const analyzeList = async (page) => {
     await panel.waitFor();
     await v.type(panel.getByLabel("Seed", { exact: true }), "7");
     await page.getByRole("button", { name: "Run Leiden" }).click();
-    await page.waitForFunction(() => {
+    // Waits for the run to end however it ends, so a run that fails says why instead of waiting forever.
+    const ended = await page.waitForFunction(() => {
         const s = document.querySelector("graphty-element").session;
-        return s.runs
-            .list()
-            .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
+        const run = s.runs.list().find((r) => r.algorithm === "leiden" && r.params.randomSeed === 7);
+        return ["succeeded", "failed", "canceled", "removed"].includes(run?.status)
+            ? { status: run.status, error: run.error ? `${run.error.code}: ${run.error.message}` : "" }
+            : null;
     }, null);
+    const { status, error } = await ended.jsonValue();
+    if (status !== "succeeded") {
+        fail(`the Leiden run with seed 7 ended ${status}: ${error}`);
+    }
 };
 
 // Every popover closes on an outside click and leaves the workspace open.

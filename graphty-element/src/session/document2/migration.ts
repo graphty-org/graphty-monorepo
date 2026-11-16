@@ -404,6 +404,26 @@ function renameSets<T>(value: T, context: Context): T {
 }
 
 /**
+ * A layer without its `source` when nothing can make it again. A layer the reader made writes no
+ * source (an absent source means no run, template or plugin made it), and neither does a layer
+ * filed under the template of a load whose look values the data migration made ordinary columns:
+ * nothing can make it from that template again, so it is an ordinary layer.
+ * @param layer - The layer.
+ * @param data - The migrated data, when the file has any.
+ * @returns The layer, or a copy without its source.
+ */
+function withoutUnmadeSource(layer: JsonObject, data: Context["data"]): JsonObject {
+    const made = isObject(layer.source) ? layer.source : undefined;
+    const unmade =
+        made !== undefined &&
+        (made.by === "user" ||
+            (made.by === "template" &&
+                typeof made.templateId === "string" &&
+                (data?.lookTemplates.has(made.templateId) ?? false)));
+    return unmade ? Object.fromEntries(Object.entries(layer).filter(([key]) => key !== "source")) : layer;
+}
+
+/**
  * A version 1 style document, split: the layers that name no element into a style section, the
  * others into the view's `layers` with element references; every layer's id into `order`,
  * bottom first, and no layer keeps a `kind`.
@@ -433,21 +453,8 @@ function migrateStyle(
         }
 
         used.add(id);
-        // A layer the reader made writes no source (an absent source means no run, template or
-        // plugin made it), and neither does a layer filed under the template of a load whose look
-        // values the data migration made ordinary columns: nothing can make it from that template
-        // again, so it is an ordinary layer.
         const { id: _id, name, kind: _kind, fileStyle: _fileStyle, ...withSource } = layer;
-        const made = isObject(withSource.source) ? withSource.source : undefined;
-        const unmade =
-            made !== undefined &&
-            (made.by === "user" ||
-                (made.by === "template" &&
-                    typeof made.templateId === "string" &&
-                    (data?.lookTemplates.has(made.templateId) ?? false)));
-        const rest = unmade
-            ? Object.fromEntries(Object.entries(withSource).filter(([key]) => key !== "source"))
-            : withSource;
+        const rest = withoutUnmadeSource(withSource, data);
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;
@@ -1255,6 +1262,37 @@ function generatorOf(value: JsonObject): JsonObject {
 }
 
 /**
+ * What every member's migration reads about the file.
+ * @param members - The members by kind.
+ * @param generator - The generator.
+ * @param data - The migrated data, when the file has any.
+ * @param runs - The version 1 runs.
+ * @param problems - Collects what could not be carried over.
+ * @returns The context.
+ */
+function contextOf(
+    members: ReadonlyMap<string, JsonObject>,
+    generator: JsonObject,
+    data: Context["data"],
+    runs: readonly JsonObject[],
+    problems: DocumentProblem[],
+): Context {
+    const session = members.get("graphty-session");
+    return {
+        members,
+        generator,
+        data,
+        derived: new Map(runs.map((run) => [String(run.id), run.derived === true])),
+        sets: new Map(objectsOf(session?.sets).flatMap((set) => (typeof set.id === "string" ? [[set.id, set]] : []))),
+        setId: (id) => {
+            const minted = ulidOf(`set\u0000${id}`);
+            return SET_ID.test(id) ? id : `set_${minted}`;
+        },
+        problems,
+    };
+}
+
+/**
  * Every section a version 1 file's members give.
  * @param members - The members by kind.
  * @param generator - The generator.
@@ -1273,18 +1311,7 @@ function sectionsOf(
             ? undefined
             : migrateData({ data: dataMember, session, sources: members.get("graphty-sources"), generator, problems });
     const runs = objectsOf(members.get("graphty-results")?.runs);
-    const context: Context = {
-        members,
-        generator,
-        data,
-        derived: new Map(runs.map((run) => [String(run.id), run.derived === true])),
-        sets: new Map(objectsOf(session?.sets).flatMap((set) => (typeof set.id === "string" ? [[set.id, set]] : []))),
-        setId: (id) => {
-            const minted = ulidOf(`set\u0000${id}`);
-            return SET_ID.test(id) ? id : `set_${minted}`;
-        },
-        problems,
-    };
+    const context = contextOf(members, generator, data, runs, problems);
 
     const sections: Partial<Record<DocumentSection, JsonObject>> = {};
     if (data !== undefined) {
@@ -1323,8 +1350,20 @@ function sectionsOf(
             : undefined;
     }
 
-    // Every path to a version 1 look value, wherever a section holds it (a layer, a set rule, a
-    // condition, a filter), reads its ordinary column.
+    return lookPathsAsColumns(sections, data);
+}
+
+/**
+ * Every path to a version 1 look value, wherever a section holds it (a layer, a set rule, a
+ * condition, a filter), rewritten to read its ordinary column.
+ * @param sections - The migrated sections.
+ * @param data - The migrated data, when the file has any.
+ * @returns The same sections, rewritten.
+ */
+function lookPathsAsColumns(
+    sections: Partial<Record<DocumentSection, JsonObject>>,
+    data: Context["data"],
+): Partial<Record<DocumentSection, JsonObject>> {
     for (const name of ORDER) {
         const section = sections[name];
         if (name !== "data" && section !== undefined) {

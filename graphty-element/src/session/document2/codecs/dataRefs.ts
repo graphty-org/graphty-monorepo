@@ -16,7 +16,12 @@ import { dispatcherOf } from "../../dispatchers";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { type LoadFacts, redactedParams } from "../../sources/member";
 import { fileStylePath } from "../../styles/fileStyles/path";
-import { asFileStyleStore, FILE_STYLES_VALUE, FILE_TEMPLATE_PREFIX } from "../../styles/fileStyles/store";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    FILE_TEMPLATE_PREFIX,
+    type FileStyleStore,
+} from "../../styles/fileStyles/store";
 import { quotePath, renamePaths } from "../../styles/predicate";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
@@ -1778,8 +1783,10 @@ export function freeColumnName(key: string, source: string, taken: (name: string
 
     const beside = besideName(key, source);
     let name = beside;
-    for (let n = 2; taken(name); n++) {
+    let n = 2;
+    while (taken(name)) {
         name = `${beside} ${String(n)}`;
+        n++;
     }
 
     return name;
@@ -1878,6 +1885,35 @@ function lookSchema(values: readonly unknown[]): JsonObject {
 }
 
 /**
+ * Which load gave a file's look values, part of {@link loadedLooksAsColumns} and temporary with it.
+ * The session does not record it, so the load is the one that supplied every element they cover
+ * that the session still holds; of several, the earliest no earlier values took.
+ * @param session - The session.
+ * @param load - The stored look values.
+ * @param held - Whether the session still holds an element.
+ * @param order - The session's load keys, earliest first.
+ * @param used - The load keys earlier values took.
+ * @returns The load key, or undefined when no element they cover is held.
+ */
+function loadKeyOf(
+    session: GraphSession,
+    load: FileStyleStore["loads"][number],
+    held: (kind: "node" | "edge", id: NodeId | EdgeId) => boolean,
+    order: readonly string[],
+    used: ReadonlySet<string>,
+): string | undefined {
+    let candidates: readonly string[] | undefined;
+    for (const { kind, ids } of load.values.columns) {
+        for (const id of ids.filter((each) => held(kind, each))) {
+            const of = new Set(session.data.sourcesOf(id, { kind }));
+            candidates = (candidates ?? order).filter((key) => of.has(key));
+        }
+    }
+
+    return candidates?.find((key) => !used.has(key)) ?? candidates?.at(-1);
+}
+
+/**
  * TEMPORARY until graphty-element writes loaded look values as ordinary columns at load time
  * (issue https://github.com/graphty-org/graphty-monorepo/issues/8259), then delete this function
  * and its callers.
@@ -1924,18 +1960,7 @@ export function loadedLooksAsColumns(session: GraphSession): LoadedLooks {
     const schemas = new Map<string, JsonObject>();
     const used = new Set<string>();
     for (const load of store.loads) {
-        // The session does not record which load gave the values, so the load is the one that
-        // supplied every element they cover that the session still holds; of several, the earliest
-        // no earlier values took.
-        let candidates: string[] | undefined;
-        for (const { kind, ids } of load.values.columns) {
-            for (const id of ids.filter((each) => records[kind].has(each))) {
-                const of = new Set(session.data.sourcesOf(id, { kind }));
-                candidates = (candidates ?? order).filter((key) => of.has(key));
-            }
-        }
-
-        const loadKey = candidates?.find((key) => !used.has(key)) ?? candidates?.at(-1);
+        const loadKey = loadKeyOf(session, load, (kind, id) => records[kind].has(id), order, used);
         if (loadKey !== undefined) {
             used.add(loadKey);
         }

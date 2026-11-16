@@ -51,6 +51,16 @@ export const OPEN_PROJECT_URLS = {
     fallback: "ask",
 } as const;
 
+/**
+ * Map layout automatically enables depth-independent size (Settings > General): while the map
+ * layout is drawn, every node keeps one size on screen (graphty-element's `node.sizeSpace: "screen"`).
+ */
+export const MAP_DEPTH_INDEPENDENT_SIZE = {
+    key: "graphty.mapDepthIndependentSize.v1",
+    values: ["on", "off"],
+    fallback: "on",
+} as const;
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;

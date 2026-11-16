@@ -1211,14 +1211,14 @@ function ProblemList({
         return null;
     }
     return (
-        <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
             role="list"
             aria-label={EDITOR_WORDS.problems}
             className="ws-paste-problems"
             id={id}
         >
             {sited.map(({ problem, site }, index) => (
-                <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an item of the ARIA list above, which is a div for the same reason
                     role="listitem"
                     key={`${problem.code}:${String(index)}`}
                 >

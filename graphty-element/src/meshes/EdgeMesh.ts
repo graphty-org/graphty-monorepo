@@ -773,10 +773,9 @@ void main() {
             );
         }
 
-        // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another;
-        // the 2D batch draws the joined program, never the lean one
+        // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
         const flat = this.drawsFlat(scene);
-        const leanLine = lean && !curve && !flat;
+        const leanLine = lean && !curve;
         let kind: "curve" | "lean" | true = true;
         let suffix = "";
         if (curve) {
@@ -790,11 +789,18 @@ void main() {
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
-                ? this.createFlatPulledLine(options, style, scene)
+                ? this.createFlatPulledLine(options, style, scene, leanLine)
                 : this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine ? LEAN_TEMPLATE : undefined);
+            return new PulledLineBatch(
+                mesh,
+                scene,
+                rowPositions,
+                curve,
+                leanLine ? LEAN_TEMPLATE : undefined,
+                kind === true,
+            );
         });
     }
 
@@ -804,9 +810,15 @@ void main() {
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
+     * @param lean - Whether it draws the lean program (`EDGE_PULLED_LEAN`), as a straight 3D batch does.
      * @returns The mesh.
      */
-    private static createFlatPulledLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
+    private static createFlatPulledLine(
+        options: EdgeMeshOptions,
+        style: EdgeStyleConfig,
+        scene: Scene,
+        lean: boolean,
+    ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
                 width: options.width / 40,
@@ -816,6 +828,7 @@ void main() {
                 minScreenWidth: style.line?.minScreenWidth,
                 opaque: this.drawsOpaque(style),
                 pulled: true,
+                pulledLean: lean,
             },
             scene,
         );

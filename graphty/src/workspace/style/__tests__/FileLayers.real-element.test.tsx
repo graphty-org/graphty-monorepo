@@ -96,8 +96,12 @@ describe("the Style panel on a file's layers", () => {
 
     it("a loaded layer keeps its own name and edits its Which nodes in the selection editor", async () => {
         const { session, added } = await openGalaxy();
-        const layer = added.find((each) => each.target === "node" && each.selector.match !== "everything");
-        assert.isDefined(layer, "the load added a node layer that selects some nodes");
+        // A name no other layer has: a file's node and edge layers may share one ("Defaults").
+        const named = (name: string): number => session.styles.list().filter((each) => each.name === name).length;
+        const layer = added.find(
+            (each) => each.target === "node" && each.selector.match !== "everything" && named(each.name) === 1,
+        );
+        assert.isDefined(layer, "the load added a node layer, named as no other, that selects some nodes");
         if (layer === undefined) {
             return;
         }

@@ -30,6 +30,9 @@ export type Target = "node" | "edge";
 /** A binding that reads a value from the data. */
 export type DataBinding = Extract<Binding, { by: string }>;
 
+/** What one line of a row writes: a value, a binding to the data, or a template. */
+type LineValue = LiteralWrite | { readonly binding: DataBinding } | TemplateWrite;
+
 /** What the From data list hands back: a column of the file, or one field of a run's result. */
 export type DataChoice =
     | { readonly kind: "column"; readonly column: ColumnRef }
@@ -335,7 +338,7 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
+    write: LineValue,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): Promise<LayerId> {
@@ -348,7 +351,7 @@ interface LineWrite {
     readonly ids: readonly LayerId[];
     readonly target: Target;
     readonly channel: Channel;
-    readonly write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite;
+    readonly write: LineValue;
     readonly fresh: NewLayer | undefined;
     readonly also: Readonly<Partial<Record<Channel, ChannelValue>>> | undefined;
     /** Write `also` over the values the layer has (one edit of several channels). */
@@ -404,7 +407,7 @@ async function writeLineWith(line: LineWrite): Promise<LayerId> {
  * @returns the encode, or undefined for a plain literal.
  */
 function encodeOf(
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
+    write: LineValue,
     channel: Channel,
     combined: boolean,
 ): Partial<Record<Channel, Binding>> | undefined {

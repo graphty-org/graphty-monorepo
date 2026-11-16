@@ -49,14 +49,15 @@ generators' pictures (`generator-<name>.webp`). Neither `data/` nor `dist/data/`
 published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
-checks it against the SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`
+checks it against the SHA-256 recorded in `SOURCES` (`scripts/hosted-sources.mjs`), and writes `public-data/v1/<name>.gsnp.gz`
 and `src/datasets/hosted.ts` (the catalogue entries); it copies the small datasets' files from
 `dist/data/v1/` beside them and writes `index.json` for all of them. The `.gsnp.gz` files are not
 committed: every deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and
 publishes `public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given
 Node.js major version (the workflow uses 22), so the committed checksums match the published
-files. To add, change or remove a large dataset, edit the script, run it, commit the script and
-`src/datasets/hosted.ts` together with `NOTICE`, and merge to master.
+files. To add, change or remove a large dataset, edit its source in `scripts/hosted-sources.mjs` and its
+entry in `scripts/build-hosted.mjs`, run the script, commit both scripts and `src/datasets/hosted.ts`
+together with `NOTICE`, and merge to master.
 
 ## Draw one with graphty-element
 

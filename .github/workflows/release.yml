@@ -1669,6 +1669,15 @@ jobs:
                   node tools/release-status.mjs owner-item --sha "$SHA" --what "$OWNER" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
+            # The store did not say what is held, after minutes of retries (#5597): the verdict could not hold,
+            # replace or promote anything, which is no "nothing to do". The job fails, after the announcements above,
+            # so release-rerun.yml re-runs it once and the slot job names the store as the missed slot's cause.
+            - name: Fail when the held candidate could not be read
+              if: ${{ steps.verdict.outputs.hold == 'unknown' }}
+              run: |
+                  echo "::error::the results store did not answer GET /v1/candidate: the verdict decided nothing about the hold; re-run this job"
+                  exit 1
+
     # A held green-images head promotes later, after the owner's approval, from this run's builds (the resume job's
     # run uses them): CI keeps its own for a day, so they are kept here for 30 days, as the version job keeps a
     # promoted candidate's.

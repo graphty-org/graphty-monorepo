@@ -2511,9 +2511,6 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
         this.#dropKept(loaded);
         this.publishComputed();
-        // Published, and `#column` keeps the answer in scene units: the answer as computed is read
-        // only by the next refresh, so a layout that has finished holds one copy of its coordinates.
-        this.result = null;
     }
 
     /**
@@ -2654,12 +2651,15 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
-        // A static layout publishes once per run, or when the element asks it to again: the scratch
-        // it publishes through is let go after each, not kept for the life of the graph.
+        // A settled static layout publishes once per run, or when the element asks it to again: the
+        // scratch it publishes through is let go after each, not kept for the life of the graph.
+        // One still waiting for an asynchronous answer is published every frame, so it keeps it.
         try {
             this.#publishComputed();
         } finally {
-            this.releasePublishScratch();
+            if (this.isSettled) {
+                this.releasePublishScratch();
+            }
         }
     }
 

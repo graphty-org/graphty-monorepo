@@ -306,7 +306,16 @@ export const TIMELINE_READERS = new WeakSet();
  * a file or fetching a URL stops on it, and rejects with its reason. Kept beside the reader, not
  * in its config, which is the load's recorded options.
  */
-export const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
+ * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
+ * @param reader - the reader
+ * @param signal - the load's cancel signal
+ */
+export function setReaderSignal(reader: object, signal: AbortSignal): void {
+    READER_SIGNALS.set(reader, signal);
+}
 
 /**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
@@ -561,7 +570,7 @@ export abstract class DataSource {
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
         const last: { status?: number; timeoutMs?: number } = {};
-        const cancel = READER_SIGNALS.get(this); // NOSONAR(S4158): ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
+        const cancel = READER_SIGNALS.get(this);
 
         for (let attempt = 0; attempt < retries; attempt++) {
             cancel?.throwIfAborted();
@@ -684,7 +693,7 @@ export abstract class DataSource {
             return toSourceInput(config.data);
         }
 
-        const cancel = READER_SIGNALS.get(this); // NOSONAR(S4158): ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
+        const cancel = READER_SIGNALS.get(this);
         cancel?.throwIfAborted();
         if (config.file) {
             const { file } = config;

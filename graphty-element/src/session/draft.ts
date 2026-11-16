@@ -10,7 +10,7 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection, READER_SIGNALS, TIMELINE_READERS } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, setReaderSignal, TIMELINE_READERS } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
@@ -426,7 +426,7 @@ export async function readSource(
         TIMELINE_READERS.add(reader);
     }
     if (signal !== undefined) {
-        READER_SIGNALS.set(reader, signal);
+        setReaderSignal(reader, signal);
     }
 
     const named = source.name ?? type;

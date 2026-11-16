@@ -10,6 +10,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 import process from "node:process";
 
 import { bends, finishScene, parseColor, requireOutput, sha256File } from "./common.mjs";
@@ -72,9 +73,10 @@ export function svgPathPoints(d, steps = 8) {
  * The scene of Gephi's SVG export and preview items.
  * @param svg - the SVG export
  * @param items - the preview items dump
+ * @param positioned - whether the file stores every node's position
  * @returns nodes, edges and gaps
  */
-export function sceneFromGephi(svg, items) {
+export function sceneFromGephi(svg, items, positioned = true) {
     // Gephi's SVG class names write a node id's whitespace as underscores; the items dump keeps the real ids.
     const real = new Map((items.node ?? []).map((n) => [String(n._id).replace(/\s/g, "_"), String(n._id)]));
     const idOf = (svgId) => real.get(svgId) ?? svgId;
@@ -139,12 +141,14 @@ export function sceneFromGephi(svg, items) {
             label: null,
         });
     }
+    // Where every node has a stored position graph-io leaves out the labels Gephi's overlap avoidance hides, so a label
+    // drawn with no text is judged. Elsewhere Gephi hid them at places it chose itself, which nothing else draws.
     const gaps = [];
     const hidden = nodes.filter((n) => !n.label).length;
-    if (hidden > 0) {
+    if (hidden > 0 && !positioned) {
         gaps.push({
             property: "labelText",
-            reason: `Gephi's label overlap avoidance hid ${hidden} labels, so the preview shows no text for them`,
+            reason: `Gephi's label overlap avoidance hid ${hidden} labels at places Gephi chose (the file stores no positions)`,
         });
     }
     if (loops > 0) {
@@ -154,6 +158,18 @@ export function sceneFromGephi(svg, items) {
         });
     }
     return { nodes, edges, groups: [], gaps };
+}
+
+/**
+ * Whether a GEXF file stores a position for every node (a `viz:position` per `<node>`).
+ * @param file - the GEXF file, gzipped or not
+ * @returns whether every node has one
+ */
+function storesPositions(file) {
+    const raw = readFileSync(file);
+    const text = (file.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8");
+    const count = (re) => (text.match(re) ?? []).length;
+    return count(/<(?:\w+:)?position\b/g) >= count(/<node\b/g);
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -188,7 +204,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                 generatedAt: new Date().toISOString(),
             },
             canCarry: {},
-            ...sceneFromGephi(svg, items),
+            ...sceneFromGephi(svg, items, storesPositions(sample)),
         },
         out,
     );

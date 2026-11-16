@@ -11,6 +11,9 @@
  * keeps stays far below one `Node` per row (`KEPT_PER_ROW`). The time each takes is printed as
  * `[measure-rows-not-nodes]`, not asserted.
  *
+ * The nodes are drawn at `meshDetail: "low"`, which changes nothing measured here and keeps each
+ * software-rendered frame cheap.
+ *
  * This file gates no push: it runs in the "browser-bench" project.
  */
 
@@ -85,6 +88,16 @@ describe("measuring rows on the batched path at a million nodes", () => {
             assert.isTrue(element.graph.initialized);
         });
         element.graph.setRenderPath("batched");
+        // Low-detail spheres: CI draws in software (SwiftShader), where each frame of a million
+        // full-detail spheres took about 50 s, and every gc(), timer and test hook waited behind it
+        // (issue #8148). What is measured reads row tables, not vertices.
+        await element.session.styles.add({
+            name: "Low detail",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.meshDetail": "low" },
+        });
+        await element.session.styles.settled();
         await element.graph.setLayout("random");
         await element.graph.addNodes(Array.from({ length: NODES }, (_, at) => ({ id: `n${String(at)}` })));
         await element.waitForSettled();

@@ -15320,10 +15320,5 @@
   }
  ],
  "groups": [],
- "gaps": [
-  {
-   "property": "labelText",
-   "reason": "Gephi's label overlap avoidance hid 5 labels, so the preview shows no text for them"
-  }
- ]
+ "gaps": []
 }

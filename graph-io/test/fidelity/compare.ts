@@ -1176,14 +1176,17 @@ function judge(
         case "annotations": {
             const subs = subject.annotations ?? [];
             const refs = ref.annotations ?? [];
+            // A side of 0 in a reference box is an extent its route did not record (CyREST gives a text annotation
+            // no width): that side is the subject's, so the box is judged by where it is and the extent it has.
+            const overlap = (r: Box, s: Box): number => {
+                const b = transformBox(t, s);
+                return iou({ ...r, w: r.w === 0 ? b.w : r.w, h: r.h === 0 ? b.h : r.h }, b);
+            };
             // An annotation the subject draws where the reference has none of its kind is a fail.
             const extra = subs
                 .map((s, i) => ({ s, i }))
                 .filter(
-                    ({ s }) =>
-                        !refs.some(
-                            (r) => r.kind === s.kind && iou(r.bbox, transformBox(t, s.bbox)) >= THRESHOLDS.groupIoU,
-                        ),
+                    ({ s }) => !refs.some((r) => r.kind === s.kind && overlap(r.bbox, s.bbox) >= THRESHOLDS.groupIoU),
                 )
                 .map(({ s, i }) => ({
                     id: `extra ${s.kind}#${String(i)}`,
@@ -1194,7 +1197,7 @@ function judge(
                 ...refs.map((r, i) => {
                     const best = Math.max(
                         0,
-                        ...subs.filter((s) => s.kind === r.kind).map((s) => iou(r.bbox, transformBox(t, s.bbox))),
+                        ...subs.filter((s) => s.kind === r.kind).map((s) => overlap(r.bbox, s.bbox)),
                     );
                     return {
                         id: `${r.kind}#${String(i)}`,

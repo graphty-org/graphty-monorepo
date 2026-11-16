@@ -180,6 +180,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     // The colours the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
     "assets.add()": "writes",
+    "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",
     "assets.files()": "not the graph",
     "assets.find()": "not the graph",

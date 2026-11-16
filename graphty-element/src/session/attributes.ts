@@ -1,6 +1,6 @@
 /**
- * @file What attributes the graph's records carry, described as data -- and the one function that
- * writes them.
+ * @file What attributes the graph's records carry, described as data, and the counters that track
+ * writes to them.
  *
  * An options form, a filter builder, a colour encoding and a column picker all need the same
  * four facts about every attribute: what it is called, what type its values are, how many
@@ -8,11 +8,11 @@
  * over the graph, so each of them is the element's to do once rather than every consumer's to do
  * separately.
  *
- * The second half is the writer. A cache over a rule that reads `data.weight` is keyed on the
- * revision of `weight` (design/sets/sets-design.md 6.2), and a revision that some write path forgot
- * to bump is a cache that answers from values nobody holds any more. So every write into a
- * record's `data` goes through {@link writeAttributes} or {@link replaceAttributes}, and
- * `test/session/single-attribute-writer.test.ts` fails on any other.
+ * The second half is the revision counters. A cache over a rule that reads `data.weight` is keyed on
+ * the revision of `weight` (design/sets/sets-design.md 6.2), and a revision that some write path
+ * forgot to bump is a cache that answers from values nobody holds any more. So every write into a
+ * record goes through the graph primitives in `session/project/graphOps.ts`, whose `bumpFields`
+ * moves these counters, and `test/session/single-attribute-writer.test.ts` fails on any other.
  */
 
 import { type GraphSnapshot, maskTest, type U32 } from "@graphty/graph-format";
@@ -608,77 +608,4 @@ export function inputCountersOf(owner: object): InputCounters {
     }
 
     return counters;
-}
-
-/**
- * Write fields into a record's attributes and bump each field's revision. With `fields` naming
- * only some keys of `update`, only those are written.
- * @param revisions - the revisions of the record's kind
- * @param data - the record's attribute object (`node.data`, `edge.data`)
- * @param update - where the values come from
- * @param fields - the keys to write; every own key of `update` when absent
- */
-export function writeAttributes(
-    revisions: AttributeRevisions,
-    data: Record<string, unknown>,
-    update: Readonly<Record<string, unknown>>,
-    fields: readonly string[] = Object.keys(update),
-): void {
-    for (const field of fields) {
-        data[field] = update[field];
-    }
-
-    revisions.bump(fields);
-}
-
-/**
- * Write a batch of updates, each into the attributes of the record its `id` names, through
- * {@link writeAttributes}, then announce the fields written once on the input tick, so a live set
- * re-resolves once per batch rather than once per record (design/sets 11). `id` is the address,
- * not an attribute, and is not written; an id with no record is skipped.
- * @param counters - the store owner's counters
- * @param element - which kind of record
- * @param updates - the updates
- * @param dataOf - a record's attribute object by id
- */
-export function writeUpdates(
-    counters: InputCounters,
-    element: "node" | "edge",
-    updates: readonly { readonly id: string | number; readonly [key: string]: unknown }[],
-    dataOf: (id: string | number) => Record<string, unknown> | undefined,
-): void {
-    const revisions = element === "node" ? counters.nodes : counters.edges;
-    const written = new Set<string>();
-    for (const update of updates) {
-        const data = dataOf(update.id);
-        if (data !== undefined) {
-            const fields = Object.keys(update).filter((key) => key !== "id");
-            writeAttributes(revisions, data, update, fields);
-            for (const field of fields) {
-                written.add(field);
-            }
-        }
-    }
-
-    if (written.size > 0) {
-        counters.tick.announce({ kind: "attributes", element, fields: [...written] });
-    }
-}
-
-/**
- * Replace a record's attributes wholesale (the `last` repeated-edge policy) and bump every field
- * the old or the new record carries, since a field that disappeared changed too.
- * @param revisions - the revisions of the record's kind
- * @param owner - the object holding `data`
- * @param owner.data - its current attributes
- * @param record - the new attributes, held by reference as the constructor holds the first
- */
-export function replaceAttributes<T extends object>(
-    revisions: AttributeRevisions,
-    owner: { data: T },
-    record: T,
-): void {
-    const fields = new Set([...Object.keys(owner.data), ...Object.keys(record)]);
-    owner.data = record;
-    revisions.bump(fields);
 }

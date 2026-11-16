@@ -65,8 +65,38 @@ describe("generateImage", () => {
         assert.lengthOf(unsent.requests, 0);
     });
 
+    it("asks OpenAI's image model for a picture and decodes its base64 answer", async () => {
+        const recorded = recordedFetch({ created: 1, data: [{ b64_json: RECORDED_PNG_BASE64 }] });
+        const openai = engine("openai", recorded.fetch);
+        assert.deepStrictEqual(openai.imageModel, AI_IMAGE_MODELS.openai);
+
+        const made = await openai.generateImage!("a soft paper texture", new AbortController().signal);
+
+        assert.strictEqual(made.code, "AI_COMPLETED");
+        const [request] = recorded.requests;
+        assert.strictEqual(request.url, "https://api.openai.com/v1/images/generations");
+        assert.strictEqual(request.headers.authorization, "Bearer test-key");
+        assert.deepStrictEqual(request.body, {
+            model: "gpt-image-1",
+            prompt: "a soft paper texture",
+            n: 1,
+            size: "1536x1024",
+            quality: "medium",
+        });
+        const image = made.code === "AI_COMPLETED" ? made.image : new Blob();
+        assert.strictEqual(image.type, "image/png");
+        const bytes = new Uint8Array(await image.arrayBuffer());
+        assert.strictEqual(Buffer.from(bytes).toString("base64"), RECORDED_PNG_BASE64);
+
+        const declined = await engine("openai", recordedFetch({ data: [] }).fetch).generateImage!(
+            "x",
+            new AbortController().signal,
+        );
+        assert.deepStrictEqual(declined, { code: "AI_NO_RESPONSE", params: { provider: "openai" } });
+    });
+
     it("is absent on a provider with no image model", () => {
-        for (const provider of ["openai", "anthropic"] as const) {
+        for (const provider of ["anthropic"] as const) {
             const other = engine(provider, recordedFetch({}).fetch);
             assert.notProperty(other, "generateImage", provider);
             assert.isUndefined(other.imageModel, provider);

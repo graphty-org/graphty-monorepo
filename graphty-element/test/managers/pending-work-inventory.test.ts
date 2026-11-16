@@ -95,6 +95,11 @@ const INVENTORY: Record<string, Covered> = {
             "a model's chunk and babylonjs-models, inside its load; babylonjs-models' container load, readers, " +
             "unzipping and decoders all run inside that load",
     },
+    "src/meshes/FlatBackdrop.ts": {
+        count: 1,
+        kind: "picture",
+        reason: "a flat background picture, held from its creation until its image loads, fails or is disposed",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
         count: 2,

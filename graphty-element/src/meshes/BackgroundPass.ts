@@ -4,7 +4,8 @@
  * scene draws, so it is behind every node and never over a label.
  *
  * The background is composited bottom to top: the scene's clear color, the skybox image (sampled
- * here by view direction, while the photo dome is hidden), then the shader. Where the shader's
+ * here by view direction, or by place on the canvas for a flat one, while the dome or flat backdrop
+ * is hidden), then the shader. Where the shader's
  * alpha is low, what is beneath it shows.
  *
  * The target is drawn again only when it must be: the shader moves (a loop whose speed is not 0),
@@ -72,6 +73,8 @@ export class BackgroundPass {
     private fallback: readonly [number, number, number, number] = [0, 0, 0, 1];
     /** The skybox image drawn beneath the shader, or null. */
     private image: BaseTexture | null = null;
+    /** Whether {@link image} is drawn flat, by its texture scale and offset. */
+    private imageFlat = false;
     /** Whether {@link image} was ready when the target was last drawn. */
     private imageWasReady = false;
     private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
@@ -168,6 +171,8 @@ export class BackgroundPass {
      * @param params - Its parameter values over the defaults.
      * @param fallback - The color drawn for a pixel whose result is not a number, 0..1.
      * @param image - The skybox image drawn beneath the shader, or null for none.
+     * @param flat - Whether the image is drawn flat (by its own texture scale and offset) rather
+     *     than as the photo dome maps it.
      * @returns Resolves true once it draws; false when it failed to compile (the clear color shows)
      *     or a later call replaced it.
      */
@@ -176,10 +181,12 @@ export class BackgroundPass {
         params: ShaderParams | undefined,
         fallback: readonly [number, number, number, number],
         image: BaseTexture | null = null,
+        flat = false,
     ): Promise<boolean> {
         this.params = params;
         this.fallback = fallback;
         this.image = image;
+        this.imageFlat = flat;
         if (this.program?.shader.hash === shader.hash) {
             this.follow();
             return true;
@@ -458,6 +465,15 @@ export class BackgroundPass {
             program.setFloat4("graphty_fallback", ...this.fallback);
             const image = this.image?.isReady() === true ? this.image : null;
             program.setFloat("graphty_hasImage", image === null ? 0 : 1);
+            program.setFloat("graphty_imageFlat", this.imageFlat ? 1 : 0);
+            const fit = image as { uScale?: number; vScale?: number; uOffset?: number; vOffset?: number } | null;
+            program.setFloat4(
+                "graphty_imageFit",
+                fit?.uScale ?? 1,
+                fit?.vScale ?? 1,
+                fit?.uOffset ?? 0,
+                fit?.vOffset ?? 0,
+            );
             // WebGPU refuses a bind group with a sampler left empty, so no image is still a texture.
             program.setTexture("graphty_image", image ?? this.noImage);
             const tints = this.tintsDrawn;

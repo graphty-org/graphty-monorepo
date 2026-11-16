@@ -99,6 +99,8 @@ uniform float graphty_freeze;
 uniform vec4 graphty_fallback;
 uniform sampler2D graphty_image;
 uniform float graphty_hasImage;
+uniform float graphty_imageFlat;
+uniform vec4 graphty_imageFit;
 ${[...TINT_UNIFORMS, ...TINT_COLOR_UNIFORMS].map((name) => `uniform vec4 ${name};`).join("\n")}
 varying vec2 vUV;
 ${paramDeclarations(params)}
@@ -139,10 +141,13 @@ ${TINT_UNIFORMS.map(
     }
 
     // Over the image, which is over the clear color: where the shader's alpha is low, what is
-    // beneath it shows. The image is sampled by view direction as the photo dome maps it.
+    // beneath it shows. The image is sampled by view direction as the photo dome maps it, or, flat,
+    // by place on the canvas, cropped as the flat backdrop crops it.
     vec4 graphty_top = clamp(graphty_out, 0.0, 1.0);
     vec4 graphty_under = vec4(0.0);
-    if (graphty_hasImage > 0.5) {
+    if (graphty_hasImage > 0.5 && graphty_imageFlat > 0.5) {
+        graphty_under = texture2D(graphty_image, vUV * graphty_imageFit.xy + graphty_imageFit.zw);
+    } else if (graphty_hasImage > 0.5) {
         vec3 graphty_d = graphty_in.viewDir;
         vec2 graphty_st = vec2(atan(graphty_d.z, graphty_d.x) / 6.28318531 + 0.5, acos(clamp(graphty_d.y, -1.0, 1.0)) / 3.14159265);
         graphty_under = texture2D(graphty_image, vec2(1.0 - graphty_st.x, graphty_st.y));
@@ -165,6 +170,8 @@ ${TINT_UNIFORMS.map(
             "graphty_freeze",
             "graphty_fallback",
             "graphty_hasImage",
+            "graphty_imageFlat",
+            "graphty_imageFit",
             ...TINT_UNIFORMS,
             ...TINT_COLOR_UNIFORMS,
             ...params.map((param) => `graphty_p_${param.name}`),

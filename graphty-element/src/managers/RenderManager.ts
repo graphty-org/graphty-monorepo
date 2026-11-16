@@ -32,6 +32,7 @@ import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
+import { FlatBackdrop } from "../meshes/FlatBackdrop";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
@@ -454,8 +455,8 @@ interface ShaderBackground {
     readonly params: ShaderParams | undefined;
     /** The background color, hex: drawn beneath, and for a pixel whose result is not a number. */
     readonly color: string;
-    /** The skybox dome, whose image the shader is drawn over; hidden while the shader draws it. */
-    readonly dome: PhotoDome | null;
+    /** The skybox dome or flat backdrop, whose image the shader is drawn over; hidden while the shader draws it. */
+    readonly dome: PhotoDome | FlatBackdrop | null;
 }
 
 /** The session events after which the group outlines may draw other groups or members. */
@@ -669,6 +670,7 @@ class ShaderScene {
             wanted.params,
             [color.r, color.g, color.b, 1],
             wanted.dome?.texture ?? null,
+            wanted.dome instanceof FlatBackdrop,
         );
         // The pass draws the image beneath the shader, so the dome, which would cover it, hides.
         if (ticket === this.backgroundTicket && !wanted.dome?.isDisposed()) {
@@ -934,8 +936,9 @@ export class RenderManager implements Manager {
         }
     };
     private readonly resizeHandler: () => void;
-    /** The one skybox dome, and the image it shows; null while the background is a colour. */
-    private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
+    /** The one skybox dome (or flat backdrop), and the image it shows; null while the background is a colour. */
+    private dome: { readonly url: string; readonly flat: boolean; readonly dome: PhotoDome | FlatBackdrop } | null =
+        null;
     /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
     private shaderBackground: ShaderBackground | null = null;
     /** The scene-level shader passes, once {@link bindShaderScene} gave them a graph. */
@@ -1928,7 +1931,7 @@ export class RenderManager implements Manager {
 
     /**
      * Draw the graph against a background, bottom to top: the clear colour (its own, else the
-     * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
+     * default), a skybox (a photo dome, or flat behind the graph), and a background shader drawn over them once it compiled.
      * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
      * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
@@ -1943,16 +1946,19 @@ export class RenderManager implements Manager {
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
-            if (this.dome?.url !== url) {
+            const flat = background.projection === "flat";
+            if (this.dome?.url !== url || this.dome.flat !== flat) {
                 this.dome?.dome.dispose();
-                const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
+                const dome = flat
+                    ? new FlatBackdrop(url, this.scene)
+                    : new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
                 dome.texture.onLoadObservable.addOnce(() => {
                     onSkybox(url, true);
                 });
                 dome.onLoadErrorObservable.addOnce(() => {
                     onSkybox(url, false);
                 });
-                this.dome = { url, dome };
+                this.dome = { url, flat, dome };
             }
         } else {
             this.dome?.dome.dispose();

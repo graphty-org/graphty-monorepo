@@ -124,9 +124,14 @@ function backgroundSizeLimit(graph: unknown): number {
  * once made it is drawn at once, and one undo of the message brings the previous background back.
  * @param context - The action's context.
  * @param prompt - What the picture shows.
+ * @param projection - A photo dome around the graph, or flat behind it.
  * @returns What was made: its size as stored, the model and the cost.
  */
-async function generateBackground(context: ActionContext, prompt: string): Promise<JsonObject> {
+async function generateBackground(
+    context: ActionContext,
+    prompt: string,
+    projection: "dome" | "flat",
+): Promise<JsonObject> {
     const { host, message, tx, signal } = context;
     const provider = host.provider ?? "";
     if (host.image === undefined) {
@@ -154,9 +159,14 @@ async function generateBackground(context: ActionContext, prompt: string): Promi
         throw new ToolRefusal(prepared.problem.code, prepared.problem.params as JsonObject);
     }
 
-    await coded(() => tx.config.set({ background: { backgroundType: "skybox", data: prepared.data } }));
+    const background = {
+        backgroundType: "skybox" as const,
+        data: prepared.data,
+        ...(projection === "flat" ? { projection } : {}),
+    };
+    await coded(() => tx.config.set({ background }));
     const { width, height, scaled } = prepared;
-    return { ...quote, width, height, scaled, bytes: prepared.data.length };
+    return { ...quote, projection, width, height, scaled, bytes: prepared.data.length };
 }
 
 /** The `project` tool. */
@@ -191,12 +201,22 @@ export const projectTool: ToolDefinition = {
         {
             name: "generate_background",
             summary:
-                "Make a picture from a prompt with the provider's image model and set it as the background (a photo dome around the graph). The provider bills each picture; the reader approves the cost first. Without an image model, a background shader (shaders) draws one instead.",
-            fields: { prompt: z.string().min(1).max(MAX_STRING).describe("What the picture shows.") },
+                "Make a picture from a prompt with the provider's image model and set it as the background: a photo dome around the graph, or flat behind it (a texture or backdrop). The provider bills each picture; the reader approves the cost first. Without an image model, a background shader (shaders) draws one instead.",
+            fields: {
+                prompt: z.string().min(1).max(MAX_STRING).describe("What the picture shows."),
+                projection: z
+                    .enum(["dome", "flat"])
+                    .optional()
+                    .describe("dome (default) wraps the graph and turns with the camera; flat stays still behind it."),
+            },
             effect: "write",
             keywords: ["image", "picture", "photo", "skybox", "wallpaper", "backdrop"],
             reaches: [{ op: "config.set" }, { door: "SessionConfig.set" }],
-            run: async (context, args) => ok(undefined, await generateBackground(context, text(args.prompt))),
+            run: async (context, args) =>
+                ok(
+                    undefined,
+                    await generateBackground(context, text(args.prompt), args.projection === "flat" ? "flat" : "dome"),
+                ),
         },
         {
             name: "rename",

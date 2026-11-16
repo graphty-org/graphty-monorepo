@@ -99,6 +99,22 @@ describe("Graph settings", () => {
         assert.isNull(screen.queryByRole("textbox", { name: /^Highlight color/ }));
     });
 
+    it("keeps a flat picture flat when the reader changes the background color", async () => {
+        const element = await openGraphSettings();
+        const picture =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
+        await element.session.config.set({
+            background: { backgroundType: "skybox", data: picture, projection: "flat", color: "#ffffff" },
+        });
+        const color = await screen.findByRole("textbox", { name: /^Background color(,|$)/ });
+        await userEvent.clear(color);
+        await userEvent.type(color, "112233{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.color?.toLowerCase(), "#112233");
+        });
+        assert.deepInclude(element.session.config.background, { backgroundType: "skybox", projection: "flat" });
+    });
+
     it("Background + adds a Shader over the Color, offers each kind once, and removing Color draws the default", async () => {
         const element = await openGraphSettings();
         const add = screen.getByRole("button", { name: "Add to background" });

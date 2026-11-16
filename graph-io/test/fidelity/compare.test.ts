@@ -510,6 +510,28 @@ describe("scene comparison", () => {
         expect(c.properties.annotations).toMatchObject({ status: "fail", n: 1, worst: [{ id: "extra shape#0" }] });
     });
 
+    it("judges a text annotation the reference gives no width by where it is and how tall", () => {
+        const text = (x: number, y: number, w: number) => ({
+            kind: "text" as const,
+            text: "t",
+            bbox: { x, y, w, h: 20 },
+        });
+        const unsized = { ...ref, annotations: [text(100, 100, 0)] };
+        expect(
+            compareScenes(unsized, { ...ref, annotations: [text(100, 100, 150)] }).properties.annotations,
+        ).toMatchObject({
+            status: "pass",
+            n: 1,
+        });
+        // the same text 30 below where the reference has it, and nothing where it is
+        expect(
+            compareScenes(unsized, { ...ref, annotations: [text(100, 130, 150)] }).properties.annotations,
+        ).toMatchObject({
+            status: "fail",
+            n: 2,
+        });
+    });
+
     it("takes each property from the best route that carries it, and checks the routes against each other", () => {
         // gephi's ledger cannot carry shape and alters font size and border; sigma's cannot carry border
         const gephi = {

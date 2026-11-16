@@ -2382,6 +2382,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the last pass left a finished state that no drawn frame has shown yet: the frame
+     * about to be drawn is the one that would be called final. Tests aim a race at that frame.
+     * @returns True between a pass that finished the state and the first frame drawn from it.
+     * @internal
+     */
+    get finalFrameIsNext(): boolean {
+        return this.stateIsFinished && !this.drawnFrameIsFinished;
+    }
+
+    /**
      * Say that meshes were built outside a pass that moves anything, so the finished picture has
      * to be earned again.
      *

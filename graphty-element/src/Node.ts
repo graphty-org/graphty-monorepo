@@ -2879,7 +2879,7 @@ export class Node implements ModelUser {
      * kept for the same two objects: a repaint asks `nodeRebuildsFor` about a paint and then draws
      * it, and each asked `keepsMeshFor` and then `movesFor`, so a filter that ghosts every node
      * compared every node's whole style four times, most of a repaint at 50,000 nodes (#7966). A
-     * paint's style is built fresh and never written after (as `reachOutline` relies on too),
+     * paint's style is never written after it is built (as `reachOutline` relies on too),
      * so the identity of the pair stands for what they hold.
      * @param o - The resolved style.
      * @returns Both answers; both false when nothing is drawn yet.
@@ -2891,8 +2891,10 @@ export class Node implements ModelUser {
             return kept;
         }
 
-        const equalButFill = drawn !== null && isEqual(withoutFill(o), withoutFill(drawn));
-        const equal = equalButFill && isEqual(o.texture, drawn?.texture);
+        // The painter shares one style per look, so an unchanged node is handed the style it drew.
+        const same = drawn === o;
+        const equalButFill = same || (drawn !== null && isEqual(withoutFill(o), withoutFill(drawn)));
+        const equal = same || (equalButFill && isEqual(o.texture, drawn?.texture));
         this.comparedDrawn = { style: o, drawn, equal, equalButFill };
         return this.comparedDrawn;
     }

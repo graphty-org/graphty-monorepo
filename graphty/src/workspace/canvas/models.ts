@@ -4,7 +4,7 @@
  * (`session.assets.add`).
  */
 
-import type { ModelPreview } from "@graphty/graphty-element";
+import type { Graphty as GraphtyElement, ModelPreview } from "@graphty/graphty-element";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
@@ -104,6 +104,22 @@ function failureOf(error: unknown): CodedFact {
  */
 function modelFailureOf(error: unknown): CodedFact | undefined {
     return isGraphtyError(error) && error.code !== "E_NO_WEBGL" ? failureOf(error) : undefined;
+}
+
+/**
+ * Asks graphty-element to draw an accepted model once, small and off screen (`modelThumbnail`),
+ * to learn whether it can be drawn at all, for a model the reader has not looked at.
+ * @param element - the element.
+ * @param ref - what a layer names.
+ * @returns why the model cannot be drawn, or undefined when it can (or the picture itself failed).
+ */
+export async function modelDrawFailure(element: GraphtyElement, ref: string): Promise<CodedFact | undefined> {
+    try {
+        await element.modelThumbnail(ref, { size: 8 });
+        return undefined;
+    } catch (error) {
+        return modelFailureOf(error);
+    }
 }
 
 /** A model's picture as graphty-element drew it, or why it could not draw it. */

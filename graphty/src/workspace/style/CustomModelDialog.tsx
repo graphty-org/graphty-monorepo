@@ -34,7 +34,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
+import { fileStem, modelDrawFailure, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
@@ -109,8 +109,10 @@ interface Member {
     readonly name: string;
     /** Whether Add takes it (Load this model). */
     readonly load: boolean;
-    /** Why graphty-element could not draw it, once the preview has shown it; Add is blocked while it is taken. */
+    /** Why graphty-element could not draw it; Add is blocked while it is taken. */
     readonly failure?: CodedFact;
+    /** Whether graphty-element has been asked to draw it, so `failure` is known. */
+    readonly checked?: boolean;
 }
 
 /** A model of a set refused outright: never held, said by its file. */
@@ -696,6 +698,9 @@ function addBlock(
     }
     // Every model taken that graphty-element could not draw blocks Add, not only the one shown.
     for (const member of taking) {
+        if (member !== current && member.checked !== true) {
+            return CUSTOM_MODEL.loading(member.name);
+        }
         const why = member === current ? failure : member.failure;
         if (why !== undefined) {
             return member === current ? refusalLine(why) : CUSTOM_MODEL.ofSet(member.name, refusalLine(why));
@@ -730,7 +735,7 @@ export function CustomModelDialog({
     onPicture,
     onClose,
 }: Readonly<CustomModelDialogProps>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+    const { session, store, element } = useWorkspace();
     const [address, setAddress] = useState("");
     const [loading, setLoading] = useState<Loading | null>(null);
     const [problem, setProblem] = useState<CodedFact | null>(null);
@@ -797,9 +802,10 @@ export function CustomModelDialog({
     // Each model of a set remembers whether it could be drawn, so Add stays blocked by one that
     // could not after the reader steps away from it.
     const heldId = held?.record.id;
-    const { failure } = draw;
+    const { failure, drawn: shown } = draw;
     useEffect(() => {
-        if (heldId === undefined) {
+        // Only what the preview settled: while it draws, what the off-screen draw found stands.
+        if (heldId === undefined || (failure === undefined && !shown)) {
             return;
         }
         setMembers((now) =>
@@ -807,7 +813,29 @@ export function CustomModelDialog({
                 ? now.map((m) => (m.held.record.id === heldId ? { ...m, failure } : m))
                 : now,
         );
-    }, [heldId, failure]);
+    }, [heldId, failure, shown]);
+    // Every accepted model is drawn once off screen, so a model of a set the reader never steps to
+    // still blocks Add when graphty-element cannot draw it.
+    const asked = useRef(new Set<string>());
+    useEffect(() => {
+        if (element === null) {
+            return;
+        }
+        for (const member of members) {
+            const { id, state } = member.held.record;
+            if (state !== "accepted" || asked.current.has(id)) {
+                continue;
+            }
+            asked.current.add(id);
+            void modelDrawFailure(element, refOf(member.held)).then((found) => {
+                setMembers((now) =>
+                    now.map((m) =>
+                        m.held.record.id === id ? { ...m, checked: true, failure: m.failure ?? found } : m,
+                    ),
+                );
+            });
+        }
+    }, [element, members]);
     // A model that is in but cannot be drawn is said, as an intake refusal is.
     const failureLine = draw.failure === undefined ? null : refusalLine(draw.failure);
     useEffect(() => {

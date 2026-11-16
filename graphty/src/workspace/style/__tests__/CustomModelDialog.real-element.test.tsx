@@ -348,6 +348,23 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
+    it("keeps Add blocked by a model it cannot draw that the reader never steps to", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        // The damaged model second, so it is never on screen.
+        dropOn(within(dialog).getByTestId("custom-model"), [
+            await fixture(pointsPlyUrl, "points.ply"),
+            await fixture(damagedPlyUrl, "zz-damaged.ply"),
+        ]);
+        await previewOf(dialog, "points");
+        assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
+        const add = within(dialog).getByRole("button", { name: "Add 2 models" });
+        assert.equal(add.getAttribute("aria-disabled"), "true", "the model never shown blocks Add");
+        await userEvent.hover(add);
+        // Not "Loading zz-damaged" while it is checked: the reason it cannot be drawn.
+        await screen.findByRole("tooltip", { name: /^zz-damaged: / });
+    });
+
     it("says which models of a drop were refused", async () => {
         const { store, tab } = await openShapes();
         const dialog = await openCustom(tab);

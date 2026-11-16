@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,7 +55,7 @@ const report = join(dir, "report.md");
 writeFileSync(
     review,
     `#!/bin/bash
-printf '<!-- fresh-review abc123 -->\\n\\nBlocking findings: 0\\n' > ${JSON.stringify(report)}
+printf '<!-- fresh-review abc123 -->\\n%s\\nBlocking findings: 0\\n' "$FAKE_REVIEW_HEADER" > ${JSON.stringify(report)}
 echo "$PR_REVIEW_REFS $*" > ${JSON.stringify(join(dir, "review.args"))}
 echo ${JSON.stringify(report)}
 exit "\${FAKE_REVIEW_RC:-0}"
@@ -173,7 +173,13 @@ describe("pr-open.sh", () => {
         writeFileSync(join(work, "b.txt"), "b\n");
         git(work, "add", ".");
         git(work, "commit", "-q", "-m", "fix(tools): the second\n\nfixes #2, Refs #3 and resolves: #1 and #1001");
-        const r = run();
+        // a review that did not judge every member (master's older copy) stops it, pushing nothing
+        let r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /did not judge every issue this branch closes \(Fixes #1001 Fixes #1 Fixes #2 Refs #3\)/);
+        assert.ok(!existsSync(ghLog), "gh was never called");
+        const judged = "<!-- review-members Fixes #1001 Fixes #1 Fixes #2 Refs #3 -->\n";
+        r = run(["--proof", proof], { FAKE_REVIEW_HEADER: judged });
         assert.equal(r.code, 0, r.out);
         const body = readFileSync(join(dir, "body.md"), "utf8");
         assert.match(body, /\n\nFixes #1001\nFixes #1\nFixes #2\nRefs #3\n\n## Proof/);
@@ -181,6 +187,33 @@ describe("pr-open.sh", () => {
             readFileSync(join(dir, "review.args"), "utf8").trim(),
             "0 --proof " + proof + " --issue 1001 --reuse",
         );
+    });
+
+    it("names members from merge commits, URLs and owner/repo forms, and a closed own issue as Fixes", () => {
+        branch(
+            "fix/1003-forms",
+            { "a.txt": "a\n" },
+            "fix(tools): a\n\nCloses https://github.com/graphty-org/graphty-monorepo/issues/4",
+        );
+        git(work, "checkout", "-q", "-b", "side");
+        writeFileSync(join(work, "s.txt"), "s\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "fix(tools): side\n\nFixes #1003");
+        git(work, "checkout", "-q", "fix/1003-forms");
+        git(work, "merge", "-q", "--no-ff", "-m", "Merge side (fixes graphty-org/graphty-monorepo#05)", "side");
+        const judged = "<!-- review-members Fixes #1003 Fixes #4 Fixes #5 -->\n";
+        const r = run(["--proof", proof, "--refs"], { FAKE_REVIEW_HEADER: judged });
+        assert.equal(r.code, 0, r.out);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /\n\nFixes #1003\nFixes #4\nFixes #5\n\n## Proof/);
+    });
+
+    it("refuses a closed member the review found unaddressed, even with --review-answered", () => {
+        branch("fix/1004-gap", { "a.txt": "a\n" }, "fix(tools): a\n\nFixes #6");
+        const header = "<!-- review-members Fixes #1004 Fixes #6 -->\n<!-- member-not-addressed 6 -->\n";
+        const r = run(["--proof", proof, "--review-answered"], { FAKE_REVIEW_HEADER: header, FAKE_REVIEW_RC: "3" });
+        assert.equal(r.code, 3, r.out);
+        assert.match(r.out, /does not address/);
+        assert.ok(!existsSync(ghLog), "gh was never called");
     });
 
     it("keeps a single-issue body as it was, and tells the review its issue is Refs with --refs", () => {

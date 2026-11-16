@@ -13,7 +13,8 @@
 # ISSUE section, read the same way, and the reviewer answers "Member #N: addressed" or "not addressed" for each
 # issue the pull request will close. One not answered "addressed" is a blocking finding; a Refs issue is context
 # only. Its own issue is Refs when PR_REVIEW_REFS=1 (pr-open.sh --refs). Such a report carries the member lines
-# in a `<!-- review-members ... -->` line and is reused only for the same members. A branch that names no other
+# in a `<!-- review-members ... -->` line and is reused only for the same members; each closed issue not
+# addressed gets a `<!-- member-not-addressed N -->` line, which pr-open.sh refuses even with --review-answered. A branch that names no other
 # issue is reviewed exactly as before.
 #
 #   tools/pr-review.sh --proof <file> [--issue N] [--base <ref>] [--reuse] [--dry-run]
@@ -62,17 +63,21 @@ die() {
     echo "pr-review: $*" >&2
     exit 1
 }
-# The pull request's issue lines: "<own kind> #<own>" first, then "Fixes #N" for every other issue a commit of
-# <range> names with a closing keyword (GitHub's: fix, close, resolve and their -es/-ed forms, colon allowed), then
-# "Refs #N" for every other one named only with Ref or Refs. tools/pr-open.sh has the same function: keep them equal.
+# The pull request's issue lines: "<kind> #<own>" first, then "Fixes #N" for every other issue a commit of <range>
+# (merge commits too: GitHub reads them all) names with a closing keyword (GitHub's: fix, close, resolve and their
+# -es/-ed forms, colon allowed; #N, graphty-org/graphty-monorepo#N or the issue's URL), then "Refs #N" for every
+# other one named only with Ref or Refs. <kind> is the given one, or Fixes when the branch names other issues and a
+# commit closes its own (GitHub closes it on merge whatever the flag says). A branch naming no other issue gets
+# "<given kind> #<own>" alone, as always. tools/pr-open.sh and tools/pr-review.sh both have it: keep them equal.
 #   member_lines <range> <own issue> <Fixes|Refs>
 member_lines() {
-    echo "$3 #$2"
-    git log --no-merges --format=%B "$1" |
-        { grep -oiE '\b(fix(e[sd])?|close[sd]?|resolve[sd]?|refs?)[[:space:]]*:?[[:space:]]+#[0-9]+\b' || true; } |
-        awk -v own="$2" '{ n = $NF; sub(/^#/, "", n); n += 0; if (n == own) next
-            if (tolower($1) ~ /^ref/) { if (!(n in k)) k[n] = "Refs" } else k[n] = "Fixes" }
-            END { for (n in k) print k[n], n }' | sort -k1,1 -k2,2n | sed 's/ / #/'
+    git log --format=%B "$1" |
+        { grep -oiE '\b(fix(e[sd])?|close[sd]?|resolve[sd]?|refs?)[[:space:]]*:?[[:space:]]+(https://github\.com/graphty-org/graphty-monorepo/issues/|graphty-org/graphty-monorepo#|#)[0-9]+\b' || true; } |
+        awk -v own="$2" -v kind="$3" '{ n = $NF; sub(/.*[#\/]/, "", n); sub(/^0+/, "", n); c = tolower($1) !~ /^ref/
+                if (n == own) { ownfix = ownfix || c; next }
+                others = 1; if (c) k[n] = "Fixes"; else if (!(n in k)) k[n] = "Refs" }
+            END { print 0, (ownfix && others ? "Fixes" : kind), own; for (n in k) print 1, k[n], n }' |
+        sort -k1,1n -k2,2 -k3,3n | awk '{ print $2 " #" $3 }'
 }
 
 # An older branch copy launches this one from a temporary directory holding only pr-review.sh and
@@ -108,7 +113,9 @@ id=$(git diff -U0 --binary --no-color --no-ext-diff --no-renames --diff-algorith
 marker="<!-- fresh-review $id -->"
 own_kind=Fixes
 [ "${PR_REVIEW_REFS:-0}" != 1 ] || own_kind=Refs
-mapfile -t members < <(member_lines "$mb..HEAD" "$issue" "$own_kind")
+member_out=$(member_lines "$mb..HEAD" "$issue" "$own_kind") || die "could not read the issues $branch's commits name"
+mapfile -t members <<<"$member_out"
+own_kind=${members[0]%% *}
 members_marker=""
 [ "${#members[@]}" -le 1 ] || members_marker="<!-- review-members ${members[*]} -->"
 
@@ -125,6 +132,8 @@ for (const x of f) console.log(x)') || die "tools/check-test-integrity.mjs print
 mapfile -t findings < <(printf '%s\n' "$integrity_list" | grep -v -e ': parameters\.chromatic ' -e '^$' || true)
 integrity_marker="<!-- integrity-review $head -->"
 report="$top/tmp/pr-review/$branch/report.md"
+# The report's header (up to its first blank line): only markers written there count, never text the reviewer wrote.
+header() { sed '/^$/q' "$1"; }
 verdict() { sed -nE 's/^Blocking findings: ([0-9]+)[[:space:]]*$/\1/p' "$1" | tail -n 1; }
 finish() {
     echo "$report"
@@ -142,8 +151,8 @@ finish() {
 earlier=""
 # A group's report stands only for the members it reviewed: an issue that joined since is reviewed.
 if [ "$again" = 0 ] && [ "$dry" = 0 ] && [ -f "$report" ] &&
-    { [ "${#findings[@]}" = 0 ] || grep -qxF -- "$integrity_marker" "$report"; } &&
-    { [ -z "$members_marker" ] || grep -qxF -- "$members_marker" "$report"; }; then
+    { [ "${#findings[@]}" = 0 ] || header "$report" | grep -qxF -- "$integrity_marker"; } &&
+    { [ -z "$members_marker" ] || header "$report" | grep -qxF -- "$members_marker"; }; then
     n=$(verdict "$report")
     if [ "$n" = 0 ] || { [ -n "$n" ] && [ "$(head -n 1 "$report")" = "$marker" ]; }; then
         finish "$n"
@@ -299,10 +308,14 @@ for i in "${!findings[@]}"; do
         uncleared=$((uncleared + 1))
     fi
 done
-# Each issue the pull request would close must be answered "addressed", and never also "not addressed".
+# Each issue the pull request would close must be answered "addressed", and never also "not addressed". One that is
+# not gets a marker tools/pr-open.sh refuses even with --review-answered: merging would close it unfixed.
+unaddressed=()
 for m in "${closing[@]}"; do
-    grep -qE "^Member #$m: addressed\b" "$out" && ! grep -qE "^Member #$m: not addressed\b" "$out" ||
+    if ! grep -qE "^Member #$m: addressed\b" "$out" || grep -qE "^Member #$m: not addressed\b" "$out"; then
         uncleared=$((uncleared + 1))
+        unaddressed+=("<!-- member-not-addressed $m -->")
+    fi
 done
 given=$n
 [ "$uncleared" -le "$n" ] || n=$uncleared
@@ -314,6 +327,7 @@ mkdir -p "$(dirname "$report")"
         printf '%s\n' "${cleared[@]}"
     fi
     [ -z "$members_marker" ] || echo "$members_marker"
+    [ "${#unaddressed[@]}" = 0 ] || printf '%s\n' "${unaddressed[@]}"
     echo
     cat "$out"
     # the verdict is the last such line: a finding left uncleared raises it

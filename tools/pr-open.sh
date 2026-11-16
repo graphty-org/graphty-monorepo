@@ -60,17 +60,21 @@ die() {
     echo "pr-open: $*" >&2
     exit "${code:-1}"
 }
-# The pull request's issue lines: "<own kind> #<own>" first, then "Fixes #N" for every other issue a commit of
-# <range> names with a closing keyword (GitHub's: fix, close, resolve and their -es/-ed forms, colon allowed), then
-# "Refs #N" for every other one named only with Ref or Refs. tools/pr-review.sh has the same function: keep them equal.
+# The pull request's issue lines: "<kind> #<own>" first, then "Fixes #N" for every other issue a commit of <range>
+# (merge commits too: GitHub reads them all) names with a closing keyword (GitHub's: fix, close, resolve and their
+# -es/-ed forms, colon allowed; #N, graphty-org/graphty-monorepo#N or the issue's URL), then "Refs #N" for every
+# other one named only with Ref or Refs. <kind> is the given one, or Fixes when the branch names other issues and a
+# commit closes its own (GitHub closes it on merge whatever the flag says). A branch naming no other issue gets
+# "<given kind> #<own>" alone, as always. tools/pr-open.sh and tools/pr-review.sh both have it: keep them equal.
 #   member_lines <range> <own issue> <Fixes|Refs>
 member_lines() {
-    echo "$3 #$2"
-    git log --no-merges --format=%B "$1" |
-        { grep -oiE '\b(fix(e[sd])?|close[sd]?|resolve[sd]?|refs?)[[:space:]]*:?[[:space:]]+#[0-9]+\b' || true; } |
-        awk -v own="$2" '{ n = $NF; sub(/^#/, "", n); n += 0; if (n == own) next
-            if (tolower($1) ~ /^ref/) { if (!(n in k)) k[n] = "Refs" } else k[n] = "Fixes" }
-            END { for (n in k) print k[n], n }' | sort -k1,1 -k2,2n | sed 's/ / #/'
+    git log --format=%B "$1" |
+        { grep -oiE '\b(fix(e[sd])?|close[sd]?|resolve[sd]?|refs?)[[:space:]]*:?[[:space:]]+(https://github\.com/graphty-org/graphty-monorepo/issues/|graphty-org/graphty-monorepo#|#)[0-9]+\b' || true; } |
+        awk -v own="$2" -v kind="$3" '{ n = $NF; sub(/.*[#\/]/, "", n); sub(/^0+/, "", n); c = tolower($1) !~ /^ref/
+                if (n == own) { ownfix = ownfix || c; next }
+                others = 1; if (c) k[n] = "Fixes"; else if (!(n in k)) k[n] = "Refs" }
+            END { print 0, (ownfix && others ? "Fixes" : kind), own; for (n in k) print 1, k[n], n }' |
+        sort -k1,1n -k2,2 -k3,3n | awk '{ print $2 " #" $3 }'
 }
 
 proof="" refs=0 title="" issue="" answered=0 merge_master=0
@@ -149,6 +153,19 @@ elif [ "$rc" != 0 ]; then
 fi
 
 base=$(git merge-base origin/master HEAD)
+if [ "$refs" = 1 ]; then kind=Refs; else kind=Fixes; fi
+members=$(member_lines "$base..HEAD" "$issue" "$kind") || die "could not read the issues $branch's commits name"
+# A pull request that closes more than one issue opens only on a review that judged every member: its header names
+# exactly these lines (master's older pr-review.sh, which the review always runs, does not), and no closed member
+# was found unaddressed, which --review-answered cannot answer: merging would close that issue unfixed.
+header=$(sed '/^$/q' "$report")
+if [ "$(grep -c '^Fixes ' <<<"$members")" -gt 1 ] &&
+    ! grep -qxF -- "<!-- review-members $(echo $members) -->" <<<"$header"; then
+    die "the review did not judge every issue this branch closes ($(echo $members)); tools/pr-review.sh on origin/master must review every member first"
+fi
+if grep -q '^<!-- member-not-addressed ' <<<"$header"; then
+    code=3 die "the review found an issue this branch closes that its diff does not address ($report): fix it on this branch"
+fi
 scan="${PR_OPEN_SCAN:-$here/scan-secrets.sh}"
 PREPUSH_ROOT="$PWD" "$scan" "$base" HEAD || die "the secret scan refused the branch"
 zero=0000000000000000000000000000000000000000
@@ -187,8 +204,7 @@ if [ -z "$url" ]; then
         total=$(git rev-list --count --no-merges "$base..HEAD")
         [ "$total" -le 50 ] || echo "- and $((total - 50)) more"
         echo
-        if [ "$refs" = 1 ]; then kind=Refs; else kind=Fixes; fi
-        member_lines "$base..HEAD" "$issue" "$kind"
+        echo "$members"
         echo
         cat "$section"
     } >"$body"

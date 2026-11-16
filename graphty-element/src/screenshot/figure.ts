@@ -97,6 +97,9 @@ export interface FigureDrawing {
 }
 
 const LEGEND_FONT = "system-ui, sans-serif";
+/** The key's text color, and its quieter one for values and notes. */
+const INK = "#1a1a1a";
+const FAINT = "#666666";
 
 /**
  * Text made safe inside an SVG element or attribute.
@@ -166,7 +169,8 @@ function markSvg(mark: FigureMark, index: number): string {
         const id = `graphty-ramp-${String(index)}`;
         const last = Math.max(mark.colors.length - 1, 1);
         const stops = mark.colors.map((c, i) => `<stop offset="${num(i / last)}" stop-color="${esc(c)}"/>`).join("");
-        return `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>${rectSvg(mark.ramp, `fill="url(#${id})"`)}`;
+        const fill = `fill="url(#${id})"`;
+        return `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>${rectSvg(mark.ramp, fill)}`;
     }
     if ("polygon" in mark) {
         return `<polygon points="${pointList(mark.polygon)}" fill="${esc(mark.fill)}"/>`;
@@ -225,7 +229,7 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
     if (key.length > 0) {
         out.push(
             `<g font-family="${LEGEND_FONT}" font-size="${String(LEGEND_METRICS.FONT_SIZE)}" dominant-baseline="central">`,
-            ...key.map(markSvg),
+            ...key.map((mark, i) => markSvg(mark, i)),
             `</g>`,
         );
     }
@@ -245,14 +249,12 @@ function legendMarks(legend: FigureDrawing["legend"], width: number, height: num
     if (legend === undefined || legend.sections.length === 0) {
         return [];
     }
-    const { PAD, LINE, GAP, CHIP, RAMP_HEIGHT } = LEGEND_METRICS;
+    const { PAD, LINE, GAP, RAMP_HEIGHT } = LEGEND_METRICS;
     const cardWidth = legend.inner + PAD * 2;
     const cardLeft = legend.position.endsWith("left") ? PAD : width - PAD - cardWidth;
     const cardTop = legend.position.startsWith("top") ? PAD : height - PAD - legend.height;
     const left = cardLeft + PAD;
     const right = left + legend.inner;
-    const ink = "#1a1a1a";
-    const faint = "#666666";
     const marks: FigureMark[] = [
         {
             rect: { x: cardLeft, y: cardTop, w: cardWidth, h: legend.height, radius: 4 },
@@ -263,21 +265,8 @@ function legendMarks(legend: FigureDrawing["legend"], width: number, height: num
     ];
     let y = cardTop + PAD;
     for (const section of legend.sections) {
-        marks.push({ text: section.title, x: left, y: y + LINE / 2, anchor: "start", color: ink, weight: "600" });
-        y += LINE;
-        for (const row of section.rows ?? []) {
-            let x = left;
-            const mid = y + LINE / 2;
-            if (row.color !== undefined) {
-                marks.push({ rect: { x, y: mid - CHIP / 2, w: CHIP, h: CHIP }, fill: row.color });
-                x += CHIP + GAP;
-            }
-            marks.push({ text: row.label, x, y: mid, anchor: "start", color: ink });
-            if (row.value !== undefined) {
-                marks.push({ text: row.value, x: right, y: mid, anchor: "end", color: faint });
-            }
-            y += LINE;
-        }
+        marks.push({ text: section.title, x: left, y: y + LINE / 2, anchor: "start", color: INK, weight: "600" });
+        y = rowMarks(section.rows ?? [], left, right, y + LINE, marks);
         if (section.ramp) {
             const colors = section.ramp.colors ?? [];
             if (colors.length > 0) {
@@ -293,18 +282,52 @@ function legendMarks(legend: FigureDrawing["legend"], width: number, height: num
             }
             const mid = y + RAMP_HEIGHT + GAP + LINE / 2;
             marks.push(
-                { text: section.ramp.min, x: left, y: mid, anchor: "start", color: ink },
-                { text: section.ramp.max, x: right, y: mid, anchor: "end", color: ink },
+                { text: section.ramp.min, x: left, y: mid, anchor: "start", color: INK },
+                { text: section.ramp.max, x: right, y: mid, anchor: "end", color: INK },
             );
             y += RAMP_HEIGHT + GAP + LINE;
         }
         if (section.note !== undefined) {
-            marks.push({ text: section.note, x: left, y: y + LINE / 2, anchor: "start", color: faint });
+            marks.push({ text: section.note, x: left, y: y + LINE / 2, anchor: "start", color: FAINT });
             y += LINE;
         }
         y += GAP;
     }
     return marks;
+}
+
+/**
+ * A key section's rows: each one's chip, label and value.
+ * @param rows - The rows.
+ * @param left - The card's inner left.
+ * @param right - The card's inner right.
+ * @param top - Where the first row starts.
+ * @param marks - The key's marks so far, added to.
+ * @returns Where the next thing starts.
+ */
+function rowMarks(
+    rows: NonNullable<ScreenshotLegendSection["rows"]>,
+    left: number,
+    right: number,
+    top: number,
+    marks: FigureMark[],
+): number {
+    const { LINE, GAP, CHIP } = LEGEND_METRICS;
+    let y = top;
+    for (const row of rows) {
+        let x = left;
+        const mid = y + LINE / 2;
+        if (row.color !== undefined) {
+            marks.push({ rect: { x, y: mid - CHIP / 2, w: CHIP, h: CHIP }, fill: row.color });
+            x += CHIP + GAP;
+        }
+        marks.push({ text: row.label, x, y: mid, anchor: "start", color: INK });
+        if (row.value !== undefined) {
+            marks.push({ text: row.value, x: right, y: mid, anchor: "end", color: FAINT });
+        }
+        y += LINE;
+    }
+    return y;
 }
 
 /**

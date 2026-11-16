@@ -23,6 +23,8 @@ export default tseslint.config(
             "**/dist/**",
             "**/node_modules/**",
             "**/coverage/**",
+            // Coverage parts a whole-shard test run writes (tools/run-tests.sh), merged later; gitignored.
+            "**/.coverage-parts/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",

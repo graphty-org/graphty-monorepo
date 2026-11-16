@@ -149,7 +149,7 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
-### Loading more than 100,000 nodes
+### Loading past the size caps
 
 A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
 you can raise either number with `limits` (experimental):

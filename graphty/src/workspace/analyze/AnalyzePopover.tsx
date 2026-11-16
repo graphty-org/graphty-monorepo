@@ -334,7 +334,7 @@ export function AnalyzePopover({
             },
             ...planOptions(session, descriptor.key, wordsFor(descriptor).name, runParams),
         });
-        // A failed run is reported on its row and in the inspector, from the run itself.
+        // A failed run is reported in the notice, on its row and in the inspector, from the run itself.
         run.then(undefined, () => undefined);
         onStarted(wordsFor(descriptor).name);
         onClose();

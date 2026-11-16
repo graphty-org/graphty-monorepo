@@ -1371,6 +1371,9 @@ jobs:
                   fi
                   cat "$GITHUB_OUTPUT"
 
+            # format:check runs prettier's parallel CLI (--experimental-cli, one worker per core): the classic CLI
+            # checks the repository's 10,000 files on one core, about 4.5 minutes on a normal runner, and a slow
+            # runner (every step 4 to 5 times slower) ran it into the job's time limit (#8248). About 4 times faster.
             - name: Formatting
               if: steps.scope.outputs.format-all == 'true'
               run: pnpm run format:check

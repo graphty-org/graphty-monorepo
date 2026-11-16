@@ -1,5 +1,5 @@
 name: Release
-run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 'shadow' && 'Release (shadow)' || format('Release ({0})', inputs.mode || 'full') }}
+run-name: ${{ inputs.mode == 'shadow' && 'Release (shadow)' || format('Release ({0})', inputs.mode || 'full') }}
 
 # Four modes. The two of the 6-hour full run (channels pipeline steps 6 and 7, design/ci/channels-pipeline/channels.md
 # sections 5 to 7; issues #3454 and #1020), which publish only to npm `next` and nightly.graphty.app:
@@ -65,16 +65,15 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 # records `refused` (not the owner's `rejected`, #6783), so promote-nightly of the same candidate tries again once the
 # cause is fixed on master; a full slot's catch-up never retries it.
 #
-# And the two of rollout step 3 (design/ci/channels-pipeline/migration.md section 3; issue #3424):
+# And shadow, of rollout step 3 (design/ci/channels-pipeline/migration.md section 3; issue #3424):
 #
 # - shadow, only when dispatched with `-f mode=shadow` (it was the default before full): the lanes below run on
-#   the candidate and the version job versions it, but nothing lands and nothing publishes (the approve, land and
+#   the candidate and the version job versions it, but nothing lands and nothing publishes (the land and
 #   publish jobs are skipped). A red shadow run opens no "Release held" issue: it comments once on #3418 instead.
 #   Nothing announces it.
-# - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
-#   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
-#   (npm `latest`) run in environment `release`, as described below. graphty.app does not follow it: graphty.app is
-#   graphty-site's and moves only by promote.yml, so a legacy run moves npm `latest` alone. Its removal is still open on issue #3467.
+#
+# Nothing here publishes npm `latest` or moves graphty.app: only the owner's promote.yml does (issue #3467 removed
+# the old `legacy` mode, which published `latest` from master after his approval).
 #
 # No workflow_run trigger: a master push never starts or restarts a release.
 #
@@ -97,8 +96,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #    (coverage.yml).
 # 3. Only when all six pass, the version job versions the tested commit with nx release (one local commit holding
 #    only version fields and changelogs). Anything red before the release lands holds the WHOLE release: nothing
-#    pushed, nothing published, and the held job opens or updates the one train hold, a "Release held: <what>
-#    failed on <sha>" issue for githerd to fix. A later train that lands closes it.
+#    pushed, nothing published, and the held job opens or updates the one "Nightly promotion failed: <what> on
+#    <sha>" issue.
 # 4. The land job merges that version commit into master's CURRENT tip and pushes the merge and one tag per
 #    package ({projectName}@{version}, on the version commit) in one atomic push, with the release deploy key (the
 #    only key master's ruleset lets push without a pull request). A master that moved meanwhile is fetched and
@@ -141,7 +140,7 @@ on:
                 default: ""
                 type: string
             mode:
-                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
+                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
                 required: false
                 default: full
                 type: choice
@@ -149,7 +148,6 @@ on:
                     - full
                     - restart
                     - shadow
-                    - legacy
                     - candidate
                     - promote-nightly
             candidate:
@@ -183,10 +181,9 @@ concurrency:
 
 # What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
 # (scheduled=true), otherwise the event's name ("workflow_dispatch" for a person's ad hoc release). MODE is the
-# dispatch's mode, full when it named none. DIST_TAG is the npm dist-tag the land and publish jobs release to: `latest`
-# for a legacy run (behind the owner's production approval), `next` for the nightly promotion of a full or restart
-# run (channels pipeline step 7, issue #3461). Both publish from the same job in environment `release`, so npm
-# trusted publishing bound to that environment serves both.
+# dispatch's mode, full when it named none. DIST_TAG is the npm dist-tag the land and publish jobs release to:
+# always `next`, the nightly promotion of a full or restart run (channels pipeline step 7, issue #3461); only
+# promote.yml moves `latest`.
 env:
     TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
     MODE: ${{ inputs.mode || 'full' }}
@@ -195,7 +192,7 @@ env:
     # release-rerun.yml and release-watch.yml itself, so its attempt 1 still defers a red verdict to the same-commit
     # re-run (tools/full-run.mjs actorOf)
     WATCHED: ${{ github.ref == 'refs/heads/channel/full-run' }}
-    DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
+    DIST_TAG: next
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
     # The owner's release policy (release-hold.json, release-approvals.json) is master's, whatever commit a job
@@ -233,7 +230,6 @@ jobs:
                 resume,
                 held,
                 version,
-                approve,
                 land,
                 publish,
                 site,
@@ -350,8 +346,8 @@ jobs:
         if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/channel/full-run') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
-        # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
-        environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
+        # Pushover for the dead-man check and a settled publish hold's announcement, like the verdict job's
+        environment: release # Pushover
         permissions:
             contents: write # delete the branch of a release pull request left from the old design
             actions: read # find an earlier shadow run on the same commit
@@ -445,8 +441,8 @@ jobs:
                           "Closed: releases no longer go through a pull request. ${run_url} tests master's newest commit and publishes it directly."
                   done
                   # A held release waits for its fix: a scheduled attempt skips, and an ad hoc dispatch runs
-                  # anyway; a train hold closes when a legacy run lands, a publish hold when its re-run publish passes
-                  # or when npm lists what it accepted (above). A full run's slot never skips for a hold: it
+                  # anyway; a publish hold closes when its re-run publish passes or when npm lists what it accepted
+                  # (above). A full run's slot never skips for a hold: it
                   # publishes nothing, and canary's new commit may hold the fix (channels design, section 11).
                   if [ -n "$held" ] && [ "$TRIGGER" = schedule ] && [ "${MODE:-}" != full ] && [ "${MODE:-}" != restart ]; then
                       skip "the release is held (issue #${held}); a dispatch runs anyway"
@@ -617,21 +613,6 @@ jobs:
                       echo "tags=${tags}" >> "$GITHUB_OUTPUT"
                   fi
 
-            # The owner's phone hears that a legacy run began testing a releasable candidate
-            # (tools/release-status.mjs started; attempts that do nothing, and shadow runs, stay silent). A failure
-            # here holds nothing.
-            - name: Announce the train attempt
-              if: ${{ steps.releasable.outputs.release == 'true' && inputs.mode == 'legacy' }}
-              continue-on-error: true
-              env:
-                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
-                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-                  SHA: ${{ steps.pending.outputs.sha }}
-                  TAGS: ${{ steps.releasable.outputs.tags }}
-              run: |
-                  node tools/release-status.mjs started --sha "$SHA" --tags "$TAGS" \
-                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
     # The hand-off (the pick's handoff step): channel/full-run moves to the candidate with the deploy key, and release.yml
     # is dispatched there in the same mode. That run waits for this one (the release-train group), picks the same
     # commit as its own (restart passes it as sha) and does everything this run would have; this one files nothing.
@@ -776,8 +757,8 @@ jobs:
     #
     # Every release test of a candidate runs it, once its CI lane is green (owner, 2026-10-29: "LLM tests should only
     # be running during the full release testing, and should run for each of the 4 canary->nightly releases per
-    # day"): modes full (each scheduled slot), restart and candidate, and the owner-only shadow and legacy runs,
-    # whose gates need it. Never promote-nightly, which tests nothing, and never a pull request or a master push.
+    # day"): modes full (each scheduled slot), restart and candidate, and the owner-only shadow run,
+    # whose gate needs it. Never promote-nightly, which tests nothing, and never a pull request or a master push.
     # tools/llm-spend.mjs warns as spend:llm at $60 in a calendar month; it never stops the run.
     llm:
         name: LLM regression
@@ -1858,11 +1839,10 @@ jobs:
                   git push --no-verify origin "$ref" ||
                       echo "::warning::could not push ${ref}: add channel/candidate to the deploy-key ruleset (owner item); the hold stands in the results store"
 
-    # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
-    # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed
-    # on <sha>" issue, which githerd turns into a fix job; an open publish hold ("Release held: publish failed") is
-    # never touched. Scheduled trains skip while either is open; the train hold closes when a later train lands.
-    # A train attempt ends with a landed release or with this issue, never with neither. So the condition is "the
+    # A nightly promotion the verdict (or the owner's approval) cleared that did not land: nothing is pushed to
+    # master and nothing is published. This job opens (or comments on) the "Nightly promotion failed: <what> on
+    # <sha>" issue; an open publish hold ("Release held: publish failed") is never touched. A cleared promotion
+    # ends with a landed release or with this issue, never with neither. So the condition is "the
     # release did not land", never a list of the results that count as red: a job's result is not only failure or
     # cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass" queued for
     # good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of those two
@@ -1870,18 +1850,16 @@ jobs:
     # still reports; a pick that failed (not one that skipped by design) is held too. A land job that pushed and
     # then failed a later step (closing the held issue) did not hold anything: the release went ahead, so this job
     # does not run, the publish job runs, and the land job reports that failure itself. A shadow run lands
-    # nothing by design, so it reports only a version job that did not pass; and the owner declining the
-    # production approval of a legacy run is his decision, not a failure, so it reports nothing.
+    # nothing by design, so it reports only a version job that did not pass.
     #
     # A shadow run opens no issue: it comments once on #3418 (the channels pipeline) and announces nothing.
     held:
         name: Hold the release
-        needs:
-            [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume, version, approve, land]
-        if: ${{ always() && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true'))))) || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true')) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true'))) }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume, version, land]
+        if: ${{ always() && ((inputs.mode == 'shadow' && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.version.result != 'success'))) || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true')) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true'))) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        # Pushover for a legacy hold's or a failed nightly promotion's announcement; a shadow run announces nothing,
+        # Pushover for a failed nightly promotion's announcement; a shadow run announces nothing,
         # so it takes no environment
         environment: ${{ inputs.mode != 'shadow' && 'release' || '' }}
         permissions:
@@ -1959,9 +1937,7 @@ jobs:
                       echo "Results: $(printf '%s, ' "${results[@]}" | sed 's/, $//')"
                       [ -z "$jobs" ] || echo "Jobs that did not pass: $(cut -f3 <<<"$jobs" | paste -sd, - | sed 's/,/, /g')"
                       echo
-                      if [ "$MODE" = legacy ]; then
-                          echo "Nothing was pushed to master and nothing was published. The whole release is held until this is fixed on master. Scheduled runs skip while this issue is open. Name this issue in the fix without closing it (\`Refs #<this issue>\`), then dispatch the release again (\`gh workflow run release.yml --ref master -f mode=legacy\`). A legacy run that lands releases everything at once and closes this issue; one that fails again comments here."
-                      elif [ "$MODE" = shadow ]; then
+                      if [ "$MODE" = shadow ]; then
                           echo "A shadow run: it never pushes or publishes, and it holds nothing (release.yml, mode shadow)."
                       else
                           echo "The candidate was cleared for nightly (a green-clean verdict, or the owner's approval of its screenshots), but versioning or landing did not finish: nothing reached master, npm \`next\` did not move and channel/nightly did not move. Re-run the failed jobs of the run to retry."
@@ -2000,17 +1976,13 @@ jobs:
                       open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md" "Nightly promotion failed:")
                       echo "issue=${open}" >> "$GITHUB_OUTPUT"
                       echo "::error::nightly promotion: ${what} failed on ${SHA}; nothing was pushed or published (issue ${open})"
-                  elif [ "$MODE" = legacy ]; then
-                      open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
-                      echo "issue=${open}" >> "$GITHUB_OUTPUT"
-                      echo "::error::release held: ${what} failed on ${SHA}; nothing was pushed or published (issue ${open})"
                   else
                       { echo "**${title}**"; echo; cat "$RUNNER_TEMP/body.md"; } > "$RUNNER_TEMP/comment.md"
                       gh issue comment 3418 --body-file "$RUNNER_TEMP/comment.md"
                       echo "::error::shadow release run: ${what} failed on ${SHA}; commented on #3418"
                   fi
 
-            # The owner hears of every held legacy attempt (tools/release-status.mjs): always(), so a failure of the
+            # The owner hears of every failed nightly promotion (tools/release-status.mjs): always(), so a failure of the
             # step above is announced too. A lost spot runner is not an outcome: its failed jobs are re-run, and that
             # attempt announces its own result. A shadow run is not announced.
             - name: Announce the held release
@@ -2036,7 +2008,7 @@ jobs:
         name: Version the release
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume]
         # a promotion after approval (resume) versions the owner's approval, which no lane of this run tested
-        if: ${{ !cancelled() && ((needs.pick.outputs.release == 'true' && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success') || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true'))) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true')) }}
+        if: ${{ !cancelled() && ((needs.pick.outputs.release == 'true' && ((inputs.mode == 'shadow' && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success') || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true'))) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 40
         permissions:
@@ -2168,50 +2140,21 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-    # A legacy run's one gate before anything leaves: the owner approves this job's deployment to environment
-    # `production` in GitHub. A shadow run skips it, and so skips land and publish. The step refuses when
-    # production has no required reviewer (an environment GitHub created on first use asks nobody), so a missing
-    # setting can never publish unasked.
-    approve:
-        name: Owner approval (production)
-        needs: [pick, version]
-        if: ${{ !cancelled() && inputs.mode == 'legacy' && needs.version.result == 'success' }}
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        environment: production
-        permissions:
-            actions: read
-        steps:
-            - name: Check that production asks the owner
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  TAGS: ${{ needs.version.outputs.tags }}
-              run: |
-                  set -euo pipefail
-                  reviewers=$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" \
-                      --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length')
-                  [ "$reviewers" -gt 0 ] || {
-                      echo "::error::environment production has no required reviewer, so nothing asked the owner; add him as its reviewer and dispatch again"
-                      exit 1
-                  }
-                  echo "the owner approved the release of ${TAGS}"
-
     # Puts the release on master: the version commit, merged into master's current tip, and one tag per package,
     # in one atomic push with the release deploy key (master's ruleset lets a deploy key push without a pull
     # request; GITHUB_TOKEN cannot be exempted). It runs git and the repository's own dependency-free scripts only:
     # no install, no nx, so no third-party code ever runs beside the key.
     land:
         name: Land the release on master
-        needs: [pick, version, approve]
-        # legacy: after the owner's production approval; a nightly promotion: once the version job passed
-        if: ${{ !cancelled() && needs.version.result == 'success' && (needs.approve.result == 'success' || inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' || inputs.mode == 'promote-nightly') }}
+        needs: [pick, version]
+        # a nightly promotion, once the version job passed; a shadow run never lands
+        if: ${{ !cancelled() && needs.version.result == 'success' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' || inputs.mode == 'promote-nightly') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # the deploy key
         permissions:
             actions: read
             contents: read # the push goes over SSH with the deploy key, not with this token
-            issues: write # close the train hold
         outputs:
             pushed: ${{ steps.push.outputs.pushed }}
         env:
@@ -2258,16 +2201,6 @@ jobs:
               run: tools/channel/land.sh
               env:
                   HUSKY: "0"
-
-            # Everything passed and the release is on master: a held train is released by this one. Only the train
-            # hold closes; a publish hold waits for its own re-run, or for the registry to list what it accepted.
-            - name: Close the held-release issue
-              # a train hold is a legacy release's; a nightly releases nothing to latest, so it closes none
-              if: ${{ inputs.mode == 'legacy' }}
-              run: |
-                  set -euo pipefail
-                  tools/release-held.sh close \
-                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), and its release (${TAGS}) is on master; this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run or the registry lists what it accepted."
 
             # A step after the push failed: the release is not held (the held job skips) and the publish job still
             # runs, but the failure must not pass unseen. The run ends red, and this says what it means.
@@ -2458,10 +2391,10 @@ jobs:
                   npm install -g npm@11
                   npm --version
 
-            # --ignore-scripts (nightly only): this job holds npm's OIDC, so no dependency's install script runs
-            # beside it (the tarballs come from CI's build, which held no secret). A legacy release installs as before.
+            # --ignore-scripts: this job holds npm's OIDC, so no dependency's install script runs beside it (the
+            # tarballs come from CI's build, which held no secret).
             - name: Install dependencies
-              run: pnpm install --frozen-lockfile ${{ inputs.mode != 'legacy' && '--ignore-scripts' || '' }}
+              run: pnpm install --frozen-lockfile --ignore-scripts
               env:
                   HUSKY: "0"
 
@@ -2681,7 +2614,6 @@ jobs:
                 candidate_branch,
                 held,
                 version,
-                approve,
                 land,
                 unhold,
                 slot,

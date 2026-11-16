@@ -140,8 +140,8 @@ closed when nightly moves; "Nightly stalled since" is only the fallback for a sl
 Every outcome is announced on the one open `Release status` issue (`tools/release-status.mjs`) and pushed to the
 owner's phone through Pushover. A failed publish opens a `Release held: publish failed on <sha>` issue; re-run
 the failed job (`gh run rerun <run id> --failed`), which publishes what is missing and closes it (one whose
-versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). The owner-only modes are
-`legacy` (publish npm `latest` from master after his approval) and `shadow` (test and version, publish nothing).
+versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). The owner-only mode is
+`shadow` (test and version, publish nothing); only `promote.yml` publishes npm `latest`.
 
 ### Versions and npm
 

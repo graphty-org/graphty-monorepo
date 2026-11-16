@@ -1,3 +1,5 @@
+import type { SnapshotFlags } from "@graphty/graph-format";
+
 /**
  * The stable code every error an algorithm throws on purpose carries as `error.code`, so a caller can tell the
  * cases apart without matching message text (which may change):
@@ -91,9 +93,17 @@ export function checkNumber(fn: string, name: string, value: number, rule: Numbe
  * @param length - The length they must have, or undefined to skip that check
  * @param ordered - Accept every weight that can be ordered: negative and infinite ones too, only NaN refused (a
  *   spanning tree only compares weights); default false
+ * @param flags - The snapshot's weight flags when `weights` is its own arc array: when they already rule a bad weight
+ *   out, the per-arc scan is skipped (it cost Dijkstra and Prim about a fifth of a call)
  * @throws RangeError with code `E_BAD_OPTION` or `E_BAD_WEIGHT`
  */
-export function checkWeights(fn: string, weights: ArrayLike<number> | null, length?: number, ordered = false): void {
+export function checkWeights(
+    fn: string,
+    weights: ArrayLike<number> | null,
+    length?: number,
+    ordered = false,
+    flags?: Pick<SnapshotFlags, "nonNegativeWeights" | "finiteWeights">,
+): void {
     if (weights === null) {
         return;
     }
@@ -104,6 +114,13 @@ export function checkWeights(fn: string, weights: ArrayLike<number> | null, leng
             ),
             "E_BAD_OPTION",
         );
+    }
+    // A NaN fails both flags, so either one rules it out.
+    if (
+        flags !== undefined &&
+        (ordered ? flags.nonNegativeWeights || flags.finiteWeights : flags.nonNegativeWeights && flags.finiteWeights)
+    ) {
+        return;
     }
     for (let i = 0; i < weights.length; i++) {
         const w = weights[i];

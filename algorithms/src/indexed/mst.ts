@@ -90,6 +90,7 @@ export function checkMstWeights(s: GraphSnapshot, o: MstOptions | undefined): vo
         o?.weights ?? s.weights,
         o?.weights === undefined ? undefined : s.arcCount,
         true,
+        o?.weights === undefined ? s.flags : undefined,
     );
 }
 

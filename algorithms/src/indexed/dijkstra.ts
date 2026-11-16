@@ -1,9 +1,11 @@
 import {
     type AdjacencyView,
+    type GraphSnapshot,
     INVALID_INDEX,
     type NodeRef,
     type NumericVector,
     resolveNode,
+    type SnapshotFlags,
     type U32,
 } from "@graphty/graph-format";
 
@@ -137,7 +139,13 @@ export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOpt
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
     // A negative arc re-queues a popped node, so a negative cycle (or undirected edge) never ends.
-    checkWeights("dijkstra", weights, colIdx.length);
+    checkWeights(
+        "dijkstra",
+        weights,
+        colIdx.length,
+        false,
+        options.weights === undefined ? snapshotFlags(g) : undefined,
+    );
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);
@@ -165,4 +173,13 @@ export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOpt
         pathTo: (target: NodeRef): U32 => walkPredArcs(g, predArc, source, target),
         pathEdges: (target: NodeRef): U32 => walkPredEdges(g, predArc, source, target),
     };
+}
+
+/**
+ * The weight flags of `g` when it is a snapshot, which computed them over its own arcs at freeze; a bare view has none.
+ * @param g - The adjacency
+ * @returns The flags, or undefined
+ */
+function snapshotFlags(g: AdjacencyView): SnapshotFlags | undefined {
+    return "flags" in g ? (g as GraphSnapshot).flags : undefined;
 }

@@ -31,6 +31,8 @@ const config: KnipConfig = {
                 "vitest.babylon-compilers-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
+                // The SonarQube rule set the root eslint.config.js spreads; it loads the sonarjs, unicorn and react plugins
+                "tools/eslint-rules/sonar-way.mjs",
                 "tools/changelog-renderer.cjs",
                 // The release scheduler Worker (deployed by wrangler, not imported) and its tests
                 "tools/release-scheduler/src/worker.js",

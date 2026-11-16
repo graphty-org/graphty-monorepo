@@ -2,6 +2,7 @@
 // This config focuses on ERROR PREVENTION, not stylistic rules
 // Formatting is handled by Prettier (.prettierrc)
 
+import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import eslint from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
 import jsxA11y from "eslint-plugin-jsx-a11y";
@@ -11,6 +12,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import sonarWay, { sonarWayTypedOff } from "./tools/eslint-rules/sonar-way.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -62,6 +64,22 @@ export default tseslint.config(
     // BASE JAVASCRIPT RULES
     // ============================================
     eslint.configs.recommended,
+
+    // ============================================
+    // DISABLE DIRECTIVES: NAMED, EXPLAINED, NEEDED
+    // ============================================
+    // A disable comment names the rules it turns off and says why after " -- ", and one that no
+    // longer suppresses anything is an error, so a stale exception cannot outlive its reason.
+    {
+        linterOptions: { reportUnusedDisableDirectives: "error" },
+    },
+    {
+        plugins: { "eslint-comments": eslintComments },
+        rules: {
+            "eslint-comments/require-description": "error",
+            "eslint-comments/no-unlimited-disable": "error",
+        },
+    },
 
     // ============================================
     // JSDOC RULES FOR PUBLIC API DOCUMENTATION
@@ -296,6 +314,46 @@ export default tseslint.config(
     {
         files: ["graph-format/test/types/**/*.test-d.ts"],
         rules: { "@typescript-eslint/no-unnecessary-condition": "off" },
+    },
+
+    // ============================================
+    // SONARQUBE'S RULES (Sonar way, less the rules turned off here)
+    // ============================================
+    // The rules SonarQube applied, run by ESLint: the list, where each applies and what was left out
+    // are in tools/eslint-rules/sonar-way.mjs. Placed before the blocks below, so the test, story and
+    // script relaxations still win. Existing findings are held in eslint-suppressions.json files.
+    ...sonarWay,
+    // Files SonarQube skipped for one rule, carried over with the reason. The packages with their own
+    // eslint.config.js list theirs there, as these globs are root-relative.
+    {
+        // Seeded random number generators and test-data generators: the randomness is the point and
+        // nothing security-related depends on it.
+        files: ["layout/src/simulation/seed.ts", "layout/src/utils/random.ts", "algorithms/benchmarks/**"],
+        rules: { "sonarjs/pseudo-random": "off" },
+    },
+    {
+        // Developer tooling that runs git, pnpm, node and the like from the developer's own PATH.
+        files: ["tools/**", "**/scripts/**", "githerd/**"],
+        rules: { "sonarjs/no-os-command-from-path": "off" },
+    },
+    {
+        // Line-for-line ports of reference algorithms (the left-right planarity test and the
+        // de Fraysseix-Pach-Pollack drawing from NetworkX's planar_layout), kept in the reference's
+        // shape so they can be checked against it.
+        files: ["layout/src/indexed/planar.ts"],
+        rules: { "sonarjs/cognitive-complexity": "off" },
+    },
+    {
+        // Threefry-2x32 is 32-bit integer arithmetic: `| 0` there is addition modulo 2^32, not
+        // truncation, and Math.trunc would change every random draw.
+        files: ["graph-samples/src/random/threefry.ts"],
+        rules: { "unicorn/prefer-math-trunc": "off" },
+    },
+    {
+        // Tables written by graph-samples/scripts/convert-datasets.mjs, which writes every string as
+        // JSON.stringify does; a backslash in a source name is data, escaped.
+        files: ["graph-samples/data/*.ts"],
+        rules: { "unicorn/prefer-string-raw": "off" },
     },
 
     // ============================================
@@ -536,7 +594,7 @@ export default tseslint.config(
                 project: false,
             },
         },
-        rules: tseslint.configs.disableTypeChecked.rules,
+        rules: { ...tseslint.configs.disableTypeChecked.rules, ...sonarWayTypedOff },
     },
 
     // ============================================
@@ -564,6 +622,7 @@ export default tseslint.config(
         },
         rules: {
             ...tseslint.configs.disableTypeChecked.rules,
+            ...sonarWayTypedOff,
         },
     },
 
@@ -609,6 +668,7 @@ export default tseslint.config(
         },
         rules: {
             ...tseslint.configs.disableTypeChecked.rules,
+            ...sonarWayTypedOff,
             "@typescript-eslint/explicit-function-return-type": "off",
             "jsdoc/no-types": "off",
             // The JSDoc type parser rejects `readonly T[]`, which tsc accepts and these scripts use.

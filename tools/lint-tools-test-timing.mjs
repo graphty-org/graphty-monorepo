@@ -20,10 +20,17 @@ import rootConfig from "../eslint.config.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RULE = "local/no-test-timing";
 const blocks = rootConfig.filter((b) => (Object.keys(b).length === 1 && b.ignores) || (b.rules && RULE in b.rules));
+// Every plugin the root config registers, with none of its rules on, so a disable comment naming one of
+// their rules (`// eslint-disable-line sonarjs/...`) is not "Definition for rule ... was not found".
+const plugins = Object.assign({}, ...rootConfig.map((b) => b.plugins ?? {}));
 const eslint = new ESLint({
     cwd: root,
     overrideConfigFile: true,
-    overrideConfig: [{ files: ["**/*.{ts,tsx,mts}"], languageOptions: { parser: tseslint.parser } }, ...blocks],
+    overrideConfig: [
+        { files: ["**/*.{ts,tsx,mts}"], languageOptions: { parser: tseslint.parser } },
+        { plugins },
+        ...blocks,
+    ],
 });
 const results = await eslint.lintFiles(["tools"]);
 console.log((await eslint.loadFormatter("stylish")).format(results));

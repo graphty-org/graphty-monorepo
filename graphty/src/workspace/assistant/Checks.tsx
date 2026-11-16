@@ -165,7 +165,7 @@ export function ChipRow({ target, kinds, table = false, actions }: Readonly<Chip
     };
     return (
         <Group gap={4} justify="space-between">
-            <div // NOSONAR(S6819): one Tab stop with arrows inside, the roving pattern; a fieldset would bring its own frame
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- one Tab stop with arrows inside, the roving pattern; a fieldset would bring its own frame
                 ref={group}
                 role="group"
                 aria-label={WORDS["assistant.chips.name"]}
@@ -379,7 +379,7 @@ export function ChangeRows({
             {shown.map((line, index) => (
                 // A turn's lines never reorder. Each starts with the layers glyph, as a change.
                 <Group
-                    key={index} // NOSONAR(S6479): a line's place is its identity
+                    key={index} // eslint-disable-line react/no-array-index-key -- a line's place is its identity
                     gap={6}
                     wrap="nowrap"
                     align="flex-start"

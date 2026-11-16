@@ -337,6 +337,24 @@ closes or its entry expires (14 days at most).
 - Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
 
+## Before opening a pull request
+
+The root CLAUDE.md, "Shipping a change", steps 2 and 3, holds the rules; this is their reference.
+
+- **`pnpm run check:quick`** (a human's or a long-lived branch's alternative to the pre-push checklist) runs in the
+  background, through `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI,
+  `node tools/sonar-gate.mjs` and every check of CI's Checks job except the whole-repository format check; CI's
+  Docs job builds the docs site.
+- **A long-lived branch** is one open more than about two days, holding more than a day of work, after a merge of
+  master that brought app or graphty-element changes or needed conflicts resolved, or after a large change (a
+  refactor of a shared component, a dependency or lockfile upgrade, a change to graphty-element's styling, layout
+  or rendering). When its change reaches the graphty app it runs the app's dry run and fixes every failed route
+  before opening the pull request (design/ci/ai-checked-acceptance-tests.md, 10.4).
+- **`tools/pr-open.sh`** merges GitHub's copy of the branch, refuses a conflict with master (exit 2: merge
+  `origin/master`, resolve, run again), runs a fresh-context review (exit 3: fix it, or answer it in the Proof and
+  pass `--review-answered`), scans for secrets, pushes, opens the pull request, arms auto-merge and returns in
+  seconds.
+
 ## Where a change takes effect
 
 Before shipping a change, ask where it takes effect, because that decides how it ships:
@@ -348,6 +366,11 @@ Before shipping a change, ask where it takes effect, because that decides how it
   live.sh merges the branch (never rebases) into the tool's live worktree, runs the tool's tests on the merge
   first, and only when they pass moves the live copy and restarts its servherd servers; a conflict or a failed
   test changes nothing. It never pushes. The tools are in `tools/live-tools.json` (`tools/live.sh --list`).
+  For a change to how sessions work (CLAUDE.md, the skills, `.claude/settings.json`),
+  `tools/live.sh workspace <commit>` merges it into the main checkout and `tools/live.sh land <commit>` into the land copy,
+  `.worktrees/land-live`, which `worktree-new.sh` runs from; then restart every running session, `/loop` included.
+  The rounds keep the main checkout following master by merging `origin/master` into it (not only a
+  fast-forward, since a live change puts a merge there first).
 - **In GitHub, CI or npm** -- workflows, the full run, published packages. Only a change that reaches master
   (through its pull request) changes these, so test the change before it lands (run the workflow on its
   branch, replay the script against recorded inputs).

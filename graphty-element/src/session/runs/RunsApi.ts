@@ -1090,7 +1090,9 @@ class Runs implements SessionRunsApi {
         const label = options.label ?? "Batch";
         const identity: RunIdentity = {
             algorithm: "batch",
-            params: { label, specs: specs.map((spec) => ({ ...spec })) },
+            // What each member paints is no part of what it computes, as with a single run: left out,
+            // or a style holding a function (a group-name callback) would leave no id to derive.
+            params: { label, specs: specs.map(({ style: _style, ...spec }) => ({ ...spec })) },
             scope: this.defaultScope,
             seed: null,
             sample: null,

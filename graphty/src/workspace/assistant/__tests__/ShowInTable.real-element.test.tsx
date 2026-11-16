@@ -198,7 +198,7 @@ describe("Show in table from a reply", () => {
         assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Edges" }));
     });
 
-    it("lists the reply's rows whole under a filter, and the filter's view comes back after the x", async () => {
+    it("lists the reply's rows under a filter, and the filter's view comes back after the x", async () => {
         const { session } = await openOn();
         model.turns = counting("data.group == 'even'");
         // A filter the reader already has on: only n0 and n1 show.
@@ -212,9 +212,10 @@ describe("Show in table from a reply", () => {
         within(dock).getByRole("radiogroup", { name: "Records" });
 
         await showInTable("Which are even?");
-        await within(dock).findByText("3 of 6 nodes");
+        // The assistant reads the working graph the app reads: of the even nodes, the shown n0.
+        await within(dock).findByText("1 of 6 nodes");
         await waitFor(() => {
-            assert.sameMembers(listed(dock, "Nodes"), ["n0", "n2", "n4"]);
+            assert.sameMembers(listed(dock, "Nodes"), ["n0"]);
         });
         assert.isNull(within(dock).queryByRole("radiogroup", { name: "Records" }), "Shown / All waits for the x");
 

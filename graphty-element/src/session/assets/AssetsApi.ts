@@ -11,7 +11,15 @@
  * page's code and are never saved.
  */
 
-import { baseName, cutParam, ModelError, type ModelFormat, normalizePath, roleOfName } from "babylonjs-models/detect";
+import {
+    baseName,
+    cutParam,
+    detectModelFormat,
+    ModelError,
+    type ModelFormat,
+    normalizePath,
+    roleOfName,
+} from "babylonjs-models/detect";
 import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
 
 import type { LayerId } from "../../catalog/types";
@@ -621,6 +629,21 @@ export interface AssetsApiInternal extends AssetsApi {
      * @returns Stops calling it.
      */
     watchSupplied(listener: (names: readonly string[]) => void): () => void;
+    /**
+     * What a model still waiting for parts draws with its missing parts stood in for, as `supply`'s
+     * skip would draw it: the files held so far, the main file, its format and the parts to skip.
+     * @param id - The waiting model's id.
+     * @returns The draw input, or undefined when it is not waiting or waits for its geometry or for
+     *     an answer a stand-in cannot give (which file is the model, an ambiguous part).
+     */
+    standIn(id: AssetId):
+        | {
+              readonly files: ReadonlyMap<string, Uint8Array>;
+              readonly main: string;
+              readonly format: ModelFormat;
+              readonly skipped: readonly string[];
+          }
+        | undefined;
 }
 
 /**
@@ -2127,6 +2150,32 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         assembled(id) {
             return lookup(id)?.assembled === true;
+        },
+
+        standIn(id) {
+            const entry = lookup(id);
+            const main = entry?.record.path;
+            if (entry?.held === undefined || entry.record.state !== "rejected" || main === undefined) {
+                return undefined;
+            }
+
+            const { problems } = entry.record;
+            const stoodIn = problems.every(
+                (fact) =>
+                    fact.code === "E_MODEL_MISSING_FILE" &&
+                    String(fact.params.role ?? roleOfName(String(fact.params.name))) !== "geometry",
+            );
+            const format = entry.held.options.format ?? detectModelFormat({ filename: main })?.format;
+            if (!stoodIn || format === undefined) {
+                return undefined;
+            }
+
+            return {
+                files: new Map(entry.held.given),
+                main,
+                format,
+                skipped: [...entry.held.skipped, ...problems.map((fact) => String(fact.params.name))],
+            };
         },
 
         watchSupplied(listener) {

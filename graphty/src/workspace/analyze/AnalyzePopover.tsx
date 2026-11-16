@@ -68,7 +68,9 @@ function groupLayerName({ rank, taken }: { readonly rank: number; readonly taken
  * @returns The plan
  */
 function runPlan(session: GraphSession, key: string, name: string, params?: Record<string, unknown>): RunPlan {
-    const kept = session.runs.list().filter((run) => run.algorithm === key && run.status !== "removed");
+    // Only a run that succeeded has a layer to update or put back: one still queued or running,
+    // or one that failed or was canceled, made nothing, so Analyze offers a plain Run.
+    const kept = session.runs.list().filter((run) => run.algorithm === key && run.status === "succeeded");
     const latest = kept.at(-1);
     if (latest === undefined) {
         return { label: "Run", restoreLayer: false, current: false };
@@ -334,7 +336,7 @@ export function AnalyzePopover({
             },
             ...planOptions(session, descriptor.key, wordsFor(descriptor).name, runParams),
         });
-        // A failed run is reported on its row and in the inspector, from the run itself.
+        // A failed run is reported in the notice, on its row and in the inspector, from the run itself.
         run.then(undefined, () => undefined);
         onStarted(wordsFor(descriptor).name);
         onClose();

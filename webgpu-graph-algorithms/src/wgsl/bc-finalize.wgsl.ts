@@ -26,7 +26,8 @@ fn bc_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         for (var i = 0u; i < P.k; i = i + 1u) {
             let t = S[i];
             depthK[t] = 0u;                                          // the source is at depth 0
-            sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);       // with one shortest path, itself (f32 bits when SCALED)
+            sigmaK[t] = select(1u, 0x3f800000u, SCALED);             // with one shortest path, itself (the f32 1.0's bits when SCALED;
+                                                                     // no bitcast beside an override: Safari cannot evaluate it, #8215)
         }
         levelMax[0] = bitcast<u32>(1.0);                             // the largest count at depth 0
         ends[0] = 0u;

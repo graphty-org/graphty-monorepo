@@ -220,7 +220,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     {
         root: "Graph",
         members: [
-            "setAttributionOffset",
             "setCameraTransitionDuration",
             "setReducedMotion",
             "setPixelRatio",
@@ -239,7 +238,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "autoRotate",
             "fitInsets",
             "pixelRatio",
-            "attributionOffset",
             "globeLook",
             "cameraTransitionDuration",
             "reducedMotion",
@@ -262,7 +260,32 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "Graphty", members: ["renderPath"], reason: "machine-preference", kind: BY_DESIGN },
-    { root: "Graphty", members: ["antialias", "limits"], reason: "machine-preference", kind: BY_DESIGN },
+    // The working graph: a setting the application chooses for its readers, saved in no project.
+    { root: "Graphty", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    { root: "GraphSession", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    { root: "ElementSession", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    // A filter editor's live preview: what the panel shows while a reader edits a condition.
+    {
+        root: "FilterDraft",
+        members: ["commit", "update", "cancel", "counts", "condition", "open"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
+    { root: "VisibilityApi", members: ["draft", "notDrawn"], reason: "panel-state", kind: BY_DESIGN },
+    {
+        root: "SessionVisibilityApi",
+        members: ["draft", "openDrafts", "notDrawn"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionVisibilityApi", members: ["drawsContext"], reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionVisibilityApi", members: ["workingGraphChanged"], reason: "internal-handle", kind: BY_DESIGN },
+    {
+        root: "Graphty",
+        members: ["antialias", "preserveDrawingBuffer", "limits"],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
     { root: "Graph", members: ["setLimits"], reason: "machine-preference", kind: BY_DESIGN },
     { root: "Graphty", members: ["shaderSettings"], reason: "reader-trust", kind: BY_DESIGN },
     { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },
@@ -377,7 +400,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
-        members: ["drawnMasks", "ghosted", "ghosts"],
+        members: ["drawnMasks", "keptMasks", "ghosted", "ghosts"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
@@ -424,7 +447,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionShaders", members: ["fromCatalog"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "BasemapManager",
-        members: ["attributionOffset", "globeLook"],
+        members: ["globeLook"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -1024,7 +1047,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setScopeSource",
             "releaseDetachedScope",
             "clustersChanged",
-            "relayoutForVisibility",
+            "followView",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

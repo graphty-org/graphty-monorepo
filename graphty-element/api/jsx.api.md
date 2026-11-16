@@ -25,7 +25,6 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core/Engines/engine.js';
 import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
@@ -93,7 +92,6 @@ export interface GraphtyElementJSXProps {
     "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
-    "attribution-offset"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
@@ -288,6 +286,7 @@ export interface GraphtyElementJSXProps {
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
+    "preserve-drawing-buffer"?: boolean;
     "reduced-motion"?: string;
     "render-on-demand"?: boolean;
     "render-path"?: string;
@@ -295,6 +294,7 @@ export interface GraphtyElementJSXProps {
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "working-graph"?: boolean;
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
@@ -303,7 +303,6 @@ export interface GraphtyElementJSXProps {
     accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
-    attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];
@@ -350,6 +349,7 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     reducedMotion?: Graphty["reducedMotion"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
@@ -361,6 +361,7 @@ export interface GraphtyElementJSXProps {
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
+    workingGraph?: Graphty["workingGraph"];
     xr?: Graphty["xr"];
     zoomToPointer?: Graphty["zoomToPointer"];
 }

@@ -682,10 +682,12 @@ export interface Capabilities {
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
+    height?: number;
     reason?: CodedFact<GraphtyErrorCode>;
     // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
+    width?: number;
 }
 
 // @public
@@ -2619,7 +2621,7 @@ export interface ExportResult {
 }
 
 // @public
-export type ExportScope = RuleTree | "shown" | "selection" | {
+export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
     readonly set: SetId;
 } | {
     readonly nodes: readonly NodeId[];
@@ -2799,6 +2801,7 @@ export interface GlobeLook {
 export class Graph implements GraphContext {
     constructor(element: Element | string, useMockInput?: boolean, options?: {
         readonly antialias?: boolean;
+        readonly preserveDrawingBuffer?: boolean;
     });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
@@ -2856,8 +2859,8 @@ export class Graph implements GraphContext {
         y: number;
     }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
-    // (undocumented)
-    enableDetailedProfiling?: boolean;
+    get enableDetailedProfiling(): boolean | undefined;
+    set enableDetailedProfiling(value: boolean | undefined);
     endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;
@@ -3024,6 +3027,7 @@ export class Graph implements GraphContext {
     playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
         easing?: CameraAnimationOptions["easing"];
     }): Promise<void>;
+    readonly preserveDrawingBuffer: boolean;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3066,7 +3070,6 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
-    setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
@@ -3387,8 +3390,6 @@ export class Graphty extends LitElement {
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
     attributeChangedCallback(name: string, old: string | null, value: string | null): void;
-    get attributionOffset(): number;
-    set attributionOffset(value: number);
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get autoRotate(): number;
@@ -3648,6 +3649,8 @@ export class Graphty extends LitElement {
     }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get preserveDrawingBuffer(): boolean;
+    set preserveDrawingBuffer(value: boolean);
     get reducedMotion(): boolean | "auto";
     set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
@@ -3766,6 +3769,8 @@ export class Graphty extends LitElement {
     waitForStableFrame(options?: {
         timeoutMs?: number;
     }): Promise<void>;
+    get workingGraph(): boolean;
+    set workingGraph(value: boolean);
     worldToScreen(worldPos: {
         x: number;
         y: number;
@@ -4032,10 +4037,12 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
-* Autosave's kept work could not be listed: another tab holds the browser's database and did
-* not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
-* `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
-* asks again later.
+* Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+* holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+* suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+* `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+* listing nothing is known about the kept work; the caller offers none and asks again later.
+* A refused restore leaves the entry as it was; the caller may restore it again later.
 */
 | "E_AUTOSAVE_STALLED"
 /**
@@ -4785,6 +4792,12 @@ export type GraphtyWarningCode =
 */
 | "W_ANTIALIAS_LATE"
 /**
+* `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+* then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_PRESERVE_DRAWING_BUFFER_LATE"
+/**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
 */
@@ -5174,25 +5187,22 @@ export abstract class LayoutEngine {
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
     static hasZodOptions(): boolean;
+    // @internal
+    protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
-    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
-    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
-    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
-    protected keptRows(rows: number): NodeMask | null;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
-    protected get leavesEdgesOut(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -5232,8 +5242,9 @@ export abstract class LayoutEngine {
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
-    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
     // (undocumented)
@@ -5247,6 +5258,8 @@ export abstract class LayoutEngine {
     wakeForClusters(): boolean;
     // @internal
     wakeForResize(): boolean;
+    // @internal
+    protected get workingGraph(): WorkingView | null;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
 }
@@ -5263,6 +5276,8 @@ export class LayoutManager implements Manager {
     drawArrivedPaint: (() => void) | null;
     get drawingHeld(): boolean;
     get edges(): Iterable<Edge>;
+    // @internal
+    followView(atRest?: boolean): Promise<void>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
         layoutType: string | undefined;
@@ -5291,8 +5306,6 @@ export class LayoutManager implements Manager {
     get preStepsInFlight(): boolean;
     reducedMotion: boolean;
     // @internal
-    relayoutForVisibility(): void;
-    // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;
     restoring: () => boolean;
@@ -5319,6 +5332,8 @@ export class LayoutManager implements Manager {
     steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
+    // @internal
+    viewChanged(): boolean;
 }
 
 // @public
@@ -5431,6 +5446,7 @@ export interface MarkSuggestion {
 // @public
 export interface ModelThumbnailOptions {
     readonly size?: number;
+    readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
@@ -5557,6 +5573,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
+    // @internal
+    holdOffBatch(): void;
     // (undocumented)
     readonly id: NodeIdType;
     // @internal
@@ -7931,6 +7949,7 @@ export interface ScreenshotLegendSection {
 
 // @public (undocumented)
 export interface ScreenshotOptions {
+    backgroundColor?: string;
     camera?: CameraState | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
@@ -7956,6 +7975,7 @@ export interface ScreenshotOptions {
     // (undocumented)
     quality?: number;
     showSelection?: boolean;
+    signal?: AbortSignal;
     // (undocumented)
     strictAspectRatio?: boolean;
     // (undocumented)
@@ -7963,6 +7983,7 @@ export interface ScreenshotOptions {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
         settleTimeoutMs?: number;
+        captureNow?: AbortSignal;
     };
     // (undocumented)
     transparentBackground?: boolean;

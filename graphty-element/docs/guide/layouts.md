@@ -378,7 +378,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
   the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
-  the whole globe, which fills the view.
+  the data, turned to face it; data that spans most of the earth opens on the whole globe, which
+  fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
@@ -408,7 +409,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
     g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
-    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The element draws no credit over the canvas; the map's credits are data on
+    `element.basemapStatus.attribution`, for the page to show where it chooses.
     The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)
@@ -695,9 +697,11 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 ## Laying out only what the filter shows
 
-By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
-hides included, so the shown nodes keep the places the whole graph gave them. Set
-`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
+visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
+shown nodes keep the places the whole graph gave them.
 
 ```typescript
 element.layoutBehavior = { layout: { visibleOnly: true } };
@@ -708,13 +712,11 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
   circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
-- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+- **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
-  filter shows at every step, so by default the layout runs again at every step. Set
-  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
-  lay out once, over what is shown, when the play pauses or ends.
+- **The time window never moves it.** A [time window](./timeline) hides what it leaves out by
+  drawing, so a window step, a play and its pause lay nothing out: every node keeps its place.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

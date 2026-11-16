@@ -1429,7 +1429,7 @@ export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
 }
 
 /** How narrow, as a share of its widest, a tapered line's end must be to be read as its point. */
-const TAPER_POINT = 0.25;
+export const TAPER_POINT = 0.25;
 
 /**
  * Whether a filled outline is an edge's line drawn as Graphviz's `style=tapered` draws it (lib/common/taper.c): one

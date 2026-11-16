@@ -502,7 +502,8 @@ export interface CommonExportOptions {
      * What to do with node ids the format cannot hold. "error": the export throws (E_INVALID_ID) and
      * no node is renamed. "mangle": such ids are rewritten and the originals are written to the
      * file too, so an import with `restoreMangledIds` (on by default) reads the original ids back.
-     * Pajek is the exception: it always numbers nodes 1 to N and keeps the old ids as labels.
+     * Pajek is the exception: it always numbers nodes 1 to N and keeps the old ids as labels. A GML
+     * export without the option renumbers such ids as "mangle" does, since GML ids are integers.
      * @defaultValue "error"
      */
     sanitizeIds?: "error" | "mangle" | undefined;

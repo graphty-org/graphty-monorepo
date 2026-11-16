@@ -181,9 +181,9 @@
             "labelColor": 1,
             "labelPosition": 1,
             "visible": 1,
-            "edgeColor": 0.9803921568627451,
+            "edgeColor": 1,
             "edgeOpacity": 1,
-            "edgeWidth": 0.9921568627450981,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
             "edgeLabel": 1

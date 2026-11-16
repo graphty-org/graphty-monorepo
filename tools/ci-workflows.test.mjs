@@ -4643,6 +4643,26 @@ describe("release.yml", () => {
         assert.match(llm, /exit "\$status"\n/);
         assert.match(llm, /grep -q '\\\[llm-regression\\\] provider refused the account'/);
         assert.match(llm, /owner_item: \$\{\{ steps.llm.outputs.owner_item \}\}/);
+        // run as GitHub runs it (`bash -e`): a refused account still sets owner_item, so no bisect starts (#8227)
+        const step = parseYaml(release).jobs.llm.steps.find((s) => s.id === "llm");
+        const dir = mkdtempSync(join(tmpdir(), "llm-step-"));
+        writeFileSync(
+            join(dir, "npx"),
+            "#!/bin/sh\necho 'FAILED x: [llm-regression] provider refused the account (HTTP 402)'\nexit 1\n",
+        );
+        chmodSync(join(dir, "npx"), 0o755);
+        const ran = spawnSync("bash", ["-e", "-c", step.run], {
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                GOOGLE_API_KEY: "k",
+                RUNNER_TEMP: dir,
+                GITHUB_OUTPUT: join(dir, "out"),
+            },
+        });
+        assert.equal(ran.status, 1, "fails with vitest's status");
+        assert.match(readFileSync(join(dir, "out"), "utf8"), /^owner_item=Google refused the account/m);
+        rmSync(dir, { recursive: true, force: true });
         const harness = readFileSync(
             new URL("../graphty-element/test/helpers/llm-regression-harness.ts", import.meta.url),
             "utf8",

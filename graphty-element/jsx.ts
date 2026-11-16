@@ -231,10 +231,6 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Moves the map's credits up from the corner.
-     */
-    attributionOffset?: Graphty["attributionOffset"];
-    /**
      * Sets how the globe looks.
      */
     globeLook?: Graphty["globeLook"];
@@ -297,6 +293,10 @@ export interface GraphtyElementJSXProps {
      */
     acceleration?: Graphty["acceleration"];
     /**
+     * Switches the working graph on or off.
+     */
+    workingGraph?: Graphty["workingGraph"];
+    /**
      * Sets the renderer the element opens when it is first drawn.
      *
      * An unrecognised value, or a change once the element is drawing, is reported and ignored
@@ -313,6 +313,11 @@ export interface GraphtyElementJSXProps {
      * nothing and raises `W_ANTIALIAS_LATE`.
      */
     antialias?: Graphty["antialias"];
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     /**
      * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
      */
@@ -459,10 +464,6 @@ export interface GraphtyElementJSXProps {
      */
     "layout-2d"?: boolean;
     /**
-     * Moves the map's credits up from the corner.
-     */
-    "attribution-offset"?: string;
-    /**
      * Sets how long camera moves take.
      */
     "camera-transition-duration"?: string;
@@ -495,9 +496,18 @@ export interface GraphtyElementJSXProps {
      */
     "enable-detailed-profiling"?: boolean;
     /**
+     * Switches the working graph on or off.
+     */
+    "working-graph"?: boolean;
+    /**
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */
     "render-path"?: string;
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    "preserve-drawing-buffer"?: boolean;
     /**
      * Sets the threshold and applies it immediately.
      *

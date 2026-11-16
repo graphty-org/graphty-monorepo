@@ -32,9 +32,10 @@ withoutFeatures(["file-styles"]);
  */
 async function openBinding(store: WorkspaceStore, layer: Layer): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
-    const tab = await screen.findByTestId("style-tab", {});
+    // A project opens on its Everything row's Style tab, which the layer's tab replaces: read the
+    // tab shown now on every look, never one found before the swap.
     const pill = await waitFor(() => {
-        const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
+        const found = screen.getByTestId("style-tab").querySelector<HTMLElement>(".cm-var-fill-button");
         assert.isNotNull(found);
         return found;
     });
@@ -200,7 +201,13 @@ describe("the binding popover's rows and readings", () => {
             selector: { match: "everything" },
             set: { "node.color": "#FF0000" },
         });
-        store.set({ inspected: { kind: "layer-row", id: layer.id } });
+        // A click on its tree row opens its Style tab in place of Everything's, which the project
+        // opened on.
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layer.name}, `) }));
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer.id });
+        });
         const tab = await screen.findByTestId("style-tab", {});
 
         // The vary picker on Node size, every value unfolded.

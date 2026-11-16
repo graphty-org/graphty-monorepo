@@ -432,7 +432,7 @@ export function AnalyzePopover({
         const isChosen = chosen?.key === descriptor.key;
         if (calm) {
             return (
-                <div // NOSONAR(S6819): a layout wrapper between the listbox and its option, which no image could be
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a layout wrapper between the listbox and its option, which no image could be
                     key={`${String(i)}-${descriptor.key}`}
                     className="ws-analyze-row"
                     role="presentation"
@@ -442,7 +442,7 @@ export function AnalyzePopover({
                         disabled={(reason ?? words.answers) === ""}
                         openDelay={500}
                     >
-                        <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
+                        <UnstyledButton // eslint-disable-line jsx-a11y/role-supports-aria-props -- aria-description is a global ARIA 1.3 attribute, valid on an option
                             component="div"
                             role="option"
                             id={optionId(i)}
@@ -478,7 +478,7 @@ export function AnalyzePopover({
             );
         }
         return (
-            <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
+            <UnstyledButton // eslint-disable-line jsx-a11y/role-supports-aria-props -- aria-description is a global ARIA 1.3 attribute, valid on an option
                 component="div"
                 role="option"
                 id={optionId(i)}
@@ -533,7 +533,7 @@ export function AnalyzePopover({
                     // Back from an entry's short form, focus returns here, so a second Esc closes.
                     autoFocus
                 />
-                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the popup of an ARIA combobox on a text box; a native select cannot be one
                     className="ws-analyze-list"
                     id={listId}
                     ref={listRef}
@@ -541,7 +541,7 @@ export function AnalyzePopover({
                     aria-label="Analyses"
                 >
                     {recent.length > 0 ? (
-                        <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside an ARIA listbox; optgroup needs a native select
                             role="group"
                             aria-label="Recent"
                         >
@@ -552,7 +552,7 @@ export function AnalyzePopover({
                         </div>
                     ) : null}
                     {groups.map(({ heading, entries }) => (
-                        <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside an ARIA listbox; optgroup needs a native select
                             role="group"
                             key={heading.id}
                             aria-label={heading.title}
@@ -782,7 +782,7 @@ function Essentials({
     }, [ready]);
 
     return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the form's own controls to step back
             ref={formRef}
             className="ws-analyze"
             onKeyDown={onKeyDown}

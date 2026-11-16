@@ -52,7 +52,23 @@ const contentMap = [
         dest: "public/graph-io/samples",
         exclude: [],
     },
-    // One page, index.md, which includes visual-review/README.md when the site is built.
+    {
+        src: "graph-format/docs",
+        dest: "graph-format",
+        exclude: [".vitepress", "decisions"],
+    },
+    {
+        src: "graph-samples/docs",
+        dest: "graph-samples",
+        exclude: [".vitepress", "decisions"],
+    },
+    {
+        src: "remote-logger/docs",
+        dest: "remote-logger",
+        exclude: [".vitepress", "decisions"],
+    },
+    // The overview, guide/ and reference/: the guide pages include sections of visual-review/README.md (its
+    // `<!-- #region -->` markers) when the site is built, and reference/cli.md is the CLI's --help text.
     {
         src: "visual-review/docs",
         dest: "visual-review",

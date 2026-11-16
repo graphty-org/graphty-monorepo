@@ -31,6 +31,8 @@ const config: KnipConfig = {
                 "vitest.babylon-compilers-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
+                // The SonarQube rule set the root eslint.config.js spreads; it loads the sonarjs, unicorn and react plugins
+                "tools/eslint-rules/sonar-way.mjs",
                 "tools/changelog-renderer.cjs",
                 // The release scheduler Worker (deployed by wrangler, not imported) and its tests
                 "tools/release-scheduler/src/worker.js",
@@ -55,8 +57,6 @@ const config: KnipConfig = {
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",
-                // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
-                "@sonar/scan",
             ],
         },
 

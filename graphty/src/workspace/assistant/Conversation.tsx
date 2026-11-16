@@ -213,7 +213,7 @@ function StepGroup({ steps, open, onToggle }: Readonly<StepGroupProps>): React.J
                         {steps.map((step, index) => (
                             // A step has no id of its own, and a turn's steps only ever grow at the end.
                             <StepRow
-                                key={index} // NOSONAR(S6479): a step has no id to key by
+                                key={index} // eslint-disable-line react/no-array-index-key -- a step has no id to key by
                                 step={step}
                             />
                         ))}
@@ -575,7 +575,7 @@ function ReplyRows({
                 // Last of all while it runs: nothing comes after the dots.
                 <div className="ws-assistant-working">
                     {/* The dots are named with what they stand for; each step is also announced. */}
-                    <span // NOSONAR(S6819): three CSS dots named as one picture; there is no image file for an img
+                    <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- three CSS dots named as one picture; there is no image file for an img
                         role="img"
                         aria-label={workingLine(status, provider)}
                         className="ws-assistant-dots"
@@ -702,7 +702,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                 className="ws-assistant-log cm-focus-inside"
                 aria-label={WORDS["assistant.log.name"]}
                 // Scrolls by keyboard: a region with focus takes the arrow and Page keys.
-                tabIndex={0} // NOSONAR(S6845): a scrolling region needs a focus stop for the keyboard
+                tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region needs a focus stop for the keyboard
                 onScroll={(event) => {
                     const box = event.currentTarget;
                     const atFoot = box.scrollHeight - box.scrollTop - box.clientHeight <= FOOT_SLACK_PX;

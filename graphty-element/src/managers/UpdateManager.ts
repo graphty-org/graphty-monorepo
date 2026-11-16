@@ -169,13 +169,7 @@ function* columnBoxes(
             continue;
         }
 
-        // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
-        // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
-        const local = table.centerOf(row);
-        if (!table.isHeld(row) && !table.laneOf(row, local)) {
-            local.copyFrom(table.centerOf(row));
-        }
-
+        const local = columnCenter(table, row);
         const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
             yield { min: center, max: center.clone() };
@@ -191,6 +185,23 @@ function* columnBoxes(
 
         yield { min: center.subtract(size), max: center.add(size) };
     }
+}
+
+/**
+ * Where a row drawn with no `Node` is drawn now, inside the transform the batches draw in.
+ * @param table - The row table.
+ * @param row - The row.
+ * @returns A new vector.
+ */
+export function columnCenter(table: RowTable, row: number): Vector3 {
+    // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
+    // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
+    const local = table.centerOf(row);
+    if (!table.isHeld(row) && !table.laneOf(row, local)) {
+        local.copyFrom(table.centerOf(row));
+    }
+
+    return local;
 }
 
 /**

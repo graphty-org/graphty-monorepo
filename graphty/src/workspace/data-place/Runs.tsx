@@ -78,7 +78,7 @@ function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run 
     }
     return (
         <Tooltip label={words}>
-            <span // NOSONAR(S6819): an icon drawn by a component, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon drawn by a component, named as one image; there is no <img> to use
                 className="dp-run-mark"
                 role="img"
                 aria-label={words}
@@ -108,7 +108,7 @@ function UsesMark({
     const said = `${kind === "style" ? "Styles" : "Filters"}: ${namesOnce(names)}`;
     return (
         <Tooltip label={said} multiline maw={240}>
-            <span // NOSONAR(S6819): an icon and its count, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon and its count, named as one image; there is no <img> to use
                 className="dp-run-uses"
                 data-run-uses={kind}
                 role="img"

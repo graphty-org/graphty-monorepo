@@ -401,9 +401,11 @@ jobs:
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
-                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  # files the docs pages include from outside docs/ (visual-review's pages include sections of its README);
+                  # an include may name a region (README.md#setup) or a line range (README.md{3,10}): the file is what counts
                   includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
-                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                      m=${m#*@include:}; m=${m# }; m=${m%--}; m=${m%%#*}; m=${m%%\{*}
+                      realpath -m --relative-to=. "$(dirname "$file")/$m"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
                   {
@@ -1492,6 +1494,13 @@ jobs:
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
 
+            # Duplicate code: a new exact clone between two pieces of non-test code, overlapping a line this
+            # change adds, fails; clones touching tests are listed only. Measured from the merge base with master
+            # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
+            # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
+            - name: Duplicate code
+              run: pnpm run check:duplicates
+
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
@@ -2490,6 +2499,90 @@ jobs:
               with:
                   job: cost-accuracy
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
+
+    # The selection workspace's acceptance test (graphty/acceptance/selection-workspace-uat.mjs) against the built
+    # app, in Chromium and in Playwright's WebKit, Safari's engine: a slider defect that only Safari showed passed
+    # every Chromium run (#8309). Real clicks, drags and keys over every scenario, one browser per job. Report-only
+    # for now (All Checks Pass does not wait for it): it becomes required once its runs have shown it steady.
+    selection-workspace:
+        name: Selection workspace (${{ matrix.browser }})
+        needs: packages
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                browser: [chromium, webkit]
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # A light pull request's package builds leave the app out (the Build job's --exclude=graphty), so it is
+            # built here from them, as the Lint job does; a full run's artifact already holds it.
+            - name: Build the graphty app
+              if: needs.packages.outputs.full == 'false'
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: ${{ matrix.browser }}
+
+            - name: Install the browser
+              run: pnpm exec playwright install ${{ matrix.browser }}
+
+            - name: Run the selection workspace's acceptance test
+              run: node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser ${{ matrix.browser }} --out "$RUNNER_TEMP/selection-workspace"
+
+            - name: Keep the screenshots of failed scenarios
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: selection-workspace-${{ matrix.browser }}
+                  path: ${{ runner.temp }}/selection-workspace
+                  if-no-files-found: ignore
+                  retention-days: 7
 
     # Master's newest capture of each project the Stories jobs capture: the reference a capture compares a story
     # without a baseline against. Found once per run and handed to every Stories job as an artifact of this run:
@@ -3858,7 +3951,6 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |
                       tools/results
-                      tools/sonar
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions

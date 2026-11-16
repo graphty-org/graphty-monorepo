@@ -367,6 +367,23 @@ function bodyOf(request: IncomingMessage): Promise<string> {
 }
 
 /**
+ * Opens the autosave database and keeps a read-write transaction on the "parts" store busy until
+ * `window.__release` is set; resolves once the transaction runs.
+ */
+export const HOLD_PARTS = `new Promise((resolve, reject) => {
+    const req = indexedDB.open("graphty-autosave");
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["parts"], "readwrite");
+        const store = tx.objectStore("parts");
+        window.__release = false;
+        const spin = () => { resolve(); if (!window.__release) store.count().onsuccess = spin; };
+        spin();
+    };
+})`;
+
+/**
  * Start the fixture server on a free loopback port.
  * @param options - `bundles`: more builds of graphty-element by name (a path to each one's
  *   `graphty.bundle.js`); the page loads one instead of the built ./bundle with the URL parameter

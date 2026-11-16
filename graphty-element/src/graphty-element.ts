@@ -6179,16 +6179,16 @@ export class Graphty extends LitElement {
      */
     nodesInRect(rect: { x: number; y: number; width: number; height: number }): (string | number)[] {
         const inside: (string | number)[] = [];
-        for (const node of this.#graph.getNodes()) {
-            const at = this.#graph.nodeScreenPosition(node.id);
+        // Read off the row tables, so a row drawn with no `Node` gets none built for it (#8204).
+        for (const { id, at } of this.#graph.drawnNodeSpots()) {
             if (
-                at?.visible === true &&
+                at.visible &&
                 at.x + at.radius > rect.x &&
                 at.x - at.radius < rect.x + rect.width &&
                 at.y + at.radius > rect.y &&
                 at.y - at.radius < rect.y + rect.height
             ) {
-                inside.push(node.id);
+                inside.push(id);
             }
         }
 

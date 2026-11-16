@@ -9,7 +9,9 @@
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
-import type { Graph } from "../Graph";
+import type { EdgeStyleConfig } from "../config/EdgeStyle";
+import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
+import { dataManagerInternals } from "../managers/DataManager";
 import type { RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
@@ -320,26 +322,25 @@ function labelText(
  * A node's outline on screen: a circle for a round shape, a flat shape fitted to its projected
  * box, or the hull of a solid's box corners as the camera sees them (exact for a box).
  * @param graph - The graph.
- * @param node - The node.
- * @param at - Where it is drawn.
+ * @param spot - Where the node is drawn, from its `Node` or its row.
  * @returns The outline, unpainted.
  */
 function nodeOutline(
     graph: Graph,
-    node: ReturnType<Graph["getNodes"]>[number],
-    at: NonNullable<ReturnType<Graph["nodeScreenPosition"]>>,
+    spot: DrawnNodeSpot,
 ): { circle: { x: number; y: number; r: number } } | { points: readonly Point2[] } {
-    if (node.roundRadius !== null) {
+    const { at, node, column } = spot;
+    if ((node?.roundRadius ?? column?.roundRadius ?? null) !== null) {
         return { circle: { x: at.x, y: at.y, r: at.radius } };
     }
-    const type = node.shapeType ?? "";
+    const type = node?.shapeType ?? column?.paint.style.shape?.type ?? "";
     if (isFlatShape(type)) {
         // ponytail: fitted to the projected box, so a flat shape turned away from the camera is drawn facing it.
         const { left, right, top, bottom } = at.bounds;
         const outline = flatShapeOutline(type, right - left, bottom - top);
         return { points: outline.map(([x, y]): Point2 => [at.x + x, at.y - y]) };
     }
-    const corners = node.drawnBoundingBox.vectorsWorld.map((c): Point2 => {
+    const corners = spot.corners.map((c): Point2 => {
         const p = graph.worldToScreen(c);
         return [p.x, p.y];
     });
@@ -365,10 +366,51 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
     return (width * 10) / Math.max(clipW, 1e-6);
 }
 
+/** A visible node as the figure reads it: where it is on screen, and its centre in the world. */
+interface ShownNode {
+    readonly at: NodeScreenPosition;
+    readonly centre: Vector3;
+}
+
+/** One edge to draw: its ends' rows, its paint's style and, for an `Edge`, its label. */
+interface FigureEdge {
+    readonly source: number;
+    readonly target: number;
+    readonly style: EdgeStyleConfig | undefined;
+    readonly label: RichTextLabel | null | undefined;
+}
+
+/**
+ * Every edge drawn now, building no `Edge` or `Node`: each `Edge` built, then on the `"batched"`
+ * path each row line drawn with no `Edge`, in row order -- the order `getEdges()` lists them.
+ * @param graph - The graph.
+ * @yields Each visible edge.
+ */
+function* drawnEdges(graph: Graph): Generator<FigureEdge> {
+    const painter = graph.getStylePainter();
+    const data = graph.getDataManager();
+    for (const edge of dataManagerInternals.builtEdges(data).values()) {
+        if (edge.isRenderVisible()) {
+            // By id, not `srcNode`: an `Edge` builds the `Node` of an end it is asked for.
+            const source = dataManagerInternals.rowOf(data, edge.srcId);
+            const target = dataManagerInternals.rowOf(data, edge.dstId);
+            yield { source, target, style: painter.edgePaint(edge.index)?.style, label: edge.label };
+        }
+    }
+
+    const lines = graph.getEdgeRowLines();
+    for (const row of lines?.rows() ?? []) {
+        const ends = lines?.endsOf(row);
+        if (ends !== undefined && !(lines?.isHidden(row) ?? true)) {
+            yield { source: ends[0], target: ends[1], style: painter.edgePaint(row)?.style, label: undefined };
+        }
+    }
+}
+
 /**
  * Every visible edge as a straight line between its ends' centres, its label added to `texts`.
  * @param graph - The graph.
- * @param shown - Where each visible node is drawn.
+ * @param shown - Where each visible node is drawn, by row.
  * @param camera - The camera.
  * @param css - CSS pixels per render pixel.
  * @param texts - The labels drawn so far, added to.
@@ -376,37 +418,35 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
  */
 function edgeLines(
     graph: Graph,
-    shown: ReadonlyMap<string | number, ReturnType<Graph["nodeScreenPosition"]>>,
+    shown: ReadonlyMap<number, ShownNode>,
     camera: Camera,
     css: number,
     texts: FigureText[],
 ): FigureDrawing["edges"][number][] {
-    const painter = graph.getStylePainter();
     const is2D = graph.getViewMode() === "2d";
     const edges: FigureDrawing["edges"][number][] = [];
-    for (const edge of graph.getEdges()) {
-        const src = shown.get(edge.srcNode.id);
-        const dst = shown.get(edge.dstNode.id);
-        const style = painter.edgePaint(edge.index)?.style;
-        if (!src || !dst || !edge.isRenderVisible() || !style) {
+    for (const { source, target, style, label } of drawnEdges(graph)) {
+        const src = shown.get(source);
+        const dst = shown.get(target);
+        if (!src || !dst || !style) {
             continue;
         }
         const line = style.line ?? {};
-        const mid = Vector3.Center(edge.srcNode.drawnWorldPosition, edge.dstNode.drawnWorldPosition);
+        const mid = Vector3.Center(src.centre, dst.centre);
         const px = Math.max(lineWidthPx(line.width ?? 0.25, mid, camera, is2D, css), line.minScreenWidth ?? 0);
         if (px <= 0) {
             continue;
         }
         edges.push({
-            x1: src.x,
-            y1: src.y,
-            x2: dst.x,
-            y2: dst.y,
+            x1: src.at.x,
+            y1: src.at.y,
+            x2: dst.at.x,
+            y2: dst.at.y,
             color: typeof line.color === "string" ? line.color : "#a9a9a9",
             opacity: line.opacity ?? 1,
             width: px,
         });
-        const words = labelText(edge.label, graph, camera, css);
+        const words = labelText(label, graph, camera, css);
         if (words) {
             texts.push(words);
         }
@@ -435,20 +475,23 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
     const painter = graph.getStylePainter();
     const depthOf = (p: Vector3): number => Vector3.TransformCoordinates(p, view).z;
 
-    const shown = new Map<string | number, ReturnType<Graph["nodeScreenPosition"]>>();
+    const shown = new Map<number, ShownNode>();
     const nodes: { depth: number; shape: FigureShape }[] = [];
     const texts: FigureText[] = [];
-    for (const node of graph.getNodes()) {
-        const at = graph.nodeScreenPosition(node.id);
-        if (!at?.visible) {
+    const batches = graph.getNodeBatches();
+    // Read off the row tables, so a row drawn with no `Node` gets none built for it (#8204).
+    for (const spot of graph.drawnNodeSpots()) {
+        const { at, node, column, row } = spot;
+        if (!at.visible) {
             continue;
         }
-        shown.set(node.id, at);
-        const color = node.drawnInstanceColor ??
-            painter.nodePaint(node.index)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
-        const paint = { fill: rgb(color), opacity: color.a * node.drawnOpacity };
-        nodes.push({ depth: depthOf(node.drawnWorldPosition), shape: { ...nodeOutline(graph, node, at), ...paint } });
-        const words = labelText(node.label, graph, camera, css);
+        shown.set(row, { at, centre: spot.centre });
+        const color = (node ?? column)?.drawnInstanceColor ??
+            painter.nodePaint(row)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
+        const opacity = node?.drawnOpacity ?? (column === null ? 1 : (batches?.columnOpacityOf(column) ?? 1));
+        const paint = { fill: rgb(color), opacity: color.a * opacity };
+        nodes.push({ depth: depthOf(spot.centre), shape: { ...nodeOutline(graph, spot), ...paint } });
+        const words = node === null ? undefined : labelText(node.label, graph, camera, css);
         if (words) {
             texts.push(words);
         }

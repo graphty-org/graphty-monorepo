@@ -17,6 +17,8 @@ tools/pipeline-health/cdk.out/
 benchmarks/compare/builds/
 
 # Generated files
+# ESLint's bulk suppressions: written by `eslint --suppress-*` / `--prune-suppressions` in its own format
+**/eslint-suppressions.json
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
 */api/*.api.md
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and

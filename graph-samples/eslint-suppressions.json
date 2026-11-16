@@ -1,0 +1,57 @@
+{
+  "scripts/build-hosted.mjs": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    },
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "scripts/convert-datasets.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-includes": {
+      "count": 1
+    },
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "src/generators/geometric.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-default-parameters": {
+      "count": 1
+    }
+  },
+  "src/generators/hyperbolic.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/generators/lfr.ts": {
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "src/generators/named.ts": {
+    "prefer-object-has-own": {
+      "count": 1
+    }
+  },
+  "src/generators/weights.ts": {
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/random/stream.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  }
+}

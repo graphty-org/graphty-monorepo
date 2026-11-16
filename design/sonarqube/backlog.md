@@ -1,5 +1,7 @@
 # SonarQube backlog baseline
 
+> Retired 2026-11-16: replaced by ESLint rules and jscpd (issue #8365).
+
 What SonarQube finds in the graphty monorepo today, measured before the pre-push gate is
 switched on. These numbers are the starting line for the burn-down: they say how big the
 backlog is, where it lives, and which few rules make up most of it.

@@ -678,7 +678,7 @@ function FilterCard({
 
     return (
         <li>
-            <div // NOSONAR(S6819): a condition card, drawn like every Filters card; a fieldset brings its own border and legend
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a condition card, drawn like every Filters card; a fieldset brings its own border and legend
                 ref={box}
                 role="group"
                 data-id={id}
@@ -978,7 +978,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
     // the window's settings in the inspector, and the summary says where the window is.
     return (
         <li>
-            <div // NOSONAR(S6819): a condition card, drawn like every Filters and Style card; a fieldset brings its own border and legend
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a condition card, drawn like every Filters and Style card; a fieldset brings its own border and legend
                 role="group"
                 data-id={TIME_ROW}
                 tabIndex={-1}

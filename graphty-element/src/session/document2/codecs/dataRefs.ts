@@ -918,10 +918,14 @@ function dataModelOf(session: GraphSession): DataModel {
         session.data.edges({ scope: "graph" })
     ).map((edge) => withLooks(withoutReserved(edge, "edge", reserved), looks.edges.get(edge.id)));
     const loadIndex = expanded === null ? undefined : suppliedIndex(session);
-    const sourcesOf = (id: NodeId | EdgeId, kind: "node" | "edge"): readonly string[] =>
-        loadIndex === undefined
-            ? session.data.sourcesOf(id, { kind })
-            : ((kind === "node" ? loadIndex.nodes.get(id) : loadIndex.edges.get(String(id))) ?? []);
+    const sourcesOf = (id: NodeId | EdgeId, kind: "node" | "edge"): readonly string[] => {
+        if (loadIndex === undefined) {
+            return session.data.sourcesOf(id, { kind });
+        }
+
+        const held = kind === "node" ? loadIndex.nodes.get(id) : loadIndex.edges.get(String(id));
+        return held ?? [];
+    };
     const nodeLoads = new Map<NodeId, string[]>();
     const nodeRefs = new Map<NodeId, NodeRef>();
     const readerNodes: NodeRecord[] = [];

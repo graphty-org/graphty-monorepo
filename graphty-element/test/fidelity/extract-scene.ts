@@ -364,6 +364,9 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
     return corners.every(([x, y]) => Math.hypot((x - cx) / (rx + INSIDE_SLACK), (y - cy) / (ry + INSIDE_SLACK)) <= 1);
 }
 
+/** Two node fronts this close in depth, in world units, are at one depth. */
+const SAME_DEPTH = 1e-6;
+
 /**
  * For each drawn node, the node that hides it: a visible, opaque node whose outline covers the
  * whole of its box (`coveredBy`) and whose front is nearer the camera than its own. A group drawn
@@ -374,8 +377,14 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
 export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, string> {
     const out = new Map<string, string>();
     const covers = [...nodes].filter(([, b]) => b.visible && b.fillDrawn !== null && b.fillOpacity >= OPAQUE);
+    const order = new Map([...nodes.keys()].map((id, k) => [id, k]));
+    // two fronts at one depth (a flat drawing of a file's z, pajek-1crn v27 inside v28) pass the depth test in the
+    // order they are drawn, the graph's: the later one shows over the earlier
+    const inFront = (other: string, b: DrawnNode, id: string, a: DrawnNode): boolean =>
+        b.box.near < a.box.near - SAME_DEPTH ||
+        (Math.abs(b.box.near - a.box.near) <= SAME_DEPTH && (order.get(other) ?? 0) > (order.get(id) ?? 0));
     for (const [id, a] of nodes) {
-        const hit = covers.find(([other, b]) => other !== id && b.box.near < a.box.near && coveredBy(a, b));
+        const hit = covers.find(([other, b]) => other !== id && inFront(other, b, id, a) && coveredBy(a, b));
         if (hit !== undefined) {
             out.set(id, hit[0]);
         }
@@ -643,6 +652,33 @@ function sceneEdge(
             pathPoints: d.points.length,
         },
     };
+}
+
+/**
+ * Each edge's id for the reference-scene comparer: "<source>-><target>", with "#k" for the k-th parallel edge of that
+ * pair in the graph's order, the form the references give an edge the program names no other way
+ * (`references/cyrest.mjs`, `yed_gml.py`).
+ *
+ * Never the record's `id`: that is graphty-element's own counter (0, 1, 2 ... in load order), not the file's edge id,
+ * and the comparer pairs edges by id first. A counter that happened to equal a reference's numeric file id for another
+ * edge of the same pair (cyjs-genemania: graphty's counter 98 is one of the three edges between 97 and 94, the file's
+ * edge 98 another) paired graphty's edge with the wrong one of the pair and judged its color and width against a
+ * sibling's (#8200). The oracle scorecard keeps the counters: it pairs by geometry and names extras by them.
+ * @param records - the edges, in the graph's order
+ * @returns each record's comparer id, by its element id
+ */
+export function comparerEdgeIds(
+    records: readonly { id: string; source: unknown; target: unknown }[],
+): Map<string, string> {
+    const seen = new Map<string, number>();
+    const ids = new Map<string, string>();
+    for (const record of records) {
+        const key = `${String(record.source)}->${String(record.target)}`;
+        const k = seen.get(key) ?? 0;
+        seen.set(key, k + 1);
+        ids.set(record.id, k === 0 ? key : `${key}#${String(k)}`);
+    }
+    return ids;
 }
 
 /**

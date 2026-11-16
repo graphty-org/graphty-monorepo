@@ -32,7 +32,7 @@ import type { LayerId, StyleDocumentRow } from "../../catalog/types";
 import type { CompiledLayer } from "./Layer";
 
 /** A row's id: its layer's id for a layer row, an element-minted `folder:` id for a folder. */
-export type StyleRowId = string; // NOSONAR(S6564): public API name in api/session.api.md, removing it is breaking
+export type StyleRowId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- public API name in api/session.api.md, removing it is breaking
 
 /** Where a row is pinned among its siblings. */
 export type StyleRowPin = "top" | "bottom" | "none";

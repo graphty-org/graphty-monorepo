@@ -139,6 +139,16 @@ function antialiasFromAttribute(value: string | null): Antialias {
 }
 
 /**
+ * The `preserve-drawing-buffer` attribute's value: only `"false"` turns it off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether the canvas keeps each drawn frame.
+ */
+function preserveDrawingBufferFromAttribute(value: string | null): boolean {
+    return value !== "false";
+}
+
+/**
  * Whether two property values are the same: identical, or equal as JSON.
  * @param a - One value.
  * @param b - The other.
@@ -240,6 +250,8 @@ export class Graphty extends LitElement {
     #builtGraph: Graph | undefined;
     /** The `antialias` property as set before the engine was built; undefined when it was not. */
     #antialias: Antialias | undefined;
+    /** The `preserveDrawingBuffer` property as set before the engine was built; undefined when it was not. */
+    #preserveDrawingBuffer: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -318,6 +330,9 @@ export class Graphty extends LitElement {
             // already present, though its own callback may not have run yet.
             const graph = new Graph(this.#element, false, {
                 antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+                preserveDrawingBuffer:
+                    this.#preserveDrawingBuffer ??
+                    preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer")),
             });
             this.#builtGraph = graph;
             waitFirstFor(
@@ -411,13 +426,18 @@ export class Graphty extends LitElement {
 
     /**
      * The network source a `data-source` value names, or null for a data source: `source:<id>`
-     * always names a source; a bare name is a source only when no data source has it.
+     * always names a source; a bare name is a source only when no data source has it. A bare
+     * `"url"` stays the element's URL pair (it finds the file's format itself and reads `blob:` and
+     * relative addresses), never graph-io's `url` network source, which `source:url` names.
      * @param type - The `data-source` value.
      * @returns The source id, or null.
      */
     static #sourceIdOf(type: string): string | null {
         if (type.startsWith(SOURCE_FORMAT_PREFIX)) {
             return type.slice(SOURCE_FORMAT_PREFIX.length);
+        }
+        if (type === "url") {
+            return null;
         }
         return !DataSource.getRegisteredTypes().includes(type) && sourceRegistry.hasSource(type) ? type : null;
     }
@@ -6163,16 +6183,16 @@ export class Graphty extends LitElement {
      */
     nodesInRect(rect: { x: number; y: number; width: number; height: number }): (string | number)[] {
         const inside: (string | number)[] = [];
-        for (const node of this.#graph.getNodes()) {
-            const at = this.#graph.nodeScreenPosition(node.id);
+        // Read off the row tables, so a row drawn with no `Node` gets none built for it (#8204).
+        for (const { id, at } of this.#graph.drawnNodeSpots()) {
             if (
-                at?.visible === true &&
+                at.visible &&
                 at.x + at.radius > rect.x &&
                 at.x - at.radius < rect.x + rect.width &&
                 at.y + at.radius > rect.y &&
                 at.y - at.radius < rect.y + rect.height
             ) {
-                inside.push(node.id);
+                inside.push(id);
             }
         }
 
@@ -7212,6 +7232,54 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Whether the WebGL canvas keeps each drawn frame (WebGL's `preserveDrawingBuffer`), so the
+     * page can read the canvas between frames with `canvas.toDataURL()`, `toBlob()` or
+     * `drawImage(canvas)`. `false` saves a full-frame copy on every frame drawn; a read of the
+     * canvas outside a frame then gets a blank image. `captureScreenshot` and `captureAnimation`
+     * work either way. Read once, when the element builds its engine; a WebGPU canvas never keeps
+     * its frames.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_PRESERVE_DRAWING_BUFFER_LATE`, as a `graphty-warning` event.
+     * @example
+     * ```html
+     * <graphty-element preserve-drawing-buffer="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas keeps each drawn frame; true by default.
+     */
+    @property({
+        attribute: "preserve-drawing-buffer",
+        converter: { fromAttribute: preserveDrawingBufferFromAttribute },
+    })
+    get preserveDrawingBuffer(): boolean {
+        return (
+            this.#builtGraph?.preserveDrawingBuffer ??
+            this.#preserveDrawingBuffer ??
+            preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer"))
+        );
+    }
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    set preserveDrawingBuffer(value: boolean) {
+        const oldValue = this.preserveDrawingBuffer;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#preserveDrawingBuffer = value;
+        } else if (value !== built.preserveDrawingBuffer) {
+            this.#warn({
+                code: "W_PRESERVE_DRAWING_BUFFER_LATE",
+                params: { requested: value, active: built.preserveDrawingBuffer },
+            });
+            return;
+        }
+
+        this.requestUpdate("preserveDrawingBuffer", oldValue);
     }
 
     /**

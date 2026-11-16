@@ -149,7 +149,7 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
-### Loading more than 100,000 nodes
+### Loading past the size caps
 
 A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
 you can raise either number with `limits` (experimental):
@@ -242,6 +242,18 @@ Any other later change takes effect only on a new element and raises the warning
 element.addEventListener("graphty-warning", (e) => {
     const { code, params } = e.detail; // "W_ANTIALIAS_LATE", { requested, active }
 });
+```
+
+## Keeping each frame (preserveDrawingBuffer)
+
+The WebGL canvas keeps each drawn frame, so the page can read the canvas between frames with
+`canvas.toDataURL()`, `toBlob()` or `drawImage(canvas)`. Keeping it costs a full-frame copy on
+every frame drawn. A page that never reads the canvas itself can turn it off;
+`captureScreenshot` and `captureAnimation` work either way. It is read when the engine is built,
+like `antialias`, and a later change raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+
+```html
+<graphty-element preserve-drawing-buffer="false"></graphty-element>
 ```
 
 ## Drawing only when something changes

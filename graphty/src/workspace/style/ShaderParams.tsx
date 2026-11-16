@@ -186,7 +186,7 @@ function ChoiceGrid({
     onPick: (value: number) => void;
 }>): React.JSX.Element {
     return (
-        <div // NOSONAR(S6819): an ARIA group naming a row of toggle buttons; a fieldset would draw its own border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a row of toggle buttons; a fieldset would draw its own border and legend
             className="ws-param-choices"
             role="group"
             aria-label={label}

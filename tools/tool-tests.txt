@@ -1,3 +1,12 @@
+design/ui/studio/tool/dry-run-pass.test.mjs
+design/ui/studio/tool/dry-run-review.test.mjs
+design/ui/studio/tool/measure.test.mjs
+design/ui/studio/tool/profiles.test.mjs
+design/ui/studio/tool/serve-dist.test.mjs
+design/ui/studio/tool/tier4.test.mjs
+design/ui/studio/tool/tier5.test.mjs
+design/ui/studio/tool/tier6.test.mjs
+design/ui/studio/tool/with-browser.test.mjs
 tools/acceptance.test.mjs
 tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
@@ -41,6 +50,7 @@ tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
 tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
+tools/duplicates-check.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
@@ -78,9 +88,6 @@ tools/scan-secrets.test.mjs
 tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
-tools/sonar/sonar-baseline.test.mjs
-tools/sonar/sonar-gate.test.mjs
-tools/sonarqube-mcp/lib.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs

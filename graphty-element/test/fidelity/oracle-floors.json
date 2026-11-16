@@ -608,7 +608,7 @@
             "edge.dash": 0.99,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 0.992,
             "edge.arrowShape": 0.995,
             "edge.arrowParts": 0.995,
             "edge.arrowPlace": 1,
@@ -3735,7 +3735,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -3743,7 +3743,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -3801,7 +3801,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -3809,7 +3809,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -7040,7 +7040,7 @@
             "label.backgroundBorder": 0.985,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.978,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7106,7 +7106,7 @@
             "label.backgroundBorder": 0.985,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.978,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11204,7 +11204,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11270,7 +11270,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11833,19 +11833,19 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.982,
-            "node.height": 0.964,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.945,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.945,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.955,
+            "stray.present": 1,
             "stray.extra": 0.977,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -11859,19 +11859,19 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.982,
-            "node.height": 0.964,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.945,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.945,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.955,
+            "stray.present": 1,
             "stray.extra": 0.977,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -13182,7 +13182,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 0.999,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -13241,7 +13241,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -24699,7 +24699,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -24745,7 +24745,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -24786,7 +24786,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -24832,7 +24832,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -25304,7 +25304,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.989,
+            "edge.arrow": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -25315,7 +25315,16 @@
             "raster.edge": 0.89,
             "raster.label": 0.92,
             "raster.canvas": 0.99,
-            "label.backgroundBox": 1
+            "label.backgroundBox": 1,
+            "edge.arrowShape": 1,
+            "edge.arrowParts": 1,
+            "edge.arrowPlace": 1,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
+            "raster.arrowhead": 0.96
         },
         "gml-specimen-edge-labels-p2@matched": {
             "node.present": 1,
@@ -25357,13 +25366,21 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.989,
+            "edge.arrow": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "label.backgroundBox": 1
+            "label.backgroundBox": 1,
+            "edge.arrowShape": 1,
+            "edge.arrowParts": 1,
+            "edge.arrowPlace": 1,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1
         },
         "gml-specimen-edge-labels-p3": {
             "node.present": 1,
@@ -25731,8 +25748,8 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.8,
-            "edge.curve": 0.8,
+            "edge.route": 1,
+            "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -25740,15 +25757,24 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
+            "edge.arrow": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95,
-            "raster.edge": 0.89,
-            "raster.canvas": 0.99
+            "raster.nodeOutline": 0.96,
+            "raster.edge": 0.92,
+            "raster.canvas": 0.99,
+            "edge.arrowShape": 1,
+            "edge.arrowParts": 1,
+            "edge.arrowPlace": 1,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
+            "raster.arrowhead": 0.96
         },
         "gml-specimen-edges-lines-p2@matched": {
             "node.present": 1,
@@ -25768,8 +25794,8 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.8,
-            "edge.curve": 0.8,
+            "edge.route": 1,
+            "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -25777,11 +25803,19 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
+            "edge.arrow": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.arrowShape": 1,
+            "edge.arrowParts": 1,
+            "edge.arrowPlace": 1,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1
         },
         "gml-specimen-edges-lines-p4": {
             "node.present": 1,
@@ -28838,7 +28872,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.969,
+            "node.shape": 0.972,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -28910,7 +28944,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.969,
+            "node.shape": 0.972,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -31216,7 +31250,7 @@
         },
         "pajek-1crn": {
             "node.present": 1,
-            "node.extra": 0.997,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -31269,7 +31303,7 @@
         },
         "pajek-1crn@matched": {
             "node.present": 1,
-            "node.extra": 0.997,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -31568,7 +31602,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.995,
+            "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -31628,7 +31662,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.995,
+            "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -38907,7 +38941,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -38973,7 +39007,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -41328,7 +41362,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.889,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -41354,7 +41388,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.889,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -41989,7 +42023,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -42015,7 +42049,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -56165,24 +56199,10 @@
                 "date": "2026-11-01"
             }
         },
-        "cx-radiation-bibliography@matched": {
-            "edge.arrow": {
-                "floor": 0.988,
-                "to": 0.986,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            }
-        },
         "cx-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56191,12 +56211,6 @@
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56223,24 +56237,12 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56457,44 +56459,10 @@
                 "date": "2026-11-01"
             }
         },
-        "pajek-synth-lines": {
-            "edge.arrowPlace": {
-                "floor": 0.937,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.arrow": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
-                "date": "2026-11-01"
-            }
-        },
-        "pajek-synth-lines@matched": {
-            "edge.arrowPlace": {
-                "floor": 0.937,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.arrow": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
-                "date": "2026-11-01"
-            }
-        },
         "xgmml-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56503,12 +56471,6 @@
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }

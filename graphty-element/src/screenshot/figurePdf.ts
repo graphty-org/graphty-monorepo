@@ -64,7 +64,8 @@ function familyOf(font: string): Family {
 function pdfString(text: string): string {
     // ponytail: the standard fonts hold Latin-1 only, so other characters print as "?"; embed a font for them.
     const latin = text.replaceAll(/[^\x20-\x7e\xa0-\xff]/gu, "?");
-    return `(${latin.replaceAll(/[\\()]/g, String.raw`\$&`)})`;
+    const escaped = latin.replaceAll(/[\\()]/g, String.raw`\$&`);
+    return `(${escaped})`;
 }
 
 let measurer: CanvasRenderingContext2D | null | undefined;

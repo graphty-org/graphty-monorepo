@@ -1859,7 +1859,12 @@ const PAST_NODE_SLACK = 1;
  * @param n - the node at that end
  * @returns true for a shape through the node
  */
-function runsThroughNode(shape: readonly Pt[], e: PEdge, end: "source" | "target", n: PNode | undefined): boolean {
+export function runsThroughNode(
+    shape: readonly Pt[],
+    e: PEdge,
+    end: "source" | "target",
+    n: PNode | undefined,
+): boolean {
     const q = endOf(e, end);
     const r = end === "source" ? (e.points[1] ?? q) : (e.points.at(-2) ?? q);
     const len = Math.hypot(r[0] - q[0], r[1] - q[1]);
@@ -1873,7 +1878,13 @@ function runsThroughNode(shape: readonly Pt[], e: PEdge, end: "source" | "target
     // (cx-radiation-bibliography 164->169), whose heads cross over: only a line leaving its node is judged
     const center = depth([n.cx, n.cy]);
     const farSide = center + (Math.abs(ux) * n.w + Math.abs(uy) * n.h) / 2;
-    return center > 0 && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
+    // a head centered on its node sits on it, not through it: yEd centers a head on a node smaller than the head
+    // (graphml-stm32-func n70->n10: a 2.7 px circle on a 0.6 px junction node reaches past its far side)
+    const box = boxOfPoints(shape);
+    const onNode =
+        Math.abs((box.x0 + box.x1) / 2 - n.cx) <= n.w / 2 + PAST_NODE_SLACK &&
+        Math.abs((box.y0 + box.y1) / 2 - n.cy) <= n.h / 2 + PAST_NODE_SLACK;
+    return center > 0 && !onNode && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
 }
 
 /**

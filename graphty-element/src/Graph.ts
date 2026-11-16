@@ -2083,8 +2083,8 @@ export class Graph implements GraphContext {
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
-            if (controller && "pivot" in controller) {
-                this.scene.stopAnimation((controller as { pivot: unknown }).pivot);
+            if (controller instanceof OrbitCameraController) {
+                this.scene.stopAnimation(controller.pivot);
             }
             // Note: 2D animations use direct animation on dummy objects
             // and will be cleaned up when the scene is disposed
@@ -8298,23 +8298,14 @@ export class Graph implements GraphContext {
         // Get the active camera controller (OrbitCameraController or TwoDCameraController)
         const controller = this.camera.getActiveController();
 
-        if (controller && "pivot" in controller && "cameraDistance" in controller) {
+        if (controller instanceof OrbitCameraController) {
             // OrbitCameraController - get world position and pivot position
-            const orbitController = controller as unknown as {
-                pivot: {
-                    position: Vector3;
-                    rotation: Vector3;
-                    rotationQuaternion: Quaternion | null;
-                    computeWorldMatrix: (force: boolean) => void;
-                };
-                cameraDistance: number;
-                camera: { position: Vector3; parent: unknown; computeWorldMatrix: (force: boolean) => void };
-            };
+            const orbitController = controller;
 
             // Get camera's world position
             // Compute world matrix first
             orbitController.pivot.computeWorldMatrix(true);
-            orbitController.camera.computeWorldMatrix(true);
+            orbitController.camera.computeWorldMatrix();
 
             // Extract world position from world matrix
             const worldMatrix = camera.getWorldMatrix();
@@ -8350,20 +8341,9 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
-        } else if (controller && "velocity" in controller) {
+        } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan
-            const twoDController = controller as unknown as {
-                camera: {
-                    position: Vector3;
-                    orthoLeft: number | null;
-                    orthoRight: number | null;
-                    orthoTop: number | null;
-                    orthoBottom: number | null;
-                };
-                config: {
-                    initialOrthoSize: number;
-                };
-            };
+            const twoDController = controller;
 
             // Calculate current zoom from ortho bounds
             const currentSize = (twoDController.camera.orthoRight ?? 1) - (twoDController.camera.orthoLeft ?? -1);
@@ -8376,9 +8356,7 @@ export class Graph implements GraphContext {
                 x: twoDController.camera.position.x,
                 y: twoDController.camera.position.y,
             };
-            if (controller instanceof TwoDCameraController) {
-                state.rotation = controller.rotation;
-            }
+            state.rotation = controller.rotation;
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -8462,15 +8440,9 @@ export class Graph implements GraphContext {
                 const controller = this.camera.getActiveController();
 
                 try {
-                    if (controller && "pivot" in controller && "cameraDistance" in controller) {
-                        // OrbitCameraController (3D)
+                    if (controller instanceof OrbitCameraController) {
                         await this.animateOrbitCamera(resolvedState, options, context.signal);
-                    } else if (
-                        controller &&
-                        "velocity" in controller &&
-                        typeof (controller as { velocity?: unknown }).velocity === "object"
-                    ) {
-                        // TwoDCameraController (2D) - has velocity object
+                    } else if (controller instanceof TwoDCameraController) {
                         await this.animate2DCamera(resolvedState, options, context.signal);
                     } else {
                         // Unknown controller, apply immediately
@@ -8512,9 +8484,9 @@ export class Graph implements GraphContext {
         // Get the active camera controller
         const controller = this.camera.getActiveController();
 
-        if (controller && "pivot" in controller && "cameraDistance" in controller) {
+        if (controller instanceof OrbitCameraController) {
             this.applyOrbitCameraState(controller, state);
-        } else if (controller && "velocity" in controller) {
+        } else if (controller instanceof TwoDCameraController) {
             this.applyTwoDCameraState(controller, state);
         } else {
             this.applyFallbackCameraState(camera, state);
@@ -8523,26 +8495,13 @@ export class Graph implements GraphContext {
 
     /**
      * Apply a camera state to an orbit controller through its pivot: target, rotation, distance.
-     * @param controller - The active orbit camera controller
+     * @param orbitController - The active orbit camera controller
      * @param state - Camera state to apply
      */
     private applyOrbitCameraState(
-        controller: CameraController,
+        orbitController: OrbitCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // OrbitCameraController - work with pivot system
-        const orbitController = controller as unknown as {
-            pivot: {
-                position: Vector3;
-                rotation: Vector3;
-                rotationQuaternion: Quaternion | null;
-                computeWorldMatrix: (force: boolean) => void;
-            };
-            cameraDistance: number;
-            clampDistance: (distance: number) => number;
-            updateCameraPosition: () => void;
-        };
-
         // Set pivot position (target)
         if (state.target) {
             orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
@@ -8601,40 +8560,21 @@ export class Graph implements GraphContext {
      * @param state - Camera state to apply
      */
     private applyTwoDCameraState(
-        controller: CameraController,
+        controller: TwoDCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // TwoDCameraController - handle zoom and pan
-        const twoDController = controller as unknown as {
-            camera: {
-                position: Vector3;
-                orthoLeft: number | null;
-                orthoRight: number | null;
-                orthoTop: number | null;
-                orthoBottom: number | null;
-            };
-            config: {
-                initialOrthoSize: number;
-            };
-            updateOrtho: (size: number) => void;
-        };
-
         // Set zoom (ortho bounds)
         if (state.zoom !== undefined) {
-            const initialSize = twoDController.config.initialOrthoSize;
-            const targetSize = initialSize / state.zoom;
-            twoDController.updateOrtho(targetSize); // Reuse controller method
+            controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
         }
 
-        if (controller instanceof TwoDCameraController) {
-            if (state.rotation !== undefined) {
-                controller.rotation = state.rotation;
-            }
+        if (state.rotation !== undefined) {
+            controller.rotation = state.rotation;
+        }
 
-            // Set pan (camera position): the view's center, in world units however the view is turned
-            if (state.pan) {
-                controller.panTo(state.pan.x, state.pan.y);
-            }
+        // Set pan (camera position): the view's center, in world units however the view is turned
+        if (state.pan) {
+            controller.panTo(state.pan.x, state.pan.y);
         }
     }
 
@@ -8791,24 +8731,13 @@ export class Graph implements GraphContext {
     ): Promise<void> {
         const controller = this.camera.getActiveController();
 
-        // Type guard - ensure we have OrbitCameraController
-        if (!controller || !("pivot" in controller) || !("cameraDistance" in controller)) {
+        if (!(controller instanceof OrbitCameraController)) {
             // Fallback to immediate if controller doesn't match
             this.applyCameraStateImmediate(targetState);
             return;
         }
 
-        const orbitController = controller as unknown as {
-            pivot: {
-                position: Vector3;
-                rotation: Vector3;
-                animations?: Animation[];
-                computeWorldMatrix: (force: boolean) => void;
-            };
-            cameraDistance: number;
-            clampDistance: (distance: number) => number;
-            updateCameraPosition: () => void;
-        };
+        const orbitController = controller;
 
         const fps = 60;
         const duration = options.duration ?? 1000;
@@ -9034,29 +8963,17 @@ export class Graph implements GraphContext {
     ): Promise<void> {
         const controller = this.camera.getActiveController();
 
-        // Type guard for 2D controller
-        if (!controller || !("velocity" in controller)) {
+        if (!(controller instanceof TwoDCameraController)) {
             this.applyCameraStateImmediate(targetState);
             return;
         }
 
         // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
-        if (targetState.rotation !== undefined && controller instanceof TwoDCameraController) {
+        if (targetState.rotation !== undefined) {
             controller.rotation = targetState.rotation;
         }
 
-        const twoDController = controller as unknown as {
-            camera: {
-                position: Vector3;
-                orthoLeft: number | null;
-                orthoRight: number | null;
-                orthoTop: number | null;
-                orthoBottom: number | null;
-            };
-            config: {
-                initialOrthoSize: number;
-            };
-        };
+        const twoDController = controller;
 
         const fps = 60;
         const duration = options.duration ?? 1000;

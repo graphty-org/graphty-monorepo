@@ -310,8 +310,8 @@ device the way it treats a lost one: it lets go of it and attaches a fresh one f
 The stuck run is never finished on the CPU. To set your own limit, or none:
 
 ```javascript
-element.getAcceleration().setRunTimeout(60_000); // milliseconds; Infinity waits forever
-element.getAcceleration().setRunTimeout(undefined); // back to the scaled limit
+element.graph.getAcceleration().setRunTimeout(60_000); // milliseconds; Infinity waits forever
+element.graph.getAcceleration().setRunTimeout(undefined); // back to the scaled limit
 ```
 
 `E_DEVICE_INCORRECT` is the one that surprises people, because the hardware is there and it

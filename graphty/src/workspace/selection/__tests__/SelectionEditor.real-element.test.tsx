@@ -951,3 +951,91 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
         assert.isNotNull(pane === null ? null : within(pane).queryByText("Start with"));
     });
 });
+
+describe("the outline's row keys (spec 3.1)", () => {
+    it("Mod+D copies the step under its original and selects the copy", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
+        row("deg").focus();
+        await userEvent.keyboard("{Control>}d{/Control}");
+        await waitFor(() => {
+            assert.lengthOf(unionOf(session, layer.id)?.branches[0]?.steps ?? [], 2);
+        });
+        const steps = unionOf(session, layer.id)?.branches[0]?.steps ?? [];
+        assert.deepEqual(steps[1]?.rule, steps[0]?.rule, "the copy tests what the original tests");
+        const copy = steps[1]?.id ?? "";
+        assert.notEqual(copy, "deg");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-row"), copy, "focus is on the copy");
+        });
+    });
+
+    it("Delete removes the selected step and nothing else; a second Delete removes nothing", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
+        row("a").focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector('[data-step-pane="deg"]'), "arrowing onto it selects it");
+        });
+        await userEvent.keyboard("{Delete}");
+        await waitFor(() => {
+            assert.lengthOf(unionOf(session, layer.id)?.branches[0]?.steps ?? [], 0);
+        });
+        assert.lengthOf(unionOf(session, layer.id)?.branches[1]?.steps ?? [], 1, "the other group is kept");
+        await userEvent.keyboard("{Delete}");
+        assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 2, "a second Delete removes nothing");
+    });
+
+    it("a group's row: Mod+] brings it up, Shift+Mod+H switches it off, Delete removes it", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
+        row("b").focus();
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(
+                unionOf(session, layer.id)?.branches.map((branch) => branch.id),
+                ["b", "a"],
+            );
+        });
+        // Already at the top: a second press moves nothing.
+        row("b").focus();
+        await userEvent.keyboard("{Control>}]{/Control}");
+        assert.deepEqual(
+            unionOf(session, layer.id)?.branches.map((branch) => branch.id),
+            ["b", "a"],
+        );
+        row("b").focus();
+        await userEvent.keyboard("{Shift>}{Control>}h{/Control}{/Shift}");
+        await waitFor(() => {
+            assert.isFalse(unionOf(session, layer.id)?.branches[0]?.on);
+        });
+        await userEvent.click(row("b"));
+        row("b").focus();
+        await userEvent.keyboard("{Delete}");
+        await waitFor(() => {
+            assert.deepEqual(
+                unionOf(session, layer.id)?.branches.map((branch) => branch.id),
+                ["a"],
+            );
+        });
+    });
+
+    it("Home and End walk to the outline's first and last rows", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
+        row("deg").focus();
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-row"), "val");
+        });
+        await userEvent.keyboard("{Home}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-row"), "title");
+        });
+    });
+});

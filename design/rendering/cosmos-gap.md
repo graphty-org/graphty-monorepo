@@ -225,7 +225,7 @@ recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
 
 As built (issue #8235): `antialias: "at-rest"` keeps the default picture without paying for it while anything moves.
 The engine is built multisampled, as under `true`; a moving frame is drawn through a pass post-process with no
-multisampling (`RenderManager.drawFast`) and copied to the canvas, with every straight 3D pulled batch switched to
+multisampling (`RenderManager.drawFast`) and copied to the canvas, with every straight pulled batch, 2D and 3D (#8428), switched to
 `EDGE_PULLED_LEAN` by a define and a vertex count (`drawLinesLean`, no piece moved); the first tick that would rest
 draws one frame straight to the canvas with the join template, which is the `true` frame by construction, and the
 loop then rests on it (at-rest turns drawing on demand on). A pointer held on the canvas counts as motion. Because the

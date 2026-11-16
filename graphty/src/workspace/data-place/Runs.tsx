@@ -1,5 +1,5 @@
 /**
- * The Data place's Calculated tab (the `selection-workspace` experiment, issue #5805): every result
+ * The Data place's Calculated tab: every result
  * the session holds, wherever it was started -- Analyze or a selection's card -- as graphty-element
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
@@ -13,7 +13,6 @@ import type { GraphSession, Run, RunReader } from "@graphty/graphty-element/sess
 import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { runFailureWords, staleWords } from "../inspector/words";
@@ -299,9 +298,8 @@ function ResultRow({
 }
 
 /**
- * The Calculated tab's body, drawn only while the `selection-workspace` experiment is on: the
- * results, or with none, Analyze and its key.
- * @returns the list, or nothing.
+ * The Calculated tab's body: the results, or with none, Analyze and its key.
+ * @returns the list, or nothing before the element has come up.
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
@@ -310,7 +308,7 @@ export function ResultsList(): React.JSX.Element | null {
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,
     );
-    if (session === null || !selectionWorkspaceOn(session)) {
+    if (session === null) {
         return null;
     }
     const runs = session.runs.list().filter((run) => run.status !== "removed");

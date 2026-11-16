@@ -1660,6 +1660,58 @@ function screenFloorOf(mesh: Mesh): number {
     return (mesh.material as unknown as { _floats?: Record<string, number> } | null)?._floats?.minWidth ?? 0;
 }
 
+/** A cap's `ArrowStyle.position` at or under this places its tip at its own end of the line. */
+const AT_OWN_END = 1e-3;
+
+/**
+ * Whether a part-way cap's middle lies on the half of its line away from the end it caps: the middle of its outline's
+ * reach along the line on screen (from its back to its tip, whatever points its mesh repeats), or its slot's place for
+ * a billboard (no outline), against the line's middle.
+ * @param outline - the cap's points on screen, or null
+ * @param place - its slot's place on screen
+ * @param place.x - across
+ * @param place.y - down
+ * @param from - the line's source end, in the world
+ * @param to - its target end
+ * @param capsTarget - whether the cap is the line's head (else its tail)
+ * @param p - the projector
+ * @returns true when it sits on the other half
+ */
+function onOtherHalf(
+    outline: readonly [number, number][] | null,
+    place: { x: number; y: number },
+    from: Vector3 | undefined,
+    to: Vector3 | undefined,
+    capsTarget: boolean,
+    p: Projector,
+): boolean {
+    if (from === undefined || to === undefined) {
+        return false;
+    }
+    const [a, b] = [p.point(from), p.point(to)];
+    const [dx, dy] = [b.x - a.x, b.y - a.y];
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+        return false;
+    }
+    const shareOf = (x: number, y: number): number => ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared;
+    const shares =
+        outline === null || outline.length === 0 ? [shareOf(place.x, place.y)] : outline.map(([x, y]) => shareOf(x, y));
+    const middle = (Math.min(...shares) + Math.max(...shares)) / 2;
+    return capsTarget ? middle < 0.5 : middle > 0.5;
+}
+
+/**
+ * Whether a cap's slot places it anywhere: a cap hidden in place (`ArrowCapBatch.setDrawn(false)`, the billboard's
+ * hidden flag) holds a zero matrix, and its position reads as the origin.
+ * @param cap - the cap
+ * @returns false for a cap its batch draws nowhere
+ */
+function capInSlot(cap: ArrowCap): boolean {
+    const { batch, slot } = cap as unknown as { batch: ArrowCapBatch | null; slot: number };
+    return batch !== null && batch.matrixOf(slot).m[15] !== 0;
+}
+
 /**
  * A flat arrow cap's geometry on screen: its batch mesh's vertices through its slot's matrix and
  * the mesh's world matrix. A billboarded cap is shaped by its shader, so it has none here.
@@ -1900,8 +1952,12 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports
     // can turn it round; a route judged to the node center from there would not be the one drawn.
     // A cap drawn part-way along its line (`ArrowStyle.position`) is no end: the line runs on past it to its node.
+    // A cap hidden in its slot (a zero matrix: the head between two overlapping nodes, #7759) is no end either: its
+    // position reads as the origin (pajek-iliad 125 -> 123, the line read on to the graph's origin).
     const tip = (cap: ArrowCap | null, position: number | undefined): Vector3 | null =>
-        cap !== null && !cap.isDisposed() && cap.visibility > 0 && !((position ?? 0) > 0) ? cap.position.clone() : null;
+        cap !== null && !cap.isDisposed() && cap.visibility > 0 && capInSlot(cap) && !((position ?? 0) > 0)
+            ? cap.position.clone()
+            : null;
     const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
     const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
     const [lineFrom, lineTo] = [world.at(0), world.at(-1)];
@@ -1931,20 +1987,30 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const material = look === null ? materialColor(parts?.[1] ?? batchMaterial) : null;
         const inside = parts === null ? null : insideColor(parts[0] ?? null);
         const rgb = look ?? material?.rgb ?? null;
-        // an end cap drawn past the middle of its line (`ArrowStyle.position` above 0.5) sits at the other end, and is
-        // read there, as a reader of the drawing finds it (Pajek's `ap 1`: the head drawn at the source end)
+        // an end cap drawn part-way along its line (`ArrowStyle.position`) with its middle on the other half of the
+        // line sits at the other end, and is read there, as a reader of the drawing finds it and as the oracle's reader
+        // reads the program's head by its middle (Pajek's `ap 1`: the head drawn at the source end; `pajek-synth-lines`
+        // 3 -> 4 `ap 20`: its tip past the middle, its middle on the source half). One with its tip at its own end
+        // (graph-io's least share, a Pajek tip inside the target) is that end's, however far back a long head reaches
+        // (`pajek-synth-lines` 10 -> 11: a 24 px head on a 13 px line).
         const other = OTHER_END[c.end];
         const own = c.end === "arrowHead" ? internal.drawnStyle?.arrowHead : internal.drawnStyle?.arrowTail;
-        const across = other !== undefined && (own?.position ?? 0) > 0.5;
+        const outline = capOutline(cap, p);
+        const position = own?.position ?? 0;
+        const across =
+            other !== undefined &&
+            position > AT_OWN_END &&
+            (position >= 1 || onOtherHalf(outline, p.point(at), lineFrom, lineTo, c.end === "arrowHead", p));
         return {
             end: across ? other : c.end,
             // read there, it points back along its line: a head's triangle into the line from its source end
             name: across ? pointingBack(c.name) : c.name,
             sizePx: c.span * p.pxPerWorld(at),
-            outline: capOutline(cap, p),
+            outline,
             color: rgb === null ? null : hex(rgb),
             ...(inside === null ? {} : { fill: hex(inside) }),
-            opacity: c.visibility * (material?.alpha ?? 1),
+            // a cap hidden in its slot draws nothing (`capInSlot`)
+            opacity: cap !== undefined && cap !== null && !capInSlot(cap) ? 0 : c.visibility * (material?.alpha ?? 1),
             gap:
                 (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??
                 (c.end === "arrowTail" ? internal.drawnStyle?.arrowTail?.gap : undefined) ??

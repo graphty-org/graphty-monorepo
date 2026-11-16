@@ -1044,6 +1044,7 @@ export const READ_ONLY: readonly string[] = [
     "NotesApi.get",
     "NotesApi.list",
     "NotesApi.status",
+    "NotesApi.tags",
     "NotesApi.toDocument",
     "NumericColumnView.get",
     "OperationQueueManager.cancelByCategory",

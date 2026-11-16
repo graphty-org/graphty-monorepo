@@ -56,7 +56,7 @@ import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/Lab
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
-import { antialiasDefault } from "./meshes/PulledLineBatch";
+import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
 import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
 import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -125,13 +125,17 @@ const ELEMENT_SOURCE = "element-source";
 const ELEMENT_LAYOUT = "element-layout";
 
 /**
- * The `antialias` attribute's value: only `"false"` turns multisampling off, and no attribute
- * leaves it on.
+ * The `antialias` attribute's value: `"false"` turns multisampling off, `"at-rest"` multisamples
+ * only the frame a still scene rests on, and any other value or no attribute leaves it on.
  * @param value - The attribute, or null when there is none.
- * @returns Whether to multisample.
+ * @returns The setting.
  */
-function antialiasFromAttribute(value: string | null): boolean {
-    return value === null ? antialiasDefault.value : value !== "false";
+function antialiasFromAttribute(value: string | null): Antialias {
+    if (value === null) {
+        return antialiasDefault.value;
+    }
+
+    return value === "at-rest" ? "at-rest" : value !== "false";
 }
 
 /**
@@ -245,7 +249,7 @@ export class Graphty extends LitElement {
 
     #builtGraph: Graph | undefined;
     /** The `antialias` property as set before the engine was built; undefined when it was not. */
-    #antialias: boolean | undefined;
+    #antialias: Antialias | undefined;
     /** The `preserveDrawingBuffer` property as set before the engine was built; undefined when it was not. */
     #preserveDrawingBuffer: boolean | undefined;
     readonly #element: Element;
@@ -7188,33 +7192,41 @@ export class Graphty extends LitElement {
      * Whether the canvas is drawn with multisampling (4x), which smooths the edges of lines and
      * nodes. `false` turns it off: harder edges, and faster frames when there are very many edges.
      * Nothing else about the picture changes. Under renderPath "batched" it also draws plain straight
-     * 3D edges with a cheaper line program that draws the same pixels. Read once, when the element
-     * builds its engine.
+     * 3D edges with a cheaper line program that draws the same pixels.
+     *
+     * `"at-rest"` draws every frame while anything moves -- a layout running, the camera, a data or
+     * style change, an animation, a pointer held down on the canvas -- as `false` does, and once the
+     * scene is still draws one frame
+     * multisampled, the same picture `true` draws, and keeps it on screen. It holds that frame by not
+     * drawing again until something changes, as `layoutBehavior.rendering.onDemand` does, whether or
+     * not that is set. A screenshot taken at any time is the multisampled picture.
      * @remarks
      * Set it as an attribute, in any position in the tag, or as a property before using any other
-     * property or method of the element. A later change takes effect only on a new element and
-     * raises the warning `W_ANTIALIAS_LATE`, as a `graphty-warning` event.
+     * property or method of the element: the engine reads it once, when it is built. After that,
+     * an element built with `true` or `"at-rest"` switches between those two at any time; any
+     * other change takes effect only on a new element and raises the warning `W_ANTIALIAS_LATE`,
+     * as a `graphty-warning` event.
      * @experimental cosmograph
      * @example
      * ```html
-     * <graphty-element render-path="batched" antialias="false"></graphty-element>
+     * <graphty-element render-path="batched" antialias="at-rest"></graphty-element>
      * ```
-     * @returns Whether the canvas multisamples; true by default.
+     * @returns The setting; true by default.
      */
     @property({ attribute: "antialias", converter: { fromAttribute: antialiasFromAttribute } })
-    get antialias(): boolean {
+    get antialias(): Antialias {
         return this.#builtGraph?.antialias ?? this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias"));
     }
     /**
-     * Sets whether the canvas multisamples. Once the engine is built a different value changes
-     * nothing and raises `W_ANTIALIAS_LATE`.
+     * Sets how the canvas multisamples. Once the engine is built, a change it cannot make raises
+     * `W_ANTIALIAS_LATE` and changes nothing.
      */
-    set antialias(value: boolean) {
+    set antialias(value: Antialias) {
         const oldValue = this.antialias;
         const built = this.#builtGraph;
         if (built === undefined) {
             this.#antialias = value;
-        } else if (value !== built.antialias) {
+        } else if (!built.setAntialias(value)) {
             this.#warn({ code: "W_ANTIALIAS_LATE", params: { requested: value, active: built.antialias } });
             return;
         }

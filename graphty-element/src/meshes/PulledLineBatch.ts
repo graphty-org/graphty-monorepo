@@ -54,7 +54,13 @@ export const pulledEdgesDefault: { value: boolean } = { value: false };
  * default; only render-parity's `VITE_PARITY_ANTIALIAS=false` run writes it, so every story's three
  * loads draw without multisampling and the batched one uses the lean line program.
  */
-export const antialiasDefault: { value: boolean } = { value: true };
+export const antialiasDefault: { value: Antialias } = { value: true };
+
+/**
+ * How the canvas multisamples (graphty-element's `antialias`): always (`true`), never (`false`), or
+ * only on the frame a still scene rests on (`"at-rest"`).
+ */
+export type Antialias = boolean | "at-rest";
 
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
@@ -71,6 +77,31 @@ const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_
 
 /** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
 export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TEMPLATE_OF.length };
+
+/** The lean program's define, which a batch that switches program adds to and takes from its material. */
+const LEAN_DEFINE = "#define EDGE_PULLED_LEAN";
+
+/** Each scene's batches that can draw their pieces with either program; see {@link drawLinesLean}. */
+const SWITCHING = new WeakMap<Scene, Set<PulledLineBatch>>();
+
+/**
+ * Draw every straight 3D line batch of a scene with the lean program (`EDGE_PULLED_LEAN`) or with
+ * the join template, from the next frame on: `antialias: "at-rest"` draws its moving frames lean
+ * and the frame it rests on joined, the picture `antialias: true` draws. Neither moves a piece or
+ * sends a table again; the first use of each program compiles it.
+ * @param scene - The scene.
+ * @param lean - Whether to draw the lean program.
+ * @returns How many batches draw the lean program now.
+ */
+export function drawLinesLean(scene: Scene, lean: boolean): number {
+    let count = 0;
+    for (const batch of SWITCHING.get(scene) ?? []) {
+        batch.drawLean(lean);
+        count += lean ? 1 : 0;
+    }
+
+    return count;
+}
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
@@ -122,6 +153,9 @@ export class PulledLineBatch {
     /** The first and last hidden table line written since the last upload, or -1. */
     private hiddenFirst = -1;
     private hiddenLast = -1;
+
+    /** Whether the pieces draw the lean program in place of the template; see {@link PulledLineBatch.drawLean}. */
+    private lean = false;
 
     /** Pieces handed out so far; the draw covers these. */
     private highWater = 0;
@@ -196,6 +230,8 @@ export class PulledLineBatch {
      *     corner's vertex itself: the batch draws `indices.length` vertices a piece, unindexed.
      * @param template.indices - Its corners: the vertex each draws, which its shader holds too.
      * @param template.vertices - Its vertices.
+     * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
+     *     3D batch drawing the join template.
      */
     constructor(
         mesh: Mesh,
@@ -203,6 +239,7 @@ export class PulledLineBatch {
         private readonly rowPositions: () => BaseTexture,
         curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
+        switches = false,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -223,6 +260,16 @@ export class PulledLineBatch {
             this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
             this.routeTable = this.buildRoutes(this.routes);
         }
+        if (switches) {
+            let switching = SWITCHING.get(scene);
+            if (switching === undefined) {
+                switching = new Set();
+                SWITCHING.set(scene, switching);
+            }
+
+            switching.add(this);
+        }
+
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
@@ -557,6 +604,7 @@ export class PulledLineBatch {
 
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
+        SWITCHING.get(this.scene)?.delete(this);
         this.stopFlush();
         this.stopRestore();
         this.table.dispose();
@@ -712,11 +760,43 @@ export class PulledLineBatch {
         this.setCount();
     }
 
+    /**
+     * Draw the pieces with the lean program or the join template; see {@link drawLinesLean}.
+     * @param lean - Whether to draw the lean program.
+     */
+    drawLean(lean: boolean): void {
+        if (lean === this.lean) {
+            return;
+        }
+
+        const material = this.mesh.material as ShaderMaterial;
+        const { defines } = material.options;
+        const set = (on: boolean): void => {
+            const at = defines.indexOf(LEAN_DEFINE);
+            if (on && at === -1) {
+                defines.push(LEAN_DEFINE);
+            } else if (!on && at !== -1) {
+                defines.splice(at, 1);
+            }
+        };
+        set(lean);
+        // A program not compiled yet would leave every piece off the frame: the batch keeps the one
+        // it has until the other is ready, which its compile, under way now, makes it soon.
+        if (!material.isReady(this.mesh, false, this.mesh.subMeshes[0])) {
+            set(!lean);
+            return;
+        }
+
+        this.lean = lean;
+        this.setCount();
+    }
+
     /** Draw only the pieces handed out, a vertex a corner. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
-        subMesh.verticesCount = this.highWater * this.template.indices.length;
+        const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;
+        subMesh.verticesCount = this.highWater * corners;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

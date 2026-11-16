@@ -795,7 +795,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

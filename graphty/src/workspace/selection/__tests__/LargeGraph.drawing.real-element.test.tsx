@@ -27,8 +27,11 @@ describe("the selection editor on 50,000 nodes", () => {
         if (row === null) {
             throw new Error("the Style Nodes... line is drawn");
         }
-        const opened = await firstFrameAfter(session, () => userEvent.click(row));
-        assert.isTrue(opened.drawing, `opening: Drawing in the first frame (${String(opened.after)} ms)`);
+        const opened = await firstFrameAfter(session, row);
+        assert.isTrue(
+            opened.drawing,
+            `opening: Drawing in the first frame (${String(opened.after)} ms; at the click: ${String(opened.drawingAtClick)})`,
+        );
         assert.isFalse(opened.showing, "opening: the preview is drawn after that frame");
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
@@ -48,8 +51,11 @@ describe("the selection editor on 50,000 nodes", () => {
             filling.push(box.parentElement?.getAnimations({ subtree: true }).length !== 0);
             return watch(...args);
         };
-        const ticked = await firstFrameAfter(session, () => userEvent.click(box));
-        assert.isTrue(ticked.drawing, `a tick: Drawing in the first frame (${String(ticked.after)} ms)`);
+        const ticked = await firstFrameAfter(session, box);
+        assert.isTrue(
+            ticked.drawing,
+            `a tick: Drawing in the first frame (${String(ticked.after)} ms; at the click: ${String(ticked.drawingAtClick)})`,
+        );
         assert.strictEqual(ticked.count, before, "a tick: the count is read after that frame");
         await waitFor(() => {
             assert.notStrictEqual(document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null, before);
@@ -61,10 +67,11 @@ describe("the selection editor on 50,000 nodes", () => {
         if (ws === null) {
             throw new Error("the workspace is open");
         }
-        const done = await firstFrameAfter(session, () =>
-            userEvent.click(within(ws).getByRole("button", { name: "Done" })),
+        const done = await firstFrameAfter(session, within(ws).getByRole("button", { name: "Done" }));
+        assert.isTrue(
+            done.drawing,
+            `Done: Drawing in the first frame (${String(done.after)} ms; at the click: ${String(done.drawingAtClick)})`,
         );
-        assert.isTrue(done.drawing, `Done: Drawing in the first frame (${String(done.after)} ms)`);
         assert.isTrue(done.showing, "Done: the preview ends after that frame");
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
@@ -166,8 +173,11 @@ describe("the selection editor on 50,000 nodes", () => {
             });
         };
         window.addEventListener("pointerdown", press, { capture: true, once: true });
-        const opened = await firstFrameAfter(session, () => userEvent.click(edit));
-        assert.isTrue(opened.drawing, `Drawing in the first frame (${String(opened.after)} ms)`);
+        const opened = await firstFrameAfter(session, edit);
+        assert.isTrue(
+            opened.drawing,
+            `Drawing in the first frame (${String(opened.after)} ms; at the click: ${String(opened.drawingAtClick)})`,
+        );
         assert.isAtLeast(pressed, 0, "the press was seen");
         assert.strictEqual(framed - pressed, 0, "the press re-read the stack's agreement it already had");
     });

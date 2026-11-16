@@ -1084,6 +1084,15 @@ export class NodeBatches {
     }
 
     /**
+     * The opacity a row drawn with no `Node` is drawn at, as `Node.drawnOpacity` reads a batched node's.
+     * @param row - The row.
+     * @returns The opacity; 1 for a row in no batch.
+     */
+    columnOpacityOf(row: ColumnRow): number {
+        return this.groupOf(row)?.restVisibility ?? 1;
+    }
+
+    /**
      * How many rows are drawn with no `Node`: a caller with no row number yet can skip finding one at 0.
      * @returns The count.
      */

@@ -34,7 +34,7 @@ async function opened(u) {
 }
 
 /**
- * Samples, then the sample's card: the graph opens on the Graph's Values tab.
+ * Samples, then the sample's card: the graph opens with the Everything layer row on its Style tab.
  * @param u the user's hands (README.md)
  * @param sample the sample as its card names it ("Les Miserables")
  */
@@ -44,6 +44,19 @@ async function openSample(u, sample) {
     const name = sample.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await u.click(u.button(new RegExp(`^Open the ${name} sample: `)));
     await opened(u);
+}
+
+/**
+ * The graph's title in the Graph place, then the Graph inspector's Values tab.
+ * @param u the user's hands (README.md)
+ */
+async function graphValues(u) {
+    await u.page
+        .getByRole("region", { name: "Graph place" })
+        .getByRole("button", { name: /^Graph / })
+        .first()
+        .click();
+    await u.page.getByRole("tab", { name: "Values", exact: true }).click();
 }
 
 /**
@@ -216,6 +229,9 @@ async function everythingColor(u, color) {
 
 const STARTING_NODE_COLOR = "#6366F1";
 const STARTING_EDGE_COLOR = "#A9A9A9";
+// graphty-element's default edge width (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, in world units since #125). Pinned,
+// not imported: the constant is exported only from graphty-element's main entry, which loads Babylon.js.
+const STARTING_EDGE_WIDTH = 4.5;
 const yes = (v) => v === true || v === "yes" || v === "true";
 const missing = (v) => v === null || v === undefined || v === "";
 
@@ -267,7 +283,7 @@ async function onlyTheseEdges(g, test, look, count) {
     assert.equal(want.size, count, `the data holds ${count} such edges`);
     const drawn = { width: await g.edgeLook("edge.width"), color: await g.edgeLook("edge.color") };
     for (const e of edges) {
-        const expect = want.has(e.id) ? look : { width: 8, color: STARTING_EDGE_COLOR };
+        const expect = want.has(e.id) ? look : { width: STARTING_EDGE_WIDTH, color: STARTING_EDGE_COLOR };
         assert.deepEqual({ width: drawn.width[e.id], color: drawn.color[e.id] }, expect, `edge ${e.id}`);
     }
 }
@@ -334,6 +350,7 @@ export const routes = [
         from: "T37 A",
         async walk(u) {
             await openSample(u, "Les Miserables");
+            await graphValues(u);
         },
         checks: {
             "Les Miserables opens with 77 nodes and 254 edges": sizeIs(77, 254),
@@ -347,6 +364,7 @@ export const routes = [
         from: "T37 B",
         async walk(u) {
             await openSample(u, "Zachary's karate club");
+            await graphValues(u);
         },
         checks: {
             "the karate club opens with 34 nodes and 78 edges": sizeIs(34, 78),

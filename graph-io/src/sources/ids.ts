@@ -49,6 +49,12 @@ export const OPENALEX_SOURCE_ID = "openalex";
 export const SPARQL_SOURCE_ID = "sparql";
 
 /**
+ * The URL source: a graph file at a web address. Experimental.
+ * @category Network sources
+ */
+export const URL_SOURCE_ID = "url";
+
+/**
  * The GitHub source, a file host: one file of a repository, read through GitHub's API. Not among
  * the built-in sources: pass `githubSource` (`@graphty/graph-io/sources/github`) or register it.
  * Experimental.

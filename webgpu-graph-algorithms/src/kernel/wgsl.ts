@@ -63,6 +63,12 @@ export interface ComposedModule {
      * descriptor's `constants` carries. WebKit (Safari) fails pipeline creation with "Compute library failed
      * creation" when a constant is supplied for an override the entry point never reads (HAS_WEIGHTS in `degree`,
      * TIER in the thread-per-row tiers); Dawn tolerates it. The cache key still uses `overrides` (contract 3.9).
+     *
+     * WebKit also re-evaluates every override-expression at pipeline creation with an evaluator that has no
+     * `bitcast` (it is type-checked inline, not in WebKit's builtin overload table), so a statement whose value
+     * depends only on overrides and constants, or an override initializer, must not contain one: it fails with
+     * "Failed to evaluate override value" (#8215). Write the constant's bits as a hex literal instead;
+     * test/kernel/webkit-override-eval.test.ts checks every kernel.
      */
     readonly constants: Readonly<Record<string, number | boolean>>;
     readonly entryPoint: string;

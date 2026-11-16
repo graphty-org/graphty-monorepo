@@ -3687,19 +3687,28 @@ export function associate(
     // An edge drawn as its heads alone: Cytoscape desktop stops a line at its heads' bases, so between two nodes nearer
     // than its heads' lengths it draws no line, only the heads, one after the other (cx-radiation-bibliography: a blue
     // edge's two circles between boxes 3.7 px apart at 148,727; a green edge's triangle between overlapping boxes at
-    // 184,239). A run of one or two filled shapes no line took, touching both nodes of a pair graphty draws that no line
-    // of the drawing has taken, is that edge: its route from one end of the run to the other, its line unpainted.
+    // 184,239). A run of one or two closed shapes no line took, touching both nodes of a pair graphty draws that no line
+    // of the drawing has taken, is that edge: its route from one end of the run to the other, its line unpainted. A head
+    // may be outlined only, and the two heads of one edge colored apart (cx-syn-mappings 189->192: a filled red half,
+    // then an outlined dark circle 51 px across, between nodes 45 px apart).
     const lineless = heads.filter(
-        (q) => q.fill !== null && q.closed && !ownCaps.has(q) && !used.has(q.index) && !painted.has(q),
+        (q) =>
+            (q.fill !== null || q.stroke !== null) &&
+            q.closed &&
+            !ownCaps.has(q) &&
+            !used.has(q.index) &&
+            !painted.has(q),
     );
     const linelessSet = new Set(lineless);
+    /** The heads read as an edge drawn with no line: heads by drawing order, whatever words are drawn over them. */
+    const linelessCaps = new Set<Prim>();
+    const paintOf = (q: Prim): string => q.fill?.color ?? q.stroke?.color ?? "";
     for (let i = 0; i < lineless.length; i++) {
         const first = lineless[i];
         const next = byIndex.get(first.index + 1);
         const paired =
             next !== undefined &&
             linelessSet.has(next) &&
-            next.fill?.color === first.fill?.color &&
             boxGap(first.box, next.box) <= Math.min(bw(first.box), bh(first.box), bw(next.box), bh(next.box));
         const run = paired ? [first, next] : [first];
         const mids = run.map((q): Pt => areaCentroid(q.points) ?? [cx(q.box), cy(q.box)]);
@@ -3714,7 +3723,6 @@ export function associate(
         const probe: Pt[] = paired
             ? [farFrom(first, mids[1]), farFrom(next, mids[0])]
             : [[mids[0][0] + (mids[0][0] - tip[0]) / 2, mids[0][1] + (mids[0][1] - tip[1]) / 2], tip];
-        const ends = endsOf(probe, first.fill?.color ?? "");
         const union = run
             .map((q) => q.box)
             .reduce((u, b) => ({
@@ -3723,25 +3731,48 @@ export function associate(
                 x1: Math.max(u.x1, b.x1),
                 y1: Math.max(u.y1, b.y1),
             }));
+        const wanted = (x: PNode, y: PNode): boolean =>
+            x !== y &&
+            (guidePairs.get(pairOf(x.id, y.id)) ?? 0) > 0 &&
+            // an edge the markup names is found already (gexf-graphology-rio ncs92->ncs93)
+            edges.filter((e) => pairOf(e.source, e.target) === pairOf(x.id, y.id)).length <
+                guide.edges.filter((e) => pairOf(e.source, e.target) === pairOf(x.id, y.id)).length;
+        const probed = endsOf(probe, paintOf(first));
+        // Two heads of different shapes need not line up: a big half head is one barb off to the line's side, reaching
+        // past the target (cx-syn-mappings 189->192, 97 px long), so the far sides of the two find no pair. Then the
+        // pair is the one wanted pair of nodes the two heads touch, and each head touches one of them.
+        const touched = nodeList.filter((n) => boxGap(union, nodeBox(n)) <= STUB_TOUCH);
+        const touchedPairs = touched.flatMap((x, k) =>
+            touched.slice(k + 1).flatMap((y): [PNode, PNode][] => (wanted(x, y) ? [[x, y]] : [])),
+        );
+        const byTouch =
+            paired &&
+            (probed === null || !wanted(probed[0], probed[1])) &&
+            touchedPairs.length === 1 &&
+            run.every((q) => touchedPairs[0].some((n) => boxGap(q.box, nodeBox(n)) <= STUB_TOUCH));
+        const ends = byTouch ? touchedPairs[0] : probed;
         if (
             ends === null ||
-            ends[0] === ends[1] ||
-            (guidePairs.get(pairOf(ends[0].id, ends[1].id)) ?? 0) <= 0 ||
-            // an edge the markup names is found already (gexf-graphology-rio ncs92->ncs93)
-            edges.filter((x) => pairOf(x.source, x.target) === pairOf(ends[0].id, ends[1].id)).length >=
-                guide.edges.filter((x) => pairOf(x.source, x.target) === pairOf(ends[0].id, ends[1].id)).length ||
+            !wanted(ends[0], ends[1]) ||
             ends.some((n) => boxGap(union, nodeBox(n)) > STUB_TOUCH) ||
             // a head is a few times longer than it is wide at most; a long thin fill is a line drawn as one (Graphviz's
-            // tapered style, dot-specimen-edges-lines)
+            // tapered style, dot-specimen-edges-lines), running along the edge; a half head's lone barb slants off it
+            // (cx-syn-mappings 189->192: 45 degrees off, ten times longer than wide)
             run.some((q, j) => {
                 const far = farFrom(q, mids[j]);
                 const len = Math.hypot(far[0] - mids[j][0], far[1] - mids[j][1]);
                 const u: Pt = len > 1e-9 ? [(far[0] - mids[j][0]) / len, (far[1] - mids[j][1]) / len] : [1, 0];
                 const along = q.points.map(([x, y]) => x * u[0] + y * u[1]);
                 const across = q.points.map(([x, y]) => -x * u[1] + y * u[0]);
+                const chord = Math.hypot(ends[1].cx - ends[0].cx, ends[1].cy - ends[0].cy);
+                const slant =
+                    chord > 1e-9
+                        ? Math.abs(u[0] * (ends[1].cx - ends[0].cx) + u[1] * (ends[1].cy - ends[0].cy)) / chord
+                        : 1;
                 return (
+                    slant >= Math.cos(Math.PI / 6) &&
                     Math.max(...along) - Math.min(...along) >
-                    HEAD_MOST_LONG * (Math.max(...across) - Math.min(...across))
+                        HEAD_MOST_LONG * (Math.max(...across) - Math.min(...across))
                 );
             })
         ) {
@@ -3781,7 +3812,21 @@ export function associate(
             all.reduce((m, q) => (along(q) > along(m) ? q : m)),
         ];
         const lone = capped1 === b ? probe : reversedOf(probe);
-        const path = paired ? across : lone;
+        // two heads unlike each other run along the line between their nodes' middles, from where the source head's tip
+        // is to where the target head's is: a half head's barb, off to the line's side, starts a third of its length off
+        // its node
+        const nearest = (q: Prim, n: PNode): Pt =>
+            q.points.reduce((m, p) =>
+                Math.hypot(p[0] - n.cx, p[1] - n.cy) < Math.hypot(m[0] - n.cx, m[1] - n.cy) ? p : m,
+            );
+        const chord2 = dir[0] * dir[0] + dir[1] * dir[1];
+        const onChord = (q: Pt): Pt => {
+            const t = chord2 > 1e-9 ? ((q[0] - a.cx) * dir[0] + (q[1] - a.cy) * dir[1]) / chord2 : 0;
+            return [a.cx + t * dir[0], a.cy + t * dir[1]];
+        };
+        const tipToTip = paired && (byTouch || paintOf(first) !== paintOf(next));
+        const pairPath = tipToTip ? [onChord(nearest(first, a)), onChord(nearest(next, b))] : across;
+        const path = paired ? pairPath : lone;
         guidePairs.set(pairOf(a.id, b.id), (guidePairs.get(pairOf(a.id, b.id)) ?? 0) - 1);
         const key = `${a.id}->${b.id}`;
         const k = geoEdges.get(key) ?? 0;
@@ -3800,6 +3845,9 @@ export function associate(
         edges.push(e);
         // a lone head caps the node it points into; of two, the first is the source's (Cytoscape desktop draws an
         // edge's source head, then its target's)
+        for (const q of run) {
+            linelessCaps.add(q);
+        }
         if (paired) {
             ownCaps.set(first, { e, end: "source" });
             ownCaps.set(next, { e, end: "target" });
@@ -3849,13 +3897,15 @@ export function associate(
             noteHeads.has(p) ||
             // a box under words, drawn before them: tight round them, or the band they sit on across a node or group
             // (graphml-open-archaeo's group band, read as the head of a line ending under it); a shape drawn over the
-            // words is still a head (gml-synthetic-coverage 38: a diamond over its node's label)
-            wordsDrawn.some(
-                ({ t, index }) =>
-                    t.sizePx > 0 &&
-                    index > p.index &&
-                    (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))),
-            )
+            // words is still a head (gml-synthetic-coverage 38: a diamond over its node's label), and so is a head of an
+            // edge drawn with no line, its label drawn inside it (cx2-syn-mappings 189->192: "e80" in a hollow circle)
+            (!linelessCaps.has(p) &&
+                wordsDrawn.some(
+                    ({ t, index }) =>
+                        t.sizePx > 0 &&
+                        index > p.index &&
+                        (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))),
+                ))
         ) {
             continue;
         }

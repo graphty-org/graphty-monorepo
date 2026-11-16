@@ -5641,7 +5641,7 @@ export class Edge {
      */
     private static capGap(arrow: EdgeStyleConfig["arrowHead"]): number {
         const gap = arrow?.gap ?? 0;
-        if (gap <= 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
+        if (gap === 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
             return 0;
         }
 

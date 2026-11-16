@@ -8,7 +8,7 @@
 // YAML, shell and HTML; other files (JSON, data, fixtures) are not read. Left alone, as names and data that
 // are not ours to respell: code and quotes (`...`, "...", fenced blocks, {@link ...}, JSDoc @param names), camelCase,
 // snake_case and CONSTANT names (public names keep their spelling until they are renamed with an alias),
-// URLs, link targets and file names, GitHub Actions' cancelled(), event names ending -cancelled, aria-labelledby, and
+// URLs, link targets and file names, GitHub Actions' cancelled(), the Graph Modelling Language (GML's name), event names ending -cancelled, aria-labelledby, and
 // the paths in SKIP (lockfiles, changelogs, transcripts, screenshots, fixtures and test corpora, and the
 // files that guard the owner).
 // Runs in CI's lint job and in .husky/pre-push on the files a branch changes.
@@ -330,10 +330,11 @@ export const SKIP = new RegExp(
         "^tools/(check-test-integrity|test-quarantine)\\.mjs$",
         "^compact-mantine/(design/figma-spec\\.md|tests/figma/|tests/harness/(figma|measure)\\.ts|src/theme/(tokens|colors|styles/size-scale)\\.ts)",
         "^tools/check-spelling",
+        "^graphty-element/jsx\\.ts$", // generated from graphty-element.ts by scripts/generate-jsx-types.ts
     ].join("|"),
 );
 const KEEP =
-    /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{[^}]*\}\s*)?\[?[\w.$]+|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|[Ll]abelled[Bb]y/g;
+    /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{[^}]*\}\s*)?\[?[\w.$]+|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|Graph Modelling Language|[Ll]abelled[Bb]y/g;
 
 /** Like fix, but leaves code, quotes, names and links alone. */
 export function fixProse(text) {

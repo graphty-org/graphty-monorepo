@@ -51,7 +51,7 @@ ana is inside cluster_design
 digraph handoffs {
     graph [label="Who hands work to whom"];
     subgraph cluster_design {
-        graph [label=Design, style=filled, color=lightgrey];
+        graph [label=Design, style=filled, color=lightgray];
         ana;
         ben;
 ```

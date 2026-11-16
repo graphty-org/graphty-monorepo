@@ -383,7 +383,7 @@ controller.abort();
 try {
     await loading;
 } catch (err) {
-    // a cancelled load is not an error to show the user
+    // a canceled load is not an error to show the user
     console.log(isAbortError(err) ? "cancelled" : `failed: ${String(err)}`);
 }
 ```
@@ -395,7 +395,7 @@ try {
 ```text
 read 27806 bytes
 107 nodes
-cancelled
+canceled
 ```
 
 <!-- generated:end -->
@@ -446,7 +446,7 @@ export function useGraph(url) {
 //     return <p>{snapshot ? `${snapshot.nodeCount} nodes` : "Loading..."}</p>;
 // }
 
-// What the effect does outside React: a load cancelled before it finishes reports nothing
+// What the effect does outside React: a load canceled before it finishes reports nothing
 const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
 stop();
 await new Promise((done) => {

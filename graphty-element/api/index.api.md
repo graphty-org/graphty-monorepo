@@ -323,6 +323,12 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
+export const AnimationCanceledError: typeof AnimationCancelledError;
+
+// @public
+export type AnimationCanceledError = AnimationCancelledError;
+
+// @public
 export class AnimationCancelledError extends Error {
     constructor();
 }
@@ -1105,6 +1111,8 @@ export class Edge {
         span: number;
         visibility: number;
     }[];
+    get drawnCenter(): Vector3;
+    // @deprecated
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
     get drawnEffects(): {
@@ -1118,6 +1126,7 @@ export class Edge {
         length: number;
         width: number;
         visibility: number;
+        center: Vector3;
         centre: Vector3;
         pattern: JoinedPatternKind | null;
     } | null;
@@ -7218,6 +7227,9 @@ export interface NoteTargetStatus {
 
 // @public
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
+
+// @public
+export type OperationCanceledEvent = OperationCancelledEvent;
 
 // @public
 export interface OperationCancelledEvent {

@@ -1185,7 +1185,7 @@ function capSizeOf(
     breadth: number | null,
     scene: number,
 ): { size: number; width: number | null } | null {
-    if ((ARROW_SHAPES.get(shape) ?? "none") === "none" || !(extent > 0)) {
+    if ((ARROW_SHAPES.get(shape) ?? "none") === "none" || Number.isNaN(extent) || extent <= 0) {
         return null;
     }
 
@@ -2479,14 +2479,14 @@ class KindTranslation {
             const plans = this.#defaultPlansOf(property);
             return (
                 value !== undefined &&
-                plans !== null &&
-                plans.every((plan) => {
+                (plans?.every((plan) => {
                     const own = defaults[plan.channel];
                     return (
                         own !== undefined &&
                         same(drawnAs(plan.channel, plan.convert(value)), drawnAs(plan.channel, own))
                     );
-                })
+                }) ??
+                    false)
             );
         });
     }
@@ -2982,9 +2982,9 @@ class KindTranslation {
             const breadths = read(`${end}ArrowBreadth`);
             const sized = shapes.map((shape, i) => {
                 const extent = extents[i];
-                const breadth = breadths[i];
+                const breadth = typeof breadths[i] === "number" ? breadths[i] : null;
                 return typeof shape === "string" && typeof extent === "number"
-                    ? capSizeOf(shape, extent, typeof breadth === "number" ? breadth : null, this.#scene)
+                    ? capSizeOf(shape, extent, breadth, this.#scene)
                     : null;
             });
             // Each edge's own value, read back per element: exact whatever the widths are.

@@ -407,8 +407,10 @@ function current(extracted: ExtractedStyles, work: Work, rules: readonly StyleRu
  */
 function freeKey(work: Work, target: StyleTarget, key: string): string {
     let free = key;
-    for (let k = 2; work.columns[target].has(free); k++) {
+    let k = 2;
+    while (work.columns[target].has(free)) {
         free = `${key}.${String(k)}`;
+        k++;
     }
     return free;
 }
@@ -450,8 +452,10 @@ function addValues(
         return;
     }
     let { id } = rule;
-    for (let k = 2; work.rules.some((r) => r.id === id); k++) {
+    let k = 2;
+    while (work.rules.some((r) => r.id === id)) {
         id = `${rule.id}.${String(k)}`;
+        k++;
     }
     const added: StyleRule = {
         id,
@@ -1143,7 +1147,8 @@ function arrows(
  * @returns the word
  */
 function sizedWord(shape: string, side: string, along: number, across: number | null): string {
-    return `${shape}${side}*${String(along)}${across === null ? "" : `x${String(across)}`}`;
+    const width = across === null ? "" : `x${String(across)}`;
+    return `${shape}${side}*${String(along)}${width}`;
 }
 
 /**
@@ -1212,7 +1217,10 @@ function renameAll(extracted: ExtractedStyles, snapshot: GraphSnapshot, work: Wo
             ? value
                   .split(" ")
                   .map((word) => {
-                      const [, shape = word, rest = ""] = /^(.+?)((?::left|:right)?(?:\*.*)?)$/.exec(word) ?? [];
+                      // the arrow's name, then its side and its size (`crow:left*8x4`)
+                      const cut = word.search(/:left|:right|\*/);
+                      const shape = cut <= 0 ? word : word.slice(0, cut);
+                      const rest = cut <= 0 ? "" : word.slice(cut);
                       noted(rule, property, shape);
                       return `${arrowNames.get(shape) ?? shape}${rest}`;
                   })

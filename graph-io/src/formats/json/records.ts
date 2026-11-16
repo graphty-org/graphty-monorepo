@@ -54,6 +54,15 @@ const IDENTITY_KEYS = { node: ["id"], edge: ["source", "target", "id"] } as cons
 const RESERVED_PREFIX = "graphty.";
 
 /**
+ * A document's top-level object.
+ * @param document - the parsed document
+ * @returns it, or an empty object for any other value
+ */
+function rootOf(document: unknown): Record<string, unknown> {
+    return isJsonObject(document) ? document : {};
+}
+
+/**
  * Read a Cytoscape.js, graphology or vis.js document as flat records. Other JSON documents (node-link, JGF, ...)
  * answer null: their records are their columns, read with `jsonImporter` directly.
  * @param text - the document's text
@@ -101,7 +110,7 @@ export async function readJsonRecords(text: string, options: JsonRecordsOptions 
     const read =
         dialect === "cytoscape"
             ? cytoscapeRecords(snapshot, [...new Set(declared)])
-            : fileRecords(snapshot, isJsonObject(document) ? document : {}, dialect);
+            : fileRecords(snapshot, rootOf(document), dialect);
     placeNodes(read.nodes, snapshot, report);
     return { snapshot, report, ...read };
 }

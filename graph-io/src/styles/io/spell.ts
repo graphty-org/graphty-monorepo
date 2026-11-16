@@ -210,8 +210,10 @@ function rewritten(
         return rule;
     }
     let key = `${rule.id}.${property}`;
-    for (let k = 2; work.columns[rule.target].has(key); k++) {
+    let k = 2;
+    while (work.columns[rule.target].has(key)) {
         key = `${rule.id}.${property}.${String(k)}`;
+        k++;
     }
     work.columns[rule.target].set(key, next);
     const map: Partial<Record<StyleProperty, Mapping>> = {

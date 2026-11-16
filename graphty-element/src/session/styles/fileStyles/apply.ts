@@ -458,10 +458,13 @@ function columnNamer(
         }
 
         const names = takenOf(kind);
-        const base = carried(kind, key) ?? key.replaceAll(/[^A-Za-z0-9_]/g, "_");
+        const base = carried(kind, key) ?? key.replaceAll(/\W/g, "_");
         let name = base;
-        for (let n = 1; names.has(name) && !holds(kind, name, values); n++) {
-            name = `${base} (${sourceId}${n === 1 ? "" : ` ${String(n)}`})`.replaceAll(".", "_");
+        let n = 1;
+        while (names.has(name) && !holds(kind, name, values)) {
+            const count = n === 1 ? "" : ` ${String(n)}`;
+            name = `${base} (${sourceId}${count})`.replaceAll(".", "_");
+            n++;
         }
 
         const at = `${DATA_PREFIX}${name}`;

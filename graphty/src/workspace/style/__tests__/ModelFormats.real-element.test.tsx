@@ -18,7 +18,7 @@ import type { ModelSummary } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { screen, within } from "../../../test/test-utils";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import { modelChip } from "../modelWords";
 import { CUSTOM_MODEL } from "../words";
 import {
@@ -223,8 +223,11 @@ describe("every model format and variant, through the Load custom model dialog",
                 name: variant.needs,
             });
             await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
-            // The model waiting for the part already previews with a stand-in: wait for the one drawn
-            // without it, which the variant caption marks as accepted.
+            // Load without is asynchronous, and the waiting model already has a preview (its part stood
+            // in): wait for its row to go, then for the caption that marks the model drawn without it.
+            await waitFor(() => {
+                assert.isFalse(row.isConnected, `${variant.needs} is no longer asked for`);
+            });
             await within(dialog).findByTestId("model-variant");
         }
 

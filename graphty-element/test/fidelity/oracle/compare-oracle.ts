@@ -741,11 +741,13 @@ const fromOwnEnd = (line: readonly Pt[], q: Pt, end: "source" | "target"): { px:
  * draws part-way (`partWay`), wherever the program draws its own, and one graphty draws part-way against a program's
  * head with no place of its own is not judged at all (it passed). Part-way is a quarter of the line or more from its
  * own end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a third
- * along it (the specimen sheets' short lines).
+ * along it (the specimen sheets' short lines). On a short line the share allowed is at least a render pixel, which no
+ * reader sees (pajek-graphstream-b 28 -> 17: 0.58 oracle px apart on an 11 px line, a share of 0.052).
  * @param oLine - the oracle's line, between its nodes' outlines
  * @param oa - the oracle's arrowhead
  * @param gLine - graphty's line, between its nodes' outlines
  * @param ga - graphty's arrowhead, in the same frame
+ * @param pixel - a render pixel, in oracle pixels
  * @returns the miss and what each side measured, or null where nothing can be judged
  */
 function arrowPlaceMiss(
@@ -753,6 +755,7 @@ function arrowPlaceMiss(
     oa: PArrow,
     gLine: readonly Pt[],
     ga: PArrow,
+    pixel = 0,
 ): { miss: number; oracle: number | null; graphty: number } | null {
     if (oa.end === "middle") {
         return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
@@ -767,8 +770,10 @@ function arrowPlaceMiss(
     }
     const along = o.share;
     const mine = fromOwnEnd(gLine, ga.at, oa.end).share;
+    const length = o.share > 0 ? o.px / o.share : 0;
+    const allowed = Math.max(ARROW_ALONG_SHARE, length > 0 ? pixel / length : 0);
     return {
-        miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
+        miss: Math.max(0, Math.abs(mine - along) - allowed) / allowed,
         oracle: R(along),
         graphty: R(mine),
     };
@@ -2809,9 +2814,13 @@ export function compareOracle(
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);
+        // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader
+        // sees either: graphty draws none there (#7759), and the program's, drawn before the nodes, lies under them
+        // (pajek-iliad 125 -> 123)
+        const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
-            const oa = o.arrows.find((a) => a.end === end);
             const gg = ga.find((a) => a.end === end);
+            const oa = unseen && gg === undefined ? undefined : o.arrows.find((a) => a.end === end);
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
@@ -2837,7 +2846,8 @@ export function compareOracle(
             );
             const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
             const place =
-                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ??
+                arrowPlaceMiss(vo, oa, vg, framed, pixel);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(

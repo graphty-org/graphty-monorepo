@@ -1902,6 +1902,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openRowTable: RENDER,
             getNodeBatches: READ,
             getEdgeRowLines: READ,
+            drawnNodeSpots: READ,
             getNodeIdTarget: READ,
             getEdgeIdTarget: READ,
             renderPath: READ,

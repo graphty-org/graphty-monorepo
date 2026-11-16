@@ -407,15 +407,16 @@ const liveWaits = (ledger) => ledger.waits.filter((w) => !w.ended && !w.expired)
 
 /**
  * Routes an issue (design section "Routing a new issue"). With no target, or a closed or dissolved one, it starts a
- * new group of its own. A proposed target takes it; a ready one takes it as a join; a started one makes it wait for
- * the branch's `ready`; a frozen one (its pull request open) puts it in that group's single follow-up group, which
- * starts when the pull request merges.
+ * new group of its own. A proposed target takes it; a started or ready one makes it wait (a ready branch takes it as a
+ * join only with `join`, which the round passes only after checking the join rule of issue-round step 4); a frozen
+ * one (its pull request open) puts it in that group's single follow-up group, which starts when the pull request
+ * merges.
  * @param ledger the ledger
- * @param spec `{ n, to, test, why, now, facts }`
+ * @param spec `{ n, to, test, why, now, facts, join }`
  * @returns one line saying where it went
  */
 export function route(ledger, spec) {
-    const { n, to, test, why, now, facts } = spec;
+    const { n, to, test, why, now, facts, join = false } = spec;
     const at = new Date(now).toISOString();
     const already = groupOf(ledger, n);
     if (already) return `#${n} is already in ${already.id} (${already.state})`;
@@ -432,18 +433,28 @@ export function route(ledger, spec) {
     if (before) return own(before);
     const spec2 = { n, test, why, now, facts, at, own };
     if (target.state === "frozen") return routeToFrozen(ledger, target, spec2);
-    if (target.state === "started") {
-        ledger.waits.push({ issue: n, on: target.id, test, since: at, why: why ?? "", ended: null, expired: null });
-        return `#${n} waits on ${target.id} (${test}): it joins once ${target.branch} is ready`;
-    }
+    const waiting = liveWaits(ledger).filter((w) => w.issue === n && resolveTarget(ledger, w.on) === target);
+    if (target.state === "started" || (target.state === "ready" && !join))
+        return waitOn(ledger, target, spec2, waiting);
     try {
         const { joined } = addMember(ledger, target.id, { n, test, why, now, facts });
+        for (const w of waiting) w.ended = `${at} joined`;
         return `#${n} ${joined ? "joins ready" : "added to"} ${target.id} (${test})`;
     } catch (error) {
         if (!(error instanceof Refused)) throw error;
         return own(error.message);
     }
 }
+
+// A started branch, or a ready one the round did not join: the issue waits (one live wait per issue and branch).
+const waitOn = (ledger, target, spec, waiting) => {
+    const { n, test, why, at } = spec;
+    if (!waiting.length) {
+        ledger.waits.push({ issue: n, on: target.id, test, since: at, why: why ?? "", ended: null, expired: null });
+    }
+    const until = target.state === "started" ? "is ready" : "merges, or a join (route --join) takes it";
+    return `#${n} waits on ${target.id} (${test}): it goes on once ${target.branch} ${until}`;
+};
 
 // A frozen group's pull request is open and never takes another issue: the issue goes to its single follow-up group.
 const routeToFrozen = (ledger, target, spec) => {
@@ -474,21 +485,58 @@ const needState = (group, states, verb) => {
 };
 
 /**
- * proposed -> started: a job took the group on a branch.
+ * Moves the named members of a proposed group into a group of their own, so a job that took only some of a group
+ * takes only those. When they are all its counted members, the group itself is returned; otherwise the named members
+ * go to a new proposed group (a fresh id, led by the first of them) and the rest stay under the old id, which takes
+ * its next member as lead when it lost its lead.
+ * @param ledger the ledger
+ * @param group a proposed group
+ * @param numbers the issues taken
+ * @param at ISO time
+ * @returns the group holding exactly the named issues (and, when it is the whole group, its trackers)
+ */
+const splitOff = (ledger, group, numbers, at) => {
+    const want = new Set(numbers);
+    for (const n of want) if (!group.members.some((m) => m.n === n)) throw new Refused(`#${n} is not in ${group.id}`);
+    if (group.members.filter((m) => counted(m)).every((m) => want.has(m.n))) return group;
+    const taken = group.members.filter((m) => want.has(m.n));
+    group.members = group.members.filter((m) => !want.has(m.n));
+    if (want.has(group.lead)) group.lead = group.members.find((m) => counted(m)).n;
+    const part = {
+        ...createShell(ledger, taken[0].n, group, at),
+        members: taken,
+        history: [{ at, event: "split", by: process.env.CLAUDE_CODE_SESSION_ID ?? "cli", from: group.id }],
+    };
+    ledger.groups.push(part);
+    event(group, at, "split", { issues: [...want], to: part.id });
+    return part;
+};
+
+/**
+ * proposed -> started: a job took issues of the group on a branch. Only the issues the job took start; the other
+ * members stay proposed under the group's id (see splitOff). A started group may be recorded again on its own branch.
  * @param ledger the ledger
  * @param id the group
  * @param branch the branch
  * @param now ms
- * @returns the group
+ * @param issues the issues the job took; default every member
+ * @returns the started group
  */
-export function start(ledger, id, branch, now) {
-    const group = groupById(ledger, id);
+export function start(ledger, id, branch, now, issues = null) {
+    let group = groupById(ledger, id);
     needState(group, ["proposed", "started"], "start");
     const at = new Date(now).toISOString();
+    if (group.state === "started") {
+        if (group.branch !== branch) throw new Refused(`${group.id} is started on ${group.branch}, not ${branch}`);
+        const outside = (issues ?? []).filter((n) => !group.members.some((m) => m.n === n));
+        if (outside.length) throw new Refused(`${hashes(outside)} not in ${group.id}`);
+        return group;
+    }
+    if (issues?.length) group = splitOff(ledger, group, issues, at);
     group.state = "started";
     group.branch = branch;
     group.started ??= at;
-    event(group, at, "start", { branch });
+    event(group, at, "start", { branch, issues: group.members.map((m) => m.n) });
     return group;
 }
 
@@ -705,6 +753,7 @@ export function importScan(ledger, scan, now) {
             issues += 1;
         }
     }
+    ledger.blocked = Array.isArray(scan.blocked) ? scan.blocked : [];
     ledger.scannedAt = scan.builtAt ?? new Date(now).toISOString();
     return { groups, issues };
 }
@@ -792,7 +841,8 @@ const busyIssues = (ledger) => {
  * The jobs a round may start, from the ledger and the live queue (in the queue's order). A proposed group is a job of
  * its members still in the queue; members of started, ready and frozen groups, held groups, follow-up groups whose
  * base is still open, and issues with a live wait are not offered. A top-10 queue issue in no group is offered alone,
- * marked `unscanned`, and named in `rescan`; so is every queue issue when the last scan is over 2 hours old.
+ * marked `unscanned`, and named in `rescan`, unless the last scan listed it as blocked; the rescan is also asked for
+ * when the last scan is over 2 hours old.
  * @param ledger the ledger
  * @param q the queue, from issue-queue.mjs queue()
  * @param now ms
@@ -827,7 +877,8 @@ export function ledgerJobs(ledger, q, now, options = {}) {
             });
         }
     }
-    const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n));
+    const blocked = new Set((ledger.blocked ?? []).map((b) => b.issue));
+    const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
     const top = new Set(q.slice(0, 10).map((i) => i.number));
     let rescan = free.filter((n) => top.has(n));
     if (!rescan.length && !out.length && free.length) rescan = [free[0]];
@@ -1015,6 +1066,18 @@ const markerFinding = (g, newest) => {
     return null;
 };
 
+// The members of a proposed group a job took: those whose own newest marker (counted only while a claim holds them)
+// names the same branch. A `taken` marker is written on every issue of its job, so this is the job's issue list, and
+// a join (`taken ... joins ready <branch>` on one member) takes that member alone.
+const markerIssues = (g, newest, issues) =>
+    g.members
+        .filter((m) => counted(m))
+        .filter((m) => {
+            const marker = memberFinding(g, m, issues.get(m.n)).marker;
+            return marker && marker.branch === newest.branch;
+        })
+        .map((m) => m.n);
+
 const memberDrift = (g, issues) => {
     const out = [];
     let newest = null;
@@ -1024,6 +1087,7 @@ const memberDrift = (g, issues) => {
         if (marker && (!newest || marker.id > newest.id)) newest = marker;
     }
     const last = newest && markerFinding(g, newest);
+    if (last?.fix) last.fix.issues = g.state === "proposed" ? markerIssues(g, newest, issues) : null;
     if (last) out.push(last);
     return out;
 };
@@ -1045,28 +1109,34 @@ export function applyFix(ledger, finding, now) {
     const host = ledger.groups.find(
         (g) => g !== group && isLive(g) && ((fix.branch && g.branch === fix.branch) || (fix.pr && g.pr === fix.pr)),
     );
-    if (host) return absorb(host, group, now);
-    if (fix.branch && !group.branch) group.branch = fix.branch;
-    if (fix.op === "start") return `${start(ledger, group.id, fix.branch, now).id} started on ${fix.branch}`;
+    if (host) return absorb(ledger, host, group, now, fix.issues);
+    if (fix.op === "start")
+        return `${start(ledger, group.id, fix.branch, now, fix.issues).id} started on ${fix.branch}`;
+    // A proposed group whose job already finished: only the issues the job took move on.
+    const moved = group.state === "proposed" ? start(ledger, group.id, fix.branch, now, fix.issues) : group;
+    if (fix.branch && !moved.branch) moved.branch = fix.branch;
     if (fix.op === "ready") {
-        if (group.state === "proposed") start(ledger, group.id, fix.branch, now);
-        ready(ledger, group.id, fix.sha, now);
-        return `${group.id} ready at ${fix.sha}`;
+        ready(ledger, moved.id, fix.sha, now);
+        return `${moved.id} ready at ${fix.sha}`;
     }
-    if (fix.op === "freeze") return `${freeze(ledger, group.id, fix.pr, now).id} frozen on #${fix.pr}`;
+    if (fix.op === "freeze") return `${freeze(ledger, moved.id, fix.pr, now).id} frozen on #${fix.pr}`;
     throw new Error(`unknown fix ${fix.op}`);
 }
 
-// One job took the issues of several ledger groups on one branch (its taken marker named them all): the branch's
-// group takes them in, as it is, cap or not (check reports a group over the cap).
-const absorb = (host, group, now) => {
+// One job took issues of several ledger groups on one branch (its taken marker is on each of them), or an issue
+// joined a ready branch: the branch's group takes in only the issues the job took (every member when `issues` is
+// null), as it is, cap or not (check reports a group over the cap). The rest of a proposed group stays proposed.
+const absorb = (ledger, host, group, now, issues) => {
     const at = new Date(now).toISOString();
-    host.members.push(...group.members.map((m) => ({ ...m, test: m.test === "lead" ? "legacy" : m.test })));
-    event(host, at, "absorb", { why: `${group.id} was taken on the same branch` });
-    group.state = "dissolved";
-    group.closed = at;
-    event(group, at, "dissolve", { why: `absorbed into ${host.id} (same branch)` });
-    return `${group.id} absorbed into ${host.id} (same branch)`;
+    const part = issues?.length && group.state === "proposed" ? splitOff(ledger, group, issues, at) : group;
+    const taken = part.members.map((m) => m.n);
+    host.members.push(...part.members.map((m) => ({ ...m, test: m.test === "lead" ? "legacy" : m.test })));
+    event(host, at, "absorb", { why: `${part.id} was taken on the same branch`, issues: taken });
+    part.state = "dissolved";
+    part.closed = at;
+    event(part, at, "dissolve", { why: `absorbed into ${host.id} (same branch)` });
+    const rest = part === group ? "" : `; ${group.id} keeps ${hashes(group.members.map((m) => m.n))}`;
+    return `${part.id} (${hashes(taken)}) absorbed into ${host.id} (same branch)${rest}`;
 };
 
 const settleWait = (ledger, fix, now) => {
@@ -1327,10 +1397,11 @@ const OPTIONS = {
     force: { type: "boolean" },
     fix: { type: "boolean" },
     append: { type: "boolean" },
+    join: { type: "boolean" },
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>...] --why <r> [--files <p>...] | add <group> <n> --test <T#> | route <n> [--to <group> --test <T#>] [--why <r>] | import-scan [<file>] | start <group> <branch> | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | metrics [--append] [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>...] --why <r> [--files <p>...] | add <group> <n> --test <T#> | route <n> [--to <group> --test <T#> [--join]] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | metrics [--append] [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -1416,7 +1487,7 @@ const COMMANDS = {
         const n = num(c.pos[0]);
         const target = c.o.to ? resolveTarget(readLedger(c.ledgerPath), c.o.to) : null;
         const facts = c.facts(target ? [n, target.lead] : [n]);
-        const spec = { n, to: c.o.to, test: c.o.test, why: c.o.why, now: c.now, facts };
+        const spec = { n, to: c.o.to, test: c.o.test, why: c.o.why, now: c.now, facts, join: Boolean(c.o.join) };
         return c.change((ledger) => ok(route(ledger, spec)));
     },
     "import-scan": (c) => {
@@ -1426,7 +1497,14 @@ const COMMANDS = {
             return ok(`imported ${r.groups} proposed groups, ${r.issues} issues\n${summary(ledger)}`);
         });
     },
-    start: (c) => c.change((ledger) => ok(`${start(ledger, c.pos[0], c.pos[1], c.now).id} started on ${c.pos[1]}`)),
+    start: (c) => {
+        const issues = c.pos.slice(2).map((s) => num(s));
+        if (!c.pos[1] || !issues.length) return { code: 2, out: "start needs <group> <branch> and the job's issues" };
+        return c.change((ledger) => {
+            const g = start(ledger, c.pos[0], c.pos[1], c.now, issues);
+            return ok(`${g.id} started on ${c.pos[1]}: ${hashes(g.members.map((m) => m.n))}`);
+        });
+    },
     ready: (c) =>
         c.change((ledger) => {
             const freed = ready(ledger, c.pos[0], c.pos[1], c.now);

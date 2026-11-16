@@ -155,25 +155,27 @@ reader picks the same newest marker.
 
 ### Commands
 
-| Command                                                                     | What it does                                                                                                |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `seed <file> [--force]`                                                     | loads a ledger file (the first ledger, or a rebuilt one); refuses one that puts an issue in two live groups |
-| `show [<group>\|<issue>] [--json]`                                          | one group, the group holding an issue with its waits, or the summary line                                   |
-| `create <lead> [<n>:<test>...] --why <reason> [--files <path>...]`          | a proposed group                                                                                            |
-| `add <group> <n> --test <T#>`                                               | a member for a proposed group, or a join to a ready branch                                                  |
-| `route <n> [--to <group> --test <T#>] [--why <reason>]`                     | puts a new issue where the target's state says (section 3)                                                  |
-| `import-scan [<free-queue.json>]`                                           | replaces the proposed groups with the free-queue scan's jobs                                                |
-| `start`, `ready`, `freeze`, `close --merged\|--unmerged`, `release`, `wait` | the state changes of section 4                                                                              |
-| `archive`, `compact`                                                        | bounded growth (section 6)                                                                                  |
-| `check [--fix] [--json]`                                                    | drift against GitHub (section 4)                                                                            |
-| `jobs [--json]`                                                             | the jobs issue-round may start, from the ledger                                                             |
-| `metrics [--append] [--json]`                                               | throughput and guardrails (section 9)                                                                       |
+| Command                                                            | What it does                                                                                                |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `seed <file> [--force]`                                            | loads a ledger file (the first ledger, or a rebuilt one); refuses one that puts an issue in two live groups |
+| `show [<group>\|<issue>] [--json]`                                 | one group, the group holding an issue with its waits, or the summary line                                   |
+| `create <lead> [<n>:<test>...] --why <reason> [--files <path>...]` | a proposed group                                                                                            |
+| `add <group> <n> --test <T#>`                                      | a member for a proposed group, or a join to a ready branch                                                  |
+| `route <n> [--to <group> --test <T#> [--join]] [--why <reason>]`   | puts a new issue where the target's state says (section 3)                                                  |
+| `import-scan [<free-queue.json>]`                                  | replaces the proposed groups with the free-queue scan's jobs, and keeps the scan's blocked list             |
+| `start <group> <branch> <n>...`                                    | the job took these issues of the group; the other members stay proposed under the group's id                |
+| `ready`, `freeze`, `close --merged\|--unmerged`, `release`, `wait` | the state changes of section 4                                                                              |
+| `archive`, `compact`                                               | bounded growth (section 6)                                                                                  |
+| `check [--fix] [--json]`                                           | drift against GitHub (section 4)                                                                            |
+| `jobs [--json]`                                                    | the jobs issue-round may start, from the ledger                                                             |
+| `metrics [--append] [--json]`                                      | throughput and guardrails (section 9)                                                                       |
 
 `jobs` prints one line per job, `job #a #b <priority> <group> tests a:<test> b:<test> -- <why>; files <path>...`,
 in strict priority order. Members of started, ready, frozen and held groups, members recorded under an exclusion,
 issues with a live wait and follow-up groups whose base is still open are not offered. A top-10 queue issue in no
-group is offered alone as `unscanned` and named on a `rescan:` line, as is a ledger whose last scan is over 2 hours
-old. While the ledger is empty, `jobs` runs `tools/issue-queue.mjs jobs` instead, so the round works as before.
+group is offered alone as `unscanned` and named on a `rescan:` line, unless the last scan listed it as blocked
+(owner-only, waiting on a decision, colliding with an open pull request); a ledger whose last scan is over 2 hours old
+also asks for a rescan. While the ledger is empty, `jobs` runs `tools/issue-queue.mjs jobs` instead, so the round works as before.
 
 ## 3. Routing a new issue
 
@@ -187,8 +189,11 @@ a new issue is routed one at a time:
    whose wait on it expired.
 3. **The candidate's state decides** (`route <n> --to <group> --test <T#>`):
     - **proposed:** the issue joins it, within the cap.
-    - **ready (joinable):** it joins the branch, within the cap and at most 2 joins over the branch's life; the group
-      is started again until its joiner writes `ready`.
+    - **ready:** the issue waits, like a started one. It joins the branch only through `route --join`, which the
+      round runs only after checking the join rule of the issue-round skill (master red, no pull request on the
+      branch, its `ready` marker at the branch's tip, no other joiner, no critical or owner-guarded member); a join
+      stays within the cap and at most 2 joins over the branch's life, and makes the group started again until its
+      joiner writes `ready`.
     - **started:** the issue waits; when the branch reaches `ready`, the wait ends and the issue is routed again
       (and joins). If the pull request opens first, the issue moves to the follow-up group.
     - **frozen (pull request open):** the issue goes into that group's single **follow-up group**, which starts when
@@ -234,7 +239,9 @@ another issue.
 the ones it can: a `taken` marker starts a proposed group, `ready` readies it, `opened` freezes it, a merged or closed
 pull request closes or dissolves it, a `released` member leaves, a closed issue leaves a proposed group, an X9
 commit that landed ends its wait, and an idle red or long-held pull request expires its follow-up waits. A proposed
-member's markers count only while it is labelled `in-progress`, so an old job's markers are history. A group over
+member's markers count only while it is labelled `in-progress`, so an old job's markers are history. In a proposed
+group only the members whose own marker names the job's branch move (a `taken` marker is written on every issue of
+its job); the others stay proposed, so a join by one member never drags the rest of its group along. A group over
 the cap, an issue in two groups, an unreadable issue and a branch that differs from the ledger are reported only.
 
 ## 5. Lanes for record files

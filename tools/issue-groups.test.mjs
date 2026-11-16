@@ -247,7 +247,22 @@ describe("route", () => {
         make(l, 5, [], f);
         start(l, "g5", "fix/5", NOW);
         ready(l, "g5", "s", NOW);
-        assert.match(route(l, { n: 3, to: "fix/5", test: "T2", now: NOW, facts: f }), /joins ready g5/);
+        assert.match(route(l, { n: 3, to: "fix/5", test: "T2", now: NOW, facts: f, join: true }), /joins ready g5/);
+    });
+
+    it("makes an issue wait on a ready branch unless the round asks for a join", () => {
+        const l = fresh();
+        const f = factsOf();
+        make(l, 1);
+        start(l, "g1", "fix/1", NOW);
+        ready(l, "g1", "s", NOW);
+        assert.match(route(l, { n: 2, to: "fix/1", test: "T3", now: NOW, facts: f }), /waits on g1/);
+        assert.match(route(l, { n: 2, to: "fix/1", test: "T3", now: NOW, facts: f }), /waits on g1/);
+        const g = l.groups[0];
+        assert.deepEqual([g.state, g.joins, g.members.length, l.waits.length], ["ready", 0, 1, 1]);
+        assert.match(route(l, { n: 2, to: "fix/1", test: "T3", now: NOW, facts: f, join: true }), /joins ready g1/);
+        assert.deepEqual([g.state, g.joins], ["started", 1]);
+        assert.match(l.waits[0].ended, /joined/);
     });
 
     it("waits on a started branch, then joins once it is ready", () => {
@@ -257,7 +272,7 @@ describe("route", () => {
         start(l, "g1", "fix/1", NOW);
         assert.match(route(l, { n: 2, to: "g1", test: "T3", now: NOW, facts: f }), /waits on g1/);
         assert.deepEqual(ready(l, "g1", "s", NOW), [2], "ready names the waiters to route again");
-        assert.match(route(l, { n: 2, to: "g1", test: "T3", now: NOW, facts: f }), /joins ready g1/);
+        assert.match(route(l, { n: 2, to: "g1", test: "T3", now: NOW, facts: f, join: true }), /joins ready g1/);
     });
 
     it("moves waiters on a started branch into the follow-up group when its pull request opens", () => {
@@ -510,7 +525,7 @@ describe("markers and drift", () => {
             [2, issueFacts("OPEN", ["in-progress"], [marker])],
         ]);
         const lines = drift(l, { issues, prs: new Map() }, NOW).map((d) => applyFix(l, d, NOW));
-        assert.match(lines[1], /g2 absorbed into g1/);
+        assert.match(lines[1], /g2 \(#2\) absorbed into g1/);
         assert.deepEqual(
             l.groups[0].members.map((m) => [m.n, m.test]),
             [
@@ -518,6 +533,81 @@ describe("markers and drift", () => {
                 [2, "legacy"],
             ],
         );
+    });
+
+    it("start takes only the job's issues; the rest stay proposed under the group's id", () => {
+        const l = fresh();
+        make(l, 1, [
+            { n: 2, test: "T3" },
+            { n: 3, test: "T3" },
+        ]);
+        const first = start(l, "g1", "fix/1-a", NOW, [1]);
+        assert.deepEqual([first.id, first.state, first.members.map((m) => m.n)], ["g1-2", "started", [1]]);
+        const rest = l.groups.find((g) => g.id === "g1");
+        assert.deepEqual([rest.state, rest.lead, rest.members.map((m) => m.n)], ["proposed", 2, [2, 3]]);
+        // the second part of the split job names the same group and takes #2 alone on its own branch
+        const second = start(l, "g1", "fix/2-b", NOW, [2]);
+        assert.deepEqual([second.branch, second.members.map((m) => m.n)], ["fix/2-b", [2]]);
+        assert.equal(first.branch, "fix/1-a", "the first branch is never overwritten");
+        assert.deepEqual([rest.state, rest.members.map((m) => m.n)], ["proposed", [3]], "#3 is still offered as a job");
+        assert.equal(ledgerJobs(l, q([3, "high"]), NOW).jobs[0].issues[0], 3);
+        assert.throws(() => start(l, "g1-2", "fix/9", NOW, [1]), /started on fix\/1-a/);
+        assert.throws(() => start(l, "g1", "fix/3", NOW, [9]), /#9 is not in g1/);
+    });
+
+    it("a taken marker on one member of a proposed group starts that member alone", () => {
+        const l = fresh();
+        make(l, 1, [
+            { n: 2, test: "T3" },
+            { n: 3, test: "T3" },
+        ]);
+        const issues = new Map([
+            [1, issueFacts("OPEN", [], [])],
+            [
+                2,
+                issueFacts(
+                    "OPEN",
+                    ["in-progress"],
+                    [comment(4, "pipeline-round: taken by session s, branch fix/2-x, worktree w -- x")],
+                ),
+            ],
+            [3, issueFacts("OPEN", [], [])],
+        ]);
+        for (const d of drift(l, { issues, prs: new Map() }, NOW)) applyFix(l, d, NOW);
+        const started = l.groups.find((g) => g.state === "started");
+        assert.deepEqual([started.branch, started.members.map((m) => m.n)], ["fix/2-x", [2]]);
+        assert.deepEqual(
+            l.groups.find((g) => g.id === "g1").members.map((m) => m.n),
+            [1, 3],
+        );
+    });
+
+    it("a join on one member of a proposed group absorbs that member alone into the ready branch's group", () => {
+        const l = fresh();
+        make(l, 1);
+        start(l, "g1", "fix/1-a", NOW);
+        ready(l, "g1", "s1", NOW);
+        make(l, 5, [
+            { n: 6, test: "T3" },
+            { n: 7, test: "T3" },
+        ]);
+        const join = comment(
+            9,
+            "pipeline-round: taken by session s, branch fix/1-a, worktree w, group #1 #6 -- joins ready fix/1-a",
+        );
+        const issues = new Map([
+            [1, issueFacts("OPEN", ["in-progress"], [join])],
+            [5, issueFacts("OPEN", [], [])],
+            [6, issueFacts("OPEN", ["in-progress"], [join])],
+            [7, issueFacts("OPEN", [], [])],
+        ]);
+        for (const d of drift(l, { issues, prs: new Map() }, NOW)) applyFix(l, d, NOW);
+        assert.deepEqual(
+            l.groups[0].members.map((m) => m.n),
+            [1, 6],
+        );
+        const rest = l.groups.find((g) => g.id === "g5");
+        assert.deepEqual([rest.state, rest.members.map((m) => m.n)], ["proposed", [5, 7]]);
     });
 
     it("expires follow-up waits on a red pull request idle 6 hours, but never on an owner-held one", () => {
@@ -627,6 +717,20 @@ describe("jobs", () => {
         );
     });
 
+    it("never offers or rescans an issue the last scan listed as blocked", () => {
+        const l = fresh();
+        importScan(
+            l,
+            { builtAt: new Date(NOW).toISOString(), jobs: [], blocked: [{ issue: 4, prs: [9], reason: "x" }] },
+            NOW,
+        );
+        const r = ledgerJobs(l, q([4, "high"]), NOW);
+        assert.deepEqual([r.jobs, r.rescan], [[], []]);
+        assert.ok(!jobLines(r).some((line) => line.startsWith("rescan:")));
+        importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [] }, NOW);
+        assert.deepEqual(ledgerJobs(l, q([4, "high"]), NOW).rescan, [4], "each import replaces the blocked list");
+    });
+
     it("asks for a scan when the last one is over 2 hours old", () => {
         const l = fresh();
         l.scannedAt = new Date(NOW - 3 * HOUR).toISOString();
@@ -694,6 +798,8 @@ describe("the command line", () => {
             code: 1,
             out: "refused: #3: X3 owner-only (label hold); not routed",
         });
+        assert.equal(main(["start", "g1", "fix/1-x"], deps).code, 2, "start needs the job's issues");
+        assert.equal(main(["start", "g1", "fix/1-x", "1", "2", "4"], deps).out, "g1 started on fix/1-x: #1 #2 #4");
         assert.equal(main(["freeze", "g1", "77"], deps).out, "g1 frozen on #77");
         assert.match(main(["show", "4"], deps).out, /"id": "g1"/);
         assert.match(main(["show"], deps).out, /^groups: 0 started, 0 ready, 0 waiting, 1 frozen/);

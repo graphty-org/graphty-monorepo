@@ -241,6 +241,11 @@ interface DefinitionBase<C extends CommandLike> {
      */
     readonly byReference?: readonly string[];
     /**
+     * The command as it is kept (by its job, its step and the journal), made from the dispatch
+     * copy. `data.apply` freezes its records here, so one copy serves the command and the graph.
+     */
+    kept?(command: C): C;
+    /**
      * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
      * them, one step, and its own `execute` is never called.
      */
@@ -1191,17 +1196,22 @@ export class Dispatcher {
                 throw error;
             },
         );
+        let onAbort = (): void => undefined;
         const aborted = new Promise<never>((_, reject) => {
-            signal.addEventListener(
-                "abort",
-                () => {
-                    void this.lane.settled().then(() => {
-                        reject(signal.reason as Error);
-                    });
-                },
-                { once: true },
-            );
+            onAbort = (): void => {
+                void this.lane.settled().then(() => {
+                    reject(signal.reason as Error);
+                });
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
         });
+        // Stop listening once the body settles: the signal outlives it (the group keeps its
+        // controller), and the listener would keep this call's closure, and the records its
+        // commands carried, alive.
+        const off = (): void => {
+            signal.removeEventListener("abort", onAbort);
+        };
+        settled.then(off, off);
 
         return Promise.race([settled, aborted]);
     }
@@ -1832,7 +1842,8 @@ export class Dispatcher {
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
-        const concrete = deepFreezeArgs(raw, definition?.byReference);
+        const copied = deepFreezeArgs(raw, definition?.byReference);
+        const concrete = definition?.kept?.(copied) ?? copied;
         this.events.dispatched?.(concrete);
         if (definition === undefined) {
             throw new GraphtyError({
@@ -1973,7 +1984,8 @@ export class Dispatcher {
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
-        const concrete = deepFreezeArgs(raw, definition?.byReference);
+        const copied = deepFreezeArgs(raw, definition?.byReference);
+        const concrete = definition?.kept?.(copied) ?? copied;
         this.events.dispatched?.(concrete);
         if (definition === undefined) {
             throw new GraphtyError({
@@ -2072,13 +2084,17 @@ export class Dispatcher {
             job.status = "queued";
             group.jobs.add(job);
             this.enter(group);
-            job.slot.signal.addEventListener(
-                "abort",
-                () => {
-                    this.obsolete(job, "obsolete");
-                },
-                { once: true },
-            );
+            // Stop listening once the job settles, as cancelOnAbort does: the slot's signal would
+            // otherwise keep the job, and its command's records, alive.
+            const { signal } = job.slot;
+            const obsolete = (): void => {
+                this.obsolete(job, "obsolete");
+            };
+            const off = (): void => {
+                signal.removeEventListener("abort", obsolete);
+            };
+            signal.addEventListener("abort", obsolete, { once: true });
+            job.promise.then(off, off);
         } else {
             this.admit(job);
         }

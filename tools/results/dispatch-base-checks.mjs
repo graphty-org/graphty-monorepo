@@ -4,7 +4,7 @@
 //
 //   node tools/results/dispatch-base-checks.mjs <dir>
 //
-// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat }` per
+// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat, name }` per
 // `[FLAKY-UNRELATED]` (repeat 5) or `[UNRELATED]` (repeat 1) test into <dir>/<shard>.jsonl. ci.yml's base-checks job
 // downloads them all and runs this, so base-check.yml runs on master's code at the pull request's base: its
 // records are the master evidence that quarantines a flaky test and files its one issue (run-group.mjs
@@ -25,11 +25,41 @@ const MAX_CHECKS = 10;
 const SHA = /^[0-9a-f]{7,40}$/;
 const FILE = /^[\w@./-]+\.(test|spec|stories)\.[cm]?[jt]sx?$/;
 const VARIANT = /^[\w.-]+\|flags=(on|off)\|[\w-]+$/;
+// a test's name: one line of printable text, passed to gh as one argument
+const NAME = /^[^\p{Cc}]{1,500}$/u;
+const MAX_NAMES = 10;
+
+// One JSON line as a check, or null when it is not valid JSON or a field fails its pattern.
+function checkOf(line) {
+    let c;
+    try {
+        c = JSON.parse(line);
+    } catch {
+        return null;
+    }
+    const ok =
+        SHA.test(c?.base) &&
+        FILE.test(c.file) &&
+        !c.file.includes("..") &&
+        VARIANT.test(c.variant) &&
+        [1, 5].includes(c.repeat);
+    return ok ? c : null;
+}
+
+// A check merged into the one already asked for its base, file and variant: a test both flaky and failing in one
+// file is answered by the 5 repeats, which also file the issues of the file's flaky tests when they pass (#8317)
+function merged(had, c) {
+    const check =
+        !had || had.repeat < c.repeat ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat } : had;
+    const names = [...(had?.names ?? []), ...(c.repeat === 5 && NAME.test(c.name ?? "") ? [c.name] : [])];
+    if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
+    return check;
+}
 
 /**
  * The valid, distinct base checks in a directory's JSON lines.
  * @param dir the directory (missing: none)
- * @returns `{ base, file, variant, repeat }[]`, at most MAX_CHECKS
+ * @returns `{ base, file, variant, repeat, names? }[]`, at most MAX_CHECKS; `names` are a 5-repeat check's flaky tests
  */
 export function readChecks(dir) {
     let names = [];
@@ -41,22 +71,10 @@ export function readChecks(dir) {
     const out = new Map();
     for (const n of names.sort())
         for (const line of readFileSync(join(dir, n), "utf8").split("\n")) {
-            let c;
-            try {
-                c = JSON.parse(line);
-            } catch {
-                continue;
-            }
-            const ok =
-                SHA.test(c?.base) &&
-                FILE.test(c.file) &&
-                !c.file.includes("..") &&
-                VARIANT.test(c.variant) &&
-                [1, 5].includes(c.repeat);
-            if (!ok) continue;
+            const c = checkOf(line);
+            if (!c) continue;
             const key = `${c.base} ${c.file} ${c.variant}`;
-            // a test both flaky and failing in one file: the 5 repeats answer both
-            if (!out.has(key) || out.get(key).repeat < c.repeat) out.set(key, { ...c });
+            out.set(key, merged(out.get(key), c));
         }
     return [...out.values()].slice(0, MAX_CHECKS);
 }
@@ -84,6 +102,7 @@ export async function dispatchChecks(checks, gh, { claim, release, pr } = {}) {
         const args = ["workflow", "run", "base-check.yml", "--ref", "master"];
         const fields = { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat };
         if (/^\d+$/.test(String(pr ?? ""))) fields.pr = pr;
+        if (c.names?.length) fields.tests = JSON.stringify(c.names);
         for (const [k, v] of Object.entries(fields)) args.push("-f", `${k}=${v}`);
         try {
             gh(args);

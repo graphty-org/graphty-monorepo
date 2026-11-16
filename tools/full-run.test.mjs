@@ -13,6 +13,7 @@ import {
     actorOf,
     bestEffort,
     bisectPlan,
+    bisectRunName,
     captureLane,
     changedSummary,
     deferred,
@@ -407,6 +408,19 @@ describe("greenCloses", () => {
         assert.equal(greenCloses("Full run red: CI on abc1234", "new", isAncestor), true);
         assert.equal(greenCloses("Full run red: CI on abc1234", "old", isAncestor), false);
         assert.equal(greenCloses("Something else", "new", isAncestor), false);
+    });
+});
+
+describe("bisectPlan's paid llm lane", () => {
+    it("dispatches no second llm bisect from a green commit an earlier one already bisects", () => {
+        const llm = { red: ["llm"], sha: "bad2", good: "g", run: 2, failures: null };
+        assert.equal(bisectPlan(llm).inputs.lane, "llm");
+        assert.equal(bisectRunName("llm", "g"), "Bisect (llm lane) from g");
+        const again = bisectPlan({ ...llm, bisected: ["Bisect (ci lane) from g", "Bisect (llm lane) from g"] });
+        assert.match(again.why, /already bisected/);
+        assert.ok(bisectPlan({ ...llm, bisected: ["Bisect (llm lane) from other", "Bisect (llm lane)"] }).inputs);
+        const ci = { red: ["ci"], sha: "b", good: "g", run: 1, failures: null, bisected: ["Bisect (ci lane) from g"] };
+        assert.ok(bisectPlan(ci).inputs, "a free lane bisects again");
     });
 });
 

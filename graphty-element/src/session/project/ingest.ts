@@ -194,14 +194,14 @@ function recordsPath(reason: LoadPathReason): LoadPath {
  * @param record - The record.
  * @param edges - The edge load's choices, for an edge record.
  * @param seen - The endpoint spelling and weight keys the load's records gave so far.
- * @param seen.spelling - The endpoint keys the first record named.
+ * @param seen.spelling - The endpoint keys the first record named, as bits.
  * @param seen.weights - The weight keys records gave.
  * @returns The reason, or null.
  */
 function recordReason(
     record: unknown,
     edges: ColumnsLoad["edges"],
-    seen: { spelling?: string; weights: Set<string> },
+    seen: { spelling?: number; weights: Set<string> },
 ): LoadPathReason | null {
     const proto: unknown = typeof record === "object" && record !== null ? Object.getPrototypeOf(record) : undefined;
     if (proto !== Object.prototype && proto !== null) {
@@ -213,16 +213,25 @@ function recordReason(
     }
 
     const row = record as object;
-    const spelling = ENDPOINT_KEYS.filter((key) => key in row).join("/");
+    // Which endpoint keys the record names, as bits: no array or string per record (stage 127).
+    let spelling = 0;
+    for (let at = 0; at < ENDPOINT_KEYS.length; at++) {
+        if (ENDPOINT_KEYS[at] in row) {
+            spelling |= 1 << at;
+        }
+    }
+
     seen.spelling ??= spelling;
     if (seen.spelling !== spelling) {
         return "endpoints";
     }
 
-    for (const key of [edges.weight, "value"]) {
-        if (key !== null && key in row) {
-            seen.weights.add(key);
-        }
+    if (edges.weight !== null && edges.weight in row) {
+        seen.weights.add(edges.weight);
+    }
+
+    if ("value" in row) {
+        seen.weights.add("value");
     }
 
     return seen.weights.size > 1 ? "weights" : null;

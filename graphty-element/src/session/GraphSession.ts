@@ -428,6 +428,8 @@ interface SessionParts {
     readonly data: SessionData;
     /** Reads the project settings, live. */
     readonly readProject: () => ProjectConfig;
+    /** The renderer's graph-wide node size space, for `config.inEffect`; absent with no renderer. */
+    readonly nodeSizeSpace: (() => string | undefined) | undefined;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -494,6 +496,8 @@ interface SessionInternals {
     readonly renderedFrame?: () => Promise<void>;
     /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
     readonly batched?: () => boolean;
+    /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
+    readonly nodeSizeSpace?: () => string | undefined;
 }
 
 /**
@@ -857,7 +861,7 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.nodeSizeSpace);
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -2001,12 +2005,14 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param dispatcher - The dispatcher.
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
+ * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
  * @returns The settings.
  */
 function configOf(
     dispatcher: Dispatcher,
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
+    nodeSizeSpace: (() => string | undefined) | undefined,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -2072,18 +2078,18 @@ function configOf(
             await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
-            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
+            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT, nodeSizeSpace?.()),
     });
 }
 
 /** The graph settings the 2D view ignores: it is drawn flat, and without depth. */
-const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.depthIndependentSize"]);
+const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.sizeSpace"]);
 
 /** Every graph setting `config.inEffect` answers for. */
 const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
     "lighting",
-    "node.depthIndependentSize",
+    "node.sizeSpace",
     "node.outlineWidth",
     "labels.declutter",
     "labels.avoidNodesAndEdges",
@@ -2093,10 +2099,11 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
  * @param key - The setting.
  * @param layout - The layout as chosen: its engine and the view's dimension.
+ * @param sizeSpace - The element's `layoutBehavior.node.sizeSpace`: the 2D view keeps "screen".
  * @returns The answer, coded.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
  */
-function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffect {
+function settingEffect(key: GraphSettingKey, layout: LayoutChoice, sizeSpace: string | undefined): SettingEffect {
     if (!GRAPH_SETTINGS.has(key)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -2106,7 +2113,9 @@ function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffec
         });
     }
 
-    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);
+    // "screen" holds a node's size through a 2D zoom too; "pivot" needs depth, which 2D has none of.
+    const screen = key === "node.sizeSpace" && sizeSpace === "screen";
+    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key) && !screen;
     return Object.freeze({
         inEffect: !ignored,
         code: ignored ? "setting.notIn2d" : "setting.inEffect",
@@ -2349,7 +2358,7 @@ function valueSourceOf(
  */
 function fieldKindsOf(
     path: Path,
-    data: SessionDataApi,
+    data: SessionData,
     fieldsOf: (run: RunId) => readonly { readonly name: string; readonly kind: string }[] | undefined,
 ): readonly string[] {
     // Only edges have ends: an end path is on the edges when its node path is on the nodes.
@@ -2383,7 +2392,7 @@ function fieldKindsOf(
     }
 
     return data
-        .attributes()
+        .columns()
         .filter((attribute) => attribute.path === path)
         .map((attribute) => attribute.kind);
 }
@@ -2398,7 +2407,7 @@ function fieldKindsOf(
  * @param data - The session's data surface.
  * @returns A reader for the labels.
  */
-function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
+function componentLabelsOf(data: SessionData): () => ComponentLabels {
     let against: GraphSnapshot | null = null;
     let held: ComponentLabels = { labels: new Int32Array(0), count: 0 };
 
@@ -2552,10 +2561,10 @@ function peekLayersOf(peeked: {
  * @param target - Whether the asking layer paints nodes or edges.
  * @returns The paths, attributes first.
  */
-function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "edge"): readonly Path[] {
+function answerablePaths(data: SessionData, runs: RunsApi, target: "node" | "edge"): readonly Path[] {
     const paths: Path[] = [];
 
-    for (const attribute of data.attributes()) {
+    for (const attribute of data.columns()) {
         if (attribute.kind === target) {
             paths.push(attribute.path);
         }
@@ -2618,7 +2627,7 @@ function structurePaths(data: SessionDataApi): readonly Path[] {
  * @param data - The session's data surface.
  * @returns The path, or undefined.
  */
-function structureCandidate(name: string, data: SessionDataApi): Path | undefined {
+function structureCandidate(name: string, data: SessionData): Path | undefined {
     const plain = name.replaceAll(/[-_]/g, "");
     return structurePaths(data).find((path) => path.slice("graphty.".length).toLowerCase() === plain);
 }
@@ -2637,7 +2646,7 @@ function structureCandidate(name: string, data: SessionDataApi): Path | undefine
  * @param target - Nodes or edges.
  * @returns Whether it is answered.
  */
-function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
+function answersReadable(data: SessionData, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
     if (path.startsWith("data.")) {
         return answerablePaths(data, runs, target).includes(path);
     }
@@ -2655,7 +2664,7 @@ function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target
  * @param data - The session's data surface, for the readable values.
  * @returns The check.
  */
-function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, data: SessionDataApi): RuleCheck {
+function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, data: SessionData): RuleCheck {
     const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
     const missing = read.filter((path) => !answered(path) && !answered(ATTRIBUTE_PREFIX + path));
     if (missing.length === 0) {
@@ -2690,7 +2699,7 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * @param fileStyles - Reads the file-style store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
     return {
         // A note value is always answerable: it reads nothing until a note names the element. A
         // file-style column is answerable wherever a load holds it.
@@ -2717,7 +2726,7 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
  * @param kind - Nodes or edges.
  * @returns The paths, in `data.readableValues()` order.
  */
-function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Path[] {
+function searchedPaths(data: SessionData, kind: "node" | "edge"): readonly Path[] {
     return data
         .readableValues()
         .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
@@ -2744,11 +2753,11 @@ function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "e
  * @returns A reader for the words, answering undefined for a path nothing in the session names.
  */
 function fieldWordsOf(
-    data: SessionDataApi,
+    data: SessionData,
     runs: RunsApi,
 ): (path: Path, target: "node" | "edge") => FieldWords | undefined {
     return (path: Path, target: "node" | "edge"): FieldWords | undefined => {
-        for (const attribute of data.attributes()) {
+        for (const attribute of data.columns()) {
             if (attribute.path === path && attribute.kind === target) {
                 return { plainName: attribute.plainName, technicalName: attribute.technicalName };
             }
@@ -3203,7 +3212,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 const send = dispatcher.capturedDispatch();
                 return (mutation) => send({ op: "data.apply", mutation });
             },
-            importer: () => dispatcher.capturedDispatch(),
+            importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
             loadLine: loadLineOf(dispatcher),
             ceilings,
             slice,
@@ -3271,7 +3280,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
             batched: () => internals.batched?.() === true,
-            visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
+            visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.
             working: () => working,
         },
@@ -3828,7 +3837,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         declarations: () => dispatcher.state.attributes,
         columns: () =>
             data
-                .attributes()
+                .columns()
                 .filter((each) => each.origin !== "result")
                 .map((each) => ({ kind: each.kind, name: each.name })),
         dispatcher,
@@ -3840,7 +3849,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
         asDates: (kind, name) => {
-            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            const column = data.columns().find((each) => each.kind === kind && each.name === name);
             if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
                 return undefined;
             }
@@ -4318,7 +4327,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         fileStyles: fileStylesOn,
         runs: encodingSourceOf(runs),
         columns: {
-            attributes: () => data.attributes(),
+            attributes: () => data.columns(),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
         nodeIndex,
@@ -4672,7 +4681,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
-        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
+        nodeAttributes: () => data.columns().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
@@ -4838,6 +4847,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         features: settleFeatures,
         timelineOn,
         readProject,
+        nodeSizeSpace: internals.nodeSizeSpace,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,
@@ -5346,7 +5356,7 @@ function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
  */
 function planningContext(
     runsOptions: SessionRunsOptions,
-    data: SessionDataApi,
+    data: SessionData,
     resolveScope: (spec: Scope) => ResolvedScope,
     defaultScope: Scope,
     acceleration: AccelerationControllerLike,

@@ -657,7 +657,7 @@ export function DataOutput({
                 ) : null}
                 <pre
                     className="ws-export-text"
-                    tabIndex={0} // NOSONAR(S6845): a scrolling region must take focus so a keyboard can scroll it
+                    tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region must take focus so a keyboard can scroll it
                     aria-label="Preview of the exported data"
                 >
                     {preview?.lines ?? "Writing the preview..."}

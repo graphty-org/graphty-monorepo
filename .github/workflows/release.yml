@@ -474,11 +474,14 @@ jobs:
             - uses: pnpm/action-setup@v6
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
+            # the pnpm store cache only where "Install dependencies" runs: in a full, restart, candidate or
+            # promote-nightly slot nothing installs, so after a lockfile change missed the cache, setup-node's post
+            # step found no store to save and failed the job (#8357); the fix forward's plan installs uncached
             - uses: actions/setup-node@v7
               if: ${{ steps.pending.outputs.pending == 'false' }}
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ (env.MODE != 'full' && env.MODE != 'restart' && env.MODE != 'candidate' && env.MODE != 'promote-nightly') && 'pnpm' || '' }}
 
             # Promote after approval (tools/channel/resume.mjs): promote-nightly checks the approval it names; a full
             # slot first catches up on a held head whose approval merged, and then tests nothing.
@@ -1684,6 +1687,15 @@ jobs:
               run: |
                   node tools/release-status.mjs owner-item --sha "$SHA" --what "$OWNER" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
+            # The store did not say what is held, after minutes of retries (#5597): the verdict could not hold,
+            # replace or promote anything, which is no "nothing to do". The job fails, after the announcements above,
+            # so release-rerun.yml re-runs it once and the slot job names the store as the missed slot's cause.
+            - name: Fail when the held candidate could not be read
+              if: ${{ steps.verdict.outputs.hold == 'unknown' }}
+              run: |
+                  echo "::error::the results store did not answer GET /v1/candidate: the verdict decided nothing about the hold; re-run this job"
+                  exit 1
 
     # A held green-images head promotes later, after the owner's approval, from this run's builds (the resume job's
     # run uses them): CI keeps its own for a day, so they are kept here for 30 days, as the version job keeps a

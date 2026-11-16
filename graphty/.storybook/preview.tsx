@@ -51,7 +51,7 @@ if (
     !navigator.webdriver &&
     (hasErudaFlag(() => globalThis.location.search) || hasErudaFlag(() => globalThis.parent.location.search))
 ) {
-    void showEruda(); // NOSONAR(S7785): fire and forget on purpose; awaiting would hold every story until eruda loads
+    void showEruda(); // fire and forget on purpose; awaiting would hold every story until eruda loads
 }
 
 /** Load the eruda console and show it pinned top right, without making the preview wait for it. */

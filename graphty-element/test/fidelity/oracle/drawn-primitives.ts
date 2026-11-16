@@ -797,7 +797,7 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
-        const rule = d?.label?.nodeSizeRule;
+        const rule = d?.label?.sizeRule;
         const sized =
             rule !== undefined && d?.label && (n.label?.visible === true || n.drawn?.labelHiddenBySize === true)
                 ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }

@@ -3,10 +3,6 @@
         "pipeline-health": {
             "command": "node",
             "args": ["tools/pipeline-health/mcp/start.mjs"]
-        },
-        "sonarqube": {
-            "command": "node",
-            "args": ["tools/sonarqube-mcp/shim.mjs"]
         }
     }
 }

@@ -66,19 +66,84 @@ function safariProcesses(): string {
 }
 
 /**
- * Launch Safari once, wait until it has loaded a page, and quit it, unless Safari is already running.
+ * The PIDs of the applications webinspectord has finished registering ("Application Updated" in the
+ * system log, written once it has looked up the application's icon), as they arrive.
+ * @returns The set, a wait for one PID, and a stop.
+ */
+async function inspectorRegistrations(): Promise<{ until(pid: number): Promise<void>; stop(): void }> {
+    const updated = new Set<number>();
+    let changed = (): void => undefined;
+    const stream = ownChild(
+        spawn("log", [
+            "stream",
+            "--style",
+            "compact",
+            "--level",
+            "info",
+            "--predicate",
+            'process == "webinspectord" AND eventMessage CONTAINS "Application Updated"',
+        ]),
+    );
+    let started = (): void => undefined;
+    const ready = new Promise<void>((resolve, reject) => {
+        started = resolve;
+        stream.once("exit", (code) => reject(new Error(`log stream exited (${String(code)}) before streaming`)));
+    });
+    stream.stdout.setEncoding("utf8");
+    stream.stdout.on("data", (chunk: string) => {
+        started(); // `log stream` prints its filter line once it is streaming
+        for (const match of chunk.matchAll(/Application Updated: \d+ - PID:(\d+)/g)) {
+            updated.add(Number(match[1]));
+        }
+
+        changed();
+    });
+    await ready;
+    return {
+        async until(pid) {
+            while (!updated.has(pid)) {
+                await new Promise<void>((resolve) => (changed = resolve));
+            }
+        },
+        stop: () => stream.kill(),
+    };
+}
+
+/**
+ * Launch Safari once, wait until it has loaded a page and webinspectord has registered it, and quit it,
+ * unless Safari is already running (then only the registration is awaited). Runs with safaridriver
+ * already started, so the webinspectord that registers it is the one the sessions use.
  *
- * safaridriver gives Safari a fixed 30 seconds to launch and connect when a session is created. On a
- * fresh macOS runner Safari has never run: its first launch does its first-run setup on cold disk
- * caches, can take longer than that, and POST /session fails with "The session timed out while
- * connecting to a Safari instance" (#4580). After one launch that got as far as loading a page,
- * the Safari safaridriver launches is a warm one.
+ * safaridriver gives Safari a fixed 30 seconds to launch and become ready when a session is created.
+ * Two first-time costs can fill that window on a fresh macOS runner:
+ *
+ * - Safari's own first launch, its first-run setup on cold disk caches (#4580).
+ * - webinspectord's first application lookup (#8368). safaridriver starts a fresh webinspectord, which
+ *   exits again when safaridriver does. Its sandbox cannot reach the LaunchServices database, so the
+ *   first time it looks up an application's icon it builds that database itself, on its main thread:
+ *   24 seconds on macos-26, during which it answers no application, Safari included.
+ *
+ * A Safari launched here pays both before the session's clock starts.
  */
 async function warmSafari(): Promise<void> {
-    if (processes().some((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"))) {
-        return;
+    const registrations = await inspectorRegistrations();
+    try {
+        const running = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"));
+        if (running === undefined) {
+            await launchAndQuitSafari(registrations.until);
+        } else {
+            await registrations.until(running.pid);
+        }
+    } finally {
+        registrations.stop();
     }
+}
 
+/**
+ * Launch Safari, wait until it has loaded a page and is registered, and quit it.
+ * @param registered - Resolves once webinspectord has registered the PID.
+ */
+async function launchAndQuitSafari(registered: (pid: number) => Promise<void>): Promise<void> {
     let loaded = (): void => undefined;
     const seen = new Promise<void>((resolve) => (loaded = resolve));
     const server = http.createServer((_request, response) => {
@@ -103,6 +168,12 @@ async function warmSafari(): Promise<void> {
     }
 
     console.log(`[safari] first launch loaded a page after ${Date.now() - started} ms`);
+    const safariPid = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"))?.pid;
+    if (safariPid !== undefined) {
+        await registered(safariPid); // a Safari that never registers is bounded by the workflow step's limit
+        console.log(`[safari] webinspectord registered it after ${Date.now() - started} ms`);
+    }
+
     const killed = Date.now();
     await promisify(execFile)("killall", ["Safari"]);
     await quit;
@@ -110,11 +181,10 @@ async function warmSafari(): Promise<void> {
 }
 
 /**
- * Start safaridriver and wait until it answers, with Safari launched once beforehand (warmSafari).
+ * Start safaridriver and wait until it answers, then launch Safari once (warmSafari).
  * @returns The driver.
  */
 export async function startSafariDriver(): Promise<SafariDriver> {
-    await warmSafari();
     const port = await freePort();
     // --diagnose: safaridriver logs every session to ~/Library/Logs/com.apple.WebDriver, which the macOS
     // workflow keeps when a step fails.
@@ -137,6 +207,13 @@ export async function startSafariDriver(): Promise<SafariDriver> {
 
             await new Promise((resolve) => setImmediate(resolve));
         }
+    }
+
+    try {
+        await warmSafari();
+    } catch (error) {
+        driver.kill();
+        throw error;
     }
 
     const call = async <T>(method: string, url: string, body?: unknown): Promise<T> => {

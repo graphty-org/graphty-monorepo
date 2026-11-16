@@ -81,12 +81,12 @@ export function canonicalJson(value: unknown): string {
     }
 
     if (Array.isArray(safe)) {
-        return `[${safe.map(canonicalJson).join(",")}]`;
+        return `[${safe.map((each) => canonicalJson(each)).join(",")}]`;
     }
 
     const record = safe as JsonObject;
     // The default sort compares UTF-16 code units, as RFC 8785 asks.
-    const names = Object.keys(record).sort(); // NOSONAR(S2871): code-unit order is the rule
+    const names = Object.keys(record).sort((a, b) => (a < b ? -1 : Number(a > b))); // code-unit order is the rule
     const members = names.map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`);
     return `{${members.join(",")}}`;
 }
@@ -501,7 +501,7 @@ function isReserved(name: string): boolean {
  * @returns The record.
  */
 function withoutReserved<T extends Readonly<JsonObject>>(record: T, kind: string, refused: Set<string>): T {
-    if (!Object.keys(record).some(isReserved)) {
+    if (!Object.keys(record).some((name) => isReserved(name))) {
         return record;
     }
 
@@ -1359,21 +1359,21 @@ function elementTypesOf(
     const rulesOf = (type: JsonObject): unknown[] => (Array.isArray(type.rules) ? type.rules : []);
     const nodeTypes = types.filter((type) => type.kind === "node");
     const edgeTypes = types.filter((type) => type.kind === "edge");
+    const nodeTypesOf = (source: string, row: Readonly<JsonObject>, end?: string): string[] =>
+        nodeTypes
+            .filter((type) => rulesOf(type).some((rule) => ruleMatches(rule, source, row, end)))
+            .map((type) => String(type.name));
     for (const source of model.sources) {
         for (const node of source.nodes) {
-            for (const type of nodeTypes) {
-                if (rulesOf(type).some((rule) => ruleMatches(rule, source.id, node))) {
-                    add(node.id, String(type.name));
-                }
+            for (const name of nodeTypesOf(source.id, node)) {
+                add(node.id, name);
             }
         }
 
         for (const edge of source.edges) {
-            for (const type of nodeTypes) {
-                for (const end of ["source", "target"] as const) {
-                    if (rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge, end))) {
-                        add(edge[end], String(type.name));
-                    }
+            for (const end of ["source", "target"] as const) {
+                for (const name of nodeTypesOf(source.id, edge, end)) {
+                    add(edge[end], name);
                 }
             }
 
@@ -1890,7 +1890,7 @@ export function lookPathsRewrite(paths: ReadonlyMap<string, string>): <T>(value:
         }
 
         if (Array.isArray(value)) {
-            return value.map(rewrite);
+            return value.map((each) => rewrite(each));
         }
 
         if (!isPlainObject(value)) {

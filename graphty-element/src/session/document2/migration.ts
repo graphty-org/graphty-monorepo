@@ -1004,7 +1004,9 @@ function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Plac
 
     const ids = arrangement.ids as unknown[];
     const [xs, ys, zs] = ["x", "y", "z"].map((axis) => decodeColumn(arrangement[axis], ids.length));
-    const pins = new Set((Array.isArray(arrangement.pins) ? (arrangement.pins as unknown[]) : []).map(keyText));
+    const pins = new Set(
+        (Array.isArray(arrangement.pins) ? (arrangement.pins as unknown[]) : []).map((pin) => keyText(pin)),
+    );
     if (xs === undefined || ys === undefined || zs === undefined) {
         return [];
     }
@@ -1082,7 +1084,7 @@ function selectionOf(selection: JsonObject, data: MigratedData): JsonObject {
     };
     return {
         nodes: nodeRefs(selection.nodes, data),
-        edges: (Array.isArray(selection.edges) ? (selection.edges as unknown[]) : []).flatMap(edgeAt),
+        edges: (Array.isArray(selection.edges) ? (selection.edges as unknown[]) : []).flatMap((edge) => edgeAt(edge)),
     };
 }
 

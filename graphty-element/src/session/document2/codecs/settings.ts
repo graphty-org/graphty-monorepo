@@ -134,7 +134,8 @@ function playbackOf(context: WriteContext, kept: Kept | undefined): JsonObject |
     }
 
     // A JSON copy, not structuredClone: it drops undefined members, as the file will.
-    return JSON.parse(JSON.stringify({ ...written, ...kept?.playback })) as JsonObject; // NOSONAR(S7784): the JSON form is the point
+    const text = JSON.stringify({ ...written, ...kept?.playback });
+    return JSON.parse(text) as JsonObject;
 }
 
 /**

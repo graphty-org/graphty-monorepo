@@ -94,7 +94,7 @@ export function canonicalText(value: unknown): string {
     if (isJsonObject(value)) {
         const names = Object.keys(value)
             .filter((name) => value[name] !== undefined)
-            .sort(); // NOSONAR(S2871): code-unit order is all a comparison needs
+            .sort((a, b) => (a < b ? -1 : Number(a > b))); // code-unit order is all a comparison needs
         const members = names.map((name) => {
             const member = JSON.stringify(name);
             return `${member}:${canonicalText(value[name])}`;

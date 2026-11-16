@@ -503,7 +503,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
     // Temporary, with loadedLooksAsColumns (issue 8259): the layers read look values as ordinary
     // columns before their dependencies are gathered; the save framing rewrites the rest of the body.
     const looks = loadedLooksAsColumns(session);
-    const document = { ...held, layers: held.layers.map(looks.rewrite) };
+    const document = { ...held, layers: held.layers.map((layer) => looks.rewrite(layer)) };
     const ids = session.styles
         .list()
         .filter((layer) => !layer.locked)

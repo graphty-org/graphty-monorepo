@@ -111,22 +111,20 @@ function lazyRefs(session: GraphSession): () => ElementRefs {
  * @param session - The session.
  * @param state - The session's document state.
  * @param sections - The sections written.
- * @param embed - The saver's embed choices.
+ * @param choices - The saver's embed and recipe choices.
  * @param isDerived - Whether the element minted a run's id.
  * @param problems - Where the codecs report.
  * @param refs - The element references, built once per save.
- * @param rewriteRecipe - Whether the saver asked for the recipe from the session.
  * @returns The context.
  */
 function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
-    embed: Readonly<Record<string, SourceStorage>>,
+    choices: Pick<SaveChoices, "embed" | "rewriteRecipe">,
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
-    rewriteRecipe = false,
 ): WriteContext {
     return {
         session,
@@ -134,8 +132,8 @@ function writeContextOf(
         refs,
         dataId: () => dataIdOf(state),
         sections,
-        embed,
-        rewriteRecipe,
+        embed: choices.embed ?? {},
+        rewriteRecipe: choices.rewriteRecipe === true,
         isDerived,
         bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),
         buildStamp: () => dataBindingOf(session),
@@ -357,16 +355,7 @@ export async function saveDocument2(
 
         const codec = codecs[name];
         if (codec !== undefined) {
-            const context = writeContextOf(
-                session,
-                state,
-                new Set(chosen),
-                choices.embed ?? {},
-                isDerived,
-                problems,
-                refs,
-                choices.rewriteRecipe === true,
-            );
+            const context = writeContextOf(session, state, new Set(chosen), choices, isDerived, problems, refs);
             sections[name] = await writeSection(name, codec, context, state, now, looks);
         }
     }

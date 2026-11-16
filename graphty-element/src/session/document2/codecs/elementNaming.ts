@@ -133,7 +133,9 @@ function runsReadBy(layer: Loose): Set<string> {
                 runs.add(match[1]);
             }
         } else if (Array.isArray(value) || isLoose(value)) {
-            Object.values(value).forEach(walk);
+            for (const each of Object.values(value)) {
+                walk(each);
+            }
         }
     };
     walk([layer.selector, layer.encode]);

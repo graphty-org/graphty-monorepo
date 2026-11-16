@@ -594,7 +594,7 @@ class Replay {
 
         switch (op) {
             case "graph.filter":
-                return this.filter(at, command);
+                return this.applyFilter(at, command);
             case "set.define":
                 this.define(at, command);
                 return true;
@@ -607,7 +607,7 @@ class Replay {
         }
     }
 
-    private async filter(at: number, command: JsonObject): Promise<boolean> {
+    private async applyFilter(at: number, command: JsonObject): Promise<boolean> {
         const { where, on } = command;
         if (typeof where !== "string" || (on !== undefined && on !== "nodes" && on !== "edges")) {
             this.report("E_BAD_DOCUMENT", `${at}`);

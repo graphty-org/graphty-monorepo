@@ -602,7 +602,7 @@ function repeatsKey(table: Table | undefined, column: string | undefined): boole
         return false;
     }
 
-    const keys = table.cells[column].map(keyText).filter((key) => key !== undefined);
+    const keys = table.cells[column].map((cell) => keyText(cell)).filter((key) => key !== undefined);
     return new Set(keys).size < keys.length;
 }
 
@@ -881,78 +881,78 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
         }
     };
 
-    operations.forEach((operation, at) => {
-        const target = operation.node ?? operation.edge;
-        switch (operation.op) {
-            case "merge": {
-                const [kept, gone] = [nodeOf(operation.into), nodeOf(operation.from)];
-                if (kept === undefined || gone === undefined) {
-                    absent(at, kept === undefined ? operation.into : operation.from);
-                    return;
-                }
+    const merge = (operation: JsonObject, at: number): void => {
+        const [kept, gone] = [nodeOf(operation.into), nodeOf(operation.from)];
+        if (kept === undefined || gone === undefined) {
+            absent(at, kept === undefined ? operation.into : operation.from);
+            return;
+        }
 
-                if (kept === gone) {
-                    return;
-                }
+        if (kept === gone) {
+            return;
+        }
 
-                for (const [name, value] of Object.entries(gone.columns)) {
-                    if (!(name in kept.columns)) {
-                        kept.columns[name] = value;
-                    }
-                }
-
-                gone.loads.forEach((load) => !kept.loads.includes(load) && kept.loads.push(load));
-                for (const edge of into.edges.values()) {
-                    edge.from = edge.from === gone ? kept : edge.from;
-                    edge.to = edge.to === gone ? kept : edge.to;
-                }
-
-                into.nodes.delete(recordKey(gone.ref.space, gone.ref.key));
-                return;
-            }
-            case "remove": {
-                const node = operation.node === undefined ? undefined : nodeOf(operation.node);
-                const edge = operation.edge === undefined ? undefined : edgeOf(operation.edge);
-                if (node !== undefined) {
-                    removeNode(node);
-                } else if (edge !== undefined) {
-                    into.edges.delete(edgeKey(edge.ref));
-                } else {
-                    absent(at, target);
-                }
-
-                return;
-            }
-            case "add": {
-                const columns = addedValues(operation);
-                const node = nodeRefOf(operation.node);
-                if (node !== undefined) {
-                    const added = nodeAt(into, node, columns.id ?? node.key);
-                    Object.assign(added.columns, columns);
-                    added.loads.push(READER);
-                    return;
-                }
-
-                const [a, b] = [nodeOf(operation.from), nodeOf(operation.to)];
-                const ref = edgeRefOf(operation.edge) as EdgeRef;
-                if (a === undefined || b === undefined) {
-                    absent(at, a === undefined ? operation.from : operation.to);
-                    return;
-                }
-
-                into.edges.set(edgeKey(ref), { from: a, to: b, columns, ref, unmatched: "add" });
-                return;
-            }
-            default: {
-                const element = operation.node === undefined ? edgeOf(operation.edge) : nodeOf(operation.node);
-                if (element === undefined) {
-                    absent(at, target);
-                    return;
-                }
-
-                element.columns[String(operation.column)] = operation.value;
+        for (const [name, value] of Object.entries(gone.columns)) {
+            if (!(name in kept.columns)) {
+                kept.columns[name] = value;
             }
         }
+
+        gone.loads.forEach((load) => !kept.loads.includes(load) && kept.loads.push(load));
+        for (const edge of into.edges.values()) {
+            edge.from = edge.from === gone ? kept : edge.from;
+            edge.to = edge.to === gone ? kept : edge.to;
+        }
+
+        into.nodes.delete(recordKey(gone.ref.space, gone.ref.key));
+    };
+    const remove = (operation: JsonObject, at: number): void => {
+        const node = operation.node === undefined ? undefined : nodeOf(operation.node);
+        const edge = operation.edge === undefined ? undefined : edgeOf(operation.edge);
+        if (node !== undefined) {
+            removeNode(node);
+        } else if (edge !== undefined) {
+            into.edges.delete(edgeKey(edge.ref));
+        } else {
+            absent(at, operation.node ?? operation.edge);
+        }
+    };
+    const add = (operation: JsonObject, at: number): void => {
+        const columns = addedValues(operation);
+        const node = nodeRefOf(operation.node);
+        if (node !== undefined) {
+            const added = nodeAt(into, node, columns.id ?? node.key);
+            Object.assign(added.columns, columns);
+            added.loads.push(READER);
+            return;
+        }
+
+        const [a, b] = [nodeOf(operation.from), nodeOf(operation.to)];
+        const ref = edgeRefOf(operation.edge) as EdgeRef;
+        if (a === undefined || b === undefined) {
+            absent(at, a === undefined ? operation.from : operation.to);
+            return;
+        }
+
+        into.edges.set(edgeKey(ref), { from: a, to: b, columns, ref, unmatched: "add" });
+    };
+    const edit = (operation: JsonObject, at: number): void => {
+        const element = operation.node === undefined ? edgeOf(operation.edge) : nodeOf(operation.node);
+        if (element === undefined) {
+            absent(at, operation.node ?? operation.edge);
+            return;
+        }
+
+        element.columns[String(operation.column)] = operation.value;
+    };
+
+    const apply = new Map<unknown, (operation: JsonObject, at: number) => void>([
+        ["merge", merge],
+        ["remove", remove],
+        ["add", add],
+    ]);
+    operations.forEach((operation, at) => {
+        (apply.get(operation.op) ?? edit)(operation, at);
     });
 }
 
@@ -1132,7 +1132,7 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
         }
 
         if (!built.directed) {
-            ends.sort(); // NOSONAR(S2871): code-unit order, as the element's pair key sorts
+            ends.sort((a, b) => (a < b ? -1 : Number(a > b))); // code-unit order, as the element's pair key sorts
         }
 
         return [JSON.stringify(ends)];

@@ -622,6 +622,16 @@
       "count": 5
     }
   },
+  "src/session/document2/codecs/style.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 3
+    }
+  },
+  "src/session/document2/framing.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    }
+  },
   "src/session/groups.ts": {
     "unicorn/no-array-callback-reference": {
       "count": 1

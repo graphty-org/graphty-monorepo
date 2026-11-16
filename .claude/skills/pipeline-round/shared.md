@@ -159,6 +159,13 @@ Marking an issue always means both: `gh issue edit <n> --add-label in-progress` 
 
 - `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>[; files <path> ...]`
   (issue-round names the files the job will touch, for its collision check)
+
+The issue-group ledger (`tmp/issue-round/groups.json`, kept by `tools/issue-groups.mjs`; design/ci/issue-grouping.md)
+follows these markers: `node tools/issue-groups.mjs check --fix` starts a group on `taken`, readies it on `ready`,
+freezes it on `opened` (it never takes another issue after that), takes a member out on `released`, and closes or
+dissolves it when its pull request merges or closes. Write the markers exactly as below, newest last, so it reads them
+right; it reads only trusted authors and orders markers by comment id.
+
 - `pipeline-round: ready <branch> <sha>` (the work is finished; written just before `pr-open.sh`)
 - `pipeline-round: opened <branch> <pull request url>` (after `pr-open.sh` printed the URL)
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a red pull request)

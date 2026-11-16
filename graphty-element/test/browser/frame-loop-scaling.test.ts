@@ -22,9 +22,12 @@ import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
+import { laneStoreOf } from "../../src/managers/DataManager";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
+import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { Node } from "../../src/Node";
+import { RowTable } from "../../src/render/RowTable";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 
@@ -79,26 +82,142 @@ interface CallCount {
     changed: number;
 }
 
+/** A live count, and the function that takes its counters off. */
+interface Counter {
+    /** The count so far. */
+    count: CallCount;
+    /** Take the counters off. */
+    restore: () => void;
+}
+
+/**
+ * Wrap a method on every instance of a class until the returned function is called.
+ * @param proto - The class prototype.
+ * @param name - The method.
+ * @param around - Runs in its place, with the instance, the arguments and the original call.
+ * @returns The function that puts the method back.
+ */
+function wrap(
+    proto: object,
+    name: string,
+    around: (self: unknown, args: unknown[], run: () => unknown) => unknown,
+): () => void {
+    const target = proto as Record<string, (...args: unknown[]) => unknown>;
+    const original = target[name];
+    target[name] = function (this: unknown, ...args: unknown[]) {
+        return around(this, args, () => original.apply(this, args));
+    };
+    return () => {
+        target[name] = original;
+    };
+}
+
 /**
  * Count the calls to a method on every instance of a class, until `restore` is called.
  * @param proto - The class prototype.
  * @param name - The method.
  * @returns The live count and the function that takes the counter off.
  */
-function countCalls(proto: object, name: string): { count: CallCount; restore: () => void } {
-    const target = proto as Record<string, (...args: unknown[]) => unknown>;
-    const original = target[name];
+function countCalls(proto: object, name: string): Counter {
     const count: CallCount = { calls: 0, changed: 0 };
-    target[name] = function (this: unknown, ...args: unknown[]) {
-        const result = original.apply(this, args);
+    const restore = wrap(proto, name, (_self, _args, run) => {
+        const result = run();
         count.calls++;
         count.changed += result === true ? 1 : 0;
         return result;
+    });
+    return { count, restore };
+}
+
+/**
+ * Count the nodes repainted: through their `Node`, or, on the `"batched"` path, as a row a batch
+ * draws with no `Node` (`NodeBatches.paintRow`, false for a row that needs a `Node` and is then
+ * painted through it). Most rows of a graph loaded on `"batched"` have no `Node`.
+ * @returns The live count and the function that takes the counters off.
+ */
+function countPaints(): Counter {
+    const nodes = countCalls(Node.prototype, "applySessionPaint");
+    const rows = countCalls(NodeBatches.prototype, "paintRow");
+    return {
+        count: {
+            get calls() {
+                return nodes.count.calls + rows.count.changed;
+            },
+            changed: 0,
+        },
+        restore: () => {
+            nodes.restore();
+            rows.restore();
+        },
     };
+}
+
+/**
+ * Count the nodes placed: a `Node` by each update, or, on the `"batched"` path, a row drawn with no
+ * `Node` each time the row table copies it from the layout (`RowTable.repackRow`, which leaves a
+ * row a `Node` holds in its own place alone).
+ * @param graph - The graph, whose batches hold the rows drawn with no `Node`.
+ * @returns The live count and the function that takes the counters off.
+ */
+function countPlacements(graph: Graph): Counter {
+    const nodes = countCalls(Node.prototype, "update");
+    const count: CallCount = { calls: 0, changed: 0 };
+    const restoreRows = wrap(RowTable.prototype, "repackRow", (_self, args, run) => {
+        const [row] = args as [number];
+        count.calls += graph.getNodeBatches()?.columnRowOf(row) === undefined ? 0 : 1;
+        return run();
+    });
+    return {
+        count: {
+            get calls() {
+                return nodes.count.calls + count.calls;
+            },
+            changed: 0,
+        },
+        restore: () => {
+            nodes.restore();
+            restoreRows();
+        },
+    };
+}
+
+/**
+ * Count the view mask writes: to a `Node`'s state, or, on the `"batched"` path, to the hidden flag of
+ * a row drawn with no `Node` (`RowTable.hide`; the hide a `Node` writes its own row through is part
+ * of its state's write, and is not counted again). `changed` counts the writes that showed or hid one.
+ * @returns The live count and the function that takes the counters off.
+ */
+function countMaskWrites(): Counter {
+    const count: CallCount = { calls: 0, changed: 0 };
+    let inNode = false;
+    const restoreNodes = wrap(Node.prototype, "setRenderState", (_self, _args, run) => {
+        inNode = true;
+        try {
+            const result = run();
+            count.calls++;
+            count.changed += result === true ? 1 : 0;
+            return result;
+        } finally {
+            inNode = false;
+        }
+    });
+    const restoreRows = wrap(RowTable.prototype, "hide", (self, args, run) => {
+        if (inNode) {
+            return run();
+        }
+
+        const [row, hidden] = args as [number, boolean];
+        const was = (self as RowTable).isHidden(row);
+        const result = run();
+        count.calls++;
+        count.changed += was === hidden ? 0 : 1;
+        return result;
+    });
     return {
         count,
         restore: () => {
-            target[name] = original;
+            restoreNodes();
+            restoreRows();
         },
     };
 }
@@ -169,23 +288,21 @@ interface Case {
 }
 
 /**
- * Count calls to `name` on `proto` across `call`, and hand the count to `check`.
- * @param proto - The class prototype.
- * @param name - The method.
+ * Count across `call`, and hand the count to `check`.
+ * @param install - Puts the counter on.
  * @param call - The call to count across.
  * @param check - Asserts on the count once the call is over.
  * @returns The call to count, and the check run after it.
  */
 function counting(
-    proto: object,
-    name: string,
+    install: () => Counter,
     call: () => unknown,
     check: (count: CallCount) => void,
 ): { call: () => Promise<void>; check: () => void } {
     let count: CallCount = { calls: 0, changed: 0 };
     return {
         call: async () => {
-            const counter = countCalls(proto, name);
+            const counter = install();
             try {
                 await call();
             } finally {
@@ -216,8 +333,7 @@ const CASES: readonly Case[] = [
         prepare: (element) =>
             Promise.resolve(
                 counting(
-                    Edge.prototype,
-                    "update",
+                    () => countCalls(Edge.prototype, "update"),
                     () => element.graph.update(),
                     (count) => {
                         assert.strictEqual(count.calls, 0, "a frame at rest walks no edge");
@@ -266,8 +382,7 @@ const CASES: readonly Case[] = [
             const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 counting(
-                    Edge.prototype,
-                    "update",
+                    () => countCalls(Edge.prototype, "update"),
                     () => {
                         manager.forceEdgeWalk();
                         manager.update();
@@ -283,10 +398,16 @@ const CASES: readonly Case[] = [
         methods: ["UpdateManager.redrawArrangement"],
         prepare: (element, size) => {
             const manager = element.graph.getUpdateManager();
+            // A restore writes the arrangement, then the redraw moves every node to it.
+            const { positions } = laneStoreOf(element.graph.getDataManager());
+            const at = { x: 0, y: 0, z: 0 };
+            for (let row = 0; row < size; row++) {
+                positions.read(row, at);
+                positions.write(row, at.x + 1, at.y, at.z);
+            }
             return Promise.resolve(
                 counting(
-                    Node.prototype,
-                    "update",
+                    () => countPlacements(element.graph),
                     () => {
                         manager.redrawArrangement(true);
                     },
@@ -303,8 +424,7 @@ const CASES: readonly Case[] = [
             const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 counting(
-                    Node.prototype,
-                    "setRenderState",
+                    countMaskWrites,
                     () => {
                         manager.invalidateViewMasks();
                         manager.update();
@@ -325,8 +445,7 @@ const CASES: readonly Case[] = [
             const first = element.graph.getNode("n0");
             assert.strictEqual(first?.getRenderState(), "hidden", "the filter hid the end of the path");
             return counting(
-                Node.prototype,
-                "setRenderState",
+                countMaskWrites,
                 () => {
                     // Unbound, the whole graph is drawn: the next pass shows the hidden ends again.
                     manager.bindViewMasks(null);
@@ -345,8 +464,7 @@ const CASES: readonly Case[] = [
             await hideEnds(element.graph);
             const manager = element.graph.getUpdateManager();
             return counting(
-                Node.prototype,
-                "setRenderState",
+                countMaskWrites,
                 () => {
                     manager.syncViewMasks();
                 },
@@ -369,8 +487,7 @@ const CASES: readonly Case[] = [
             assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
             const manager = graph.getUpdateManager();
             return counting(
-                Node.prototype,
-                "applySessionPaint",
+                countPaints,
                 () => {
                     manager.syncStyles();
                 },
@@ -393,8 +510,7 @@ const CASES: readonly Case[] = [
             assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
             const manager = graph.getUpdateManager();
             return counting(
-                Node.prototype,
-                "applySessionPaint",
+                countPaints,
                 () => {
                     manager.drawArrivedPaint();
                 },
@@ -419,8 +535,7 @@ const CASES: readonly Case[] = [
             graph.getUpdateManager().update();
             let kinds: string[] = [];
             const painting = counting(
-                Node.prototype,
-                "applySessionPaint",
+                countPaints,
                 async () => {
                     const layers = await graph.getSession().styles.highlight({ run: route.id });
                     kinds = layers.map((layer) => `${layer.target} ${layer.kind}`);
@@ -449,8 +564,7 @@ const CASES: readonly Case[] = [
             graph.getUpdateManager().update();
             let kinds: string[] = [];
             return counting(
-                Node.prototype,
-                "applySessionPaint",
+                countPaints,
                 async () => {
                     const layers = await graph
                         .getSession()
@@ -476,8 +590,7 @@ const CASES: readonly Case[] = [
             await settled(graph);
             graph.getUpdateManager().renderFrames(1);
             return counting(
-                RichTextLabel.prototype,
-                "startAnimation",
+                () => countCalls(RichTextLabel.prototype, "startAnimation"),
                 () => {
                     graph.getDataManager().startLabelAnimations();
                 },
@@ -685,7 +798,7 @@ describe("a repaint of every node", () => {
 
             const perFrame: number[] = [];
             while (painter.hasPending && perFrame.length < size) {
-                const counter = countCalls(Node.prototype, "applySessionPaint");
+                const counter = countPaints();
                 try {
                     manager.syncStyles(0);
                 } finally {

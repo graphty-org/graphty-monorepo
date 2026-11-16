@@ -364,6 +364,9 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
     return corners.every(([x, y]) => Math.hypot((x - cx) / (rx + INSIDE_SLACK), (y - cy) / (ry + INSIDE_SLACK)) <= 1);
 }
 
+/** Two node fronts this close in depth, in world units, are at one depth. */
+const SAME_DEPTH = 1e-6;
+
 /**
  * For each drawn node, the node that hides it: a visible, opaque node whose outline covers the
  * whole of its box (`coveredBy`) and whose front is nearer the camera than its own. A group drawn
@@ -374,8 +377,14 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
 export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, string> {
     const out = new Map<string, string>();
     const covers = [...nodes].filter(([, b]) => b.visible && b.fillDrawn !== null && b.fillOpacity >= OPAQUE);
+    const order = new Map([...nodes.keys()].map((id, k) => [id, k]));
+    // two fronts at one depth (a flat drawing of a file's z, pajek-1crn v27 inside v28) pass the depth test in the
+    // order they are drawn, the graph's: the later one shows over the earlier
+    const inFront = (other: string, b: DrawnNode, id: string, a: DrawnNode): boolean =>
+        b.box.near < a.box.near - SAME_DEPTH ||
+        (Math.abs(b.box.near - a.box.near) <= SAME_DEPTH && (order.get(other) ?? 0) > (order.get(id) ?? 0));
     for (const [id, a] of nodes) {
-        const hit = covers.find(([other, b]) => other !== id && b.box.near < a.box.near && coveredBy(a, b));
+        const hit = covers.find(([other, b]) => other !== id && inFront(other, b, id, a) && coveredBy(a, b));
         if (hit !== undefined) {
             out.set(id, hit[0]);
         }

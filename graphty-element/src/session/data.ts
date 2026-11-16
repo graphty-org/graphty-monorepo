@@ -39,6 +39,7 @@ import type {
     AttributeType,
     AttributeUse,
     EdgeId,
+    LayerId,
     Measurement,
     MeasurementDeclaration,
     Path,
@@ -192,6 +193,7 @@ import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
+import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -3323,6 +3325,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+        const stale = this.staleLayers(goingNodes, goingEdges);
         await this.writes.send({
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
@@ -3337,6 +3340,7 @@ export class SessionData implements SessionDataApi {
                     sources: left,
                     provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
+                ...stale.map((id) => ({ op: "style.patch" as const, action: "remove" as const, id })),
             ],
         });
         const after = this.current();
@@ -3348,6 +3352,31 @@ export class SessionData implements SessionDataApi {
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
             alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
+        });
+    }
+
+    /**
+     * The layers that read only columns the removed nodes and edges held and no element left holds.
+     * @param nodes - The nodes going.
+     * @param edges - The edges going.
+     * @returns The layers to remove with them.
+     */
+    private staleLayers(nodes: readonly NodeId[], edges: readonly EdgeId[]): LayerId[] {
+        const { nodes: nodeRecords, edges: edgeRecords } = this.writes.slice();
+        const goneOf = <K>(records: ReadonlyMap<K, GraphRecord>, going: readonly K[]): Set<string> => {
+            const leaving = new Set(going);
+            const gone = columnsOf(
+                going.flatMap((id): GraphRecord[] => {
+                    const record = records.get(id);
+                    return record === undefined ? [] : [record];
+                }),
+            );
+            const staying = columnsOf([...records].filter(([id]) => !leaving.has(id)).map(([, record]) => record));
+            return new Set([...gone].filter((column) => !staying.has(column)));
+        };
+        return layersReadingOnly(this.writes.readers().styles, {
+            node: goneOf(nodeRecords, nodes),
+            edge: goneOf(edgeRecords, edges),
         });
     }
 

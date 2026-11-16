@@ -48,6 +48,7 @@ import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/f
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
+import { columnsOf, layersReadingOnly } from "../styles/staleLayers";
 import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
@@ -990,6 +991,17 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
+        // A replacing load removes every earlier source: the layers that read only their columns go with them.
+        if (replacing && command.source.type !== undefined && command.source.config !== undefined) {
+            const gone = {
+                node: columnsOf(ctx.state.graph.nodes.values()),
+                edge: columnsOf(ctx.state.graph.edges.values()),
+            };
+            for (const id of layersReadingOnly(ctx.state.styles, gone)) {
+                await ctx.inline({ op: "style.patch", action: "remove", id });
+            }
+        }
+
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
         refreshDerivedAfter(ctx);
         if (outcome !== null && outcome !== undefined) {
@@ -998,7 +1010,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
 
         // The time field the file declares, designated in this same step.
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
-        // The file's styles, and the previous file's layers swept, in this same step.
+        // The file's styles, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is

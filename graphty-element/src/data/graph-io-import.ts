@@ -299,7 +299,7 @@ export async function importJsonRecords(
     } catch (error) {
         if (error instanceof ImportError) {
             aggregateErrors(error.report, errors);
-            throw parseFailed(jsonImporter, error);
+            throw parseFailed(jsonImporter.format, error);
         }
 
         throw error;

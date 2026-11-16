@@ -48,7 +48,7 @@ import type { CompiledLayer } from "../Layer";
 import type { ExportFlattenReason } from "./codes";
 import { computedOf } from "./path";
 import { ARROW_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES } from "./shapes";
-import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
+import { capLengthOf, LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -153,15 +153,28 @@ const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
 const ARROW_OF = inverse(ARROW_SHAPES);
 
 /**
- * An end cap's `stack` as a neutral `targetArrowParts` value.
+ * An end cap's `stack` as a neutral `targetArrowParts` value, each sized cap with its length and width.
  * @param value - The `stack` value.
  * @returns The parts, or null for none a file can name.
  */
 function stackParts(value: unknown): string | null {
-    const words = parseArrowStack(typeof value === "string" ? value : undefined).flatMap(({ type, side }) => {
-        const shape = ARROW_OF.get(type);
-        return shape === undefined ? [] : [side === undefined ? shape : `${shape}:${side}`];
-    });
+    const words = parseArrowStack(typeof value === "string" ? value : undefined).flatMap(
+        ({ type, side, size, width }) => {
+            const shape = ARROW_OF.get(type);
+            if (shape === undefined) {
+                return [];
+            }
+
+            const word = side === undefined ? shape : `${shape}:${side}`;
+            if (size === undefined) {
+                return [word];
+            }
+
+            // the row's proportions, which name a program's arrow of several pieces (yEd's crow's feet)
+            const { along, across } = capLengthOf(shape, size, width);
+            return [`${word}*${String(along)}${across === null ? "" : `x${String(across)}`}`];
+        },
+    );
     return words.length === 0 ? null : words.join(" ");
 }
 

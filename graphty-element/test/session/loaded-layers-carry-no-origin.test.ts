@@ -1,7 +1,7 @@
 /**
  * After a load, nothing the element keeps says which program, format or load produced it: no
  * layer, graph value or saved field names the format, no layer carries a `file:` template or a
- * `fileStyle`, a replacing load removes only the previous load's layers the reader left alone, and
+ * `fileStyle`, a replacing load or a removed source takes the layers that read only its columns with it, and
  * annotations are an ordinary graph feature any caller writes.
  */
 import { readFileSync } from "node:fs";
@@ -99,20 +99,28 @@ describe("a loaded file's layers and values", () => {
 });
 
 describe("a replacing load", () => {
-    it("keeps the previous load's layers, as it keeps hand-made ones", async () => {
+    it("removes the layers that read only the earlier data's columns, and keeps every other", async () => {
         const session = createGraphSession();
         await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
         const first = loadedLayers(session).map((layer) => layer.id);
         assert.isAbove(first.length, 1);
+        const { id: fixed } = await session.styles.add({
+            name: "everything red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        const before = session.styles.list().map((layer) => layer.name);
 
+        // The same file again: its layers replace the earlier ones rather than piling up beside them.
         await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
         const ids = session.styles.list().map((layer) => layer.id);
-        for (const id of first) {
-            assert.include(ids, id);
-        }
-
-        assert.isNotEmpty(loadedLayers(session));
-        assert.isTrue(loadedLayers(session).every((layer) => !first.includes(layer.id)));
+        assert.include(ids, fixed);
+        assert.strictEqual(loadedLayers(session).length, first.length);
+        assert.sameMembers(
+            session.styles.list().map((layer) => layer.name),
+            before,
+        );
         session.dispose();
     });
 
@@ -126,6 +134,43 @@ describe("a replacing load", () => {
             session.styles.list().map((layer) => layer.id),
             before,
         );
+        session.dispose();
+    });
+});
+
+describe("a removed source", () => {
+    it("takes the layers that read only its columns, and keeps those another source still feeds", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
+        const loaded = loadedLayers(session).map((layer) => layer.id);
+        const other = JSON.stringify({ nodes: [{ id: "z", team: "x" }], edges: [] });
+        await session.data.import({ type: "json", config: { data: other } }, { mode: "merge" });
+        const { id: byTeam } = await session.styles.add({
+            name: "by team",
+            target: "node",
+            kind: "encoding",
+            selector: { match: "everything" },
+            encode: {
+                "node.color": { by: "data.team", scale: "passthrough", map: { x: "#00ff00" }, unmapped: "skip" },
+            },
+        });
+        const [first] = session.data.sources();
+
+        await session.data.removeSource(first.key);
+        const ids = session.styles.list().map((layer) => layer.id);
+        for (const id of loaded) {
+            assert.notInclude(ids, id);
+        }
+
+        assert.include(ids, byTeam);
+        await session.undo();
+        for (const id of loaded) {
+            assert.include(
+                session.styles.list().map((layer) => layer.id),
+                id,
+            );
+        }
+
         session.dispose();
     });
 });

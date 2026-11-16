@@ -315,11 +315,18 @@ async function applyRead(
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
+    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
 
-    // The values, written onto the elements the element holds as ordinary data columns.
+    // The values, written onto the elements the element holds as ordinary data columns: only those a layer or the
+    // visibility filter reads, so a value a layer the file rebuilt no longer reads leaves no column behind.
+    const reads = readsOf(accepted);
     for (const kind of ["node", "edge"] as const) {
+        const hiddenKey = translation.hidden[kind]?.key;
+        const used = new Map(
+            [...translation.columns[kind]].filter(([key]) => key === hiddenKey || reads(columnPath(kind, key))),
+        );
         const rows = rowsOf(
-            translation.columns[kind],
+            used,
             ids[kind],
             (key) => columnPath(kind, key),
             kind === "node" ? ctx.state.graph.nodes : ctx.state.graph.edges,
@@ -328,8 +335,6 @@ async function applyRead(
             await ctx.inline({ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows } });
         }
     }
-
-    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
 
     const layers: LayerId[] = [];
     if (accepted.length > 0) {
@@ -383,10 +388,42 @@ async function applyRead(
 const DATA_PREFIX = "data.";
 
 /**
+ * Whether any of the layers reads a path, in a binding, a selector or an expression.
+ * @param specs - The layers.
+ * @returns For a `data.` path, true when a layer reads it.
+ */
+function readsOf(specs: readonly LayerSpec[]): (path: Path) => boolean {
+    const texts: string[] = [];
+    JSON.stringify(specs, (_key, value: unknown) => {
+        if (typeof value === "string") {
+            texts.push(value);
+        }
+
+        return value;
+    });
+    return (path) => {
+        const spellings = [path, quotePath(path)].map((p) => p.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
+        const pattern = new RegExp(`(?:${spellings.join("|")})(?![\\w])`);
+        return texts.some((text) => pattern.test(text));
+    };
+}
+
+/**
+ * The record keys the element reads as the graph's structure rather than as data, per kind: an
+ * edge's ends, its own direction and its capacity (`resolveEdgeDirected`, `resolveEdgeCapacity`).
+ * A load's values never land under one, so they never change the graph they style.
+ */
+const STRUCTURE_KEYS: Readonly<Record<"node" | "edge", ReadonlySet<string>>> = {
+    node: new Set(["id"]),
+    edge: new Set(["id", "source", "target", "directed", "type", "capacity", "value"]),
+};
+
+/**
  * Names the data columns a load's values land in, each once: the key with every character but a
  * letter, a digit or an underscore written as an underscore (a dot in a path would nest, and every
  * format spells such a name back unchanged); a copy graph-io carries of a data column a format
- * could not keep takes the name of the column it copies. A name a record or a layer already uses
+ * could not keep is written back into the column it copies, on the load's own elements, so the
+ * column holds its values exactly as they were written. Any other name a record or a layer already uses
  * becomes `<name> (<source id>)`, so a load never writes over other data or feeds an existing
  * layer, unless the load's own elements already hold these values under it as a file spells them
  * (a file graphty wrote carries its columns; a format with no booleans holds `1`), which the load
@@ -414,7 +451,7 @@ function columnNamer(
             return existing;
         }
 
-        const names = new Set<string>();
+        const names = new Set<string>(STRUCTURE_KEYS[kind]);
         for (const record of recordsOf(kind).values()) {
             for (const key of Object.keys(record)) {
                 names.add(key);
@@ -458,10 +495,12 @@ function columnNamer(
         }
 
         const names = takenOf(kind);
-        const base = carried(kind, key) ?? key.replaceAll(/\W/g, "_");
+        const copied = carried(kind, key);
+        const base = copied ?? key.replaceAll(/\W/g, "_");
         let name = base;
         let n = 1;
-        while (names.has(name) && !holds(kind, name, values)) {
+        // A copy of a data column is that column's own values as written: they go back into it.
+        while (copied === null && names.has(name) && !holds(kind, name, values)) {
             const count = n === 1 ? "" : ` ${String(n)}`;
             name = `${base} (${sourceId}${count})`.replaceAll(".", "_");
             n++;

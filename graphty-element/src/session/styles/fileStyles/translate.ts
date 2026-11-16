@@ -57,15 +57,17 @@ const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+/** The same key for any property, a dotted one among them (`input.graphty:node.size.data.<column>`). */
+const CARRIED_ANY_INPUT = /^input\.(?:(?!data\.)[^.]+\.)*?data\.(.+)$/;
 
 /**
  * The data column a style column copies, when the column is the copy graph-io writes of a data column a format
- * cannot keep (`input.data.<column>`, `input.<property>.data.<column>`).
+ * cannot keep (`input.data.<column>`, `input.<property>.data.<column>`, the property dotted or not).
  * @param key - The style column's key.
  * @returns The copied column's name, or null for any other key.
  */
 export function carriedColumnOf(key: string): string | null {
-    return CARRIED_INPUT.exec(key)?.[1] ?? null;
+    return CARRIED_ANY_INPUT.exec(key)?.[1] ?? null;
 }
 
 /** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
@@ -1192,6 +1194,23 @@ function capSizeOf(
     const size = round((extent * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
     const width = breadth === null ? null : round(breadth / extent / (CAP_ASPECT.get(shape) ?? 1));
     return { size, width: width === 1 ? null : width };
+}
+
+/**
+ * A stacked cap's length along its line and width across it, in scene units, from the element's size and width: the
+ * inverse of {@link capSizeOf} at one scene unit per file unit, so an export writes the row's proportions as read.
+ * @param shape - The neutral arrow shape.
+ * @param size - The element cap's size.
+ * @param width - The element cap's width, or undefined for the cap's own proportions.
+ * @returns The length, and the width (null for the cap's own proportions).
+ */
+export function capLengthOf(
+    shape: string,
+    size: number,
+    width: number | undefined,
+): { along: number; across: number | null } {
+    const along = round(size * EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1));
+    return { along, across: width === undefined ? null : round(width * along * (CAP_ASPECT.get(shape) ?? 1)) };
 }
 
 /**

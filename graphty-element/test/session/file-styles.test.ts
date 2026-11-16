@@ -417,21 +417,21 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("leaves the previous file's layers like hand-made ones when a load replaces the graph, painting nothing new", async () => {
+    it("takes the previous file's layers away with its data when a load replaces the graph", async () => {
         const session = createGraphSession();
         const source = { type: "gexf", config: { data: coloredGexf("n", ["255,0,0", "0,0,255"]) } };
         await session.data.import(source, { styles: "file" });
         const first = fileLayers(session).map((layer) => layer.id);
+        const before = session.styles.list().length;
         await session.data.import(
             { type: "gexf", config: { data: coloredGexf("m", ["0,255,0", "0,0,255"]) } },
             { styles: "file" },
         );
-        // The first file's layers stay, as any layer does; the second load's columns take names no layer read,
-        // so the first file's layers paint nothing on the new graph.
-        const ids = session.styles.list().map((layer) => layer.id);
-        assert.isTrue(first.every((id) => ids.includes(id)));
+        // The first file's layers read only its columns, which went with its data; the second file's layers take
+        // their place, in the same columns, rather than piling up beside them.
         assert.strictEqual(fileLayers(session).length, first.length);
-        assert.deepEqual(namespaces(session), ["values-2"]);
+        assert.strictEqual(session.styles.list().length, before);
+        assert.deepEqual(namespaces(session), ["values"]);
         assert.strictEqual(drawn(session, { node: "m1" }, "node.color"), "#00ff00");
         session.dispose();
     });

@@ -544,54 +544,101 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   `priority:critical` issue "Nightly stalled since <date>" naming the blocking state. Over 48 hours,
   the issue gets an `ACTION NEEDED` line.
 
-### 7.1 Load and runner capacity (owner, 2026-10-26)
+### 7.1 Load and runner capacity
 
-**The load.** On 2026-10-26 master took about 76 pull requests in one day (Mergify averaged about 54
-a day from 2026-10-04 to 10-17, with a median of 32 minutes from queue entry to merge); the owner
-says this is the new normal. Merging keeps up. GitHub runners do not: the plan allows 60 concurrent
-jobs, and that afternoon runners were saturated for 55 of 60 minutes in an hour, jobs waited about
-14 minutes for a runner, pull request runs took 30 to 45 minutes against their 10-minute budget, and
-a master push build took a median 35 minutes of wall time (14 when runners were free) for about 30
-runner-minutes of work.
+GitHub-hosted runners, not merging, limit how fast pull requests get a verdict. This section records
+the load, why the answer was to cut work rather than buy runners, what has been built, and what the
+numbers say now. The work items and their state are in plan step 5a.
 
-**Capacity cannot be bought.** The owner found no way to raise runner concurrency substantially for
-under about $1,000 a month. So the plan cuts work instead, in this order (plan step 5a), and the full
-run stays first in line for runners, as today:
+**The load when the plan was made (2026-10-26).** Master took about 76 pull requests that day
+(Mergify had averaged about 54 a day from 2026-10-04 to 10-17); the owner called it the new normal.
+The organization was on GitHub's Team plan, 60 concurrent jobs. That afternoon runners were saturated
+for 55 of 60 minutes in an hour, jobs waited about 14 minutes for a runner, pull request runs took 30
+to 45 minutes against a 10-minute budget, and a master push build took a median 35 minutes of wall
+time (14 when runners were free) for about 30 runner-minutes of work. Runner-minutes per merged pull
+request were 387 over 7 days.
 
-1. **Stop work nobody uses.** (a) A newer push replaces a waiting master build; a running one
-   finishes (#3938: canceling running builds left master with no finished build while merges came
-   faster than one build). Only the newest build's site matters for canary, and the full run picks the
-   newest commit with a kept site, so a replaced waiting build only means a newer commit is built. This replaces "a push to master
-   never cancels" for superseded master builds only; nothing else on master is canceled, and
-   master-guard and the restart trigger learn to expect it in the same change. (b) A pull
-   request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
-   in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
-   parity holds (section 5, step 9): the largest single saving. (d) Fewer pushes per pull request:
-   on 2026-10-26, 99 of 244 pull request runs were canceled by a newer push to the same branch, a
-   median 6 minutes later, because every commit was pushed and `pr-open.sh` merged master into a branch
-   that was only behind; a branch with an open pull request is now pushed only on purpose.
-2. **Make each run smaller.** File-level test selection for the packages that still run whole
-   shards on a pull request; measure the nx remote build cache's hit rate and raise it; a real fast
-   path for a change to tools only or docs only.
-3. **Measure.** The health dashboard shows runner-minutes per merged pull request, split by kind
-   (pull request run, master build, full run, other), so each change shows its real saving.
-4. **Only then, if runners are still saturated,** decide on batching: replay a day of merges through
-   GitHub's native merge queue with merge groups and measure tests per batch, batch failure rate and
-   bisect cost. Mergify's record argues for measuring first: 809 CI runs for 761 merges (it barely
-   batched), 197 of them wasted.
+**The decision (owner, 2026-10-26): cut work first.** More runner capacity looked unavailable for
+under about $1,000 a month, so the plan cut work, in this order, with the full run first in line for
+runners:
+
+1. **Stop work nobody uses.** Superseded master builds, screenshot captures nobody reads, the old
+   built-Storybook capture, and pushes that only restart a pull request's run.
+2. **Make each run smaller.** File-level test selection for every package, a better nx remote cache
+   hit rate, and no package build or test shard for a change to docs or tools only.
+3. **Measure.** Runner-minutes per merged pull request on the health dashboard, split by kind of run,
+   so each change shows its saving.
+4. **Only then decide on batching**, from a replay of real runs.
+
+**What is built (all on master).**
+
+- **A newer master push replaces a waiting master build** (#3855). In ci.yml every first attempt of a
+  push to master shares the concurrency group `master-push` with `cancel-in-progress: false`, so a
+  newer push replaces a build still waiting to start, and a build already running finishes
+  (#3938: canceling running builds left master with no finished build while merges came faster than
+  one build). A re-run, a dispatch and the release train's call each run in a group of their own and
+  are never canceled. master-guard treats a replaced build as superseded, not red, and
+  `release-due.mjs` reads every merge since the last finished master build, so a replaced build's
+  `Fixes #N` still starts its restart. Nobody cancels a master build by hand.
+- **Fewer pushes per pull request** (#3930). On 2026-10-26, 99 of 244 pull request runs were
+  canceled by a newer push to the same branch, a median 6 minutes later. Now `tools/branch-push.sh`
+  (the post-commit hook) does not push a branch that has an open pull request, and `tools/pr-open.sh`
+  merges master into a branch only on a conflict or with `--merge-master`.
+- **Unneeded screenshot captures stop** once a pull request's verdict is in (#3858), and the old
+  built-Storybook capture is gone: the story tests are the capture (#4038, 2026-10-27).
+- **File-level selection** covers every package with tests (`fileLevel` in
+  `tools/test-select-rules.json`; #3860, and #3894 for visual-review's dependents); the browser
+  projects of compact-mantine, graphty, graphty-element, graph-io and algorithms select files too.
+  A change only to `design/`, `.github/`, `.claude/`, root Markdown or docs runs no test shard
+  (`noTests`), and a change only to `tools/` runs the tool tests and only the package tests whose imports reach the changed file.
+- **nx remote cache hit rate** is measured per task and its largest misses were fixed (#3859);
+  pull request jobs restore master's caches and never save their own (#5723).
+- **Runner-minutes per merge** is on the health dashboard as `ci.runner_minutes` (#3854): every job's
+  minutes, by kind of run (pull request, master build, full run, other), divided by the pull requests
+  merged in the same window. Target 400 or less over 7 days, red above 600.
+- **The pull request run cap** (`tools/ci-run-cap.mjs`, #3636, counted in jobs since #7675). A pull
+  request run's first job, `Run cap`, waits on one small runner while earlier pull request runs hold
+  `CI_PR_JOB_BUDGET` (default 150) jobs or more, or while a full run waits for a runner, so the full
+  run goes first and admitted runs do not all slow each other down.
+
+**Capacity changed after the plan (2026-10-29).** The organization moved to GitHub Enterprise Cloud,
+whose limit for standard hosted runners is 300 concurrent jobs on this account (#4581, #6623). In
+practice GitHub runs about 180 jobs at once for this repository: over 24 hours to 2026-11-16 the
+hourly peak of running jobs sat between 180 and 183 in most busy hours and never reached 300.
+
+**The numbers now (health dashboard, 2026-11-16).**
+
+| Measure                                    | 2026-10-26     | 2026-11-16                                       |
+| ------------------------------------------ | -------------- | ------------------------------------------------ |
+| Pull requests merged                       | about 76 a day | 93 in the last day, 669 in 7 days (about 96/day) |
+| Concurrent job limit                       | 60             | 300 (about 180 used at most)                     |
+| Wait for a runner (median, last hour)      | about 14 min   | 14.4 min (target 5, red over 15)                 |
+| Pull request run time against its budget   | 3 to 4.5 times | 4.5 times in the last hour, 3.1 over 6 hours     |
+| Runner-minutes per merge, 7 days           | 387            | 1,083 (target 400, red over 600)                 |
+| ...of which pull request runs              | --             | 904                                              |
+| ...master builds / full runs / other       | --             | 21 / 99 / 59                                     |
+| Jobs queued at the busiest hour (24 hours) | --             | 806                                              |
+
+The cuts worked where they aimed: master builds now cost 21 runner-minutes per merge, and the
+superseded-run page shows nothing left running for a newer push. But pull request runs grew to 904
+runner-minutes per merge, more than twice the whole 387 of 2026-10-26, so the queue is as long as
+before with about three times as many jobs running at once. Finding what grew is the open item (plan step 5a,
+`pr-run-minutes-growth`).
 
 **The batching decision (owner, 2026-10-27).** A replay of recorded pull request runs on 2026-10-26
-measured the options. A merged pull request cost 279 runner-minutes. Of pull request runs, 1.9%
-failed on tests the pull request itself broke, 4.6% on a failure shared with master, 1% on a flaky
-test, and 16% on a cheap check (build, lint, the checks job, docs). Running the cheap checks on
-every push and the full suite once saves 31% of runner-minutes and adds 14 minutes to the median
-time to merge. Mergify batches of 4 behind a cheap-check gate save 51% but put the median time to
-merge at 83 minutes; they break even on runner-minutes at about an 18% batch failure rate, and the
-wait is acceptable only below about 5%. The decision: neither run-the-suite-once nor GitHub's merge
-queue now. Mergify batching comes back on (batches of 4, at most 30 minutes' wait for a batch to
-fill, cheap checks required before a pull request enters the queue) when both hold: over 7 days,
-fewer than 5% of queue entries have a pull request run that failed on tests the pull request
-touched, and the rule that lets a failure unrelated to the pull request through (#3925) is live.
+measured the options. A merged pull request cost 279 runner-minutes in that replay. Of pull request
+runs, 1.9% failed on tests the pull request itself broke, 4.6% on a failure shared with master, 1% on
+a flaky test, and 16% on a cheap check (build, lint, the checks job, docs). Running the cheap checks
+on every push and the full suite once saves 31% of runner-minutes and adds 14 minutes to the median
+time to merge. Batches of 4 behind a cheap-check gate save 51% but put the median time to merge at 83
+minutes; they break even on runner-minutes at about an 18% batch failure rate, and the wait is
+acceptable only below about 5%. The decision: no batching for now. Batching comes back (batches of 4,
+at most 30 minutes' wait for a batch to fill, cheap checks required before a pull request enters the
+queue) when, over 7 days, fewer than 5% of queue entries have a pull request run that failed on tests
+the pull request touched. The other condition of that decision, letting a failure unrelated to the
+pull request through, is built (#3925). The Mergify queue it named was retired on 2026-10-28; batching
+would come back the way [merging.md](channels-pipeline/merging.md) describes for skew breaks, through
+Mergify or GitHub's own merge queue.
 
 ## 8. Feature flags
 
@@ -690,7 +737,8 @@ step's code-owned edits go in one pull request per step, listed in migration sec
    Dependabot pull request auto-merged and built.
    5a. **Runner load** (section 7.1): stop unused work, shrink runs, measure runner-minutes per merge,
    then decide on batching. After: 5. Done: runners no longer saturated at the day's merge rate, or
-   the batching replay decided.
+   the batching replay decided. State (2026-11-16): every cut is built and batching was decided
+   against; runner-minutes per merge (1,083 over 7 days) is still over its red line.
 6. **Full run** with bisect and revert, publishing nothing; `hosts.yml` loses its cron. After: 5.
    Done: 8 slots green, or red with a culprit whose revert made the next green.
 7. **Nightly and npm `next`:** the publish job declares `environment: release`, then the owner binds

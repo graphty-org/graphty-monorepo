@@ -369,8 +369,7 @@ the analyst out of anything.
 - **Behavior:** the object is added at once. A new set or path becomes the selection; a new
   result, layer, step or view is focused. Its editor opens when it has settings (a Chrome side
   effect). **Ordered sequences append at the end**, because position is their meaning (filter
-  steps, a recipe's steps; a departure, `principles.md`). **Style layers go on top**, which is
-  directly below Overrides (`conceptual-model.md` 5.1), because on top means "wins". The
+  steps, a recipe's steps; a departure, `principles.md`). **Style layers go on top** (`conceptual-model.md` 5.1), because on top means "wins". The
   group chord makes a fixed set and puts its name into rename. A catalog row follows `interaction-patterns.md` 3.3;
   hovering or focusing it shows its description and cost (6.7), and its (i) opens the description,
   so reading an algorithm never needs a click that runs it. Mod+click focuses several catalog rows without running them; Run shows their combined
@@ -521,7 +520,7 @@ Single-pointer alternatives (WCAG 2.5.7):
   and on an element selection's Appearance row, Figma's most habitual move, where the picker's first
   choice is labeled "Create set and color by Degree", so the set it makes is named before it is
   made, one element command and one undo step, the new set entering rename; the picker's lower group offers "Color by Degree (all nodes)", a graph-wide layer, and
-  says so. A binding never goes into Overrides, which holds constants only.
+  says so. Override writes constants only; a binding always names the set it paints.
 - **Behavior:** opens a picker of attributes grouped by origin (data, computed, authored); an
   attribute not yet computed shows its cost. Choosing binds the channel; the encoding kind follows
   the attribute's measurement level. What the bound pill shows, what activating it opens and what
@@ -585,8 +584,8 @@ Single-pointer alternatives (WCAG 2.5.7):
     Find limited to notes. "Which layer paints this?" is answered from the value: Appearance names
     each channel's winning layer (4.7).
   - **The count cut, the one collapse.** Sources interleave by time (the analyst's layers and the
-    runs' land in turn directly below Overrides), so a fold by source seldom forms and cannot cap a
-    long stack. At rest the stack shows Overrides when used, its top layers and Base style, and the
+    runs' land in turn on top), so a fold by source seldom forms and cannot cap a
+    long stack. At rest the stack shows its top layers and its bottom layer, and the
     rest behind one "N more" row, as Figma collapses Selection colors: Enter or a click expands it
     in place in the inspector's one scroll and moves focus to the first row it reveals, and Esc
     inside the expanded rows collapses it and returns focus to "N more". It **never reorders the

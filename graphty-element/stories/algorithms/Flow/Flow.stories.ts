@@ -143,9 +143,8 @@ export const BipartiteMatching: Story = {
 
         const { graph } = element;
 
-        // Apply suggested styles. The positions used to have to be saved and put back around
-        // this call, because applying a style walked every node and re-applied its layout
-        // position on the way; a style pass writes a color into an instance and moves nothing.
+        // Apply suggested styles. A style pass writes a color into an instance and moves no
+        // node, so the positions need no saving around it.
         const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
 
         await holds(

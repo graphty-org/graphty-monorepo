@@ -1,6 +1,7 @@
 # Layout extension point
 
-Status: draft specification against graphty-element 2.6.1. Shared rules are in `README.md`.
+Status: specification, first written against graphty-element 2.6.1. `defineLayout` shipped in
+graphty-element 3.0.1. Shared rules, and how to read "the next major", are in `README.md`.
 
 Normative files: `layout.d.ts`, `descriptors.schema.json#/$defs/LayoutDescriptor` and
 `#/$defs/AuthoredLayoutDescriptor`, and this document.
@@ -23,8 +24,8 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 
 A first layout is written with `defineLayout` (`simple-tier.md` section 4.2): an id, the options
 in short form, and `place(graph, context)`, which returns a map from node id to `[x, y]` or
-`[x, y, z]` in scene units. A node the map leaves out is unplaced. Nothing here runs in 2.6.1
-(`simple-tier.md`, status).
+`[x, y, z]` in scene units. A node the map leaves out is unplaced. `defineLayout` is exported from
+`@graphty/graphty-element/extend` since 3.0.1.
 
 ```ts
 import { defineLayout } from "@graphty/graphty-element/extend";
@@ -94,7 +95,7 @@ Kamada-Kawai and ForceAtlas2 engines use), which `layout.d.ts` did not declare a
 migration's static-layout work item deletes in a minor release. Until the snapshot layout contract
 (open decision 14) gives weights a route, a plugin SHOULD NOT declare `honoursWeights`, and a
 plugin that calls `pairWeights` relies on a helper that section 7 item 4 now requires the
-migration to keep until the next major. Parsing `Edge.data.weight` by hand ignores the element's
+migration to keep until a release announces its removal. Parsing `Edge.data.weight` by hand ignores the element's
 configured weight key and its handling of parallel edges.
 
 `AuthoredLayoutDescriptor` rules:
@@ -330,7 +331,7 @@ parity suite covers construction and `init` only.
    removes the per-call node and edge objects. A plugin extends `SimpleLayoutEngine` and reads
    `_nodes`, `_edges`, `positions` and `Node.data`, as the worked example does, and a weighted
    plugin may call the protected `pairWeights(edges)` (section 2). The migration MUST keep all of
-   those working for plugins (an adapter) until the next major, or ship the snapshot contract
+   those working for plugins (an adapter) until a release announces their removal, or ship the snapshot contract
    first (README section 10 item 2). Its plan deletes `pairWeights` and `pairWeightKey` in the
    dual-API window, which is a minor release; by README section 6.2 removing a protected helper
    is a contract major.
@@ -484,7 +485,7 @@ await graph.setLayout("acmechain-tiers", { tierAttribute: "supplier_tier", spaci
 - `SimpleLayoutEngine.positions` is a plain object keyed by node id, so a node whose id is
   `__proto__` writes the object's prototype instead of a row (README section 9.2 item 6); the
   fix is a `Map` or a null-prototype object, which changes a published member's type and so
-  waits for the snapshot contract or the next major.
+  waits for the snapshot contract or a release that announces the change.
 - `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, two built-in arrangements the catalog
   publishes (README section 5 item 4).
 - The published `Node` and `Edge` are the full render classes, so a layout cannot be unit-tested

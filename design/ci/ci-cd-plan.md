@@ -1,5 +1,7 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
+> Status: Historical apart from the parts named below. Its pull request, merge queue and Mergify parts, and the `golden` landing that replaced them, are retired. Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). Section 9's rules are current only as tools/README.md, "Quarantined tests" states them.
+
 > Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its pull request, merge queue, landing and deploy parts are replaced; sections 7, 9, 10, 11, 12 and 13 (the GPU, macOS and Windows lanes, flaky tests, the release train and ad hoc release, keeping master green, runner capacity and API budget) remain in force.
 
 > PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
@@ -455,6 +457,10 @@ changed the Mesa rasterizer once. wgpu and PyTorch use periodic jobs for this ki
 
 ## 9. Flaky-test policy
 
+> Current rules: tools/README.md, "Quarantined tests". A quarantine issue is `priority:critical` (owner,
+> 2026-10-22), not `priority:high` as first written below, and the Mergify measurement of rule 4 ended
+> when Mergify was retired on 2026-10-18.
+
 The project's rule: a failing test is never called flaky without finding its cause. Two of
 the four red-master events were "flaky" UI tests that turned out to be real races. The policy
 must therefore be enforced by automation, because agents will otherwise re-run until green.
@@ -468,7 +474,7 @@ written (no automatic retries; quarantine only with the owner's yes):
   test files run once more, at most 5 files. A test that fails on the retry too fails the shard.
 - **Quarantine automatically.** A test that fails and then passes on the same inputs (in that retry,
   or in two gate runs of the shard with the same input key) is flaky: it does not fail the shard, it
-  is quarantined, and it gets one issue labeled `bug`, `priority:high`, `effort:medium`. A
+  is quarantined, and it gets one issue labeled `bug`, `priority:critical`, `effort:medium`. A
   quarantined test still runs, and every failure let through is printed loudly (`[FLAKY]`,
   `[QUARANTINED]`).
 - **Exits.** An entry leaves when its issue closes, after 20 consecutive passing gate runs, or 14
@@ -482,7 +488,7 @@ without the mechanism. Verification and the cut never excuse a quarantined failu
    tell a flaky test (quarantined, with an issue) from a consistent failure (blocks).
 2. **A queue failure that bisection does not reproduce is a non-deterministic failure.** A
    workflow then does three things:
-    - opens (or adds to) an issue labeled `bug`, `priority:high`, `effort:medium`, named for
+    - opens (or adds to) an issue labeled `bug`, `priority:critical`, `effort:medium`, named for
       the test, with the failing log, the batch members and the commit;
     - re-runs the failing shard on master's tip, which is Chromium's "test without the patch"
       step. If master fails too, the bug is already in master, the ejected pull request is
@@ -494,7 +500,7 @@ without the mechanism. Verification and the cut never excuse a quarantined failu
    DISABLED-issue model with Datadog's expiry. Three kinds of test are never quarantined: GPU
    correctness tests, the visual gate, and any test whose failure would allow a silent
    CPU-for-GPU substitution.
-4. **Measure.** Mergify's CI Insights and Test Insights are included in its free open-source
+4. **Measure.** (History: Mergify is retired; the quarantine list and its issues are the record now.) Mergify's CI Insights and Test Insights are included in its free open-source
    plan. They rank failures by how often they ejected a pull request, as Chromium's Flake
    Portal does. Read them before tuning the batch size.
 

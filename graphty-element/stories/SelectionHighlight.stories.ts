@@ -111,7 +111,7 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
     const scene = await drawn(canvasElement, `Styles/Selection Highlight ${story}`);
     await assertGraphLoaded(scene, { nodes: 5, edges: 4 });
 
-    scene.graph.selectNode(SELECTED);
+    scene.element.selectNode(SELECTED);
     // The halo reaches the frame: the picture once the selection has been drawn.
     await scene.element.waitForStableFrame();
 
@@ -148,9 +148,9 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
         return Math.max(extent.x, extent.y, extent.z);
     };
 
-    // MEASURED AGAINST THE NODE, never as a raw scaling number. The halo used to be drawn
-    // smaller than the node it rings, so it was inside it and invisible -- and a scaling of 1.45
-    // looked perfectly correct while that was true.
+    // MEASURED AGAINST THE NODE, never as a raw scaling number: a halo drawn smaller than the
+    // node it rings sits inside it and is invisible, while a raw scaling of 1.45 still looks
+    // correct.
     return {
         color: lit.emissiveColor.toHexString(),
         alpha: lit.alpha,

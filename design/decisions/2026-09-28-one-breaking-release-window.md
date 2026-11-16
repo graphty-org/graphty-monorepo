@@ -1,5 +1,7 @@
 # One breaking release window for the graph-format migration
 
+> Status: Superseded 2026-11-10 by 2026-11-10-no-majors-while-no-outside-consumers.md: while nobody outside consumes the packages, breaking changes land as ordinary `feat`/`fix` commits and no major is released.
+
 Date: 2026-09-28
 Decided by: the owner
 Changes: `design/graph-format/migration-plan.md` (the two-step release: a deprecation release,

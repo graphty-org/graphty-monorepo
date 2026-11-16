@@ -252,9 +252,8 @@ export const Flat: Story = {
 /**
  * A label on every node, reading each node's own id.
  *
- * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's
- * default. A layer says what a label SAYS: writing `node.label` is what switches one on, and
- * binding it to a column is how the words come from the data.
+ * A layer says what a label SAYS: writing `node.label` is what switches one on, and binding it
+ * to a column is how the words come from the data.
  */
 export const Label: Story = {
     play: async ({ canvasElement }) => {

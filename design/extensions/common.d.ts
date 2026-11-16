@@ -90,7 +90,17 @@ export interface OptionDescriptor {
     values?: readonly OptionChoice[];
     /** For type "attribute": the value type the attribute must have. */
     attributeType?: AttributeType;
+    /**
+     * @deprecated A section grouping for a form: a presentation choice, which graphty-element
+     * leaves to the application (root CLAUDE.md, "graphty-element is neutral about presentation",
+     * 2026-10-03). Kept because the shipped catalog carries it; new options SHOULD NOT set it.
+     */
     group?: string;
+    /**
+     * @deprecated Whether a form hides the option by default: a presentation choice, which
+     * graphty-element leaves to the application (2026-10-03 rule). Kept because built-in
+     * algorithms set it; new options SHOULD NOT rely on it.
+     */
     advanced?: boolean;
     /** Hidden from forms; still validated. */
     internal?: boolean;

@@ -428,6 +428,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * array of five cannot.
  */
 export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================
 // Errors

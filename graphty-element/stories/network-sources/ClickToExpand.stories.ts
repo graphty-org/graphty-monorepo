@@ -15,7 +15,6 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { userEvent } from "storybook/test";
 
 import { credentials, type Graphty } from "../../index.ts";
-import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { doubleClickNode, holds } from "../assertions";
 import expandRecordings from "../fixtures/sources/neo4j-expand.json";
@@ -88,7 +87,7 @@ type Story = StoryObj<SourceArgs>;
  */
 async function loadSeed(element: Graphty): Promise<string> {
     const { session } = element;
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForSettled();
     // smaller words than the other stories: an expansion places its nodes close to the seed
     for (const layer of MOVIE_LAYERS) {
         await session.styles.add({
@@ -112,9 +111,9 @@ async function loadSeed(element: Graphty): Promise<string> {
     const [seed] = session.data.nodes();
     await session.data.updateNodes([{ id: seed.id, values: { position: { x: 0, y: 0, z: 0 } } }]);
     element.layoutBehavior = { expand: { trigger: "double-click", limit: 3 } };
-    await element.graph.setLayout("fixed", { dim: 2 });
+    await element.setLayout("fixed", { dim: 2 });
     await element.setViewMode("2d");
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForSettled();
     // One view for every step: a lone seed framed to fit would fill the screen.
     element.autoFrame = false;
     await element.setCameraState({ zoom: 0.35, pan: { x: 0, y: 0 } });
@@ -148,7 +147,7 @@ async function doubleClickNodeAndSettle(
     });
     await doubleClickNode(element, id, input);
     const detail = await expanded;
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForSettled();
     await element.waitForStableFrame();
     return detail;
 }
@@ -361,7 +360,7 @@ await graph.session.data.collapse(seed.id);`,
             await userEvent.click(button);
         }
         await collapsed;
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForSettled();
         await element.waitForStableFrame();
         await holds(element.session.data.nodes().length === 1, "the collapse left only the seed");
     }),

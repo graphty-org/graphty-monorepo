@@ -2150,6 +2150,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnBoundingRadius: RENDER,
             drawnScene: RENDER,
             isDrawn: READ,
+            drawnSelectionHalo: READ,
             drawnGeneration: READ,
             drawnRootScale: READ,
             makeDrawnPickable: RENDER,

@@ -316,7 +316,7 @@ export const ArrowSize: Story = {
         // Asked for at 2, so the cap is drawn twice the span of the element's own. The band is
         // 1.8 to 2.2 because the reading is exact -- the bounding cube is the cap's geometry times
         // its size -- and anything outside it means the size never reached the mesh builder:
-        // the element's own size reads 1.0 and the 2.5 this story used to draw reads 2.5.
+        // the element's own size reads 1.0.
         const ratio = spans[0] / DEFAULT_CAP_SPAN;
 
         await holds(
@@ -1883,7 +1883,7 @@ export const TwoDLineAngles: Story = {
         // its line anywhere in the picture fails the story.
         const across: string[] = [];
 
-        for (const edge of scene.graph.getDataManager().edges.values()) {
+        for (const edge of scene.element.getEdges()) {
             const elements = edge.drawnPattern;
             // a dash or diamond line's shader lays its elements along the line itself (issue #7404)
             if (elements.length === 0) {
@@ -1970,7 +1970,7 @@ export const TwoDLineAngles: Story = {
  * @returns The edge's moving texture, or null if it is not drawn with one.
  */
 const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
-    const edges = [...scene.graph.getDataManager().edges.values()];
+    const edges = scene.element.getEdges();
     const edge = edges.find((candidate) => candidate.srcNode.id === source);
     const material = (edge?.mesh as AbstractMesh | undefined)?.material as StandardMaterial | null | undefined;
 
@@ -1992,7 +1992,7 @@ const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
  * @returns The drawn width in world units, or null if the edge is not drawn as a greased line.
  */
 const drawnWidthOf = (scene: Drawn, source: string): number | null => {
-    const edges = [...scene.graph.getDataManager().edges.values()];
+    const edges = scene.element.getEdges();
     const mesh = edges.find((candidate) => candidate.srcNode.id === source)?.mesh;
     const source_ = (mesh as InstancedMesh | undefined)?.sourceMesh ?? mesh;
 
@@ -2372,7 +2372,7 @@ const BENDS_EDGES = BEND_LOOKS.flatMap((look) =>
  */
 const assertBentEdgesJoined = async (story: string, scene: Drawn): Promise<void> => {
     const unbent: string[] = [];
-    for (const edge of scene.graph.getDataManager().edges.values()) {
+    for (const edge of scene.element.getEdges()) {
         if ((edge.drawnCurve?.length ?? 0) !== 3) {
             unbent.push(String(edge.srcId));
         }
@@ -2475,7 +2475,7 @@ export const TwoDFanSpacing: Story = {
         await assertViewMode(scene, "2d");
         // How far each column's widest edge bows sideways (x) from the line between its nodes.
         const bow = new Map<string, number>();
-        for (const edge of scene.graph.getDataManager().edges.values()) {
+        for (const edge of scene.element.getEdges()) {
             const column = String(edge.srcId).split("-")[1];
             const x = (FAN_SPACINGS.findIndex((spacing) => String(spacing) === column) - 1) * 4;
             const reach = Math.max(0, ...(edge.drawnCurve ?? []).map((p) => Math.abs(p.x - x)));
@@ -2555,7 +2555,7 @@ export const TwoDPortsAndLoopRoutes: Story = {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDPortsAndLoopRoutes");
 
         await assertGraphLoaded(scene, { nodes: ROUTE_NODES.length, edges: ROUTE_EDGES.length });
-        const edges = [...scene.graph.getDataManager().edges.values()];
+        const edges = scene.element.getEdges();
         const ported = edges.find((e) => e.srcId === "a");
         const half = ported?.srcNode.drawnHalfExtents;
         const start = ported?.drawnCurve?.[0];

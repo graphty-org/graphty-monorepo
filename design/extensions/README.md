@@ -4,9 +4,15 @@
 point, each ending with the line that shows the result. This file and the per-point
 specifications are the reference behind it.
 
-Status: draft specification, written against graphty-element 2.6.1 (`origin/master`, 2026-09-27).
-An open pull request releases graphty-element 3.0.0 and changes parts of the layout contract;
-section 14 lists what it changes. Rejected review points are recorded in section 15.
+Status: specification, first written against graphty-element 2.6.1 (2026-09-27); section 14 lists
+what graphty-element 3.0.0 changed in the layout contract, and rejected review points are recorded
+in section 15. Of the simple tier, `defineAlgorithm`, `defineLayout`, `defineLogDestination` and `definePalette` shipped in graphty-element 3.0.1 and are exported from `@graphty/graphty-element/extend`; `defineFormat`, `defineDataSource`, `defineCameraView` and `defineCameraMotion` are not built yet.
+Where a passage says "as built in 2.6.1", check the current release before relying on it.
+
+There are no major releases (owner, 2026-11-10): a breaking change lands in an ordinary release
+whose notes say what changed for callers. Wherever this directory says something is "removed in
+4.0" or "at the next major", read it as "removed in an ordinary release once no caller needs it";
+issue #851 lists those removals. Until a removal lands, the deprecated member keeps working.
 
 This directory specifies the contracts a third party implements to extend graphty-element, the
 standalone web component that renders graphs. It is the formal counterpart of the how-to guides in
@@ -1018,8 +1024,8 @@ importers is in progress on branch `feat/graph-format-migration` (plan:
 2026-09-28 that bind this specification:
 
 1. **`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` export are deprecated** in favor
-   of a documented snapshot accessor, deprecated in a 3.x minor and removed in graphty-element 4.0
-   together with algorithms 3.0. `algorithm.md` is written against the snapshot accessor
+   of a documented snapshot accessor, deprecated in a 3.x minor and removed in a later ordinary
+   release (issue #851). `algorithm.md` is written against the snapshot accessor
    (`context.input(...)`), which 2.6.1 already publishes, and treats `algorithmGraph` as deprecated.
    The accessor lacks a public way to name an edge by its element id; see open decision 5.
 2. **graph-format and graph-io become regular dependencies** of the element, not peers. A plugin
@@ -1055,21 +1061,16 @@ Where this specification is not yet consistent with the migration:
    loads the snapshot and the position array, and the per-call `{ nodes, edges }` objects go. A
    plugin extends `SimpleLayoutEngine` and reads `_nodes`, `_edges`, `positions` and `Node.data`
    (`layout.md`, including its worked example). That migration item MUST either keep those members
-   working for plugins through an adapter until the next element major, or ship the snapshot
+   working for plugins through an adapter until a release that announces their removal, or ship the snapshot
    layout contract (open decision 14) first. Changing them in a minor release breaks every batch
    layout plugin.
 3. The edge identity accessor is specified two ways: this specification proposes
    `edgeId(row)`, the migration plan "the scoped input's snapshot plus the edge remap" (open
    decision 5 must pick one).
-4. **The seed.** The migration plan keeps a fixed element default seed of 42 for label
-   propagation and routes every call that carries a `randomSeed` to the CPU port. In the element,
-   `randomSeed` has `.default(42)` in its option schema and descriptor
-   (`LabelPropagationAlgorithm.ts`), so EVERY run carries a seed, and under the plan's routing rule
-   no element label propagation run reaches the GPU whichever seed rule is chosen, fixed or drawn.
-   The loss of the GPU route follows from any rule that always fills the seed option. Open
-   decision 16 must therefore decide whether an element-supplied seed counts as "set" for routing
-   (for example, forward only a caller-given seed to the dispatcher), write one rule into both
-   documents, and make the run record which route it took (open decision 26).
+4. **The seed (resolved).** Label propagation's `randomSeed` defaults to `null`
+   (`LabelPropagationAlgorithm.ts`): an unseeded run takes the synchronous definition, which an
+   accelerator may answer, and only a caller-given seed routes the run to the seeded CPU port. The
+   element supplies no seed of its own, so the GPU route is not lost.
 5. **Built-in output changes in a minor release.** The plan changes seeded built-in results in a
    graphty-element minor ("Label Propagation communities change for existing seeds"; Floyd-Warshall
    eccentricity on graphs with parallel edges). A built-in's run record carries the element
@@ -1090,10 +1091,9 @@ Where this specification is not yet consistent with the migration:
    that nothing in `graphty-element/src` constructs a legacy `Graph`. But `Algorithm.algorithmGraph`
    is itself implemented by calling `toAlgorithmGraph`, and `./extend` exports `AlgorithmGraphMode`
    and `AlgorithmGraphView` from that same file. Meeting that check in 3.x removes the deprecated
-   API in a minor, against the owner's decision to remove it in 4.0. In 3.x the item MUST keep
-   `toAlgorithmGraph`, the file's type exports and `algorithmGraph()` behind `@deprecated`; its
-   "nothing constructs a legacy Graph" check applies to the element's own adapters only, and the
-   deletion moves to the 4.0 removal item.
+   API without notice. The item MUST keep `toAlgorithmGraph`, the file's type exports and
+   `algorithmGraph()` behind `@deprecated`; its "nothing constructs a legacy Graph" check applies
+   to the element's own adapters only, and the deletion is its own release (issue #851).
 9. **CSV formula neutralization is missing in the writer the element will use.** `file-format.md`
    section 8.1 item 4 holds every CSV and TSV writer to neutralizing cells that begin with `=`,
    `+`, `-`, `@`, tab or carriage return. graph-io's CSV writer, which option A of open decision 1
@@ -1249,8 +1249,8 @@ descriptor)` so an author who already has a graph-io `GraphImporter` registers i
    grammar becomes a MUST, whether the design-studio proposal of `package:kind` keys (framework
    `conceptual-model.md` section 9) is adopted instead, and which ids the element may take for
    future built-ins in a minor release. **Recommended:** a vendor prefix is a MUST for every NEW
-   third-party registration now (the conformance kit fails an unprefixed id), and a MUST for all at
-   the next major; the element promises that a built-in id added in a minor release begins with
+   third-party registration now (the conformance kit fails an unprefixed id), and a MUST for all in
+   a later release that announces it; the element promises that a built-in id added in a minor release begins with
    `graphty-`, which third parties MUST NOT use, and that any other new built-in id is a major
    release; reject `package:kind` because a colon collides with the legacy algorithm address
    `namespace:type`. A vendor prefix is not collision-proof (nothing allocates prefixes), and the
@@ -1284,7 +1284,7 @@ descriptor)` so an author who already has a graph-io `GraphImporter` registers i
    no `static descriptor` and files it under `namespace:type` with no built-in check, so a
    descriptor-less class declaring namespace `graphty` and type `degree` silently replaces the
    built-in implementation. **Recommended:** refuse a built-in `namespace:type` always (a bug fix),
-   and refuse a missing descriptor from the next major (a breaking change).
+   and refuse a missing descriptor in a later release that announces it (a breaking change).
 8. **Persisting camera views and layout choices.** A camera view and a layout choice are recorded
    in no saved document that the element reads back in 2.6.1, for built-ins and plugins alike, so
    the "addressable from a saved document" parity clause is vacuous for these two points. The open
@@ -1366,7 +1366,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     `AcceleratorRegistry`, `GraphAccelerator`, ...) and the deprecated option schema are exported
     from the same entry point as the six contracts. **Recommended:** mark every export in the API
     report as `@public` (one of the six) or `@internal`, and move the accelerator exports to an
-    `./internal` path at the next major.
+    `./internal` path in a release that announces it.
 12. **`graphty-catalog.json`.** A published data file with no format version and two of the six
     tables missing. **Recommended:** add `cameras` and `logSinks`, add a top-level two-part
     `formatVersion` (`{ "major": 1, "minor": 0 }`, with the rules of section 6.3 item 6: a reader
@@ -1796,7 +1796,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     accelerator), the scope's DEFINITION at run time with a digest of its resolved members (so a
     named set widened later is detected on replay rather than silently used), the loads it
     computed over, the result paths it read, an input identity, caveats, partial -- and:
-    - `static version` REQUIRED for plugins at the next major, and valid semver when present; an
+    - `static version` REQUIRED for plugins once a release announces it, and valid semver when present; an
       unversioned plugin is recorded as `null`, never as the element version, reads as unresolved
       on replay, and makes the conformance kit warn;
     - every BUILT-IN algorithm gets its own semver version, recorded instead of the element
@@ -1905,7 +1905,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     "more than three standard deviations out". **Recommended**, before the algorithm contract is
     frozen: an optional `order: "descending" | "ascending"` (default descending) on
     `FieldDescriptor` and `ResultFieldSpec`, used for rank, percentile, `tiedAtMin` (renamed
-    `tiedAtWorst` at the next major) and the default ramp direction, and recorded in the run
+    `tiedAtWorst` in a release that announces it) and the default ramp direction, and recorded in the run
     record; and `stddev` (population, Kahan-summed), `q1`, `q3` and `mad` as derived graph
     fields, with a derived per-element `zscore` or robust z. The change to what a percentile means
     is recorded with the run-record rules of item 26.

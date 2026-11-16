@@ -377,9 +377,7 @@ adopting it needs:
   no `tools/` copy). Without either, githerd's pushes and its reference gate run unqueued: it still
   pushes, and the board's `PUSH QUEUE: none` line says so until a script exists. A copy of
   this repository's script works as it is: it keeps its tickets and its push log in its own main
-  checkout's `tmp/`, so each repository has its own queue;
-- `tools/prepush.sh`, the gate the reference worktree runs, printing `Pre-push validation failed`
-  and one `[FAIL] <step>` line per failed step.
+  checkout's `tmp/`, so each repository has its own queue.
 
 The job worktree preparation is still this repository's: `pnpm install --frozen-lockfile`, the Nx
 build, and graph-io's tests as the smoke test (`JOB_STEPS` in `lib/worktrees.mjs`), and the config

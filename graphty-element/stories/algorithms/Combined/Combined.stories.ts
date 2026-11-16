@@ -54,11 +54,9 @@ export const DegreeAndPageRank: Story = {
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
-        // A FIXED TIMER USED TO STAND HERE, and a run that had not finished inside its second
-        // made applySuggestedStyles answer false and the story fail with no algorithm in the
-        // picture. These two waits say what is actually being waited FOR: the data arrived and
-        // the frame stopped moving, and the element has no queued work left -- which is where
-        // the runs live.
+        // applySuggestedStyles answers false for a run that has not finished. These two waits
+        // say what is being waited FOR: the data arrived and the frame stopped moving, and the
+        // element has no queued work left -- which is where the runs live.
         await waitForGraphSettled(canvasElement);
 
         const element = canvasElement.querySelector("graphty-element");
@@ -135,8 +133,8 @@ export const CentralityVsCommunity: Story = {
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
-        // Waited for by name rather than by a timer: a fixed second used to stand here, and a
-        // run that had not finished inside it made applySuggestedStyles answer false.
+        // Waited for by condition: applySuggestedStyles answers false for a run that has not
+        // finished.
         await waitForGraphSettled(canvasElement);
 
         const element = canvasElement.querySelector("graphty-element");
@@ -190,8 +188,8 @@ export const CommunityStructureWithPath: Story = {
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
-        // Waited for by name rather than by a timer: a fixed second used to stand here, and a
-        // run that had not finished inside it made applySuggestedStyles answer false.
+        // Waited for by condition: applySuggestedStyles answers false for a run that has not
+        // finished.
         await waitForGraphSettled(canvasElement);
 
         const element = canvasElement.querySelector("graphty-element");

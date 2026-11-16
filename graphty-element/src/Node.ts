@@ -2120,6 +2120,15 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a selection highlight is drawn around the node now.
+     * @returns True while its halo is on the canvas.
+     * @internal
+     */
+    get drawnSelectionHalo(): boolean {
+        return this.halo !== null && !this.halo.isDisposed();
+    }
+
+    /**
      * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
      * @returns The number.
      * @internal

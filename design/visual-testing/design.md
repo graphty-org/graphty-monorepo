@@ -1,6 +1,6 @@
 # Visual review: design, roadmap and plan
 
-> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+> Merging today: every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The Mergify merge queue and the `hold` label were retired on 2026-10-18, and the `golden` integration branch that briefly replaced per-change pull requests was retired in turn by the channels pipeline (design/ci/channels-pipeline.md). Read the merge-queue and `golden` parts below as history.
 
 Date: 2026-09-27
 
@@ -46,6 +46,8 @@ measurements), `feature-analysis.md` (every candidate feature with its tier), `r
 
 ## 1a. Milestone 1 as built
 
+> A snapshot from 2026-09-27, kept as history. Today: Chromatic was removed from every package and from CI on 2026-10-11 (commit 31665f3000), tools/chromatic.sh and tools/chromatic-api.sh with it, and a `chromatic` label on a pull request no longer runs anything. visual-review is live: it captures the seven projects listed in `visual-review.config.json` (algorithms, compact-mantine, cytoscape-extensions, graph-io-fidelity, graphty, graphty-element, layout) from `.github/workflows/ci.yml`, `story-slices.yml` and `visual-seed.yml`; how to use it is in `visual-review/README.md`. `visual-review/projects.json` was replaced by `visual-review.config.json` on 2026-09-29 (commit c2cfdec255). `.husky/pre-push` has no visual step (it runs the Git LFS upload, the secret scan and the committed-images check).
+
 What is in the repository today, where it differs from the target above. `plan.md`, "Decisions
 for this milestone", gives the reason for each.
 
@@ -61,8 +63,8 @@ for this milestone", gives the reason for each.
   or `excluded` (so every story without an approved baseline blocks; section 11a), or is missing
   or unfinished. Both the list of
   projects and "seeded" are read from the base branch (the directories under `visual-baselines/`
-  holding a PNG), so neither deleting a project's baselines nor editing
-  `visual-review/projects.json` in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
+  holding a PNG), so neither deleting a project's baselines nor editing the project list
+  (then `visual-review/projects.json`, now `visual-review.config.json`) in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
   fails validation counts as missing. The owner's accept commit turns the items `unchanged`,
   which clears it.
 - **The gate also checks review records.** Every baseline PNG, and every settings file that
@@ -119,7 +121,7 @@ for this milestone", gives the reason for each.
   dependency-free rule matters once `trusted/` verifies approvals (milestone 3).
 - **No pinned fonts.** Captures use the CI runner's system fonts. The clock starts at a fixed
   instant and keeps running. Pinned fonts arrive in milestone 2 as one planned re-baseline.
-- **No pre-push visual step.** `tools/prepush.sh` runs only the visual-review package's own tests.
+- **No pre-push visual step.** `tools/prepush.sh` (removed 2026-11-02) ran only the visual-review package's own tests.
   The record check and the opt-in local capture arrive in milestone 2.
 - **Every pull request captures both projects.** Affected-only planning is milestone 2.
 - **Story parameters are read on every capture.** A story's `parameters.chromatic`
@@ -383,7 +385,7 @@ what runs, so the owner can read every tool change as an ordinary diff.
 ```
 visual-review/                        @graphty/visual-review, "private": true, bin "visual-review"
   package.json, project.json          Nx targets: test, lint (no build); out of nx release
-  projects.json                       the project registry and plan rules (section 12)
+  projects.json                       the project registry and plan rules (section 12; now visual-review.config.json)
   passkeys.json                       the owner's registered passkeys, the only keys that count (section 8)
   fonts/, fonts/fonts.conf            the pinned font set used by every capture (section 6)
   trusted/                            node built-ins, git and gh only; no dependencies
@@ -1117,6 +1119,11 @@ and decisions not yet finished are kept for every image whose hash did not chang
 
 ## 12. Multiple projects and affected-only runs
 
+> As designed on 2026-09-27. Today the registry is the `projects` map of `visual-review.config.json`
+> (seven projects: algorithms, compact-mantine, cytoscape-extensions, graph-io-fidelity, graphty,
+> graphty-element, layout), and capture runs from `ci.yml`, `story-slices.yml` and `visual-seed.yml`, not
+> `visual.yml`; `visual-review/README.md` describes the current behavior.
+
 `visual-review/projects.json` is the registry. Each entry names the project id, the package
 directory, the Storybook artifact name (`build-storybook-element` and `build-storybook-app` for
 graphty-element and graphty, `build-storybook-<project>` for the others), the modes and their
@@ -1157,6 +1164,9 @@ their package's source, so almost any change touches every story, and hashing ma
 story almost free.
 
 ## 13. The pre-push hook
+
+> The planned steps below were never added, and `tools/prepush.sh` was removed on 2026-11-02 (commit
+> d99cdf5060). `.husky/pre-push` runs the Git LFS upload, the secret scan and the committed-images check.
 
 **Built: the Git LFS upload.** `.husky/pre-push` first runs `tools/lfs-pre-push.sh`, which hands
 git's ref lines to `git lfs pre-push`, so the images a push points at reach GitHub before the

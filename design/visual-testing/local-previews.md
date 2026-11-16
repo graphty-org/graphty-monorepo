@@ -1,6 +1,6 @@
 # Local screenshot previews, Finish on local captures, and the pending-approvals inbox
 
-> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+> Merging today: every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The Mergify merge queue and the `hold` label were retired on 2026-10-18, and the `golden` integration branch that briefly replaced per-change pull requests was retired in turn by the channels pipeline (design/ci/channels-pipeline.md). Read the merge-queue and `golden` parts below as history.
 
 Date: 2026-10-04. Status: adopted design. Built: pinned fonts (section 3), the preview script
 (section 5, started by the agent after each push rather than by the server), review and

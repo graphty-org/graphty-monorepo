@@ -31216,7 +31216,7 @@
         },
         "pajek-1crn": {
             "node.present": 1,
-            "node.extra": 0.997,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -31269,7 +31269,7 @@
         },
         "pajek-1crn@matched": {
             "node.present": 1,
-            "node.extra": 0.997,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -31568,7 +31568,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.995,
+            "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -31628,7 +31628,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.995,
+            "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -56430,34 +56430,6 @@
                 "floor": 0.989,
                 "to": 0.979,
                 "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "pajek-synth-lines": {
-            "edge.arrowPlace": {
-                "floor": 0.937,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.arrow": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
-                "date": "2026-11-01"
-            }
-        },
-        "pajek-synth-lines@matched": {
-            "edge.arrowPlace": {
-                "floor": 0.937,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.arrow": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
                 "date": "2026-11-01"
             }
         },

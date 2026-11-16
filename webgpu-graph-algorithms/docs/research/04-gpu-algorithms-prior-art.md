@@ -8,20 +8,20 @@ contract (design doc section 10). This note feeds the WebGPU package plan;
 it is not the plan itself.
 
 Everything stated about external code was read from a local clone under
-/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/repos/
+<staging>/tmp/webgpu-plan/repos/
 (paths below are relative to that directory) or from a PDF converted to
 text under tmp/webgpu-plan/papers/. Things that could not be fetched are
 listed in section 12.
 
 Local inputs read:
 
-- /home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md
+- design/graph-format/graph-format-design.md
   lines 2320-2553 (section 10, GPU contract)
-- /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/09-webgpu-requirements.md
+- tmp/graph-format-design/09-webgpu-requirements.md
   (probed 4070 SUPER limits, WGSL type rules, per-algorithm view table)
-- /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/08-prior-art.md
+- tmp/graph-format-design/08-prior-art.md
   sections 4 (cuGraph), 5 (Gunrock), 11.10 (WebGPU constraints)
-- /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/03-layout-needs.md
+- tmp/graph-format-design/03-layout-needs.md
   sections 4 and 12 (layout buffers, first GPU targets)
 
 ## 0. One-page summary

@@ -1,5 +1,5 @@
 /**
- * The skeleton the three force models share (spec 7.19; contract 3.13): ForceAtlas2, Fruchterman-Reingold and the
+ * The skeleton the three force models share: ForceAtlas2, Fruchterman-Reingold and the
  * spring-electrical preset run the same four FA2 kernels K1 K2 K3 K5 (plus K4 for ForceAtlas2) over the same
  * buffers, so the buffer list, the binding of one load, the per-iteration recording on both repulsion tiers, the
  * shared Fa2Params fields, the shared stats fields and the release of the bind groups live here once. A model
@@ -37,7 +37,7 @@ import {
 import { recordExactRepulsion, type RepulsionExactResources } from "./repulsion-exact.js";
 import { type GridStage, RepulsionGrid } from "./repulsion-grid.js";
 
-/** The stage names of both tiers in dispatch order plus the per-batch toScene (P4 PD-17: the union list; the exact tier records K1 K2 K3 [K4] K5, the grid tier K1 K2 G1..G7 [K4] K5). */
+/** The stage names of both tiers in dispatch order plus the per-batch toScene (the union list; the exact tier records K1 K2 K3 [K4] K5, the grid tier K1 K2 G1..G7 [K4] K5). */
 export const FORCE_STAGES = [
     "K1",
     "K2",
@@ -60,7 +60,7 @@ const STAGE_K4 = 10;
 const STAGE_K5 = 11;
 const STAGE_TO_SCENE = 12;
 
-/** The name of the model-owned hub-counter buffer K1 binds on every tier (P4 PD-14). */
+/** The name of the model-owned hub-counter buffer K1 binds on every tier. */
 const HUB_COUNTERS_BUFFER = "hubCounters";
 
 /** The one-workgroup dispatch of K1. */
@@ -142,11 +142,11 @@ export interface CompiledModel<E extends ExactStage> {
     readonly k5: Kernel;
     readonly toScene: Kernel;
     readonly fill: Kernel;
-    /** The K2 tier pipelines (bound by bind() after its superseded check); null when arcCount === 0 (the fill of force replaces K2, spec 7.5). */
+    /** The K2 tier pipelines (bound by bind() after its superseded check); null when arcCount === 0 (the fill of force replaces K2). */
     readonly attraction: AttractionCompiled | null;
-    /** Binds the exact tier's stage against the load's buffers; null on the grid tier (P4 PD-18). */
+    /** Binds the exact tier's stage against the load's buffers; null on the grid tier. */
     readonly exact: ((resources: RepulsionExactResources, plan: DispatchPlan) => E) | null;
-    /** The grid-tier stage (G1-G7, and K4 for FA2), or null on the exact tier (P4 PD-18). */
+    /** The grid-tier stage (G1-G7, and K4 for FA2), or null on the exact tier. */
     readonly grid: RepulsionGrid | null;
 }
 
@@ -225,7 +225,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
     private bound: BoundModel<E> | null = null;
     /**
      * The K1-K5 compute pass of the batch being recorded, keyed by CommandBatch.id (unique per batch): every
-     * recordIteration of one batch dispatches into it (ONE pass per batch, contract 4.4); null between batches and
+     * recordIteration of one batch dispatches into it (ONE pass per batch); null between batches and
      * after the toScene pass ended it.
      */
     private openPass: { readonly id: number; readonly pass: GPUComputePassEncoder } | null = null;
@@ -273,9 +273,9 @@ export abstract class ForceModelBase<E extends ExactStage> {
 
     /**
      * force 12n and the carry buffer 12n (zeroed), the 256-byte FillParams uniform buffer the fill dispatches read,
-     * the 16-byte `hubCounters` K1 binds on every tier (P4 PD-14), and the grid buffers of `RepulsionGrid.buffers`
-     * exactly when `tierFor(tuning, n)` is the grid tier (PD-18). n = 0 reports one node's worth of bytes so no
-     * zero-length buffer is ever created (spec 3.6).
+     * the 16-byte `hubCounters` K1 binds on every tier, and the grid buffers of `RepulsionGrid.buffers`
+     * exactly when `tierFor(tuning, n)` is the grid tier. n = 0 reports one node's worth of bytes so no
+     * zero-length buffer is ever created.
      * @param n - the node count
      * @param dim - the layout dimension (the force arrays are stride 3 in both; the grid's geometry differs)
      * @returns the model-owned buffer specs
@@ -361,7 +361,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
             plan,
             fillPlan: plan1d(3 * n, wg, caps),
             k1,
-            // PD-14: on the exact tier K1's cellHist slot takes a dummy (partials, both read-only) and the block is
+            // On the exact tier K1's cellHist slot takes a dummy (partials, both read-only) and the block is
             // dead under gridMax 0; hubCounters is the model's 16-byte buffer on every tier
             k1Bound: k1.bind({
                 partials,
@@ -388,18 +388,18 @@ export abstract class ForceModelBase<E extends ExactStage> {
     }
 
     /**
-     * Records one iteration into the batch, stopping after stage `upTo` when given (spec 7.4; debugRunStages /
-     * inspect, spec 11.9 item 2; PD-17: `upTo` names a position in the union list and the recording stops after the
+     * Records one iteration into the batch, stopping after stage `upTo` when given (debugRunStages /
+     * inspect: `upTo` names a position in the union list and the recording stops after the
      * last stage recorded at or before it, so "K3" on the grid tier stops after K2 and "G5" on the exact tier after
      * K3). The exact tier: K1, K2 (or the fill of force when arcCount === 0), K3, [K4,] K5 in the batch's ONE compute
      * pass (opened by the first call of a batch and reused by every later call with the same batch.id), then toScene
-     * in a second pass that ends it. The grid tier (PD-16): the passes `<pass>-k1` (K1), `<pass>-attraction` (K2's
+     * in a second pass that ends it. The grid tier: the passes `<pass>-k1` (K1), `<pass>-attraction` (K2's
      * tiers) and `<pass>-grid` (G1-G7, [K4,] K5) per iteration, then the toScene pass. The simulation passes "K5" for
      * iterations 0..k-2 and undefined for the last, so toScene runs once per batch. With n === 0 nothing is recorded;
      * a call before bind() completed is E_NOT_LOADED (never a silent no-op).
      * @param batch - the batch being recorded
      * @param slot - the UniformRing slot holding this iteration's Fa2Params
-     * @param tier - the tier the simulation resolved at load() (the same rule bind() applied, PD-18)
+     * @param tier - the tier the simulation resolved at load() (the same rule bind() applied)
      * @param upTo - a stage name to stop after; undefined records every stage including toScene
      */
     recordIteration(batch: CommandBatch, slot: number, tier: "exact" | "grid", upTo?: string): void {
@@ -455,7 +455,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
     }
 
     /**
-     * The grid tier's iteration (PD-16): three compute passes before toScene.
+     * The grid tier's iteration: three compute passes before toScene.
      * @param batch - the batch being recorded
      * @param bound - the bound model
      * @param offset - the Fa2Params dynamic offset of the iteration
@@ -512,7 +512,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
     }
 
     /**
-     * K2's tier dispatches, or the fill of force when the graph has no arcs (spec 7.5).
+     * K2's tier dispatches, or the fill of force when the graph has no arcs.
      * @param pass - the open compute pass
      * @param bound - the bound model
      * @param offset - the Fa2Params dynamic offset
@@ -540,7 +540,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
 
     /**
      * The Fa2Params fields every model writes the same way: the counts, the shared options, the grid geometry of a
-     * grid load and the K2 tier ranges (P4 PD-7: TIER 2 reads [0, hiEnd), TIER 1 [hiEnd, midEnd), TIER 0
+     * grid load and the K2 tier ranges (TIER 2 reads [0, hiEnd), TIER 1 [hiEnd, midEnd), TIER 0
      * [tierStart, tierEnd) = [midEnd, n)); `flags` is 0 unless the model overrides it.
      * @param iteration - the iteration index the simulation passed to paramsFor
      * @param resolved - the model's resolved option record
@@ -637,7 +637,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
 
     /**
      * Drops the bind groups of the previous bind() (the buffers changed) so the cached kernels do not accumulate stale
-     * groups across reloads (FA2's K3 / K4 live inside RepulsionExact and keep the P1-T6 behavior); the grid stage
+     * groups across reloads (FA2's K3 / K4 live inside RepulsionExact, which manages its own); the grid stage
      * releases its lease. Also forgets the pass of a batch recorded before the rebind.
      */
     private dropBound(): void {

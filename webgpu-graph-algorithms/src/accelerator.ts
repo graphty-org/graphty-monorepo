@@ -1,18 +1,15 @@
 /**
- * createAccelerator (spec 3.3, 9; contract 3.14): the injectable object that satisfies the CPU packages'
- * AlgorithmAccelerator and LayoutAccelerator interfaces (spec 9.2, 9.3). Both are the REAL declarations,
- * `LayoutAccelerator` from `@graphty/layout` (W1b, layout half) and `AlgorithmAccelerator` from
- * `@graphty/algorithms` (W1b, algorithms half), `import type`d by src/types/accelerator.ts, so the object built
- * here is checked against the CPU packages' own contracts. It carries P3's `forceAtlas2`, `release` and `dispose`,
- * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
- * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
- * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
- * `closenessCentrality`, each taking the seam's own option type), `allPairsShortestPath` (design 8.7), P11's
- * `triangleCount` and `labelPropagation`, Boruvka's `minimumSpanningTree`, and nothing else: the CPU-side dispatchers
+ * createAccelerator: the injectable object that satisfies the CPU packages'
+ * AlgorithmAccelerator and LayoutAccelerator interfaces. Both are the REAL declarations,
+ * `LayoutAccelerator` from `@graphty/layout` and `AlgorithmAccelerator` from
+ * `@graphty/algorithms`, `import type`d by src/types/accelerator.ts, so the object built
+ * here is checked against the CPU packages' own contracts. It carries `forceAtlas2`, `release` and `dispose`,
+ * `fruchtermanReingold` and `springElectrical`, the seven scoring and component members, the four
+ * traversal members (`breadthFirstSearch`, `sssp`, `bellmanFord`, `closenessCentrality`, each taking the seam's own
+ * option type), the two betweenness members, `allPairsShortestPath`, `triangleCount` and `labelPropagation`, Boruvka's `minimumSpanningTree`, and nothing else: the CPU-side dispatchers
  * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
- * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
- * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
- * algorithm members arrive one per shipped algorithm from P9.
+ * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent, so a method the GPU does
+ * not implement must not exist here -- never a throwing stub.
  */
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
@@ -73,10 +70,10 @@ import {
 import { type GpuMstResult, type GpuTriangleResult } from "./types/structure.js";
 import { type GpuBellmanFordResult, type GpuBfsResult, type GpuSsspResult } from "./types/traversal.js";
 
-/** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
+/** The `algorithms` record of AcceleratorOptions, named for the copy helpers. */
 type AlgorithmDefaults = NonNullable<AcceleratorOptions["algorithms"]>;
 
-/** The `algorithms.betweenness` record of AcceleratorOptions (spec 3.3: the `k` / `sources` defaults until A2). */
+/** The `algorithms.betweenness` record of AcceleratorOptions: the `k` / `sources` defaults a betweenness call uses when it names neither. */
 type BetweennessDefaults = NonNullable<AlgorithmDefaults["betweenness"]>;
 
 /**
@@ -131,8 +128,8 @@ function copyAlgorithms(algorithms: AlgorithmDefaults): AlgorithmDefaults {
 }
 
 /**
- * The frozen deep copy of the accelerator options (spec 3.3 GpuAccelerator.options: "the tuning defaults given
- * to createAccelerator; frozen"; contract 3.14): the record, its `layout` tuning, its `algorithms` record, the
+ * The frozen deep copy of the accelerator options (GpuAccelerator.options: "the tuning defaults given
+ * to createAccelerator; frozen"): the record, its `layout` tuning, its `algorithms` record, the
  * `betweenness` record and the `sources` list are each fresh frozen objects, so neither the caller's later edits
  * nor a consumer's writes can change what the accelerator's simulations inherit.
  * @param options - the caller's options, or undefined
@@ -153,18 +150,18 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
 }
 
 /**
- * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
- * structurally; P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and springElectrical (the same
- * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members and P8's four traversal
+ * The object implementing AlgorithmAccelerator & LayoutAccelerator structurally: forceAtlas2, release and
+ * dispose, fruchtermanReingold and springElectrical (the same `{ ...o, ...options.layout }` shape as forceAtlas2),
+ * the seven scoring and component members, the four traversal
  * members and the two betweenness members, each a delegation to its algorithm with `ctx.assertReady()` first. Only
  * the betweenness members consult the accelerator's algorithm defaults (`algorithms.betweenness` supplies `sources` /
  * `k` when a call names neither). One per call (the app creates one and injects
- * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
+ * it); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
  * `createForceAtlas2(ctx, { ...o, ...options.layout })`, so the GPU tuning given here wins over anything the
- * CPU-typed option object carries (spec 3.3: tuning never comes from the caller of the accelerator method);
+ * CPU-typed option object carries (tuning never comes from the caller of the accelerator method);
  * `release(s)` is `ctx.release(s)`; `dispose()` is `ctx.dispose()`.
  * @param ctx - the context every simulation the accelerator creates runs on
- * @param options - GPU-only defaults inherited by every simulation (`layout`) and, from P9, the algorithm defaults
+ * @param options - GPU-only defaults inherited by every simulation (`layout`) and the algorithm defaults (`algorithms`)
  * @returns the injectable accelerator
  * @throws E_DISPOSED / E_DEVICE_LOST from `ctx.assertReady()` (here and inside every creating member); `forceAtlas2()`
  *   also throws what createForceAtlas2 throws (E_UNSUPPORTED for `nodeSize`, E_INVALID_ARGUMENT for a bad range), and
@@ -179,8 +176,8 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         ctx,
         options: frozen,
         /**
-         * The ForceAtlas2 simulation with this accelerator's layout tuning (spec 3.3; contract 3.14).
-         * @param o - the CPU option type (spec 9.3 ForceAtlas2Options); GPU tuning keys come from `options.layout`
+         * The ForceAtlas2 simulation with this accelerator's layout tuning.
+         * @param o - the CPU option type (ForceAtlas2Options); GPU tuning keys come from `options.layout`
          * @returns a fresh simulation in state "created"
          */
         forceAtlas2(o?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats> {
@@ -188,8 +185,8 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return createForceAtlas2(ctx, { ...o, ...frozen.layout });
         },
         /**
-         * The Fruchterman-Reingold simulation with this accelerator's layout tuning (spec 3.3, 7.20; P5).
-         * @param o - the CPU option type (spec 9.3 FruchtermanReingoldOptions); GPU tuning keys come from `options.layout`
+         * The Fruchterman-Reingold simulation with this accelerator's layout tuning.
+         * @param o - the CPU option type (FruchtermanReingoldOptions); GPU tuning keys come from `options.layout`
          * @returns a fresh simulation in state "created"
          */
         fruchtermanReingold(
@@ -199,8 +196,8 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return createFruchtermanReingold(ctx, { ...o, ...frozen.layout });
         },
         /**
-         * The spring-electrical preset with this accelerator's layout tuning (spec 3.3, 7.20; P5).
-         * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
+         * The spring-electrical preset with this accelerator's layout tuning.
+         * @param o - the CPU option type (SpringElectricalOptions, ngraph's names)
          * @returns a fresh simulation in state "created"
          */
         springElectrical(
@@ -210,22 +207,22 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },
         /**
-         * PageRank on the device (spec 8.2; contract 3.14).
+         * PageRank on the device.
          * @param gs - the snapshot
-         * @param o - the CPU option record (spec 9.2 PageRankOptions)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - the CPU option record (PageRankOptions)
+         * @returns the f32 scores with `precision: "f32"`
          */
         async pageRank(gs: GraphSnapshot, o?: PageRankOptions): Promise<GpuPageRankResult> {
             ctx.assertReady();
             return await pageRank(ctx, gs, o);
         },
         /**
-         * Personalized PageRank on the device (spec 8.2; contract 3.14). The mirror admits an f64 personalization
-         * (spec 9.2 `F32 | F64`); the kernel reads f32, so an f64 vector is narrowed on the host first.
+         * Personalized PageRank on the device. The mirror admits an f64 personalization
+         * (`F32 | F64`); the kernel reads f32, so an f64 vector is narrowed on the host first.
          * @param gs - the snapshot
          * @param personalization - one finite non-negative mass per node, not all zero
-         * @param o - the CPU option record (spec 9.2 PageRankOptions)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - the CPU option record (PageRankOptions)
+         * @returns the f32 scores with `precision: "f32"`
          */
         async personalizedPageRank(
             gs: GraphSnapshot,
@@ -237,91 +234,91 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await personalizedPageRank(ctx, gs, mass, o);
         },
         /**
-         * HITS hubs and authorities on the device (spec 8.2; contract 3.14).
+         * HITS hubs and authorities on the device.
          * @param gs - the snapshot
-         * @param o - the CPU option record (spec 9.2 HitsOptions)
-         * @returns hubs and authorities with `precision: "f32"` (spec 9.7)
+         * @param o - the CPU option record (HitsOptions)
+         * @returns hubs and authorities with `precision: "f32"`
          */
         async hits(gs: GraphSnapshot, o?: HitsOptions): Promise<GpuHitsResult> {
             ctx.assertReady();
             return await hits(ctx, gs, o);
         },
         /**
-         * Eigenvector centrality on the device (spec 8.2; contract 3.14).
+         * Eigenvector centrality on the device.
          * @param gs - the snapshot
-         * @param o - the CPU option record (spec 9.2 EigenvectorOptions)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - the CPU option record (EigenvectorOptions)
+         * @returns the f32 scores with `precision: "f32"`
          */
         async eigenvectorCentrality(gs: GraphSnapshot, o?: EigenvectorOptions): Promise<GpuScoresResult> {
             ctx.assertReady();
             return await eigenvectorCentrality(ctx, gs, o);
         },
         /**
-         * Katz centrality on the device (spec 8.2; contract 3.14).
+         * Katz centrality on the device.
          * @param gs - the snapshot
-         * @param o - the CPU option record (spec 9.2 KatzOptions)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - the CPU option record (KatzOptions)
+         * @returns the f32 scores with `precision: "f32"`
          */
         async katzCentrality(gs: GraphSnapshot, o?: KatzOptions): Promise<GpuScoresResult> {
             ctx.assertReady();
             return await katzCentrality(ctx, gs, o);
         },
         /**
-         * Weakly connected components on the device (spec 8.3; contract 3.14): WCC semantics on directed input.
+         * Weakly connected components on the device: WCC semantics on directed input.
          * @param gs - the snapshot
          * @param o - `renumber` (default true); the mirror passes none
-         * @returns the labels, the count and groups() (spec 9.7 LabelResultLike)
+         * @returns the labels, the count and groups() (LabelResultLike)
          */
         async connectedComponents(gs: GraphSnapshot, o?: ComponentsOptions): Promise<GpuLabelResult> {
             ctx.assertReady();
             return await connectedComponents(ctx, gs, o);
         },
         /**
-         * The same algorithm as `connectedComponents` under the mirror's other name (spec 3.3, 9.2).
+         * The same algorithm as `connectedComponents` under the mirror's other name.
          * @param gs - the snapshot
          * @param o - `renumber` (default true); the mirror passes none
-         * @returns the labels, the count and groups() (spec 9.7 LabelResultLike)
+         * @returns the labels, the count and groups() (LabelResultLike)
          */
         async weaklyConnectedComponents(gs: GraphSnapshot, o?: ComponentsOptions): Promise<GpuLabelResult> {
             ctx.assertReady();
             return await connectedComponents(ctx, gs, o);
         },
         /**
-         * Breadth-first search on the device (spec 8.4; P8-T13). The result is bitwise reproducible (P8 PD-14).
+         * Breadth-first search on the device. The result is bitwise reproducible.
          * @param gs - the snapshot
          * @param source - the source node index
          * @param o - the seam's `BfsOptions` (`maxDepth`)
-         * @returns depth, parent, the level-grouped order, visitedCount, levels and switches (spec 3.3 line 830)
+         * @returns depth, parent, the level-grouped order, visitedCount, levels and switches
          */
         async breadthFirstSearch(gs: GraphSnapshot, source: number, o?: BfsOptions): Promise<GpuBfsResult> {
             ctx.assertReady();
             return await breadthFirstSearch(ctx, gs, source, o);
         },
         /**
-         * Single-source shortest paths on the device (spec 8.4; P8-T13): the near-far queue over f32 distances, or the
+         * Single-source shortest paths on the device: the near-far queue over f32 distances, or the
          * breadth-first route when every weight is one.
          * @param gs - the snapshot
          * @param source - the source node index
          * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
-         * @returns dist, predArc and reachedCount (spec 3.3 line 831)
+         * @returns dist, predArc and reachedCount
          */
         async sssp(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuSsspResult> {
             ctx.assertReady();
             return await sssp(ctx, gs, source, o);
         },
         /**
-         * Bellman-Ford on the device with negative-cycle detection (spec 8.4; P8-T13).
+         * Bellman-Ford on the device with negative-cycle detection.
          * @param gs - the snapshot
          * @param source - the source node index
          * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
-         * @returns dist, predArc, reachedCount and hasNegativeCycle (spec 3.3 line 832)
+         * @returns dist, predArc, reachedCount and hasNegativeCycle
          */
         async bellmanFord(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuBellmanFordResult> {
             ctx.assertReady();
             return await bellmanFord(ctx, gs, source, o);
         },
         /**
-         * Betweenness centrality on the device (spec 8.4): exact, or sampled through `sources` / `k` (the call's own,
+         * Betweenness centrality on the device: exact, or sampled through `sources` / `k` (the call's own,
          * else the accelerator's `algorithms.betweenness` defaults), the unscaled sum over the sources run.
          * `endpoints: true` is refused.
          * @param gs - the snapshot
@@ -340,7 +337,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             );
         },
         /**
-         * Edge betweenness on the device (spec 8.4): one score per edge, arcs summed and halved when undirected; sampling
+         * Edge betweenness on the device: one score per edge, arcs summed and halved when undirected; sampling
          * and defaults as `betweennessCentrality`.
          * @param gs - the snapshot
          * @param o - the seam's `BetweennessAcceleratorOptions`
@@ -358,25 +355,25 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             );
         },
         /**
-         * Closeness centrality on the device (spec 8.4): the all-pairs sweep with a row sum on small and
+         * Closeness centrality on the device: the all-pairs sweep with a row sum on small and
          * weighted graphs, the bit-parallel multi-source search otherwise, one `sssp` per source for a weighted graph
-         * above the all-pairs ceiling. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
+         * above the all-pairs ceiling. `maxIterations` / `tolerance` are refused when defined.
          * @param gs - the snapshot
          * @param o - `weighted`, `harmonic` (exact runs), and a sampled run's `sources` (undirected snapshots only)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7) and `sourcesUsed`
+         * @returns the f32 scores with `precision: "f32"` and `sourcesUsed`
          */
         async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {
             ctx.assertReady();
             return await closenessCentrality(ctx, gs, o);
         },
         /**
-         * All-pairs shortest paths on the device (design 8.7): blocked Floyd-Warshall, `E_TOO_LARGE` above the device's
+         * All-pairs shortest paths on the device: blocked Floyd-Warshall, `E_TOO_LARGE` above the device's
          * storage-binding ceiling. The seam passes `SsspOptions`; neither of its keys has an all-pairs meaning, so a
          * defined `cutoff` (it would change what `+Infinity` means) or `weights` (a per-arc override is a different
          * matrix from the snapshot's resident column) is `E_UNSUPPORTED { option }`, never silently dropped.
          * @param gs - the snapshot
          * @param o - the seam's `SsspOptions`; both keys refused when defined
-         * @returns the row-major `n x n` distances and `n` (spec 3.3 line 835)
+         * @returns the row-major `n x n` distances and `n`
          */
         async allPairsShortestPath(gs: GraphSnapshot, o?: SsspOptions): Promise<GpuApspResult> {
             ctx.assertReady();
@@ -391,7 +388,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await allPairsShortestPath(ctx, gs);
         },
         /**
-         * Triangle counting with the clustering coefficient and the transitivity (design 8.5; P11).
+         * Triangle counting with the clustering coefficient and the transitivity.
          * @param gs - the snapshot
          * @returns perNode, total, coefficient and transitivity
          */
@@ -400,7 +397,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await triangleCount(ctx, gs);
         },
         /**
-         * Label propagation (design 8.6; P11): `maxIterations` and `weighted` are honored, `tolerance` is refused when
+         * Label propagation: `maxIterations` and `weighted` are honored, `tolerance` is refused when
          * defined (a label propagation stops at a fixed point, not below a tolerance).
          * @param gs - the snapshot
          * @param o - the seam's placeholder `HitsOptionsLike`
@@ -417,7 +414,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await labelPropagation(ctx, gs, { maxIterations: o?.maxIterations, weighted: o?.weighted });
         },
         /**
-         * Boruvka's minimum spanning forest (design 8.5; P11-T4): the forest of the total edge order (weight, then
+         * Boruvka's minimum spanning forest: the forest of the total edge order (weight, then
          * edge index), which is the one `kruskalMST` accepts. The seam's per-arc `weights` override is refused when
          * defined: the forest runs over the snapshot's own edge weights.
          * @param gs - the snapshot
@@ -435,14 +432,14 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await minimumSpanningTree(ctx, gs);
         },
         /**
-         * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.
+         * Destroys every device buffer recorded for the snapshot; delegates to ctx.release.
          * @param s - the snapshot the app is done with
          */
         release(s: GraphSnapshot): void {
             ctx.release(s);
         },
         /**
-         * Disposes the context (spec 2.8); delegates to ctx.dispose, idempotent.
+         * Disposes the context; delegates to ctx.dispose, idempotent.
          */
         dispose(): void {
             ctx.dispose();

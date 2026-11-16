@@ -1,8 +1,7 @@
 /**
- * The layout half of spec 9.3 and the algorithms half of spec 9.2, plus the package's own accelerator surface
- * (spec 3.3). D27's mirrors are gone: both halves are now `import type` of the real packages, re-exported here so
- * this package's public surface is unchanged; `test/types/conformance.test-d.ts` is the cross-compile that holds
- * them honest. Types only.
+ * The accelerator interfaces of `@graphty/layout` and `@graphty/algorithms`, re-exported, plus this package's own
+ * accelerator surface. `test/types/conformance.test-d.ts` is the cross-compile that keeps the two sides in step.
+ * Types only.
  */
 
 import type {
@@ -43,14 +42,12 @@ import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOp
 import type { GpuMstResult, GpuTriangleResult } from "./structure.js";
 import type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./traversal.js";
 
-// ---- the real @graphty/layout interfaces (spec 9.3, D27): imported at W1b, re-exported so the package's public
-// surface is unchanged and src/types/layout.ts keeps resolving them from here. `export type`, never a bare
+// ---- the real @graphty/layout interfaces, re-exported so src/types/layout.ts resolves them from here. `export type`, never a bare
 // `export { ... }`: isolatedModules makes the bare form TS1205.
 
 export type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
 
-// ---- the real @graphty/algorithms interfaces (spec 9.2, D27): imported at W1b now that A2's first
-// commit exists, re-exported so this package's public surface is unchanged. `export type`, never a
+// ---- the real @graphty/algorithms interfaces, re-exported as part of this package's public surface. `export type`, never a
 // bare `export { ... }`: isolatedModules makes the bare form TS1205.
 
 export type {
@@ -76,11 +73,11 @@ export type {
     SsspResultLike,
 } from "@graphty/algorithms";
 
-// ---- the package's own accelerator surface (spec 3.3); grows one method per shipped algorithm from P7
+// ---- the package's own accelerator surface; one method per GPU algorithm
 
 /**
- * Spec 3.3 AcceleratorOptions, verbatim.
- * Exported: consumed by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
+ * Options of createGpuAccelerator: the layout tuning knobs, and the betweenness sample (`k` random sources, or an
+ * explicit `sources` list) used when a caller passes neither.
  * @public
  */
 export interface AcceleratorOptions {
@@ -94,24 +91,20 @@ export interface AcceleratorOptions {
 }
 
 /**
- * The injectable object (spec 3.3): P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and
- * springElectrical (the two other optional members of the real LayoutAccelerator, spec 9.3; the CPU option types in,
- * the GPU simulations out), plus P7's seven algorithm members
- * (spec 8.2, 8.3; M8b-T8) and P8's four traversal members (spec 8.4; P8-T13 PD-16), non-optional here and returning
- * the `Gpu*Result` shapes, which satisfy the `*ResultLike` mirrors (spec 9.7: `precision` is an extra field, `F32` is
- * a `NumericVector`). `connectedComponents` and `weaklyConnectedComponents` are the same algorithm (spec 3.3: WCC
- * semantics on directed input) under both names the mirror declares; their options parameter stays OPTIONAL, because
+ * The injectable object: the three layouts (forceAtlas2, fruchtermanReingold and springElectrical: the CPU option
+ * types in, the GPU simulations out), release and dispose, and one member per GPU algorithm, non-optional here and
+ * returning the `Gpu*Result` shapes, which satisfy the `*ResultLike` interfaces of `@graphty/algorithms`
+ * (`precision` is an extra field, `F32` is a `NumericVector`). `connectedComponents` and
+ * `weaklyConnectedComponents` are the same algorithm (weakly connected components on directed input) under both names the mirror declares; their options parameter stays OPTIONAL, because
  * the mirror declares none and an extra REQUIRED parameter would stop the member satisfying it. The four traversals
- * take the seam's OWN option types (PD-19: `BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
+ * take the seam's OWN option types (`BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
  * `ClosenessAcceleratorOptions` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
  * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. The two
- * betweenness members take the seam's `BetweennessAcceleratorOptions`. `allPairsShortestPath` (design 8.7) takes the
- * seam's `SsspOptions` too and refuses both of its keys. P11 adds `triangleCount` (its result carries `coefficient`
+ * betweenness members take the seam's `BetweennessAcceleratorOptions`. `allPairsShortestPath` takes the
+ * seam's `SsspOptions` too and refuses both of its keys. `triangleCount` (its result carries `coefficient`
  * and `transitivity` beyond the seam's `{ perNode, total }`, which a wider object satisfies) and `labelPropagation`
  * (the seam's `HitsOptionsLike`: `maxIterations` and `weighted` honored, `tolerance` refused), and
- * `minimumSpanningTree` (Boruvka; the seam's `MstOptions`, whose per-arc `weights` override is refused). Later phases
- * add one member per shipped algorithm.
- * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
+ * `minimumSpanningTree` (Boruvka; the seam's `MstOptions`, whose per-arc `weights` override is refused).
  * @public
  */
 export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator {

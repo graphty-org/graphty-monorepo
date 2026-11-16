@@ -181,7 +181,7 @@ GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any \
 and the card's, with the extracted libEGL tree the container still needs (section 2 item 7):
 
 ```bash
-LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu \
+LD_LIBRARY_PATH=tmp/egl/root/usr/lib/x86_64-linux-gnu \
   GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp \
   node scripts/run-node-shard.js --project=node --project=node-limits
 ```

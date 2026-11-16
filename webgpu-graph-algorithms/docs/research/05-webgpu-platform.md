@@ -1024,22 +1024,22 @@ matrix.shard }})` matrix on `ubuntu-latest` with `pnpm exec vitest run
 
 Local files (all paths absolute under the two project roots):
 
-- /home/apowers/Projects/webgpu-graph-algorithms/HEADLESS_GPU_REPORT.md (flags, libEGL root cause, Chrome 145 powerPreference, appendix D)
-- /home/apowers/Projects/webgpu-graph-algorithms/package.json, vitest.config.ts, vite.config.ts (scaffold state)
-- /home/apowers/Projects/webgpu-graph-algorithms/test/setup/node.ts, browser.ts, webgpu-global.ts; test/helpers/webgpu.ts, test-utils.ts
-- /home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/package.json (webgpu ^0.4.0, vitest ^3.2.4, @webgpu/types ^0.1.72)
-- /home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/vitest.config.ts (pool forks, environment node)
-- /home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/test/audit/gpu-upload.test.ts (acquire() lines 38-63, header lines 1-17)
-- /home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/test/audit/gpu-contract.test.ts (device-less contract audit)
-- /home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/node_modules/webgpu/{package.json,index.js,types.d.ts,README.md} (0.4.0 as installed)
-- /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/09-webgpu-requirements.md (probed Chromium limits table, Dawn source quotes, WGSL type rules)
-- /home/apowers/Projects/graphty-monorepo/package.json (vitest ^3.2.4, @vitest/browser ^3.2.4, playwright ^1.54.1, vite ^7, pnpm overrides for @vitest/browser 3.2.7 / 4.1.10)
-- /home/apowers/Projects/graphty-monorepo/vitest.shared.config.ts (happy-dom default env, thresholds)
-- /home/apowers/Projects/graphty-monorepo/graphty-element/vitest.config.ts and algorithms/vitest.config.ts (3.x `instances: [{ browser: "chromium" }]`, fileParallelism false)
-- /home/apowers/Projects/graphty-monorepo/.github/workflows/ci.yml (shard matrix lines 236-350, playwright install line 423)
-- /home/apowers/Projects/graphty-monorepo/graphty/src/vite-env.d.ts (vite/client reference)
-- /home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/repos/cuda-ffi/.github/workflows/build.yml (self-hosted GPU runner pattern)
-- Probe scripts written and run today: /home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/probe/dawn-probe.mjs, dawn-select.mjs, dawn-list.mjs, dawn-list2.mjs, dawn-perf.mjs, dawn-latency.mjs, chromium-latency.mjs
+- <staging>/HEADLESS_GPU_REPORT.md (flags, libEGL root cause, Chrome 145 powerPreference, appendix D)
+- <staging>/package.json, vitest.config.ts, vite.config.ts (scaffold state)
+- <staging>/test/setup/node.ts, browser.ts, webgpu-global.ts; test/helpers/webgpu.ts, test-utils.ts
+- graph-format/package.json (webgpu ^0.4.0, vitest ^3.2.4, @webgpu/types ^0.1.72)
+- graph-format/vitest.config.ts (pool forks, environment node)
+- graph-format/test/audit/gpu-upload.test.ts (acquire() lines 38-63, header lines 1-17)
+- graph-format/test/audit/gpu-contract.test.ts (device-less contract audit)
+- graph-format/node_modules/webgpu/{package.json,index.js,types.d.ts,README.md} (0.4.0 as installed)
+- tmp/graph-format-design/09-webgpu-requirements.md (probed Chromium limits table, Dawn source quotes, WGSL type rules)
+- package.json (vitest ^3.2.4, @vitest/browser ^3.2.4, playwright ^1.54.1, vite ^7, pnpm overrides for @vitest/browser 3.2.7 / 4.1.10)
+- vitest.shared.config.ts (happy-dom default env, thresholds)
+- graphty-element/vitest.config.ts and algorithms/vitest.config.ts (3.x `instances: [{ browser: "chromium" }]`, fileParallelism false)
+- .github/workflows/ci.yml (shard matrix lines 236-350, playwright install line 423)
+- graphty/src/vite-env.d.ts (vite/client reference)
+- <staging>/tmp/webgpu-plan/repos/cuda-ffi/.github/workflows/build.yml (self-hosted GPU runner pattern)
+- Probe scripts written and run today: <staging>/tmp/webgpu-plan/probe/dawn-probe.mjs, dawn-select.mjs, dawn-list.mjs, dawn-list2.mjs, dawn-perf.mjs, dawn-latency.mjs, chromium-latency.mjs
 - npm tarballs webgpu-0.4.0.tgz and webgpu-0.6.1.tgz (symbol-version inspection, scratchpad)
 
 URLs:

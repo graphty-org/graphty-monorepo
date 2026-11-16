@@ -296,11 +296,74 @@ describe("jobs", () => {
         }
     });
 
-    it("exits stale when a top-10 issue is in no job and not blocked, but not for a blocked one", () => {
-        const r = run(cache([{ issues: [1] }, { issues: [2] }, { issues: [3] }, { issues: [4] }]));
-        assert.equal(r.code, 3);
-        assert.match(r.out, /top of the queue in no job: #5\)$/);
-        assert.equal(run(cache([{ issues: [1, 2, 3, 4, 5] }])).code, 0);
+    it("offers a top-10 issue the scan missed as an unscanned job and asks for a rescan, never for a blocked one", () => {
+        const scanned = cache([{ issues: [1], files: ["a.ts"] }, { issues: [3] }, { issues: [4] }]);
+        const r = run(scanned, ["jobs"]);
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.out.split("\n"), [
+            "job #1 critical -- no reason given; files a.ts",
+            "job #2 medium unscanned -- not in the free-queue scan",
+            "job #3 medium -- no reason given; files none named",
+            "job #4 low -- no reason given; files none named",
+            "job #5 low unscanned -- not in the free-queue scan",
+            "5 jobs, 5 issues, 0 grouped",
+            "rescan: #2 #5 -- start the free-queue scan",
+        ]);
+        const json = JSON.parse(run(scanned).out);
+        assert.deepEqual(json.rescan, [2, 5]);
+        assert.equal(json.jobs[1].unscanned, true);
+        const full = run(cache([{ issues: [1, 2, 3, 4, 5] }]), ["jobs"]);
+        assert.equal(full.code, 0);
+        assert.doesNotMatch(full.out, /rescan|unscanned/);
+    });
+
+    it("offers each free top-10 issue as unscanned when no scanned job is left", () => {
+        const r = JSON.parse(run(cache([{ issues: [99] }])).out);
+        assert.deepEqual(r.rescan, [1, 2, 3, 4, 5]);
+        assert.deepEqual(
+            r.jobs.map((j) => j.issues),
+            [[1], [2], [3], [4], [5]],
+        );
+    });
+
+    it("splits a scan job of more than four into consecutive jobs in queue order", () => {
+        const r = JSON.parse(run(cache([{ issues: [5, 4, 3, 2, 1], files: ["a.ts"], why: "w" }])).out);
+        assert.deepEqual(
+            r.jobs.map((j) => [j.lead, j.issues]),
+            [
+                [1, [1, 2, 3, 4]],
+                [5, [5]],
+            ],
+        );
+        assert.deepEqual(r.rescan, []);
+    });
+
+    it("keeps a critical issue's job led by it when a lower multi-issue job joins it, at most four issues", () => {
+        const joined = JSON.parse(
+            run(cache([{ issues: [3, 2], files: ["a.ts"] }, { issues: [1], files: ["a.ts"] }, { issues: [4, 5] }])).out,
+        );
+        assert.deepEqual(
+            joined.jobs.map((j) => [j.lead, j.priority, j.issues]),
+            [
+                [1, "critical", [1, 2, 3]],
+                [4, "low", [4, 5]],
+            ],
+        );
+        const tooBig = JSON.parse(
+            run(
+                cache([
+                    { issues: [2, 3, 4, 5], files: ["a.ts"] },
+                    { issues: [1], files: ["a.ts"] },
+                ]),
+            ).out,
+        );
+        assert.deepEqual(
+            tooBig.jobs.map((j) => [j.lead, j.priority, j.issues]),
+            [
+                [1, "critical", [1]],
+                [2, "medium", [2, 3, 4, 5]],
+            ],
+        );
     });
 
     it("merges jobs that share a file or a family, leader first in queue order, at most four issues", () => {
@@ -359,6 +422,22 @@ describe("taken", () => {
             ["issue", "comment", "8", "-R", "graphty-org/graphty-monorepo", "--body", body],
         ]);
         assert.doesNotMatch(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts", "--why", "w"]).out, /group/);
+    });
+
+    it("marks the rest when one issue fails, names marked and failed issues, and exits non-zero", () => {
+        calls.length = 0;
+        const cli = (a) => {
+            if (a[2] === "8") throw new Error("HTTP 502\nmore");
+            calls.push(a);
+        };
+        const argv = ["taken", "fix/7-x", ".worktrees/x", "7", "8", "9", "--files", "a.ts", "--why", "w"];
+        const r = main(argv, runner().run, NOW, undefined, { cli, env: { CLAUDE_CODE_SESSION_ID: "s1" } });
+        assert.equal(r.code, 1);
+        assert.equal(r.out, "taken: marked #7 #9; failed #8 (HTTP 502) -- mark the failed ones again");
+        assert.deepEqual(
+            calls.map((c) => c[2]),
+            ["7", "7", "9", "9"],
+        );
     });
 
     it("refuses with no files, no reason, no session or no issue, and writes nothing", () => {

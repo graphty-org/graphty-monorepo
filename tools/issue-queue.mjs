@@ -6,8 +6,10 @@
 //   node tools/issue-queue.mjs list [--limit N] [--json]   open issues an issue round may take, in its order
 //   node tools/issue-queue.mjs show <n>                    one trusted issue, untrusted comments withheld
 //   gh api graphql ... | node tools/issue-queue.mjs filter  any GraphQL answer with untrusted titles and bodies withheld
-//   node tools/issue-queue.mjs jobs [--json]               the jobs to start, grouped, from the free-queue scan;
-//                                                          exits 3 "stale: rebuild the free queue" when it must be rebuilt
+//   node tools/issue-queue.mjs jobs [--json]               the jobs to start, grouped, from the free-queue scan; top
+//                                                          issues the scan missed as `unscanned` jobs and a `rescan:`
+//                                                          line; exits 3 "stale: rebuild the free queue" when the
+//                                                          cache is missing, old-format or over 2 hours old
 //   node tools/issue-queue.mjs taken <branch> <worktree> <n>... --files <path>... --why "<reason>"
 //                                                          marks a job's issues in-progress with the taken marker
 //
@@ -252,11 +254,13 @@ const SHARED_FILES = [
 /**
  * The jobs a round starts, from the free-queue scan's cache and the live queue. Claude judges the groups in the scan;
  * this enforces them: issues no longer in the queue drop out, and jobs that share a (non-shared) file or a family label
- * merge, up to four issues, each job led by its issue earliest in the queue, in the queue's order.
+ * merge, up to four issues, each job led by its issue earliest in the queue, in the queue's order. A scan job of more
+ * than four splits into consecutive jobs in queue order. A top-10 issue the scan put nowhere becomes its own job marked
+ * `unscanned`, and `rescan` names those issues so the round starts the scan again without waiting for it.
  * @param cache the parsed free-queue.json, or null when missing
  * @param q the queue, from queue()
  * @param now ms
- * @returns `{ stale }` with the reason the scan must run again, or `{ jobs }`
+ * @returns `{ stale }` with the reason the scan must run again, or `{ jobs, rescan }`
  */
 export function jobs(cache, q, now) {
     if (!cache) return { stale: "no free queue" };
@@ -269,22 +273,23 @@ export function jobs(cache, q, now) {
     const blocked = new Set((cache.blocked ?? []).map((b) => b.issue));
     const seen = new Set();
     const cleaned = cache.jobs
-        .map((j) => {
+        .flatMap((j) => {
             const issues = [...new Set(j.issues ?? [])]
                 .filter((n) => pos.has(n) && !seen.has(n))
                 .sort((a, b) => pos.get(a) - pos.get(b));
             for (const n of issues) seen.add(n);
             const files = (j.files ?? []).filter((f) => !SHARED_FILES.some((r) => r.test(f)));
-            return { issues, files, why: [j.why ?? ""] };
+            const chunks = [];
+            for (let k = 0; k < issues.length; k += MAX_JOB)
+                chunks.push({ issues: issues.slice(k, k + MAX_JOB), files, why: [j.why ?? ""] });
+            return chunks;
         })
-        .filter((j) => j.issues.length > 0)
         .sort((a, b) => pos.get(a.issues[0]) - pos.get(b.issues[0]));
-    const missing = q
-        .slice(0, 10)
-        .map((i) => i.number)
-        .filter((n) => !seen.has(n) && !blocked.has(n));
-    if (missing.length) return { stale: `top of the queue in no job: ${hashes(missing)}` };
-    if (!cleaned.length && q.some((i) => !blocked.has(i.number))) return { stale: "no job left in the queue" };
+    const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !blocked.has(n));
+    const top = new Set(q.slice(0, 10).map((i) => i.number));
+    let rescan = free.filter((n) => top.has(n));
+    // Nothing scanned is left but work is: offer the first free issue rather than an empty round.
+    if (!rescan.length && !cleaned.length && free.length) rescan = [free[0]];
     const families = (j) => j.issues.map((n) => byNumber.get(n).family).filter(Boolean);
     const merged = [];
     for (const j of cleaned) {
@@ -302,15 +307,17 @@ export function jobs(cache, q, now) {
         into.files = [...new Set([...into.files, ...j.files])];
         into.why.push(...j.why);
     }
-    return {
-        jobs: merged.map((m) => ({
-            lead: m.issues[0],
-            priority: byNumber.get(m.issues[0]).priority,
-            issues: m.issues,
-            files: m.files,
-            why: m.why.filter(Boolean).join("; "),
-        })),
-    };
+    const out = merged.map((m) => ({
+        lead: m.issues[0],
+        priority: byNumber.get(m.issues[0]).priority,
+        issues: m.issues,
+        files: m.files,
+        why: m.why.filter(Boolean).join("; "),
+    }));
+    for (const n of rescan) {
+        out.push({ lead: n, priority: byNumber.get(n).priority, issues: [n], files: [], why: "", unscanned: true });
+    }
+    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan };
 }
 
 /**
@@ -409,17 +416,20 @@ function jobsCommand(result, rest) {
     if (result.stale) return { code: 3, out: `stale: rebuild the free queue (${result.stale})` };
     if (rest.includes("--json")) return { code: 0, out: JSON.stringify(result, null, 2) };
     const lines = result.jobs.map((j) => {
+        if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- not in the free-queue scan`;
         const why = j.why || "no reason given";
         return ascii(`job ${hashes(j.issues)} ${j.priority} -- ${why}; files ${j.files.join(" ") || "none named"}`);
     });
     const issues = result.jobs.reduce((t, j) => t + j.issues.length, 0);
     const grouped = result.jobs.filter((j) => j.issues.length > 1).length;
     lines.push(`${result.jobs.length} jobs, ${issues} issues, ${grouped} grouped`);
+    if (result.rescan.length) lines.push(`rescan: ${hashes(result.rescan)} -- start the free-queue scan`);
     return { code: 0, out: lines.join("\n") };
 }
 
 /**
- * Marks a job: the in-progress label and the taken marker on each of its issues.
+ * Marks a job: the in-progress label and the taken marker on each of its issues. A gh failure on one issue does not
+ * stop the rest; the output names the issues marked and the ones that failed, and the code is 1 when any failed.
  * @param marker from takenMarker()
  * @param cli runs a gh command
  * @returns `{ code, out }`
@@ -427,11 +437,20 @@ function jobsCommand(result, rest) {
 function takenCommand(marker, cli) {
     if (marker.error) return { code: 2, out: marker.error };
     const repo = `${REPO.owner}/${REPO.name}`;
+    const marked = [];
+    const failed = [];
     for (const n of marker.issues) {
-        cli(["issue", "edit", String(n), "-R", repo, "--add-label", "in-progress"]);
-        cli(["issue", "comment", String(n), "-R", repo, "--body", marker.body]);
+        try {
+            cli(["issue", "edit", String(n), "-R", repo, "--add-label", "in-progress"]);
+            cli(["issue", "comment", String(n), "-R", repo, "--body", marker.body]);
+            marked.push(n);
+        } catch (error) {
+            failed.push(`#${n} (${String(error.message).split("\n")[0]})`);
+        }
     }
-    return { code: 0, out: marker.body };
+    if (!failed.length) return { code: 0, out: marker.body };
+    const done = marked.length ? hashes(marked) : "none";
+    return { code: 1, out: `taken: marked ${done}; failed ${failed.join(", ")} -- mark the failed ones again` };
 }
 
 /**

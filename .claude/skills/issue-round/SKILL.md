@@ -145,9 +145,14 @@ passes the checks below and step 4. A job of more issues than four becomes conse
 parallel ones: step 4 holds the next until the previous one's pull request has merged. An issue the owner ordered
 still comes before any job.
 
-**When it exits 3** (`stale: rebuild the free queue (<reason>)`: the cache is missing, over 2 hours old, or a top-10
-issue of the queue is in no job and not in `blocked`), start the free-queue scan (step 4) and, this round only, take
-the top issue as below and group it by step 3. Never skip the scan: on 2026-11-14 and 11-15, with the grouping only in
+**A `rescan: #a #b ...` line** means those top-10 issues of the queue are in no job of the scan and not in `blocked`
+(new since it ran): start the free-queue scan (step 4) and keep taking jobs from this output. Each such issue is
+already a job of its own, marked `unscanned` (`job #a <priority> unscanned -- not in the free-queue scan`), in its
+place in the order; before starting one, look for its relatives by step 3, as for any single issue.
+
+**When it exits 3** (`stale: rebuild the free queue (<reason>)`: the cache is missing, in the old format with no jobs
+list, or over 2 hours old), start the free-queue scan (step 4) and, this round only, take the top issue as below and
+group it by step 3. Never skip the scan: on 2026-11-14 and 11-15, with the grouping only in
 prose, no round rebuilt either cache and 70 of 73 jobs on 11-15 were single issues, among them nine style fidelity
 issues that changed the same records and collided in CI.
 
@@ -216,8 +221,8 @@ earlier attempts' evidence in the prompt (a failing job is never a question for 
 
 ## 3. Group related issues
 
-Whenever the job about to start is a single issue (a `jobs` line with one number, or the top issue while `jobs` is
-stale), look for up to three more before starting it. Judge, from the issues' titles and bodies and the code they point
+Whenever the job about to start is a single issue (a `jobs` line with one number, `unscanned` ones included, or the top
+issue while `jobs` is stale), look for up to three more before starting it. Judge, from the issues' titles and bodies and the code they point
 at, which other issues of `node tools/issue-queue.mjs list` (never a raw search; read each with `show <n>`) belong in
 the same job: they share its files (tests, records and fixtures included), its root cause, its symptom or its
 `family:` label, or the same fix would touch them. This is a judgment, not keyword matching. A wrong group costs a
@@ -231,7 +236,7 @@ the paths its issue names: on 2026-11-12 a check of named paths alone both misse
 #1205) and passed over 144 free issues.
 
 **The free queue.** A pre-round scan, one read-only background subagent like the no-PR work in step 1 (at most one
-at a time), started whenever `node tools/issue-queue.mjs jobs` exits 3, and also when a pull request in its `blocked`
+at a time), started whenever `node tools/issue-queue.mjs jobs` exits 3 or prints a `rescan:` line, and also when a pull request in its `blocked`
 lists has closed or merged since `builtAt` (compare with the broker file). It is the one place issues are grouped.
 Its prompt: "Group the free issues of graphty-org/graphty-monorepo into jobs. Read the whole queue with
 `node tools/issue-queue.mjs list --json` (never only the first 30) and each issue with

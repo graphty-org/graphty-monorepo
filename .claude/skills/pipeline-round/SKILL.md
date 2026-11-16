@@ -348,7 +348,11 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 
 ### 10. Stale issues and stranded branches
 
-Every round, over `marked` in the state file and the branch list above (no extra GitHub calls):
+First `node tools/issue-groups.mjs check --fix` (issue-round runs it too; twice a round is harmless): it ends the
+waits of merged pull requests and makes their follow-up groups startable, dissolves groups whose pull request closed
+unmerged so their issues are routed again, and expires waits on a pull request red or conflicting with no new commit
+for 6 hours or held by the owner for over 24 (design/ci/issue-grouping.md section 4). Then, every round, over `marked`
+in the state file and the branch list above (no extra GitHub calls):
 
 - An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
   `released -- <reason>` and remove the label in the same step, so issue-round can pick it again.

@@ -16,7 +16,6 @@ import {
     type EdgeId,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
-    fileStyleOf,
     type GraphSession,
     type Layer,
     type NodeId,
@@ -24,8 +23,9 @@ import {
 import { DataSource } from "../../src/data/DataSource";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { FILE_STYLE_LAYER_CAP } from "../../src/session/styles/fileStyles/fold";
-import { asFileStyleStore, FILE_STYLES_VALUE } from "../../src/session/styles/fileStyles/store";
+import { asStyleValueStore, STYLE_VALUES_VALUE } from "../../src/session/styles/fileStyles/store";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -95,17 +95,26 @@ function winner(session: GraphSession, id: string, channel: string): Layer | und
  * @returns Them, bottom first.
  */
 function fileLayers(session: GraphSession): Layer[] {
-    return session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
+    return loadedLayers(session);
 }
 
 /**
- * The namespaces the file-style store holds.
+ * The names of the sets the style value store holds.
  * @param session - The session.
  * @returns Them.
  */
 function namespaces(session: GraphSession): string[] {
-    const store = asFileStyleStore(dispatcherOf(session).state.graph.values.get(FILE_STYLES_VALUE));
-    return store.loads.map((load) => load.values.namespace);
+    const store = asStyleValueStore(dispatcherOf(session).state.graph.values.get(STYLE_VALUES_VALUE));
+    return store.sets.map((set) => set.values.name);
+}
+
+/**
+ * The style value set a layer reads from.
+ * @param layer - The layer.
+ * @returns The set's name, or undefined when it reads none.
+ */
+function setOf(layer: Layer | undefined): string | undefined {
+    return /graphty\.style\.\\?"?(values(?:-\d+)?)/.exec(JSON.stringify(layer ?? {}))?.[1];
 }
 
 /**
@@ -140,11 +149,13 @@ describe("a file's styles drawn by the load", () => {
         await session.data.import({ type: "gexf", config: { data: MISERABLES } }, { styles: "file" });
 
         const layers = fileLayers(session);
-        const discrete = layers.filter((layer) => fileStyleOf(layer)?.mapping === "discrete");
+        const discrete = layers.filter((layer) =>
+            Object.values(layer.encode ?? {}).some((binding) => typeof binding === "object" && "map" in binding),
+        );
         assert.lengthOf(discrete, 1);
-        assert.strictEqual(fileStyleOf(discrete[0])?.ruleId, "node.by.Modularity Class");
+        assert.strictEqual(discrete[0].name, "By Modularity Class");
         assert.deepEqual(Object.keys(discrete[0].encode ?? {}), ["node.color"]);
-        assert.deepEqual(namespaces(session), ["gexf"]);
+        assert.deepEqual(namespaces(session), ["values"]);
 
         const { styles, snapshot } = await graphIo(MISERABLES, "gexf");
         const fill = resolveStyles(styles, "node", "fill", snapshot);
@@ -197,7 +208,7 @@ describe("a file's styles drawn by the load", () => {
         assert.strictEqual(drawn(session, { node: "a" }, "node.size"), 50);
         assert.strictEqual(drawn(session, { node: "c" }, "node.size"), 50);
         assert.strictEqual(drawn(session, { node: "b" }, "node.size"), 20);
-        assert.deepEqual(namespaces(session), ["cytoscape-js"]);
+        assert.deepEqual(namespaces(session), ["values"]);
         session.dispose();
     });
 
@@ -368,7 +379,7 @@ describe("a file's styles drawn by the load", () => {
             fileLayers(session).map((layer) => layer.name),
             made,
         );
-        assert.deepEqual(namespaces(session), ["gexf"]);
+        assert.deepEqual(namespaces(session), ["values"]);
         assert.strictEqual(drawn(session, { node: "n1" }, "node.color"), "#ff0000");
         session.dispose();
     });
@@ -383,7 +394,7 @@ describe("a file's styles drawn by the load", () => {
             { styles: "file" },
         );
         assert.strictEqual(fileLayers(session).length, once);
-        assert.deepEqual(namespaces(session), ["gexf"]);
+        assert.deepEqual(namespaces(session), ["values"]);
         assert.strictEqual(drawn(session, { node: "m1" }, "node.color"), "#00ff00");
 
         // A replacing load without styles sweeps them too.
@@ -542,7 +553,7 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("keeps each merged file's layers on its own nodes, under gexf and gexf-2", async () => {
+    it("keeps each merged file's layers on its own nodes, under values and values-2", async () => {
         const session = createGraphSession();
         await session.data.import(
             { type: "gexf", config: { data: coloredGexf("a", ["255,0,0", "0,0,255"]) } },
@@ -553,17 +564,17 @@ describe("a file's styles drawn by the load", () => {
             { styles: "file", mode: "merge" },
         );
 
-        assert.deepEqual(namespaces(session), ["gexf", "gexf-2"]);
+        assert.deepEqual(namespaces(session), ["values", "values-2"]);
         assert.strictEqual(drawn(session, { node: "a1" }, "node.color"), "#ff0000");
         assert.strictEqual(drawn(session, { node: "a0" }, "node.color"), "#0000ff");
         assert.strictEqual(drawn(session, { node: "b1" }, "node.color"), "#00ff00");
         assert.strictEqual(drawn(session, { node: "b0" }, "node.color"), "#ffff00");
         for (const id of ["a0", "a1", "a5"]) {
-            assert.strictEqual(fileStyleOf(winner(session, id, "node.color") ?? {})?.importId, "gexf");
+            assert.strictEqual(setOf(winner(session, id, "node.color")), "values");
         }
 
         for (const id of ["b0", "b1", "b5"]) {
-            assert.strictEqual(fileStyleOf(winner(session, id, "node.color") ?? {})?.importId, "gexf-2");
+            assert.strictEqual(setOf(winner(session, id, "node.color")), "values-2");
         }
 
         session.dispose();
@@ -623,7 +634,7 @@ describe("a file's groups (compound nodes)", () => {
         }
         // Only the groups are painted: the layer that sets it is scoped to them.
         const layer = winner(session, "outer", "node.zIndex");
-        assert.strictEqual(fileStyleOf(layer as Layer)?.ruleId, "node.groups");
+        assert.strictEqual(layer?.name, "node.groups");
         session.dispose();
     });
 
@@ -952,7 +963,7 @@ describe("a file's drawing order", () => {
         assert.strictEqual(order(session, "first"), 0);
         assert.strictEqual(order(session, "second"), 50);
         assert.strictEqual(order(session, "third"), 100);
-        assert.strictEqual(fileStyleOf(winner(session, "third", "node.drawOrder") as Layer)?.ruleId, "node.drawOrder");
+        assert.strictEqual(winner(session, "third", "node.drawOrder")?.name, "Draw order");
         session.dispose();
     });
 
@@ -979,11 +990,11 @@ describe("a file graphty wrote", () => {
         // The short layer was rebuilt, and paints only the first file's group x.
         assert.strictEqual(drawn(session, { node: "a1" }, "node.color"), "#00ff00");
         assert.notStrictEqual(drawn(session, { node: "a0" }, "node.color"), "#00ff00");
-        assert.strictEqual(fileStyleOf(winner(session, "a1", "node.color") ?? {})?.importId, "gexf");
+        assert.strictEqual(setOf(winner(session, "a1", "node.color")), "values");
         assert.notStrictEqual(drawn(session, { node: "b1" }, "node.color"), "#00ff00");
         // The long one fell back to the file's neutral rule: the file's own colors, on its own nodes.
         assert.strictEqual(drawn(session, { node: "b1" }, "node.color"), "#ff0000");
-        assert.strictEqual(fileStyleOf(winner(session, "b1", "node.color") ?? {})?.importId, "gexf-2");
+        assert.strictEqual(setOf(winner(session, "b1", "node.color")), "values-2");
         const notes = session.data.lastImport()?.styles?.notes ?? [];
         assert.isTrue(notes.some((note) => note.code === FILE_STYLE_ISSUE.LAYER_SPEC_IGNORED));
         session.dispose();

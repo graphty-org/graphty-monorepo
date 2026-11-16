@@ -617,6 +617,7 @@ export class GEXFDataSource extends DataSource {
             imported,
             gexfMapping(snapshot, direction.directed, fileStyles, TIMELINE_READERS.has(this)),
             this,
+            this.config.styles,
         );
         yield* this.chunkData(nodes, edges);
     }

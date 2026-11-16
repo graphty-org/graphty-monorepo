@@ -6,7 +6,6 @@ import {
     useNumberParser,
 } from "@graphty/compact-mantine";
 import {
-    fileStyleOf,
     type GraphSession,
     type Layer,
     type LayerPatch,
@@ -412,7 +411,7 @@ interface WhichPickerProps {
      * Given, the folded row reads the cards as this one line instead of a chip per card, unless it
      * has no words for them.
      */
-    readonly summary?: (session: GraphSession, cards: readonly Card[], rows: readonly string[], side: Side) => string;
+    readonly summary?: (session: GraphSession, cards: readonly Card[]) => string;
 }
 
 /**
@@ -449,13 +448,8 @@ export function WhichPicker({
     // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
-    // A layer read from a file selects by a mark the load left, which the selection editor can only
-    // spell out raw: with a summary to give, its row reads the rule line instead.
-    const fromFile = summary !== undefined && rows.length === 1 && fileStyleOf(rows[0].layer) !== null;
     const editable =
-        held === undefined && rows.length === 1 && !fromFile
-            ? layerSelection(session, rows[0].layer.selector, side)
-            : null;
+        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -540,8 +534,6 @@ export function WhichPicker({
                             : summary(
                                   session,
                                   shown.map((each) => each.card),
-                                  ids,
-                                  side,
                               ) || undefined
                     }
                     onOpen={(key) => {

@@ -129,6 +129,23 @@ vec4 shade(NodeInput n) {
 
 /** A saved view: one camera state, the same at any graph size. */
 const VIEW = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
+/** A text annotation the annotation cases write. */
+const NOTE = {
+    id: "note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
+} as const;
 const BLUE = "#0000ff";
 
 /**
@@ -858,6 +875,35 @@ const CASES: readonly Case[] = [
         prepare: async (session) => {
             await session.views.save([{ name: "Saved", camera: VIEW }]);
             return () => session.views.remove(["Saved"]);
+        },
+    },
+    {
+        method: "SessionAnnotations.add",
+        growth: "constant",
+        prepare: (session) => Promise.resolve(() => session.annotations.add(NOTE)),
+    },
+    {
+        method: "SessionAnnotations.update",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.update(NOTE.id, { text: "changed" });
+        },
+    },
+    {
+        method: "SessionAnnotations.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.remove(NOTE.id);
+        },
+    },
+    {
+        method: "SessionAnnotations.clear",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.clear();
         },
     },
     {

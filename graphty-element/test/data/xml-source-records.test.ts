@@ -2,7 +2,7 @@
  * @file The records and direction the GEXF and GraphML sources build from what graph-io read, for
  * the inputs the corpus does not cover: keyword case, key precedence, declaration order, a
  * headerless GEXF file with mixed edge types, date attributes, open spells, mutual edges and
- * yFiles colours.
+ * yFiles graphics, which write no record key.
  */
 import { assert, describe, it } from "vitest";
 
@@ -140,12 +140,11 @@ describe("GraphML records", () => {
         );
     });
 
-    it("normalises a yFiles colour to upper-case #RRGGBB", async () => {
+    it("writes no record key for a yFiles fill or border: how a node looks is drawn by layers", async () => {
         const { nodes } = await graphml(
             `<key id="d0" for="node" yfiles.type="nodegraphics"/><graph edgedefault="undirected">` +
                 `<node id="n0"><data key="d0"><y:ShapeNode><y:Fill color="#ffcc00"/><y:BorderStyle color="#0a0"/></y:ShapeNode></data></node></graph>`,
         );
-        assert.strictEqual(nodes[0].color, "#FFCC00");
-        assert.strictEqual(nodes[0].borderColor, "#00AA00");
+        assert.deepEqual(Object.keys(nodes[0]), ["id"]);
     });
 });

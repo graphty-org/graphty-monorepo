@@ -8,9 +8,9 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { fileStyleOf } from "../../session";
 import { Graph } from "../../src/Graph.js";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -42,10 +42,7 @@ function color(graph: Graph, id: string): string {
  * @returns The count.
  */
 function fileLayers(graph: Graph): number {
-    return graph
-        .getSession()
-        .styles.list()
-        .filter((layer) => fileStyleOf(layer) !== null).length;
+    return loadedLayers(graph.getSession()).length;
 }
 
 /**

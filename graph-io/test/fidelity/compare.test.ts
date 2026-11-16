@@ -354,6 +354,39 @@ describe("scene comparison", () => {
         });
     });
 
+    it("pairs lookalike parallel edges by their paths, whatever order each side lists them in", () => {
+        const nodes = [node("a", 0, 0), node("b", 100, 0), node("c", 0, 100)];
+        const line = (id: string, extra: Partial<SceneEdge> = {}): SceneEdge =>
+            edge(
+                id,
+                "a",
+                "b",
+                [
+                    [0, 0],
+                    [100, 0],
+                ],
+                extra,
+            );
+        const bow = (id: string, extra: Partial<SceneEdge> = {}): SceneEdge =>
+            edge(
+                id,
+                "a",
+                "b",
+                [
+                    [0, 0],
+                    [50, 30],
+                    [100, 0],
+                ],
+                { curved: true, ...extra },
+            );
+        const reference = scene("cytoscape-desktop", nodes, [line("a->b"), bow("a->b#1")]);
+        const drawn = scene("graphty", nodes, [bow("a->b"), line("a->b#1")]);
+        expect(compareScenes(reference, drawn).properties.edgePath.status).toBe("pass");
+        // told apart by their colors, they keep their order pairing, and the drawing fails
+        const red = scene("graphty", nodes, [bow("a->b", { color: "#ff0000" }), line("a->b#1")]);
+        expect(compareScenes(reference, red).properties.edgePath.status).toBe("fail");
+    });
+
     it("judges an edge's route from center to center, wherever each side cuts it at the node outlines", () => {
         // the reference reads the line's ends at the node centers; graphty stops it at each node's
         // outline, 10 px from the center on each side

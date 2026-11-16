@@ -231,8 +231,9 @@ const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
 // STUDIO. A participant whose session folder sat inside it read tasks.md three folders up (r2-s05),
 // so a participant's session runs in a folder of its own under SCRATCH, mirroring the studio path
 // the facilitator names it by, and --end copies it back there for the graders.
-const STUDIO = resolve(here, "..");
-const SCRATCH = join(repo, "tmp/studio-sessions");
+// REAL_STUDIO and REAL_SCRATCH plant both roots in a test's own folder, so two runs never share a path (#8412)
+const STUDIO = resolve(process.env.REAL_STUDIO || join(here, ".."));
+const SCRATCH = resolve(process.env.REAL_SCRATCH || join(repo, "tmp/studio-sessions"));
 const under = (p, root) => p === root || p.startsWith(root + "/");
 const ROUND_SESSION = /\/rounds\/[^/]+\/sessions\/[^/]+$/;
 const scratchOf = (dir) => (under(dir, STUDIO) && dir !== STUDIO ? join(SCRATCH, dir.slice(STUDIO.length + 1)) : dir);

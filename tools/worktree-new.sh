@@ -5,7 +5,7 @@
 # records its owner; every branch is pushed).
 #
 # A bare `git worktree add` gives a checkout with no .env and no node_modules: tools that read
-# tokens from the checkout's .env (tools/sonar-gate.mjs) fail, and the
+# tokens from the checkout's .env (tools/results/client.mjs) fail, and the
 # commit-msg hook (`pnpm exec commitlint`) cannot run. This script adds the worktree, symlinks
 # the main checkout's .env into it (a link, so a token rotated in one place is rotated
 # everywhere) and runs `pnpm install --frozen-lockfile` there.

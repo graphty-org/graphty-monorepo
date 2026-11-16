@@ -108,7 +108,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * @param o.variant its variant
  * @param o.base the pull request's base commit
  * @param [o.out] the directory the base checks to dispatch are written to
- * @param [o.env] the environment (GITHUB_STEP_SUMMARY)
+ * @param [o.env] the environment (GITHUB_STEP_SUMMARY, RESULTS_JOB_ID)
  * @returns the judge
  */
 export function prJudge(plan, { shard, family, variant, base, out, env = process.env }) {
@@ -130,10 +130,12 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
     const check = (f, repeat) => {
         if (out) {
             mkdirSync(out, { recursive: true });
-            // the test's name too: a flaky one's base check that passes files its issue (#8317)
+            // the test's name too: a flaky one's base check that passes files its issue (#8317); and this job's id,
+            // which a touched test's base check re-runs when master fails the same test (#8363)
+            const job = env.RESULTS_JOB_ID || undefined;
             appendFileSync(
                 join(out, `${shard}.jsonl`),
-                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name, touched: touched(f) })}\n`,
+                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name, touched: touched(f), job })}\n`,
             );
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
@@ -798,6 +800,7 @@ function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, 
             variant,
             base: plan.base ?? base,
             out: env.RESULTS_BASE_CHECKS_OUT,
+            env,
         });
     }
     rules.family = family;
@@ -899,6 +902,10 @@ export async function runGroup(
     const startedAt = Date.now();
     const code = await runShard(shardName, cmd, { root, env: childEnv, state: emptyState(), ...rules });
     const endedAt = Date.now();
+    // the tests this run failed, which base-check.yml compares with the pull request's before it re-runs a job (#8363)
+    if (env.RESULTS_FAILED_OUT)
+        for (const f of readResult(resultFile).failing ?? [])
+            appendFileSync(env.RESULTS_FAILED_OUT, `${JSON.stringify({ file: f.file, name: f.name })}\n`);
     try {
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
         await record(shardName, shard, { ...facts, command, head, gh, storeMs, storyProjects: STORY_PROJECTS });

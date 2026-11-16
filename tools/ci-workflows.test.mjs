@@ -2839,30 +2839,53 @@ describe("base-check.yml", () => {
         rmSync(dir, { recursive: true, force: true });
     });
 
-    it("#8363: re-runs the asking run's failed jobs when master fails the file too, only on the newest head", () => {
+    it("#8363: re-runs only the asking job, only when master failed the same test, only on the newest head", () => {
         const job = parseYaml(workflow("base-check.yml")).jobs.check;
         assert.equal(job.permissions.actions, "write");
-        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's failed jobs"));
+        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's job"));
         assert.match(step.if, /steps\.file\.outcome == 'failure'/);
-        assert.equal(job.steps.find((s) => s.name === "Run the file").id, "file");
+        assert.match(step.if, /inputs\.job != ''/);
+        const file = job.steps.find((s) => s.name === "Run the file");
+        assert.equal(file.id, "file");
+        assert.equal(file.env.RESULTS_FAILED_OUT, step.env.MASTER_FAILED, "the step reads what the run wrote");
         const dir = mkdtempSync(join(tmpdir(), "base-check-rerun-"));
-        // gh: the run's head and the pull request's head, then the re-run, which it logs
+        const failed = join(dir, "master-failed.jsonl");
+        // gh: the job's head and the pull request's head, then the re-run, which it logs
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/sh\ncase "$*" in\n  *actions/runs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
+            `#!/bin/sh\ncase "$*" in\n  *actions/jobs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
             { mode: 0o755 },
         );
         const sh = (env) =>
             execFileSync("bash", ["-euo", "pipefail", "-c", step.run], {
-                env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", ...env },
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    MASTER_FAILED: failed,
+                    JOB: "55",
+                    PR: "7",
+                    FAILED: JSON.stringify(["d > x"]),
+                    RUN_HEAD: "aaa",
+                    PR_HEAD: "aaa",
+                    ...env,
+                },
                 encoding: "utf8",
             });
-        sh({ RUN: "55", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "bbb" });
-        assert.ok(!existsSync(join(dir, "calls")), "an older head is not re-run");
-        sh({ RUN: "55; x", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "aaa" });
-        assert.ok(!existsSync(join(dir, "calls")), "a malformed run id is not used");
-        sh({ RUN: "55", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "aaa" });
-        assert.equal(readFileSync(join(dir, "calls"), "utf8"), "run rerun 55 --failed --repo o/r\n");
+        const calls = () => (existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "");
+        // no failure recorded (a build error, or exit 2: no shard runs the file), or another test's failure
+        sh({});
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > other" })}\n`);
+        sh({});
+        assert.equal(calls(), "", "master did not fail the same test: nothing re-run");
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > x" })}\n`);
+        sh({ RUN_HEAD: "bbb" });
+        assert.equal(calls(), "", "an older head is not re-run");
+        sh({ JOB: "55; x" });
+        sh({ FAILED: "not json" });
+        assert.equal(calls(), "", "a malformed job id or test list is not used");
+        sh({});
+        assert.equal(calls(), "run rerun --job 55 --repo o/r\n", "only the one job, never --failed");
         rmSync(dir, { recursive: true, force: true });
     });
 });

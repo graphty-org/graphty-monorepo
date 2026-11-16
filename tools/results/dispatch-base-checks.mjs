@@ -4,7 +4,7 @@
 //
 //   node tools/results/dispatch-base-checks.mjs <dir>
 //
-// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat, name, touched }` per
+// Each test job's prJudge() (run-group.mjs) writes one JSON line `{ base, file, variant, repeat, name, touched, job }` per
 // `[FLAKY-UNRELATED]` (repeat 5) or `[UNRELATED]` (repeat 1) test, and per `[NEW-FLAKY]` or `[FAIL]` test whose
 // file the pull request did not change (only its imports: `touched`), into <dir>/<shard>.jsonl. ci.yml's base-checks job
 // downloads them all and runs this, so base-check.yml runs on master's code at the pull request's base: its
@@ -32,6 +32,7 @@ const VARIANT = /^[\w.-]+\|flags=(on|off)\|[\w-]+$/;
 // a test's name: one line of printable text, passed to gh as one argument
 const NAME = /^[^\p{Cc}]{1,500}$/u;
 const MAX_NAMES = 10;
+const JOB = /^\d{1,20}$/;
 
 // One JSON line as a check, or null when it is not valid JSON or a field fails its pattern.
 function checkOf(line) {
@@ -55,16 +56,26 @@ function checkOf(line) {
 function merged(had, c) {
     const check =
         !had || had.repeat < c.repeat ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat } : had;
-    const names = [...(had?.names ?? []), ...(c.repeat === 5 && NAME.test(c.name ?? "") ? [c.name] : [])];
+    const touched = c.touched === true;
+    const name = NAME.test(c.name ?? "") ? [c.name] : [];
+    // only an untouched test's flake files an issue against master: a touched one's is likely the pull request's own
+    const names = [...(had?.names ?? []), ...(c.repeat === 5 && !touched ? name : [])];
     if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
-    check.touched = (had?.touched ?? true) && c.touched === true;
+    // a touched test's failures and the job that ran them: base-check.yml re-runs that one job, and only when master
+    // fails one of the same tests (#8363)
+    const failed = [...(had?.failed ?? []), ...(touched ? name : [])];
+    if (failed.length) check.failed = [...new Set(failed)].slice(0, MAX_NAMES);
+    const job = had?.job ?? (touched && JOB.test(String(c.job ?? "")) ? String(c.job) : undefined);
+    if (job) check.job = job;
+    check.touched = (had?.touched ?? true) && touched;
     return check;
 }
 
 /**
  * The valid, distinct base checks in a directory's JSON lines.
  * @param dir the directory (missing: none)
- * @returns `{ base, file, variant, repeat, names? }[]`, at most MAX_CHECKS; `names` are a 5-repeat check's flaky tests
+ * @returns `{ base, file, variant, repeat, touched, names?, failed?, job? }[]`, at most MAX_CHECKS; `names` are an
+ *   untouched 5-repeat check's flaky tests, `failed` and `job` a touched check's tests and the job that ran them
  */
 export function readChecks(dir) {
     let names = [];
@@ -97,7 +108,8 @@ export function readChecks(dir) {
  * @param [o.release] `async (check) => void`: gives back the claim of a check gh could not dispatch (#7265), so a later
  *   pull request dispatches it
  * @param [o.pr] the pull request number, passed on so a base check that passes on master comments there
- * @param [o.run] the run that asked, passed on so a base check that fails on master re-runs its failed jobs
+ * @param [o.run] the run that asked, passed on with a touched check so a base check that fails on master re-runs
+ *   the job that failed the same test
  * @returns how many were dispatched
  */
 export async function dispatchChecks(checks, gh, { claim, release, pr, run } = {}) {
@@ -110,9 +122,14 @@ export async function dispatchChecks(checks, gh, { claim, release, pr, run } = {
         const args = ["workflow", "run", "base-check.yml", "--ref", "master"];
         const fields = { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat };
         if (/^\d+$/.test(String(pr ?? ""))) fields.pr = pr;
-        // the run that asked: a base check that finds master failing too re-runs its failed jobs, which then read
-        // the base check's evidence as [KNOWN] (#8363)
-        if (/^\d+$/.test(String(run ?? ""))) fields.run = run;
+        // a touched check only: when master fails one of the same tests, base-check.yml re-runs the one job that
+        // failed it, which then reads the base check's evidence as [KNOWN] (#8363). An untouched check's failure
+        // already passed the pull request, and a re-run of it would be a retry hoping for a pass.
+        if (c.touched) {
+            if (/^\d+$/.test(String(run ?? ""))) fields.run = run;
+            if (c.job) fields.job = c.job;
+            if (c.failed?.length) fields.failed = JSON.stringify(c.failed);
+        }
         if (c.names?.length) fields.tests = JSON.stringify(c.names);
         for (const [k, v] of Object.entries(fields)) args.push("-f", `${k}=${v}`);
         try {

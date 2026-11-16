@@ -396,8 +396,9 @@ export interface PNode {
     bands?: { box: PBox; color: string }[];
     label: PText | null;
     /**
-     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
-     * graphty's framing, with its node's size across in render px and the least that shows it. The comparison shows it
+     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold) or a font-size rule
+     * (vis-network's drawThreshold), shown or not at graphty's framing, with its node's size across (or its letters'
+     * height) in render px and the least that shows it. The comparison shows it
      * where the oracle's framing would (`labelAtScale`).
      */
     sizedLabel?: { label: PText; acrossPx: number; min: number };

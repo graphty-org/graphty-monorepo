@@ -390,6 +390,19 @@ describe("per-tool readers", () => {
         ]);
     });
 
+    it("Cytoscape desktop: numbers parallel edges in SUID order, not the view's topology order", async () => {
+        const { cyrestIds } = await load<{
+            cyrestIds: (t: unknown) => { edges: Map<string, string> };
+        }>("cyrest.mjs");
+        const node = (suid: number, name: string) => ({ data: { SUID: suid, name } });
+        const edge = (suid: number) => ({ data: { SUID: suid, source: "1", target: "2" } });
+        const topology = { elements: { nodes: [node(1, "a"), node(2, "b")], edges: [edge(21), edge(20)] } };
+        expect([...cyrestIds(topology).edges]).toEqual([
+            ["20", "a->b"],
+            ["21", "a->b#1"],
+        ]);
+    });
+
     it("Cytoscape desktop: names, locked sizes, label anchors, transparency and annotations", async () => {
         const { sceneFromCyrest } = await load<{ sceneFromCyrest: (v: unknown) => SceneParts }>("cyrest.mjs");
         const row = (suid: number, x: number, label: string) => ({

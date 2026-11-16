@@ -78,6 +78,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
     "node.sizeMode": "mesh",
+    // A matrix write on the instance the node already has (UpdateManager.sizeNodesForView).
+    "node.sizeSpace": "instance",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.

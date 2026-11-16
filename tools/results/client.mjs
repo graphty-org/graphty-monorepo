@@ -23,7 +23,7 @@ import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseEnvFile } from "../sonar/api.mjs";
+import { parseEnvFile } from "./env-file.mjs";
 
 export const SCHEMA = 1;
 export const RECORD_MS = 5000;

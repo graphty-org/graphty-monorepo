@@ -206,7 +206,7 @@ function toGamut(rgb: Vec3): Vec3 {
         achromatic
             ? [l, 0, 0]
             : [l, chroma * Math.cos((degrees * Math.PI) / 180), chroma * Math.sin((degrees * Math.PI) / 180)];
-    const chroma0 = Math.sqrt(a ** 2 + b ** 2); // NOSONAR(S7769): colorjs.io's own formula, so chroma matches it bit for bit
+    const chroma0 = Math.sqrt(a ** 2 + b ** 2); // eslint-disable-line unicorn/prefer-modern-math-apis -- colorjs.io's own formula, so chroma matches it bit for bit
     const first = oklabToSrgb(at(chroma0));
     if (inGamut(first)) {
         return first;

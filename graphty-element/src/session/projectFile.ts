@@ -1697,6 +1697,7 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
                             .map((at) => (typeof at === "number" ? edgeIds[at] : undefined))
                             .filter((id): id is EdgeId => id !== undefined),
                     ),
+                    ...(Array.isArray(supplied.held) ? { held: Object.freeze([...supplied.held]) } : {}),
                 }),
             ]),
         ),

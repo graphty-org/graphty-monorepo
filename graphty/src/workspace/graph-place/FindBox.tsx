@@ -1314,7 +1314,7 @@ function HitGroup({
     readonly text: string;
 }): React.JSX.Element {
     return (
-        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside a listbox; ARIA allows no native element there
             role="group"
             aria-label={label}
         >
@@ -1381,7 +1381,7 @@ function ValuesGroup({
     readonly pickedValues: ReadonlySet<string>;
 }): React.JSX.Element {
     return (
-        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside a listbox; ARIA allows no native element there
             role="group"
             aria-label="Values"
         >
@@ -1442,7 +1442,7 @@ function ColumnsGroup({
     readonly word: string;
 }): React.JSX.Element {
     return (
-        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside a listbox; ARIA allows no native element there
             role="group"
             aria-label="Columns"
         >
@@ -1499,7 +1499,7 @@ function RuleGroup({
 }): React.JSX.Element {
     const rule = ruleOption.slice(1);
     return (
-        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside a listbox; ARIA allows no native element there
             role="group"
             aria-label="Rule"
             className="ws-find-rule"
@@ -1594,7 +1594,7 @@ function FindList({
             ref={listRef}
             viewportRef={viewportRef}
         >
-            <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the popup of an ARIA combobox on a text box; a native select cannot be one
                 id={listId}
                 role="listbox"
                 aria-label="Find results"
@@ -1679,13 +1679,13 @@ export function FindBox(): React.JSX.Element {
     const version = useSessionVersion(session);
 
     const found: FindResult | null = useMemo(() => {
-        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
+        const _changeCount = version; // reads the change count so the memo runs again on each session change
         return findIn(session, text);
     }, [session, text, version]);
     const isRule = found?.notSearchable === "expression";
     const ruleCheck = ruleCheckOf(isRule, ruleAnswer, text);
     const { word, columns } = useMemo(() => {
-        const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
+        const _changeCount = version; // reads the change count so a new column is offered
         return columnsFor(session, text, isRule);
     }, [session, text, isRule, version]);
     // Nodes first, then edges, each under its own heading; the keyboard walks them in that order.
@@ -1774,7 +1774,7 @@ export function FindBox(): React.JSX.Element {
     };
 
     return (
-        <div // NOSONAR(S6848): blur only closes the list as focus leaves the box; the box is not a control
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- blur only closes the list as focus leaves the box; the box is not a control
             className="ws-find"
             ref={boxRef}
             onBlur={closeOnFocusOut(setListOpen)}

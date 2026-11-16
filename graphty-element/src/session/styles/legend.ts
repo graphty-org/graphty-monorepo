@@ -132,7 +132,7 @@ export interface LegendSwatch {
      *
      * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
      */
-    readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+    readonly role?: "other" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
     /**
      * A layer above paints the block's channel on every element the block's layer selects that
      * carries this value, so none of them shows this row's paint: the layer shown on the most of

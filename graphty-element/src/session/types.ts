@@ -3684,7 +3684,7 @@ export interface SessionConfig extends ProjectConfig {
 export type GraphSettingKey =
     | "background"
     | "lighting"
-    | "node.depthIndependentSize"
+    | "node.sizeSpace"
     | "node.outlineWidth"
     | "labels.declutter"
     | "labels.avoidNodesAndEdges";

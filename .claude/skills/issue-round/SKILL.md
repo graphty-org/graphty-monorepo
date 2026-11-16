@@ -150,9 +150,9 @@ each (`job #a #b ... <priority> <group> tests a:<test> b:<test> -- <why>; files 
 order below: each job is a proposed group's members still in the queue, led by the one earliest in the queue, so a
 medium or low issue rides with a critical or high one the rubric put with it. It leaves out issues in started, ready
 or frozen groups, held groups, issues waiting on another branch or pull request, and follow-up groups whose base pull
-request is still open. Until `tools/pr-open.sh` and `tools/pr-review.sh` handle every member of a group, it keeps
-only a group's lead and its T1 folds together and offers the other members as jobs of their own (marked
-`split until every member is reviewed`). While the ledger is empty it prints `issue-queue.mjs jobs`' output instead.
+request is still open. A job holds every member the group has, up to the cap: since #8525 (2026-11-16)
+`tools/pr-open.sh` writes a `Fixes` line for every issue the commits close and `tools/pr-review.sh` reviews each one.
+While the ledger is empty it prints `issue-queue.mjs jobs`' output instead.
 Take the first job that passes the checks below and step 4. An issue the owner ordered still comes before any job.
 
 **A `rescan: #a #b ...` line** means those top-10 issues of the queue are in no group of the ledger (new since the

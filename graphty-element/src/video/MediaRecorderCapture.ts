@@ -17,6 +17,14 @@ export class AnimationCancelledError extends Error {
 }
 
 /**
+ * The American spelling of {@link AnimationCancelledError}: the same class, so `instanceof` works
+ * with either name. The error's `name` stays `"AnimationCancelledError"`.
+ */
+export const AnimationCanceledError = AnimationCancelledError;
+/** The American spelling of {@link AnimationCancelledError}. */
+export type AnimationCanceledError = AnimationCancelledError;
+
+/**
  * Calls `onFrame` after every frame the graph draws, until the returned function is called.
  */
 export type FrameSource = (onFrame: () => void) => () => void;

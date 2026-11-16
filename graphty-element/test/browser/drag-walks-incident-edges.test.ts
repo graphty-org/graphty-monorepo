@@ -99,7 +99,7 @@ async function dragCounted(
     const edge = element.graph.getDataManager().getEdgesBetween("t", "n0")[0];
     assert.isDefined(edge, "t has an edge");
     await element.waitForStableFrame();
-    const before = edge.drawnLine?.centre.clone();
+    const before = edge.drawnLine?.center.clone();
     assert.isDefined(before, "its line is drawn");
 
     let frames = 0;
@@ -123,7 +123,7 @@ async function dragCounted(
 
     await release(element, { x: x + 10 + 5 * MOVES, y: y + 5 });
     await element.waitForStableFrame();
-    const after = edge.drawnLine?.centre;
+    const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
     return { visits, frames, followed: after.subtract(before).length() };
 }

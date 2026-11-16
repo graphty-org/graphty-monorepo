@@ -385,7 +385,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
 
 /**
  * How many other nodes lie within `hops` steps of one node.
- * @param neighbors - Who each node is linked to.
+ * @param neighbours - Who each node is linked to.
  * @param from - The node to walk out from.
  * @param hops - How far to walk.
  * @returns The count, or null when the node has no links and there is nothing to measure.

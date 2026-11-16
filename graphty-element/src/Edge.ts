@@ -1170,18 +1170,22 @@ export class Edge {
         length: number;
         width: number;
         visibility: number;
+        center: Vector3;
+        /** @deprecated The British spelling of `center`, removed in the next major. */
         centre: Vector3;
         pattern: JoinedPatternKind | null;
     } | null {
         if (this.pulled) {
             const src = this.endPosition("source");
             const dst = this.endPosition("target");
+            const center = Vector3.Center(src, dst);
             return {
                 name: this.pulled.name,
                 length: Vector3.Distance(src, dst),
                 width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 visibility: this.pulled.visibility,
-                centre: Vector3.Center(src, dst),
+                center,
+                centre: center,
                 pattern: null,
             };
         }
@@ -1193,6 +1197,7 @@ export class Edge {
         const batch = this.lineBatch;
 
         const ownColor = this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null;
+        const center = this.curveMiddle(batch);
         return {
             // A batch keyed by shape draws every color, so the look it draws this edge in is named
             // with the color and opacity the edge wrote into its slots.
@@ -1203,7 +1208,8 @@ export class Edge {
             width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
             // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
             visibility: ownColor ? this.lineOpacity : batch.mesh.visibility,
-            centre: this.curveMiddle(batch),
+            center,
+            centre: center,
             // the line type whose elements the batch's shader draws along the line (issue #7404), or null for none
             pattern: (batch.mesh.metadata as EdgeLineMeta | null)?.pattern?.kind ?? null,
         };
@@ -1301,11 +1307,20 @@ export class Edge {
      * every other edge of the same appearance.
      * @returns The middle of the drawn line.
      */
-    get drawnCentre(): Vector3 {
+    get drawnCenter(): Vector3 {
         return (
-            this.drawnLine?.centre ??
+            this.drawnLine?.center ??
             (this.mesh instanceof PatternedLineMesh ? this.mesh.routeMiddle() : this.mesh.position)
         );
+    }
+
+    /**
+     * The British spelling of {@link Edge.drawnCenter}.
+     * @deprecated Use {@link Edge.drawnCenter}; this name is removed in the next major.
+     * @returns The middle of the drawn line.
+     */
+    get drawnCentre(): Vector3 {
+        return this.drawnCenter;
     }
 
     /**
@@ -1716,7 +1731,7 @@ export class Edge {
      * Where a line with no cap at an end starts: its node's gap past the outline where the end has one (no node hides
      * that stretch, Cytoscape.js `source-distance-from-node`), else as {@link groupEnd} says.
      * @param end - Which end.
-     * @param center - Its node's center.
+     * @param centre - Its node's center.
      * @param toward - The other end's center.
      * @returns The point.
      */
@@ -1736,7 +1751,7 @@ export class Edge {
      * node hides, or, for a node drawn behind every edge (a group region, or a 2D node below z-index 0:
      * `Node.isDrawnBehindEdges`), its outline, which is where Cytoscape.js and yEd end an edge to a compound node.
      * @param node - The end's node.
-     * @param center - Its center.
+     * @param centre - Its center.
      * @param toward - The other end's center.
      * @returns The point.
      */
@@ -1837,7 +1852,7 @@ export class Edge {
      * so). Null without one, for the caption to hang beside the cap as before.
      * @param arrow - The end's arrow block.
      * @param node - The end's node.
-     * @param center - That node's center.
+     * @param centre - That node's center.
      * @param other - The other node's center.
      * @returns The point, where the caption hangs from it and how far, or null.
      */
@@ -4134,7 +4149,7 @@ export class Edge {
     /**
      * A test of whether a point lies outside a node's drawn shape.
      * @param node - The node.
-     * @param center - The node's center.
+     * @param centre - The node's center.
      * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
@@ -4520,7 +4535,7 @@ export class Edge {
     /**
      * Where a segment from a node's center toward a point crosses the node's surface and border.
      * @param node - The node.
-     * @param center - Its center.
+     * @param centre - Its center.
      * @param toward - The point the segment runs to.
      * @param gap - How far past the outline the line stops (`line.nodeGap`).
      * @returns The crossing, or the center when the point is the center.

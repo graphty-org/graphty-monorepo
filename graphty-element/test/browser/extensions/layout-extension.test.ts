@@ -980,11 +980,11 @@ describe("a third party's layout engine", () => {
                 // ASKED OF THE EDGE, NOT OF A MESH. A solid 3D line is a slot in a batch shared
                 // with every other edge of the same appearance, and that batch's mesh sits at the
                 // origin -- so `edge.mesh.position` stopped being this edge's position and became
-                // the same point for all of them. `drawnCentre` is the middle of the segment
+                // the same point for all of them. `drawnCenter` is the middle of the segment
                 // wherever it is kept, which is what this assertion was always about.
                 assert.isAbove(Math.hypot(from.x - to.x, from.y - to.y, from.z - to.z), 1, "the ends are apart");
                 assert.isBelow(
-                    distanceFromSegment(edge.drawnCentre, from, to),
+                    distanceFromSegment(edge.drawnCenter, from, to),
                     1,
                     `edge ${edge.id} is drawn along the line between the ends the engine gave`,
                 );

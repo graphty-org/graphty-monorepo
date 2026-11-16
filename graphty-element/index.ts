@@ -343,6 +343,7 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCanceledEvent,
     OperationCancelledEvent,
     OverviewChangedEvent,
     RenderLostEvent,
@@ -411,7 +412,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // =============================================================================
 // Video capture exports
 // =============================================================================
-export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
+export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
 export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation

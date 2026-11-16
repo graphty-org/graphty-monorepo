@@ -195,7 +195,7 @@ describe("layout transitions", () => {
         // The edge is drawn between the nodes as they are drawn, not as the layout has them.
         await drawnFrames(element.graph.getScene(), 1);
         const b = nodeOf(element, "b");
-        const middle = edge.drawnCentre;
+        const middle = edge.drawnCenter;
         assert.closeTo(middle.y, (a.mesh.position.y + b.mesh.position.y) / 2, 0.05, "the edge follows the nodes");
         const label = a.label?.labelMesh;
         assert.exists(label, "node a has a label");

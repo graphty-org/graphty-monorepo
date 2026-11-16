@@ -210,7 +210,7 @@ describe("what the style system says, and what the canvas shows", () => {
     /**
      * One color with its strongest channel scaled to 255, so two readings of the same color at
      * different brightnesses come out equal.
-     * @param color - The channels.
+     * @param colour - The channels.
      * @returns The same hue at full strength.
      */
     function normalised(colour: { r: number; g: number; b: number }): { r: number; g: number; b: number } {

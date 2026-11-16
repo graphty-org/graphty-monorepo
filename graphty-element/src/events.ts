@@ -597,6 +597,9 @@ export interface OperationCancelledEvent {
     reason: string;
 }
 
+/** The American spelling of {@link OperationCancelledEvent}. */
+export type OperationCanceledEvent = OperationCancelledEvent;
+
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
 export interface StatsUpdateEvent {
     type: "stats-update";

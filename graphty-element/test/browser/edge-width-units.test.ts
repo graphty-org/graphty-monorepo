@@ -140,7 +140,7 @@ interface LineInternals {
 /**
  * One world-space line through a point, as pixels across the screen.
  * @param scene - The scene whose camera projects it.
- * @param center - The middle of the span, in world units.
+ * @param centre - The middle of the span, in world units.
  * @param across - The span, a world-space vector.
  * @returns Its projected length in pixels.
  */

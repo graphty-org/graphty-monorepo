@@ -181,7 +181,7 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         for (const edge of element.graph.getDataManager().edges.values()) {
             const a = edge.srcNode.drawnPosition;
             const b = edge.dstNode.drawnPosition;
-            const middle = edge.drawnCentre;
+            const middle = edge.drawnCenter;
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const length = Math.max(Math.hypot(dx, dy), 1e-9);

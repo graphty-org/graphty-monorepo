@@ -2191,6 +2191,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshShaderPaint: RENDER,
             shaderDataChanged: RENDER,
             drawnPattern: READ,
+            drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
             arrowHeadStackCaps: READ,

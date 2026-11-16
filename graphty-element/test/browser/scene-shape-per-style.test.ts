@@ -334,12 +334,12 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isDefined(edge);
         const lineBatch = edge.mesh;
         assert.instanceOf(lineBatch, Mesh, "a batched line points at its batch's mesh");
-        const before = edge.drawnCentre.clone();
+        const before = edge.drawnCenter.clone();
 
         const uploads = moveAndWatch("n0", lineBatch);
 
         assert.include(uploads, "slots", "the frame after a move uploads the line's slots");
-        const after = edge.drawnCentre;
+        const after = edge.drawnCenter;
         assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the edge's slot moved with its node");
         assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved slot");
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
@@ -356,7 +356,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isAbove(curve.length, 3, "a curve is drawn as several segments");
 
         // A symmetric curve's middle is as far from one end as from the other.
-        const centre = edge.drawnCentre;
+        const centre = edge.drawnCenter;
         const fromStart = Vector3.Distance(centre, curve[0]);
         const fromEnd = Vector3.Distance(centre, curve[curve.length - 1]);
         assert.closeTo(fromStart, fromEnd, 1e-3 * (fromStart + fromEnd), "the centre is midway along the curve");

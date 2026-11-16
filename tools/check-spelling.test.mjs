@@ -27,6 +27,15 @@ assert.equal(fixFile("a.yml", "name: cancelled # cancelled run\n"), "name: cance
 assert.equal(fixFile("a.json", '{"colour": 1}'), '{"colour": 1}');
 assert.equal(fixFile("a.ts", "/** @param centre - the centre */\n"), "/** @param centre - the center */\n");
 assert.equal(fixFile("a.md", "The Graph Modelling Language, modelled.\n"), "The Graph Modelling Language, modeled.\n");
+assert.equal(
+    fixFile("a.mjs", "/** @param {{a: string}[]} cancelled the cancelled jobs */\n"),
+    "/** @param {{a: string}[]} cancelled the canceled jobs */\n",
+);
+assert.equal(
+    fixFile("a.mjs", "/** @typedef {{cancelled: {a: string}[]}} R the cancelled ones */\n"),
+    "/** @typedef {{cancelled: {a: string}[]}} R the canceled ones */\n",
+);
+assert.equal(fixFile("a.txt", "cancelled\n"), "cancelled\n");
 // common words that only look British
 const fine =
     "Promise otherwise exercise advertise surprise analysis cancellation controlled precise noise raise emphasis programmer\n";

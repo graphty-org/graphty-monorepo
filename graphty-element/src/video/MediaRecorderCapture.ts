@@ -19,6 +19,7 @@ export class AnimationCancelledError extends Error {
 /**
  * The American spelling of {@link AnimationCancelledError}: the same class, so `instanceof` works
  * with either name. The error's `name` stays `"AnimationCancelledError"`.
+ * @alias AnimationCancelledError
  */
 export const AnimationCanceledError = AnimationCancelledError;
 /** The American spelling of {@link AnimationCancelledError}. */

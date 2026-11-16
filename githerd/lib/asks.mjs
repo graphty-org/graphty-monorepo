@@ -1473,7 +1473,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
  * the same messaging as the status question: one message to that session only, none to a session
  * githerd may not message (no worker, `workerSessions`), and a would-do line in dry-run. A githerd worker
  * reads the job's news instead.
- * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} canceled
+ * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} cancelled
  *   the jobs syncJobs canceled
  * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport}} opts whether the `workers` write group acts, the

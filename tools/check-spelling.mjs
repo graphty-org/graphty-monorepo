@@ -4,9 +4,9 @@
 //   node tools/check-spelling.mjs [file...]        fail on a British spelling in these files (default: every tracked file)
 //   node tools/check-spelling.mjs --fix [file...]  rewrite them in American spelling instead
 //
-// It reads Markdown and text whole, and only the comments of code (TypeScript and JavaScript), CSS, WGSL,
-// YAML, shell and HTML; other files (JSON, data, fixtures) are not read. Left alone, as names and data that
-// are not ours to respell: code and quotes (`...`, "...", fenced blocks, {@link ...}, JSDoc @param names), camelCase,
+// It reads Markdown whole, and only the comments of code (TypeScript and JavaScript), CSS, WGSL,
+// YAML, shell and HTML; other files (JSON, plain text, data, fixtures, test outputs) are not read. Left alone, as names and data that
+// are not ours to respell: code and quotes (`...`, "...", fenced blocks, {@link ...}, JSDoc types and @param names), camelCase,
 // snake_case and CONSTANT names (public names keep their spelling until they are renamed with an alias),
 // URLs, link targets and file names, GitHub Actions' cancelled(), the Graph Modelling Language (GML's name), event names ending -cancelled, aria-labelledby, and
 // the paths in SKIP (lockfiles, changelogs, transcripts, screenshots, fixtures and test corpora, and the
@@ -334,7 +334,7 @@ export const SKIP = new RegExp(
     ].join("|"),
 );
 const KEEP =
-    /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{[^}]*\}\s*)?\[?[\w.$]+|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|Graph Modelling Language|[Ll]abelled[Bb]y/g;
+    /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{(?:[^{}]|\{[^{}]*\})*\}\s*)?\[?[\w.$]+|@\w+\s+\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|Graph Modelling Language|[Ll]abelled[Bb]y/g;
 
 /** Like fix, but leaves code, quotes, names and links alone. */
 export function fixProse(text) {
@@ -369,7 +369,7 @@ const spans = (text, re) => [...text.matchAll(re)].map((m) => [m.index, m.index 
 
 /** The [start, end) ranges of `text` that are prose or comments, or null for a file this check does not read. */
 export function proseRanges(file, text) {
-    if (/\.(md|mdx|txt|rst)$/i.test(file)) return [[0, text.length]];
+    if (/\.(md|mdx|rst)$/i.test(file)) return [[0, text.length]];
     if (/\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/.test(file)) return codeComments(file, text);
     if (/\.(css|scss)$/.test(file)) return spans(text, /\/\*[\s\S]*?\*\//g);
     if (/\.wgsl$/.test(file)) return spans(text, /\/\*[\s\S]*?\*\/|\/\/[^\n]*/g);

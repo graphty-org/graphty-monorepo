@@ -515,7 +515,7 @@ export async function main(argv, options = {}) {
  * Prints the wrapper's verdict line: FAIL with its cause (after the missing files, when vitest itself exited 0), or a
  * PASS note when the run was signaled for a snapshot along the way; nothing for a quiet pass.
  * @param {{ exitCode: number, cause: string }} decision - verdict()'s decision
- * @param {{ status: number, output: string, signaled: number, silenceMs: number }} run - vitest's exit status, its
+ * @param {{ status: number, output: string, signalled: number, silenceMs: number }} run - vitest's exit status, its
  *     transcript, the processes signaled for a snapshot and the silence that counted as a hang
  */
 function printVerdict(decision, { status, output, signalled, silenceMs }) {

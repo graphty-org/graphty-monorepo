@@ -96,7 +96,7 @@ const OWNER_ONLY = ["githerd/", "githerd.config.json", ".claude/", ".mcp.json", 
 
 /**
  * @typedef {{created: string[],
- *   canceled: {job: string, reason: string, session?: string | null, startedBy?: string | null}[],
+ *   cancelled: {job: string, reason: string, session?: string | null, startedBy?: string | null}[],
  *   lapsed: {job: string, session: string}[]}} SyncResult what changed, for the ledger
  */
 

@@ -6840,11 +6840,17 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         }
     });
 
-    it("the hook runs only the LFS upload, the secret scan and the image limit, from its own copy", () => {
+    it("the hook runs only the LFS upload, the secret scan, the image limit and the spelling check, from its own copy", () => {
         const code = (text) => text.replace(/^\s*#.*$/gm, "");
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
         const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
-        assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
+        assert.deepEqual(tools, [
+            "lfs-pre-push.sh",
+            "push-base.mjs",
+            "scan-secrets.sh",
+            "check-committed-images.mjs",
+            "check-spelling.mjs",
+        ]);
         assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });

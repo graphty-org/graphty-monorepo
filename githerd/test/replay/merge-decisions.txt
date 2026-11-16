@@ -17,7 +17,7 @@
 2026-09-25T23:26  #402  line 2: held: CI lane red since 09-25 05:16 UTC
     fix(tools): stop headless chromium dying at startup in the browser test projects
 2026-09-25T23:27  #349  line 2: held: CI lane red since 09-25 05:16 UTC
-    fix(graphty-element): 2:1 default size that honors a height, warn on early rich props
+    fix(graphty-element): 2:1 default size that honours a height, warn on early rich props
 2026-09-25T23:27  #379  line 2: held: CI lane red since 09-25 05:16 UTC
     feat(webgpu-graph-algorithms): the frontier family: BFS, SSSP, Bellman-Ford and closeness on the GPU
 2026-09-26T17:40  #370  line 2: held: CI lane red since 09-26 16:50 UTC
@@ -143,7 +143,7 @@
 2026-10-02T04:20  #668  success  [red but cannot affect it: GPU]
     fix(graphty-element): make the undo stories compare the picture before and after
 2026-10-02T04:24  #669  success  [red but cannot affect it: GPU]
-    fix(graphty): draw the Graphty story graph larger, labeled and with thick edges
+    fix(graphty): draw the Graphty story graph larger, labelled and with thick edges
 2026-10-02T05:05  #693  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
     ci(workspace): pin every runner image instead of the moving latest labels
 2026-10-02T05:11  #696  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU, Hosts]

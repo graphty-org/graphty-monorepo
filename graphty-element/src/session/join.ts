@@ -942,27 +942,63 @@ function groupValues(
     const out: Written[] = [];
     for (const column of columns) {
         const given = rows.map((row) => row[column]).filter((value) => !absent(value));
-        if (choices.aggregate !== undefined) {
-            const rules = choices.aggregate[column] ?? "first";
-            for (const rule of typeof rules === "string" ? [rules] : rules) {
-                const name = typeof rules === "string" ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
-                const value = reduce(rule, given);
-                if (value !== undefined) {
-                    out.push({ column, name, value });
-                }
-            }
-            continue;
-        }
+        out.push(
+            ...(choices.aggregate === undefined
+                ? keptValue(column, given, choices, nameOf)
+                : reducedValues(column, given, choices.aggregate[column] ?? "first", choices, nameOf)),
+        );
+    }
 
-        const distinct = [...new Set(given)];
-        const one = choices.repeated === "last" ? given.at(-1) : given[0];
-        const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
+    return out;
+}
+
+/**
+ * One column's values reduced by its rules, each under its own name when there are several.
+ * @param column - The incoming column.
+ * @param given - The column's values, blanks left out.
+ * @param rules - The column's rule or rules.
+ * @param choices - The join.
+ * @param nameOf - The name a column is written under.
+ * @returns The values, blanks left out.
+ */
+function reducedValues(
+    column: string,
+    given: readonly unknown[],
+    rules: JoinReduce | readonly JoinReduce[],
+    choices: JoinChoices,
+    nameOf: (column: string) => string,
+): Written[] {
+    const out: Written[] = [];
+    for (const rule of typeof rules === "string" ? [rules] : rules) {
+        const name = typeof rules === "string" ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
+        const value = reduce(rule, given);
         if (value !== undefined) {
-            out.push({ column, name: nameOf(column), value });
+            out.push({ column, name, value });
         }
     }
 
     return out;
+}
+
+/**
+ * One column's kept value: the first, the last with `repeated: "last"`, or every distinct value
+ * with `repeated: "both"`.
+ * @param column - The incoming column.
+ * @param given - The column's values, blanks left out.
+ * @param choices - The join.
+ * @param nameOf - The name a column is written under.
+ * @returns The value, or none when blank.
+ */
+function keptValue(
+    column: string,
+    given: readonly unknown[],
+    choices: JoinChoices,
+    nameOf: (column: string) => string,
+): Written[] {
+    const distinct = [...new Set(given)];
+    const one = choices.repeated === "last" ? given.at(-1) : given[0];
+    const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
+    return value === undefined ? [] : [{ column, name: nameOf(column), value }];
 }
 
 /**
@@ -1467,49 +1503,18 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
         ...valuesById.get(id),
         id,
     }));
-    // The rows of each key no node holds, in table order.
-    const unmatched = new Map<string, number[]>();
-    matching.rowKeys.forEach((key, at) => {
-        if (key !== undefined && matching.rowIds[at].length === 0) {
-            unmatched.set(key, [...(unmatched.get(key) ?? []), at]);
-        }
-    });
-
+    const unmatched = unmatchedRows(matching);
     const fates = valueFates(matching.rowKeys, matching.rowIds, choices, "merge").map((fate) =>
         fate === "joined" ? "merged" : fate,
     );
     const region = regionWriter(graph, choices, matching, nodes, before, written);
     if (choices.unmatchedFrom !== "drop") {
         const ids = new Set(graph.nodes.map((node) => String(node.id)));
-        // Comparing two graphs keeps the table's clashing values in their own columns on every node.
-        const clashing = new Set(choices.compare === true ? clashesOf(graph.nodes, columns) : ["id"]);
-        const nameOf = (column: string): string =>
-            clashing.has(column) && (column === "id" || (choices.clash?.[column] ?? "both") === "both")
-                ? bothColumn(column, table, choices)
-                : column;
+        const nameOf = mergedNameOf(table, graph, choices, columns);
         for (const ats of unmatched.values()) {
-            const first = table.rows[ats[0]];
-            const given = choices.keys.map((key) => String(first[key.file])).join(" ");
-            const record: Record<string, unknown> = {};
-            for (const key of choices.keys.filter((each) => each.graph !== "id")) {
-                record[key.graph.replace(/^data\./, "")] = first[key.file];
-            }
-
-            for (const { name, value } of groupValues(
-                ats.map((at) => table.rows[at]),
-                columns,
-                choices,
-                nameOf,
-            )) {
-                record[name] = value;
-                written.add(name);
-            }
-
+            const { given, record } = onlyFromRecord(table, choices, columns, ats, nameOf, written);
             nodes.push({ ...record, ...region("only-from"), id: ids.has(given) ? bothName(given, table) : given });
-            const kept = keepsEveryRow(choices) ? ats : [choices.repeated === "last" ? ats.at(-1) : ats[0]];
-            for (const at of ats) {
-                fates[at] = kept.includes(at) ? "new-end" : "repeat";
-            }
+            markOnlyFromFates(fates, ats, choices);
         }
     }
 
@@ -1528,6 +1533,94 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
         fates,
         onlyFrom: unmatched.size,
     };
+}
+
+/**
+ * The rows of each key no node holds, in table order.
+ * @param matching - Which nodes rows merge into.
+ * @returns Each unmatched key's row indexes.
+ */
+function unmatchedRows(matching: Matching): Map<string, number[]> {
+    const unmatched = new Map<string, number[]>();
+    matching.rowKeys.forEach((key, at) => {
+        if (key !== undefined && matching.rowIds[at].length === 0) {
+            unmatched.set(key, [...(unmatched.get(key) ?? []), at]);
+        }
+    });
+    return unmatched;
+}
+
+/**
+ * The name a merge writes an incoming column under on a node the table alone holds: comparing two
+ * graphs keeps the table's clashing values in their own columns on every node.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @param columns - The incoming columns brought.
+ * @returns The column's name.
+ */
+function mergedNameOf(
+    table: JoinTable,
+    graph: JoinGraph,
+    choices: JoinChoices,
+    columns: readonly string[],
+): (column: string) => string {
+    const clashing = new Set(choices.compare === true ? clashesOf(graph.nodes, columns) : ["id"]);
+    return (column: string): string =>
+        clashing.has(column) && (column === "id" || (choices.clash?.[column] ?? "both") === "both")
+            ? bothColumn(column, table, choices)
+            : column;
+}
+
+/**
+ * The record of a new node made from the rows of one key no node holds.
+ * @param table - The incoming table.
+ * @param choices - The join.
+ * @param columns - The incoming columns brought.
+ * @param ats - The key's rows, in table order.
+ * @param nameOf - The name a column is written under.
+ * @param written - The names written, added to.
+ * @returns The key's value and the node's record, without its id.
+ */
+function onlyFromRecord(
+    table: JoinTable,
+    choices: JoinChoices,
+    columns: readonly string[],
+    ats: readonly number[],
+    nameOf: (column: string) => string,
+    written: Set<string>,
+): { given: string; record: Record<string, unknown> } {
+    const first = table.rows[ats[0]];
+    const given = choices.keys.map((key) => String(first[key.file])).join(" ");
+    const record: Record<string, unknown> = {};
+    for (const key of choices.keys.filter((each) => each.graph !== "id")) {
+        record[key.graph.replace(/^data\./, "")] = first[key.file];
+    }
+
+    for (const { name, value } of groupValues(
+        ats.map((at) => table.rows[at]),
+        columns,
+        choices,
+        nameOf,
+    )) {
+        record[name] = value;
+        written.add(name);
+    }
+
+    return { given, record };
+}
+
+/**
+ * The fates of the rows of one key no node holds: the kept ones make the new node, the rest repeat.
+ * @param fates - Each row's fate, written.
+ * @param ats - The key's rows, in table order.
+ * @param choices - The join.
+ */
+function markOnlyFromFates(fates: JoinRowFate[], ats: readonly number[], choices: JoinChoices): void {
+    const kept = keepsEveryRow(choices) ? ats : [choices.repeated === "last" ? ats.at(-1) : ats[0]];
+    for (const at of ats) {
+        fates[at] = kept.includes(at) ? "new-end" : "repeat";
+    }
 }
 
 /**

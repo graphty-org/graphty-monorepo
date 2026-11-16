@@ -1482,6 +1482,45 @@ function appliesKey(stack: readonly StackEntry[], at: Located): string {
 }
 
 /**
+ * Hand each selected element to `count`, or, given a grouping key, one element per group with the
+ * group's size as its weight, groups in the order their first element came.
+ * @param indices - The elements, as dense indices.
+ * @param test - The layer's selector test, or null when it selects every element.
+ * @param keyOf - The group an element counts in, or null to count each element alone.
+ * @param count - Told each element counted and its weight.
+ */
+function countSelected(
+    indices: readonly number[],
+    test: ((index: number) => boolean) | null,
+    keyOf: ((index: number) => string) | null,
+    count: (index: number, weight: number) => void,
+): void {
+    const groups = new Map<string, { index: number; weight: number }>();
+    for (const index of indices) {
+        if (test !== null && !test(index)) {
+            continue;
+        }
+
+        if (keyOf === null) {
+            count(index, 1);
+            continue;
+        }
+
+        const key = keyOf(index);
+        const group = groups.get(key);
+        if (group === undefined) {
+            groups.set(key, { index, weight: 1 });
+        } else {
+            group.weight++;
+        }
+    }
+
+    for (const { index, weight } of groups.values()) {
+        count(index, weight);
+    }
+}
+
+/**
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
@@ -1558,30 +1597,11 @@ export function styleCounts(
     // 450 ms a read). Groups are counted in the order their first element came, which keeps every
     // tally's order the per-element walk gave.
     // A disabled layer walks nothing, so it has nothing to group.
-    const groups =
-        layer.enabled && readsNoData(stack, own) ? new Map<string, { index: number; weight: number }>() : null;
-    for (const index of indices) {
-        if (selector.test !== null && !selector.test(index)) {
-            continue;
-        }
-
-        if (groups === null) {
-            count(index, 1);
-            continue;
-        }
-
-        const key = appliesKey(stack, { target: layer.target, index });
-        const group = groups.get(key);
-        if (group === undefined) {
-            groups.set(key, { index, weight: 1 });
-        } else {
-            group.weight++;
-        }
-    }
-
-    for (const { index, weight } of groups?.values() ?? []) {
-        count(index, weight);
-    }
+    const keyOf =
+        layer.enabled && readsNoData(stack, own)
+            ? (index: number): string => appliesKey(stack, { target: layer.target, index })
+            : null;
+    countSelected(indices, selector.test, keyOf, count);
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
     const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({

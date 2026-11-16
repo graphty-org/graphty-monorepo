@@ -1343,6 +1343,26 @@ export class Autosaver {
      * @param step - Which step, for the error.
      */
     async #commitWithin(writes: readonly AutosaveWrite[], step: AutosaveStallStep): Promise<void> {
+        const watchdog = this.#watchdog();
+        try {
+            await this.#store.commit(writes, { signal: watchdog.signal, onProgress: watchdog.arm });
+        } catch (error) {
+            throw watchdog.stalled() ? stalledError(step, WATCHDOG_MS) : error;
+        } finally {
+            watchdog.cancel();
+        }
+    }
+
+    /**
+     * A watchdog for one write, armed: it aborts its signal after {@link WATCHDOG_MS} with no
+     * progress. Stalled after WATCHDOG_MS with no progress, not after WATCHDOG_MS in all: on a
+     * page whose main thread is busy (a large graph drawn in software), each step of a write
+     * waits behind a long frame, and a deadline on the whole write aborted every write there, for
+     * ever (found by the lifecycle tests at 1,000 nodes).
+     * @returns The signal to hand the write, `arm` to call on each step of progress, `cancel` to
+     *   call when the write ends, and whether it aborted the write.
+     */
+    #watchdog(): { signal: AbortSignal; arm: () => void; cancel: () => void; stalled: () => boolean } {
         const controller = new AbortController();
         let stalled = false;
         let cancelTimer = (): void => undefined;
@@ -1354,13 +1374,14 @@ export class Autosaver {
             }, WATCHDOG_MS);
         };
         arm();
-        try {
-            await this.#store.commit(writes, { signal: controller.signal, onProgress: arm });
-        } catch (error) {
-            throw stalled ? stalledError(step, WATCHDOG_MS) : error;
-        } finally {
-            cancelTimer();
-        }
+        return {
+            signal: controller.signal,
+            arm,
+            cancel: () => {
+                cancelTimer();
+            },
+            stalled: () => stalled,
+        };
     }
 
     /**
@@ -1526,6 +1547,64 @@ export class Autosaver {
     }
 
     /**
+     * Take an opened entry on as this tab's own: its revision, stash and source, its lock and
+     * part sizes, its attempt count cleared, and a rewrite queued when the open was lossy or the
+     * entry is in an older format.
+     * @param current - The entry, as committed with the attempt recorded.
+     * @param release - Its lock, or null when none is held.
+     * @param stash - The stashed values it carried.
+     * @param sizes - Its parts' sizes.
+     * @param report - What the open reported.
+     * @returns The entry as it now stands.
+     */
+    async #takeOn(
+        current: AutosaveEntryMeta,
+        release: (() => void) | null,
+        stash: Map<string, unknown>,
+        sizes: Map<string, number>,
+        report: AutosaveRestored["report"],
+    ): Promise<AutosaveEntryMeta> {
+        // The work comes back as it was: unsaved to a file if it was, and at its revision.
+        if (current.dirty === true) {
+            markProjectUnsaved(this.#session);
+        }
+
+        this.#changes = Number(current.revision ?? 0);
+        this.#saved = { at: textOf(current.savedAt), revision: this.#changes };
+        this.#stash.clear();
+        stash.forEach((value, name) => this.#stash.set(name, value));
+        this.#source = { ...sourcesOf(current.source) };
+        this.adopt(current);
+        const entry = this.#entry;
+        entry.release = release;
+        entry.sizes = sizes;
+        try {
+            current = { ...current, restoreAttempts: 0 };
+            await this.#commitWithin([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }], "restore");
+            entry.gen += 1;
+        } catch {
+            // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
+        }
+
+        this.#absorb = current;
+        if (report.problems.some((problem) => problem.code === "shader.unknown")) {
+            // The open dropped shader uses the entry could not resolve. The entry stays as it was
+            // read, until the reader saves, and the work goes to a new entry, so a lossy open is
+            // never written over the only copy.
+            this.#kept = current.id;
+            this.#conflict(entry.id);
+            this.#kick();
+        } else if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
+            // Rewritten whole in the current format, flushed to disk.
+            this.#strict = true;
+            EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
+            this.#kick();
+        }
+
+        return current;
+    }
+
+    /**
      * Claim one candidate (or copy it, when another tab holds this tab's own entry), record the
      * attempt, open it into the session and adopt it.
      * @param meta - The candidate, as listed.
@@ -1635,42 +1714,7 @@ export class Autosaver {
             this.#restoreTurn = null;
         }
 
-        // The work comes back as it was: unsaved to a file if it was, and at its revision.
-        if (current.dirty === true) {
-            markProjectUnsaved(this.#session);
-        }
-
-        this.#changes = Number(current.revision ?? 0);
-        this.#saved = { at: textOf(current.savedAt), revision: this.#changes };
-        this.#stash.clear();
-        stash.forEach((value, name) => this.#stash.set(name, value));
-        this.#source = { ...sourcesOf(current.source) };
-        this.adopt(current);
-        const entry = this.#entry;
-        entry.release = release;
-        entry.sizes = sizes;
-        try {
-            current = { ...current, restoreAttempts: 0 };
-            await this.#commitWithin([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }], "restore");
-            entry.gen += 1;
-        } catch {
-            // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
-        }
-
-        this.#absorb = current;
-        if (report.problems.some((problem) => problem.code === "shader.unknown")) {
-            // The open dropped shader uses the entry could not resolve. The entry stays as it was
-            // read, until the reader saves, and the work goes to a new entry, so a lossy open is
-            // never written over the only copy.
-            this.#kept = current.id;
-            this.#conflict(entry.id);
-            this.#kick();
-        } else if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
-            // Rewritten whole in the current format, flushed to disk.
-            this.#strict = true;
-            EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
-            this.#kick();
-        }
+        current = await this.#takeOn(current, release, stash, sizes, report);
 
         const restored: AutosaveRestored = {
             entry: entryOfMeta(current, true),
@@ -2121,21 +2165,7 @@ export class Autosaver {
      * @returns Null when it committed; else what was thrown, and whether the watchdog aborted it.
      */
     async #commitJob(job: Job): Promise<{ error: unknown; stalled: boolean } | null> {
-        const controller = new AbortController();
-        let stalled = false;
-        // A write is stalled after WATCHDOG_MS with no progress, not after WATCHDOG_MS in all: on
-        // a page whose main thread is busy (a large graph drawn in software), each step of a
-        // write waits behind a long frame, and a deadline on the whole write aborted every write
-        // there, for ever (found by the lifecycle tests at 1,000 nodes).
-        let cancelTimer = (): void => undefined;
-        const arm = (): void => {
-            cancelTimer();
-            cancelTimer = this.#deadline(() => {
-                stalled = true;
-                controller.abort();
-            }, WATCHDOG_MS);
-        };
-        arm();
+        const watchdog = this.#watchdog();
         try {
             for (const entry of job.claim) {
                 await this.#claim(entry);
@@ -2143,15 +2173,15 @@ export class Autosaver {
             }
 
             await this.#store.commit(job.writes, {
-                signal: controller.signal,
-                onProgress: arm,
+                signal: watchdog.signal,
+                onProgress: watchdog.arm,
                 ...(job.strict ? { durability: "strict" as const } : {}),
             });
             return null;
         } catch (error) {
-            return { error, stalled };
+            return { error, stalled: watchdog.stalled() };
         } finally {
-            cancelTimer();
+            watchdog.cancel();
         }
     }
 

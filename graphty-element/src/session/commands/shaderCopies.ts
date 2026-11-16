@@ -18,6 +18,54 @@ import type { ProjectState } from "../project/state";
 const ENCODE_KEY = /^(?:node|edge)\.shaders\.(.+)\.[^.]+$/;
 
 /**
+ * Whether an object member is a list of shader uses.
+ * @param key - The member's name.
+ * @param child - Its value.
+ * @returns True for a `node.shaders` or `edge.shaders` list.
+ */
+function isUseList(key: string, child: unknown): child is unknown[] {
+    return (key === "node.shaders" || key === "edge.shaders") && Array.isArray(child);
+}
+
+/**
+ * The shader id a use names.
+ * @param use - The use.
+ * @returns Its `shader`, whatever it is.
+ */
+function useId(use: unknown): unknown {
+    return (use as { shader?: unknown } | null)?.shader;
+}
+
+/**
+ * Add the shader ids one object member names itself, not counting its children: the uses of a
+ * shader list, an encode key or an encoding's `channel` that names one, and a `shader: { id }`.
+ * @param key - The member's name.
+ * @param child - Its value.
+ * @param into - Where the ids go.
+ */
+function addEntryIds(key: string, child: unknown, into: Set<string>): void {
+    if (isUseList(key, child)) {
+        for (const id of child.map(useId)) {
+            if (typeof id === "string") {
+                into.add(id);
+            }
+        }
+    }
+
+    // An encode key, or an encoding's `channel` that names one.
+    const encoded =
+        ENCODE_KEY.exec(key) ?? (key === "channel" && typeof child === "string" ? ENCODE_KEY.exec(child) : null);
+    if (encoded !== null) {
+        into.add(encoded[1]);
+    }
+
+    const look = key === "shader" ? (child as { id?: unknown } | null)?.id : undefined;
+    if (typeof look === "string") {
+        into.add(look);
+    }
+}
+
+/**
  * The shader ids a command's payload names: uses in `node.shaders` and `edge.shaders` lists
  * (`off: true` too), the id of an encode key or of an encoding's `channel`, and a `shader: { id }`
  * (the background's look).
@@ -38,27 +86,7 @@ export function shaderIdsIn(value: unknown, into = new Set<string>(), seen = new
             continue;
         }
 
-        if ((key === "node.shaders" || key === "edge.shaders") && Array.isArray(child)) {
-            for (const use of child as unknown[]) {
-                const id = (use as { shader?: unknown } | null)?.shader;
-                if (typeof id === "string") {
-                    into.add(id);
-                }
-            }
-        }
-
-        // An encode key, or an encoding's `channel` that names one.
-        const encoded =
-            ENCODE_KEY.exec(key) ?? (key === "channel" && typeof child === "string" ? ENCODE_KEY.exec(child) : null);
-        if (encoded !== null) {
-            into.add(encoded[1]);
-        }
-
-        const look = key === "shader" ? (child as { id?: unknown } | null)?.id : undefined;
-        if (typeof look === "string") {
-            into.add(look);
-        }
-
+        addEntryIds(key, child, into);
         shaderIdsIn(child, into, seen);
     }
 
@@ -184,23 +212,37 @@ export function withoutShaderUses<T>(
             continue;
         }
 
-        let next: unknown = key === "userData" ? child : withoutShaderUses(child, keep, dropped);
-        if ((key === "node.shaders" || key === "edge.shaders") && Array.isArray(next)) {
-            const uses = (next as unknown[]).filter((use) => {
-                const id = (use as { shader?: unknown } | null)?.shader;
-                if (typeof id === "string" && !keep(id)) {
-                    dropped.push({ channel: key, shader: id });
-                    return false;
-                }
-
-                return true;
-            });
-            next = uses.length === (next as unknown[]).length ? next : uses;
-        }
-
+        const walked: unknown = key === "userData" ? child : withoutShaderUses(child, keep, dropped);
+        const next = isUseList(key, walked) ? keptUses(key, walked, keep, dropped) : walked;
         changed ||= next !== child;
         out[key] = next;
     }
 
     return (changed ? out : value) as T;
+}
+
+/**
+ * A shader list without the uses whose id fails `keep`.
+ * @param key - The list's channel.
+ * @param uses - The uses.
+ * @param keep - Whether an id may stay.
+ * @param dropped - Collects each dropped use.
+ * @returns The list itself when nothing was dropped, else a copy without those uses.
+ */
+function keptUses(
+    key: string,
+    uses: unknown[],
+    keep: (id: string) => boolean,
+    dropped: { channel: string; shader: string }[],
+): unknown[] {
+    const kept = uses.filter((use) => {
+        const id = useId(use);
+        if (typeof id === "string" && !keep(id)) {
+            dropped.push({ channel: key, shader: id });
+            return false;
+        }
+
+        return true;
+    });
+    return kept.length === uses.length ? uses : kept;
 }

@@ -427,6 +427,177 @@ function offsetOf(text: string, line: number, column: number): number {
     return Math.min(at + Math.max(column - 1, 0), text.length);
 }
 
+/**
+ * The attributes that tie a header field to the problems about it.
+ * @param field - the field.
+ * @param marked - the fields a problem is about.
+ * @returns the attributes.
+ */
+function fieldMark(field: string, marked: ReadonlySet<string>): { "data-field": string; "data-invalid"?: string } {
+    return { "data-field": field, ...(marked.has(field) ? { "data-invalid": "" } : {}) };
+}
+
+/**
+ * Why Add has to wait, or undefined when it can go.
+ * @param boxValue - what the code box holds.
+ * @param result - the check of the text as it is now, or null while it is pending.
+ * @param adding - an add is under way.
+ * @returns the words, or undefined.
+ */
+function waitWordOf(boxValue: string, result: ShaderAddResult | null, adding: boolean): string | undefined {
+    if (boxValue.trim() === "") {
+        return PASTE_WAIT_WORDS.empty;
+    }
+    if (result === null || adding) {
+        return PASTE_WAIT_WORDS.checking;
+    }
+    return result.ok ? undefined : pasteProblemsWord(result.problems.length);
+}
+
+/**
+ * The header fields: Place, then, unless Full text is on, Name, Reach and Minimum size where the
+ * place uses them.
+ * @param props - Component props
+ * @param props.tab - the tab the draft is on
+ * @param props.places - the places the tab offers
+ * @param props.place - the place chosen
+ * @param props.form - the header
+ * @param props.showForm - Full text is off, so the form edits the header
+ * @param props.marked - the fields a problem is about
+ * @param props.onPlace - chooses a place
+ * @param props.onForm - takes a new header
+ * @returns The fields
+ */
+function ShaderFields({
+    tab,
+    places,
+    place,
+    form,
+    showForm,
+    marked,
+    onPlace,
+    onForm,
+}: Readonly<{
+    tab: ShaderTab;
+    places: readonly ShaderPlace[];
+    place: ShaderPlace | undefined;
+    form: ShaderTextDraft;
+    showForm: boolean;
+    marked: ReadonlySet<string>;
+    onPlace: (next: ShaderPlace) => void;
+    onForm: (next: ShaderTextDraft) => void;
+}>): React.JSX.Element {
+    const usesReach = place !== undefined && shaderPlaceUsesReach(place);
+    const usesMinSize = place !== undefined && minSizeApplies([place]);
+    const starterId = splitShaderText(templateOf(tab, place)).draft?.id;
+    const invalid = (field: string): true | undefined => (marked.has(field) ? true : undefined);
+    return (
+        <div className="ws-shader-fields">
+            {places.length > 0 && (
+                <div {...fieldMark("place", marked)}>
+                    <PanelField
+                        label={GALLERY_WORDS.place}
+                        kind="select"
+                        width="fill"
+                        data-autofocus
+                        aria-invalid={invalid("place")}
+                        value={place ?? null}
+                        data={places.map((each) => ({ value: each, label: dialogPlaceWords(each, tab) }))}
+                        glyph={<PlaceDiagram place={place} tab={tab} />}
+                        optionGlyphs={Object.fromEntries(
+                            places.map((each) => [each, <PlaceDiagram key={each} place={each} tab={tab} />]),
+                        )}
+                        onChange={(picked) => {
+                            const next = places.find((each) => each === picked);
+                            if (next !== undefined) {
+                                onPlace(next);
+                            }
+                        }}
+                    />
+                </div>
+            )}
+            {showForm && (
+                <>
+                    <div {...fieldMark("name", marked)}>
+                        <PanelField
+                            label={EDITOR_WORDS.name}
+                            width="fill"
+                            aria-invalid={invalid("name")}
+                            value={typeof form.name === "string" ? form.name : ""}
+                            onChange={(next) => {
+                                onForm(withName(form, String(next), starterId));
+                            }}
+                        />
+                    </div>
+                    {usesReach && (
+                        <div {...fieldMark("reach", marked)}>
+                            <PanelField
+                                label={EDITOR_WORDS.reach}
+                                kind="number"
+                                width="fill"
+                                aria-invalid={invalid("reach")}
+                                min={SHADER_REACH_RANGE.min}
+                                max={SHADER_REACH_RANGE.max}
+                                value={typeof form.reach === "number" ? form.reach : SHADER_REACH_RANGE.min}
+                                onChange={(next) => {
+                                    onForm({ ...form, reach: Number(next) });
+                                }}
+                            />
+                        </div>
+                    )}
+                    {usesMinSize && (
+                        <div {...fieldMark("minSize", marked)}>
+                            <NumberTextField
+                                label={EDITOR_WORDS.minSize}
+                                value={form.minSize}
+                                invalid={marked.has("minSize")}
+                                range={SHADER_MIN_SIZE_RANGE}
+                                onChange={(next) => {
+                                    onForm({ ...form, minSize: next });
+                                }}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+/**
+ * The dialog's footer: Add, which stays focusable while it has to wait, with why as its tooltip.
+ * @param props - Component props
+ * @param props.waitWord - why Add has to wait, or undefined
+ * @param props.onList - a list takes the shader: Add, rather than Add to project
+ * @param props.onAdd - adds the shader
+ * @returns The footer
+ */
+function AddFooter({
+    waitWord,
+    onList,
+    onAdd,
+}: Readonly<{ waitWord: string | undefined; onList: boolean; onAdd: () => void }>): React.JSX.Element {
+    const waits = waitWord === undefined ? undefined : true;
+    return (
+        <ModalFooter>
+            <Tooltip label={waitWord} disabled={waitWord === undefined}>
+                <Button
+                    size="xs"
+                    data-disabled={waits}
+                    aria-disabled={waits}
+                    onClick={() => {
+                        if (waitWord === undefined) {
+                            onAdd();
+                        }
+                    }}
+                >
+                    {onList ? EDITOR_WORDS.add : EDITOR_WORDS.addToProject}
+                </Button>
+            </Tooltip>
+        </ModalFooter>
+    );
+}
+
 /** Props for ShaderEditorDialog. */
 interface ShaderEditorDialogProps {
     readonly session: GraphSession;
@@ -770,14 +941,7 @@ export function ShaderEditorDialog({
         };
     });
 
-    let waitWord: string | undefined;
-    if (boxValue.trim() === "") {
-        waitWord = PASTE_WAIT_WORDS.empty;
-    } else if (result === null || adding) {
-        waitWord = PASTE_WAIT_WORDS.checking;
-    } else if (!result.ok) {
-        waitWord = pasteProblemsWord(result.problems.length);
-    }
+    const waitWord = waitWordOf(boxValue, result, adding);
     // What the checks found is said once it is found, as the rows show it.
     const found = result !== null && !result.ok ? pasteProblemsWord(result.problems.length) : undefined;
     useEffect(() => {
@@ -881,13 +1045,6 @@ export function ShaderEditorDialog({
         }
     };
 
-    const fieldMark = (field: string): { "data-field": string; "data-invalid"?: string } => ({
-        "data-field": field,
-        ...(markedFields.has(field) ? { "data-invalid": "" } : {}),
-    });
-    const usesReach = place !== undefined && shaderPlaceUsesReach(place);
-    const usesMinSize = place !== undefined && minSizeApplies([place]);
-    const starterId = splitShaderText(templateOf(tab, place)).draft?.id;
     return (
         <Modal
             opened
@@ -915,78 +1072,16 @@ export function ShaderEditorDialog({
                             />
                         </Group>
                     )}
-                    <div className="ws-shader-fields">
-                        {places.length > 0 && (
-                            <div {...fieldMark("place")}>
-                                <PanelField
-                                    label={GALLERY_WORDS.place}
-                                    kind="select"
-                                    width="fill"
-                                    data-autofocus
-                                    aria-invalid={markedFields.has("place") ? true : undefined}
-                                    value={place ?? null}
-                                    data={places.map((each) => ({ value: each, label: dialogPlaceWords(each, tab) }))}
-                                    glyph={<PlaceDiagram place={place} tab={tab} />}
-                                    optionGlyphs={Object.fromEntries(
-                                        places.map((each) => [
-                                            each,
-                                            <PlaceDiagram key={each} place={each} tab={tab} />,
-                                        ]),
-                                    )}
-                                    onChange={(picked) => {
-                                        const next = places.find((each) => each === picked);
-                                        if (next !== undefined) {
-                                            choosePlace(next);
-                                        }
-                                    }}
-                                />
-                            </div>
-                        )}
-                        {full === null && (
-                            <>
-                                <div {...fieldMark("name")}>
-                                    <PanelField
-                                        label={EDITOR_WORDS.name}
-                                        width="fill"
-                                        aria-invalid={markedFields.has("name") ? true : undefined}
-                                        value={typeof form.name === "string" ? form.name : ""}
-                                        onChange={(next) => {
-                                            setForm(withName(form, String(next), starterId));
-                                        }}
-                                    />
-                                </div>
-                                {usesReach && (
-                                    <div {...fieldMark("reach")}>
-                                        <PanelField
-                                            label={EDITOR_WORDS.reach}
-                                            kind="number"
-                                            width="fill"
-                                            aria-invalid={markedFields.has("reach") ? true : undefined}
-                                            min={SHADER_REACH_RANGE.min}
-                                            max={SHADER_REACH_RANGE.max}
-                                            value={typeof form.reach === "number" ? form.reach : SHADER_REACH_RANGE.min}
-                                            onChange={(next) => {
-                                                setForm({ ...form, reach: Number(next) });
-                                            }}
-                                        />
-                                    </div>
-                                )}
-                                {usesMinSize && (
-                                    <div {...fieldMark("minSize")}>
-                                        <NumberTextField
-                                            label={EDITOR_WORDS.minSize}
-                                            value={form.minSize}
-                                            invalid={markedFields.has("minSize")}
-                                            range={SHADER_MIN_SIZE_RANGE}
-                                            onChange={(next) => {
-                                                setForm({ ...form, minSize: next });
-                                            }}
-                                        />
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
+                    <ShaderFields
+                        tab={tab}
+                        places={places}
+                        place={place}
+                        form={form}
+                        showForm={full === null}
+                        marked={markedFields}
+                        onPlace={choosePlace}
+                        onForm={setForm}
+                    />
                 </PanelLabelsProvider>
                 <Group
                     className="ws-shader-code"
@@ -1029,11 +1124,7 @@ export function ShaderEditorDialog({
                         />
                     )}
                     {/* What the element draws of the text, framed by what it draws on; nothing reaches the graph until Add. */}
-                    {picture === undefined ? (
-                        <span className="ws-gallery-picture ws-paste-preview" aria-hidden />
-                    ) : (
-                        <img className="ws-gallery-picture ws-paste-preview" src={picture} alt={EDITOR_WORDS.preview} />
-                    )}
+                    <PreviewPicture picture={picture} />
                 </Group>
                 <Group gap="xs" justify="space-between">
                     <Group gap={4}>
@@ -1071,47 +1162,76 @@ export function ShaderEditorDialog({
                         onInsert={insertName}
                     />
                 )}
-                {problems.length > 0 && (
-                    <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
-                        role="list"
-                        aria-label={EDITOR_WORDS.problems}
-                        className="ws-paste-problems"
-                        id={problemsId}
-                    >
-                        {sited.map(({ problem, site }, index) => (
-                            <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
-                                role="listitem"
-                                key={`${problem.code}:${String(index)}`}
-                            >
-                                <ProblemRow
-                                    problem={problem}
-                                    site={site}
-                                    onGo={() => {
-                                        goToSite(site);
-                                    }}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <ProblemList id={problemsId} sited={sited} onGo={goToSite} />
             </Stack>
-            <ModalFooter>
-                <Tooltip label={waitWord} disabled={waitWord === undefined}>
-                    <Button
-                        size="xs"
-                        data-disabled={waitWord === undefined ? undefined : true}
-                        aria-disabled={waitWord === undefined ? undefined : true}
-                        onClick={() => {
-                            if (waitWord === undefined) {
-                                void add();
-                            }
-                        }}
-                    >
-                        {onList ? EDITOR_WORDS.add : EDITOR_WORDS.addToProject}
-                    </Button>
-                </Tooltip>
-            </ModalFooter>
+            <AddFooter
+                waitWord={waitWord}
+                onList={onList}
+                onAdd={() => {
+                    void add();
+                }}
+            />
         </Modal>
+    );
+}
+
+/**
+ * The preview beside the code box: the element's last picture of text that passed, or an empty
+ * frame.
+ * @param props - Component props
+ * @param props.picture - the picture's address, if there is one
+ * @returns The picture
+ */
+function PreviewPicture({ picture }: Readonly<{ picture: string | undefined }>): React.JSX.Element {
+    return picture === undefined ? (
+        <span className="ws-gallery-picture ws-paste-preview" aria-hidden />
+    ) : (
+        <img className="ws-gallery-picture ws-paste-preview" src={picture} alt={EDITOR_WORDS.preview} />
+    );
+}
+
+/**
+ * The problems the checks found, each going where it belongs; nothing when there are none.
+ * @param props - Component props
+ * @param props.id - the list's id, which the code box names as its description
+ * @param props.sited - each problem and where it belongs
+ * @param props.onGo - goes where a problem belongs
+ * @returns The list, or nothing
+ */
+function ProblemList({
+    id,
+    sited,
+    onGo,
+}: Readonly<{
+    id: string;
+    sited: readonly { problem: ShaderProblem; site: ProblemSite }[];
+    onGo: (site: ProblemSite) => void;
+}>): React.JSX.Element | null {
+    if (sited.length === 0) {
+        return null;
+    }
+    return (
+        <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+            role="list"
+            aria-label={EDITOR_WORDS.problems}
+            className="ws-paste-problems"
+            id={id}
+        >
+            {sited.map(({ problem, site }, index) => (
+                <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                    role="listitem"
+                    key={`${problem.code}:${String(index)}`}
+                >
+                    <ProblemRow
+                        problem={problem}
+                        site={site}
+                        onGo={() => {
+                            onGo(site);
+                        }}
+                    />
+                </div>
+            ))}
+        </div>
     );
 }
 

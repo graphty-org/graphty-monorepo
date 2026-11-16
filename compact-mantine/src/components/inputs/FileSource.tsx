@@ -383,7 +383,8 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         ) : (
             chooseIcon
         );
-        body = showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
+        const urlWidth = folder ? 48 : undefined;
+        body = showUrl ? urlField(icons, urlWidth) : chooseButton(true);
     } else {
         body = (
             <>

@@ -54,7 +54,7 @@ function fileName(name: string, section: SectionName | null): string {
     const stem = name
         .toLowerCase()
         .replaceAll(/[^a-z0-9]+/g, "-")
-        .replaceAll(/^-|-$/g, "");
+        .replaceAll(/(?:^-)|(?:-$)/g, "");
     return section === null ? `${stem}.graphty.json` : `${stem}.graphty-${section}.json`;
 }
 

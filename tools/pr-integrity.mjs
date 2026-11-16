@@ -328,6 +328,30 @@ function agentProblems(cwd, pr) {
 }
 
 /**
+ * The test integrity findings an agent review of the head has not answered, and every screenshot-settings finding.
+ * @param cwd the repository
+ * @param pr the pull request, as prIntegrity takes it
+ * @param mergeBase the merge base of base and head
+ * @returns the problems
+ */
+function testIntegrityProblems(cwd, pr, mergeBase) {
+    const cleared = agentCleared(pr.reviews, trustedReview(pr.owners), pr.head);
+    const problems = [];
+    for (const f of testIntegrity({ base: mergeBase, head: pr.head, cwd })) {
+        if (OWNER_ONLY_FINDING.test(f)) {
+            problems.push(
+                `Test integrity: ${f} (screenshot settings: only a code owner's approval of the head clears it)`,
+            );
+        } else if (!cleared.has(findingId(f))) {
+            problems.push(
+                `Test integrity: ${f} (an agent review of the head that answers it, tools/pr-review.sh, clears it)`,
+            );
+        }
+    }
+    return problems;
+}
+
+/**
  * Every problem PR Integrity finds.
  * @param cwd the repository holding the head's commits (read through git only; nothing from the head runs)
  * @param pr `{ base, head, title, body, author, reviews, owners, baselineProblems }`;
@@ -351,20 +375,7 @@ export function prIntegrity(cwd, pr) {
     const approved = ownerApproved(pr.reviews, pr.owners, pr.head);
     const problems = [];
     const exempt = kind.revert || kind.acceptOnly;
-    if (!exempt && !approved) {
-        const cleared = agentCleared(pr.reviews, trustedReview(pr.owners), pr.head);
-        for (const f of testIntegrity({ base: mergeBase, head: pr.head, cwd })) {
-            if (OWNER_ONLY_FINDING.test(f)) {
-                problems.push(
-                    `Test integrity: ${f} (screenshot settings: only a code owner's approval of the head clears it)`,
-                );
-            } else if (!cleared.has(findingId(f))) {
-                problems.push(
-                    `Test integrity: ${f} (an agent review of the head that answers it, tools/pr-review.sh, clears it)`,
-                );
-            }
-        }
-    }
+    if (!exempt && !approved) problems.push(...testIntegrityProblems(cwd, pr, mergeBase));
     if (!approved && breaking.some(isBreaking)) {
         problems.push(
             "Breaking change: the title or a commit is marked `!` or has a BREAKING CHANGE footer; it needs a code owner's approval of the head",

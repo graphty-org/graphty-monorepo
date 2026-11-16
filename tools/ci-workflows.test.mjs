@@ -2838,6 +2838,33 @@ describe("base-check.yml", () => {
         assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
         rmSync(dir, { recursive: true, force: true });
     });
+
+    it("#8363: re-runs the asking run's failed jobs when master fails the file too, only on the newest head", () => {
+        const job = parseYaml(workflow("base-check.yml")).jobs.check;
+        assert.equal(job.permissions.actions, "write");
+        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's failed jobs"));
+        assert.match(step.if, /steps\.file\.outcome == 'failure'/);
+        assert.equal(job.steps.find((s) => s.name === "Run the file").id, "file");
+        const dir = mkdtempSync(join(tmpdir(), "base-check-rerun-"));
+        // gh: the run's head and the pull request's head, then the re-run, which it logs
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/sh\ncase "$*" in\n  *actions/runs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const sh = (env) =>
+            execFileSync("bash", ["-euo", "pipefail", "-c", step.run], {
+                env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", ...env },
+                encoding: "utf8",
+            });
+        sh({ RUN: "55", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "bbb" });
+        assert.ok(!existsSync(join(dir, "calls")), "an older head is not re-run");
+        sh({ RUN: "55; x", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "aaa" });
+        assert.ok(!existsSync(join(dir, "calls")), "a malformed run id is not used");
+        sh({ RUN: "55", PR: "7", RUN_HEAD: "aaa", PR_HEAD: "aaa" });
+        assert.equal(readFileSync(join(dir, "calls"), "utf8"), "run rerun 55 --failed --repo o/r\n");
+        rmSync(dir, { recursive: true, force: true });
+    });
 });
 
 describe("pr-title.yml", () => {

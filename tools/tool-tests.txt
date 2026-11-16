@@ -104,3 +104,4 @@ tools/vitest-deps-reload.test.mjs
 tools/vitest-file-guard.test.mjs
 tools/vitest-time-budget.test.mjs
 tools/worktree-cleanup.test.mjs
+tools/refresh-inherited-prs.test.mjs

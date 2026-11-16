@@ -169,7 +169,7 @@ export interface NodeRef {
 
 /**
  * An edge reference (spec 6.2): `load` the source whose row made the edge, `key` its edge-id value,
- * a minted ULID for a reader-added edge, or `<copy id>#<row from 0>` for a keyless row.
+ * a reader-added edge's edge-id value or, with none, a minted ULID, or `<copy id>#<row from 0>` for a keyless row.
  */
 export interface EdgeRef {
     readonly load: string;

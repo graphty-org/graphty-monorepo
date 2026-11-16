@@ -328,12 +328,12 @@ exactly `id` (`reader`), `label`, `kind`, `origin` (`copy` alone, a ULID minted 
 `{ "operations": [...] }`, in the order made, applied in order after the join steps and the
 conversions:
 
-| `op`     | Members                                                                                                           | What it does                                                                                                                                                             |
-| -------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `merge`  | `into`, `from`: node references                                                                                   | merges `from` into `into`; `into` is kept, with its key                                                                                                                  |
-| `remove` | `node` or `edge`: a reference                                                                                     | drops the element; a node takes its edges with it, whatever `unmatched` says                                                                                             |
-| `add`    | `node: { space, key }`, or `edge: { "load": "reader", key }` with `from` and `to`; `columns`; `dtypes` (REQUIRED) | adds an element whose `key` is a ULID minted when it is made; `dtypes` gives each column's graph-format dtype, and cells are written and read as a copy's (4.1.2 rule 3) |
-| `edit`   | `node` or `edge`: a reference; `column`; `value`; `was`                                                           | sets one cell; `was` is the value it replaced                                                                                                                            |
+| `op`     | Members                                                                                                           | What it does                                                                                                                                                                                                                                                                                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `merge`  | `into`, `from`: node references                                                                                   | merges `from` into `into`; `into` is kept, with its key                                                                                                                                                                                                                                                                                                                                  |
+| `remove` | `node` or `edge`: a reference                                                                                     | drops the element; a node takes its edges with it, whatever `unmatched` says                                                                                                                                                                                                                                                                                                             |
+| `add`    | `node: { space, key }`, or `edge: { "load": "reader", key }` with `from` and `to`; `columns`; `dtypes` (REQUIRED) | adds an element; a node's `key` is its id as the reader gave it (a JSON string, its typed value in `columns.id`), an edge's its edge-id cell when the data has an edge-id role and no other reader edge repeats it, else a ULID minted when it is made and kept from then on; `dtypes` gives each column's graph-format dtype, and cells are written and read as a copy's (4.1.2 rule 3) |
+| `edit`   | `node` or `edge`: a reference; `column`; `value`; `was`                                                           | sets one cell; `was` is the value it replaced                                                                                                                                                                                                                                                                                                                                            |
 
 An operation naming an absent element applies to nothing and is reported. Operations are written
 as recorded. An edit to a column a type rule, or a key, end or edge-id role, reads MUST be refused
@@ -655,8 +655,10 @@ source whose row made it.
   source that does not `merge` leaves the later row's edge-id cell unset, so that row is keyless,
   and reports it (`W_MEMBER_LEFT_OUT`). A node whose id is empty is written as its keyless row. A keyless row's key, node or edge, is
   `"<copy id>#<row from 0>"`; an edge row whose edge-id cell is null or empty is keyless, so the
-  form applies per row. A reader-added element's key is a minted ULID, and a reader-added edge's
-  `load` is `reader`. An edge built from several rows takes the key and edge type of the first
+  form applies per row. A reader-added node is keyed by its id exactly as a source row is (its
+  typed id in the `add`'s `columns.id`), so its id is the same after a save and a reopen; a
+  reader-added edge is keyed by its edge-id value when it has one no other reader edge repeats,
+  else by a ULID minted once and kept, and its `load` is `reader`. An edge built from several rows takes the key and edge type of the first
   row read, in join step order, then row order. A row whose node-key or edge-end cell is null or
   empty has no key and is left out of the build.
 
@@ -670,7 +672,8 @@ source whose row made it.
 ```
 
 A reference names the element by record key and nothing else; internal ids are never saved. It
-MUST mean the same in a section file and in a full file. An edge reference never names its ends:
+MUST mean the same in a section file and in a full file. An edge's element-assigned id is internal:
+it is not kept across a reopen, from any source, and references bind edges by (load, key). An edge reference never names its ends:
 `key` is the record key, never NetworkX's multigraph key.
 
 ### 6.3 Binding

@@ -17,7 +17,8 @@
  * - Spaces: today's loads share one id system, so every node a load supplied is in the first
  *   load's space `source:<id>` (keys meet across loads as today's ids do); a node read from a
  *   version 2 file keeps the record key it was read with. The reader's nodes are in
- *   `source:reader`, keyed by minted ULIDs; reopened, such a node's session id is that ULID.
+ *   `source:reader`, keyed by their ids, their typed ids in the `id` column; one read from an
+ *   older file is keyed by a minted ULID, and its session id is that ULID.
  * - The reader source holds only the elements no load supplied, each an `add`; today's edits,
  *   removals and merges are already in the records, so no `edit`, `remove` or `merge` operation is
  *   ever written (read ones are applied, then baked into the copies).
@@ -352,8 +353,7 @@ function checkOperation(operation: unknown, pointer: string): void {
     if (operation.op === "add") {
         const node = operation.node === undefined ? undefined : nodeRefOf(operation.node);
         const edge = operation.edge === undefined ? undefined : edgeRefOf(operation.edge);
-        need(node === undefined || ULID.test(node.key), `${pointer}/node`);
-        need(edge === undefined || (edge.load === READER && ULID.test(edge.key)), `${pointer}/edge`);
+        need(edge === undefined || edge.load === READER, `${pointer}/edge`);
         need((node === undefined) !== (edge === undefined), pointer);
         need(operation.columns === undefined || isPlainObject(operation.columns), `${pointer}/columns`);
         // Every column the add gives declares its dtype, so a number's string form reads back as one.
@@ -927,7 +927,7 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
                 const columns = addedColumns(operation);
                 const node = nodeRefOf(operation.node);
                 if (node !== undefined) {
-                    const added = nodeAt(into, node, node.key);
+                    const added = nodeAt(into, node, columns.id ?? node.key);
                     Object.assign(added.columns, columns);
                     added.loads.push(READER);
                     return;

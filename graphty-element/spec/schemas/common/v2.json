@@ -320,7 +320,7 @@
         },
         "edgeRef": {
             "type": "object",
-            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a minted ULID for a reader-added edge, or <copy id>#<row from 0> for a keyless row. Closed.",
+            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a reader-added edge's edge-id value or, with none, a minted ULID, or <copy id>#<row from 0> for a keyless row. Closed.",
             "required": ["load", "key"],
             "properties": {
                 "load": {

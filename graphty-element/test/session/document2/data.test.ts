@@ -232,12 +232,16 @@ describe("data section version 2", () => {
         assert.match(String(body.build), ULID);
         assert.strictEqual(body.directed, session.status.directed);
 
-        // The reader's node and edge are `add` operations keyed by minted ULIDs.
-        const operations = ((sources[0].copy as JsonObject).operations as JsonObject[]).map((op) => op.op);
-        assert.deepStrictEqual(operations, ["add", "add"]);
+        // The reader's node is an `add` keyed by its own id, the edge (no edge-id role) by a ULID.
+        const operations = (sources[0].copy as JsonObject).operations as JsonObject[];
+        assert.deepStrictEqual(
+            operations.map((op) => op.op),
+            ["add", "add"],
+        );
+        assert.match(String((operations[1].edge as JsonObject).key), ULID);
         const graph = body.graph as JsonObject;
         const zed = (graph.nodes as JsonObject[]).find((node) => node["graphty.space"] === "source:reader");
-        assert.match(String(zed?.["graphty.key"]), ULID);
+        assert.strictEqual(zed?.["graphty.key"], "Zed");
         assert.deepStrictEqual(zed?.["_source.loads"], ["reader"]);
         const ben = (graph.nodes as JsonObject[]).find((node) => node["graphty.key"] === "Ben");
         assert.strictEqual(ben?.score, "Infinity");
@@ -440,7 +444,7 @@ describe("data section version 2", () => {
         const { body } = await writeBody(session);
         assert.deepStrictEqual(invalid(asSection(body)), []);
         const [add] = ((body.sources as JsonObject[])[0].copy as JsonObject).operations as JsonObject[];
-        assert.deepStrictEqual(add.dtypes, { score: "f64", tag: "string" });
+        assert.deepStrictEqual(add.dtypes, { id: "string", score: "f64", tag: "string" });
 
         const reopened = createGraphSession(ON);
         assert.deepStrictEqual(await readBody(reopened, body), []);

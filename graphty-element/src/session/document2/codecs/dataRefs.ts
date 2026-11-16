@@ -772,7 +772,7 @@ function readerKeyOf(memory: DataMemory, slot: string): string {
 
 /**
  * A node's source ids and record key: the sources that supplied it; else, for a node only an edge
- * named, none and the key an open read (spec 4.1.9); else the reader's, its key minted once.
+ * named, none and the key an open read (spec 4.1.9); else the reader's, keyed by its id.
  * @param id - The node.
  * @param supplied - The sources that supplied it, in join order.
  * @param memory - The memory.
@@ -795,7 +795,8 @@ function nameNode(
         return { loads: [], ref: known, reader: false };
     }
 
-    const key = known !== undefined && ULID.test(known.key) ? known.key : readerKeyOf(memory, `n:${id}`);
+    // Keyed by its own id, as a source row is, so the id is the same after a reopen.
+    const key = known?.key ?? keyText(id) ?? readerKeyOf(memory, `n:${String(id)}`);
     return { loads: [READER], ref: { space: known?.space ?? `source:${READER}`, key }, reader: true };
 }
 
@@ -979,9 +980,21 @@ function dataModelOf(session: GraphSession): DataModel {
         });
     }
 
-    for (const edge of readerEdges) {
-        edgeRefs.set(edge.id, { load: READER, key: readerKeyOf(memory, `e:${edge.id}`) });
+    // A reader edge is keyed by its edge-id cell, as a source row is, when no other reader edge
+    // repeats it; else by a ULID minted once.
+    const readerEdgeIds = readerEdges.map((edge) =>
+        edgeIdColumn === undefined ? undefined : keyText(edge[edgeIdColumn]),
+    );
+    const counts = new Map<string | undefined, number>();
+    for (const own of readerEdgeIds) {
+        counts.set(own, (counts.get(own) ?? 0) + 1);
     }
+
+    readerEdges.forEach((edge, at) => {
+        const own = readerEdgeIds[at];
+        const unique = own !== undefined && counts.get(own) === 1;
+        edgeRefs.set(edge.id, { load: READER, key: unique ? own : readerKeyOf(memory, `e:${edge.id}`) });
+    });
 
     const reader = readerCopyOf(readerNodes, readerEdges, { nodeRefs, edgeRefs, memory });
     return {
@@ -1049,7 +1062,8 @@ function readerCopyOf(
 
     const { nodeRefs, edgeRefs, memory } = named;
     const operations: JsonObject[] = [
-        ...nodes.map(({ id, ...columns }) => ({ op: "add", node: nodeRefs.get(id), ...addedColumns(columns) })),
+        // The id is kept as the `id` column, typed, so a numeric id reads back as a number.
+        ...nodes.map((node) => ({ op: "add", node: nodeRefs.get(node.id), ...addedColumns(node) })),
         ...edges.map(({ id, source, target, ...columns }) => ({
             op: "add",
             edge: edgeRefs.get(id),

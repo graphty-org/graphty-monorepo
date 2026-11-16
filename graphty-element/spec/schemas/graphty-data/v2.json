@@ -169,7 +169,7 @@
                                                                 },
                                                                 "key": {
                                                                     "type": "string",
-                                                                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                                    "minLength": 1
                                                                 }
                                                             },
                                                             "required": ["space", "key"],
@@ -183,7 +183,7 @@
                                                                 },
                                                                 "key": {
                                                                     "type": "string",
-                                                                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                                    "minLength": 1
                                                                 }
                                                             },
                                                             "required": ["load", "key"],

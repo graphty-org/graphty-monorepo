@@ -759,6 +759,7 @@ export const READ_ONLY: readonly string[] = [
     "Graph.setPixelRatio",
     "Graph.setRenderSettings",
     "Graph.setRenderer",
+    "Graph.setAntialias",
     "Graph.setRenderPath",
     "Graph.setRunning",
     "Graph.setStartingCameraDistance",

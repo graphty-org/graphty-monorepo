@@ -3,7 +3,6 @@ import type { GraphSession, StaleNote, StyleRow, UnionLeaf } from "@graphty/grap
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
@@ -105,8 +104,7 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
- * The wait mark of a layer whose Which nodes reads a run that was removed (the
- * `selection-workspace` experiment): the step waits for the reader's Run, which the layer's Which
+ * The wait mark of a layer whose Which nodes reads a run that was removed: the step waits for the reader's Run, which the layer's Which
  * nodes offers beside Edit. Read live from graphty-element (`scope.watchSteps`).
  * @param props - Component props
  * @param props.session - the element's session
@@ -434,7 +432,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             ) : (
                 <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
             );
-        const measured = selectionWorkspaceOn(session) ? measuredSelection(session, row.id) : null;
+        const measured = measuredSelection(session, row.id);
         const counted =
             measured === null ? (
                 marked

@@ -73,6 +73,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.tooltip": ["tooltip"],
     "node.xlabel": ["xlabel"],
     "node.labelDeclutter": ["labelAvoidOverlap"],
+    "node.labelTextAlign": ["labelTextAlign"],
     "edge.color": ["color"],
     "edge.width": ["width"],
     "edge.opacity": ["opacity"],
@@ -92,6 +93,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
     "edge.xlabel": ["xlabel"],
+    "edge.labelTextAlign": ["labelTextAlign"],
 };
 const LABEL_PROPERTIES = [
     "labelColor",

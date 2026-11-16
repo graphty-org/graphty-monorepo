@@ -35,7 +35,6 @@ import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
@@ -716,10 +715,8 @@ function chipWords(session: GraphSession, shown: Shown, rows: number): string {
     const holding = shown.per.filter((each) => each !== undefined).length;
     // Every layer holding it needs no count: the panel's header says how many layers there are.
     const layers = holding < rows ? `, ${String(holding)} of ${String(rows)} layers` : "";
-    // Read in plain words in the workspace: the token is the shared card's own mark.
-    return selectionWorkspaceOn(session)
-        ? `${cardName(shown.card).replace(/^The rule$/u, "Rule")} by layer${layers}`
-        : `${cardName(shown.card)}: ${LAYER_TOKEN}${layers}`;
+    // Read in plain words.
+    return `${cardName(shown.card).replace(/^The rule$/u, "Rule")} by layer${layers}`;
 }
 
 /**
@@ -1867,8 +1864,6 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
-    // The last bar lit with both thumbs on it belongs to the full-screen workspace (the `selection-workspace` experiment).
-    const wide = selectionWorkspaceOn(session);
     const heights = barHeights(
         spread.bins.map((bin) => bin.count),
         spread.suggestedScale === "log",
@@ -1892,7 +1887,7 @@ function ValueBrush({
                     highlighted:
                         (bin.to > shown[0] ||
                             bin.from >= shown[0] ||
-                            (wide && at === spread.bins.length - 1 && bin.to >= shown[0])) &&
+                            (at === spread.bins.length - 1 && bin.to >= shown[0])) &&
                         bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
@@ -2618,8 +2613,8 @@ function NumberCard({
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
     const count = { count: total, side };
-    // In the workspace a box takes an end as its label writes it; the outline editor stays as it was.
-    const scale = selectionWorkspaceOn(session) && range !== undefined ? { low, high } : undefined;
+    // A box takes an end as its label writes it.
+    const scale = range === undefined ? undefined : { low, high };
     const check = checkDrafts(drafts, card, parse, example, count, scale);
     const heldAfter = held === null ? "so it has no count yet" : `so it went back to ${held}`;
     leaving.current = check.bad.length > 0 ? `${name}: ${check.gist ?? ""}, ${heldAfter}.` : null;
@@ -3311,9 +3306,9 @@ function CategoryCard({
     if (ordered.current.typed !== typed) {
         ordered.current = { typed, checked };
     }
-    // A workspace list that shows every row keeps its order (largest first) whatever is ticked: a
-    // saved card reads as it did. Pinning is for the list cut to 8 rows, where a tick could be cut.
-    const whole = variant === "step" && selectionWorkspaceOn(session) && named.length <= SHOWN_VALUES;
+    // A step's list that shows every row keeps its order (largest first) whatever is ticked: a saved
+    // card reads as it did. Pinning is for the list cut to 8 rows, where a tick could be cut.
+    const whole = variant === "step" && named.length <= SHOWN_VALUES;
     const { rows } = checklistRows(named, whole ? NO_VALUES : ordered.current.checked, typed);
     const shownValues = rows.map((each) => each.value).join("\n");
     const drawn = useMemo(

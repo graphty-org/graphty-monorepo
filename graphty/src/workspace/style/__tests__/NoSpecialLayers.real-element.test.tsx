@@ -119,12 +119,9 @@ async function addCondition(name: string): Promise<void> {
     await userEvent.click(within(editor).getByRole("button", { name: "Done" }));
 }
 
-describe.each([
-    ["off", ["timeline"]],
-    ["on", ["timeline", "selection-workspace"]],
-])("the starting layers, selection workspace %s", (_state, features) => {
+describe("the starting layers", () => {
     beforeAll(async () => {
-        await siteFeatures(features);
+        await siteFeatures(["timeline"]);
         await page.viewport(1366, 768);
     });
 

@@ -288,12 +288,9 @@ function difference(row: Map<string, boolean>, reader: Map<string, boolean>): st
     return [...missing, ...extra, ...state];
 }
 
-describe.each([
-    ["off", ["timeline"]],
-    ["on", ["timeline", "selection-workspace"]],
-])("the panel of every style row, selection workspace %s", (_state, features) => {
+describe("the panel of every style row", () => {
     beforeAll(async () => {
-        await siteFeatures(features);
+        await siteFeatures(["timeline"]);
         await page.viewport(1366, 768);
     });
 

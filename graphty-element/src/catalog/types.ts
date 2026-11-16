@@ -686,6 +686,7 @@ export type Channel =
     | "node.color"
     | "node.size"
     | "node.sizeMode"
+    | "node.sizeSpace"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"

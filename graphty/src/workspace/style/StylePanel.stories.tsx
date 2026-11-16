@@ -323,7 +323,16 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     if (settings !== null) {
         await userEvent.click(settings);
     }
-    await userEvent.type(await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ }), "42");
+    const seed = await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ });
+    if (settings !== null) {
+        // The pop-out takes focus a task after it opens (PopoutPanel's open effect); typing before
+        // that lands sends the keys after it to the panel, so Leiden would run on a different seed.
+        await waitFor(() => {
+            expect(seed.closest("[data-popout-id]")?.contains(document.activeElement)).toBe(true);
+        });
+    }
+    await userEvent.type(seed, "42");
+    expect(seed).toHaveValue("42");
     if (settings !== null) {
         // Escape closes only the settings popover; Analyze stays open on Leiden.
         await userEvent.keyboard("{Escape}");

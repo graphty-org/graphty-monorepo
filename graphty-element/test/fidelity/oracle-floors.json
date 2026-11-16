@@ -30672,7 +30672,7 @@
             "label.weight": 1,
             "label.style": 1,
             "label.color": 1,
-            "label.rotation": 0.792,
+            "label.rotation": 1,
             "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
@@ -35033,7 +35033,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -35074,7 +35074,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -56427,22 +56427,6 @@
                 "to": 0.286,
                 "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
                 "date": "2026-11-01"
-            }
-        },
-        "json-vis-nodelegend": {
-            "label.rotation": {
-                "floor": 0.792,
-                "to": 0.778,
-                "reason": "json-vis-nodelegend now records where vis-network drew each node, so these elements are judged for the first time. The legend nodes have no positions in the file and vis-network draws 1004 35 px below 1002, so 1002's Server label sits on 1004's position and the comparator names it as 1004's label (issue #7402); edge 1->204's label.rotation fails like its five sibling edges already listed.",
-                "date": "2026-11-13"
-            }
-        },
-        "json-vis-siblings": {
-            "label.present": {
-                "floor": 1,
-                "to": 0,
-                "reason": "The harness now loads with the app's options (lengths spacing, framing file), so it judges what the graphty app draws: graphty's force layout spreads this graph more evenly than vis-network's physics, so fitted to the canvas its labels come out at 5.3 px and are drawn, while vis-network's are 3.5 px, under its 4 px drawThreshold, and are not",
-                "date": "2026-11-07"
             }
         },
         "json-vis-siblings@matched": {

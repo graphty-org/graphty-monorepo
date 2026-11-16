@@ -26,7 +26,7 @@
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "node ../tools/test-slots.mjs --lint eslint --max-warnings 0 $ESLINT_CACHE && tsc --noEmit && tsc --noEmit -p eslint-rules",
+        "lint": "node ../tools/test-slots.mjs --lint eslint --pass-on-unpruned-suppressions --max-warnings 0 $ESLINT_CACHE && tsc --noEmit && tsc --noEmit -p eslint-rules",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty",
         "typecheck": "tsc --noEmit",

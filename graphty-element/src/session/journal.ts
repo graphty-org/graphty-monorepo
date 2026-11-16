@@ -21,7 +21,7 @@ import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
-export type JournalId = string; // NOSONAR(S6564): the designed public name a run's journalId is typed by
+export type JournalId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- the designed public name a run's journalId is typed by
 
 /** One command the session ran. Frozen. */
 export interface JournalEntry {

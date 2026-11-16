@@ -585,8 +585,8 @@ export function sceneNode(
             border: d.border ? { ...d.border, widthPx: round(d.border.widthPx) } : null,
             labelFontPx: label ? round(label.fontPx) : null,
             labelOccluded: occluded,
-            // shown but for its node-size rule (`DrawnLabel.nodeSizeRule`), which another framing may meet
-            labelHiddenBySize: labelShown && label?.nodeSizeRule?.hidden === true,
+            // shown but for its size rule (`DrawnLabel.sizeRule`), which another framing may meet
+            labelHiddenBySize: labelShown && label?.sizeRule?.hidden === true,
             hiddenBy,
         },
     };

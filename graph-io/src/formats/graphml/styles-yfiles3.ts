@@ -2491,7 +2491,7 @@ function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
         }
     };
     // each alternative is one negated character class, so a token is matched once per character, over a capped text
-    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // NOSONAR(typescript:S5852): linear, no nested or overlapping quantifier
+    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // linear, no nested or overlapping quantifier
     for (const [token] of tokens) {
         const tag = markupTag(token);
         if (tag === null) {

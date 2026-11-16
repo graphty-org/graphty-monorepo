@@ -360,7 +360,7 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
  *
  * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
@@ -370,7 +370,7 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
  *
  * OPEN UNION: values may be added in a minor release.
  */
-export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
 export type MeasurementDeclaration =
@@ -500,7 +500,7 @@ export interface FieldDescriptor {
      * by. Experimental: may change or be removed in a minor release.
      * @beta
      */
-    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    missing?: "unreached" | "unmeasured" | (string & {}); // keeps the named codes in autocomplete while open to others
     /**
      * Present (true) when its values are names a re-run may spell differently (a community's
      * number), so a group is saved by a member it holds rather than by its number.
@@ -687,6 +687,7 @@ export type Channel =
     | "node.color"
     | "node.size"
     | "node.sizeMode"
+    | "node.sizeSpace"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
@@ -2658,7 +2659,7 @@ export interface MeasureLeaf {
 export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
+export type SourceKey = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.

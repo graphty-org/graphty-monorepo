@@ -1754,7 +1754,7 @@ export function dataBodyOf(
  * @param source - The source id.
  * @returns The name.
  */
-export function besideName(column: string, source: string): string {
+function besideName(column: string, source: string): string {
     return `${column} (${source})`;
 }
 

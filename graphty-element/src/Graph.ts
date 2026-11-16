@@ -218,7 +218,7 @@ import {
     type NodeThumbnailOptions,
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { type Antialias, pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
@@ -1016,6 +1016,12 @@ export class Graph implements GraphContext {
      */
     readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
     /**
+     * Whether the render loop multisamples only the frame a still scene rests on: `antialias` is
+     * `"at-rest"`. Asked each frame, so a change takes effect on the next one.
+     * @returns True under `"at-rest"`.
+     */
+    readonly #antialiasAtRest = (): boolean => this.#antialias === "at-rest";
+    /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
      * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
@@ -1069,12 +1075,41 @@ export class Graph implements GraphContext {
     // Active video capture for cancellation support
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
 
+    /** See {@link Graph.antialias}. */
+    #antialias: Antialias;
+    /** Whether the engine was built multisampling: `antialias` was not false. */
+    readonly #multisampled: boolean;
+
     /**
-     * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
-     * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
+     * How the canvas multisamples: the constructor's `antialias`, or what {@link Graph.setAntialias}
+     * changed it to. WebGPU, when it opens, is built the same way.
+     * @returns The setting.
      * @experimental cosmograph
      */
-    readonly antialias: boolean;
+    get antialias(): Antialias {
+        return this.#antialias;
+    }
+
+    /**
+     * Change how the canvas multisamples, once the engine is built: between `true` and `"at-rest"`,
+     * on an engine built with either. Anything else needs a new engine.
+     * @param value - The setting.
+     * @returns Whether it was changed (or already was the setting).
+     * @experimental cosmograph
+     */
+    setAntialias(value: Antialias): boolean {
+        if (value === this.#antialias) {
+            return true;
+        }
+
+        if (value === false || !this.#multisampled) {
+            return false;
+        }
+
+        this.#antialias = value;
+        this.renderManager.requestFrame();
+        return true;
+    }
 
     /**
      * Whether the WebGL canvas keeps each drawn frame, as the engine was built: the constructor's
@@ -1087,17 +1122,19 @@ export class Graph implements GraphContext {
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
-     * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
+     * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
+     *     frame a still scene rests on (`"at-rest"`). Left out, true.
      * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
      *     the page can read it between frames. Left out, true.
      */
     constructor(
         element: Element | string,
         useMockInput = false,
-        options: { readonly antialias?: boolean; readonly preserveDrawingBuffer?: boolean } = {},
+        options: { readonly antialias?: Antialias; readonly preserveDrawingBuffer?: boolean } = {},
     ) {
         this.useMockInput = useMockInput;
-        this.antialias = options.antialias ?? true;
+        this.#antialias = options.antialias ?? true;
+        this.#multisampled = this.#antialias !== false;
         this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
@@ -1153,7 +1190,8 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
-            antialias: this.antialias,
+            antialias: this.#multisampled,
+            antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
 
@@ -1253,6 +1291,7 @@ export class Graph implements GraphContext {
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
                 batched: () => this.#renderPath === "batched",
+                nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
             },
         );
 
@@ -2430,7 +2469,7 @@ export class Graph implements GraphContext {
         const opened = await openWebGPUEngine(
             canvas,
             (adapter) => this.acceleration.sharesDevice(adapter),
-            this.antialias,
+            this.#multisampled,
         );
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
@@ -2481,6 +2520,7 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
+            antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
@@ -5145,7 +5185,7 @@ export class Graph implements GraphContext {
      * @internal
      */
     leansLines(): boolean {
-        return !this.antialias && this.#nodeBatches !== null;
+        return this.#antialias === false && this.#nodeBatches !== null;
     }
 
     /**
@@ -5321,6 +5361,7 @@ export class Graph implements GraphContext {
                     root: () => this.scene.getTransformNodeByName("graph-root"),
                     view: () => ({
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
+                        sizeSpace: this.styles.config.behavior.node.sizeSpace ?? "scene",
                     }),
                     nodes: () => dataManagerInternals.builtNodes(this.dataManager),
                     sourceOf: ({ meshKey, style }) =>
@@ -7802,7 +7843,13 @@ export class Graph implements GraphContext {
             },
             () => this.session.styles.legend(),
         );
-        return screenshotCapture.captureScreenshot(options);
+        // Under antialias "at-rest" a screenshot is the multisampled picture, moving or not.
+        const release = this.renderManager.holdSmooth();
+        try {
+            return await screenshotCapture.captureScreenshot(options);
+        } finally {
+            release();
+        }
     }
 
     /**

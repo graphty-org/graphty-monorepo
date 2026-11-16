@@ -376,7 +376,10 @@ A red pull request whose failure master already has gets no fix job: it waits fo
 - Write `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` once on the pull request and on
   its issue. Start no fix job. A pull request red on an inherited break and on something of its own gets a fix job
   for its own failure only, and the prompt names the inherited one to leave alone.
-- **When the fix merges** (the issue closed, or its fix pull request merged): the next round that finds that pull
+- **When the fix merges**: closing the master-break issue as completed runs `refresh-inherited-prs.yml`, which
+  merges master into every open pull request whose failed check is annotated on a test file the issue names (each
+  `[FAIL]` and `[NEW-FLAKY]` test's file is annotated). So name the test file in the issue. A pull request it
+  missed (the issue named no file, or the run predates the annotations): the next round that finds that pull
   request red with an `inherited` marker brings it up to date with master,
   `gh api -X PUT repos/graphty-org/graphty-monorepo/pulls/<n>/update-branch`, and starts its checks on the new merge.
   Never a re-run: a re-run keeps the stale merge commit and fails again. Red again on the same test after that: the

@@ -2027,6 +2027,8 @@ jobs:
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
+                  # this job, which a touched test's base check re-runs when master fails the same test (#8363)
+                  RESULTS_JOB_ID: ${{ job.check_run_id }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 

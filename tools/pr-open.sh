@@ -214,7 +214,7 @@ fi
 # "a change that only removes save-file exceptions merges on agent review").
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|tools/check-saved-format-allowlist\.mjs$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge|refresh-inherited-prs)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.

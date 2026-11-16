@@ -102,6 +102,8 @@ const VALUE_EXPORTS = [
     "jsonImporter",
     "jsonShapeOf",
     "readJsonRecords",
+    "recordKey",
+    "recordPaths",
     "exportNeo4jFiles",
     "ID_SPACE_COLUMN",
     "LABELS_COLUMN",

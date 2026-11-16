@@ -1,5 +1,5 @@
-import type { Column } from "@graphty/graph-format";
-import { jsonImporter } from "@graphty/graph-io";
+import { jsonImporter, recordPaths } from "@graphty/graph-io";
+import { placeRecords as writePositions } from "@graphty/graph-io/positions";
 import jmespath from "jmespath";
 import { z } from "zod";
 
@@ -8,12 +8,11 @@ import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
-import { applyFilePositions, filePositionsOf } from "./filePositions";
+import { filePositionsOf } from "./filePositions";
 import {
     addErrorOrStop,
     aggregateErrors,
     columnsMapping,
-    copiedPath,
     importDocument,
     type ImportedGraph,
     importJsonRecords,
@@ -139,13 +138,6 @@ function recordsImport(
     edges: readonly Record<string, unknown>[],
 ): ReaderImport {
     const { snapshot } = imported;
-    const byId = new Map<unknown, Record<string, unknown>>();
-    for (const node of nodes) {
-        if (!byId.has(node.id)) {
-            byId.set(node.id, node);
-        }
-    }
-
     const pair = snapshot.edges.byRole("pair");
     const edgeRecords = new Map<number, Record<string, unknown>>();
     for (let row = 0, logical = 0; row < snapshot.edgeCount; row++) {
@@ -154,37 +146,11 @@ function recordsImport(
         }
     }
 
-    const find = (kind: "node" | "edge", column: Column): string[] | null => {
-        const { name } = column.meta;
-        if (column.meta.role !== null || copiedPath(kind, column) === null) {
-            return null;
-        }
-
-        const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        for (let row = 0; row < rows; row++) {
-            const record = kind === "node" ? byId.get(snapshot.ids.idOf(row)) : edgeRecords.get(row);
-            if (record !== undefined && column.isSet(row)) {
-                return Object.hasOwn(record, name) ? [name] : null;
-            }
-        }
-
-        return null;
-    };
-    const paths = new Map<Column, string[] | null>();
     return {
         imported,
-        path: (kind, name) => {
-            const column = (kind === "node" ? snapshot.nodes : snapshot.edges).get(name);
-            if (column === null || column === undefined) {
-                return null;
-            }
-
-            if (!paths.has(column)) {
-                paths.set(column, find(kind, column));
-            }
-
-            return paths.get(column) ?? null;
-        },
+        path: recordPaths(snapshot, nodes, edgeRecords, (record, name) =>
+            Object.hasOwn(record, name) ? [name] : null,
+        ),
     };
 }
 
@@ -235,7 +201,7 @@ async function placeRecords(records: readonly Record<string, unknown>[]): Promis
     }
 
     const { ids } = imported.snapshot;
-    applyFilePositions(records, filePositionsOf(imported), (_record, row) => ids.indexOf(String(row)));
+    writePositions(records, filePositionsOf(imported), (_record, row) => ids.indexOf(String(row)));
 }
 
 /**

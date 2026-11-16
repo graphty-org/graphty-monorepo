@@ -6,6 +6,7 @@
 
 import { type Column, GraphBuilder, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 
+import { placeRecords } from "../../positions/convert.js";
 import { extractPositions } from "../../positions/extract.js";
 import type { ImportReport } from "../../types.js";
 import { hasKey, isJsonObject, jsonShapeOf, sniffJsonDialect, SUFFIX } from "./dialect.js";
@@ -111,7 +112,9 @@ export async function readJsonRecords(text: string, options: JsonRecordsOptions 
         dialect === "cytoscape"
             ? cytoscapeRecords(snapshot, [...new Set(declared)])
             : fileRecords(snapshot, rootOf(document), dialect);
-    placeNodes(read.nodes, snapshot, report);
+    placeRecords(read.nodes, extractPositions(jsonImporter, snapshot, report), ({ id }) =>
+        typeof id === "string" || typeof id === "number" ? snapshot.ids.indexOf(id) : -1,
+    );
     return { snapshot, report, ...read };
 }
 
@@ -154,7 +157,7 @@ function cytoscapeRecords(snapshot: GraphSnapshot, declared: readonly NodeId[]):
         if (column === null || column === parent) {
             return null;
         }
-        const key = copiedKey(kind, column);
+        const key = recordKey(kind, column);
         return key === null ? null : [key];
     };
     return { nodes, edges, path };
@@ -197,6 +200,26 @@ function fileRecords(snapshot: GraphSnapshot, root: Record<string, unknown>, dia
             : { source: edge[sourceKey], target: edge[targetKey], ...edge },
     );
 
+    return { nodes, edges, path: recordPaths(snapshot, nodes, edgeRecords, rawPath) };
+}
+
+/**
+ * Where a column's value sits on a document's own records: found on the first record that holds a value of the
+ * column, by `locate`, and remembered per column. A column that carries structure (a role) or that the records do not
+ * copy ({@link recordKey}) sits nowhere.
+ * @param snapshot - the imported graph
+ * @param nodes - the node records, each holding its node's `id`; the first record of a repeated id is the one read
+ * @param edges - the edge record of each edge row the records hold
+ * @param locate - the keys down to a column's value on one record that holds it, or null
+ * @returns the path function of {@link JsonRecords}
+ * @category Loading
+ */
+export function recordPaths(
+    snapshot: GraphSnapshot,
+    nodes: readonly Record<string, unknown>[],
+    edges: ReadonlyMap<number, Record<string, unknown>>,
+    locate: (record: Record<string, unknown>, name: string) => readonly string[] | null,
+): JsonRecords["path"] {
     const byId = new Map<unknown, Record<string, unknown>>();
     for (const node of nodes) {
         if (!byId.has(node.id)) {
@@ -205,19 +228,19 @@ function fileRecords(snapshot: GraphSnapshot, root: Record<string, unknown>, dia
     }
     const paths = new Map<Column, readonly string[] | null>();
     const find = (kind: "node" | "edge", column: Column): readonly string[] | null => {
-        if (column.meta.role !== null || copiedKey(kind, column) === null) {
+        if (column.meta.role !== null || recordKey(kind, column) === null) {
             return null;
         }
         const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         for (let row = 0; row < rows; row++) {
-            const record = kind === "node" ? byId.get(snapshot.ids.idOf(row)) : edgeRecords.get(row);
+            const record = kind === "node" ? byId.get(snapshot.ids.idOf(row)) : edges.get(row);
             if (record !== undefined && column.isSet(row)) {
-                return rawPath(record, column.meta.name);
+                return locate(record, column.meta.name);
             }
         }
         return null;
     };
-    const path = (kind: "node" | "edge", name: string): readonly string[] | null => {
+    return (kind, name) => {
         const column = (kind === "node" ? snapshot.nodes : snapshot.edges).get(name);
         if (column === null) {
             return null;
@@ -227,7 +250,6 @@ function fileRecords(snapshot: GraphSnapshot, root: Record<string, unknown>, dia
         }
         return paths.get(column) ?? null;
     };
-    return { nodes, edges, path };
 }
 
 /**
@@ -252,12 +274,14 @@ function rawPath(record: Record<string, unknown>, name: string): string[] | null
 
 /**
  * The record key a column's value is copied under: its own name, except a reserved `graphty.*` column, the stored
- * position (written as `position`) and one named like a key that identifies the record.
+ * position (written as `position`) and one named like a key that identifies the record (a node's `id`, an edge's
+ * `source`, `target` and `id`).
  * @param kind - node or edge
  * @param column - the column
  * @returns the key, or null when the column is not copied
+ * @category Loading
  */
-function copiedKey(kind: "node" | "edge", column: Column): string | null {
+export function recordKey(kind: "node" | "edge", column: Column): string | null {
     const { name } = column.meta;
     return name.startsWith(RESERVED_PREFIX) ||
         column.meta.role === "position" ||
@@ -268,7 +292,7 @@ function copiedKey(kind: "node" | "edge", column: Column): string | null {
 
 /**
  * Copy every set cell of a row onto a record under its column's name, a multi-component cell as an array, leaving
- * out what {@link copiedKey} leaves out and any key the record already holds.
+ * out what {@link recordKey} leaves out and any key the record already holds.
  * @param table - the node or edge table
  * @param row - the row
  * @param record - receives the values
@@ -300,27 +324,4 @@ function logicalEdges(snapshot: GraphSnapshot): number[] {
         }
     }
     return rows;
-}
-
-/**
- * Write each placed node's stored position onto its record as `position`, read by `extractPositions()`; a record
- * the document did not place keeps what it holds, and a file whose positions are unusable writes none.
- * @param nodes - the node records
- * @param snapshot - the imported graph
- * @param report - the importer's report
- */
-function placeNodes(nodes: readonly Record<string, unknown>[], snapshot: GraphSnapshot, report: ImportReport): void {
-    const positions = extractPositions(jsonImporter, snapshot, report);
-    if (positions?.usable !== true) {
-        return;
-    }
-    const { coords } = positions;
-    for (const record of nodes) {
-        const { id } = record;
-        const row = typeof id === "string" || typeof id === "number" ? snapshot.ids.indexOf(id) : -1;
-        const x = row < 0 ? Number.NaN : coords[3 * row];
-        if (!Number.isNaN(x)) {
-            record.position = { x, y: coords[3 * row + 1], z: coords[3 * row + 2] };
-        }
-    }
 }

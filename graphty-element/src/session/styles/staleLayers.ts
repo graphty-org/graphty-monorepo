@@ -63,7 +63,7 @@ function columnOf(path: string): string | null {
 export function layersReadingOnly(stack: readonly CompiledLayer[], gone: ColumnsByKind): LayerId[] {
     const out: LayerId[] = [];
     for (const { layer, reads } of stack) {
-        const columns = reads.map(columnOf).filter((column): column is string => column !== null);
+        const columns = reads.map((path) => columnOf(path)).filter((column): column is string => column !== null);
         const kinds = layer.target === undefined ? (["node", "edge"] as const) : [layer.target];
         if (columns.length > 0 && columns.every((column) => kinds.some((kind) => gone[kind].has(column)))) {
             out.push(layer.id);

@@ -308,6 +308,8 @@ export {
     type JsonShapeMeta,
     jsonShapeOf,
     readJsonRecords,
+    recordKey,
+    recordPaths,
     sniffJsonDialect,
 } from "./formats/json/index.js";
 export {

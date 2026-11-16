@@ -661,6 +661,20 @@ function channelPlans(
             identity: ratio === 1,
         };
     };
+    // a label's box, outline and turn, read alike for a node and an edge
+    const labelBox: [string, ChannelPlan[]][] = [
+        ["labelRotation", [label("labelRotation")]],
+        ["labelBackground", [label("labelBackground")]],
+        ["labelOutlineColor", [label("labelOutline")]],
+        ["labelOutlineWidth", [labelLength(`${kind}.labelOutlineWidth`)]],
+        ["labelBorderColor", [label("labelBorder")]],
+        ["labelBorderWidth", [labelLength(`${kind}.labelBorderWidth`, false)]],
+        ["labelOpacity", [label("labelOpacity")]],
+        ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
+        ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
+        ["labelBorderOpacity", [label("labelBorderOpacity")]],
+        ["labelPadding", [labelLength(`${kind}.labelPadding`, false)]],
+    ];
     if (kind === "node") {
         const shapeTable = NODE_SHAPES;
         return new Map<string, readonly ChannelPlan[]>([
@@ -856,17 +870,7 @@ function channelPlans(
             ["labelTextAlign", [label("labelTextAlign")]],
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
-            ["labelRotation", [label("labelRotation")]],
-            ["labelBackground", [label("labelBackground")]],
-            ["labelOutlineColor", [label("labelOutline")]],
-            ["labelOutlineWidth", [labelLength("node.labelOutlineWidth")]],
-            ["labelBorderColor", [label("labelBorder")]],
-            ["labelBorderWidth", [labelLength("node.labelBorderWidth", false)]],
-            ["labelOpacity", [label("labelOpacity")]],
-            ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
-            ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
-            ["labelBorderOpacity", [label("labelBorderOpacity")]],
-            ["labelPadding", [labelLength("node.labelPadding", false)]],
+            ...labelBox,
             ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
             ["labelLineHeight", [label("labelLineHeight")]],
             ["labelBox", [label("labelBox")]],
@@ -1060,17 +1064,7 @@ function channelPlans(
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
         ["labelKeepBlankLines", [keepBlankLines("edge")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
-        ["labelRotation", [label("labelRotation")]],
-        ["labelBackground", [label("labelBackground")]],
-        ["labelOutlineColor", [label("labelOutline")]],
-        ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
-        ["labelBorderColor", [label("labelBorder")]],
-        ["labelBorderWidth", [labelLength("edge.labelBorderWidth", false)]],
-        ["labelOpacity", [label("labelOpacity")]],
-        ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
-        ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
-        ["labelBorderOpacity", [label("labelBorderOpacity")]],
-        ["labelPadding", [labelLength("edge.labelPadding", false)]],
+        ...labelBox,
         // its lengths in label units, as its padding is
         [
             "labelTable",

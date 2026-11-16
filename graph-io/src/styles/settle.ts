@@ -593,13 +593,17 @@ function styleKeysOf(rule: StyleRule): string[] {
     const keys: string[] = [];
     const walk = (value: unknown): void => {
         if (Array.isArray(value)) {
-            value.forEach(walk);
+            for (const item of value) {
+                walk(item);
+            }
         } else if (value !== null && typeof value === "object") {
             const { style } = value as { style?: unknown };
             if (typeof style === "string") {
                 keys.push(style);
             }
-            Object.values(value).forEach(walk);
+            for (const item of Object.values(value)) {
+                walk(item);
+            }
         }
     };
     walk(rule.where);
@@ -773,28 +777,6 @@ function drawing(
         return Array.from({ length: n }, (_unused, i) => (columns.some((c) => c[i] !== null) ? value : null));
     };
     const screen = defaults?.labelSizeOnScreen?.value === true;
-    // every program draws an edge's end captions in its label's face, size, color, weight and opacity: rule by rule,
-    // bottom to top, an end's own value where the rule gives one and the label's elsewhere, the topmost winning
-    const fields = ["Size", "Color", "Font", "Weight", "Opacity"];
-    const edges = snapshot.edgeCount;
-    const caption = (property: string, from: string): (StyleValue | null)[] => {
-        const now = current(extracted, work);
-        const out = new Array<StyleValue | null>(edges).fill(null);
-        for (const rule of work.rules) {
-            if (rule.target !== "edge" || (!writes(rule, property) && !writes(rule, from))) {
-                continue;
-            }
-            const own = writes(rule, property) ? resolveRule(now, rule, property as StyleProperty, snapshot) : null;
-            const label = writes(rule, from) ? resolveRule(now, rule, from as StyleProperty, snapshot) : null;
-            for (let i = 0; i < edges; i++) {
-                const value = own?.[i] ?? label?.[i] ?? null;
-                if (value !== null) {
-                    out[i] = value;
-                }
-            }
-        }
-        return out;
-    };
     const node: Record<string, readonly (StyleValue | null)[]> = {};
     const edge: Record<string, readonly (StyleValue | null)[]> = {};
     if (writer("node", ["width", "height", "shape"])) {
@@ -818,6 +800,52 @@ function drawing(
     if (screen && writer("node", ["labelSize"])) {
         node.labelScreenSize = resolved(extracted, snapshot, work, "node", "labelSize");
     }
+    endCaptions(extracted, snapshot, work, screen, edge);
+    if (screen) {
+        edge.labelScreenSize = resolved(extracted, snapshot, work, "edge", "labelSize");
+    }
+    addValues(work, { id: "node.drawing", name: "Drawing", target: "node" }, node);
+    addValues(work, { id: "edge.drawing", name: "Drawing", target: "edge" }, edge);
+}
+
+/**
+ * An edge's end captions as the program draws them, in its label's face: written to `edge` where they differ from what
+ * the rules already give them.
+ * @param extracted - the styles being settled
+ * @param snapshot - the graph
+ * @param work - the work
+ * @param screen - whether the program fixes label sizes on screen
+ * @param edge - receives the edge values
+ */
+function endCaptions(
+    extracted: ExtractedStyles,
+    snapshot: GraphSnapshot,
+    work: Work,
+    screen: boolean,
+    edge: Record<string, readonly (StyleValue | null)[]>,
+): void {
+    // every program draws an edge's end captions in its label's face, size, color, weight and opacity: rule by rule,
+    // bottom to top, an end's own value where the rule gives one and the label's elsewhere, the topmost winning
+    const fields = ["Size", "Color", "Font", "Weight", "Opacity"];
+    const edges = snapshot.edgeCount;
+    const caption = (property: string, from: string): (StyleValue | null)[] => {
+        const now = current(extracted, work);
+        const out = new Array<StyleValue | null>(edges).fill(null);
+        for (const rule of work.rules) {
+            if (rule.target !== "edge" || (!writes(rule, property) && !writes(rule, from))) {
+                continue;
+            }
+            const own = writes(rule, property) ? resolveRule(now, rule, property as StyleProperty, snapshot) : null;
+            const label = writes(rule, from) ? resolveRule(now, rule, from as StyleProperty, snapshot) : null;
+            for (let i = 0; i < edges; i++) {
+                const value = own?.[i] ?? label?.[i] ?? null;
+                if (value !== null) {
+                    out[i] = value;
+                }
+            }
+        }
+        return out;
+    };
     for (const end of ["target", "source"]) {
         for (const f of fields) {
             if (screen && f === "Size") {
@@ -834,11 +862,6 @@ function drawing(
             edge[`${end}LabelScreenSize`] = caption(`${end}LabelSize`, "labelSize");
         }
     }
-    if (screen) {
-        edge.labelScreenSize = resolved(extracted, snapshot, work, "edge", "labelSize");
-    }
-    addValues(work, { id: "node.drawing", name: "Drawing", target: "node" }, node);
-    addValues(work, { id: "edge.drawing", name: "Drawing", target: "edge" }, edge);
 }
 
 /**

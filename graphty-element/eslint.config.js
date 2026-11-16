@@ -239,4 +239,27 @@ export default tseslint.config(
         plugins: { cast: { rules: { "no-private-manager-cast": noPrivateManagerCast } } },
         rules: { "cast/no-private-manager-cast": "error" },
     },
+    // Files SonarQube skipped for one rule, carried over with the reason.
+    {
+        // Public API (api/index.api.md): grouping emitDataLoadingComplete's parameters is a breaking change.
+        files: ["src/managers/EventManager.ts"],
+        rules: { "max-params": "off" },
+    },
+    {
+        // Dedicated Workers: one receives messages only from the page that created it, and such a
+        // message carries no origin to check.
+        files: ["src/layout/graphviz/worker.ts", "src/algorithms/offThreadWorker.ts"],
+        rules: { "sonarjs/post-message": "off" },
+    },
+    {
+        // WindowSlider.rebuild returns the counts it measured on both of its paths; what differs is the
+        // slide state it leaves for the next move.
+        files: ["src/session/visibility/slide.ts"],
+        rules: { "sonarjs/no-invariant-returns": "off" },
+    },
+    {
+        // A seeded layout's random starting positions: nothing security-related depends on them.
+        files: ["src/simple/defineLayout.ts"],
+        rules: { "sonarjs/pseudo-random": "off" },
+    },
 );

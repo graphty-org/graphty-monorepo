@@ -896,7 +896,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {

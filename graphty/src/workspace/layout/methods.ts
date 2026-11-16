@@ -54,7 +54,7 @@ export const LAYOUT_SEED = 1;
  * @returns a non-negative 31-bit integer.
  */
 export function randomSeed(): number {
-    return Math.floor(Math.random() * 2 ** 31); // NOSONAR(S2245): a layout seed, not a security value
+    return Math.floor(Math.random() * 2 ** 31); // eslint-disable-line sonarjs/pseudo-random -- a layout seed, not a security value
 }
 
 /**
@@ -306,7 +306,7 @@ export const LAYOUT_SECTIONS: readonly { readonly family: string; readonly title
  * @returns the section's heading.
  */
 export function sectionOf(family: string): string {
-    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // NOSONAR(S7755): .at() would widen the type to undefined
+    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // eslint-disable-line unicorn/prefer-at -- .at() would widen the type to undefined
     return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? last).title;
 }
 

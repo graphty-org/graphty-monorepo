@@ -18,7 +18,7 @@ type Git = (args: readonly string[]) => string | null;
 const git: Git = (args) => {
     try {
         const options = { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] } as const;
-        const out = execFileSync("git", args, options).trim(); // NOSONAR(S4036): build-time script runs the developer's or CI's own git
+        const out = execFileSync("git", args, options).trim(); // eslint-disable-line sonarjs/no-os-command-from-path -- build-time script runs the developer's or CI's own git
         return out === "" ? null : out;
     } catch {
         return null;

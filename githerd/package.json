@@ -24,7 +24,7 @@
         "test": "vitest",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "lint": "eslint . && npm run typecheck",
+        "lint": "eslint . --pass-on-unpruned-suppressions && npm run typecheck",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace githerd",
         "typecheck": "tsc -p tsconfig.json"
     },

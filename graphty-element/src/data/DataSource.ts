@@ -1272,7 +1272,7 @@ export abstract class DataSource {
                 }
                 let loaded: Awaited<ReturnType<typeof loadFromSource>>;
                 try {
-                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // picks the overload; tsc refuses the call without it
                 } catch (error) {
                     throw toGraphtyError(error);
                 }

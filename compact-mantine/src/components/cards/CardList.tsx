@@ -335,7 +335,7 @@ export function CardList({
     };
 
     return (
-        <div // NOSONAR(S6819): a named group of card regions; a fieldset would draw a form's border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a named group of card regions; a fieldset would draw a form's border and legend
             ref={list}
             className="cm-card-list"
             role="group"

@@ -75,10 +75,15 @@ each frees up.
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
 the whole app. It is separate from the dry run and runs against any served build with the
-`selection-workspace` feature on:
+`selection-workspace` feature on, in Chromium and then in Playwright's WebKit (Safari's engine) unless
+`--browser chromium` or `--browser webkit` picks one. Every pull request that affects the graphty app
+runs it in both, one CI job per browser (`Selection workspace (chromium)` and `(webkit)`, report-only
+for now):
 
 ```bash
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist          # serves the build itself
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/?features=selection-workspace"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
 ```

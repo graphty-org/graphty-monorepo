@@ -17,8 +17,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The Calculated tab belongs to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 const FAILED = "The run failed: it did not settle on an answer";
 

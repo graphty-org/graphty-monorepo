@@ -72,6 +72,39 @@ describe("the layout filling the row table from a separate device", () => {
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
     });
 
+    for (const renderer of ["webgl", "webgpu"] as const) {
+        it(`frames a landing owed on ${renderer} by the box its rows are in (issue #8427)`, async () => {
+            const graph = await running("batched", undefined, renderer);
+            await landed(graph);
+            const lane = graph.getDataManager()[WRITABLE_LANE];
+            const engine = layoutOf(graph);
+            await landed(graph);
+            const written = lane.changes;
+            await landed(graph);
+            assert.strictEqual(lane.changes - written, 0, "the landing is owed, not written");
+            const owed = Float64Array.from(engine.publishedBounds() ?? []);
+
+            // reading every row writes the owed publish: the rows' own box, and the box the written path reports
+            const rows = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+            for (const node of graph.getNodes()) {
+                const { x, y, z } = node.getPosition();
+                [x, y, z].forEach((value, axis) => {
+                    rows[axis] = Math.min(rows[axis], value);
+                    rows[axis + 3] = Math.max(rows[axis + 3], value);
+                });
+            }
+            assert.isAbove(lane.changes - written, 0);
+            const writtenBox = Array.from(engine.publishedBounds() ?? []);
+
+            assert.lengthOf(owed, 6);
+            const span = Math.max(rows[3] - rows[0], rows[4] - rows[1], rows[5] - rows[2]);
+            owed.forEach((value, i) => {
+                assert.approximately(value, rows[i], span * 1e-5, `owed box [${String(i)}] against the rows`);
+                assert.approximately(value, writtenBox[i], span * 1e-5, `owed box [${String(i)}] against the written`);
+            });
+        });
+    }
+
     it("publishes every landing on the CPU under renderPath objects", async () => {
         const graph = await running("objects", undefined, "webgl");
         const lane = graph.getDataManager()[WRITABLE_LANE];

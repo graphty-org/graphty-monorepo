@@ -7,7 +7,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -39,7 +40,10 @@ test("bar 5's list gives a MISS line for each tier 4 screen and planted check le
 });
 
 test("the gate reads a round's walks from its dry run's passes, a detour never as the success walk, and tier 4's bars", async () => {
-    const tier = join(studio, "tier4/rounds");
+    // the round and its dry run's passes in a folder of the test's own, never in the studio's files: two
+    // runs at once (two gate runs, or this file beside another) cleared each other's planted round (#8412)
+    const own = await mkdtemp(join(tmpdir(), "tier4-gate-"));
+    const tier = join(own, "rounds");
     const rd = join(tier, "round-97");
     const passes = ["r97", "r97d1", "r97d2"].map((p) => join(tier, p));
     // the frozen build's commit: walks on it count
@@ -75,7 +79,10 @@ test("the gate reads a round's walks from its dry run's passes, a detour never a
         "| r97-s03 | T67 | A: food bank | Alex | `setup:pantries.txt` |",
     ].join("\n");
     const gate = () =>
-        spawnSync(process.execPath, [real, "--gate", rd], { encoding: "utf8", env: { ...process.env, REAL_TIER: "" } });
+        spawnSync(process.execPath, [real, "--gate", rd], {
+            encoding: "utf8",
+            env: { ...process.env, REAL_TIER: "4" },
+        });
     const clean = () => Promise.all([rd, ...passes].map((d) => rm(d, { recursive: true, force: true })));
     const good = async () => {
         await clean();
@@ -141,7 +148,7 @@ test("the gate reads a round's walks from its dry run's passes, a detour never a
             /no bars run: \S+bars-light\/bars\.json is missing/,
         );
     } finally {
-        await clean();
+        await rm(own, { recursive: true, force: true });
     }
 });
 

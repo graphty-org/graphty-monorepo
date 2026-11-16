@@ -1,8 +1,8 @@
 /**
- * The bundle entries of @graphty/graph-io: the root barrel and one entry per format subpath
- * (design section 8.2: `@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`,
- * `/json`, `/neo4j`), plus `@graphty/graph-io/styles`, the format-independent style
- * module. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
+ * The bundle entries of @graphty/graph-io: the root barrel, one entry per format subpath
+ * (`@graphty/graph-io/<format>`), one per network source (`@graphty/graph-io/sources/<name>`),
+ * and the format-independent `@graphty/graph-io/styles` and `/positions` modules; ENTRIES
+ * below is the list. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
  * tools/build-bundle.mjs (which writes the matching dist/<name>.d.ts shim); package.json
  * "exports" must list the same names, which test/build-output.test.ts checks.
  *

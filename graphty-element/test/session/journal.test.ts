@@ -65,8 +65,23 @@ describe("session.journal", () => {
                 { id: "b", position: { x: 1, y: 0, z: 0 } },
             ];
             const edges = [{ source: "a", target: "b" }];
+            // The copy is made when the add runs, not on the caller's synchronous dispatch, which
+            // at a million records would hold the page for half a second.
+            const atDispatch: unknown[] = [];
+            dispatcherOf(session).events.dispatched = (dispatched) => {
+                const command = dispatched as SessionCommand;
+                if (command.op === "data.apply" && "records" in command.mutation) {
+                    atDispatch.push(command.mutation.records[0]);
+                }
+            };
             await session.data.addNodes(nodes);
             await session.data.addEdges(edges);
+            assert.strictEqual(atDispatch.length, 2, `two adds dispatched, batched ${String(batched)}`);
+            if (!batched) {
+                // (Under "batched" these adds go as a rows view, whose records are built when read.)
+                assert.strictEqual(atDispatch[0], nodes[0], "dispatch copies no node record");
+                assert.isFalse(Object.isFrozen(atDispatch[1]), "dispatch freezes no edge record");
+            }
 
             const { graph } = dispatcherOf(session).state;
             const kept = (kind: string): readonly unknown[] => {

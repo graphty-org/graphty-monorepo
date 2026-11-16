@@ -242,7 +242,8 @@ interface DefinitionBase<C extends CommandLike> {
     readonly byReference?: readonly string[];
     /**
      * The command as it is kept (by its job, its step and the journal), made from the dispatch
-     * copy. `data.apply` freezes its records here, so one copy serves the command and the graph.
+     * copy when its job starts. `data.apply` freezes its records here, so one copy serves the
+     * command and the graph.
      */
     kept?(command: C): C;
     /**
@@ -1954,10 +1955,10 @@ export class Dispatcher {
     }
 
     /**
-     * A dispatched command made concrete against state now, copied and kept as its definition
-     * says, and announced; the start of both {@link Dispatcher.submit} and {@link Dispatcher.inline}.
+     * A dispatched command made concrete against state now, copied as its definition says, and
+     * announced; the start of both {@link Dispatcher.submit} and {@link Dispatcher.inline}.
      * @param command - The command, or a function from state to one.
-     * @returns The state it was resolved against, its definition and the command as kept.
+     * @returns The state it was resolved against, its definition and the command as copied.
      * @throws `E_BAD_COMMAND` when no definition has its op.
      */
     private resolve(command: Dispatchable): {
@@ -1969,8 +1970,7 @@ export class Dispatcher {
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
-        const copied = deepFreezeArgs(raw, definition?.byReference);
-        const concrete = definition?.kept?.(copied) ?? copied;
+        const concrete = deepFreezeArgs(raw, definition?.byReference);
         this.events.dispatched?.(concrete);
         if (definition === undefined) {
             throw new GraphtyError({
@@ -2233,7 +2233,11 @@ export class Dispatcher {
         };
         let out: unknown;
         try {
-            out = definition.execute(command, ctx);
+            // Made into the command as kept when it runs, not at dispatch: `data.apply` freezes its
+            // records in `kept`, which at a million records would hold the caller's synchronous
+            // setter for half a second. A record it cannot copy fails the job, as ingest's did.
+            job.command = definition.kept?.(command) ?? command;
+            out = definition.execute(job.command, ctx);
         } catch (error) {
             this.syncFailure = { error };
             this.fail(job, error);

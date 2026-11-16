@@ -884,10 +884,11 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
         return ids.map((id) => `graph/${mutation.target === "node" ? nodeKey(id) : edgeKey(String(id))}`);
     },
     lane: { kind: "queued", category: "data-add", categoryOf: (command) => categoryOf(command.mutation) },
-    // The records are not structured-cloned at dispatch: `kept` freezes them once instead, with
-    // the copy the graph slice keeps (ingest's `frozenRecord` keeps a frozen record as it is), so
-    // the step, the journal and the graph share one copy and the caller's objects are let go. A
-    // `rowsView` (the batched `importColumns`) is kept as it is, its records built when read.
+    // The records are not structured-cloned at dispatch: `kept` freezes them once, when the job
+    // runs, into the copy the graph slice keeps (ingest's `frozenRecord` keeps a frozen record as
+    // it is), so the step, the journal and the graph share one copy and the caller's objects are
+    // let go. A `rowsView` (the batched `importColumns`) is kept as it is, its records built when
+    // read.
     byReference: ["records"],
     kept: (command) => {
         const { mutation } = command;

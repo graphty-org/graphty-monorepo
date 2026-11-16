@@ -15,10 +15,12 @@
  * every entry below names the field of the parsed style it lands on. Several entries narrow that
  * claim, and every one of them says so in `caveat` rather than pretending:
  *
- * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
- *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
- *   node. It is marked `renderable: false` and its value type is `never`, so writing it is a
- *   compile error rather than a silent no-op.
+ * - `node.marker` draws nothing at all: it is reserved for markers the element draws itself (a
+ *   note's marker), and `NodeStyle.texture.icon`, the field it names, has no renderer. A picture
+ *   or an icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph`
+ *   (an icon-font character) or `node.texture` (a picture as the shape's surface). It is marked
+ *   `renderable: false` and its value type is `never`, so writing it is a compile error rather
+ *   than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
@@ -2618,8 +2620,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.icon",
         renderable: false,
         caveat:
-            "The element draws no marker. texture.icon is in the node schema and no renderer " +
-            "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+            "Reserved for markers the element draws itself; a layer cannot write it. A picture or an " +
+            "icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph` " +
+            "(an icon-font character) or `node.texture` (a picture as the shape's surface).",
     },
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),

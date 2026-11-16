@@ -367,3 +367,103 @@ export const Halo: Story = {
         },
     },
 };
+
+/**
+ * A picture for each node, chosen from what the element calculates: `node.image` is encoded from
+ * `graphty.degree`, so the hub (four edges) draws a wide orange star badge, every leaf (one edge)
+ * a round blue person and the node with two edges a tall green server. The three pictures have
+ * different proportions, so each is told apart by the box it is contained in.
+ */
+const svgPicture = (width: number, height: number, body: string): string =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(height)}">${body}</svg>`,
+    )}`;
+const HUB_PICTURE = svgPicture(
+    40,
+    20,
+    '<rect width="40" height="20" rx="4" fill="#DD6B20"/><path d="M20 2l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.5-4 6-.6z" fill="#fff"/>',
+);
+const LEAF_PICTURE = svgPicture(
+    20,
+    20,
+    '<circle cx="10" cy="10" r="10" fill="#3182CE"/><circle cx="10" cy="7" r="3.5" fill="#fff"/><path d="M3.5 17a6.5 5 0 0 1 13 0z" fill="#fff"/>',
+);
+const MID_PICTURE = svgPicture(
+    20,
+    40,
+    '<rect width="20" height="40" rx="3" fill="#38A169"/><rect x="4" y="6" width="12" height="4" fill="#fff"/><rect x="4" y="18" width="12" height="4" fill="#fff"/><rect x="4" y="30" width="12" height="4" fill="#fff"/>',
+);
+
+export const ImageByDegree: Story = {
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "Styles/Node ImageByDegree");
+
+        await assertGraphLoaded(scene, { nodes: 6, edges: 5 });
+
+        // width over height of the box each node's picture is contained in
+        const proportions = Object.fromEntries(
+            scene.nodes.map(({ id }) => {
+                const [piece] = scene.graph.getDataManager().nodes.get(id)?.decorationPieces ?? [];
+                return [
+                    id,
+                    piece?.kind === "image" ? (piece.box.x1 - piece.box.x0) / (piece.box.y1 - piece.box.y0) : 0,
+                ];
+            }),
+        );
+        const expected: Record<string, number> = { hub: 2, a: 1, b: 1, d: 1, e: 1, c: 0.5 };
+        for (const [id, ratio] of Object.entries(expected)) {
+            await holds(
+                Math.abs((proportions[id] ?? 0) - ratio) < 0.01,
+                `Styles/Node ImageByDegree: node ${id} draws the picture for its degree (${JSON.stringify(proportions)})`,
+            );
+        }
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
+    args: {
+        dataSource: undefined,
+        dataSourceConfig: undefined,
+        nodeData: [
+            { id: "hub", position: { x: 0, y: 0, z: 0 } },
+            { id: "a", position: { x: -6, y: 4, z: 0 } },
+            { id: "b", position: { x: 6, y: 4, z: 0 } },
+            { id: "c", position: { x: 6, y: -4, z: 0 } },
+            { id: "d", position: { x: -6, y: -4, z: 0 } },
+            { id: "e", position: { x: 12, y: -4, z: 0 } },
+        ],
+        edgeData: [
+            { source: "hub", target: "a" },
+            { source: "hub", target: "b" },
+            { source: "hub", target: "c" },
+            { source: "hub", target: "d" },
+            { source: "c", target: "e" },
+        ],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.shape": "none", "node.width": 3, "node.height": 3 },
+            layers: [
+                {
+                    name: "a picture by degree",
+                    target: "node",
+                    selector: { match: "everything" },
+                    encode: {
+                        "node.image": {
+                            by: "graphty.degree",
+                            scale: "passthrough",
+                            map: { "4": HUB_PICTURE, "1": LEAF_PICTURE },
+                            otherwise: MID_PICTURE,
+                        },
+                    },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: [],
+        },
+    },
+};

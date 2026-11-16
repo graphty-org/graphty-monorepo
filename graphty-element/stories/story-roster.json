@@ -341,6 +341,7 @@
         "Styles/Node::Default",
         "Styles/Node::Flat",
         "Styles/Node::Halo",
+        "Styles/Node::ImageByDegree",
         "Styles/Node::Label",
         "Styles/Node::LabelFit",
         "Styles/Node::Opacity",

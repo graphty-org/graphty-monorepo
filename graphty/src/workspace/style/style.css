@@ -750,6 +750,25 @@
     z-index: 1;
 }
 
+/* One model of several: its name on the box, top-left, clear of Reset view. */
+.ws-model-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 36px;
+    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-primary);
+    pointer-events: none;
+}
+
+/* Under a set's preview: the arrows and their count, then Load this model. */
+.ws-model-steps {
+    width: 240px;
+}
+
 /* Name, under the preview: a short label column, as the side column is narrow. */
 .ws-model-name .ws-field {
     grid-template-columns: 48px minmax(0, 1fr);

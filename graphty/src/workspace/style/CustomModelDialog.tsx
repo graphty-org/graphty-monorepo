@@ -20,6 +20,7 @@ import type {
 import {
     ActionIcon,
     Button,
+    Checkbox,
     Collapse,
     Group,
     Loader,
@@ -101,6 +102,24 @@ interface Held {
     readonly record: AssetRecord;
 }
 
+/** One model the dialog holds: a folder, a .zip or a drop may hold several, each with its own name. */
+interface Member {
+    readonly held: Held;
+    /** What Name says for it. */
+    readonly name: string;
+    /** Whether Add takes it (Load this model). */
+    readonly load: boolean;
+}
+
+/**
+ * What a layer names for a held model: its address, else its id.
+ * @param held - the model.
+ * @returns the reference.
+ */
+function refOf(held: Held): string {
+    return held.url ?? held.record.id;
+}
+
 /** A picture that arrived where a model was expected. */
 interface Arrived {
     readonly id: string;
@@ -130,8 +149,12 @@ export interface CustomModelDialogProps {
      * draws the model as that layer would, under the dialog's draft. Default: none.
      */
     readonly baseStyle?: ModelDraft;
-    /** Add model: what `node.model` names, and the draft settings. The dialog has already renamed it. */
-    readonly onAdd: (ref: string, settings: ModelDraft) => void;
+    /**
+     * Add model: what `node.model` names, the draft settings, and every model added (`ref` among
+     * them; several when the reader took more than one model of a set). The dialog has already
+     * renamed them.
+     */
+    readonly onAdd: (ref: string, settings: ModelDraft, refs: readonly string[]) => void;
     /** Use as picture, with a layer: the picture's asset id for `node.texture`. */
     readonly onPicture?: (ref: string) => void;
     /** Closed without adding, after what the dialog loaded and nothing uses was let go. */
@@ -239,6 +262,7 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
  * @param props - Component props
  * @param props.held - the model, if any
  * @param props.name - its name
+ * @param props.label - its name drawn on the box, for one model of several
  * @param props.draw - whether graphty-element drew it, or why it could not
  * @param props.busy - a source is loading
  * @param props.onHost - takes the element graphty-element draws in
@@ -247,12 +271,14 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 function Preview({
     held,
     name,
+    label,
     draw,
     busy,
     onHost,
 }: Readonly<{
     held: Held | null;
     name: string;
+    label?: string;
     draw: ModelLive;
     busy: boolean;
     onHost: (host: HTMLDivElement | null) => void;
@@ -299,6 +325,11 @@ function Preview({
                 <div ref={onHost} className="ws-model-live" aria-busy={draw.drawing || undefined} />
             )}
             {over === null ? null : <div className="ws-model-preview-over">{over}</div>}
+            {label === undefined ? null : (
+                <Text size="xs" fw={600} className="ws-model-label" data-testid="model-label" title={label}>
+                    {label}
+                </Text>
+            )}
             {showReset ? (
                 // Over the live canvas, in the box's top-right corner.
                 <Tooltip label={CUSTOM_MODEL.resetView}>
@@ -476,6 +507,81 @@ function loadStatus(loading: Loading): { progress: number | null; status: { labe
 }
 
 /**
+ * Under a set's preview: Previous model, "2 of 5", Next model (the Left and Right arrow keys on
+ * either step too, wrapping round), and Load this model for the model shown.
+ * @param props - Component props
+ * @param props.at - the model shown, from 0
+ * @param props.count - how many the set holds
+ * @param props.load - whether Add takes the model shown
+ * @param props.onStep - shows the model before (-1) or after (1)
+ * @param props.onLoad - checks or unchecks the model shown
+ * @returns The row
+ */
+function ModelSteps({
+    at,
+    count,
+    load,
+    onStep,
+    onLoad,
+}: Readonly<{
+    at: number;
+    count: number;
+    load: boolean;
+    onStep: (by: -1 | 1) => void;
+    onLoad: (load: boolean) => void;
+}>): React.JSX.Element {
+    const keys = (event: React.KeyboardEvent): void => {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            onStep(event.key === "ArrowLeft" ? -1 : 1);
+        }
+    };
+    return (
+        <Group gap={4} justify="space-between" wrap="nowrap" className="ws-model-steps">
+            <Group gap={2} wrap="nowrap">
+                <Tooltip label={CUSTOM_MODEL.previousModel}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={CUSTOM_MODEL.previousModel}
+                        onClick={() => {
+                            onStep(-1);
+                        }}
+                        onKeyDown={keys}
+                    >
+                        <GLYPHS.back size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+                <Text size="xs" data-testid="model-position" aria-live="polite">
+                    {CUSTOM_MODEL.position(at + 1, count)}
+                </Text>
+                <Tooltip label={CUSTOM_MODEL.nextModel}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={CUSTOM_MODEL.nextModel}
+                        onClick={() => {
+                            onStep(1);
+                        }}
+                        onKeyDown={keys}
+                    >
+                        <GLYPHS.next size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            </Group>
+            <Checkbox
+                size="xs"
+                label={CUSTOM_MODEL.loadThis}
+                checked={load}
+                onChange={(event) => {
+                    onLoad(event.currentTarget.checked);
+                }}
+            />
+        </Group>
+    );
+}
+
+/**
  * The four rotate buttons under the preview: each writes the next quarter turn, as
  * graphty-element's `turnModelOrientation` gives it, to Up and Turn.
  * @param props - Component props
@@ -559,8 +665,20 @@ export function CustomModelDialog({
     const [problem, setProblem] = useState<CodedFact | null>(null);
     const [tried, setTried] = useState<string | null>(null);
     const [picture, setPicture] = useState<Arrived | null>(null);
-    const [held, setHeld] = useState<Held | null>(null);
-    const [name, setName] = useState("");
+    // Every model loaded, and which one the preview shows; one for a model's own file.
+    const [members, setMembers] = useState<readonly Member[]>([]);
+    const [index, setIndex] = useState(0);
+    const current = members.at(index);
+    const held = current?.held ?? null;
+    const name = current?.name ?? "";
+    const many = members.length > 1;
+    // Changes the model shown (the one loaded when there is one), as the reader or a load says.
+    const change = (edit: (member: Member) => Member): void => {
+        setMembers((now) => now.map((member, at) => (at === index ? edit(member) : member)));
+    };
+    // The settings (Color, Animation, More options, rotation, Picture) are one draft shared by every
+    // model of a set: Add writes them with the model the layer takes. Name and Load this model are
+    // each model's own.
     const [draft, setDraft] = useState<ModelDraft>({});
     const [moreOpen, setMoreOpen] = useState(false);
     const [pictureOpen, setPictureOpen] = useState(false);
@@ -574,7 +692,8 @@ export function CustomModelDialog({
     const busy = loading !== null;
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
-    const heldKey = held === null ? "" : `${held.record.id} ${held.record.state}`;
+    // Stepping through a set's models changes none of this, so focus stays on the arrows.
+    const heldKey = members.map((m) => `${m.held.record.id} ${m.held.record.state}`).join(",");
     const waits = waitingFor.length > 0;
     const values: ModelDraft = { ...baseStyle, ...draft };
     // graphty-element draws the model live in this element of the preview box.
@@ -589,11 +708,13 @@ export function CustomModelDialog({
     );
     // Only an accepted model's failure is said: a waiting one keeps the cube and its "N missing".
     const draw: ModelLive = held?.record.state === "accepted" ? drawn : { ...drawn, failure: undefined };
+    const focusedFor = useRef("");
     useEffect(() => {
         // The name and the parts are drawn once the load is over, so focus waits for that too.
-        if (heldKey === "" || busy) {
+        if (heldKey === "" || busy || focusedFor.current === heldKey) {
             return;
         }
+        focusedFor.current = heldKey;
         if (waits) {
             body?.querySelector<HTMLElement>(".ws-part-row input, .ws-part-row button")?.focus();
         } else {
@@ -641,9 +762,21 @@ export function CustomModelDialog({
             added.current.add(after.id);
         }
     };
-    const hold = (next: Held): void => {
-        setHeld(next);
-        setName(next.record.plainName ?? modelName(session, next.url ?? next.record.id));
+    const memberOf = (next: Held): Member => ({
+        held: next,
+        name: next.record.plainName ?? modelName(session, refOf(next)),
+        load: true,
+    });
+    // What the dialog holds now, after letting go of what it held before and no longer does.
+    const holdAll = (next: readonly Held[]): void => {
+        const keep = new Set(next.map(refOf));
+        for (const member of members) {
+            if (!keep.has(refOf(member.held))) {
+                letGo(refOf(member.held));
+            }
+        }
+        setMembers(next.map(memberOf));
+        setIndex(0);
     };
     // Waiting for parts: files that are not a model go to it, matched by graphty-element.
     const offer = async (waiting: Held, files: readonly File[], live: () => boolean): Promise<void> => {
@@ -653,7 +786,7 @@ export function CustomModelDialog({
         }
         const after = session.assets.find(waiting.url ?? waiting.record.id) ?? waiting.record;
         moved(waiting.record, after);
-        setHeld({ ...waiting, record: after });
+        change((member) => ({ ...member, held: { ...waiting, record: after } }));
         const left = new Set(rest.map((f) => f.name));
         say(files.map((f) => `${f.name} ${left.has(f.name) ? "not needed" : "added"}`).join(", "));
     };
@@ -682,33 +815,44 @@ export function CustomModelDialog({
                 );
             }
         };
-        const record = await session.assets.add(source, { signal: controller.signal, onProgress });
+        // A folder, a .zip or a drop may hold several models: graphty-element adds each as its own.
+        const records = await session.assets.addEach(source, { signal: controller.signal, onProgress });
         const url = typeof source === "string" ? source : undefined;
-        const ref = url ?? record.id;
-        if (!before.has(record.id)) {
-            added.current.add(ref);
+        const refs = records.map((r) => url ?? r.id);
+        for (const [at, r] of records.entries()) {
+            if (!before.has(r.id)) {
+                added.current.add(refs[at]);
+            }
         }
         if (!live()) {
-            letGo(ref);
+            refs.forEach(letGo);
             return;
         }
-        if (record.state === "accepted" && record.kind === "image") {
+        const [record] = records;
+        if (records.length === 1 && record.state === "accepted" && record.kind === "image") {
             setPicture({ id: record.id, name: fileStem(record.path ?? files[0]?.name ?? "") || "picture" });
             say(CUSTOM_MODEL.notModel(fileStem(record.path ?? "") || "picture", MODEL_FORMATS));
             return;
         }
-        const heldNow = session.assets.waiting().some((w) => w.id === record.id);
-        if (record.state !== "accepted" && !heldNow) {
+        const waitingIds = new Set(session.assets.waiting().map((w) => w.id));
+        // A model refused outright is not held; one waiting for a part is, and Files asks for it.
+        const kept = records.filter((r) => r.state === "accepted" || waitingIds.has(r.id));
+        if (kept.length === 0) {
             const fact = record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} };
+            refs.forEach(letGo);
             setProblem(fact);
             say(refusalLine(fact));
             return;
         }
-        if (held !== null && (held.url ?? held.record.id) !== ref) {
-            letGo(held.url ?? held.record.id);
+        for (const r of records.filter((each) => !kept.includes(each))) {
+            letGo(r.id);
         }
-        hold({ ...(url === undefined ? {} : { url }), record });
-        say(CUSTOM_MODEL.loaded(record.plainName ?? modelName(session, ref)));
+        holdAll(kept.map((r) => ({ ...(url === undefined ? {} : { url }), record: r })));
+        say(
+            kept.length > 1
+                ? CUSTOM_MODEL.loadedMany(kept.length)
+                : CUSTOM_MODEL.loaded(kept[0].plainName ?? modelName(session, url ?? kept[0].id)),
+        );
     };
     const load = (source: AssetSource, files: readonly File[], shown: string): void => {
         // A new source (a drop, Retry, the address field) replaces the one still loading.
@@ -753,11 +897,12 @@ export function CustomModelDialog({
         const named = "name" in answer && answer.name !== undefined ? answer.name : undefined;
         const after = await session.assets.supply(held.record.id, answer);
         moved(held.record, after);
-        setHeld((now) => (now === null ? now : { ...now, record: after }));
-        if ("main" in answer) {
+        change((member) => ({
+            ...member,
+            held: { ...member.held, record: after },
             // A set of several models had no name until the reader said which file is the model.
-            setName(after.plainName ?? modelName(session, after.id));
-        }
+            ...("main" in answer ? { name: after.plainName ?? modelName(session, after.id) } : {}),
+        }));
         const still = after.problems.some((p) => PART_CODES.has(p.code) && p.params.name === named);
         if (named !== undefined && !still && !("skip" in answer)) {
             say(`${named.split("/").pop() ?? named} added`);
@@ -766,31 +911,51 @@ export function CustomModelDialog({
     };
 
     const accepted = held?.record.state === "accepted" ? held : null;
-    const ref = accepted === null ? undefined : (accepted.url ?? accepted.record.id);
-    const firstMissing = waitingFor[0]?.params.name;
+    // Of a set, Add takes the models checked; of one model, that model.
+    const taking = many ? members.filter((m) => m.load) : members;
+    const notReady = taking.find((m) => m.held.record.state !== "accepted");
+    const firstMissing = notReady?.held.record.problems.find((p) => PART_CODES.has(p.code))?.params.name;
     let blocked: string | null = null;
     if (busy) {
         blocked = CUSTOM_MODEL.loading(loading.name);
-    } else if (accepted === null) {
+    } else if (many && taking.length === 0) {
+        blocked = CUSTOM_MODEL.noneChosen;
+    } else if (members.length === 0 || notReady !== undefined) {
         blocked =
             typeof firstMissing === "string"
                 ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
                 : CUSTOM_MODEL.addFirst;
-    } else if (draw.failure !== undefined) {
+    } else if (draw.failure !== undefined && current?.load === true) {
         blocked = refusalLine(draw.failure);
     }
-    const addWord = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
+    let addWord: string = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
+    if (taking.length > 1) {
+        addWord = CUSTOM_MODEL.addMany(taking.length);
+    }
     const add = (): void => {
         // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
-        if (blocked !== null || ref === undefined || accepted === null) {
+        if (blocked !== null || taking.length === 0) {
             return;
         }
-        const wanted = name.trim();
-        const usual = fileStem(accepted.record.path ?? ref) || "Model";
-        if (wanted !== (accepted.record.plainName ?? usual)) {
-            session.assets.rename(accepted.record.id, wanted === usual ? "" : wanted);
+        for (const member of taking) {
+            const { record } = member.held;
+            const wanted = member.name.trim();
+            const usual = fileStem(record.path ?? refOf(member.held)) || "Model";
+            if (wanted !== (record.plainName ?? usual)) {
+                session.assets.rename(record.id, wanted === usual ? "" : wanted);
+            }
         }
-        onAdd(ref, draft);
+        // A model of the set left unchecked is let go, as Cancel would.
+        for (const member of members.filter((m) => !taking.includes(m))) {
+            letGo(refOf(member.held));
+        }
+        // A layer takes the model shown when it is checked, else the first checked.
+        const shown = current !== undefined && taking.includes(current) ? current : taking[0];
+        onAdd(
+            refOf(shown.held),
+            draft,
+            taking.map((m) => refOf(m.held)),
+        );
     };
     const parts = held?.record.parts ?? [];
     const unusedParts = parts.filter((p) => p.state === "unused");
@@ -829,7 +994,10 @@ export function CustomModelDialog({
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
     const empty = held === null && !busy;
     const shownLoad = loading === null ? undefined : loadStatus(loading);
-    const heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
+    let heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
+    if (many) {
+        heldFile = CUSTOM_MODEL.models(members.length);
+    }
     // The x beside the file: back to the empty dialog, after letting go of what nothing uses.
     const clear = (): void => {
         loading?.controller.abort();
@@ -837,8 +1005,8 @@ export function CustomModelDialog({
             letGo(each);
         }
         setLoading(null);
-        setHeld(null);
-        setName("");
+        setMembers([]);
+        setIndex(0);
         setDraft({});
         setProblem(null);
         setTried(null);
@@ -1046,7 +1214,27 @@ export function CustomModelDialog({
 
     const side = (
         <Stack gap={8} className="ws-model-side">
-            <Preview held={held} name={name} draw={draw} busy={busy} onHost={setPreviewHost} />
+            <Preview
+                held={held}
+                name={name}
+                label={many && !busy ? name : undefined}
+                draw={draw}
+                busy={busy}
+                onHost={setPreviewHost}
+            />
+            {many && current !== undefined && !busy ? (
+                <ModelSteps
+                    at={index}
+                    count={members.length}
+                    load={current.load}
+                    onStep={(by) => {
+                        setIndex((index + by + members.length) % members.length);
+                    }}
+                    onLoad={(load) => {
+                        change((member) => ({ ...member, load }));
+                    }}
+                />
+            ) : null}
             {held === null || busy ? null : (
                 // Under the model it names: each model of a set will carry its own.
                 <div className="ws-row ws-model-name">
@@ -1063,7 +1251,8 @@ export function CustomModelDialog({
                                 aria-label={CUSTOM_MODEL.name}
                                 value={name}
                                 onChange={(event) => {
-                                    setName(event.currentTarget.value);
+                                    const typed = event.currentTarget.value;
+                                    change((member) => ({ ...member, name: typed }));
                                 }}
                                 onKeyDown={(event) => {
                                     if (event.key === "Enter" && blocked === null) {

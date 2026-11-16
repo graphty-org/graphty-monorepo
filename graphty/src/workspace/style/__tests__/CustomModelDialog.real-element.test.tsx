@@ -228,14 +228,82 @@ describe("the Load custom model dialog, on the real element", () => {
         );
     });
 
-    it("asks which file is the model for a set of two, and loads the one picked", async () => {
+    it("steps through a drop of three models, and adds the ones checked with their names", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const wall = new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" });
+        dropOn(within(dialog).getByTestId("custom-model"), [
+            quadFile(),
+            wall,
+            await fixture(policeUrl, "police.glb"),
+            await fixture(colormapUrl, "colormap.png"),
+        ]);
+        const position = await within(dialog).findByTestId("model-position");
+        const label = within(dialog).getByTestId("model-label");
+        await previewOf(dialog, "police");
+        assert.equal(position.textContent, "1 of 3");
+        assert.equal(label.textContent, "police", "the box names the model it shows");
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "quad");
+        assert.equal(position.textContent, "2 of 3");
+        assert.equal(label.textContent, "quad");
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "wall");
+        assert.isTrue(within(dialog).getByRole<HTMLInputElement>("checkbox", { name: "Load this model" }).checked);
+        const nameField = within(dialog).getByRole("textbox", { name: "Name" });
+        await userEvent.clear(nameField);
+        await userEvent.type(nameField, "Wall panel");
+        await waitFor(() => {
+            assert.equal(label.textContent, "Wall panel");
+        });
+
+        // The arrow keys on the arrows step too, wrapping round to the first.
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "police");
+        await userEvent.keyboard("{ArrowLeft}");
+        await waitFor(() => {
+            assert.equal(position.textContent, "3 of 3");
+        });
+        assert.equal(within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" }).value, "Wall panel");
+        await userEvent.keyboard("{ArrowRight}");
+        await previewOf(dialog, "police");
+
+        await addModel(dialog, "Add 2 models");
+        await waitFor(() => {
+            assert.sameMembers(models(session), ["police.glb", "wall.glb"], "the unchecked quad is let go");
+        });
+        const named = session.assets.list().find((r) => r.path === "wall.glb");
+        assert.equal(named?.plainName, "Wall panel");
+        const police = session.assets.list().find((r) => r.path === "police.glb");
+        assert.equal(written(session, "node.model"), police?.id, "the layer takes the model shown");
+    });
+
+    it("unchecks every model of a set and blocks Add", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), await fixture(policeUrl, "police.glb")]);
-        const files = await within(dialog).findByTestId("model-files");
-        await userEvent.click(await within(files).findByRole("combobox", { name: "Which file is the model" }));
-        await userEvent.click(await screen.findByRole("option", { name: "quad.glb" }));
+        const wall = new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" });
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), wall]);
         await previewOf(dialog, "quad");
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "wall");
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        const add = within(dialog).getByRole("button", { name: "Add model" });
+        assert.equal(add.getAttribute("aria-disabled"), "true");
+    });
+
+    it("shows one model of a folder as before: no arrows, no checkbox", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose folder", [KIT_FOLDER]);
+        await previewOf(dialog, "police");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Next model" }));
+        assert.isNull(within(dialog).queryByRole("checkbox", { name: "Load this model" }));
+        assert.isNull(within(dialog).queryByTestId("model-label"));
     });
 
     it("hands files that are not a model to the model waiting, and replaces it with a model", async () => {

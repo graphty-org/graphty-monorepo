@@ -27,6 +27,7 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
+    ChevronRight,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -302,6 +303,8 @@ export const GLYPHS = {
     // Take a property off the value it varies by, keeping one value.
     unlink: Unlink2,
     back: ChevronLeft,
+    // The next one of several, as back is the one before.
+    next: ChevronRight,
     // The current choice in a list.
     check: Check,
     expand: ChevronDown,

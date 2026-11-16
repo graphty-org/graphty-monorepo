@@ -161,6 +161,15 @@ input.addEventListener("change", async () => {
 });
 ```
 
+A folder, a `.zip` or a drop may hold several models. `session.assets.addEach` adds each one as its
+own record, holding only the files that model uses, and gives one record for a source of one model,
+just as `add` does:
+
+```ts
+const models = await element.session.assets.addEach(input.files!);
+const ids = models.filter((m) => m.state === "accepted").map((m) => m.id);
+```
+
 The same files always get the same id, so adding a file twice is harmless. A drop target that
 accepts both graph data and models asks `detectModelFormat` which one a file is, instead of
 guessing from the name:

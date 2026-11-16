@@ -312,6 +312,22 @@ export interface AssetsApi {
      */
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
     /**
+     * Add every model a source holds, one record each: a folder, a .zip or several files holding
+     * more than one model (two .glb files, an .obj with its .mtl beside a .gltf with its .bin) give
+     * one record per model, holding the files that model uses. A source of one model, a URL, or a
+     * source naming its `main` gives one record, exactly as {@link AssetsApi.add}. Each record
+     * settles as `add`'s does: a model missing a part waits for it.
+     * @param source - The models.
+     * @param options - A signal and a progress listener; `name` and `main` apply only to a source of one model.
+     * @returns The settled records, by the path of each model's file.
+     * @example
+     * ```ts
+     * const models = await graph.session.assets.addEach(input.files);
+     * const ids = models.filter((m) => m.state === "accepted").map((m) => m.id);
+     * ```
+     */
+    addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
+    /**
      * Resolve when the asset a layer names (an id or a URL) has settled; fetches a URL the first
      * time it is asked for. An id the session does not hold resolves rejected with
      * `E_MODEL_UNKNOWN_ASSET`.
@@ -1972,6 +1988,51 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 return intake(read.given, options, read.main);
             })();
             return waitFor(reading, options, undefined);
+        },
+
+        async addEach(source, options = {}) {
+            if (typeof source === "string" || options.main !== undefined) {
+                return [await api.add(source, options)];
+            }
+
+            options.signal?.throwIfAborted();
+            const intakeModule = await loadIntake();
+            const { onProgress } = options;
+            let read: Awaited<ReturnType<typeof intakeModule.readModelFiles>>;
+            try {
+                read = await intakeModule.readModelFiles(
+                    source,
+                    limits,
+                    onProgress === undefined
+                        ? undefined
+                        : (progress) => {
+                              onProgress(progressChange(progress, undefined));
+                          },
+                );
+            } catch (error) {
+                if (!(error instanceof ModelError)) {
+                    throw error;
+                }
+
+                return [early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`)];
+            }
+
+            options.signal?.throwIfAborted();
+            const files = await asEntries(read.given);
+            const models = read.main === undefined ? intakeModule.listModels(files, limits) : [];
+            if (models.length < 2) {
+                return [await waitFor(intake(read.given, options, read.main), options, undefined)];
+            }
+
+            // A friendly id names one model, so each of several takes its digest.
+            const { name: _name, ...each } = options;
+            const records: AssetRecord[] = [];
+            for (const model of models) {
+                const own = new Map(model.files.map((path) => [path, files.get(path) as Uint8Array]));
+                records.push(await waitFor(intake(own, each, model.main), each, undefined));
+            }
+
+            return records;
         },
 
         ready(ref, options = {}) {

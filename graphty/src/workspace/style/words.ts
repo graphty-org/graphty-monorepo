@@ -2239,6 +2239,43 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     added: (name: string): string => `${name} added to the project`,
+    /**
+     * Said once the main menu's dialog added several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    addedMany: (count: number): string => `${count} models added to the project`,
+    /**
+     * Said once a folder, a .zip or a drop of several models is in the dialog.
+     * @param count - how many.
+     * @returns the words.
+     */
+    loadedMany: (count: number): string => `${count} models loaded`,
+    /**
+     * Add, for several models chosen from a set.
+     * @param count - how many are chosen.
+     * @returns the words.
+     */
+    addMany: (count: number): string => `Add ${count} models`,
+    /**
+     * The file loader's line for a set of several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    models: (count: number): string => `${count} models`,
+    /**
+     * Where the shown model sits among the set's: "2 of 5".
+     * @param at - its place, from 1.
+     * @param count - how many.
+     * @returns the words.
+     */
+    position: (at: number, count: number): string => `${at} of ${count}`,
+    previousModel: "Previous model",
+    nextModel: "Next model",
+    /** The checkbox under a set's preview: whether Add takes the model shown. */
+    loadThis: "Load this model",
+    /** Add's tooltip while no model of a set is chosen. */
+    noneChosen: "Choose a model to load",
 } as const;
 
 /** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */

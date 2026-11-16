@@ -159,7 +159,8 @@ of its `taken` marker), so every issue shows the same history.
 
 Before its first label edit in a session, either skill creates the label if it is missing:
 `gh label list -R graphty-org/graphty-monorepo --search in-progress --json name --jq '.[].name' | grep -qx in-progress || gh label create in-progress -R graphty-org/graphty-monorepo --color FBCA04 --description "A session is working on this; other sessions skip it"`.
-Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker.
+Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker
+(issue-round does both with `node tools/issue-queue.mjs taken`, which refuses a job with no `files`).
 
 - `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>[; files <path> ...]`
   (issue-round names the files the job will touch, for its collision check)
@@ -246,7 +247,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never
 > read the owner's credentials; commits are signed and conventional with no attribution trailers; never touch
 > visual-baselines/, and never change parameters.chromatic, visual-review/trusted/, visual-review/passkeys.json or
-> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking API change lands as an ordinary feat/fix commit with no `!`, its message saying what changed for callers; a one-way decision: commit
+> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; when you file several issues from one investigation, give them one `family:<topic>` label (create it if missing), so issue-round fixes them as one job; a breaking API change lands as an ordinary feat/fix commit with no `!`, its message saying what changed for callers; a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
 > keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or

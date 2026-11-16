@@ -97,6 +97,23 @@ export function readChecks(dir) {
     return [...checks.filter((c) => !c.touched), ...touched].slice(0, MAX_CHECKS);
 }
 
+// base-check.yml's inputs for one check
+function fieldsOf(c, { pr, run }) {
+    const fields = { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat };
+    const id = (v) => /^\d+$/.test(String(v ?? ""));
+    if (id(pr)) fields.pr = pr;
+    // a touched check only: when master fails one of the same tests, base-check.yml re-runs the one job that
+    // failed it, which then reads the base check's evidence as [KNOWN] (#8363). An untouched check's failure
+    // already passed the pull request, and a re-run of it would be a retry hoping for a pass.
+    if (c.touched) {
+        if (id(run)) fields.run = run;
+        if (c.job) fields.job = c.job;
+        if (c.failed?.length) fields.failed = JSON.stringify(c.failed);
+    }
+    if (c.names?.length) fields.tests = JSON.stringify(c.names);
+    return fields;
+}
+
 /**
  * Dispatches each base check the results store has not seen for its base, file and variant (POST /v1/base-checks,
  * #3925), so base-check.yml runs once per test per base however many pull requests or attempts ask. A store that
@@ -120,17 +137,7 @@ export async function dispatchChecks(checks, gh, { claim, release, pr, run } = {
             continue;
         }
         const args = ["workflow", "run", "base-check.yml", "--ref", "master"];
-        const fields = { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat };
-        if (/^\d+$/.test(String(pr ?? ""))) fields.pr = pr;
-        // a touched check only: when master fails one of the same tests, base-check.yml re-runs the one job that
-        // failed it, which then reads the base check's evidence as [KNOWN] (#8363). An untouched check's failure
-        // already passed the pull request, and a re-run of it would be a retry hoping for a pass.
-        if (c.touched) {
-            if (/^\d+$/.test(String(run ?? ""))) fields.run = run;
-            if (c.job) fields.job = c.job;
-            if (c.failed?.length) fields.failed = JSON.stringify(c.failed);
-        }
-        if (c.names?.length) fields.tests = JSON.stringify(c.names);
+        const fields = fieldsOf(c, { pr, run });
         for (const [k, v] of Object.entries(fields)) args.push("-f", `${k}=${v}`);
         try {
             gh(args);

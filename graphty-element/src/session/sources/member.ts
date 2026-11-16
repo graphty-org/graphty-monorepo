@@ -15,6 +15,7 @@ import type { CodedFact } from "../shared";
 import type { LoadedSource } from "../types";
 import { isRecordableEndpoint } from "./endpoint";
 import { SOURCE_RECORD_MEMBER, SOURCES_MEMBER_VERSION } from "./ids";
+import type { Provenance } from "./provenance";
 import type { SourceLoadRecord } from "./types";
 
 /** The member's kind. */
@@ -255,6 +256,8 @@ export interface SourcesWriteInput {
     readonly facts: Map<SourceKey, LoadFacts>;
     /** The keys of the network loads still waiting to be run (`data.pendingSourceLoads()`). */
     readonly waiting?: readonly string[];
+    /** The `provenance` graph value, for each load's `foundNodes` (the nodes it found already held). */
+    readonly provenance?: Provenance;
 }
 
 /** What a save writes about the loads. */
@@ -612,6 +615,7 @@ function localPart(
  * @param facts - Its facts.
  * @param record - Its network record, for a network load.
  * @param rename - Collects each network key and the id it is written as.
+ * @param found - The nodes its rows named that the graph already held (its provenance's `held`).
  * @returns The entry and the parameters its URL left out.
  */
 function entryOf(
@@ -619,6 +623,7 @@ function entryOf(
     facts: LoadFacts,
     record: SourceLoadRecord | undefined,
     rename: Map<string, string>,
+    found: readonly NodeId[] | undefined,
 ): Written {
     const network = record !== undefined;
     if (network) {
@@ -648,6 +653,7 @@ function entryOf(
         join: joinOf(load),
         added: { nodes: load.added.nodes, edges: load.added.edges },
         leftOut: load.leftOut === undefined ? undefined : jsonOf(load.leftOut),
+        foundNodes: found === undefined || found.length === 0 ? undefined : [...found],
         total:
             record?.total === undefined && record?.totalEdges === undefined
                 ? undefined
@@ -728,7 +734,7 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
             return jsonOf(facts.kept) as Record<string, unknown>;
         }
 
-        const { entry, dropped } = entryOf(load, facts, record, rename);
+        const { entry, dropped } = entryOf(load, facts, record, rename, input.provenance?.[load.key]?.held);
         if (dropped.length > 0) {
             problems.push({ code: "W_SOURCE_URL_REDACTED", params: { id: load.key, names: [...dropped] } });
         }
@@ -989,6 +995,8 @@ const ENTRY: Shape = {
         join: JOIN,
         added: { ...COUNTS, required: ["nodes", "edges"] },
         leftOut: openMap,
+        foundNodes: (value) =>
+            Array.isArray(value) && value.every((id) => typeof id === "string" || typeof id === "number"),
         total: COUNTS,
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
@@ -1133,7 +1141,7 @@ export interface SourcesRead {
         readonly links: readonly Record<string, unknown>[];
         readonly source: Record<string, unknown> | undefined;
         readonly sources: readonly Record<string, unknown>[];
-        readonly provenance: Record<string, { nodes: NodeId[]; edges: number[] }>;
+        readonly provenance: Record<string, { nodes: NodeId[]; edges: number[]; held?: NodeId[] }>;
     };
     /** The network loads that can run, as the session records them. */
     readonly records: readonly SourceLoadRecord[];
@@ -1557,13 +1565,25 @@ function readVersion2(
 
     const entries = readEntries(member.loads as Record<string, unknown>[], ctx, problems);
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
+    const provenance: Record<string, { nodes: NodeId[]; edges: number[]; held?: NodeId[] }> = {};
     const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes");
     const links = readColumn(ctx.links, byId, rename, provenance, "edges");
     for (const [id, supplied] of Object.entries(legacy)) {
         const into = (provenance[id] ??= { nodes: [], edges: [] });
         into.nodes = [...new Set([...into.nodes, ...supplied.nodes])];
         into.edges = [...new Set([...into.edges, ...supplied.edges])];
+    }
+
+    // The nodes each load found already held, which removing it leaves (issue #8083).
+    for (const entry of entries) {
+        const into = provenance[entry.id];
+        if (entry.runnable && into !== undefined && Array.isArray(entry.raw.foundNodes)) {
+            const named = new Set(into.nodes.map(String));
+            const held = (entry.raw.foundNodes as NodeId[]).filter((id) => named.has(String(id)));
+            if (held.length > 0) {
+                into.held = held;
+            }
+        }
     }
 
     // In load order, which is the order `data.sourcesOf` lists an element's loads in.

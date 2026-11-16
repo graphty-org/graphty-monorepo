@@ -1032,8 +1032,8 @@ describe("a load's notes", () => {
     });
 });
 
-describe("a layer the element refuses", () => {
-    it("is left out with a note, and the rest apply", async () => {
+describe("a value the element refuses", () => {
+    it("is drawn at the nearest end of its range with a note, and the rest apply", async () => {
         const original = DataSource.prototype.fileStyles;
         vi.spyOn(DataSource.prototype, "fileStyles").mockImplementation(async function (this: DataSource, options) {
             const read = await original.call(this, options);
@@ -1064,12 +1064,11 @@ describe("a layer the element refuses", () => {
         );
 
         const notes = session.data.lastImport()?.styles?.notes ?? [];
+        assert.isFalse(notes.some((note) => note.code === FILE_STYLE_ISSUE.LAYER_REFUSED));
         assert.isTrue(
-            notes.some(
-                (note) => note.code === FILE_STYLE_ISSUE.LAYER_REFUSED && note.params.property === "node.too-small",
-            ),
+            notes.some((note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST && note.params.property === "node.size"),
         );
-        assert.isFalse(fileLayers(session).some((layer) => layer.name === "node.too-small"));
+        assert.isTrue(fileLayers(session).some((layer) => layer.name === "node.too-small"));
         assert.strictEqual(drawn(session, { node: "n1" }, "node.color"), "#ff0000");
         session.dispose();
     });

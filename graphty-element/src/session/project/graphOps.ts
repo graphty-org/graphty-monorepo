@@ -28,7 +28,7 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
-import { RecordMap } from "./recordMap";
+import { edgeRecordMap, nodeRecordMap, RecordMap } from "./recordMap";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
 import { builderDrift, strictViolation, verifyRetainedArrays } from "./strict";
 
@@ -1848,7 +1848,7 @@ function restore<K, V>(map: Map<K, V>, key: K, value: V | undefined): void {
  * @returns The maps.
  */
 function emptyMaps(): GraphMaps {
-    return { nodes: new RecordMap<NodeId>(), edges: new RecordMap<EdgeId>(), values: new Map() };
+    return { nodes: nodeRecordMap(), edges: edgeRecordMap(), values: new Map() };
 }
 
 /**
@@ -1921,7 +1921,7 @@ class Writer implements GraphWriter {
             nodes.set(id, record);
         } else {
             // A record built from columns is kept as its place, and built again when read.
-            lazy.put(id, lazy.stored(record));
+            lazy.put(id, lazy.stored(record), this.graph.touchesRanges);
         }
 
         bumpFields(this.store, "node", prior, record, this.bumped);
@@ -1980,7 +1980,7 @@ class Writer implements GraphWriter {
         if (edges === null) {
             (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         } else {
-            edges.put(edgeIdOf(edgeId), edges.stored(record));
+            edges.put(edgeIdOf(edgeId), edges.stored(record), this.graph.touchesRanges, edgeId);
         }
         // A new row already reads capacity 1 and the graph's direction: only another costs a write.
         if (needsEdgeColumns(record)) {

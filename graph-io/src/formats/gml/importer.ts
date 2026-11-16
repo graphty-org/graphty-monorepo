@@ -62,6 +62,7 @@ import {
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseWeightText, reportWeightPrecision, weightFromValue } from "../../common/weights.js";
+import type { YAxis } from "../../positions/types.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -69,7 +70,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { gmlPositions } from "./positions.js";
+import { gmlPositions, gmlYAxisOf } from "./positions.js";
 import { gmlStyles } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
@@ -448,6 +449,10 @@ class GmlImport {
     private creatorToken = -1;
 
     private versionToken = -1;
+    /** The graph block's first `Creator` value token (Gephi writes its Creator there), or -1. */
+    private graphCreatorToken = -1;
+    /** The graph block's first `version` value token (gv2gml writes `version 2` there), or -1. */
+    private graphVersionToken = -1;
 
     private nodeCount = 0;
 
@@ -638,9 +643,44 @@ class GmlImport {
                     }
                     break;
                 default:
+                    this.noteWriterKey(key, v);
                     this.observe(this.graphSchema, "graph", key, v, GRAPH_SEQ);
             }
         }
+    }
+
+    /**
+     * Keep the graph block's first `Creator` and `version` tokens, which say which way the file's y grows.
+     * @param key - the graph block key
+     * @param v - its value token
+     */
+    private noteWriterKey(key: string, v: number): void {
+        if (key === "Creator" && this.graphCreatorToken < 0) {
+            this.graphCreatorToken = v;
+        } else if (key === "version" && this.graphVersionToken < 0) {
+            this.graphVersionToken = v;
+        }
+    }
+
+    /**
+     * How the position column spells its coordinates, recorded in its `meta.extra` so every writer reads the file's
+     * y axis without the importer (`gmlYAxisOf`, the rule the positions hook applies).
+     * @returns the column's spelling
+     */
+    private positionSpelling(): { units: "px"; yAxis: YAxis } {
+        const t = this.requireTokens();
+        const valueOf = (v: number): string | undefined => {
+            if (v < 0) {
+                return undefined;
+            }
+            return t.kind[v] === TOKEN_STRING ? t.stringOf(v) : t.textOf(v);
+        };
+        const { yAxis } = gmlYAxisOf(
+            valueOf(this.creatorToken) ?? null,
+            valueOf(this.graphCreatorToken),
+            valueOf(this.graphVersionToken),
+        );
+        return { units: "px", yAxis };
     }
 
     /**
@@ -2124,6 +2164,7 @@ class GmlImport {
         }
         if (plan.role === "position") {
             decl.components = 3;
+            decl.extra = this.positionSpelling();
         }
         if (plan.role !== null) {
             decl.role = plan.role;

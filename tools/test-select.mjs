@@ -1358,9 +1358,12 @@ export function planRuns(root, shards, selection) {
  * The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). At 8
  * min the bins were the pull request tail (#3448): Build ends about 4.6 min in, a Test job spends about 45 s on
  * setup, and its bin ran up to the limit (graphty-1: 22 files, vitest 430 s; graphty-element-storybook-1: 31 files,
- * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. 4 min bins end near 10 min.
+ * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. At 4 min a Test job spent about 1.45
+ * min outside its tests (setup, install, browsers): 181 of 535 Test job minutes in PR run 43872756475 (2026-11-16,
+ * 125 Test jobs), while the run's tail was its Story tests jobs at 27 min, not the Test bins (ended by 20 min).
+ * 6 min bins cut about a third of those jobs and their setup and still end before that tail (#5404).
  */
-export const BIN_LIMIT_MS = 4 * 60_000;
+export const BIN_LIMIT_MS = 6 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
 /**
@@ -1823,6 +1826,14 @@ export function storiesReaching(dir, changed, gs) {
 export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
+ * Where a light-check Stories bin's limit starts (storyBins()), above STORY_BIN_LIMIT_MS (the rolling slices' bin,
+ * tools/channel/story-slices.mjs): at 3 min a Stories job spent about 1.5 min on setup for 1.6 min of capture (47
+ * jobs, 70 of 147 minutes outside capture, PR run 43872756475, 2026-11-16), and the Stories jobs ended by 10 min,
+ * far ahead of the run's 27-minute Story tests tail. 6 min halves the jobs and their setup (#5404).
+ */
+export const LIGHT_STORY_BIN_LIMIT_MS = 6 * 60_000;
+
+/**
  * The most Stories jobs a pull request's light check plans: past it, every bin's limit grows (in steps of 30 s, up to
  * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
  * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
@@ -1986,7 +1997,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
 
 /**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
+ * files packed into bins of at most LIGHT_STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
  * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
  * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
@@ -1997,7 +2008,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
  * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
  * @param [options] binning options
  * @param [options.jobBudget] the most bins before every bin's limit grows (STORY_JOB_BUDGET); Infinity keeps every
- *   bin at STORY_BIN_LIMIT_MS (the rolling slices, design/visual-testing/early-capture.md 4a)
+ *   bin at LIGHT_STORY_BIN_LIMIT_MS
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
 export function storyBins(
@@ -2010,7 +2021,7 @@ export function storyBins(
 ) {
     const plans = storyUnitPlans(stories, projects, listFiles, durations, storiesIn);
     // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
-    let limit = STORY_BIN_LIMIT_MS;
+    let limit = LIGHT_STORY_BIN_LIMIT_MS;
     let packed = packStoryBins(plans, limit);
     while (packed.length > jobBudget && limit < STORY_BIN_MAX_MS) {
         limit += 30_000;

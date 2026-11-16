@@ -309,10 +309,15 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
-     * Sets whether the canvas multisamples. Once the engine is built a different value changes
-     * nothing and raises `W_ANTIALIAS_LATE`.
+     * Sets how the canvas multisamples. Once the engine is built, a change it cannot make raises
+     * `W_ANTIALIAS_LATE` and changes nothing.
      */
     antialias?: Graphty["antialias"];
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     /**
      * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
      */
@@ -498,6 +503,11 @@ export interface GraphtyElementJSXProps {
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */
     "render-path"?: string;
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    "preserve-drawing-buffer"?: boolean;
     /**
      * Sets the threshold and applies it immediately.
      *

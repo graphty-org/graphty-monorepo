@@ -323,7 +323,16 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     if (settings !== null) {
         await userEvent.click(settings);
     }
-    await userEvent.type(await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ }), "42");
+    const seed = await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ });
+    if (settings !== null) {
+        // The pop-out takes focus a task after it opens (PopoutPanel's open effect); typing before
+        // that lands sends the keys after it to the panel, so Leiden would run on a different seed.
+        await waitFor(() => {
+            expect(seed.closest("[data-popout-id]")?.contains(document.activeElement)).toBe(true);
+        });
+    }
+    await userEvent.type(seed, "42");
+    expect(seed).toHaveValue("42");
     if (settings !== null) {
         // Escape closes only the settings popover; Analyze stays open on Leiden.
         await userEvent.keyboard("{Escape}");
@@ -835,6 +844,12 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
         await waitFor(() => {
             expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
+        });
+        // "police added to the project" leaves after 6 s of real time, so the picture held it or
+        // not by how long the rest took (#7905): dismissed by real input, it is never in the picture.
+        await userEvent.click(await page().findByRole("button", { name: "Dismiss" }));
+        await waitFor(() => {
+            expect(page().queryByText("police added to the project")).toBeNull();
         });
         const { models } = await openModels();
         const own = within(models).getByRole("group", { name: "In this project" });

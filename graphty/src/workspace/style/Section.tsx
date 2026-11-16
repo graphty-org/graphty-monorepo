@@ -575,7 +575,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         store.set({ announcement: `${name} added` });
     };
     return (
-        <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"

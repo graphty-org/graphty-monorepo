@@ -149,7 +149,7 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
-### Loading more than 100,000 nodes
+### Loading past the size caps
 
 A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
 you can raise either number with `limits` (experimental):
@@ -222,14 +222,38 @@ harder edges and faster frames. Nothing else about the picture changes.
 <graphty-element render-path="batched" antialias="false"></graphty-element>
 ```
 
+`antialias="at-rest"` keeps both: every frame drawn while something moves -- the camera, a
+layout, a data or style change, an animation, a pointer held on the canvas -- is drawn as `false`
+draws it, and once the scene is still the element draws one frame smoothed, the same picture
+`true` draws, and keeps it on screen. It holds that frame by drawing nothing until something
+changes, as `layoutBehavior.rendering.onDemand` does. A screenshot is always the smoothed picture.
+
+```html
+<graphty-element render-path="batched" antialias="at-rest"></graphty-element>
+```
+
 Set it as an attribute, in any position in the tag, or as a property before using any other
-property or method of the element. A later change takes effect only on a new element and raises
-the warning `W_ANTIALIAS_LATE`:
+property or method of the element. After that, an element built with `true` or `"at-rest"` can
+switch between the two at any time -- for example to `"at-rest"` once a large graph has loaded.
+Any other later change takes effect only on a new element and raises the warning
+`W_ANTIALIAS_LATE`:
 
 ```js
 element.addEventListener("graphty-warning", (e) => {
     const { code, params } = e.detail; // "W_ANTIALIAS_LATE", { requested, active }
 });
+```
+
+## Keeping each frame (preserveDrawingBuffer)
+
+The WebGL canvas keeps each drawn frame, so the page can read the canvas between frames with
+`canvas.toDataURL()`, `toBlob()` or `drawImage(canvas)`. Keeping it costs a full-frame copy on
+every frame drawn. A page that never reads the canvas itself can turn it off;
+`captureScreenshot` and `captureAnimation` work either way. It is read when the engine is built,
+like `antialias`, and a later change raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+
+```html
+<graphty-element preserve-drawing-buffer="false"></graphty-element>
 ```
 
 ## Drawing only when something changes

@@ -20,8 +20,7 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
 
-// The Data place without the Sources tab: its Fields section is one "Attributes" group, so the
-// `selection-workspace` experiment stays off here (DataPlaceSources and DataPlaceTabs test it on).
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -65,10 +64,18 @@ function drop(...files: File[]): void {
 const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
 
 /**
- * The Data place's Fields section.
- * @returns the section.
+ * The Data place's Fields: each load's section, on the Sources tab.
+ * @returns the sections.
  */
-const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Attributes" });
+const fieldsGroup = (): HTMLElement => {
+    const sections = screen
+        .getByRole("region", { name: "Data place" })
+        .querySelector<HTMLElement>(".dp-source-sections");
+    if (sections === null) {
+        throw new Error("no load sections in the Data place");
+    }
+    return sections;
+};
 
 /**
  * Picks an option of a Fields dropdown by clicking it open and clicking the option.
@@ -338,15 +345,24 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers the Data source condition only once two sources are loaded", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        // The Filters section's "+": the fields, and no Data source with one load.
+        // The Filters section's "+" opens a card in the selection workspace; its Value field lists
+        // the fields, and no Data source with one load.
         await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Data source" }));
+        // Escape on a new card with no step leaves no card, and closes the workspace.
         await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
-        await userEvent.click(place().getByRole("button", { name: "Add filter" }));
+        // With two loads, the first "+" is the one under Data sources, for the filters of every load.
+        const [plus] = place().getAllByRole("button", { name: "Add filter" });
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
@@ -355,7 +371,8 @@ describe("the Data place's sidebar on the real element", () => {
                 name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
             }),
         );
-        // A card is a selection (tier 5): All, then a Keep step on the source.
+        // A card is a selection (tier 5): All, then a Keep step on the source, written on Done.
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.strictEqual(rule?.kind, "union");
@@ -425,7 +442,7 @@ describe("the Data place's sidebar on the real element", () => {
         await screen.findByRole("tooltip", { name });
     });
 
-    it("draws a group in Fields for each source, the selected one open and first, kept across places", async () => {
+    it("draws a section in Fields for each source, the selected one open, kept across places", async () => {
         const session = await openDataPlace();
         await loadLog(session);
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
@@ -434,7 +451,6 @@ describe("the Data place's sidebar on the real element", () => {
         await waitFor(() => {
             group("hosts.csv");
             group("auth-log.csv");
-            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("hosts.csv"));
         });
         assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node attributes" }));
         assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
@@ -442,7 +458,6 @@ describe("the Data place's sidebar on the real element", () => {
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
         await userEvent.click(within(log).getByRole("button", { pressed: false }));
         await waitFor(() => {
-            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
             assert.equal(
                 within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
                 "user",
@@ -453,7 +468,10 @@ describe("the Data place's sidebar on the real element", () => {
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
         assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
-        assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
+        assert.equal(
+            within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
+            "user",
+        );
     });
 
     it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {

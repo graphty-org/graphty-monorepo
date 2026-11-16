@@ -779,7 +779,7 @@ export function fileIssue(t, had, gh) {
  * @param number the issue
  * @param gh `(args) => stdout`
  */
-function raiseToCritical(number, gh) {
+export function raiseToCritical(number, gh) {
     try {
         const lower = ["priority:high", "priority:medium", "priority:low"].flatMap((l) => ["--remove-label", l]);
         gh(["issue", "edit", String(number), "--add-label", "priority:critical", ...lower]);

@@ -46,6 +46,7 @@ import {
     fileIssue,
     PASSES_TO_LEAVE,
     quarantined,
+    raiseToCritical,
     runShard,
 } from "../test-quarantine.mjs";
 import { call, config, fetchPlan, flushHealth, postInvocation, sendHealth } from "./client.mjs";
@@ -130,7 +131,11 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
     const check = (f, repeat) => {
         if (out) {
             mkdirSync(out, { recursive: true });
-            appendFileSync(join(out, `${shard}.jsonl`), `${JSON.stringify({ base, file: f.file, variant, repeat })}\n`);
+            // the test's name too: a flaky one's base check that passes files its issue (#8317)
+            appendFileSync(
+                join(out, `${shard}.jsonl`),
+                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name })}\n`,
+            );
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     };
@@ -478,6 +483,102 @@ export async function fileIssues(
     for (const n of closedIssues(tracked, gh) ?? [])
         await call(cfg, "POST", "/v1/issues", { number: n, state: "closed" });
     return out;
+}
+
+// Lowercase words only, so "find-no-match", "Find No Match" and "`Find No Match`" all read "find no match"
+const words = (s) =>
+    ` ${s
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, " ")
+        .trim()} `;
+
+/**
+ * Whether an issue is a flaky issue naming a test: it says "flaky" and names the test's file (by its file name) and
+ * the test, by the last part of "describe > test", anywhere in its title or body, so a title that does not name the
+ * test exactly still counts. The health dashboard's namesTest() (tools/pipeline-health/src/collector/flaky.ts) reads
+ * issues the same way, so a test this finds an issue for is one the dashboard counts as filed.
+ * @param issue `{ title, body }`
+ * @param t `{ file, name }`
+ * @returns whether it names the test
+ */
+export function namesFlakyTest(issue, t) {
+    const text = words(`${issue.title}\n${issue.body ?? ""}`);
+    if (!text.includes(" flaky ") || !text.includes(words(t.file.split("/").at(-1)))) return false;
+    return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1)));
+}
+
+/**
+ * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
+ * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
+ * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
+ * Nothing is quarantined: master never reproduced it. base-check.yml runs this after a passing 5-repeat check.
+ * @param o the check
+ * @param o.file the test file
+ * @param o.variant the pull request job's variant
+ * @param o.base the base commit
+ * @param o.names the tests
+ * @param [o.pr] the pull request that saw them flake
+ * @param [o.runUrl] the base check's run
+ * @param [gh] `(args) => stdout`
+ * @returns `{ name, number }` for each test; number 0 when GitHub refused
+ */
+export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, gh = ghCli) {
+    let open = [];
+    try {
+        const search = `"${file.split("/").at(-1)}" flaky in:title,body`;
+        open = JSON.parse(
+            gh([
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--search",
+                search,
+                "--json",
+                "number,title,body",
+                "--limit",
+                "100",
+            ]),
+        );
+    } catch (e) {
+        console.log(`run-group: could not search the flaky issues of ${file} (${e.message.split("\n")[0]})`);
+    }
+    return names.map((name) => {
+        const t = { file, name };
+        const had = open.find((i) => namesFlakyTest(i, t))?.number;
+        const seen = pr ? `pull request #${pr}` : "a pull request";
+        const body = [
+            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not touch it.`,
+            `Its base check then passed 5 times on master at ${base}${runUrl ? ` (${runUrl})` : ""}, so it is a rare`,
+            "flake: not quarantined, since master did not reproduce it.",
+            "Find the mechanism: timing or load is not an accepted cause without one.",
+        ].join("\n");
+        try {
+            if (had) {
+                gh(["issue", "comment", String(had), "--body", `Flaky again.\n\n${body}`]);
+                raiseToCritical(had, gh);
+                return { name, number: had };
+            }
+            const url = gh([
+                "issue",
+                "create",
+                "--title",
+                `Flaky test: ${idOf(t)}`.slice(0, 200),
+                "--label",
+                "bug",
+                "--label",
+                "priority:critical",
+                "--label",
+                "effort:medium",
+                "--body",
+                body,
+            ]);
+            return { name, number: Number(/\/issues\/(\d+)/.exec(url)?.[1]) || 0 };
+        } catch (e) {
+            console.log(`run-group: could not file the issue for ${idOf(t)} (${e.message.split("\n")[0]})`);
+            return { name, number: 0 };
+        }
+    });
 }
 
 /**

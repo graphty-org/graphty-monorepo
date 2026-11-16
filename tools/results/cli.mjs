@@ -11,6 +11,10 @@
 //       family, <n> times, each run through run-group.mjs as its own record (kind `base` from the workflow's
 //       OIDC token). --build builds the shard's package (and what it depends on) first. A `<family>-shots`
 //       variant runs the story with its screenshots, as ci.yml's story-tests job does.
+//
+//   node tools/results/cli.mjs file-flaky --variant <v> --file <f> --base <sha> --tests <json> [--pr <n>]
+//       What base-check.yml runs after a 5-repeat check passed: files (or comments on) the priority:critical flaky
+//       issue of each test in <json> (a JSON array of test names), which a pull request saw fail and pass (#8317).
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -23,7 +27,7 @@ import { gunzipSync } from "node:zlib";
 import { familyOf } from "../test-ledger.mjs";
 import { selectedCommand } from "../test-select.mjs";
 import { call, config } from "./client.mjs";
-import { runGroup } from "./run-group.mjs";
+import { fileFlakyUnrelated, runGroup } from "./run-group.mjs";
 
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 
@@ -214,6 +218,23 @@ export async function baseCheck({
     return worst;
 }
 
+/**
+ * The test names of base-check.yml's `tests` input: a JSON array of one-line strings, at most 10. The input came from
+ * a pull request's job, so anything else is dropped.
+ * @param json the input
+ * @returns the names
+ */
+export function flakyNames(json) {
+    let list;
+    try {
+        list = JSON.parse(json);
+    } catch {
+        return [];
+    }
+    if (!Array.isArray(list)) return [];
+    return list.filter((n) => typeof n === "string" && /^[^\p{Cc}]{1,500}$/u.test(n)).slice(0, 10);
+}
+
 const mainCheckout = (cwd) =>
     resolve(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
@@ -234,6 +255,9 @@ async function cli(argv) {
             file: { type: "string" },
             repeat: { type: "string", default: "1" },
             build: { type: "boolean" },
+            base: { type: "string" },
+            tests: { type: "string" },
+            pr: { type: "string" },
         },
     });
     const root = process.cwd();
@@ -259,8 +283,21 @@ async function cli(argv) {
         const repeat = Math.max(1, Number(values.repeat) || 1);
         return baseCheck({ root, variant: values.variant, file: values.file, repeat, build: values.build });
     }
+    if (positionals[0] === "file-flaky" && values.variant && values.file && values.base && values.tests) {
+        const names = flakyNames(values.tests);
+        const runUrl = process.env.GITHUB_RUN_ID
+            ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+            : undefined;
+        const pr = /^\d+$/.test(values.pr ?? "") ? values.pr : undefined;
+        const filed = fileFlakyUnrelated({ ...values, names, pr, runUrl });
+        for (const f of filed) console.log(`file-flaky: ${values.file} > ${f.name}: issue #${f.number || "not filed"}`);
+        return 0;
+    }
     console.error("usage: node tools/results/cli.mjs import [--dir <records>] [--dry-run]");
     console.error("       node tools/results/cli.mjs base-check --variant <v> --file <f> [--repeat <n>] [--build]");
+    console.error(
+        "       node tools/results/cli.mjs file-flaky --variant <v> --file <f> --base <sha> --tests <json> [--pr <n>]",
+    );
     return 2;
 }
 

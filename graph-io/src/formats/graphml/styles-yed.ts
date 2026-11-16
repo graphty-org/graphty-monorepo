@@ -1203,7 +1203,8 @@ function hasStoredBox(label: unknown): boolean {
 }
 
 /**
- * Reads what a label's box is sized to; a box as wide as its node lines its words up by the label's `alignment`.
+ * Reads what a label's box is sized to, and how its lines line up by the label's `alignment`: inside a box as wide as
+ * its node, and against one another in a box sized to its words (yed-graphml-specimen-labels `alignment-left`).
  * @param label - the label element
  * @param position - where the label is placed
  * @param put - receives the values
@@ -1212,11 +1213,8 @@ function readLabelBoxSize(label: unknown, position: string | null, put: PutValue
     if (!hasStoredBox(label)) {
         return;
     }
-    const policy = treeAttr(label, "autoSizePolicy");
-    put("labelBox", yedLabelBox(policy, position));
-    if (yedLabelFillsNodeWidth(policy)) {
-        put("labelTextAlign", treeAttr(label, "alignment") ?? null);
-    }
+    put("labelBox", yedLabelBox(treeAttr(label, "autoSizePolicy"), position));
+    put("labelTextAlign", treeAttr(label, "alignment") ?? null);
 }
 
 /**

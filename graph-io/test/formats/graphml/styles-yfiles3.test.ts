@@ -765,6 +765,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("borderWidth", "default")).toBe(0);
     });
 
+    it("draws no line round an open GroupNodeStyle with no tab, whatever its stroke", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none` (tabPosition="NONE", a #505050 stroke) is its
+        // white panel alone, with no yfiles-group-node-stroke path; the tabbed groups beside it keep their outline
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("borderWidth", "tab-position-none")).toBe(0);
+        expect(node("borderWidth", "tab-position-top")).toBe(1);
+    });
+
     it("rounds a group's corners by its cornerRadius, 4 unset", async () => {
         // yed-live-graphml-specimen-groups-p2.svg and -p3.svg: arcs of 4 on every group, 12 and none where set
         const p2 = await sheet("specimen-groups-p2.graphml");

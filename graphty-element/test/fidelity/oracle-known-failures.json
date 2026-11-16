@@ -38790,7 +38790,7 @@
             "frame.rotation": [],
             "frame.zoom": [],
             "background": [],
-            "label.align": ["alignment-left","alignment-right"],
+            "label.align": [],
             "label.backgroundBox": []
         },
         "yed-graphml-specimen-labels-p2": {
@@ -38900,7 +38900,7 @@
             "frame.rotation": [],
             "frame.zoom": [],
             "background": [],
-            "label.align": ["alignment-left","alignment-right"],
+            "label.align": [],
             "label.backgroundBox": []
         },
         "yed-graphml-specimen-node-fills-borders": {
@@ -39880,7 +39880,7 @@
             "group.box": ["box@542,311,684,383"],
             "group.fill": [],
             "group.fillOpacity": [],
-            "group.stroke": ["box@542,311,684,383"],
+            "group.stroke": [],
             "group.strokeWidth": [],
             "group.strokeDash": [],
             "group.label": [],
@@ -40103,7 +40103,7 @@
             "group.box": ["box@542,311,684,383"],
             "group.fill": [],
             "group.fillOpacity": [],
-            "group.stroke": ["box@542,311,684,383"],
+            "group.stroke": [],
             "group.strokeWidth": [],
             "group.strokeDash": [],
             "group.label": [],

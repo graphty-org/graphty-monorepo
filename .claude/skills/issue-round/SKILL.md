@@ -156,7 +156,7 @@ only a group's lead and its T1 folds together and offers the other members as jo
 Take the first job that passes the checks below and step 4. An issue the owner ordered still comes before any job.
 
 **A `rescan: #a #b ...` line** means those top-10 issues of the queue are in no group of the ledger (new since the
-last scan), or the last scan is over 2 hours old: start the free-queue scan (step 4) and keep taking jobs from this
+last scan; an issue the last scan listed as blocked is never named), or the last scan is over 2 hours old: start the free-queue scan (step 4) and keep taking jobs from this
 output. Each such issue is already a job of its own, marked `unscanned` (`job #a <priority> unscanned -- in no group
 of the ledger`), in its place in the order; before starting one, route it by step 3.
 
@@ -244,9 +244,9 @@ and 6 effort points (`effort:low` 1, `medium` 2, `high` 3, none 2; a fold 0). Wh
 at (only with `show <n>`), find the ledger group it fits by the rubric (`node tools/issue-groups.mjs show --json`
 lists them), and run `node tools/issue-groups.mjs route <n> --to <group> --test <T#> --why "<reason>"`, or
 `route <n> --why "<reason>"` when none fits. The tool does what the group's state allows and prints where the issue
-went: added to a proposed group (start that group's job instead), joined a ready branch (start a joining job, step
-4), waiting on a started branch (start nothing for it now), or in the follow-up group of an open pull request (it
-starts when that pull request merges). `refused` names the exclusion; such an issue is not started as part of a
+went: added to a proposed group (start that group's job instead), waiting on a started or ready branch (start
+nothing for it now; a ready branch takes it only through the join rule of step 4, with `route --join`), or in the
+follow-up group of an open pull request (it starts when that pull request merges). `refused` names the exclusion; such an issue is not started as part of a
 group. An issue that must wait for another branch, pull request, dry run or migration (rubric X6), or whose cause is
 a commit not yet on master (X9), gets `node tools/issue-groups.mjs wait <n> --on <#pr|branch> [--x9 <sha>] --why
 "<reason>"` and no job.
@@ -356,9 +356,10 @@ nothing for hours. Such an issue joins that branch:
   there first. The job adds its own commit with its own `Fixes #N` line, lists every issue of the branch in its Proof,
   and when done writes `pipeline-round: ready <branch> <full sha>` for the new head on every issue of the branch's
   group, its own issue included.
-- **Record the join** with `node tools/issue-groups.mjs route <n> --to <branch> --test <T#> --why "<reason>"`: it
-  joins only within the cap and at most 2 joins over the branch's life, and only when a rubric test holds; it prints
-  `joins ready <group>` or says why not.
+- **Record the join**, only after every condition above holds, with `node tools/issue-groups.mjs route <n> --to
+<branch> --test <T#> --join --why "<reason>"`: it joins only within the cap and at most 2 joins over the branch's
+  life, and only when a rubric test holds; it prints `joins ready <group>` or says why not. Without `--join`, `route`
+  only records a wait on the branch.
 - **The free-queue scan** writes such an issue as a job with `joins ready <branch>` in its `why`, not as blocked.
 
 **A job that fixes the red is marked so.** A cause of master's red is an issue the red-master or full-run alarm links
@@ -374,8 +375,9 @@ Create the label if it is missing (see "Markers" in the shared file). Mark the j
 `node tools/issue-queue.mjs taken <branch> .worktrees/<name> <n>... --files <path>... --why "<the rule that picked it and why each issue belongs>"`,
 every issue of the job in one call: it adds `in-progress` to each and writes the `taken` marker (with `group` for more
 than one issue), and refuses a job with no files, which step 4 needs. Then record it in the ledger:
-`node tools/issue-groups.mjs start <group> <branch>` (the group the `jobs` line named; for an `unscanned` issue, the
-group `route` made). The next `check --fix` would also follow the marker; recording it at once keeps the ledger right
+`node tools/issue-groups.mjs start <group> <branch> <n>...` (the group the `jobs` line named, and every issue of the
+job; for an `unscanned` issue, the group `route` made). Only the issues named start; the group's other members stay
+proposed under its id, so the next part of a split job is started the same way. The next `check --fix` would also follow the marker; recording it at once keeps the ledger right
 for the rest of this round. Branch name: `fix/<top issue>-<short-topic>`:
 the number in it is the branch's issue, so `./tools/worktree-new.sh` pushes the branch and writes its progress note on
 that issue.

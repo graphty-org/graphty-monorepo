@@ -803,7 +803,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(
+export function splitNeighbor(
     text: string,
     report?: ImportReportBuilder,
 ): { readonly id: string; readonly weight: number | undefined } {
@@ -1863,7 +1863,7 @@ class TableReader {
             const text = idCell(row[k], quoted[k]);
             where.element = text;
             try {
-                const cell = splitNeighbour(text, report);
+                const cell = splitNeighbor(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;

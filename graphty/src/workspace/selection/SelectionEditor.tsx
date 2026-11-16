@@ -506,7 +506,7 @@ export function SelectionEditor({
             onEmptyCancel();
             return;
         }
-        say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
+        say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Canceled");
         // The host folds the selection back to its row (a filter card); its row then takes focus.
         if (onDone !== undefined) {
             onDone();

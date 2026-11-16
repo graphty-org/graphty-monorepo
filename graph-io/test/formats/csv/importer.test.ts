@@ -20,7 +20,7 @@ import {
     NO_ID_COLUMN_CODE,
     POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
-    splitNeighbour,
+    splitNeighbor,
 } from "../../../src/formats/csv/importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../../../src/formats/csv/records.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
@@ -1130,15 +1130,15 @@ describe("csvImporter: adjacency tables", () => {
     });
 
     it("splits a neighbour cell at its last colon", () => {
-        expect(splitNeighbour("b")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("b:1.5")).toEqual({ id: "b", weight: 1.5 });
-        expect(splitNeighbour("b:")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("h:80:")).toEqual({ id: "h:80", weight: undefined });
-        expect(splitNeighbour("h:80:2")).toEqual({ id: "h:80", weight: 2 });
-        expect(splitNeighbour("x:-0").weight).toBe(-0);
-        expect(splitNeighbour("x:Infinity").weight).toBe(Infinity);
-        expect(splitNeighbour("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
-        expect(splitNeighbour(":3")).toEqual({ id: "", weight: 3 });
+        expect(splitNeighbor("b")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("b:1.5")).toEqual({ id: "b", weight: 1.5 });
+        expect(splitNeighbor("b:")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("h:80:")).toEqual({ id: "h:80", weight: undefined });
+        expect(splitNeighbor("h:80:2")).toEqual({ id: "h:80", weight: 2 });
+        expect(splitNeighbor("x:-0").weight).toBe(-0);
+        expect(splitNeighbor("x:Infinity").weight).toBe(Infinity);
+        expect(splitNeighbor("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
+        expect(splitNeighbor(":3")).toEqual({ id: "", weight: 3 });
     });
 });
 

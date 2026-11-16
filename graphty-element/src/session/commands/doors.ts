@@ -2144,6 +2144,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdOffBatch: RENDER,
             drawnRayHit: READ,
             drawnScale: RENDER,
+            // How the node's drawn size follows the camera, as its style sets it (`node.sizeSpace`).
+            sizeSpace: READ,
             drawShrunk: RENDER,
             drawnBoundingRadius: RENDER,
             drawnScene: RENDER,
@@ -4054,6 +4056,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.
             publishedBounds: READ,
+            // The size a "screen"-sized node of size 1 is drawn against (`node.sizeSpace`).
+            nodeScreenReference: READ,
         },
     },
     {

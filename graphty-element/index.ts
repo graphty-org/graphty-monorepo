@@ -98,6 +98,8 @@ export type {
     Lighting,
     LocationSourceFact,
     MapFrameFact,
+    // How a node's drawn size follows the camera, as `node.sizeSpace` takes it
+    NodeSizeSpace,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -134,6 +136,7 @@ export {
     isViewMode,
     LIGHTING_VALUES,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,

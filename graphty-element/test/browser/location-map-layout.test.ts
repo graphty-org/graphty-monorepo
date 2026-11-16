@@ -231,10 +231,21 @@ describe("the location map layout", () => {
         await graph.setViewMode("3d");
         const id = String(FLIGHTS.ids.idOf(0));
         const edges = (): Edge[] => [...graph.getDataManager().edges.values()];
+        /**
+         * How deep a mesh stands in the camera's view.
+         * @param mesh - The mesh.
+         * @returns Its depth.
+         */
+        function depthInView(mesh: AbstractMesh): number {
+            const m = graph.getScene().activeCamera?.getViewMatrix().m ?? [];
+            const p = mesh.getAbsolutePosition();
+            return p.x * m[2] + p.y * m[6] + p.z * m[10] + m[14];
+        }
+
         /** What the globe and the drawing measure at one mapScale, at the default view. */
         async function measure(
             mapScale: number,
-            nodeScale: "scene" | "screen",
+            sizeSpace: "scene" | "screen",
         ): Promise<{
             radius: number;
             lift: number;
@@ -243,7 +254,8 @@ describe("the location map layout", () => {
             widths: number[];
             arcRise: number;
         }> {
-            await graph.setLayout("location-map", { mapScale, nodeScale });
+            graph.setLayoutBehavior({ node: { sizeSpace } });
+            await graph.setLayout("location-map", { mapScale });
             await settled();
             await drawnFrames(graph.getScene(), 2);
             const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
@@ -261,11 +273,9 @@ describe("the location map layout", () => {
                 radius: frame.radius,
                 lift: Math.hypot(p.x, p.y, p.z) - frame.radius,
                 nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
-                // a node's scene size over the camera's height above the globe: what one size on
-                // screen holds fixed, however the camera stands
-                nodeOverHeight:
-                    mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() /
-                    ((graph.getScene().activeCamera?.globalPosition.length() ?? Number.NaN) - frame.radius),
+                // a node's scene size over its depth in the view: what one size on screen holds
+                // fixed, however the camera stands
+                nodeOverHeight: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() / depthInView(mesh),
                 widths: edges().map((e) => e.drawnLine?.width ?? Number.NaN),
                 arcRise: rise / chord,
             };
@@ -298,9 +308,10 @@ describe("the location map layout", () => {
         /** What the map and the drawing measure at one mapScale, at the default view. */
         async function measure(
             mapScale: number,
-            nodeScale: "scene" | "screen",
+            sizeSpace: "scene" | "screen",
         ): Promise<{ apart: number; nodeWorld: number; viewHeight: number; mapHeight: number; widths: number[] }> {
-            await graph.setLayout("location-map", { mapScale, nodeScale });
+            graph.setLayoutBehavior({ node: { sizeSpace } });
+            await graph.setLayout("location-map", { mapScale });
             await settled();
             await drawnFrames(graph.getScene(), 2);
             const frame = (
@@ -341,7 +352,7 @@ describe("the location map layout", () => {
         );
 
         // flatNodeScale gives those nodes back some size, under the same map
-        await graph.setLayout("location-map", { mapScale: 6, nodeScale: "screen", flatNodeScale: 2 });
+        await graph.setLayout("location-map", { mapScale: 6, flatNodeScale: 2 });
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const mesh = graph.getNode(ids[0])?.mesh;
@@ -352,6 +363,18 @@ describe("the location map layout", () => {
             0.02,
             "a node is drawn twice the size",
         );
+    });
+
+    it("still builds from a saved nodeScale, which node.sizeSpace replaced, and drops it", async () => {
+        await graph.setViewMode("2d");
+        await placeAirports({ nodeScale: "screen" });
+        const engine = graph.getLayoutManager().layoutEngine as unknown as {
+            geoFrame: unknown;
+            config: Record<string, unknown>;
+        };
+        assert.isNotNull(engine.geoFrame, "the map was laid out");
+        assert.notProperty(engine.config, "nodeScale");
+        assert.strictEqual(graph.getNode(String(FLIGHTS.ids.idOf(0)))?.drawnScale, 1, "nothing sizes it on screen");
     });
 
     it("keeps a city's whole 2D map in front of the far clip plane in 3D, however far the camera is", async () => {

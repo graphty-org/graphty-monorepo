@@ -20,7 +20,7 @@ import {
     DataSource,
     type DataSourceChunk,
     type DeclaredDirection,
-    READER_SIGNALS,
+    setReaderSignal,
     TIMELINE_READERS,
 } from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
@@ -2334,7 +2334,7 @@ export class Ingest<K extends KnownEdge> {
                 TIMELINE_READERS.add(source);
             }
             if (source !== null && signal !== undefined) {
-                READER_SIGNALS.set(source, signal);
+                setReaderSignal(source, signal);
             }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {

@@ -561,7 +561,7 @@ export abstract class DataSource {
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
         const last: { status?: number; timeoutMs?: number } = {};
-        const cancel = READER_SIGNALS.get(this); // NOSONAR(S4158): ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
+        const cancel = READER_SIGNALS.get(this); // eslint-disable-line sonarjs/no-empty-collection -- ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
 
         for (let attempt = 0; attempt < retries; attempt++) {
             cancel?.throwIfAborted();
@@ -684,7 +684,7 @@ export abstract class DataSource {
             return toSourceInput(config.data);
         }
 
-        const cancel = READER_SIGNALS.get(this); // NOSONAR(S4158): ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
+        const cancel = READER_SIGNALS.get(this); // eslint-disable-line sonarjs/no-empty-collection -- ingest.ts and draft.ts fill READER_SIGNALS; the rule reads one file
         cancel?.throwIfAborted();
         if (config.file) {
             const { file } = config;

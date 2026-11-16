@@ -2639,7 +2639,7 @@ export type FeatureId = "assistant" | "data-management" | "timeline" | "location
 export interface FigureOptions {
     download?: boolean;
     downloadFilename?: string;
-    format?: "svg";
+    format?: "svg" | "pdf";
     legend?: ScreenshotOptions["legend"];
     transparentBackground?: boolean;
 }

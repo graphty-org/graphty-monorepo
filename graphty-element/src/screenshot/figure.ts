@@ -1,40 +1,43 @@
 /**
  * @file A vector figure of the graph as it is drawn now (issue #819): every visible node as a
  * filled shape where the canvas draws it, every visible edge as a line, every shown label as
- * text, and the key a screenshot draws, as an SVG document. It reads the picture the last frame
+ * text, and the key a screenshot draws, as an SVG or a PDF document. It reads the picture the last frame
  * drew -- the same screen positions `nodeScreenPosition` reports -- so the figure lines up with a
  * screenshot taken at the same moment.
  */
 
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import type { Graph } from "../Graph";
 import type { RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
+import { toColorValue } from "../session/styles/channels";
 import { downloadBlob } from "../utils/download";
 import { captureError } from "./captureError";
 import { LEGEND_METRICS, legendSections, legendSize } from "./drawLegend";
+import { figurePdf } from "./figurePdf";
 import type { ScreenshotLegendPosition, ScreenshotLegendSection, ScreenshotOptions } from "./types";
 
 /** What {@link Graphty.exportFigure} draws and where it goes. */
 export interface FigureOptions {
-    /** The file format. Only `"svg"` today. @default "svg" */
-    format?: "svg";
+    /** The file format: `"svg"`, or `"pdf"` for a one-page PDF the canvas's size. @default "svg" */
+    format?: "svg" | "pdf";
     /** The key drawn into the figure, exactly as `ScreenshotOptions.legend` takes it. Absent, no key. */
     legend?: ScreenshotOptions["legend"];
     /** Leave the canvas background out, so the figure has no backdrop. @default false */
     transparentBackground?: boolean;
     /** Also hand the file to the reader as a download. @default false */
     download?: boolean;
-    /** The download's file name. @default "graph.svg" */
+    /** The download's file name. @default "graph.svg", or "graph.pdf" for a PDF */
     downloadFilename?: string;
 }
 
 /** A figure {@link Graphty.exportFigure} made. */
 export interface FigureResult {
-    /** The file, `image/svg+xml`. */
+    /** The file: `image/svg+xml`, or `application/pdf` for a PDF. */
     blob: Blob;
     /** Its width in CSS pixels, the canvas's. */
     width: number;
@@ -50,8 +53,8 @@ type FigureShape = ({ circle: { x: number; y: number; r: number } } | { points: 
     opacity: number;
 };
 
-/** One line of text, centred on its point. */
-interface FigureText {
+/** One label's lines of text, centred on its point, over its panel when it has a solid one. */
+export interface FigureText {
     x: number;
     y: number;
     lines: readonly string[];
@@ -60,10 +63,24 @@ interface FigureText {
     weight: string;
     style: string;
     color: string;
+    /** The panel drawn behind the words, in screen pixels. */
+    background?: { x: number; y: number; w: number; h: number; radius: number; fill: string; opacity: number };
 }
 
-/** Everything one figure draws, in screen pixels: what {@link figureSvg} writes out. */
-interface FigureDrawing {
+/** One mark of the key: a box, a color ramp, a filled outline or a line of text centred on its `y`. */
+export type FigureMark =
+    | {
+          rect: { x: number; y: number; w: number; h: number; radius?: number };
+          fill: string;
+          opacity?: number;
+          stroke?: string;
+      }
+    | { ramp: { x: number; y: number; w: number; h: number }; colors: readonly string[] }
+    | { polygon: readonly Point2[]; fill: string }
+    | { text: string; x: number; y: number; anchor: "start" | "end"; color: string; weight?: string };
+
+/** Everything one figure draws, in screen pixels: what {@link figureSvg} and `figurePdf` write out. */
+export interface FigureDrawing {
     width: number;
     height: number;
     background?: string;
@@ -79,7 +96,7 @@ interface FigureDrawing {
     };
 }
 
-const FONT = "system-ui, sans-serif";
+const LEGEND_FONT = "system-ui, sans-serif";
 
 /**
  * Text made safe inside an SVG element or attribute.
@@ -119,11 +136,53 @@ function num(n: number): string {
 }
 
 /**
+ * A box as SVG takes it: a rectangle, rounded when it has a radius.
+ * @param box - The box.
+ * @param box.x - Its left.
+ * @param box.y - Its top.
+ * @param box.w - Its width.
+ * @param box.h - Its height.
+ * @param box.radius - Its corner radius.
+ * @param paint - The rest of its attributes.
+ * @returns The element.
+ */
+function rectSvg(box: { x: number; y: number; w: number; h: number; radius?: number }, paint: string): string {
+    const rx = box.radius === undefined || box.radius <= 0 ? "" : ` rx="${num(box.radius)}"`;
+    return `<rect x="${num(box.x)}" y="${num(box.y)}" width="${num(box.w)}" height="${num(box.h)}"${rx} ${paint}/>`;
+}
+
+/**
+ * One mark of the key as SVG.
+ * @param mark - The mark.
+ * @param index - Its place in the key, naming a ramp's gradient.
+ * @returns The element.
+ */
+function markSvg(mark: FigureMark, index: number): string {
+    if ("rect" in mark) {
+        const stroke = mark.stroke === undefined ? "" : ` stroke="${esc(mark.stroke)}"`;
+        return rectSvg(mark.rect, `fill="${esc(mark.fill)}"${opacityAttr("fill-opacity", mark.opacity ?? 1)}${stroke}`);
+    }
+    if ("ramp" in mark) {
+        const id = `graphty-ramp-${String(index)}`;
+        const last = Math.max(mark.colors.length - 1, 1);
+        const stops = mark.colors.map((c, i) => `<stop offset="${num(i / last)}" stop-color="${esc(c)}"/>`).join("");
+        return `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>${rectSvg(mark.ramp, `fill="url(#${id})"`)}`;
+    }
+    if ("polygon" in mark) {
+        return `<polygon points="${pointList(mark.polygon)}" fill="${esc(mark.fill)}"/>`;
+    }
+    const anchor = mark.anchor === "end" ? ` text-anchor="end"` : "";
+    const weight = mark.weight === undefined ? "" : ` font-weight="${esc(mark.weight)}"`;
+    return `<text x="${num(mark.x)}" y="${num(mark.y)}"${anchor}${weight} fill="${esc(mark.color)}">${esc(mark.text)}</text>`;
+}
+
+/**
  * The SVG document for a drawing: background, edges, nodes, labels, then the key on top.
  * @param drawing - What to draw.
+ * @param key - The key's marks.
  * @returns The document.
  */
-function figureSvg(drawing: FigureDrawing): string {
+function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
     const out: string[] = [
         `<svg xmlns="http://www.w3.org/2000/svg" width="${num(drawing.width)}" height="${num(drawing.height)}" ` +
             `viewBox="0 0 ${num(drawing.width)} ${num(drawing.height)}">`,
@@ -149,6 +208,10 @@ function figureSvg(drawing: FigureDrawing): string {
     }
     out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
     for (const t of drawing.texts) {
+        if (t.background !== undefined) {
+            const bg = t.background;
+            out.push(rectSvg(bg, `fill="${esc(bg.fill)}"${opacityAttr("fill-opacity", bg.opacity)}`));
+        }
         const first = t.y - ((t.lines.length - 1) * t.size * 1.2) / 2;
         const spans = t.lines
             .map((line, i) => `<tspan x="${num(t.x)}" y="${num(first + i * t.size * 1.2)}">${esc(line)}</tspan>`)
@@ -159,87 +222,89 @@ function figureSvg(drawing: FigureDrawing): string {
         );
     }
     out.push(`</g>`);
-    if (drawing.legend !== undefined && drawing.legend.sections.length > 0) {
-        out.push(legendSvg(drawing.legend, drawing.width, drawing.height));
+    if (key.length > 0) {
+        out.push(
+            `<g font-family="${LEGEND_FONT}" font-size="${String(LEGEND_METRICS.FONT_SIZE)}" dominant-baseline="central">`,
+            ...key.map(markSvg),
+            `</g>`,
+        );
     }
     out.push(`</svg>`);
     return out.join("\n");
 }
 
 /**
- * The key as SVG, laid out as `drawLegend` lays it out on a screenshot: a light card in its
- * corner holding each section's title, rows, ramp and note.
- * @param legend - The key and its measured size.
+ * The key as marks, laid out as `drawLegend` lays it out on a screenshot: a light card in its
+ * corner holding each section's title, rows, ramp and note. Both file formats draw these.
+ * @param legend - The key and its measured size, or nothing for no key.
  * @param width - The figure's width.
  * @param height - The figure's height.
- * @returns The key's group.
+ * @returns The marks, in drawing order.
  */
-function legendSvg(legend: NonNullable<FigureDrawing["legend"]>, width: number, height: number): string {
+function legendMarks(legend: FigureDrawing["legend"], width: number, height: number): FigureMark[] {
+    if (legend === undefined || legend.sections.length === 0) {
+        return [];
+    }
     const { PAD, LINE, GAP, CHIP, RAMP_HEIGHT } = LEGEND_METRICS;
     const cardWidth = legend.inner + PAD * 2;
     const cardLeft = legend.position.endsWith("left") ? PAD : width - PAD - cardWidth;
     const cardTop = legend.position.startsWith("top") ? PAD : height - PAD - legend.height;
     const left = cardLeft + PAD;
     const right = left + legend.inner;
-    const text = (x: number, y: number, words: string, extra = ""): string =>
-        `<text x="${num(x)}" y="${num(y)}"${extra}>${esc(words)}</text>`;
-    const out = [
-        `<g font-family="${FONT}" font-size="12" dominant-baseline="central" fill="#1a1a1a">`,
-        `<rect x="${num(cardLeft)}" y="${num(cardTop)}" width="${num(cardWidth)}" height="${num(legend.height)}" ` +
-            `rx="4" fill="#ffffff" fill-opacity="0.92" stroke="#d0d0d0"/>`,
+    const ink = "#1a1a1a";
+    const faint = "#666666";
+    const marks: FigureMark[] = [
+        {
+            rect: { x: cardLeft, y: cardTop, w: cardWidth, h: legend.height, radius: 4 },
+            fill: "#ffffff",
+            opacity: 0.92,
+            stroke: "#d0d0d0",
+        },
     ];
     let y = cardTop + PAD;
-    legend.sections.forEach((section, index) => {
-        out.push(text(left, y + LINE / 2, section.title, ` font-weight="600"`));
+    for (const section of legend.sections) {
+        marks.push({ text: section.title, x: left, y: y + LINE / 2, anchor: "start", color: ink, weight: "600" });
         y += LINE;
         for (const row of section.rows ?? []) {
             let x = left;
             const mid = y + LINE / 2;
             if (row.color !== undefined) {
-                out.push(
-                    `<rect x="${num(x)}" y="${num(mid - CHIP / 2)}" width="${String(CHIP)}" height="${String(CHIP)}" ` +
-                        `fill="${esc(row.color)}"/>`,
-                );
+                marks.push({ rect: { x, y: mid - CHIP / 2, w: CHIP, h: CHIP }, fill: row.color });
                 x += CHIP + GAP;
             }
-            out.push(text(x, mid, row.label));
+            marks.push({ text: row.label, x, y: mid, anchor: "start", color: ink });
             if (row.value !== undefined) {
-                out.push(text(right, mid, row.value, ` text-anchor="end" fill="#666666"`));
+                marks.push({ text: row.value, x: right, y: mid, anchor: "end", color: faint });
             }
             y += LINE;
         }
         if (section.ramp) {
             const colors = section.ramp.colors ?? [];
             if (colors.length > 0) {
-                const id = `graphty-ramp-${String(index)}`;
-                const stops = colors
-                    .map(
-                        (c, i) =>
-                            `<stop offset="${num(colors.length === 1 ? 0 : i / (colors.length - 1))}" stop-color="${esc(c)}"/>`,
-                    )
-                    .join("");
-                out.push(
-                    `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>`,
-                    `<rect x="${num(left)}" y="${num(y)}" width="${num(right - left)}" height="${String(RAMP_HEIGHT)}" fill="url(#${id})"/>`,
-                );
+                marks.push({ ramp: { x: left, y, w: right - left, h: RAMP_HEIGHT }, colors });
             } else {
                 // A size wedge: thin at the low end, full height at the high end.
-                out.push(
-                    `<polygon points="${num(left)},${num(y + RAMP_HEIGHT)} ${num(right)},${num(y)} ${num(right)},${num(y + RAMP_HEIGHT)}" fill="#888888"/>`,
-                );
+                const wedge: Point2[] = [
+                    [left, y + RAMP_HEIGHT],
+                    [right, y],
+                    [right, y + RAMP_HEIGHT],
+                ];
+                marks.push({ polygon: wedge, fill: "#888888" });
             }
             const mid = y + RAMP_HEIGHT + GAP + LINE / 2;
-            out.push(text(left, mid, section.ramp.min), text(right, mid, section.ramp.max, ` text-anchor="end"`));
+            marks.push(
+                { text: section.ramp.min, x: left, y: mid, anchor: "start", color: ink },
+                { text: section.ramp.max, x: right, y: mid, anchor: "end", color: ink },
+            );
             y += RAMP_HEIGHT + GAP + LINE;
         }
         if (section.note !== undefined) {
-            out.push(text(left, y + LINE / 2, section.note, ` fill="#666666"`));
+            marks.push({ text: section.note, x: left, y: y + LINE / 2, anchor: "start", color: faint });
             y += LINE;
         }
         y += GAP;
-    });
-    out.push(`</g>`);
-    return out.join("\n");
+    }
+    return marks;
 }
 
 /**
@@ -305,6 +370,7 @@ function labelText(
         return undefined;
     }
     const at = graph.worldToScreen(mesh.getAbsolutePosition());
+    const background = labelPanel(label, mesh, graph);
     return {
         ...at,
         lines,
@@ -313,6 +379,39 @@ function labelText(
         weight: first.weight,
         style: first.style,
         color: first.color,
+        ...(background === undefined ? {} : { background }),
+    };
+}
+
+/**
+ * A label's solid panel where it is drawn: its plane's box on screen, cut to the panel's share of it.
+ * @param label - The label.
+ * @param mesh - Its plane.
+ * @param graph - The graph.
+ * @returns The panel, or undefined when the label has no solid one.
+ */
+function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText["background"] {
+    const { panel } = label;
+    const color = panel === undefined ? null : toColorValue(panel.color);
+    if (panel === undefined || color === null || color.a <= 0) {
+        return undefined;
+    }
+    const corners = mesh.getBoundingInfo().boundingBox.vectorsWorld.map((c) => graph.worldToScreen(c));
+    const xs = corners.map((c) => c.x);
+    const ys = corners.map((c) => c.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const w = Math.max(...xs) - left;
+    const h = Math.max(...ys) - top;
+    // ponytail: a pointer, a border or a gradient panel is drawn as its solid box only.
+    return {
+        x: left + panel.left * w,
+        y: top + panel.top * h,
+        w: (panel.right - panel.left) * w,
+        h: (panel.bottom - panel.top) * h,
+        radius: panel.radius * w,
+        fill: rgb(color),
+        opacity: color.a,
     };
 }
 
@@ -481,15 +580,18 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
  */
 export function exportFigure(graph: Graph, options: FigureOptions = {}): FigureResult {
     const format = options.format ?? "svg";
-    if (format !== "svg") {
-        throw captureError("E_BAD_COMMAND", "Unknown figure format", { field: "format", value: format });
+    if (format !== "svg" && format !== "pdf") {
+        throw captureError("E_BAD_COMMAND", "Unknown figure format", { field: "format", value: String(format) });
     }
     const drawing = figureDrawing(graph, options);
-    const text = figureSvg(drawing);
-    const blob = new Blob([text], { type: "image/svg+xml" });
+    const key = legendMarks(drawing.legend, drawing.width, drawing.height);
+    const blob =
+        format === "pdf"
+            ? new Blob([figurePdf(drawing, key)], { type: "application/pdf" })
+            : new Blob([figureSvg(drawing, key)], { type: "image/svg+xml" });
     const download = options.download === true;
     if (download) {
-        downloadBlob(blob, options.downloadFilename ?? "graph.svg");
+        downloadBlob(blob, options.downloadFilename ?? `graph.${format}`);
     }
     return { blob, width: drawing.width, height: drawing.height, downloaded: download };
 }

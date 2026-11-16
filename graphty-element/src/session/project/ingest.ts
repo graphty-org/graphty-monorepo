@@ -855,20 +855,28 @@ export class Ingest<K extends KnownEdge> {
                 this.addEdges(mutation.records, addEdgesOptions(mutation), writer, mutation.ids);
                 return;
             case "set-attributes":
-                for (const id of mutation.ids) {
-                    writer.setAttributes(mutation.target, resolve(mutation.target, id), mutation.values);
+                try {
+                    for (const id of mutation.ids) {
+                        writer.setAttributes(mutation.target, resolve(mutation.target, id), mutation.values);
+                    }
+                } finally {
+                    writer.announce();
                 }
 
                 return;
             case "update-rows":
-                // Values of its own for each row.
-                for (const row of mutation.rows) {
-                    writer.setAttributes(
-                        mutation.target,
-                        resolve(mutation.target, row.id),
-                        row.values,
-                        mutation.replace,
-                    );
+                try {
+                    // Values of its own for each row.
+                    for (const row of mutation.rows) {
+                        writer.setAttributes(
+                            mutation.target,
+                            resolve(mutation.target, row.id),
+                            row.values,
+                            mutation.replace,
+                        );
+                    }
+                } finally {
+                    writer.announce();
                 }
 
                 return;
@@ -1303,6 +1311,8 @@ export class Ingest<K extends KnownEdge> {
             this.host.nodeStored(nodeId, record, index);
         }
 
+        // The records this batch merged into nodes already held, after every one is written.
+        writer.announce();
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }

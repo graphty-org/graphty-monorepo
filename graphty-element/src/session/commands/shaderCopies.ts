@@ -45,7 +45,8 @@ function useId(use: unknown): unknown {
  */
 function addEntryIds(key: string, child: unknown, into: Set<string>): void {
     if (isUseList(key, child)) {
-        for (const id of child.map(useId)) {
+        for (const use of child) {
+            const id = useId(use);
             if (typeof id === "string") {
                 into.add(id);
             }

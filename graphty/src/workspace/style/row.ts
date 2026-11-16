@@ -50,7 +50,7 @@ export interface Line {
 }
 
 /** Text built from several values: a `{ template }` binding's lines. */
-export interface TemplateWrite {
+interface TemplateWrite {
     readonly template: readonly string[];
 }
 

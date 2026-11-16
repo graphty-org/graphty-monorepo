@@ -12496,12 +12496,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.87,
-            "raster.label": 0.89,
-            "raster.nodeBody": 0.9,
-            "raster.nodeOutline": 0.95,
+            "raster.edge": 0.94,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.96,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "dot-profile@matched": {
@@ -12606,17 +12606,17 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.76,
-            "raster.canvas": 0.96,
-            "raster.edge": 0.69,
-            "raster.label": 0.86,
-            "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.89,
+            "raster.arrowhead": 0.96,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.87,
+            "raster.label": 0.91,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1,
             "stray.extra": 1
         },
@@ -12740,7 +12740,7 @@
             "edge.wiggle": 1,
             "raster.nodeBody": 0.88,
             "raster.nodeOutline": 0.9,
-            "raster.edge": 0.93,
+            "raster.edge": 0.95,
             "raster.arrowhead": 0.89,
             "raster.label": 0.88,
             "raster.canvas": 0.99
@@ -12838,7 +12838,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.948,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -12890,7 +12890,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.948,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -12961,12 +12961,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.96,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.92,
-            "raster.label": 0.9,
-            "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.92,
+            "raster.arrowhead": 0.98,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.96,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.93,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1,
             "stray.present": 1
         },
@@ -13030,7 +13030,7 @@
         "dot-real-siblings": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.13,
+            "node.position": 1,
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
@@ -13059,8 +13059,8 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.958,
-            "edge.curve": 0.996,
+            "edge.route": 1,
+            "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -13075,17 +13075,17 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "stray.present": 0.5,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.85,
-            "raster.canvas": 0.98,
-            "raster.edge": 0.89,
-            "raster.label": 0.84,
-            "raster.nodeBody": 0.84,
-            "raster.nodeOutline": 0.93,
+            "raster.arrowhead": 0.94,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.95,
+            "raster.label": 0.96,
+            "raster.nodeBody": 0.96,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1,
             "stray.extra": 1
         },
@@ -13121,8 +13121,8 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.975,
-            "edge.curve": 0.993,
+            "edge.route": 1,
+            "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -13137,7 +13137,7 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "stray.present": 0.5,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -17295,7 +17295,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.99,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 0.99,
             "edge.width": 1,
@@ -17315,7 +17315,7 @@
             "edge.label": 1,
             "group.present": 1,
             "group.extra": 1,
-            "group.box": 0.833,
+            "group.box": 1,
             "group.fill": 1,
             "group.fillOpacity": 1,
             "group.stroke": 1,
@@ -17329,11 +17329,11 @@
             "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1,
-            "raster.nodeBody": 0.95,
-            "raster.nodeOutline": 0.89,
-            "raster.edge": 0.87,
-            "raster.arrowhead": 0.86,
-            "raster.label": 0.95,
+            "raster.nodeBody": 0.97,
+            "raster.nodeOutline": 0.92,
+            "raster.edge": 0.91,
+            "raster.arrowhead": 0.9,
+            "raster.label": 0.97,
             "raster.canvas": 0.98
         },
         "dot-synth-edges-clusters@matched": {
@@ -17371,7 +17371,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.97,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 0.99,
             "edge.width": 1,
@@ -56221,14 +56221,6 @@
                 "date": "2026-11-01"
             }
         },
-        "dot-real-crazy": {
-            "node.position": {
-                "floor": 1,
-                "to": 0.683,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            }
-        },
         "dot-real-depcruise": {
             "group.stroke": {
                 "floor": 1,
@@ -56261,38 +56253,12 @@
                 "date": "2026-11-07"
             }
         },
-        "dot-real-siblings": {
-            "node.position": {
-                "floor": 0.13,
-                "to": 0.05,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            },
+        "dot-real-softmaint@matched": {
             "edge.route": {
-                "floor": 0.958,
-                "to": 0.901,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            },
-            "edge.curve": {
-                "floor": 0.996,
-                "to": 0.989,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            }
-        },
-        "dot-real-siblings@matched": {
-            "edge.route": {
-                "floor": 0.975,
-                "to": 0.961,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            },
-            "edge.curve": {
-                "floor": 0.993,
-                "to": 0.989,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-15: oracle redrawn by Graphviz 16.1.0 in WebAssembly with each fontname sized as graphty-element sizes it (#8195): at that oracle two elements miss by under two render px -- s_proteinstab's place (1.6 px against a 1.5 px floor of the tolerance) and one softmaint route at matched places; left to judge under #8194",
+                "date": "2026-11-16"
             }
         },
         "dot-specimen-edges-lines": {
@@ -56325,6 +56291,14 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
+            }
+        },
+        "dot-synth-nodes": {
+            "node.position": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "2026-11-15: oracle redrawn by Graphviz 16.1.0 in WebAssembly with each fontname sized as graphty-element sizes it (#8195): at that oracle two elements miss by under two render px -- s_proteinstab's place (1.6 px against a 1.5 px floor of the tolerance) and one softmaint route at matched places; left to judge under #8194",
+                "date": "2026-11-16"
             }
         },
         "gml-synthetic-coverage": {

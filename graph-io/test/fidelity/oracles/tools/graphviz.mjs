@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Re-creates the Graphviz oracles: each DOT sample drawn by the Graphviz 14.1.2 CLI with -Tsvg,
-// and each GML sample whose only other route was gml2gv drawn by gml2gv | neato -n2 -Tsvg (a
+// Re-creates the Graphviz oracles: each DOT sample drawn by Graphviz in WebAssembly (@hpcc-js/wasm-graphviz, the
+// build graphty-element lays DOT files out with, pinned in its package.json) as SVG, and each GML sample whose only other route was gml2gv drawn by gml2gv | neato -n2 -Tsvg (a
 // stand-in: the program that wrote those files, yEd, cannot run here). The SVG is written as Graphviz
 // printed it (Graphviz writes no timestamp or run-dependent data), but for one thing: a font-family that
 // names no generic family gets sans-serif after it (withSansFallback), the face Graphviz measured it in.
@@ -19,14 +19,17 @@
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import console from "node:console";
 import process from "node:process";
 
 import { mainCheckout } from "./main-checkout.mjs";
+import { graphvizFamilyFor } from "../../../../../graphty-element/src/layout/graphviz/fonts.ts";
+import { graphvizFont } from "../../../../dist/dot.js";
 import { isYedDrawing } from "./own-drawing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -140,6 +143,7 @@ function write(id, file, printed, fields, rasterEnv = "", path = id) {
         fonts:
             "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, " +
             "each font-family resolved to the face a browser draws it in, Verdana to the test pages' Inter)",
+        ...(fields.fonts === undefined ? {} : { fonts: fields.fonts }),
         svgPostprocessing:
             "a font-family naming no generic family gets sans-serif after it, the face Graphviz measured it in; " +
             "otherwise Graphviz's output byte for byte",
@@ -150,14 +154,101 @@ function write(id, file, printed, fields, rasterEnv = "", path = id) {
     console.log(`${id}: ${meta.canvas.widthPx} x ${meta.canvas.heightPx} px`);
 }
 
+// The DOT samples are drawn by the Graphviz build graphty-element runs (issue #8195): the native CLI sizes labels
+// through pango and routes splines=ortho with another release, so its node places and routes differ from any
+// graphty-element drawing for reasons that are not graphty-element's. The WebAssembly build has no fonts and sizes
+// each label from its built-in width tables, picked by fontname; so, as graphty-element's layout does
+// (src/layout/graphviz/fonts.ts, graphvizFamilyFor), each fontname is handed to Graphviz as the table family nearest
+// the face Chromium draws it in, and the written SVG keeps the file's own font names.
+// size= goes in as the graph's last statement, so it wins over a size the file sets itself, as the CLI's -G does.
+// A fresh instance draws each layout: one instance laying out several files in a row fails on a later one
+// ("table index is out of bounds").
+const elementRequire = createRequire(join(repo, "graphty-element/package.json"));
+const wasmPkg = JSON.parse(
+    readFileSync(join(dirname(elementRequire.resolve("@hpcc-js/wasm-graphviz")), "../package.json"), "utf8"),
+);
+const { Graphviz } = await import(pathToFileURL(elementRequire.resolve("@hpcc-js/wasm-graphviz")).href);
+async function wasmLayout(dot, engine) {
+    Graphviz.unload();
+    const graphviz = await Graphviz.load();
+    return { svg: graphviz.layout(dot, "svg", engine), version: graphviz.version() };
+}
+const FONT_ATTR = /\s(font-family|font-weight|font-style)="[^"]*"/g;
+const textTags = (svg) => svg.match(/<text\b[^>]*>/g) ?? [];
+const fontAttrs = (tag) => (tag.match(FONT_ATTR) ?? []).join("");
+
+/**
+ * The Graphviz family each fontname is sized as, chosen as graphty-element chooses it (graphvizFamilyFor): the face
+ * graph-io says a fontname is drawn in, measured on a canvas in Chromium, with "Verdana" registered as the Inter the
+ * test pages draw it in (graphty-element/test/helpers/pin-label-font.ts).
+ * @param fontnames - the fontnames, as the file gives them
+ * @returns each fontname's family
+ */
+async function sizingFamilies(fontnames) {
+    const pairs = new Map();
+    const record = (css, text) => {
+        pairs.set(`${css}\n${text}`, [css, text]);
+        return 1;
+    };
+    for (const name of fontnames) graphvizFamilyFor(graphvizFont(name), record);
+    const { chromium } = elementRequire("playwright");
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        const woff = readFileSync(join(repo, "graphty-element/test/fonts/inter-latin.woff2")).toString("base64");
+        await page.setContent(
+            `<style>@font-face{font-family:"Verdana";src:url(data:font/woff2;base64,${woff})}</style>`,
+        );
+        const widths = await page.evaluate(
+            async (list) => {
+                // runs in the page, where globalThis is the window
+                await globalThis.document.fonts.load("14px Verdana");
+                const context = globalThis.document.createElement("canvas").getContext("2d");
+                return list.map(([css, text]) => {
+                    context.font = css;
+                    return context.measureText(text).width;
+                });
+            },
+            [...pairs.values()],
+        );
+        const measured = new Map([...pairs.keys()].map((key, i) => [key, widths[i]]));
+        const measure = (css, text) => measured.get(`${css}\n${text}`);
+        return new Map(fontnames.map((name) => [name, graphvizFamilyFor(graphvizFont(name), measure)]));
+    } finally {
+        await browser.close();
+    }
+}
+
 for (const [id, file] of DOT) {
     if (wanted.size && !wanted.has(id)) continue;
     const src = readFileSync(join(testDir, file), "utf8");
     const engine = /\blayout\s*=\s*"?(\w+)/.exec(src)?.[1] ?? "dot";
-    const args = [`-K${engine}`, "-Tsvg", `-Gsize=${SIZE}`, join(testDir, file)];
-    write(id, file, run("dot", args), {
+    const end = src.lastIndexOf("}");
+    const sized = `${src.slice(0, end)}size="${SIZE}";\n${src.slice(end)}`;
+    const FONTNAME = /\bfontname\s*=\s*("(?:[^"\\]|\\.)*"|[\w.-]+)/g;
+    const unquote = (value) => (value.startsWith('"') ? JSON.parse(value) : value);
+    const names = [...new Set([...sized.matchAll(FONTNAME)].map(([, value]) => unquote(value)))];
+    const families = await sizingFamilies(names);
+    // Graphviz's default fontname, Times-Roman, is already the Times table; a text with no fontname keeps it
+    const mapped = sized.replace(FONTNAME, (_, value) => `fontname="${families.get(unquote(value))}"`);
+    const own = await wasmLayout(sized, engine);
+    const laid = await wasmLayout(mapped, engine);
+    const ownTags = textTags(own.svg);
+    const laidTags = textTags(laid.svg);
+    if (ownTags.length !== laidTags.length) throw new Error(`${id}: the two layouts write different texts`);
+    let i = 0;
+    const svg = laid.svg.replace(/<text\b[^>]*>/g, (tag) => {
+        const attrs = fontAttrs(ownTags[i++]);
+        return tag.replace(FONT_ATTR, "").replace(/<text\b/, `<text${attrs}`);
+    });
+    write(id, file, svg, {
         engine,
-        command: `dot -K${engine} -Tsvg -Gsize="${SIZE}" <file>`,
+        version: `${laid.version} (@hpcc-js/wasm-graphviz ${wasmPkg.version}, WebAssembly, as graphty-element runs it)`,
+        command: `Graphviz.layout(<file with size="${SIZE}" as its last statement, each fontname as its sizing family>, "svg", "${engine}")`,
+        fonts:
+            "Graphviz in WebAssembly has no fonts: each fontname is laid out as the built-in width table nearest the " +
+            "face Chromium draws the fontname in, as graphty-element chooses it (graphvizFamilyFor): " +
+            JSON.stringify(Object.fromEntries(families)),
         engineSource:
             engine === "dot"
                 ? "the file names no layout, so dot (Graphviz's default)"

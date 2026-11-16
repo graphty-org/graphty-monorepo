@@ -39,8 +39,14 @@ export const GRAPHVIZ_FAMILIES: readonly (readonly [name: string, width: number]
 /** Graphviz's own default `fontname`. */
 const DEFAULT_FONTNAME = "Times-Roman";
 
-/** The font size the probe is measured at, in CSS pixels: large, so the width is not rounded. */
-const MEASURE_PX = 100;
+/**
+ * The font size the probe is measured at, in CSS pixels: Graphviz's default `fontsize`, the size most labels are drawn
+ * at. Not a large size for precision: a face with optical sizing (Inter, which the test pages draw "Verdana" in) is
+ * drawn about 9 percent narrower at 100 px than at 14 px, so a probe measured large picks a table far narrower than
+ * the labels as drawn (issue #8195). A canvas measures fractional widths, so 14 px loses nothing.
+ */
+// ponytail: one size for every label; measure per fontsize if a file's large or small labels show the gap
+const MEASURE_PX = 14;
 
 /** A font as the element draws it: a CSS family list, and whether it is bold and italic. */
 export interface DrawnFont {
@@ -71,17 +77,29 @@ export function canvasMeasure(): MeasureText | null {
     };
 }
 
+/** The families whose tables are monospaced: a proportional face is never sized by one, nor a monospaced by another. */
+const MONOSPACED = new Set(["Courier", "Consolas"]);
+
+/** Two runs of one narrow and one wide letter: a monospaced face draws them the same width. */
+const NARROW = "iiiiiiiiii";
+const WIDE = "MMMMMMMMMM";
+
 /**
- * The family Graphviz sizes a font's text nearest to how the browser draws it.
+ * The family Graphviz sizes a font's text nearest to how the browser draws it: of the tables of the same kind
+ * (monospaced or proportional), the one whose width of {@link FONT_PROBE} is nearest the drawn face's. Matching on the
+ * probe alone hands a proportional face a monospaced table of the same average width, which lays every narrow-lettered
+ * label far wider than it is drawn (issue #8195).
  * @param font - the font as the element draws it
  * @param measure - measures text in a CSS font
  * @returns the name of the Graphviz family whose widths are nearest the drawn face's
  */
-function graphvizFamilyFor(font: DrawnFont, measure: MeasureText): string {
+export function graphvizFamilyFor(font: DrawnFont, measure: MeasureText): string {
     const css = `${font.italic ? "italic" : "normal"} ${font.bold ? "bold" : "normal"} ${MEASURE_PX}px ${font.family}`;
     const drawn = measure(css, FONT_PROBE) / MEASURE_PX;
-    let best = GRAPHVIZ_FAMILIES[0];
-    for (const family of GRAPHVIZ_FAMILIES) {
+    const monospaced = Math.abs(Math.log(measure(css, NARROW) / measure(css, WIDE))) < 0.02;
+    const candidates = GRAPHVIZ_FAMILIES.filter(([name]) => MONOSPACED.has(name) === monospaced);
+    let best = candidates[0];
+    for (const family of candidates) {
         if (Math.abs(Math.log(drawn / family[1])) < Math.abs(Math.log(drawn / best[1]))) {
             best = family;
         }

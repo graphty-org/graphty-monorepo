@@ -3,20 +3,20 @@
     "file": "graph-io/test/corpus/styles/dot/fidelity/real-linux-kernel.gv",
     "sha256": "652086437129d0254bc7ada5c4c17be4b32a166bc6b3605626ec10465c464383",
     "program": "Graphviz",
-    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "version": "16.1.0 (@hpcc-js/wasm-graphviz 1.29.2, WebAssembly, as graphty-element runs it)",
     "engine": "dot",
-    "command": "dot -Kdot -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "command": "Graphviz.layout(<file with size=\"12.5,9.375!\" as its last statement, each fontname as its sizing family>, \"svg\", \"dot\")",
+    "fonts": "Graphviz in WebAssembly has no fonts: each fontname is laid out as the built-in width table nearest the face Chromium draws the fontname in, as graphty-element chooses it (graphvizFamilyFor): {\"Helvetica,Arial,sans-serif\":\"Helvetica\",\"Arial Narrow\":\"Helvetica\"}",
     "engineSource": "the file names no layout, so dot (Graphviz's default)",
     "standIn": false,
     "canvas": {
         "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
         "widthPt": 900,
-        "heightPt": 491,
+        "heightPt": 496,
         "widthPx": 1200,
-        "heightPx": 655
+        "heightPx": 661
     },
-    "fonts": "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, each font-family resolved to the face a browser draws it in, Verdana to the test pages' Inter)",
     "svgPostprocessing": "a font-family naming no generic family gets sans-serif after it, the face Graphviz measured it in; otherwise Graphviz's output byte for byte",
-    "date": "2026-10-31",
+    "date": "2026-11-16",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-real-linux-kernel && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-real-linux-kernel.svg"
 }

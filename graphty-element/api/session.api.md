@@ -4531,6 +4531,12 @@ export type PreparedBackgroundImage = {
 };
 
 // @public
+export interface PreparePageControl {
+    readonly onProgress?: (fraction: number) => void;
+    readonly signal?: AbortSignal;
+}
+
+// @public
 export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
 
 // @public
@@ -6290,6 +6296,7 @@ export interface SessionDataApi {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     }): Promise<LoadDraft>;
+    preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];

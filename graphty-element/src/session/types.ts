@@ -382,6 +382,14 @@ export interface EdgePageOptions extends RecordPageOptions {
     readonly touching?: NodeId;
 }
 
+/** How a caller follows and stops {@link SessionDataApi.preparePage}. */
+export interface PreparePageControl {
+    /** Stops the work: the call rejects with the signal's reason, and no order is kept. */
+    readonly signal?: AbortSignal;
+    /** Told how far the work has got, from 0 to 1, between two slices and once more at the end. */
+    readonly onProgress?: (fraction: number) => void;
+}
+
 /** One window onto an ordered list of records. */
 export interface RecordPage<TRecord> {
     /** The records, deep-frozen; at most `limit` of them, fewer at the end of the list. */
@@ -1311,6 +1319,29 @@ export interface SessionDataApi {
         options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
     ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * Compute the order a {@link nodePage} or {@link edgePage} read with the same options needs,
+     * a slice at a time, handing the thread back between slices so the page stays responsive. Once
+     * it settles, that page read returns at once; until then the orders already computed still
+     * read at once, so a table can keep showing its old order while the new one is prepared. The
+     * order is the one the page read would compute. An edit while it works starts it again.
+     *
+     * ```ts
+     * const stop = new AbortController();
+     * await session.data.preparePage("node", { sort: { key: "name" } }, {
+     *     signal: stop.signal,
+     *     onProgress: (fraction) => console.log(fraction),
+     * });
+     * const page = session.data.nodePage({ sort: { key: "name" }, limit: 30 }); // at once
+     * ```
+     * @param kind - `"node"` for {@link nodePage}, `"edge"` for {@link edgePage}
+     * @param options - the scope, the order, the filters and the node; the window is ignored
+     * @param control - a signal to stop it and a progress callback
+     * @returns settles once the order is ready
+     * @throws The signal's reason once it aborts; `E_UNKNOWN_RUN`, `E_UNKNOWN_ATTRIBUTE` or
+     *     `E_BAD_COMMAND` as the page read would; `E_DISPOSED` once the session is disposed.
+     */
+    preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
     /**
      * The runs whose result a node or an edge page can show as a column with no field named: every
      * run, in the session's order, whose primary field holds one value per record of that kind.

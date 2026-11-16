@@ -284,6 +284,17 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.preparePage()": {
+        view: async (s) => {
+            await s.data.preparePage("node", { sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, sort: { key: "id" } });
+        },
+        whole: async (s) => {
+            await s.data.preparePage("node", { scope: "graph", sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, scope: "graph", sort: { key: "id" } });
+        },
+        windowMasks: true,
+    },
     "data.previewSource()": "not the graph",
     "data.previewType()": "not the graph",
     "data.readableValues()": "not the graph",

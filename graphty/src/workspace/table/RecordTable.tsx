@@ -7,6 +7,7 @@ import {
 } from "@graphty/compact-mantine";
 import type {
     EdgeId,
+    EdgePageOptions,
     EdgeRecord,
     GraphSession,
     IssueId,
@@ -17,15 +18,20 @@ import type {
     ScopeInput,
 } from "@graphty/graphty-element/session";
 import { Menu } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useShowingBranches } from "../selection/useSteps";
 import { useNumberFormats } from "../settings/numberFormat";
+import type { Notice } from "../state/store";
+import { useWorkspace } from "../state/WorkspaceContext";
 import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
 /** How many records past the drawn rows a window reads, above and below. */
 const WINDOW_PAD = 50;
+
+/** How long a new sort runs before the notice shows its progress and its Cancel, in ms. */
+export const SORT_NOTICE_MS = 300;
 
 /** One drawn row: the record, and its position in the page's result columns. */
 interface Row {
@@ -189,22 +195,97 @@ export function RecordTable({
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
+    // The sort the rows are drawn in: a new one takes over once graphty-element has prepared it.
+    const [shown, setShown] = useState(sort);
+    const { store } = useWorkspace();
     const numberFormats = useNumberFormats();
     // Rows take their group's color only while the canvas draws the group colors.
     const filled = useShowingBranches(session);
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
-    const sorted = columns.find((column) => column.id === sort?.id);
+    const orderOptions = (by: DataTableSort | null): EdgePageOptions => {
+        const column = columns.find((each) => each.id === by?.id);
+        return {
+            scope,
+            ...(issue === null ? {} : { issue }),
+            ...(matching === undefined ? {} : { matching: { text: matching } }),
+            ...(column === undefined ? {} : { sort: elementSort(column, by?.desc ?? false) }),
+        };
+    };
+    const wanted = orderOptions(sort);
+    const wantedKey = JSON.stringify(wanted);
+    const shownKey = JSON.stringify(orderOptions(shown));
+    // What the effect below reads when it runs, so it restarts only when the request changes.
+    const latest = useRef({ wanted, sort, shown, onSortChange });
+    latest.current = { wanted, sort, shown, onSortChange };
 
+    // A new sort is prepared by the element a slice at a time while the old order stays drawn; one
+    // that takes a while shows its progress in the notice, whose Cancel keeps the old order.
+    useEffect(() => {
+        if (wantedKey === shownKey) {
+            return undefined;
+        }
+        const { wanted: request, sort: next, shown: before, onSortChange: change } = latest.current;
+        const stop = new AbortController();
+        let noticed: Notice | null = null;
+        let fraction = 0;
+        const notify = (): void => {
+            noticed = {
+                message: `Sorting ${String(Math.round(fraction * 100))}%`,
+                lasting: true,
+                action: {
+                    label: "Cancel",
+                    run: () => {
+                        stop.abort();
+                        change(before);
+                    },
+                },
+            };
+            store.set({ notice: noticed });
+        };
+        const timer = setTimeout(notify, SORT_NOTICE_MS);
+        const finish = (): void => {
+            clearTimeout(timer);
+            if (noticed !== null) {
+                store.set((state) => (state.notice === noticed ? { notice: null } : {}));
+            }
+        };
+        session.data
+            .preparePage(kind, request, {
+                signal: stop.signal,
+                onProgress: (done) => {
+                    fraction = done;
+                    if (noticed !== null) {
+                        notify();
+                    }
+                },
+            })
+            .then(
+                () => {
+                    finish();
+                    setShown(next);
+                },
+                () => {
+                    finish();
+                    // A failure other than Cancel: the page read reports it as before.
+                    if (!stop.signal.aborted) {
+                        setShown(next);
+                    }
+                },
+            );
+        return () => {
+            stop.abort();
+            finish();
+        };
+    }, [wantedKey, shownKey, session, kind, store]);
+
+    const sorted = columns.find((column) => column.id === shown?.id);
     // Read on every render: the element caches a sorted page per revision, and the dock re-renders
     // this whenever the element reports a change.
     const options = {
+        ...orderOptions(shown),
         offset: range.offset,
         limit: range.limit,
-        scope,
         columns: runIds,
-        ...(issue === null ? {} : { issue }),
-        ...(matching === undefined ? {} : { matching: { text: matching } }),
-        ...(sorted === undefined ? {} : { sort: elementSort(sorted, sort?.desc ?? false) }),
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =
         kind === "node" ? session.data.nodePage(options) : session.data.edgePage(options);
@@ -307,7 +388,7 @@ export function RecordTable({
             columnSizing="content"
             // The inspector's and the key's spelling, so one score reads alike in all three.
             formatNumber={numberFormats.number}
-            sorting={sort === null ? [] : [sort]}
+            sorting={sorted === undefined || shown === null ? [] : [shown]}
             onSortingChange={(next) => {
                 onSortChange(next[0] ?? null);
             }}

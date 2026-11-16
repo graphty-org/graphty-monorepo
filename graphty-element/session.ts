@@ -163,6 +163,7 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,

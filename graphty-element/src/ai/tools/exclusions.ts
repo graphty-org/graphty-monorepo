@@ -609,6 +609,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    {
+        root: "SessionDataApi",
+        members: ["preparePage"],
+        reason: "covered-by",
+        by: "query.nodes",
+        kind: BY_DESIGN,
+    },
     { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     // A node's name, and an edge's as its two ends' names: `query.node` returns each node's name.
     {

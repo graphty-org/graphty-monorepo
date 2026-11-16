@@ -44,12 +44,68 @@ export class RevisionCache<T> {
         }
 
         const value = build();
-        if (this.#values.size >= this.#max) {
+        this.#store(key, value);
+        return value;
+    }
+
+    /**
+     * The revision now, for work that spans a wait: hand it to {@link isCurrent} or {@link put}.
+     * @returns The revision.
+     */
+    now(): unknown {
+        return this.#revision();
+    }
+
+    /**
+     * Whether the revision is still the one read earlier.
+     * @param at - What {@link now} returned.
+     * @returns True when nothing has moved since.
+     */
+    isCurrent(at: unknown): boolean {
+        return sameRevision(at, this.#revision());
+    }
+
+    /**
+     * Whether a key holds a value for the current revision.
+     * @param key - Which value.
+     * @returns True when a read of it costs nothing.
+     */
+    has(key: string): boolean {
+        return this.isCurrent(this.#at) && this.#values.has(key);
+    }
+
+    /**
+     * Keep a value built across a wait, if the revision it was built at is still current.
+     * @param key - Which value.
+     * @param value - The value.
+     * @param at - What {@link now} returned before the build began.
+     * @returns True when it was kept.
+     */
+    put(key: string, value: T, at: unknown): boolean {
+        if (!this.isCurrent(at)) {
+            return false;
+        }
+
+        if (!sameRevision(at, this.#at)) {
+            this.#values.clear();
+            this.#at = at;
+        }
+
+        this.#store(key, value);
+        return true;
+    }
+
+    /**
+     * Keep a value, dropping the oldest past the limit.
+     * @param key - Which value.
+     * @param value - The value.
+     */
+    #store(key: string, value: T): void {
+        if (!this.#values.has(key) && this.#values.size >= this.#max) {
             this.#values.delete(this.#values.keys().next().value as string);
         }
 
         this.#values.set(key, value);
-        return value;
     }
 }
 

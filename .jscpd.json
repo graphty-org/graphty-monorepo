@@ -21,6 +21,7 @@
         "**/*.min.js",
         "**/vitest*.config.*",
         "**/vite.config.*",
+        "**/.vitepress/config.*",
         "**/.storybook/**",
         "**/commitlint.config.*",
         "**/eslint.config.*"

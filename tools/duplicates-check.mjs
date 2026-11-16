@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // The duplicate code check: jscpd (configured by .jscpd.json) scans the checkout and the push base, and
 // the check fails on an exact clone the base did not have, when both its sides are non-test code and one
-// of them is in a file this push changes. A new clone that touches a test, story, fixture or benchmark is
+// of them holds lines this push adds. A new clone that touches a test, story, fixture or benchmark is
 // printed and does not fail. Run by tools/prepush-source-checks.sh, tools/check-quick.sh and CI's Checks job.
 //
 //   node tools/duplicates-check.mjs   (the base: tools/push-base.mjs, or $PUSH_BASE_REF)
 //
 // Why two scans and not jscpd's --baseline-from-ref: its fingerprint is the clone's raw text, so editing a
-// comment inside a clone that both files already shared made it "new". Here a clone is keyed by its two
-// files and its text with comments and whitespace removed. Only exact clones count: jscpd's similar
-// (--similarity) clones pick a different representative of a group on each run.
+// comment inside a clone that both files already shared made it "new". Here a clone is old when the base
+// had a clone between the same two files whose text, with comments and whitespace removed, contains it
+// (all but its first and last lines): editing a line inside an old clone splits it into smaller ones that
+// end on the edited line, and the base clone still contains the rest. A clone must also overlap a line the
+// push adds (git diff -M), so renaming or moving a file adds nothing. Only exact clones count: jscpd's
+// similar (--similarity) clones pick a different representative of a group on each run.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,30 +27,62 @@ const TEST =
     /(^|\/)(tests?|__tests__|e2e|stories|fixtures|benchmarks?|acceptance)\/|\.(test|spec|stories|bench)\.[cm]?[jt]sx?$/;
 export const isTest = (file) => TEST.test(file);
 
+// The fragment holds whole lines, so a clone split by an edit ends (or starts) on the edited line: compare
+// what lies between its first and last lines.
+const inner = (d) => {
+    const lines = d.fragment.split("\n");
+    return lines.length > 2 ? lines.slice(1, -1).join("\n") : d.fragment;
+};
+const pair = (d) => [d.firstFile.name, d.secondFile.name].sort().join("\0");
 // ponytail: regex comment stripping can eat a "//" inside a string; both scans are stripped alike, so the
 // worst case is two clones read as one.
-const key = (d) =>
-    [d.firstFile.name, d.secondFile.name].sort().join("\0") +
-    "\0" +
-    d.fragment
+const text = (fragment) =>
+    fragment
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/(^|\s)\/\/.*$/gm, "$1")
         .replace(/\s+/g, "");
 
 /**
+ * The lines each file gains in `git diff -U0` output.
+ * @param diff the output of git diff -U0
+ * @returns {Map<string, [number, number][]>} each file's added line ranges, first and last line inclusive
+ */
+export function addedLines(diff) {
+    const added = new Map();
+    let header = false;
+    let ranges = [];
+    for (const l of diff.split("\n")) {
+        // A content line starts with "+", "-", " " or "\\", so "diff --git" and "@@" are always headers;
+        // "+++ " is one only before a file's first hunk (an added line "++ x" also starts with "+++ ").
+        if (l.startsWith("diff --git ")) {
+            header = true;
+            ranges = [];
+        } else if (header && l.startsWith("+++ b/")) {
+            added.set(l.slice(6), ranges);
+        } else if (l.startsWith("@@ ")) {
+            header = false;
+            const [, first, count = "1"] = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(l);
+            if (count !== "0") ranges.push([Number(first), Number(first) + Number(count) - 1]);
+        }
+    }
+    return added;
+}
+
+/**
  * The new clones of a scan, split into the ones that fail the check and the ones only reported.
  * @param head the jscpd report's duplicates of the checkout
  * @param base the jscpd report's duplicates of the push base
- * @param changed the files the push changes (paths from the repository root)
+ * @param added the lines the push adds, per file (paths from the repository root; see addedLines)
  * @returns {{ blocking: object[], report: object[] }}
  */
-export function newClones(head, base, changed) {
-    const old = new Set(base.filter((d) => d.kind === "exact").map(key));
-    const touched = new Set(changed);
-    const fresh = head.filter(
-        (d) =>
-            d.kind === "exact" && (touched.has(d.firstFile.name) || touched.has(d.secondFile.name)) && !old.has(key(d)),
+export function newClones(head, base, added) {
+    const old = Map.groupBy(
+        base.filter((d) => d.kind === "exact"),
+        pair,
     );
+    const hits = (f) => added.get(f.name)?.some(([first, last]) => f.start <= last && first <= f.end);
+    const isOld = (d) => old.get(pair(d))?.some((b) => text(b.fragment).includes(text(inner(d))));
+    const fresh = head.filter((d) => d.kind === "exact" && (hits(d.firstFile) || hits(d.secondFile)) && !isOld(d));
     const prod = (d) => !isTest(d.firstFile.name) && !isTest(d.secondFile.name);
     return { blocking: fresh.filter(prod), report: fresh.filter((d) => !prod(d)) };
 }
@@ -66,12 +101,13 @@ function main() {
     const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
     const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
     const mb = pushBase({ cwd: root });
-    const changed = [
-        ...git("diff", "--name-only", "--diff-filter=ACMR", mb).split("\n"),
-        ...git("ls-files", "--others", "--exclude-standard").split("\n"),
-    ].filter((f) => /\.[cm]?[jt]sx?$/.test(f));
-    if (changed.length === 0) {
-        console.log(`No JavaScript or TypeScript file changed since ${mb.slice(0, 12)}: nothing to check.`);
+    const script = /\.[cm]?[jt]sx?$/;
+    const added = addedLines(git("-c", "core.quotePath=false", "diff", "-M", "-U0", "--diff-filter=ACMR", mb));
+    for (const f of git("ls-files", "--others", "--exclude-standard").split("\n"))
+        if (script.test(f)) added.set(f, [[1, Infinity]]);
+    for (const [f, ranges] of added) if (!script.test(f) || ranges.length === 0) added.delete(f);
+    if (added.size === 0) {
+        console.log(`No JavaScript or TypeScript lines added since ${mb.slice(0, 12)}: nothing to check.`);
         return 0;
     }
     const tmp = mkdtempSync(join(tmpdir(), "duplicates-check-"));
@@ -99,7 +135,7 @@ function main() {
     } finally {
         rmSync(tmp, { recursive: true, force: true });
     }
-    const { blocking, report } = newClones(head, base, changed);
+    const { blocking, report } = newClones(head, base, added);
     if (report.length)
         console.log(`New clones that touch tests (reported, not failing):\n${report.map(line).join("\n")}`);
     if (blocking.length) {

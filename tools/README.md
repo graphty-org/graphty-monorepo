@@ -170,8 +170,9 @@ checked by jscpd. Both run on every push and in CI, so nothing needs a server or
   deliberate legacy carry-over (a moved file, see "Lint"), and the reply says so.
 - **Duplicate code: `pnpm run check:duplicates`** (`tools/duplicates-check.mjs`, jscpd configured by
   `.jscpd.json`) runs in the pre-push source checks, in `check:quick` and in CI's Checks job. It fails on a new
-  exact clone between two pieces of non-test code when one side is in a file the branch changes; a new clone that
-  touches a test, story, fixture or benchmark is listed and does not fail. Reuse or extract the existing code. A
+  exact clone between two pieces of non-test code that overlaps a line the branch adds; a new clone that touches a
+  test, story, fixture or benchmark is listed and does not fail. Editing inside a clone that was already there, or
+  renaming its file, adds no new clone. Reuse or extract the existing code. A
   deliberate parallel goes in `.jscpd.json`'s `ignore`, with its reason in the commit message (JSON holds no
   comments).
 

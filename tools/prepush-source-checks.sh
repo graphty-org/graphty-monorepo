@@ -182,7 +182,7 @@ else
         "$ROOT_DIR/tmp/prepush-steps/ci-workflow-tests.log"
 
     # Duplicate code: jscpd on the checkout and the push base; a new exact clone between two pieces of
-    # non-test code, one of them in a file this push changes, fails (tools/duplicates-check.mjs). About
+    # non-test code, overlapping a line this push adds, fails (tools/duplicates-check.mjs). About
     # 15 s, so in the background beside the checks below.
     bg_step "Duplicate code" "pnpm run check:duplicates" "$ROOT_DIR/tmp/prepush-steps/duplicates.log"
 

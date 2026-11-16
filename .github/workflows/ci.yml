@@ -1484,8 +1484,8 @@ jobs:
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
 
-            # Duplicate code: a new exact clone between two pieces of non-test code, one in a file this change
-            # touches, fails; clones touching tests are listed only. Measured from the merge base with master
+            # Duplicate code: a new exact clone between two pieces of non-test code, overlapping a line this
+            # change adds, fails; clones touching tests are listed only. Measured from the merge base with master
             # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
             # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
             - name: Duplicate code

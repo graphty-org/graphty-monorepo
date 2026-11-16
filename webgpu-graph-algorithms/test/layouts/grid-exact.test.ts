@@ -52,6 +52,7 @@ import { layoutMetrics, spread } from "../helpers/metrics.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { progressLine } from "../helpers/progress.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, isSoftware, requireGpu } from "../setup/gpu.js";
 
 /** The design's exact-vs-grid fixtures (spec 11.4). */
@@ -382,7 +383,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     it("writes the five approximation members of the UNSCALED random20k / hubcell with their exact-tier references (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // G4-F12: the 4,096-seed hubcell ladder alone costs ~250 s on lavapipe; without the flag the writes
             // are no-ops and test/noise-floor.test.ts checks the committed fixtures on every run.
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

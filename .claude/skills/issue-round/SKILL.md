@@ -29,7 +29,7 @@ branch: a single issue or a group.
 
 First tidy this session's own jobs: release its stale ones (see "Stale" in the shared file; a release always removes
 `in-progress` in the same step), or restart a subagent
-on one whose branch has commits but no `ready` marker, writing a `restarted <branch>` marker on every issue of its
+on one whose branch has commits but no `ready` marker newer than its newest `taken` marker, writing a `restarted <branch>` marker on every issue of its
 group. A job that already has a `restarted` marker since its newest `taken` marker is not restarted again: release it
 with `released -- subagent died twice, branch <b> kept`. A job whose subagent is still running but whose worktree
 has no commit and no changed file 60 minutes after its `taken` marker is stuck: stop that subagent and release the
@@ -308,21 +308,36 @@ origin/master before opening; on a conflict, settle it, or release with `pipelin
 conflicts with #<n>` and remove `in-progress`." Any other overlap defers the job. Either way the round goes on to the
 next job. The free-queue scan applies the same rule.
 
-**A finished branch with no pull request takes more work instead of blocking it.** While master is red, finished
-branches wait unopened (`ready`, see "While master is red" in the shared file), and an issue whose files one of them
-changes would otherwise wait for it to open and merge -- hours after master turns green. Such an issue joins that
-branch: its job continues on the same branch in the same worktree (merge `origin/master` there first), adds its own
-commit with its own `Fixes #N` line, and writes a new `ready` marker for the head, so the branch opens later as one
-pull request covering both. Its `taken` marker names the branch (`joins ready <branch>`). Only for a branch with no
-pull request and no job running on it, up to four issues a branch (step 2's group limit), and never for a branch whose
-issue is owner-only or labelled `needs-decision`. The free-queue scan writes such an issue as a job with the branch
-named in its `why` (`joins ready <branch>`), not as blocked. On 2026-11-16 thirty of thirty-one queued issues sat
-blocked, most of them on seven finished branches waiting behind a red master, and the rounds started nothing for
-hours.
+**While master is red, a finished branch with no pull request takes more work instead of blocking it.** Finished
+branches wait unopened then (`ready`, see "While master is red" in the shared file), and an issue whose files one of
+them changes would otherwise wait for it to open and merge -- hours after master turns green. On 2026-11-16 thirty of
+thirty-one queued issues sat blocked, most on seven finished branches behind a red master, and the rounds started
+nothing for hours. Such an issue joins that branch:
 
-**A job that fixes the red is marked so.** When the job's issue is a cause of master's red (an issue the red-master or
-full-run alarm links, or one naming a check or test that failed in master's newest red build or full run), its prompt
-adds `This job fixes the red: open it while master is red.` (see "While master is red" in the shared file).
+- **Only when** master is red; the branch has no open pull request; its own issue's (the number in its name) newest
+  marker is `ready <branch> <sha>` with `<sha>` equal to `origin/<branch>`'s tip (a `taken` marker after it means
+  another job has joined it: wait for its `ready`); and the branch would hold at most four issues in all, the ones
+  already on it included. One joining job per branch at a time, across all sessions. While master is green, never
+  join: the branch is about to open, or it failed to open and is pipeline-round's.
+- **Never** for a branch where any issue of its group is owner-only, `needs-decision`, `hold`, `blocked` or
+  `priority:critical`, a branch whose job carried `This job fixes the red`, or a branch whose diff touches a
+  `GUARD_PATHS` file of `tools/pr-open.sh` (the owner merges those). An issue that is itself a cause of the red never
+  joins; it gets its own job.
+- **Mark** the job with `issue-queue.mjs taken <branch> <worktree> <every issue already on the branch> <new issues>
+--files ... --why "joins ready <branch>"`, so the newest marker on the branch's own issue is that `taken` and
+  pipeline-round's step 9 leaves the branch alone while the job runs. Work in the branch's worktree from its last
+  `taken` marker, or a new one (`./tools/worktree-new.sh <branch> origin/<branch> <name>`); merge `origin/master`
+  there first. The job adds its own commit with its own `Fixes #N` line, lists every issue of the branch in its Proof,
+  and when done writes `pipeline-round: ready <branch> <full sha>` for the new head on every issue of the branch's
+  group, its own issue included.
+- **The free-queue scan** writes such an issue as a job with `joins ready <branch>` in its `why`, not as blocked.
+
+**A job that fixes the red is marked so.** A cause of master's red is an issue the red-master or full-run alarm links
+by number, an open master-break issue under "Inherited failures" in the shared file, or a `Flaky test:` issue whose
+test is among the failures of master's newest red build or full run -- never an issue that merely mentions a check.
+Such a job holds only issues that are causes of the red (no riders) and never joins a `ready` branch, and the first
+line of its prompt is exactly `This job fixes the red: open it while master is red.` (see "While master is red" in
+the shared file). It is a fix job for a red master: it takes a test slot before any other issue job.
 
 ## 5. Mark and start
 

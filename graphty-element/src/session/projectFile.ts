@@ -1605,7 +1605,6 @@ function leftOutOfVersion2(
                 (Object.keys(columns.renamed).length > 0 || (columns.hidden.length > 0 && !written.includes("view"))),
         ],
         ["issues", (issues?.fixed ?? []).length > 0],
-        ["fileStyles", fileStyleValuesOf(asFileStyleStore(values.get(FILE_STYLES_VALUE))).length > 0],
         ["visibility.steps", session.visibility.steps.length > 0],
     ];
     return fields

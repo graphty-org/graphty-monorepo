@@ -22,6 +22,9 @@ import { type FileStyleKind, isFileStyleNamespace } from "./path";
 /** The name the store is kept under among the graph-level values. */
 export const FILE_STYLES_VALUE = "fileStyles";
 
+/** The template a load's layers are filed under: `file:<importId>`. */
+export const FILE_TEMPLATE_PREFIX = "file:";
+
 /**
  * One value a file-style column holds for an element.
  * @experimental file-styles

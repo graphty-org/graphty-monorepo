@@ -2702,7 +2702,7 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
 
             return (
                 noteFieldOf(path) !== undefined ||
-                answersFileStyle(fileStyles(), data, path, target) ||
+                answersFileStyle(fileStyles(), path, target) ||
                 answersReadable(data, runs, path, target)
             );
         },
@@ -2725,24 +2725,15 @@ function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Pa
 }
 
 /**
- * Whether a file-style path names a column some load or the data holds, for the kind of element asking.
+ * Whether a file-style path names a column some load holds, for the kind of element asking.
  * @param store - The file-style store.
- * @param data - The session's data surface.
  * @param path - The path.
  * @param target - Whether the asking layer paints nodes or edges.
- * @returns True when the store or the data holds that column.
+ * @returns True when the store holds that column.
  */
-function answersFileStyle(store: FileStyleStore, data: SessionDataApi, path: Path, target: "node" | "edge"): boolean {
+function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
     const parts = parseFileStylePath(path);
-    if (parts?.kind !== target) {
-        return false;
-    }
-
-    // A version 2 save file keeps the column in its source's data, an attribute named the path.
-    return (
-        fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined ||
-        data.attributes().some((attribute) => attribute.kind === target && attribute.name === path)
-    );
+    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
 }
 
 /**

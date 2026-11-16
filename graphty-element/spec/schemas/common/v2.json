@@ -818,7 +818,7 @@
         "layerSource": {
             "type": "object",
             "required": ["by"],
-            "description": "Who made the layer, other than the reader: a layer the reader made writes no source, and an absent source means the reader made it.",
+            "description": "The run, template or plugin that made the layer: a layer no run, template or plugin made writes no source, in style and view alike.",
             "properties": {
                 "by": {
                     "type": "string",

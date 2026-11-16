@@ -1,7 +1,6 @@
 /**
  * @file The paths of the values graphty-element keeps per element beside the data: a file's style
- * values (`graphty.style.<namespace>.<kind>.<key>`, the namespace a load's format or a save file's
- * source id) and the live degrees (`graphty.degree`,
+ * values (`graphty.style.<namespace>.<kind>.<key>`) and the live degrees (`graphty.degree`,
  * `graphty.inDegree`, `graphty.outDegree`).
  *
  * Every such path is built and parsed HERE and nowhere else. A proposal to move every per-element
@@ -41,9 +40,6 @@ const COMPUTED_BY_PATH: ReadonlyMap<Path, ComputedValue> = new Map(
 /** A namespace: the format id or JSON dialect, lowercase, with no dot, and `-2`, `-3`... after a repeat. */
 const NAMESPACE = /^[a-z0-9][a-z0-9_-]*$/;
 
-/** A save file source id (version 2): `src_` plus a ULID, 26 Crockford base-32 characters. */
-export const SOURCE_ID = /^src_[0-9A-HJKMNP-TV-Z]{26}$/;
-
 /** A file-style path, parsed. */
 export interface FileStylePathParts {
     readonly namespace: string;
@@ -54,17 +50,16 @@ export interface FileStylePathParts {
 /**
  * Whether a string can be a file-style namespace.
  * @param namespace - The candidate.
- * @returns True for a lowercase name with no dot, or a save file source id.
+ * @returns True for a lowercase name with no dot.
  */
 export function isFileStyleNamespace(namespace: string): boolean {
-    return (namespace.length <= 64 && NAMESPACE.test(namespace)) || SOURCE_ID.test(namespace);
+    return namespace.length <= 64 && NAMESPACE.test(namespace);
 }
 
 /**
  * The path a layer reads one file-style column at.
  * @param namespace - The load's namespace: the graph-io format id or JSON dialect (`gexf`,
- *     `cytoscape-js`), `gexf-2` for a second load of one format kept beside the first, or a save
- *     file's source id (`src_<ULID>`, `reader`).
+ *     `cytoscape-js`), `gexf-2` for a second load of one format kept beside the first.
  * @param kind - Nodes or edges.
  * @param key - The column's key, which may hold dots (`member.3`).
  * @returns `graphty.style.<namespace>.<kind>.<key>`.

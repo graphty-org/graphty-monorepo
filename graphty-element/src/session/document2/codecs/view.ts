@@ -30,7 +30,7 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
-import { typedIds } from "./dataRefs";
+import { type LoadedLooks, loadedLooksAsColumns, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
@@ -274,7 +274,7 @@ function runJson(w: Writer, run: Run, pointer: string): JsonObject {
 }
 
 /**
- * Whether a layer belongs in view (spec 5 rule 5): it names elements, or it paints a file style.
+ * Whether a layer belongs in view (spec 5 rule 5): it names elements.
  * @param layer - The layer.
  * @param session - The session.
  * @returns True when it does.
@@ -284,7 +284,7 @@ function inView(layer: Layer, session: GraphSession): boolean {
         return false;
     }
 
-    return layer.fileStyle !== undefined || layerNamesElements(layer, session);
+    return layerNamesElements(layer, session);
 }
 
 /**
@@ -292,10 +292,13 @@ function inView(layer: Layer, session: GraphSession): boolean {
  * (an absent `source` means reader-made), any other written as it is.
  * @param w - The writer.
  * @param source - The layer's source.
+ * @param looks - The look values a load kept, as columns.
  * @returns The member, or nothing.
  */
-function layerSourceJson(w: Writer, source: LayerSpec["source"]): JsonObject {
-    if (source === undefined || source.by === "user") {
+function layerSourceJson(w: Writer, source: LayerSpec["source"], looks: LoadedLooks): JsonObject {
+    // Temporary, with loadedLooksAsColumns (issue 8259): a layer filed under a load's template
+    // writes no source, as a layer the reader made does.
+    if (source === undefined || source.by === "user" || looks.madeByLoad(source)) {
         return {};
     }
     if (source.by !== "run") {
@@ -311,6 +314,7 @@ function layerSourceJson(w: Writer, source: LayerSpec["source"]): JsonObject {
  * @returns The layers.
  */
 function layersJson(w: Writer): JsonObject[] {
+    const looks = loadedLooksAsColumns(w.session);
     return w.session.styles
         .list()
         .filter((layer) => !layer.locked && inView(layer, w.session))
@@ -323,10 +327,9 @@ function layersJson(w: Writer): JsonObject[] {
                 selector: mapRefs(layer.selector, w.mapper, ""),
                 ...(layer.set === undefined ? {} : { set: layer.set }),
                 ...(layer.encode === undefined ? {} : { encode: mapRefs(layer.encode, w.mapper, "") }),
-                ...layerSourceJson(w, source),
+                ...layerSourceJson(w, source, looks),
                 ...(layer.enabled ? {} : { enabled: false }),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
-                ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
             };
         });
 }

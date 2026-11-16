@@ -50,6 +50,7 @@ import {
     dataBodyOf,
     edgeKey,
     edgeRefOf,
+    freeColumnName,
     isPlainObject,
     keyText,
     nodeRefOf,
@@ -628,7 +629,7 @@ function takeColumns(
         } else if (!(name in node.columns)) {
             node.columns[name] = value;
         } else if (!row.repeated && canonicalJson(node.columns[name]) !== canonicalJson(value)) {
-            node.columns[`${name} (${source})`] = value;
+            node.columns[freeColumnName(name, source, (each) => each in node.columns)] = value;
         }
     }
 }
@@ -1171,7 +1172,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
             idPath: "id",
         },
     });
-    const edgesBefore = tx.data.edges().length;
+    const edgesBefore = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({
         op: "data.apply",
         mutation: {
@@ -1183,7 +1184,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         },
     });
     const edgeIds = tx.data
-        .edges()
+        .edges({ scope: "graph" })
         .slice(edgesBefore)
         .map((edge) => edge.id);
     const provenance: Record<string, { nodes: NodeId[]; edges: EdgeId[] }> = {};

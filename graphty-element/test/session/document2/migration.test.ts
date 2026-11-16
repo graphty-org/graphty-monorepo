@@ -91,7 +91,8 @@ async function busySession(): Promise<GraphSession> {
     await session.positions.set([{ id: "a", x: 1, y: 2, z: 3 }]);
     await session.positions.pin(["a"]);
     await session.selection.apply({ nodes: ["c"], edges: [edges[1].id] });
-    await session.visibility.set({ kind: "expression", where: "data.dept == `1`" });
+    // A filter that hides nothing selected: hiding an element deselects it.
+    await session.visibility.set({ kind: "expression", where: "data.dept >= `1`" });
     await session.data.declare({ kind: "node", name: "dept" }, { measurement: "categorical" });
     await session.data.setValueLabel("data.dept", 1, "Research");
     return session;
@@ -263,7 +264,7 @@ describe("a version 1 project file, migrated", () => {
         assert.deepStrictEqual(run.nodes.columns.value, [1, 2, 1]);
         // The filter in force in graph.filter's form (spec 4.7 rule 4).
         assert.deepStrictEqual(view.visibility, {
-            filter: { on: "nodes", where: "data.dept == `1`" },
+            filter: { on: "nodes", where: "data.dept >= `1`" },
             showContext: false,
         });
         session.dispose();
@@ -305,33 +306,76 @@ describe("a version 1 project file, migrated", () => {
 });
 
 describe("version 1 file styles, migrated", () => {
-    it("names the columns and the layer paths after the migrated source, never in the node-link graph", async () => {
+    it("makes them ordinary columns of the migrated source, read by data paths and written into the graph", async () => {
         const session = await busySession();
         const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
         const member = (kind: string): JsonObject =>
             (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
         member("graphty-session").fileStyles = [
-            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
+            {
+                importId: "load-1",
+                namespace: "gexf",
+                columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }],
+            },
         ];
         (member("graphty-style").layers as JsonObject[]).push({
             id: "from-file",
             name: "From the file",
+            source: { by: "template", templateId: "file:load-1" },
             selector: { match: "everything" },
             encode: { "node.color": { by: "graphty.style.gexf.node.color" } },
         });
         const v2 = migrateDocument1(v1, []);
         const sections = v2?.sections as Record<string, JsonObject>;
         const source = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
-        const column = `graphty.style.${String(source.id)}.node.color`;
-        assert.property((source.copy as JsonObject).nodes, column);
-        assert.include(JSON.stringify(sections.style), column);
-        assert.notInclude(JSON.stringify(v2), "graphty.style.gexf.");
+        assert.property((source.copy as JsonObject).nodes, "color");
+        const layer = (sections.style.layers as JsonObject[]).find((each) => each.name === "From the file");
+        assert.deepEqual((layer?.encode as JsonObject)["node.color"], { by: "data.color" });
+        assert.notProperty(layer, "source", "nothing can make it from its load's template again");
+        assert.notInclude(JSON.stringify(v2), "graphty.style");
         const graph = sections.data.graph as JsonObject;
-        assert.isFalse((graph.nodes as JsonObject[]).some((node) => column in node));
+        const a = (graph.nodes as JsonObject[]).find((node) => node["graphty.key"] === "a");
+        assert.strictEqual(a?.color, "#ff0000");
         session.dispose();
     });
 
-    it("paints a file-style layer once the migrated file is open", async () => {
+    it("reads the column in set rules and the filter, and gives repeated names a column each", async () => {
+        const session = await busySession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (kind: string): JsonObject =>
+            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
+        // Three loads give a node "color", and the data has a "dept" look of the same name.
+        const column = (key: string, value: string): JsonObject => ({ kind: "node", key, ids: ["a"], values: [value] });
+        const sessionMember = member("graphty-session");
+        sessionMember.fileStyles = [
+            { namespace: "gexf", columns: [column("color", "#ff0000"), column("dept", "x")] },
+            { namespace: "gexf-2", columns: [column("color", "#00ff00")] },
+            { namespace: "gexf-3", columns: [column("color", "#0000ff")] },
+        ];
+        // The rule set and the filter read the second load's color instead of a data column.
+        const rewired = JSON.parse(
+            JSON.stringify({ sets: sessionMember.sets, visibility: sessionMember.visibility }).replaceAll(
+                "data.dept",
+                'graphty.style.\\"gexf-2\\".node.color',
+            ),
+        ) as JsonObject;
+        Object.assign(sessionMember, rewired);
+
+        const v2 = migrateDocument1(v1, []);
+        assert.isDefined(v2);
+        assert.deepStrictEqual(invalid(v2), []);
+        assert.notInclude(JSON.stringify(v2), "graphty.style");
+        const sections = v2.sections as Record<string, JsonObject>;
+        const source = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
+        const id = String(source.id);
+        const names = [`color`, `color (${id})`, `color (${id}) 2`, `dept (${id})`];
+        assert.includeMembers(Object.keys((source.copy as { nodes: JsonObject }).nodes), names);
+        const view = JSON.stringify(sections.view);
+        assert.include(view, JSON.stringify(`data.${JSON.stringify(`color (${id})`)}`).slice(1, -1));
+        session.dispose();
+    });
+
+    it("paints the layer from the ordinary column once the migrated file is open", async () => {
         const source = createGraphSession();
         await source.data.addNodes([{ id: "a" }, { id: "b" }]);
         const v1 = JSON.parse((await source.project.save({ format: 1 })).text) as JsonObject;
@@ -356,6 +400,37 @@ describe("version 1 file styles, migrated", () => {
         assert.strictEqual(color.hex, "#ff0000");
         source.dispose();
         session.dispose();
+    });
+
+    it("keeps a value label on a look value as a label on its column, and shares a column holding the same value", async () => {
+        const source = createGraphSession();
+        await source.data.addNodes([{ id: "a", color: "#ff0000" }, { id: "b" }]);
+        const v1 = JSON.parse((await source.project.save({ format: 1 })).text) as JsonObject;
+        const member = (kind: string): JsonObject =>
+            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
+        const sessionMember = member("graphty-session");
+        sessionMember.fileStyles = [
+            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
+        ];
+        sessionMember.valueLabels = [{ path: "graphty.style.gexf.node.color", value: "#ff0000", label: "Red" }];
+        const problems: DocumentProblem[] = [];
+        const v2 = migrateDocument1(v1, problems);
+        assert.isDefined(v2);
+        const sections = v2.sections as Record<string, JsonObject>;
+        assert.deepInclude(sections.style.valueLabels as JsonObject[], {
+            path: "data.color",
+            value: "#ff0000",
+            label: "Red",
+        });
+        assert.notDeepInclude(problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { kind: "graphty-session", pointer: "/valueLabels/0" },
+        });
+        const copy = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived")?.copy as {
+            nodes: JsonObject;
+        };
+        assert.notInclude(JSON.stringify(Object.keys(copy.nodes)), "color (", "the same value shares the column");
+        source.dispose();
     });
 });
 

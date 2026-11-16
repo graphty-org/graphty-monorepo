@@ -28,6 +28,7 @@ import type {
     SectionWrite,
     WriteContext,
 } from "../types";
+import { loadedLooksAsColumns } from "./dataRefs";
 import {
     asName,
     columnSchema,
@@ -358,13 +359,17 @@ function writeRecipe(context: WriteContext): SectionWrite {
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.
     // Sets are named by their bare file id (spec 5 rule 1), whatever namespace applied them.
     const bare = (id: string): string => fileSetId(session, id).replace(/^set_[a-z][a-z0-9_]*\./, "set_");
-    const commands = renameSets(
+    const named = renameSets(
         renameRuns([...filters, ...defines.before, ...runs, ...defines.after, layoutCommand], (name) =>
             w.asOf.get(name),
         ),
         (id) => (sets.has(id) ? bare(id) : id),
     );
-    const dependencies = dependenciesOf(session, commands, w.attributes);
+    // Temporary, with loadedLooksAsColumns (issue 8259): filters and set rules read look values as
+    // ordinary columns before the dependencies are gathered.
+    const looks = loadedLooksAsColumns(session);
+    const commands = looks.rewrite(named);
+    const dependencies = dependenciesOf(session, commands, w.attributes, looks.schemas);
     const { dependencies: _was, ...header } = opened.get(session)?.header ?? {};
     return {
         header: { ...header, ...(dependencies === undefined ? {} : { dependencies }) },
@@ -391,12 +396,14 @@ function renameSets<T>(value: T, rename: (id: string) => string): T {
  * @param session - The session, for the columns' types.
  * @param commands - The commands.
  * @param attributes - The columns the runs' attribute options name.
+ * @param looks - Temporary (issue 8259): each look column's schema, as `<node|edge>:<name>`.
  * @returns The dependencies, or undefined when they read nothing.
  */
 function dependenciesOf(
     session: GraphSession,
     commands: readonly JsonObject[],
     attributes: readonly string[],
+    looks: ReadonlyMap<string, JsonObject>,
 ): JsonObject | undefined {
     const known = session.data.attributes();
     // Each column with the table it is read from: a filter on edges reads edges; a scope, a set
@@ -423,7 +430,10 @@ function dependenciesOf(
     const columns = [...refs.values()].map(({ kind, name }) => {
         const column = known.find((each) => each.kind === kind && each.name === name);
         const measurement = column?.measurementSource === "declared" ? column.measurement : undefined;
-        return { kind, name, schema: column === undefined ? {} : columnSchema(column.type, measurement) };
+        // Temporary, with loadedLooksAsColumns (issue 8259): a look column is no session attribute yet.
+        const schema =
+            column === undefined ? (looks.get(`${kind}:${name}`) ?? {}) : columnSchema(column.type, measurement);
+        return { kind, name, schema };
     });
     const declared = new Set(commands.flatMap((command) => (command.op === "algo.run" ? [command.as as string] : [])));
     const results = runsRead(commands).filter((name) => declared.has(name));

@@ -29,11 +29,14 @@ import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
 import { withLabelGrid } from "./labelGrid";
 import { fileStyleNamespace, fileStylePath } from "./path";
-import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileStyleValuesOf } from "./store";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    FILE_TEMPLATE_PREFIX,
+    type FileStyleColumnValues,
+    fileStyleValuesOf,
+} from "./store";
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
-
-/** The template a file's layers are filed under: `file:<importId>`. */
-const FILE_TEMPLATE_PREFIX = "file:";
 
 /** A file's styles, as the data source that read the file gives them. */
 export interface FileStylesRead {

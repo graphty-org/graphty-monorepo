@@ -8,6 +8,7 @@
  */
 
 import type { Measurement, RuleTree, Scope } from "../../../catalog/types";
+import { renamePaths } from "../../styles/predicate";
 import type { JsonObject } from "../types";
 
 /** The members each command graphty-element knows (spec 4.3); a command's members are closed. */
@@ -211,8 +212,30 @@ export function runsRead(value: unknown): string[] {
     return [...names];
 }
 
-/** A column a predicate reads: `data.<name>` or `data."<name>"`. */
-const COLUMN_PATH = /\bdata\.(?:([A-Za-z_]\w*)|"((?:[^"\\]|\\.)*)")/g;
+/**
+ * The columns a path or an expression reads: each `data.<column>` in it, the column being the whole
+ * rest of the path (`data.el.load` reads the column `el.load`, `data."a b"` the column `a b`). Text
+ * that is no expression reads nothing.
+ * @param text - The path or expression.
+ * @param into - Where to add the columns.
+ */
+export function dataColumnsIn(text: string, into: Set<string>): void {
+    if (!text.includes("data.")) {
+        return;
+    }
+
+    try {
+        renamePaths(text, (path) => {
+            if (path.startsWith("data.") && path.length > "data.".length) {
+                into.add(path.slice("data.".length));
+            }
+
+            return undefined;
+        });
+    } catch {
+        // Words, not an expression.
+    }
+}
 
 /**
  * The columns a value's predicates read.
@@ -221,9 +244,7 @@ const COLUMN_PATH = /\bdata\.(?:([A-Za-z_]\w*)|"((?:[^"\\]|\\.)*)")/g;
  */
 export function columnsRead(value: unknown, into: Set<string>): void {
     if (typeof value === "string") {
-        for (const match of value.matchAll(COLUMN_PATH)) {
-            into.add(match[1] ?? match[2].replaceAll(/\\(.)/g, "$1"));
-        }
+        dataColumnsIn(value, into);
     } else if (Array.isArray(value)) {
         value.forEach((each) => {
             columnsRead(each, into);

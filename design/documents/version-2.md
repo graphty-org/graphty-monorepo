@@ -101,12 +101,12 @@ them that names an element or a dataset.
 
 **Bound to one dataset.** These name particular nodes and edges, and say which data they belong to.
 
-| Section | File                    | Holds                                                                                                                                                                                                                                                                              | Taken from version 1                                                                                        |
-| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| data    | `.graphty-data.json`    | the source records (each with its copy embedded, or a reference with its copy id), the reader source, the build stamp, `directed` and `repeatedEdges`, the type registry, type conversions, data issues, the join history, and the merged graph as NetworkX node-link JSON         | `graphty-data`, `graphty-sources`, the session's columns, declarations and issues, file styles, annotations |
-| results | `.graphty-results.json` | the record: each run's outputs and the layout's, the seed each actually used, engine versions, duration, caveats, and which build of the data each ran on                                                                                                                          | the outputs of `graphty-results`                                                                            |
-| notes   | `.graphty-notes.json`   | notes (notes.md, version 2)                                                                                                                                                                                                                                                        | `graphty-notes`                                                                                             |
-| view    | `.graphty-view.json`    | the session a file is opened to: camera, saved views, selection, pinned positions, every set, the filter in force and the time window, the layer order and the layers that name elements or a dataset, every run record and the layout record, view settings, hidden table columns | `graphty-arrangement`, `graphty-view-state`, the session's views, sets, visibility, runs and layout         |
+| Section | File                    | Holds                                                                                                                                                                                                                                                                              | Taken from version 1                                                                                  |
+| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| data    | `.graphty-data.json`    | the source records (each with its copy embedded, or a reference with its copy id), the reader source, the build stamp, `directed` and `repeatedEdges`, the type registry, type conversions, data issues, the join history, and the merged graph as NetworkX node-link JSON         | `graphty-data`, `graphty-sources`, the session's columns, declarations and issues, per-element values |
+| results | `.graphty-results.json` | the record: each run's outputs and the layout's, the seed each actually used, engine versions, duration, caveats, and which build of the data each ran on                                                                                                                          | the outputs of `graphty-results`                                                                      |
+| notes   | `.graphty-notes.json`   | notes (notes.md, version 2)                                                                                                                                                                                                                                                        | `graphty-notes`                                                                                       |
+| view    | `.graphty-view.json`    | the session a file is opened to: camera, saved views, selection, pinned positions, every set, the filter in force and the time window, the layer order and the layers that name elements or a dataset, every run record and the layout record, view settings, hidden table columns | `graphty-arrangement`, `graphty-view-state`, the session's views, sets, visibility, runs and layout   |
 
 ### The cases above, as sections
 
@@ -150,15 +150,15 @@ ones in force. The rules that are easy to get wrong:
   names elements (an `ids` selector, a `member` selector naming a fixed or path set, a layer whose
   run `source` has `params` naming a node); a layer that reads a run no recipe step makes (through
   a `results.<run id>` path or `source.runId`); a layer that reads a run whose `as`, or a set whose
-  bare id, more than one open run or set shares, saved under the run id or the full set id; and a
-  file-style layer. Saving the style section alone leaves such layers out and reports them. In a
-  style section, `source.runId` holds the run's `as`, as a result path does.
+  bare id, more than one open run or set shares, saved under the run id or the full set id. Saving
+  the style section alone leaves such layers out and reports them. In a style section,
+  `source.runId` holds the run's `as`, as a result path does.
 - **Run records.** View's `runs` holds every algorithm run, recipe-made and hand-started alike.
   The recipe's `algo.run` commands are its own copies, for new data.
 - **Settings.** Every key graphty-element's `config.set` accepts (its `CONFIG_KEYS`) is saved in a
   named section, or listed as deliberately not saved with its reason; a conformance test fails
   when a key has neither. `viewRotation` and `framing` go in view (they say how this drawing is
-  shown, and loads set them: Graphviz `rotate`, a file's fit). `layoutTransition` and
+  shown, and loads set them, from a file's own rotation or fit). `layoutTransition` and
   `runPlacement` go in settings. Not saved: `author` (the person writing, stamped on each note,
   not the project's); `startingRows` and `editableBase` (they act when a project is created, and
   the rows they write are saved as plain style rows); `name` (the wrapper's `name`). No `data.*`
@@ -169,12 +169,6 @@ ones in force. The rules that are easy to get wrong:
 - **Column settings.** Renames belong to each source's `mapping`, so a refresh applies them again.
   Type conversions are the data section's `conversions`. Hidden columns are a table-view choice and
   go in view.
-- **File styles.** The per-element colors, sizes and positions a GEXF `viz:` or Cytoscape.js file
-  gave each element are columns of their source's copy in the data section, embedded or referenced
-  with it. A file style is the column `graphty.style.<source id>.<node|edge>.<key>`, read through
-  graphty-element's root path of that name, never `data.`; these columns are exempt from the
-  reserved-prefix rule and never written into the node-link graph. The layers that paint them name
-  a source, so they go in view's `layers`.
 - **Assets.** A section that needs an asset carries it, so every section file stands alone. Within
   a full file the same asset may appear in two sections; that duplication is the price of the
   byte-for-byte rule.
@@ -520,7 +514,11 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
 - **`joins`**: the join history, the join steps (see "recipe") naming sources by id. A source no
   step names is not built, and is reported; a one-source file writes one `join.add`. When a step's
   source gives a node a value for a column the node already holds from an earlier source, and the
-  two differ, the later value is kept as the column `<column> (<source id>)`.
+  two differ, the later value is kept as the column `<column> (<source id>)`; when that name is
+  taken too (one source giving two values of one name), ` 2`, ` 3`, ... is appended until it is
+  free. The names `id` (and on edges `source` and `target`) are held by an element record's own
+  fields, so a column added to a copy beside the source's own columns that would take one of them
+  is named `<column> (<source id>)` instead; a source's own key and end columns keep their names.
 - **`graph`**: the merged graph as NetworkX node-link JSON, holding only embedded sources' rows,
   recomputed on open. It always writes `directed`, `multigraph` and NetworkX's own `graph` member
   (graph-level attributes, `{}` when none). `multigraph` is true exactly when two edges share both
@@ -529,11 +527,10 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   `"graphty.types"` and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
   `"graphty.types"` (at most one item) and `_source.loads`. Beside them every node and edge
   carries each of its working columns as an attribute, key, end, edge-id and type-rule columns
-  included, even one that repeats `"graphty.key"`; only a column named after a node-link member
-  (`id` on nodes; `source`, `target` and `key` on edges) and the file-style columns are left out,
-  and their source keeps them in its copy. graphty never writes a node-link `key`. The node-link
-  `id`, `source` and `target` are handles unique within the file only, since a key repeats across
-  spaces (account 12 and merchant 12).
+  included, even one that repeats `"graphty.key"`; a column named after a node-link handle (`id`,
+  `source`, `target` or `key`) is written as `<name> (column)`. graphty never writes a node-link
+  `key`. The node-link `id`, `source` and `target` are handles unique within the file only, since
+  a key repeats across spaces (account 12 and merchant 12).
 - **`_source.loads`** lists the sources that supplied the row. A node only named by an edge writes
   `[]`, and keeps its key when the file is saved again: it is not a reader addition. `reader` is
   listed only on an element the reader added; an edit does not add it, and a merge keeps the union
@@ -923,7 +920,11 @@ migration:
   `source:<id>`, its types carried as a column under a type rule, and an empty reader source. Its
   `metadata` holds the version 1 `sources` member verbatim (each original source's address or file
   name, credential slot, license and citation), and each node's original `_source.loads` is the
-  copy column `version-1-loads`. The graph reopens exactly as saved, with every edit already in it;
+  copy column `version-1-loads`. Values the session member holds per element by id are columns of
+  that source like any other, named by the `joins` clash rule above when a column of that name is
+  already taken, and every path that reads one, in a layer, a set rule, a condition or a filter,
+  reads `data.<column>`; each layer reading them is an ordinary layer (4.2 rule 1 of the spec).
+  The graph reopens exactly as saved, with every edit already in it;
 - converts the session's `columns` and `issues` members: hidden columns into view; `columns.types`
   into `conversions` entries; each `declarations` entry (keyed `<kind>:<name>`) as `measurement`
   (and, for ordinal, the `enum` order) into the schema of every type of that kind carrying the
@@ -933,10 +934,6 @@ migration:
 - turns the `label` role into a style layer reading that column;
 - converts each positional edge reference into `{ load, key }` with the key of the edge at that
   position: its id when it has one, else `"<copy id>#<position>"`;
-- moves file styles, stored by element id, into `graphty.style.` columns of the migrated source,
-  and their layers into view's `layers`. Each version 1 load's namespace maps to the migrated
-  source's id, so `graphty.style.gexf.node.color` becomes
-  `graphty.style.<source id>.node.color`, in the columns and in every layer path that reads one;
 - moves style layers whose selector names elements into view's `layers`, their node ids converted
   to element references against the file's own data, and drops every layer's `kind`;
 - moves the session's `visibility` member into view's `visibility` and its playback into settings;

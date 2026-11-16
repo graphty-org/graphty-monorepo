@@ -48,7 +48,7 @@ import {
     migrateData,
     type MigratedData,
     objectsOf,
-    renameFileStyles,
+    readLookColumns,
     ulidOf,
 } from "./migrationParts";
 import type { DocumentProblem, DocumentSection, EdgeRef, JsonObject, NodeRef } from "./types";
@@ -433,26 +433,32 @@ function migrateStyle(
         }
 
         used.add(id);
-        // A layer the reader made writes no source (an absent source means reader-made).
-        const { id: _id, name, kind: _kind, ...withSource } = layer;
-        const byReader = isObject(withSource.source) && withSource.source.by === "user";
-        const rest = byReader
+        // A layer the reader made writes no source (an absent source means no run, template or
+        // plugin made it), and neither does a layer filed under the template of a load whose look
+        // values the data migration made ordinary columns: nothing can make it from that template
+        // again, so it is an ordinary layer.
+        const { id: _id, name, kind: _kind, fileStyle: _fileStyle, ...withSource } = layer;
+        const made = isObject(withSource.source) ? withSource.source : undefined;
+        const unmade =
+            made !== undefined &&
+            (made.by === "user" ||
+                (made.by === "template" &&
+                    typeof made.templateId === "string" &&
+                    (data?.lookTemplates.has(made.templateId) ?? false)));
+        const rest = unmade
             ? Object.fromEntries(Object.entries(withSource).filter(([key]) => key !== "source"))
             : withSource;
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;
-        const v2: JsonObject = renameFileStyles(
-            renameSets(
-                {
-                    id,
-                    name: typeof name === "string" ? name : "",
-                    ...renameRuns(rest, rename),
-                    ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
-                },
-                context,
-            ),
-            data,
+        const v2: JsonObject = renameSets(
+            {
+                id,
+                name: typeof name === "string" ? name : "",
+                ...renameRuns(rest, rename),
+                ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
+            },
+            context,
         );
         if (!named) {
             for (const match of JSON.stringify([v2.selector, v2.encode]).matchAll(/results\.([a-z][a-z0-9_]*)/g)) {
@@ -478,7 +484,9 @@ function migrateStyle(
 
     const session = context.members.get("graphty-session");
     const valueLabels = objectsOf(session?.valueLabels).flatMap((label, at) => {
-        const { path, value } = label;
+        const { value } = label;
+        // A label on a file's look value labels the ordinary column that holds it now.
+        const path = readLookColumns(label.path, data);
         const plain = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
         if (typeof path !== "string" || typeof label.label !== "string" || !plain) {
             problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
@@ -1313,6 +1321,15 @@ function sectionsOf(
                   placed,
               })
             : undefined;
+    }
+
+    // Every path to a version 1 look value, wherever a section holds it (a layer, a set rule, a
+    // condition, a filter), reads its ordinary column.
+    for (const name of ORDER) {
+        const section = sections[name];
+        if (name !== "data" && section !== undefined) {
+            sections[name] = readLookColumns(section, data);
+        }
     }
 
     return sections;

@@ -12,7 +12,7 @@ import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
 import type { GraphSession, ProjectSlice } from "../types";
-import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
+import { dataBindingOf, elementRefsOf, type LoadedLooks, loadedLooksAsColumns } from "./codecs/dataRefs";
 import {
     assembleSection,
     assembleWrapper,
@@ -172,6 +172,28 @@ function asWritten(section: ReadSection): SectionWrite {
 }
 
 /**
+ * What a section's codec writes, with every path to a look value a load kept outside the data
+ * reading its ordinary column, `data.<column>`, wherever the body holds it (a layer, a filter, a
+ * set rule, a value label). TEMPORARY until graphty-element writes loaded look values as ordinary
+ * columns (issue https://github.com/graphty-org/graphty-monorepo/issues/8259), then delete the
+ * rewrite and call `codec.write` directly.
+ * @param name - The section.
+ * @param codec - Its codec.
+ * @param context - The context it writes in.
+ * @param looks - The look values a load kept, as columns.
+ * @returns What it writes.
+ */
+async function codecWrite(
+    name: DocumentSection,
+    codec: SectionCodec,
+    context: WriteContext,
+    looks: LoadedLooks,
+): Promise<SectionWrite> {
+    const written = await codec.write(context);
+    return name === "data" ? written : { ...written, body: looks.rewrite(written.body) };
+}
+
+/**
  * Remember, after a project open, what each loaded section's codec writes now beside the section
  * as read, so a save that finds the session unchanged writes the section as read (spec 8.5: what
  * this release cannot represent is kept). Saved results are not remembered when the runs reran:
@@ -193,6 +215,7 @@ async function rememberBaselines(
     state.opened.clear();
     // ponytail: one extra write per section at open; skip the data section's if its write is slow on large graphs.
     const context = writeContextOf(session, state, new Set(sections.keys()), {}, isDerived, []);
+    const looks = loadedLooksAsColumns(session);
     for (const [name, section] of sections) {
         const codec = codecs[name];
         if (codec === undefined || (name === "results" && rerun)) {
@@ -201,7 +224,7 @@ async function rememberBaselines(
 
         try {
             state.opened.set(name, {
-                baseline: canonicalText(await codec.write(context)),
+                baseline: canonicalText(await codecWrite(name, codec, context, looks)),
                 read: asWritten(section),
                 ...(section.header.bindsTo === undefined ? {} : { bindsTo: section.header.bindsTo }),
             });
@@ -258,6 +281,7 @@ function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSec
  * @param context - The save's context; its problems are this save's report.
  * @param state - The session's document state.
  * @param now - The time of this save.
+ * @param looks - The look values a load kept, as columns.
  * @returns The section.
  */
 async function writeSection(
@@ -266,10 +290,11 @@ async function writeSection(
     context: WriteContext,
     state: DocumentState,
     now: string,
+    looks: LoadedLooks,
 ): Promise<JsonObject> {
     // The codec reports into its own list, dropped when the section is written as read.
     const reported: DocumentProblem[] = [];
-    let written = await codec.write({ ...context, problems: reported });
+    let written = await codecWrite(name, codec, { ...context, problems: reported }, looks);
     const opened = state.opened.get(name);
     const asRead = opened?.baseline === canonicalText(written) ? opened : undefined;
     if (asRead === undefined) {
@@ -315,6 +340,7 @@ export async function saveDocument2(
     const problems: DocumentProblem[] = [];
     const sections: JsonObject = {};
     const refs = lazyRefs(session);
+    const looks = loadedLooksAsColumns(session);
 
     for (const name of chosen) {
         const held = state.held.get(name);
@@ -341,7 +367,7 @@ export async function saveDocument2(
                 refs,
                 choices.rewriteRecipe === true,
             );
-            sections[name] = await writeSection(name, codec, context, state, now);
+            sections[name] = await writeSection(name, codec, context, state, now, looks);
         }
     }
 

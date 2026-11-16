@@ -49,7 +49,7 @@ import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/path
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
-import { fileStylePath, parseFileStylePath } from "./fileStyles/path";
+import { parseFileStylePath } from "./fileStyles/path";
 import type { FileStyleScalar } from "./fileStyles/store";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
@@ -699,8 +699,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
-     * One element's file-style value: the column's value under the element's id, or the element's
-     * attribute of that path when no load holds the column.
+     * One element's file-style value: the column's value under the element's id.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
      * @param entry - The parsed style path.
@@ -713,12 +712,11 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         }
 
         const column = fileStyles?.(entry.runId, target, entry.key);
-        const held = current();
         if (column === undefined) {
-            // A version 2 save file keeps the column in its source's data, under the path itself.
-            return attributeOf(held, target, index, fileStylePath(entry.runId, target, entry.key));
+            return undefined;
         }
 
+        const held = current();
         if (target === "node") {
             return index >= 0 && index < held.nodeCount ? column.get(held.graph.ids.idOf(index)) : undefined;
         }

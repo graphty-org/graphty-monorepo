@@ -264,10 +264,10 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 | `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                                                    |
 | `kind`                            | `file`, `url`, `network`, `sample`, `derived` or `reader`                                                                                                                                                                                                                                                                      |
 | `format`, `options`               | the parser and its parse options only; never identity or join choices                                                                                                                                                                                                                                                          |
-| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`), `etag`, `lastModified` and `ledger` (rule 8); sample `dataset` and version, or a generated sample's `generator` and `params` |
+| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`), `etag`, `lastModified` and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params` |
 | `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                                                      |
 | `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                                                                       |
-| `annotations`                     | the shapes and text a session, XGMML, CX or CX2 file draws beside its graph, in the file's frame (y up, file units), with their scale                                                                                                                                                                                          |
+| `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                                             |
 | `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                                                       |
 | `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                                                    |
 | `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; present exactly when `copy` is                                                                                                                                                                                               |
@@ -298,12 +298,7 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 6. A `file` source's `origin.path` is a POSIX path relative to the folder of the file being saved,
    never absolute and never above that folder, written only when the writer knows both locations.
    An `origin` member the writer does not know is left out, never invented.
-7. **File styles.** The per-element looks a GEXF `viz:` or Cytoscape.js file gave are columns of
-   that source's copy named `graphty.style.<source id>.<node|edge>.<key>`, read through
-   graphty-element's root path of that name, never `data.`. They are exempt from the reserved
-   prefix rule and never written into the node-link graph. The layers that paint them name a
-   source, so they go in view's `layers`.
-8. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
+7. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
    credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
    history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
    the source id.
@@ -389,7 +384,11 @@ match) and `join.edges`; the choices are graphty-element's `JoinChoices` names `
    version 2 spelling: saving one refuses that part and reports it.
 3. A clashing column kept twice is named `<column> (<source id>)`: when a step's source gives a
    node a value for a column the node already holds from an earlier source, and the two differ,
-   the later value is kept under that name.
+   the later value is kept under that name. When that name is taken too (one source giving two
+   values of one name), ` 2`, ` 3`, ... is appended until it is free (`<column> (<source id>) 2`).
+   The names `id` (and on edges `source` and `target`) are held by an element record's own
+   fields, so a column added to a copy beside the source's own columns that would take one of them
+   is named `<column> (<source id>)` instead; a source's own key and end columns keep their names.
 4. The recipe's join steps (4.3) share this spelling. Opening a file rebuilds the data from its own
    history; the recipe's steps apply to new data only when the caller asks.
 
@@ -412,8 +411,8 @@ is output, never input to the build):
   repeats across spaces.
 - Every other member is a working column, by working name: every working column is written, key,
   end, edge-id and type-rule columns included, even one that repeats `"graphty.key"`. A column
-  named after a node-link member (`id` on nodes; `source`, `target`, `key` on edges) and the
-  file-style columns are never written into the graph.
+  named after a node-link handle (`id`, `source`, `target` or `key`) is written as
+  `<name> (column)`.
 
 #### 4.1.10 Built whole or not at all
 
@@ -430,8 +429,7 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 1. A layer has `id` (REQUIRED, unique in the section), `name`, `target` (`node` or `edge`),
    `selector`, and `set` and/or `encode`; optionally `source`, `enabled` and `userData`. A layer
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
-   layer the reader made writes no `source`, in style and view alike, and an absent `source` means
-   the reader made it.
+   layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
    (`{ "by": <path>, "scale", "palette", ... }`). A value naming a built-in (a node shape, an
    arrowhead, a line pattern, a label look) MUST be a name from `builtins.md`.
@@ -615,9 +613,9 @@ View restores the session; recipe, style and settings are what applies to new da
 5. **Layers that name elements or a dataset** go in view's `layers`: a layer whose selector names
    elements (an `ids` selector, a `member` naming a fixed or path set, a run `source` whose
    `params` name a node); a layer that reads a run no recipe step makes; a layer that reads a run
-   whose `as`, or a set whose bare id, more than one open run or set shares; and a file-style
-   layer. Saving the style section alone leaves them out and reports them; saving a full file with
-   style and view moves each into view.
+   whose `as`, or a set whose bare id, more than one open run or set shares. Saving the style
+   section alone leaves them out and reports them; saving a full file with style and view moves
+   each into view.
 6. **Run records.** View's `runs` holds every algorithm run, recipe-made and hand-started alike.
 7. **Settings**: every `config.set` key is saved in one named section or listed as never saved
    (4.4).
@@ -828,16 +826,17 @@ kind) is opened through a migration into the sections above:
   `join.add`, its node ids as the key column in the space `source:<id>`, its types carried as a
   column under a type rule, and an empty reader source; its `metadata` holds the version 1
   `sources` member verbatim, and each node's original `_source.loads` is the copy column
-  `version-1-loads`;
+  `version-1-loads`; values the session member holds per element by id are columns of that
+  source like any other, named by 4.1.8 rule 3 when a column of that name is already taken, and
+  every path that reads them, in a layer, a set rule, a condition or a filter, reads
+  `data.<column>`; each layer reading them is an ordinary layer (4.2 rule 1);
 - hidden columns go into view, `columns.types` into `conversions`, declared measurements and
   ordinal orders into the type schemas (one on a column no type carries is reported as dropped),
   ignored issues unchanged, kept pairs into `issues.kept`;
 - the `label` role becomes a style layer reading that column;
 - each positional edge reference becomes `{ load, key }` with the key of the edge at that
   position: its id when it has one, else `"<copy id>#<position>"`;
-- file styles become `graphty.style.` columns of the migrated source, and their layers go into
-  view's `layers`; element-naming layers go into view's `layers` too, and every layer's `kind` is
-  dropped;
+- element-naming layers go into view's `layers`, and every layer's `kind` is dropped;
 - the session's visibility goes into view and its playback into settings; each saved run becomes a
   view run record and its outputs results; pinned nodes become `pinned`, other coordinates the
   layout's results;
@@ -895,8 +894,7 @@ it fails a schema, and acts by the rules above instead.
 - An integer too large to hold exactly (beyond 2^53 - 1 either way) is written as its decimal
   string, and read back as a number only where the column's schema declares `number` or `integer`
   (a numeric `ColumnDecl` dtype); anywhere else it stays text. Its row is never refused.
-- The prefixes `graphty.` and `_source.` are reserved in column names, except the file-style
-  columns of 4.1.2 rule 7.
+- The prefixes `graphty.` and `_source.` are reserved in column names.
 
 ## 12. Archiving
 

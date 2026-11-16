@@ -62,7 +62,7 @@ export interface RowMeasure {
     /** The opacity its style draws its body at. */
     readonly paintedOpacity: number;
     /** Its shape. */
-    readonly shapeType?: string;
+    readonly shapeType?: string | undefined;
     /** A flat shape's outline in units of its box's half size, or null (`surfaceReach`). */
     readonly reachOutline: readonly (readonly [x: number, y: number])[] | null;
 }

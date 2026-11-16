@@ -330,10 +330,11 @@ describe("the row tables", () => {
         const { uploads, uploadedBytes } = table;
         graph.getScene().getEngine().getRenderingCanvas()?.dispatchEvent(new Event("webglcontextrestored"));
         await drawnFrames(graph.getScene(), 2);
-        assert.strictEqual(table.uploads, uploads + 2, "both textures went up");
+        assert.strictEqual(table.uploads, uploads + 3, "all three textures went up");
+        const outline = table.outlineTexture.getSize();
         assert.strictEqual(
             table.uploadedBytes - uploadedBytes,
-            table.rowPosition.byteLength + table.rowExtent.byteLength,
+            table.rowPosition.byteLength + table.rowExtent.byteLength + outline.width * outline.height * 16,
         );
     });
 

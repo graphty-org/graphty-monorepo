@@ -246,7 +246,7 @@ export function combineFace(
  */
 function faceGhost(el: FaceElement, fill: StyleValue | null, fillOpacity: number | null): void {
     const opacity = r6(Number(el.word("_ghostOpacity") ?? 0) * (fillOpacity ?? 1));
-    if (el.word("_ghost") !== "yes" || !(opacity > 0)) {
+    if (el.word("_ghost") !== "yes" || opacity <= 0) {
         return;
     }
     el.put("shadowColor", typeof fill === "string" ? fill : "#999999");

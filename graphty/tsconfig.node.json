@@ -20,6 +20,7 @@
         "vite.build-stamp.ts",
         "vite.boot-files.ts",
         "vite.sample-data.ts",
+        "vite.workspace-source.ts",
         "test/**/*.ts",
         "bench/**/*.ts"
     ]

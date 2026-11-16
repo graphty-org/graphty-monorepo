@@ -7,7 +7,7 @@ import type { F32, GraphSnapshot, NodeMask } from "@graphty/graph-format";
 
 import type { LayoutSimulation } from "./accelerator.js";
 
-/** Spec 3.3 LayoutStatsBase, verbatim; the three grid fields are null on the exact tier (P3 always). */
+/** Spec 3.3 LayoutStatsBase, verbatim; the grid fields are null on the exact tier. */
 export interface LayoutStatsBase {
     readonly iteration: number;
     readonly meanDisplacement: number;
@@ -154,8 +154,9 @@ export interface DrawnTransform {
 }
 
 /**
- * Spec 3.3 GpuLayoutTuning, verbatim; the grid knobs are accepted and stored in P3 but only `repulsion`,
- * `exactMaxNodes`, `deterministic` and `compat` have an effect (grid tier = P4).
+ * Spec 3.3 GpuLayoutTuning, verbatim. `nearMax`, `gridMax2D`, `gridMax3D` and `extentFactor` shape the grid tier
+ * (the cell sampling cap, the finest grid side in 2D and 3D, the grid's extent in RMS radii); `compat` is read by
+ * ForceAtlas2 alone.
  */
 export interface GpuLayoutTuning {
     readonly repulsion?: "exact" | "grid" | "auto" | undefined;

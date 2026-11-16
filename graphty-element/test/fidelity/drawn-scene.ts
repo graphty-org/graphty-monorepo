@@ -508,9 +508,10 @@ export interface DrawnLabel {
     opacity: number;
     /**
      * A label shown only while its node is drawn at least `min` px across (`minNodeScreenSize`, sigma's
-     * labelRenderedSizeThreshold): the node's size across on screen now, and whether that rule alone hides it.
+     * labelRenderedSizeThreshold), or else while its letters are drawn at least `min` px tall (`minScreenSize`,
+     * vis-network's drawThreshold): that size on screen now, and whether that rule alone hides it.
      */
-    nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
+    sizeRule?: { acrossPx: number; min: number; hidden: boolean };
     /** How many lines the words are drawn on. */
     lineCount: number;
     /**
@@ -557,24 +558,32 @@ export function cssWeight(weight: string | undefined): number {
 }
 
 /**
- * A label's node-size rule as drawn (`RichTextLabel.tooSmall`'s second half): its node's size across on screen, the
- * least that shows the label, and whether the rule alone hides it now (the mesh otherwise shown).
+ * A label's size rule as drawn (`RichTextLabel.tooSmall`): its node's size across on screen under a node-size rule,
+ * else its letters' height under a font-size rule; the least that shows the label; and whether the rule alone hides it
+ * now (the mesh otherwise shown). ponytail: one rule per label, the node's first; no format sets both.
  * @param label - the label
- * @returns `{ nodeSizeRule }`, or nothing for a label under no such rule
+ * @returns `{ sizeRule }`, or nothing for a label under no such rule
  */
-function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> {
-    const { minNodeScreenSize: min, attachTo } = (
-        label as unknown as { options: { minNodeScreenSize?: number; attachTo?: unknown } }
+function sizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "sizeRule"> {
+    const { minNodeScreenSize, minScreenSize, attachTo } = (
+        label as unknown as { options: { minNodeScreenSize?: number; minScreenSize?: number; attachTo?: unknown } }
     ).options;
     const mesh = label.labelMesh;
     const camera = mesh?.getScene().activeCamera;
-    if (min === undefined || min <= 0 || !(attachTo instanceof AbstractMesh) || !mesh || !camera) {
+    if (!mesh || !camera) {
         return {};
     }
-    const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
-    const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
-    const hidden = acrossPx < min && mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
-    return { nodeSizeRule: { acrossPx, min, hidden } };
+    const shownElse = mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
+    if (minNodeScreenSize !== undefined && minNodeScreenSize > 0 && attachTo instanceof AbstractMesh) {
+        const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
+        const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
+        return { sizeRule: { acrossPx, min: minNodeScreenSize, hidden: acrossPx < minNodeScreenSize && shownElse } };
+    }
+    if (minScreenSize !== undefined && minScreenSize > 0) {
+        const acrossPx = label.screenFontPx(camera);
+        return { sizeRule: { acrossPx, min: minScreenSize, hidden: acrossPx < minScreenSize && shownElse } };
+    }
+    return {};
 }
 
 /**
@@ -697,7 +706,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
         textBox,
         opacity: textColor.alpha * planeAlpha,
-        ...nodeSizeRuleOf(label),
+        ...sizeRuleOf(label),
         lineCount,
         tall: label.textRuns.map((line) => line.length > 0),
         align,

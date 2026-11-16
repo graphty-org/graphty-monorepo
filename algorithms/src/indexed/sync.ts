@@ -305,7 +305,14 @@ function sameLabels(labels: U32, previousLabels: U32): boolean {
  * @returns Assignments, embeddings and convergence
  */
 export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions): SyncClusteringResult {
-    const { numClusters, maxIterations = 1000, tolerance = 1e-6, learningRate = 0.5, lambda = 0.1 } = options;
+    const {
+        numClusters,
+        maxIterations = 1000,
+        tolerance = 1e-6,
+        seed = 42,
+        learningRate = 0.5,
+        lambda = 0.1,
+    } = options;
     const n = s.nodeCount;
     if (n === 0) {
         return {
@@ -324,7 +331,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             "E_BAD_OPTION",
         );
     }
-    const random = mulberry32(seedOption("syncClustering", options));
+    const random = mulberry32(seedOption("syncClustering", { seed }));
     const dim = Math.min(64, n);
     const st: SyncState = {
         n,

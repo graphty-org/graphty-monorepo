@@ -7,7 +7,7 @@ import {
     type NumericVector,
 } from "@graphty/graph-format";
 
-import { seedOption, type SeedOptions, withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { crossingEdges, edgeCapacities, type MinCutResult, sidesPartition } from "./flow.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
@@ -20,9 +20,13 @@ export interface StoerWagnerOptions {
 }
 
 /** Options of {@link kargerMinCut}. @public */
-export interface KargerOptions extends SeedOptions {
+export interface KargerOptions {
     /** Independent contraction trials; the lightest cut found wins. Default 100. */
     readonly iterations?: number | undefined;
+    /** Seed of the edge orders; an integer, one seed gives one result, bit for bit. Default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
+    readonly randomSeed?: number | undefined;
     /** Per-arc weight override, arcCount long; without it the snapshot's weights (1 when unweighted). */
     readonly weights?: NumericVector | undefined;
 }

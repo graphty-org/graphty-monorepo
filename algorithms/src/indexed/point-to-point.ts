@@ -15,7 +15,7 @@ import { IndexedMinHeap } from "./structures/min-heap.js";
 
 /** Options of the point-to-point searches. @public */
 export interface PathOptions {
-    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
+    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
     readonly weights?: NumericVector | undefined;
 }
 

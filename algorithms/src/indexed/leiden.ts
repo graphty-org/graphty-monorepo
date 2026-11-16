@@ -1,6 +1,6 @@
 import { detExp, type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { seedOption, type SeedOptions, withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights } from "./label-propagation.js";
@@ -11,9 +11,13 @@ import { modularity } from "./modularity.js";
  * `maxIterations` counts something else: see below.
  * @public
  */
-export interface LeidenOptions extends SeedOptions {
+export interface LeidenOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
+    /** Seed of the visit orders; an integer, one seed gives one result, bit for bit. Default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
+    readonly randomSeed?: number | undefined;
     /**
      * Cap on whole passes over the original graph, each running as many levels as it needs; default
      * 100. The legacy `leiden` caps levels instead, so its `maxIterations: 1` is one level where

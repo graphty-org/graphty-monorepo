@@ -1,7 +1,5 @@
 import { type AdjacencyView, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { checkNumber } from "../errors.js";
-
 /** Options of {@link isGraphIsomorphic} and {@link findAllIsomorphisms}. @public */
 export interface IsomorphismOptions {
     /** Whether node `i1` of `s1` may map to node `i2` of `s2`. */
@@ -481,8 +479,11 @@ export function isGraphIsomorphic(
 export function findAllIsomorphisms(s1: GraphSnapshot, s2: GraphSnapshot, options: IsomorphismOptions = {}): U32[] {
     const all: U32[] = [];
     const { maxResults = Infinity } = options;
-    if (options.maxResults !== undefined) {
-        checkNumber("findAllIsomorphisms", "maxResults", options.maxResults, { min: 1, integer: true });
+    if (options.maxResults !== undefined && !(Number.isInteger(maxResults) && maxResults >= 1)) {
+        throw Object.assign(
+            new RangeError(`findAllIsomorphisms: maxResults must be an integer and >= 1, got ${String(maxResults)}`),
+            { code: "E_BAD_OPTION" },
+        );
     }
     search(s1, s2, options, (m) => {
         all.push(m.slice());

@@ -2537,6 +2537,14 @@ jobs:
                   name: build-packages
                   path: .
 
+            # A light pull request's package builds leave the app out (the Build job's --exclude=graphty), so it is
+            # built here from them, as the Lint job does; a full run's artifact already holds it.
+            - name: Build the graphty app
+              if: needs.packages.outputs.full == 'false'
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
+
             - uses: ./.github/actions/drop-microsoft-apt-source
 
             - name: Install Playwright system packages

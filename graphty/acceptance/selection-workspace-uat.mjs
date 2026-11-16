@@ -21,7 +21,7 @@
  * Except a difference), then the cards unioned. Exit 0 when every scenario passed, 1 when one failed.
  * See README.md beside this file.
  */
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -1960,6 +1960,10 @@ const TYPES = {
 // The build in --dist on a loopback port: a file when the path names one, else the app's page.
 async function serve(dist) {
     const root = resolve(dist);
+    if (!existsSync(join(root, "index.html"))) {
+        console.error(`no built app at ${root}: run pnpm exec nx run graphty:build first`);
+        process.exit(2);
+    }
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
         const file = join(root, normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, ""));

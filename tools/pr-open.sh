@@ -155,11 +155,11 @@ fi
 base=$(git merge-base origin/master HEAD)
 if [ "$refs" = 1 ]; then kind=Refs; else kind=Fixes; fi
 members=$(member_lines "$base..HEAD" "$issue" "$kind") || die "could not read the issues $branch's commits name"
-# A pull request that closes more than one issue opens only on a review that judged every member: its header names
+# A pull request that closes an issue besides its own opens only on a review that judged every member: its header names
 # exactly these lines (master's older pr-review.sh, which the review always runs, does not), and no closed member
 # was found unaddressed, which --review-answered cannot answer: merging would close that issue unfixed.
 header=$(sed '/^$/q' "$report")
-if [ "$(grep -c '^Fixes ' <<<"$members")" -gt 1 ] &&
+if sed 1d <<<"$members" | grep -q '^Fixes ' &&
     ! grep -qxF -- "<!-- review-members $(echo $members) -->" <<<"$header"; then
     die "the review did not judge every issue this branch closes ($(echo $members)); tools/pr-review.sh on origin/master must review every member first"
 fi

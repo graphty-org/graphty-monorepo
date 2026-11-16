@@ -207,6 +207,14 @@ describe("pr-open.sh", () => {
         assert.match(readFileSync(join(dir, "body.md"), "utf8"), /\n\nFixes #1003\nFixes #4\nFixes #5\n\n## Proof/);
     });
 
+    it("refuses a branch closing another issue under --refs when the review did not judge it", () => {
+        branch("fix/1005-one", { "a.txt": "a\n" }, "fix(tools): a\n\nFixes #8");
+        const r = run(["--proof", proof, "--refs"]);
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /did not judge every issue this branch closes \(Refs #1005 Fixes #8\)/);
+        assert.ok(!existsSync(ghLog), "gh was never called");
+    });
+
     it("refuses a closed member the review found unaddressed, even with --review-answered", () => {
         branch("fix/1004-gap", { "a.txt": "a\n" }, "fix(tools): a\n\nFixes #6");
         const header = "<!-- review-members Fixes #1004 Fixes #6 -->\n<!-- member-not-addressed 6 -->\n";

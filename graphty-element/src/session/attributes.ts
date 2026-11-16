@@ -15,7 +15,7 @@
  * `test/session/single-attribute-writer.test.ts` fails on any other.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, maskTest, type U32 } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
@@ -380,6 +380,72 @@ export function describeAttributes(
     }
 
     return Object.freeze(described);
+}
+
+/**
+ * The whole graph's columns with each one's figures -- completeness, distinct values, range and
+ * samples -- measured over only the rows a view shows. What each column is (its type, its
+ * measurement) stays the whole graph's, and a column no shown row carries is kept, empty, so a
+ * filter never takes a column away.
+ * @param whole - The whole graph's columns, as {@link describeAttributes} gave them.
+ * @param snapshot - The snapshot they were described from.
+ * @param records - Where to read the attributes a record arrived with.
+ * @param shown - The rows the view shows, as bitmaps over the snapshot's rows.
+ * @param shown.nodes - The shown node rows.
+ * @param shown.edges - The shown edge rows.
+ * @param readDates - Whether a text column of plain dates measures time.
+ * @returns The columns, in the whole graph's order.
+ */
+export function describeShownFigures(
+    whole: readonly AttributeDescriptor[],
+    snapshot: GraphSnapshot,
+    records: SessionRecordSource,
+    shown: { readonly nodes: U32; readonly edges: U32 },
+    readDates = true,
+): readonly AttributeDescriptor[] {
+    const count = (mask: U32, total: number): number => {
+        let kept = 0;
+        for (let row = 0; row < total; row++) {
+            kept += maskTest(mask, row) ? 1 : 0;
+        }
+        return kept;
+    };
+    const totals = { node: count(shown.nodes, snapshot.nodeCount), edge: count(shown.edges, snapshot.edgeCount) };
+    const found = {
+        node: walk(
+            snapshot.nodeCount,
+            (index) =>
+                maskTest(shown.nodes, index) ? records.nodeAttributes(index, snapshot.ids.idOf(index)) : undefined,
+            (index) => snapshot.ids.idOf(index),
+        ),
+        edge: walk(snapshot.edgeCount, (index) =>
+            maskTest(shown.edges, index) ? records.edgeAttributes(index) : undefined,
+        ),
+    };
+
+    return Object.freeze(
+        whole.map((column) => {
+            const measured = describe(
+                column.name,
+                column.kind,
+                found[column.kind].get(column.name) ?? newAccumulator(),
+                totals[column.kind],
+                readDates,
+            );
+            const { min: _min, max: _max, uniqueCount: _unique, ...rest } = column;
+            return Object.freeze({
+                ...rest,
+                completeness: measured.completeness,
+                sampleValues: measured.sampleValues,
+                ...(column.uniqueCount !== undefined && measured.uniqueCount !== undefined
+                    ? { uniqueCount: measured.uniqueCount }
+                    : {}),
+                ...(column.min !== undefined && measured.min !== undefined && Number.isFinite(measured.min)
+                    ? { min: measured.min, max: measured.max }
+                    : {}),
+            } satisfies AttributeDescriptor);
+        }),
+    );
 }
 
 // ---------------------------------------------------------------------------------------------

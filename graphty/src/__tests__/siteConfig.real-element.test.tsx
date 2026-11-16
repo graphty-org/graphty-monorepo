@@ -86,8 +86,13 @@ describe("site.json", () => {
     });
 
     it("switches every experiment off when the site answers site.json with a page", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
         const config = await loadSiteConfig("data:text/html,<!doctype html><title>Graphty</title>");
+        const lines = warn.mock.calls.map((call) => String(call[0]));
+        warn.mockRestore();
         assert.deepEqual(config, { site: "unknown", features: [] });
+        // Names the cause, never a JSON syntax error from parsing the page (#8224).
+        assert.include(lines.join("\n"), "served an HTML page, not a site configuration");
     });
 
     it("switches every experiment off when site.json is invalid", async () => {

@@ -187,14 +187,6 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
-import {
-    asStyleValueStore,
-    STYLE_VALUES_VALUE,
-    styleValueAttributes,
-    styleValueColumn,
-    type StyleValueStore,
-} from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
@@ -2400,12 +2392,6 @@ function fieldKindsOf(
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
     }
 
-    // The values graphty-element provides: a file's style value is on the kind its path names.
-    const style = parseFileStylePath(path);
-    if (style !== undefined) {
-        return [style.kind];
-    }
-
     if (noteFieldOf(path) !== undefined) {
         return ["node", "edge"];
     }
@@ -2729,29 +2715,20 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
- * @param styleValues - Reads the style value store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, styleValues: () => StyleValueStore): PathDirectory {
+function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element. A
-        // style value column is answerable wherever the store holds it.
+        // A note value is always answerable: it reads nothing until a note names the element.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
                 return target === "edge" && answersReadable(data, runs, end.node, "node");
             }
 
-            return (
-                noteFieldOf(path) !== undefined ||
-                answersStyleValue(styleValues(), path, target) ||
-                answersReadable(data, runs, path, target)
-            );
+            return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
         },
-        candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => [
-            ...answerablePaths(data, runs, target),
-            ...styleValuePaths(styleValues(), target),
-        ],
+        candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }
 
@@ -2767,30 +2744,6 @@ function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Pa
         .readableValues()
         .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
         .map((value) => value.path);
-}
-
-/**
- * Whether a style value path names a column the store holds, for the kind of element asking.
- * @param store - The style value store.
- * @param path - The path.
- * @param target - Whether the asking layer paints nodes or edges.
- * @returns True when the store holds that column.
- */
-function answersStyleValue(store: StyleValueStore, path: Path, target: "node" | "edge"): boolean {
-    const parts = parseFileStylePath(path);
-    return parts?.kind === target && styleValueColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
-}
-
-/**
- * The paths of every column the style value store holds for one kind of element.
- * @param store - The style value store.
- * @param target - Nodes or edges.
- * @returns The paths, in set and column order.
- */
-function styleValuePaths(store: StyleValueStore, target: "node" | "edge"): readonly Path[] {
-    return styleValueAttributes(store, { node: 0, edge: 0 })
-        .filter((column) => column.kind === target)
-        .map((column) => column.path);
 }
 
 /**
@@ -2823,14 +2776,11 @@ function fieldWordsOf(
             }
         }
 
-        // The values graphty-element keeps itself: a node's degrees and the style value columns, each named by its key.
+        // The values graphty-element keeps itself: a node's degrees.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
-        if (structure !== undefined) {
-            return { plainName: structure.plainName, technicalName: structure.technicalName };
-        }
-
-        const style = parseFileStylePath(path);
-        return style?.kind === target ? { plainName: style.key, technicalName: style.key } : undefined;
+        return structure === undefined
+            ? undefined
+            : { plainName: structure.plainName, technicalName: structure.technicalName };
     };
 }
 
@@ -3956,8 +3906,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
-    const readStyleValues = (): StyleValueStore =>
-        asStyleValueStore(dispatcher.state.graph.values.get(STYLE_VALUES_VALUE));
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
@@ -3967,13 +3915,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => dispatcher.lane.writes("notes"),
             snapshot,
         ),
-        // The style value store, read from the project as it stands now: every write makes a new
-        // store object, so a reader never holds a stale one.
-        styleValues: (namespace, kind, key) => styleValueColumn(readStyleValues(), namespace, kind, key),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs, readStyleValues);
+    const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4671,13 +4616,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
-            // The style value store moved: every layer reading a `graphty.style.` path repaints.
-            const stylesMoved = dirty.has(STYLE_VALUES_KEY);
-            const readers = recordsOnly
-                ? stack.filter(
-                      (entry) => readsAnyField(entry, changed) || (stylesMoved && entry.reads.some(isFileStylePath)),
-                  )
-                : stack;
+            const readers = recordsOnly ? stack.filter((entry) => readsAnyField(entry, changed)) : stack;
             if (readers.length === 0) {
                 return;
             }
@@ -4972,17 +4911,13 @@ function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
         namesEdges(key) ||
-        // A graph value (the import report an add replaces) is read by no layer; the style value
-        // store is, so a change to it repaints what reads it rather than only the rows.
-        (key.startsWith("v:") && key !== STYLE_VALUES_KEY) ||
+        // A graph value (the import report an add replaces) is read by no layer.
+        key.startsWith("v:") ||
         key === ROWS_MOVED ||
         key === NODES_ADDED ||
         key === EDGES_ADDED
     );
 }
-
-/** The dirty key a write of the style value store raises in the `graph` hook. */
-const STYLE_VALUES_KEY = `v:${STYLE_VALUES_VALUE}`;
 
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by

@@ -1,25 +1,16 @@
 /**
- * @file The paths of the values graphty-element keeps per element beside the data: the style
- * value store (`graphty.style.<set>.<kind>.<key>`) and the live degrees (`graphty.degree`,
- * `graphty.inDegree`, `graphty.outDegree`).
- *
- * Every such path is built and parsed HERE and nowhere else. A proposal to move every per-element
- * value graphty keeps under one namespaced root (issue #2029) would change these helpers and
- * nothing that calls them.
+ * @file The paths of the values graphty-element computes per element from the graph itself, live
+ * (`graphty.degree`, `graphty.inDegree`, `graphty.outDegree`), and the parsing of the paths a layer
+ * graphty wrote into an older file may read (`graphty.style.<set>.<kind>.<key>`), so a load can
+ * point such a layer at the data column holding the same values.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { Path } from "../../../catalog/types";
 
-/** The root of every file-style path. */
-const STYLE_ROOT = "graphty.style.";
-
-/**
- * Which kind of element a file-style value belongs to.
- * @experimental file-styles
- */
-export type FileStyleKind = "node" | "edge";
+/** The root of the paths older files' layers read per-element values at. */
+const WRITTEN_ROOT = "graphty.style.";
 
 /** A value the element computes from the graph itself, live. */
 export type ComputedValue = "degree" | "indegree" | "outdegree";
@@ -36,69 +27,36 @@ const COMPUTED_BY_PATH: ReadonlyMap<Path, ComputedValue> = new Map(
     (Object.entries(COMPUTED_PATHS) as [ComputedValue, Path][]).map(([value, path]) => [path, value]),
 );
 
-/** A set name: lowercase, with no dot (`values`, `values-2`). */
-const NAMESPACE = /^[a-z0-9][a-z0-9_-]*$/;
-
-/** A file-style path, parsed. */
-export interface FileStylePathParts {
-    readonly namespace: string;
-    readonly kind: FileStyleKind;
-    readonly key: string;
-}
+/** A set name: lowercase, with no dot. */
+const SET_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
- * Whether a string can be a file-style namespace.
- * @param namespace - The candidate.
- * @returns True for a lowercase name with no dot.
- */
-export function isFileStyleNamespace(namespace: string): boolean {
-    return namespace.length <= 64 && NAMESPACE.test(namespace);
-}
-
-/**
- * The path a layer reads one style value column at.
- * @param namespace - The set's name (`values`, `values-2`).
- * @param kind - Nodes or edges.
- * @param key - The column's key, which may hold dots (`member.3`).
- * @returns `graphty.style.<namespace>.<kind>.<key>`.
- */
-export function fileStylePath(namespace: string, kind: FileStyleKind, key: string): Path {
-    return `${STYLE_ROOT}${namespace}.${kind}.${key}`;
-}
-
-/**
- * Whether a path is under the file-style root, known or not.
+ * The parts of a path a layer in an older graphty file reads.
  * @param path - The path.
- * @returns True for a path starting `graphty.style.`.
+ * @returns Its kind and key; undefined when it is under the root but malformed; null when it is
+ *     any other path.
  */
-export function isFileStylePath(path: Path): boolean {
-    return path.startsWith(STYLE_ROOT);
-}
-
-/**
- * The parts of a file-style path.
- * @param path - The path.
- * @returns Its namespace, kind and key, or undefined when it is not a well-formed file-style path.
- */
-export function parseFileStylePath(path: Path): FileStylePathParts | undefined {
-    if (!isFileStylePath(path)) {
-        return undefined;
+export function parseWrittenStylePath(
+    path: Path,
+): { readonly kind: "node" | "edge"; readonly key: string } | undefined | null {
+    if (!path.startsWith(WRITTEN_ROOT)) {
+        return null;
     }
 
-    const first = path.indexOf(".", STYLE_ROOT.length);
+    const first = path.indexOf(".", WRITTEN_ROOT.length);
     const second = first === -1 ? -1 : path.indexOf(".", first + 1);
     if (second === -1) {
         return undefined;
     }
 
-    const namespace = path.slice(STYLE_ROOT.length, first);
+    const set = path.slice(WRITTEN_ROOT.length, first);
     const kind = path.slice(first + 1, second);
     const key = path.slice(second + 1);
-    if (!isFileStyleNamespace(namespace) || (kind !== "node" && kind !== "edge") || key === "") {
+    if (!SET_NAME.test(set) || (kind !== "node" && kind !== "edge") || key === "") {
         return undefined;
     }
 
-    return { namespace, kind, key };
+    return { kind, key };
 }
 
 /**

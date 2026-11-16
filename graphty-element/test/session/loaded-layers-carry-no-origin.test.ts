@@ -99,27 +99,20 @@ describe("a loaded file's layers and values", () => {
 });
 
 describe("a replacing load", () => {
-    it("removes the previous load's untouched layers and keeps the one the reader edited", async () => {
+    it("keeps the previous load's layers, as it keeps hand-made ones", async () => {
         const session = createGraphSession();
         await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
-        const first = loadedLayers(session);
+        const first = loadedLayers(session).map((layer) => layer.id);
         assert.isAbove(first.length, 1);
-        await session.styles.update(first[0].id, { name: "Mine now" });
 
         await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
-        const names = session.styles.list().map((layer) => `${layer.target} ${layer.name}`);
-        assert.include(names, `${first[0].target} Mine now`);
-        // Each untouched layer went: the second load's copy of it is the only one left.
-        for (const layer of first.slice(1)) {
-            const key = `${layer.target} ${layer.name}`;
-            assert.lengthOf(
-                names.filter((name) => name === key),
-                1,
-                key,
-            );
+        const ids = session.styles.list().map((layer) => layer.id);
+        for (const id of first) {
+            assert.include(ids, id);
         }
 
         assert.isNotEmpty(loadedLayers(session));
+        assert.isTrue(loadedLayers(session).every((layer) => !first.includes(layer.id)));
         session.dispose();
     });
 

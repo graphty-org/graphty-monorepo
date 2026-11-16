@@ -46,9 +46,8 @@ import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import type { ExportFlattenReason } from "./codes";
-import { computedOf, parseFileStylePath } from "./path";
+import { computedOf } from "./path";
 import { ARROW_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES } from "./shapes";
-import { styleValueColumn, type StyleValueStore } from "./store";
 import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
@@ -63,8 +62,6 @@ export interface LayersToStylesInput {
     readonly explain: (target: ExplainTarget) => StyleExplanation;
     /** Per node row, and per edge row, whether the element is hidden. */
     readonly hidden: { readonly node: readonly boolean[]; readonly edge: readonly boolean[] };
-    /** The session's file-style values. */
-    readonly fileStyles: StyleValueStore;
     /** The format being written, for the styles' source. */
     readonly format: string;
     /**
@@ -368,8 +365,6 @@ class KindExport {
     /** Per layer id, per channel, what the layer painted each element. */
     readonly #painted = new Map<string, Map<string, unknown[]>>();
     readonly #columns = new Map<string, StyleColumn>();
-    /** Per file-style path, the key it is written under. */
-    readonly #fileKeys = new Map<string, string>();
     readonly #rules: StyleRule[] = [];
     readonly #ruleIds = new Set<string>();
     readonly flattened: FlattenedLayer[] = [];
@@ -490,11 +485,6 @@ class KindExport {
             return this.#kind === "node" ? { computed } : null;
         }
 
-        const parts = parseFileStylePath(path);
-        if (parts !== undefined) {
-            return parts.kind === this.#kind ? this.#fileStyleRef(path, parts) : null;
-        }
-
         if (!path.startsWith(DATA_PREFIX)) {
             return null;
         }
@@ -502,33 +492,6 @@ class KindExport {
         const column = path.slice(DATA_PREFIX.length);
         const table = this.#kind === "node" ? this.#input.snapshot.nodes : this.#input.snapshot.edges;
         return table.has(column) && !column.startsWith("graphty.") ? { data: column } : null;
-    }
-
-    /**
-     * The reference of a file-style value a layer reads: written under its own key, so a load of
-     * the file finds it again under the same key.
-     * @param path - The path.
-     * @param parts - Its parts.
-     * @param parts.namespace - The load's namespace.
-     * @param parts.key - The column's key.
-     * @returns The reference, or null when the store holds no such column or its key is taken.
-     */
-    #fileStyleRef(path: Path, parts: { namespace: string; key: string }): ColumnRef | null {
-        const known = this.#fileKeys.get(path);
-        if (known !== undefined) {
-            return { style: known };
-        }
-
-        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
-        // Two loads' columns of one key cannot both keep it: the second is not carried as itself.
-        if (held === undefined || this.#columns.has(parts.key)) {
-            return null;
-        }
-
-        const values = this.#input.ids[this.#kind].map((id) => held.get(id) ?? null);
-        this.#columns.set(parts.key, values);
-        this.#fileKeys.set(path, parts.key);
-        return { style: parts.key };
     }
 
     /**
@@ -934,9 +897,9 @@ class KindExport {
     }
 
     /**
-     * The file-style path a load scoped a layer to (`has <path>`, or `(...) && <path> != null`).
+     * The path a layer is scoped to (`has <path>`, or `(...) && <path> != null`).
      * @param selector - The layer's selector.
-     * @returns The path, or null for a selector no load scoped.
+     * @returns The path, or null for a selector of another shape.
      */
     #scopeOf(selector: LayerSpec["selector"]): Path | null {
         let path: string | null = null;
@@ -947,28 +910,29 @@ class KindExport {
             path = quoted === undefined ? null : unquotePath(quoted);
         }
 
-        return path !== null && parseFileStylePath(path) !== undefined ? path : null;
+        return path;
     }
 
     /**
-     * A layer's selector without the scope a load put on it, when that scope covers every element
-     * this export writes: the scope is the load's own bookkeeping, and the load that reads the
-     * file puts its own on. A scope that leaves elements out is kept, so the layer still paints
-     * only its own load's elements.
+     * A layer's selector without its scope (`has <path>`, or `(...) && <path> != null`) when every
+     * element this export writes holds a value at that data path: the scope then selects nothing
+     * the rest of the selector does not. A scope that leaves elements out is kept.
      * @param selector - The layer's selector.
      * @returns The selector, unscoped when the scope selects everything.
      */
     #unscoped(selector: LayerSpec["selector"]): LayerSpec["selector"] {
         const path = this.#scopeOf(selector);
-        const parts = path === null ? undefined : parseFileStylePath(path);
-        if (parts?.kind !== this.#kind) {
+        const column = path?.startsWith(DATA_PREFIX) === true ? path.slice(DATA_PREFIX.length) : null;
+        const table = this.#kind === "node" ? this.#input.snapshot.nodes : this.#input.snapshot.edges;
+        if (column === null || !table.has(column)) {
             return selector;
         }
 
-        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
-        const ids = this.#input.ids[this.#kind];
-        if (held === undefined || !ids.every((id) => held.get(id) !== null && held.get(id) !== undefined)) {
-            return selector;
+        for (let row = 0; row < this.#n; row++) {
+            const value = table.value(column, row);
+            if (value === null || value === undefined) {
+                return selector;
+            }
         }
 
         if (selector.match === "has") {
@@ -1002,8 +966,8 @@ class KindExport {
     }
 }
 
-/** A selector a load scoped: `(<inner>) && <path> != \`null\``, the path a file-style path. */
-const SCOPED = /^\((.*)\) && (graphty\.style\..+) != `null`$/s;
+/** A scoped selector: `(<inner>) && <path> != \`null\``. */
+const SCOPED = /^\((.*)\) && (\S(?:.*\S)?) != `null`$/s;
 
 /**
  * A path as an expression writes it, each quoted segment read back as its text.

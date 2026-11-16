@@ -159,7 +159,6 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
     "groups.collapse": (p) => `collapsing group ${String(p.group)}`,
     "groups.expand": (p) => `expanding group ${String(p.group)}`,
-    "data.set-style-values": () => "setting style values",
     "annotations.set": () => "setting the annotations",
     "annotations.patch": () => "changing an annotation",
     "data.columns": () => "changing the columns",

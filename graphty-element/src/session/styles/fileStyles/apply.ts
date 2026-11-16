@@ -1,11 +1,11 @@
 /**
  * @file A file's styles applied by the load that read the file, inside its `data.import` step: the
- * layers the previous load added removed on a replacing load (those the reader left as they were),
- * the style values written to a new set of the style value store, the layers checked one by one
- * and added above the element's base layers, the hidden elements given to the visibility filter,
- * the background to the configuration and the annotations through `annotations.set`, each through
- * the same command any caller uses. Nothing it writes records that a load wrote it. One load is one
- * undo step, and redo puts all of it back without reading the file again.
+ * per-element values the layers read written onto the loaded elements as ordinary data columns
+ * (`data.apply`), the layers checked one by one and added above the element's base layers, the
+ * hidden elements given to the visibility filter, the background to the configuration and the
+ * annotations through `annotations.set`, each through the same command any caller uses. Nothing it
+ * writes records that a load wrote it: once loaded, the columns and layers are like any others. One
+ * load is one undo step, and redo puts all of it back without reading the file again.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -19,51 +19,23 @@ import {
     readImageAnnotations,
 } from "@graphty/graph-io/styles";
 
-import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
+import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
-import { type CompiledLayer, specOf } from "../Layer";
-import { deepEquals, quotePath } from "../predicate";
+import type { CompiledLayer } from "../Layer";
+import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
-import { fileStylePath } from "./path";
 import {
-    asStyleValueStore,
-    nextStyleValueSetName,
-    STYLE_VALUES_VALUE,
-    type StyleValueColumn,
-    styleValueSetsOf,
-} from "./store";
-import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
-
-/**
- * The graph value holding the layers the loads since the last replacing one added, each as it was
- * added: session state the next replacing load reads to remove them, never saved and never on a layer.
- */
-const IMPORTED_LAYERS_VALUE = "importedLayers";
-
-/** A layer a load added, as it was added. */
-export interface ImportedLayer {
-    readonly id: LayerId;
-    readonly spec: LayerSpec;
-}
-
-/**
- * The layers the loads since the last replacing one added, read before a load replaces the graph
- * (which sweeps its values).
- * @param state - The project state.
- * @param state.graph - Its graph slice.
- * @param state.graph.values - Its graph values.
- * @returns The layers, as they were added.
- */
-export function importedLayersOf(state: {
-    readonly graph: { readonly values: ReadonlyMap<string, unknown> };
-}): readonly ImportedLayer[] {
-    const held = state.graph.values.get(IMPORTED_LAYERS_VALUE);
-    return Array.isArray(held) ? (held as readonly ImportedLayer[]) : [];
-}
+    carriedColumnOf,
+    type FileStyleNote,
+    type FileStyleOptions,
+    type StyleScalar,
+    translateFileStyles,
+    type Translation,
+} from "./translate";
 
 /** A file's styles, as the data source that read the file gives them. */
 export interface FileStylesRead {
@@ -208,8 +180,6 @@ function elementDefaultsOf(
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
- * @param previous - The layers the loads before this one added ({@link importedLayersOf}), read
- *     before the import replaced the graph.
  * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
  *     positions take too (1 when the load keeps file lengths); null when no file styles were drawn,
  *     the file gives no length to scale by, or the load merged into a graph whose positions are in
@@ -219,23 +189,11 @@ export async function applyFileStyles(
     command: DataImportCommand,
     outcome: ImportOutcome | null,
     ctx: UndoableContext,
-    previous: readonly ImportedLayer[] = [],
 ): Promise<number | null> {
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
-    if (replacing) {
-        // Only what the previous loads added and the reader left as it was: an edited layer is the reader's now.
-        for (const id of untouched(previous, ctx.state.styles)) {
-            await ctx.inline({ op: "style.patch", action: "remove", id });
-        }
-    }
-
     if (!loaded || styles !== "file") {
-        if (replacing && previous.length > 0) {
-            ctx.services.data?.values?.({ [IMPORTED_LAYERS_VALUE]: undefined }, ctx.draft);
-        }
-
         return null;
     }
 
@@ -251,14 +209,8 @@ export async function applyFileStyles(
     let sceneScale: number | null = null;
     let lengthScale: number | undefined;
     if (read !== null) {
-        const applied = await applyRead(outcome, read, options, ctx, replacing);
+        const applied = await applyRead(command, outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
-        const added = applied.layers.flatMap((id) => {
-            const entry = ctx.state.styles.find((each) => each.layer.id === id);
-            return entry === undefined ? [] : [{ id, spec: specOf(entry.layer) }];
-        });
-        const kept = replacing ? [] : previous;
-        ctx.services.data?.values?.({ [IMPORTED_LAYERS_VALUE]: Object.freeze([...kept, ...added]) }, ctx.draft);
         notes.push(...applied.notes);
         sceneScale = replacing ? applied.sceneScale : null;
         ({ lengthScale } = applied);
@@ -331,6 +283,7 @@ function acceptedLayers(
 
 /**
  * Translate and apply one file's styles.
+ * @param command - The import.
  * @param outcome - What the load left.
  * @param read - The file's styles.
  * @param options - The load's choices.
@@ -339,30 +292,42 @@ function acceptedLayers(
  * @returns The layers made, the notes and the scene units one file unit was drawn as.
  */
 async function applyRead(
+    command: DataImportCommand,
     outcome: ImportOutcome,
     read: FileStylesRead,
     options: FileStyleOptions,
     ctx: UndoableContext,
     replacing: boolean,
 ): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
-    const held = replacing ? [] : styleValueSetsOf(asStyleValueStore(ctx.state.graph.values.get(STYLE_VALUES_VALUE)));
-    const namespace = nextStyleValueSetName(new Set(held.map((set) => set.name)));
+    const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
+    const dataPath = dataPaths(read.path);
+    const columnPath = columnNamer(command.source.type ?? "file", ids, ctx, (kind, key) => {
+        const carried = carriedColumnOf(key);
+        return carried === null ? null : (dataPath(kind, carried)?.slice(DATA_PREFIX.length) ?? null);
+    });
     const translation = translateFileStyles({
         extracted: read.extracted,
         snapshot: read.snapshot,
-        namespace,
+        columnPath,
         options,
-        dataPath: dataPaths(read.path),
+        dataPath,
         elementDefaults: elementDefaultsOf(ctx.state.styles),
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
 
-    // The values, keyed by the ids the element holds the elements under.
-    const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
-    const columns = keptColumns(translation.columns, ids);
-
-    await ctx.inline({ op: "data.setStyleValues", sets: [...held, { name: namespace, columns }] });
+    // The values, written onto the elements the element holds as ordinary data columns.
+    for (const kind of ["node", "edge"] as const) {
+        const rows = rowsOf(
+            translation.columns[kind],
+            ids[kind],
+            (key) => columnPath(kind, key),
+            kind === "node" ? ctx.state.graph.nodes : ctx.state.graph.edges,
+        );
+        if (rows.length > 0) {
+            await ctx.inline({ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows } });
+        }
+    }
 
     const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
 
@@ -376,7 +341,7 @@ async function applyRead(
         layers.push(...(value?.result?.applied ?? []), ...(value?.result?.unbound ?? []).map((entry) => entry.layerId));
     }
 
-    await hide(translation.hidden, namespace, ctx);
+    await hide(translation.hidden, columnPath, ctx);
     // graph-io gives the background as a color it read; a refusal is a defect, reported with its own code.
     if (translation.background !== null) {
         await ctx.inline({
@@ -414,68 +379,185 @@ async function applyRead(
     return { layers, notes, sceneScale, lengthScale: translation.sceneScale ?? 1 };
 }
 
+/** The prefix of a path reading a record's attribute. */
+const DATA_PREFIX = "data.";
+
 /**
- * The values the layers read, each kept only for an element the element holds and only where it
- * has a value.
- * @param translated - The values per kind and key, by element index.
- * @param ids - The element's id of each element index, null for one it does not hold.
- * @returns The columns.
+ * Names the data columns a load's values land in, each once: the key with every character but a
+ * letter, a digit or an underscore written as an underscore (a dot in a path would nest, and every
+ * format spells such a name back unchanged); a copy graph-io carries of a data column a format
+ * could not keep takes the name of the column it copies. A name a record or a layer already uses
+ * becomes `<name> (<source id>)`, so a load never writes over other data or feeds an existing
+ * layer, unless the load's own elements already hold these values under it as a file spells them
+ * (a file graphty wrote carries its columns; a format with no booleans holds `1`), which the load
+ * then writes back exactly. Loading the same file into an empty graph names the same columns every
+ * time.
+ * @param sourceId - The id of the data source that read the file.
+ * @param ids - The element's id of each element index of the load, per kind.
+ * @param ctx - The import's context, read once the load's records are in.
+ * @param carried - The record key of the data column a key copies, or null when it copies none.
+ * @returns For a kind and key, given its values by element index, the `data.` path.
  */
-function keptColumns(
-    translated: Readonly<Record<"node" | "edge", ReadonlyMap<string, readonly (string | number | boolean | null)[]>>>,
+function columnNamer(
+    sourceId: string,
     ids: Readonly<Record<"node" | "edge", readonly (NodeId | EdgeId | null | undefined)[]>>,
-): StyleValueColumn[] {
-    const columns: StyleValueColumn[] = [];
-    for (const kind of ["node", "edge"] as const) {
-        for (const [key, values] of translated[kind]) {
-            const keptIds: (NodeId | EdgeId)[] = [];
-            const keptValues: (string | number | boolean)[] = [];
-            values.forEach((value, i) => {
-                const id = ids[kind][i];
-                if (value !== null && id !== null && id !== undefined) {
-                    keptIds.push(id);
-                    keptValues.push(value);
-                }
-            });
-            columns.push({ kind, key, ids: keptIds, values: keptValues });
+    ctx: UndoableContext,
+    carried: (kind: "node" | "edge", key: string) => string | null,
+): (kind: "node" | "edge", key: string, values?: readonly (StyleScalar | null)[]) => Path {
+    const taken: Partial<Record<"node" | "edge", Set<string>>> = {};
+    const named = new Map<string, Path>();
+    const recordsOf = (kind: "node" | "edge"): ReadonlyMap<NodeId | EdgeId, Readonly<Record<string, unknown>>> =>
+        kind === "node" ? ctx.state.graph.nodes : ctx.state.graph.edges;
+    const takenOf = (kind: "node" | "edge"): Set<string> => {
+        const existing = taken[kind];
+        if (existing !== undefined) {
+            return existing;
         }
-    }
-    return columns;
+
+        const names = new Set<string>();
+        for (const record of recordsOf(kind).values()) {
+            for (const key of Object.keys(record)) {
+                names.add(key);
+            }
+        }
+
+        for (const entry of ctx.state.styles) {
+            for (const path of entry.reads) {
+                if (path.startsWith(DATA_PREFIX)) {
+                    names.add(path.slice(DATA_PREFIX.length).split(".")[0]);
+                }
+            }
+        }
+
+        taken[kind] = names;
+        return names;
+    };
+    const holds = (kind: "node" | "edge", name: string, values: readonly (StyleScalar | null)[]): boolean => {
+        const records = recordsOf(kind);
+        let any = false;
+        for (let i = 0; i < values.length; i++) {
+            const id = ids[kind][i];
+            if (id === null || id === undefined) {
+                continue;
+            }
+
+            const value = records.get(id)?.[name] ?? null;
+            if (!sameValue(value, values[i])) {
+                return false;
+            }
+
+            any ||= value !== null;
+        }
+
+        return any;
+    };
+    const path = (kind: "node" | "edge", key: string, values: readonly (StyleScalar | null)[] = []): Path => {
+        const known = named.get(`${kind}:${key}`);
+        if (known !== undefined) {
+            return known;
+        }
+
+        const names = takenOf(kind);
+        const base = carried(kind, key) ?? key.replaceAll(/[^A-Za-z0-9_]/g, "_");
+        let name = base;
+        for (let n = 1; names.has(name) && !holds(kind, name, values); n++) {
+            name = `${base} (${sourceId}${n === 1 ? "" : ` ${String(n)}`})`.replaceAll(".", "_");
+        }
+
+        const at = `${DATA_PREFIX}${name}`;
+        names.add(name);
+        named.set(`${kind}:${key}`, at);
+        return at;
+    };
+    return path;
 }
 
 /**
- * The layers a previous load added that the stack still holds exactly as they were added.
- * @param previous - The layers, as they were added.
- * @param stack - The stack now.
- * @returns Their ids.
+ * Whether a record's value is a kept value as a file spells it back: the value itself, or its text, a
+ * true or false as `1` or `0` (a format with no booleans).
+ * @param held - The record's value.
+ * @param kept - The kept value.
+ * @returns True when they agree.
  */
-function untouched(previous: readonly ImportedLayer[], stack: readonly CompiledLayer[]): LayerId[] {
-    const byId = new Map(stack.map((entry) => [entry.layer.id, entry.layer]));
-    return previous.flatMap(({ id, spec }) => {
-        const layer = byId.get(id);
-        return layer !== undefined && deepEquals(specOf(layer), spec) ? [id] : [];
-    });
+function sameValue(held: unknown, kept: StyleScalar | null): boolean {
+    if (held === kept) {
+        return true;
+    }
+
+    if (kept === null || (typeof held !== "string" && typeof held !== "number" && typeof held !== "boolean")) {
+        return false;
+    }
+
+    const text = String(held);
+    return text === String(kept) || (typeof kept === "boolean" && text === (kept ? "1" : "0"));
+}
+
+/**
+ * The row updates writing a kind's kept values onto the elements the element holds, where each has a value.
+ * @param translated - The values per key, by element index.
+ * @param ids - The element's id of each element index, null for one it does not hold.
+ * @param pathOf - The `data.` path each key lands at.
+ * @param records - The records of the kind, so a value an element already holds is not written again.
+ * @returns One update per element whose value it does not hold yet: a value a file spelled another way
+ *     (`1` for true) is written back exactly.
+ */
+function rowsOf(
+    translated: ReadonlyMap<string, readonly (StyleScalar | null)[]>,
+    ids: readonly (NodeId | EdgeId | null | undefined)[],
+    pathOf: (key: string) => Path,
+    records: ReadonlyMap<NodeId | EdgeId, Readonly<Record<string, unknown>>>,
+): { id: NodeId | EdgeId; values: Record<string, StyleScalar> }[] {
+    const rows = new Map<NodeId | EdgeId, Record<string, StyleScalar>>();
+    for (const [key, values] of translated) {
+        const name = pathOf(key).slice(DATA_PREFIX.length);
+        values.forEach((value, i) => {
+            const id = ids[i];
+            if (value === null || id === null || id === undefined || records.get(id)?.[name] === value) {
+                return;
+            }
+
+            const row = rows.get(id) ?? {};
+            row[name] = value;
+            rows.set(id, row);
+        });
+    }
+
+    return [...rows].map(([id, values]) => ({ id, values }));
+}
+
+/**
+ * An expression true where a column holds true, or `1` as a format with no booleans spells it.
+ * @param path - The column's path.
+ * @returns The expression.
+ */
+function isTrue(path: Path): string {
+    const quoted = quotePath(path);
+    return `${quoted} == \`true\` || ${quoted} == \`1\``;
 }
 
 /**
  * Hide the elements the file hides, through the visibility filter, beside any filter already set.
  * @param hidden - The hidden elements per kind.
- * @param namespace - The load's namespace.
+ * @param columnPath - The `data.` path each kept column landed at.
  * @param ctx - The import's context.
  */
-async function hide(hidden: Translation["hidden"], namespace: string, ctx: UndoableContext): Promise<void> {
+async function hide(
+    hidden: Translation["hidden"],
+    columnPath: (kind: "node" | "edge", key: string) => Path,
+    ctx: UndoableContext,
+): Promise<void> {
     const leaves: RuleTree[] = [];
     if (hidden.node !== null) {
         leaves.push({
             kind: "expression",
-            where: `${quotePath(fileStylePath(namespace, "node", hidden.node.key))} == \`true\``,
+            where: isTrue(columnPath("node", hidden.node.key)),
         });
     }
 
     if (hidden.edge !== null) {
         leaves.push({
             kind: "edges",
-            where: `${quotePath(fileStylePath(namespace, "edge", hidden.edge.key))} == \`true\``,
+            where: isTrue(columnPath("edge", hidden.edge.key)),
         });
     }
 

@@ -145,7 +145,7 @@ function buildRestPart(
         });
         const rest: RestPart = {
             head: documentAround(session, [], {}),
-            session: sessionMember(sources, idsNow),
+            session: sessionMember(sources),
             results: resultsMember(session, []),
             style: styleMember(session),
             notes: notesMember(session),

@@ -68,14 +68,6 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
-import {
-    asStyleValueStore,
-    LEGACY_STYLE_VALUES_VALUE,
-    STYLE_VALUES_VALUE,
-    type StyleValueSet,
-    styleValueSetsOf,
-    upgradeStyleValueSets,
-} from "./styles/fileStyles/store";
 import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
@@ -873,27 +865,10 @@ function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, key
  * was declared, what each declared column measures (a field with its own version, so a file
  * without it still opens).
  * @param sources - The session and its dispatcher.
- * @param ids - The graph's ids, or a function that reads them (called only when a file-style load
- * holds an edge column).
  * @returns The member.
  */
-export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+export function sessionMember(sources: ProjectSources): Record<string, unknown> {
     const { session, dispatcher } = sources;
-    // The file-style values, an edge named by its position in the data as a run's edges are. The
-    // edge ids are read only when a load holds an edge column, as for the view state.
-    let edgeAt: Map<EdgeId, number> | undefined;
-    const indexOf = (edge: EdgeId): number => {
-        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
-        return edgeAt.get(edge) ?? -1;
-    };
-    const styleValues = styleValueSetsOf(asStyleValueStore(dispatcher.state.graph.values.get(STYLE_VALUES_VALUE))).map(
-        (set) => ({
-            ...set,
-            columns: set.columns.map((column) =>
-                column.kind === "node" ? column : { ...column, ids: column.ids.map((id) => indexOf(id as EdgeId)) },
-            ),
-        }),
-    );
     const annotations = drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
     const { layout, visibility } = session;
     const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
@@ -945,8 +920,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                   })),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
-        // Additive: a project with no style values writes nothing here, and an older file opens unchanged.
-        ...(styleValues.length === 0 ? {} : { [STYLE_VALUES_VALUE]: styleValues }),
         // Additive: a project with no annotations writes nothing here.
         ...(annotations === null
             ? {}
@@ -1184,7 +1157,7 @@ function write(
     const file = sourcesFileOf(session);
     const members = [
         dataMember(session, file),
-        sessionMember(sources, ids),
+        sessionMember(sources),
         arrangementMember(session, ids),
         resultsMember(
             session,
@@ -1443,8 +1416,6 @@ function readDocument(text: string): ReadDocument {
             positions.set(member, index);
         }
     });
-    upgradeStyleValues(members, positions);
-
     return {
         ...(typeof document.name === "string" ? { name: document.name } : {}),
         extensions: isObject(document.extensions) ? document.extensions : {},
@@ -1452,117 +1423,6 @@ function readDocument(text: string): ReadDocument {
         positions,
         problems,
     };
-}
-
-/** A style value path's set segment, bare or quoted, at the start of a path or inside an expression. */
-const STYLE_SET_SEGMENT = String.raw`graphty\.style\.("(?:[^"\\]|\\.)*"|[A-Za-z0-9_-]+)\.`;
-
-/**
- * Bring an older project's style values and layers to today's shape, in place of its members: the
- * session member's `fileStyles` loads become `styleValues` sets named in order (`values`,
- * `values-2`), every path that read a load's old name reads its new one, and a layer drops the
- * `fileStyle` facts and the `file:` template older loads put on it, becoming an ordinary layer.
- * The data member is left alone: its records are the reader's own.
- * @param members - The members by kind; rewritten.
- * @param positions - Each member's position; kept for the rewritten members.
- */
-function upgradeStyleValues(
-    members: Map<MemberKind, Record<string, unknown>[]>,
-    positions: Map<Record<string, unknown>, number>,
-): void {
-    const session = members.get("graphty-session")?.[0];
-    const legacy = session?.[LEGACY_STYLE_VALUES_VALUE];
-    const saved = session?.[STYLE_VALUES_VALUE] ?? legacy;
-    const { sets, renamed } = Array.isArray(saved)
-        ? upgradeStyleValueSets(saved as unknown[])
-        : { sets: undefined, renamed: new Map<string, string>() };
-    const bare = (name: string): string => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : JSON.stringify(name));
-    const pattern = new RegExp(STYLE_SET_SEGMENT, "g");
-    const renameIn = (text: string): string => {
-        if (renamed.size === 0 || !text.includes("graphty.style.")) {
-            return text;
-        }
-
-        // A whole path is dotted and never quoted; inside an expression a segment is quoted when it must be.
-        const whole = text.startsWith("graphty.style.") && !/[\s"=<>!&|()]/.test(text);
-        return text.replaceAll(pattern, (all: string, segment: string) => {
-            const name = segment.startsWith('"') ? (JSON.parse(segment) as string) : segment;
-            const next = renamed.get(name);
-            return next === undefined ? all : `graphty.style.${whole ? next : bare(next)}.`;
-        });
-    };
-    const upgrade = (value: unknown): unknown => {
-        if (typeof value === "string") {
-            return renameIn(value);
-        }
-
-        if (Array.isArray(value)) {
-            return value.map(upgrade);
-        }
-
-        if (!isObject(value)) {
-            return value;
-        }
-
-        const out: Record<string, unknown> = {};
-        const layerLike = "selector" in value;
-        for (const [key, child] of Object.entries(value)) {
-            if (layerLike && key === "fileStyle") {
-                continue;
-            }
-
-            if (
-                layerLike &&
-                key === "source" &&
-                isObject(child) &&
-                child.by === "template" &&
-                typeof child.templateId === "string" &&
-                child.templateId.startsWith("file:")
-            ) {
-                out.source = { by: "user" };
-                continue;
-            }
-
-            Object.defineProperty(out, key, {
-                value: upgrade(child),
-                enumerable: true,
-                writable: true,
-                configurable: true,
-            });
-        }
-
-        return out;
-    };
-
-    for (const [kind, list] of members) {
-        if (kind === "graphty-data") {
-            continue;
-        }
-
-        members.set(
-            kind,
-            list.map((member) => {
-                const next = upgrade(member) as Record<string, unknown>;
-                if (member === session && sets !== undefined) {
-                    const { fileStyles: _legacy, ...rest } = next;
-                    const upgraded: Record<string, unknown> = { ...rest, [STYLE_VALUES_VALUE]: sets };
-                    const at = positions.get(member);
-                    if (at !== undefined) {
-                        positions.set(upgraded, at);
-                    }
-
-                    return upgraded;
-                }
-
-                const at = positions.get(member);
-                if (at !== undefined) {
-                    positions.set(next, at);
-                }
-
-                return next;
-            }),
-        );
-    }
 }
 
 /**
@@ -2204,22 +2064,6 @@ async function readProject(
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
-    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
-    // readDocument moved an older file's `fileStyles` here.
-    if (Array.isArray(state[STYLE_VALUES_VALUE])) {
-        const sets = state[STYLE_VALUES_VALUE] as unknown[];
-        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
-        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
-        opening.services.restoringFileStyles = true;
-        try {
-            await attempt(opening, "graph", () =>
-                tx.execute({ op: "data.setStyleValues", sets: styleValuesInto(sets, nodeIds, edgeIds) }),
-            );
-        } finally {
-            opening.services.restoringFileStyles = false;
-        }
-    }
-
     const annotations = drawnAnnotationsOf(state[ANNOTATIONS_VALUE]);
     if (annotations !== null && annotations.annotations.length > 0) {
         await attempt(opening, "graph", () =>
@@ -2577,66 +2421,6 @@ async function readColumnSettings(opening: Opening, columns: unknown): Promise<v
             settings: { hidden, types, renamed } as unknown as ColumnSettings,
         }),
     );
-}
-
-/**
- * A project file's style values, rewritten onto this session's elements: a node by its id,
- * kept when the data holds it; an edge by its position in the data, given the id this session
- * gave it. Anything malformed is left for the command to refuse.
- * @param sets - The saved sets.
- * @param nodeIds - The nodes the session holds.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The sets, over this session's ids.
- */
-function styleValuesInto(
-    sets: readonly unknown[],
-    nodeIds: ReadonlySet<NodeId>,
-    edgeIds: readonly (EdgeId | undefined)[],
-): StyleValueSet[] {
-    return sets.map((load) => {
-        if (!isObject(load) || !Array.isArray(load.columns)) {
-            return load as StyleValueSet;
-        }
-
-        const columns = (load.columns as unknown[]).map((column) => {
-            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
-                return column;
-            }
-
-            const ids: (NodeId | EdgeId)[] = [];
-            const values: unknown[] = [];
-            const saved = column.values as unknown[];
-            (column.ids as unknown[]).forEach((id, at) => {
-                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
-                if (mapped !== undefined) {
-                    ids.push(mapped);
-                    values.push(saved[at]);
-                }
-            });
-            return { ...column, ids, values };
-        });
-        return { ...load, columns } as unknown as StyleValueSet;
-    });
-}
-
-/**
- * The node a saved file-style id names, when the session holds it.
- * @param id - The saved id.
- * @param nodeIds - The nodes the session holds.
- * @returns The node id, or undefined.
- */
-function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
-    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
-}
-
-/**
- * The edge a saved file-style position names.
- * @param at - The saved position in the data.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The edge id, or undefined.
- */
-function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
-    return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
 /** What reading one saved run needs to know about the data it opens over. */

@@ -13,8 +13,8 @@
  * - Selectors are short (at most 8 terms). A wider group, or one the element's expression
  *   language would read differently, is written onto the elements as a membership value and
  *   selected with `has`.
- * - Values the layers read live in the load's file-style namespace,
- *   `graphty.style.<namespace>.<kind>.<key>`, never in the data records.
+ * - Values the layers read that the records do not already hold are ordinary data columns: the
+ *   translation names each by a key and the caller says which `data.` path it lands at.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -46,15 +46,27 @@ import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColor
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
-import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
+import { computedPath, parseWrittenStylePath } from "./path";
 import { ARROW_SHAPES, BORDER_STYLES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES, OUTLINE_STYLES } from "./shapes";
-import type { FileStyleScalar } from "./store";
+
+/** One value a kept column holds for an element. */
+export type StyleScalar = string | number | boolean;
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
 const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+
+/**
+ * The data column a style column copies, when the column is the copy graph-io writes of a data column a format
+ * cannot keep (`input.data.<column>`, `input.<property>.data.<column>`).
+ * @param key - The style column's key.
+ * @returns The copied column's name, or null for any other key.
+ */
+export function carriedColumnOf(key: string): string | null {
+    return CARRIED_INPUT.exec(key)?.[1] ?? null;
+}
 
 /** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
 const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
@@ -157,8 +169,11 @@ export interface TranslateInput {
     readonly extracted: ExtractedStyles;
     /** The graph the import built, which the styles' element indexes refer to. */
     readonly snapshot: GraphSnapshot;
-    /** The name of the style value set the layers read their per-element values from. */
-    readonly namespace: string;
+    /**
+     * The `data.` path a column of values the translation keeps lands at, as an ordinary data column of the load's
+     * elements, given the values by element index. The caller writes the values there. Asked once per kind and key.
+     */
+    readonly columnPath: (kind: StyleTarget, key: string, values: readonly (StyleScalar | null)[]) => Path;
     /** The load's choices. */
     readonly options: FileStyleOptions;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
@@ -190,7 +205,7 @@ export interface Translation {
     /** The layers, bottom first, in the order of the rules they stand for. */
     readonly layers: readonly TranslatedLayer[];
     /** The values the layers read, per kind and key, by the import's element index. */
-    readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (FileStyleScalar | null)[]>>>;
+    readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (StyleScalar | null)[]>>>;
     /** Per kind, the key of the column marking the elements the file hides, and how many; null when it hides none. */
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
@@ -1427,7 +1442,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
         notes.keep(note);
     }
 
-    const columns: Record<StyleTarget, Map<string, (FileStyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
+    const columns: Record<StyleTarget, Map<string, (StyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
@@ -1644,7 +1659,7 @@ class KindTranslation {
     readonly #notes: Notes;
     /** Per code and property, the elements a conversion note already counted, so an element counts once. */
     readonly #counted = new Map<string, Set<number>>();
-    readonly #columns: Map<string, (FileStyleScalar | null)[]>;
+    readonly #columns: Map<string, (StyleScalar | null)[]>;
     readonly #factor: number;
     /** The scene units one unit of the file's lengths is drawn as. */
     readonly #scene: number;
@@ -1681,7 +1696,7 @@ class KindTranslation {
         kind: StyleTarget,
         factors: LengthFactors,
         notes: Notes,
-        columns: Map<string, (FileStyleScalar | null)[]>,
+        columns: Map<string, (StyleScalar | null)[]>,
     ) {
         this.#input = input;
         this.#kind = kind;
@@ -1818,19 +1833,18 @@ class KindTranslation {
      * @returns The path.
      */
     #keep(key: string, values: readonly unknown[]): Path {
-        if (!this.#columns.has(key)) {
-            this.#columns.set(
-                key,
-                Array.from({ length: this.#n }, (_unused, i) => {
-                    const value = values[i];
-                    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-                        ? value
-                        : null;
-                }),
-            );
+        let column = this.#columns.get(key);
+        if (column === undefined) {
+            column = Array.from({ length: this.#n }, (_unused, i) => {
+                const value = values[i];
+                return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                    ? value
+                    : null;
+            });
+            this.#columns.set(key, column);
         }
 
-        return fileStylePath(this.#input.namespace, this.#kind, key);
+        return this.#input.columnPath(this.#kind, key, column);
     }
 
     /**
@@ -2225,11 +2239,11 @@ class KindTranslation {
         const held = this.#input.extracted.columns[this.#kind];
         let missing = false;
         const move = (path: unknown): unknown => {
-            if (typeof path !== "string" || !isFileStylePath(path)) {
+            const parts = typeof path === "string" ? parseWrittenStylePath(path) : undefined;
+            if (parts === null) {
                 return path;
             }
 
-            const parts = parseFileStylePath(path);
             const values = parts?.kind === this.#kind ? held.get(parts.key) : undefined;
             if (parts === undefined || values === undefined) {
                 missing = true;

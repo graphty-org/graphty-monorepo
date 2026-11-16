@@ -21,9 +21,7 @@ import {
     type NodeId,
 } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
-import { dispatcherOf } from "../../src/session/GraphSession";
 import { FILE_STYLE_LAYER_CAP } from "../../src/session/styles/fileStyles/fold";
-import { asStyleValueStore, STYLE_VALUES_VALUE } from "../../src/session/styles/fileStyles/store";
 import { fileStylesOn } from "../helpers/file-styles-on";
 import { loadedLayers } from "../helpers/loaded-layers";
 
@@ -99,22 +97,57 @@ function fileLayers(session: GraphSession): Layer[] {
 }
 
 /**
- * The names of the sets the style value store holds.
- * @param session - The session.
- * @returns Them.
+ * Which load a column a load scopes its layers by belongs to, in load order: `el_load` is the first
+ * (`values`), `el_load (<source>)` the second (`values-2`), `el_load (<source> 3)` the third.
+ * @param column - The column's name.
+ * @returns The load's name, or undefined for another column.
  */
-function namespaces(session: GraphSession): string[] {
-    const store = asStyleValueStore(dispatcherOf(session).state.graph.values.get(STYLE_VALUES_VALUE));
-    return store.sets.map((set) => set.values.name);
+function loadOf(column: string): string | undefined {
+    const match = /^el_load(?: \([^ )]+(?: (\d+))?\))?$/.exec(column);
+    if (match === null) {
+        return undefined;
+    }
+
+    if (!column.includes("(")) {
+        return "values";
+    }
+
+    return `values-${String(Number(match[1] ?? "1") + 1)}`;
 }
 
 /**
- * The style value set a layer reads from.
+ * The loads whose scope columns the node records hold, in load order.
+ * @param session - The session.
+ * @returns Their names.
+ */
+function namespaces(session: GraphSession): string[] {
+    const names = new Set<string>();
+    for (const record of session.data.nodes()) {
+        for (const key of Object.keys(record)) {
+            const load = loadOf(key);
+            if (load !== undefined) {
+                names.add(load);
+            }
+        }
+    }
+
+    return [...names].sort();
+}
+
+/**
+ * The load a layer is scoped to.
  * @param layer - The layer.
- * @returns The set's name, or undefined when it reads none.
+ * @returns The load's name, or undefined when it reads none.
  */
 function setOf(layer: Layer | undefined): string | undefined {
-    return /graphty\.style\.\\?"?(values(?:-\d+)?)/.exec(JSON.stringify(layer ?? {}))?.[1];
+    for (const match of JSON.stringify(layer ?? {}).matchAll(/el_load(?: \([^)]*\))?/g)) {
+        const load = loadOf(match[0]);
+        if (load !== undefined) {
+            return load;
+        }
+    }
+
+    return undefined;
 }
 
 /**
@@ -180,8 +213,8 @@ describe("a file's styles drawn by the load", () => {
             assert.strictEqual(drawn(session, { edge: edge.id }, "edge.color"), color[row], `edge ${String(row)}`);
         });
 
-        // The values the layers read never reach the data.
-        assert.notProperty(session.data.nodes()[0], "graphty.style.gexf.node.class");
+        // The values the layers read are ordinary data columns.
+        assert.property(session.data.nodes()[0], "el_load");
         session.dispose();
     });
 
@@ -384,22 +417,22 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("sweeps the previous file's layers when a load replaces the graph", async () => {
+    it("leaves the previous file's layers like hand-made ones when a load replaces the graph, painting nothing new", async () => {
         const session = createGraphSession();
         const source = { type: "gexf", config: { data: coloredGexf("n", ["255,0,0", "0,0,255"]) } };
         await session.data.import(source, { styles: "file" });
-        const once = fileLayers(session).length;
+        const first = fileLayers(session).map((layer) => layer.id);
         await session.data.import(
             { type: "gexf", config: { data: coloredGexf("m", ["0,255,0", "0,0,255"]) } },
             { styles: "file" },
         );
-        assert.strictEqual(fileLayers(session).length, once);
-        assert.deepEqual(namespaces(session), ["values"]);
+        // The first file's layers stay, as any layer does; the second load's columns take names no layer read,
+        // so the first file's layers paint nothing on the new graph.
+        const ids = session.styles.list().map((layer) => layer.id);
+        assert.isTrue(first.every((id) => ids.includes(id)));
+        assert.strictEqual(fileLayers(session).length, first.length);
+        assert.deepEqual(namespaces(session), ["values-2"]);
         assert.strictEqual(drawn(session, { node: "m1" }, "node.color"), "#00ff00");
-
-        // A replacing load without styles sweeps them too.
-        await session.data.import(source);
-        assert.lengthOf(fileLayers(session), 0);
         session.dispose();
     });
 

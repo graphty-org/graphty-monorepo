@@ -4,9 +4,10 @@
  * Before file styles, a GEXF node's viz color and size reached the graph as `color` and `size` record
  * keys, and a yEd file's graphics as record keys too. The GEXF keys are deprecated: a load that draws
  * the file's styles (`styles: "file"`) leaves them out, because its layers carry the same values,
- * and a load without (`"none"`, the default) writes them as before. A GraphML file's look is never a
- * record key: the columns graph-io flags presentation are drawn only as layers. The digests in
- * `old-style-paths.digests.json` pin the records a load without styles writes; run with
+ * and a load without (`"none"`, the default) writes them as before. A GraphML file's yFiles look
+ * fields land under their field names (`width`, `color`, `shape` as the file spells it) on a load
+ * without styles, and are left out by one with, as every format's presentation columns are. The
+ * digests in `old-style-paths.digests.json` pin the records a load without styles writes; run with
  * `UPDATE_OLD_STYLE_DIGESTS=1` to rewrite them.
  *
  * The guard: no code in graphty-element reads a style role column beside the deprecated GEXF reader.

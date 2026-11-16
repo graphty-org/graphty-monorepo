@@ -835,19 +835,6 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
-        name: "data.setStyleValues",
-        tags: ["session"],
-        command: {
-            op: "data.setStyleValues",
-            sets: [
-                {
-                    name: "values",
-                    columns: [{ kind: "node", key: "member.1", ids: ["n1", "n3"], values: [true, true] }],
-                },
-            ],
-        },
-    },
-    {
         name: "annotations.set",
         tags: BOTH,
         command: {

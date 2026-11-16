@@ -189,7 +189,6 @@ import type {
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import { asksFileStyles } from "./styles/fileStyles/apply";
-import { asStyleValueStore, STYLE_VALUES_VALUE, styleValueAttributes } from "./styles/fileStyles/store";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
@@ -4753,10 +4752,6 @@ export class SessionData implements SessionDataApi {
             snapshot,
             directed: ["directed", "mixed"].includes(this.statistics({ scope: "all" }).directedness),
             attributes: this.attributes(),
-            styleValues: styleValueAttributes(asStyleValueStore(this.writes.slice().values.get(STYLE_VALUES_VALUE)), {
-                node: snapshot.nodeCount,
-                edge: snapshot.edgeCount,
-            }),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
             layersReading: (path, on) =>

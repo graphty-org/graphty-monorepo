@@ -200,7 +200,7 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${i}" target="n${i + 1
     });
 
     describe("yFiles GraphML support", () => {
-        test("reads a yFiles ShapeNode's position and label, and no look keys", async () => {
+        test("reads a yFiles ShapeNode's position, label and look as record keys", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="node" yfiles.type="nodegraphics"/>
@@ -233,11 +233,16 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${i}" target="n${i + 1
             assert.strictEqual(node.position.y, -215.0);
             assert.strictEqual(node.position.z, 0);
             assert.strictEqual(node.label, "Test Node");
-            // How a node looks is drawn by style layers (`styles: "file"`), never written as record keys.
-            assert.deepEqual(Object.keys(node).sort(), ["id", "label", "position"]);
+            // The look is ordinary data, as the file has it.
+            assert.strictEqual(node.width, 60.0);
+            assert.strictEqual(node.height, 30.0);
+            assert.strictEqual(node.color, "#FFCC00");
+            assert.strictEqual(node.borderColor, "#000000");
+            assert.strictEqual(node.borderWidth, 2.0);
+            assert.strictEqual(node.shape, "rectangle");
         });
 
-        test("reads a yFiles PolyLineEdge's direction, and no look keys", async () => {
+        test("reads a yFiles PolyLineEdge's direction and look as record keys", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="edge" yfiles.type="edgegraphics"/>
@@ -266,9 +271,8 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${i}" target="n${i + 1
             assert.strictEqual(edge.source, "n0");
             assert.strictEqual(edge.target, "n1");
             assert.strictEqual(edge.directed, true); // target arrow means directed
-            for (const key of ["color", "width", "targetArrow", "sourceArrow"]) {
-                assert.notProperty(edge, key);
-            }
+            assert.strictEqual(edge.color, "#FF0000");
+            assert.strictEqual(edge.width, 3.0);
         });
 
         test("handles GraphML without yFiles namespace", async () => {

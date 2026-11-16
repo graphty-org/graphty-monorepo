@@ -4392,10 +4392,6 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.collapse":
         "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
         "test/session/sources/expand.test.ts.",
-    "data.setStyleValues":
-        "session.execute or a transaction, a load that draws a file's styles, and opening a project file that " +
-        "holds style values (project.open, src/session/projectFile.ts); checked by " +
-        "test/session/styles/file-style-store.test.ts.",
 };
 
 /**

@@ -210,7 +210,7 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     const translation = translateFileStyles({
         extracted: read.extracted,
         snapshot,
-        namespace: "values",
+        columnPath: (_kind, key) => `data.${key.replaceAll(/[^A-Za-z0-9_]/g, "_")}`,
         options: {},
         dataPath: dataPaths(read.path),
         elementDefaults: elementDefaults(session),

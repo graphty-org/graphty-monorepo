@@ -4176,7 +4176,6 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
- * | `data.set-style-values` | `sets`: how many sets of style values are kept |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
@@ -4271,7 +4270,6 @@ export type HistoryCode =
     | "data.show-columns"
     | "data.columns"
     | "data.derive"
-    | "data.set-style-values"
     | "annotations.set"
     | "annotations.patch"
     | "style.add-layer"
@@ -4537,8 +4535,6 @@ export interface CommandOutcomeMap {
     "data.columns": Promise<void>;
     /** Settles once the computed columns and their values are recorded. */
     "data.derive": Promise<void>;
-    /** Settles once the style values are recorded. */
-    "data.setStyleValues": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

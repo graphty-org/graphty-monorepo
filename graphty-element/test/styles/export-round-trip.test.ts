@@ -436,18 +436,20 @@ function picture(session: GraphSession): Record<"node" | "edge", Record<string, 
     };
 }
 
-/** A load's scope on its own elements and its file-style namespace, set aside when layers are compared. */
-const NAMESPACE = String.raw`graphty\.style\.(?:"[^"]*"|[A-Za-z0-9_-]+)`;
-const SCOPE = String.raw`${NAMESPACE}\.(?:node|edge)\.el\.load(?:\."?\d+"?)?`;
+/**
+ * A load's scope on its own elements, set aside when layers are compared: the data column `el_load`, or
+ * `el_load (<source>)` when that name was taken.
+ */
+const SCOPE = String.raw`data\.(?:"el_load[^"]*"|el_load(?: \([^)]*\))?)`;
 
 /**
- * A value with every file-style namespace in its strings written as `*`.
+ * A value with the ` (<source>)` a column name took when its own name was taken set aside.
  * @param value - The value.
- * @returns It, with the namespaces set aside.
+ * @returns It, with the suffixes set aside.
  */
 function anyNamespace(value: unknown): unknown {
     if (typeof value === "string") {
-        return value.replaceAll(new RegExp(`${NAMESPACE}\\.(node|edge)\\.`, "g"), "graphty.style.*.$1.");
+        return value.replaceAll(/ \([a-z0-9_-]+(?: \d+)?\)/g, "");
     }
 
     if (Array.isArray(value)) {

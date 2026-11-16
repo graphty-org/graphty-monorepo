@@ -77,7 +77,6 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.label": ["data.label"],
     "data.columns": ["data.columns"],
     "data.derive": ["data.derive"],
-    "data.setStyleValues": ["data.set-style-values"],
     "annotations.set": ["annotations.set"],
     "annotations.patch": ["annotations.patch"],
     "style.patch": [
@@ -185,7 +184,6 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.show-columns": ["count"],
     "data.columns": [],
     "data.derive": ["column", "kind"],
-    "data.set-style-values": ["sets"],
     "annotations.set": ["count"],
     "annotations.patch": ["action", "id"],
     "style.add-layer": ["layer"],

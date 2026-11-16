@@ -311,16 +311,12 @@ export type {
     ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
-    FileStyleKind,
     FileStyleNote,
     FileStyleNoteCode,
     FileStyleOptions,
-    FileStyleScalar,
     FileStyleSummary,
     FileStyleTranslationCode,
     LoadStyleReport,
-    StyleValueColumn,
-    StyleValueSet,
 } from "./src/session";
 export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {

@@ -111,6 +111,19 @@ describe("settled shapes, corners and dashes", () => {
         expect((await load(VIS, "json")).values("node", "shape")).toEqual(["none", "round-rectangle"]);
     });
 
+    it("notes a shape or an arrow settled only to the nearest graphty value", async () => {
+        const nearest = (styles: ExtractedStyles): unknown[] =>
+            styles.styles.notes
+                .filter((note) => note.code === "W_STYLE_DRAWN_NEAREST")
+                .map((note) => [note.params.target, note.params.property, note.params.samples]);
+        expect(nearest((await load(DOT, "dot")).styles)).toEqual([["node", "shape", ["other:cylinder"]]]);
+        const chevron = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "ab", source: "a", target: "b" } }],
+            style: [{ selector: "edge", style: { "target-arrow-shape": "chevron" } }],
+        });
+        expect(nearest((await load(chevron, "json")).styles)).toEqual([["edge", "targetArrow", ["other:chevron"]]]);
+    });
+
     it("gives Graphviz's corner rounding: a third of the shorter side, at most 12", async () => {
         const { values } = await load(DOT, "dot");
         expect(values("node", "cornerRadiusCap")).toEqual([12, 12, 12]);

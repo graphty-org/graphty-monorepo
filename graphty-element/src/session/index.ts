@@ -65,8 +65,6 @@ export {
     FILE_STYLE_ISSUE,
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./styles/fileStyles/codes";
-export type { FileStyleKind } from "./styles/fileStyles/path";
-export type { FileStyleScalar, StyleValueColumn, StyleValueSet } from "./styles/fileStyles/store";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,

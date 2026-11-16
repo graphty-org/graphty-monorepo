@@ -409,7 +409,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                 effect: "write",
                 reaches: [
                     { op: "data.import" },
-                    { op: "data.setStyleValues" },
+                    { op: "data.apply" },
                     { door: "SessionDataApi.import" },
                     { options: "formats" },
                     ...formats.map((id) => ({ catalog: `formats/${id}` })),

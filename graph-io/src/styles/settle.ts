@@ -12,6 +12,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { STYLE_ISSUE } from "./codes.js";
 import { type ToolArrowhead, type ToolDefaults, toolDefaults } from "./defaults.js";
 import { type LabelGridFrame, labelGridSizes } from "./labelGrid.js";
 import { resolveRule, resolveStyles } from "./plan/resolve.js";
@@ -21,6 +22,7 @@ import type {
     StyleArrowShape,
     StyleColumn,
     StyleLengths,
+    StyleNote,
     StyleProperty,
     StyleRule,
     StyleTarget,
@@ -62,6 +64,12 @@ export const SHAPES: ReadonlyMap<string, string> = new Map([
     // vis-network's icon node draws its icon's glyph and no body
     ["other:icon", "none"],
 ]);
+
+/**
+ * The program values {@link SHAPES} and {@link ARROWS} settle to a graphty value that only comes near them: each
+ * settled value is noted with `W_STYLE_DRAWN_NEAREST`.
+ */
+const NEAREST: ReadonlySet<string> = new Set(["other:cylinder", "other:icon", "other:inv-curve", "other:chevron"]);
 
 /** graphty's name for each stroke a file's own line or border vocabulary keeps as `other:`. */
 export const STROKES: ReadonlyMap<string, string> = new Map([
@@ -375,6 +383,8 @@ function changed(
 interface Work {
     rules: StyleRule[];
     columns: { node: Map<string, StyleColumn>; edge: Map<string, StyleColumn> };
+    /** The program values settled to the nearest graphty value, per target and property, each once per rule. */
+    nearest?: Map<string, { target: StyleTarget; property: string; seen: Set<string>; samples: Set<string> }>;
 }
 
 /**
@@ -501,7 +511,11 @@ function resolved(
  * @internal
  */
 export function unsettledStyles(extracted: ExtractedStyles): ExtractedStyles {
-    if (extracted.styles.lengths === undefined && !extracted.styles.rules.some((rule) => markOf(rule) !== undefined)) {
+    if (
+        extracted.styles.lengths === undefined &&
+        !extracted.styles.rules.some((rule) => markOf(rule) !== undefined) &&
+        !extracted.styles.notes.some((note) => note.code === STYLE_ISSUE.DRAWN_NEAREST)
+    ) {
         return extracted;
     }
     const dropped: StyleRule[] = [];
@@ -529,7 +543,9 @@ export function unsettledStyles(extracted: ExtractedStyles): ExtractedStyles {
         }
     }
     const { lengths: _lengths, ...styles } = extracted.styles;
-    return { ...extracted, styles: { ...styles, rules }, columns };
+    // settling's own notes go with what it settled
+    const notes = styles.notes.filter((note) => note.code !== STYLE_ISSUE.DRAWN_NEAREST);
+    return { ...extracted, styles: { ...styles, rules, notes }, columns };
 }
 
 /**
@@ -651,11 +667,26 @@ export function settleFor(
     labelGrid(extracted, snapshot, work, options.frame ?? null);
     renameAll(extracted, snapshot, work, tool);
     const lengths: StyleLengths = graphty ? { units: "scene" } : lengthsOf(defaults, snapshot.nodeCount);
+    const notes = [...extracted.styles.notes, ...nearestNotes(work)];
     return {
         ...extracted,
-        styles: { ...extracted.styles, lengths, rules: named(work.rules) },
+        styles: { ...extracted.styles, lengths, rules: named(work.rules), notes },
         columns: work.columns,
     };
+}
+
+/**
+ * The notes of the program values settled to the nearest graphty value.
+ * @param work - the work
+ * @returns one note per target and property
+ */
+function nearestNotes(work: Work): StyleNote[] {
+    return [...(work.nearest?.values() ?? [])].map(({ target, property, seen, samples }) => ({
+        code: STYLE_ISSUE.DRAWN_NEAREST,
+        params: { property, target, count: seen.size, samples: [...samples] },
+        elements: { count: seen.size },
+        message: `${target} ${property} ${[...samples].join(", ")} is drawn as the nearest graphty value`,
+    }));
 }
 
 /**
@@ -1158,12 +1189,31 @@ function sizedParts(
 function renameAll(extracted: ExtractedStyles, snapshot: GraphSnapshot, work: Work, tool: string | null): void {
     const arrowNames = TOOL_ARROWS.get(tool ?? "") ?? ARROWS;
     const tables = { shape: SHAPES, border: BORDER_STYLES, line: STROKES, arrow: arrowNames };
-    const partsOf = (value: StyleValue): StyleValue =>
+    const noted = (rule: StyleRule, property: string, value: string): void => {
+        if (!NEAREST.has(value)) {
+            return;
+        }
+        work.nearest ??= new Map();
+        const key = `${rule.target}:${property}`;
+        const entry = work.nearest.get(key) ?? {
+            target: rule.target,
+            property,
+            seen: new Set<string>(),
+            samples: new Set<string>(),
+        };
+        entry.seen.add(`${rule.id}\u0000${value}`);
+        if (entry.samples.size < 8) {
+            entry.samples.add(value);
+        }
+        work.nearest.set(key, entry);
+    };
+    const partsOf = (rule: StyleRule, property: string, value: StyleValue): StyleValue =>
         typeof value === "string"
             ? value
                   .split(" ")
                   .map((word) => {
                       const [, shape = word, rest = ""] = /^(.+?)((?::left|:right)?(?:\*.*)?)$/.exec(word) ?? [];
+                      noted(rule, property, shape);
                       return `${arrowNames.get(shape) ?? shape}${rest}`;
                   })
                   .join(" ")
@@ -1173,11 +1223,23 @@ function renameAll(extracted: ExtractedStyles, snapshot: GraphSnapshot, work: Wo
             ([property, kind]) =>
                 [
                     property,
-                    (value: StyleValue) => (typeof value === "string" ? (tables[kind].get(value) ?? value) : value),
+                    (value: StyleValue) => {
+                        if (typeof value !== "string") {
+                            return value;
+                        }
+                        const renamed = tables[kind].get(value);
+                        if (renamed !== undefined) {
+                            noted(rule, property, value);
+                        }
+                        return renamed ?? value;
+                    },
                 ] as const,
         );
         if (rule.target === "edge") {
-            renames.push(["targetArrowParts", partsOf], ["sourceArrowParts", partsOf]);
+            renames.push(
+                ["targetArrowParts", (value) => partsOf(rule, "targetArrowParts", value)],
+                ["sourceArrowParts", (value) => partsOf(rule, "sourceArrowParts", value)],
+            );
         }
         let out = rule;
         for (const [property, rename] of renames) {

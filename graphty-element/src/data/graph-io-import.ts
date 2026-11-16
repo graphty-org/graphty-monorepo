@@ -879,10 +879,13 @@ export function toRecords(
  * @returns the mapping without the style slots
  */
 function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
-    const slots = {
-        node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
-        edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
-    };
+    const path = mapping.path ?? copiedPath;
+    // Each slot under the record key the reader writes it at (a reader may rename it), and under its own name.
+    const keysOf = (kind: "node" | "edge", table: Iterable<Column>): string[] =>
+        [...table]
+            .filter((column) => isStyleSlotColumn(column.meta))
+            .flatMap((column) => [column.meta.name, path(kind, column) ?? column.meta.name]);
+    const slots = { node: keysOf("node", snapshot.nodes), edge: keysOf("edge", snapshot.edges) };
     if (slots.node.length === 0 && slots.edge.length === 0) {
         return mapping;
     }
@@ -892,7 +895,6 @@ function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): Rec
             Reflect.deleteProperty(record, key);
         }
     };
-    const path = mapping.path ?? copiedPath;
     return {
         node: (row, record) => {
             mapping.node(row, record);

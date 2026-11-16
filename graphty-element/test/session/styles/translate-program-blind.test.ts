@@ -64,7 +64,7 @@ describe("a file's styles translate the same whatever program the source names",
                 const out = translateFileStyles({
                     extracted,
                     snapshot,
-                    namespace: "values",
+                    columnPath: (_kind, key) => `data.${key.replaceAll(/[^A-Za-z0-9_]/g, "_")}`,
                     options: {},
                     dataPath: () => null,
                 });

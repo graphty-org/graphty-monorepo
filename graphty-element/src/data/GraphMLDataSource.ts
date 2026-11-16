@@ -1,6 +1,5 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 import { GRAPHML_ISSUE, graphmlImporter } from "@graphty/graph-io/graphml";
-import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
@@ -21,8 +20,7 @@ type GraphMLDataSourceConfig = BaseDataSourceConfig;
  *
  * A key the file declared lands under its `attr.name`. A column graph-io derived from an extension's
  * markup (its origin names a namespace and the column is named `<namespace>.<field>`) lands under
- * its field, as `label` or `directed`; the extension's markup tree itself is left out. A column that only says how an element looks (flagged
- * presentation) is left out: a load that draws the file's styles carries it as layers. The stored
+ * its field, as `label`, `width` or `color`; the extension's markup tree itself is left out. The stored
  * position is written by `toRecords`, as for every format.
  * @param kind - node or edge
  * @param column - the column
@@ -30,7 +28,7 @@ type GraphMLDataSourceConfig = BaseDataSourceConfig;
  */
 function keyOf(kind: "node" | "edge", column: Column): string | null {
     const { name, origin, role } = column.meta;
-    if (role === "id" || role === "position" || isStyleSlotColumn(column.meta) || typeof origin?.id !== "string") {
+    if (role === "id" || role === "position" || typeof origin?.id !== "string") {
         return null;
     }
 
@@ -128,9 +126,11 @@ function readDirection(
  * importer. Supports key definitions and data elements, and the graphics of an extension graph-io
  * reads (the yFiles `ShapeNode` and `PolyLineEdge`).
  *
- * Each record holds the keys the file declared under their names, a node's `position` and `label`
- * and an edge's `directed`. How an element looks (size, colors, border, shape, arrows) is not a
- * record key: load with `styles: "file"` to draw it as style layers.
+ * Each record holds the keys the file declared under their names, a node's `position` and `label`,
+ * an edge's `directed`, and each field an extension's graphics give (a yFiles `width`, `color`,
+ * `borderColor`, `shape` and so on) under its field name, as the file has it. A load with
+ * `styles: "file"` draws the file's look with style layers instead, over the data columns the load
+ * writes for them, as every format's load does.
  */
 export class GraphMLDataSource extends DataSource {
     static readonly type = "graphml";

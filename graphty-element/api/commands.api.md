@@ -68,9 +68,6 @@ export const COMMANDS: Readonly<{
     readonly "data.label": {
         readonly undo: "undoable";
     };
-    readonly "data.setStyleValues": {
-        readonly undo: "undoable";
-    };
     readonly "data.columns": {
         readonly undo: "undoable";
     };

@@ -106,6 +106,19 @@ export async function release(): Promise<void> {
     }
 }
 
+/**
+ * Press the left button at a point on an element and release it there at once, as a quick click
+ * does: both events are sent together, so the release can land before the browser draws a frame.
+ * @param element - what the click lands on
+ * @param at - where on the element
+ */
+export async function quickClick(element: Element, at: Offset): Promise<void> {
+    const rect = element.getBoundingClientRect();
+    const point = { x: rect.left + at.x, y: rect.top + at.y };
+    await mouse("mouseMoved", point);
+    await Promise.all([mouse("mousePressed", point), mouse("mouseReleased", point)]);
+}
+
 /** Release a held button and forget where the pointer was, so a failed drag leaves nothing behind. */
 export async function resetMouse(): Promise<void> {
     await release();

@@ -22,6 +22,9 @@ function lines(text: string): string[] {
     return text.split("\n").filter((l) => l.length > 0);
 }
 
+/** A position column already in Pajek's spelling (y down, z centered on 0.5), so its values are written as stored. */
+const PAJEK_SPELLED = { yAxis: "down", zOrigin: 0.5 };
+
 function builderWith(directed: boolean, nodeDecls: ColumnDecl[] = [], edgeDecls: ColumnDecl[] = []): GraphBuilder {
     const builder = new GraphBuilder({ directed, weightDtype: "f64" });
     for (const decl of nodeDecls) {
@@ -289,7 +292,9 @@ describe("pajekExporter: writing", () => {
     });
 
     it("writes ids that are not the vertex number as labels and forces a label before coordinates", async () => {
-        const builder = builderWith(true, [{ name: "position", dtype: "f32", components: 3, role: "position" }]);
+        const builder = builderWith(true, [
+            { name: "position", dtype: "f32", components: 3, role: "position", extra: PAJEK_SPELLED },
+        ]);
         builder.addNodeRecord("alice", { position: [0.5, 0.25, 0] });
         builder.addNodeRecord(2, { position: [1, 1, 0] });
         builder.addNode(3);
@@ -305,13 +310,21 @@ describe("pajekExporter: writing", () => {
         const two = await fromPajek("*Vertices 1\n1 a 0.1 0.2\n*Arcs\n");
         expect(lines(await pajekExporter.exportToString(two))[1]).toBe("1 a 0.1 0.2");
         const builder = builderWith(true, [
-            { name: "position", dtype: "f32", components: 3, role: "position", extra: { sourceDims: 2 } },
+            {
+                name: "position",
+                dtype: "f32",
+                components: 3,
+                role: "position",
+                extra: { ...PAJEK_SPELLED, sourceDims: 2 },
+            },
         ]);
         builder.addNodeRecord(1, { position: [1, 2, 3] });
         builder.addNodeRecord(2, { position: [4, 5, 0] });
         const text = await pajekExporter.exportToString(builder.freeze());
         expect(lines(text).slice(1, 3)).toEqual(["1 1 1 2 3", "2 2 4 5 0"]);
-        const twoComponents = builderWith(true, [{ name: "position", dtype: "f64", components: 2, role: "position" }]);
+        const twoComponents = builderWith(true, [
+            { name: "position", dtype: "f64", components: 2, role: "position", extra: PAJEK_SPELLED },
+        ]);
         twoComponents.addNodeRecord(1, { position: [1.5, 2] });
         expect(lines(await pajekExporter.exportToString(twoComponents.freeze()))[1]).toBe("1 1 1.5 2");
     });

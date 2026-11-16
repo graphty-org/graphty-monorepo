@@ -6,6 +6,8 @@
  * regions are reported past 0.02 only; and the ratchet takes off what passes, raises floors, never lowers one, and adds
  * only with a reason.
  */
+import { readFileSync } from "node:fs";
+
 import { assert, describe, it } from "vitest";
 
 import {
@@ -254,6 +256,16 @@ describe("style fidelity gate", () => {
             { key: "s", property: "node.fill", id: "none", cited: [] },
             { key: "s", property: "node.fill", id: "bare", cited: [] },
         ]);
+    });
+
+    // Whether a cited issue is still open needs GitHub: `npm run fidelity:issues` checks that in CI's Checks job (#7015)
+    it("lists no known failure whose reasons name no issue, in the committed lists", () => {
+        for (const path of ["test/fidelity/oracle-known-failures.json", "test/fidelity/baseline-scores.json"]) {
+            const records = JSON.parse(readFileSync(path, "utf8")) as KnownRecords;
+            const cited = new Set(records.reasons.flatMap((r) => citedIssues(r.reason)));
+            const untracked = untrackedKnown(records, cited).map((u) => `${u.key} ${u.property} ${u.id}`);
+            assert.deepEqual(untracked.slice(0, 20), [], `${path}: ${String(untracked.length)} cite no issue`);
+        }
     });
 
     it("adds only the properties named, so a drop is accepted without the key's other failures", () => {

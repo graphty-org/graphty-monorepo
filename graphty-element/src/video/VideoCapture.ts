@@ -1,8 +1,9 @@
 import type { CameraState } from "../screenshot/types.js";
 
 /**
- * One stop of a camera path given as a 3D position and target. With `hold`, the path is a tour
- * (see {@link ViewWaypoint}); without, it plays exactly as it always has.
+ * One stop of a camera path given as a 3D position and target, flown as `setCameraState` would place
+ * the camera. It is used only in 3D: in 2D it is refused with `E_UNSUPPORTED`; give a
+ * {@link ViewWaypoint} with a zoom and pan there.
  */
 export interface CameraWaypoint {
     /** Where the camera stands, in world units. */
@@ -102,17 +103,19 @@ export interface AnimationOptions {
      */
     camera?: CameraState | { preset: string };
     /**
-     * Waypoints for camera animation path (animated mode). Stops with `view` or `hold` make it a
-     * tour; see {@link ViewWaypoint}. The recording lasts `duration` either way, so a tour's
-     * `duration` is the sum of its stops' durations and holds.
+     * Waypoints for camera animation path (animated mode), flown with the same camera moves as
+     * `playTour`; see {@link ViewWaypoint}. Two or more, unless a stop has a `view` or a `hold`. The
+     * recording lasts `duration`, and ends the flight if it is still under way, so `duration` is
+     * best the sum of the stops' durations and holds.
      */
     cameraPath?: (CameraWaypoint | ViewWaypoint)[];
     /**
      * A tour, in animated mode, in place of `cameraPath`: the names of the views to visit in
      * order -- camera views (`catalog.cameras()` ids, such as `"fitToGraph"`) or views saved in
-     * `session.views` -- with the duration split evenly between them. Two or more names. A view
-     * that resolves to no position and target (a 2D view) is refused with `E_UNSUPPORTED`. For
-     * holds, uneven legs or 2D views, give `cameraPath` stops with `view` and `hold` instead.
+     * `session.views` -- with the duration split evenly between them, starting at the first. Two or
+     * more names; works in 2D and in 3D. A view with nothing the current drawing mode can use is
+     * refused with `E_UNSUPPORTED`. For holds or uneven legs, give `cameraPath` stops with `view`
+     * and `hold` instead.
      */
     tour?: readonly string[];
     /** Easing function for camera animations (default: 'easeInOut') */

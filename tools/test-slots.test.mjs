@@ -20,6 +20,7 @@ import {
     HELD,
     laneOf,
     liveTickets,
+    nextCount,
     packageName,
     progressWatch,
     shardCacheDir,
@@ -316,6 +317,24 @@ describe("test-slots", () => {
         assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir, GRAPHTY_TEST_SLOTS: "3" }, 32), 3, "the variable wins");
         writeFileSync(join(dir, ".count"), "six");
         assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), /\.count must be a whole number/);
+    });
+
+    it("steps the count one slot at a time between the default and 6 by measured memory", () => {
+        const m = { count: 4, min: 4, held: 4, waiting: 3, availGB: 28, some60: 0.5, some300: 0.9 };
+        assert.equal(nextCount(m), 5, "room for one more slot's peak: up one, not two");
+        assert.equal(nextCount({ ...m, count: 5, held: 5 }), 6);
+        assert.equal(nextCount({ ...m, count: 6, held: 6 }), 6, "never above 6");
+        assert.equal(nextCount({ ...m, waiting: 0 }), 4, "nobody waits: no raise");
+        assert.equal(nextCount({ ...m, held: 3 }), 4, "a slot is free: no raise");
+        assert.equal(nextCount({ ...m, availGB: 16 }), 4, "under one slot's peak above the floor: no raise");
+        assert.equal(nextCount({ ...m, some300: 1.2 }), 4, "memory pressure: no raise");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 10.5 }), 5, "under 11 GB: down one");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, some60: 6 }), 5, "sustained stalling: down one");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 9 }), 4, "under the 10 GB floor: the default");
+        assert.equal(nextCount({ ...m, growthGB: 12 }), 4, "holders still growing to their peak: no raise");
+        assert.equal(nextCount({ ...m, availGB: 30, growthGB: 8 }), 5, "room even after the holders peak: up one");
+        assert.equal(nextCount({ ...m, count: 0, held: 4 }), 4, "a hand-written 0 is lifted to the default");
+        assert.equal(nextCount({ ...m, count: 2, held: 2 }), 4, "a count under the default rises to it");
     });
 
     it("ignores a .count file written more than two hours ago and falls back to the default", () => {

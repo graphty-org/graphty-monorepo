@@ -7,7 +7,9 @@ name: Base check
 #   `Failing on master` issue per signature; when it passes, it comments on the pull request (`pr`), so the round
 #   looks at a failure master does not share.
 # - `[FLAKY-UNRELATED]`: a pull request saw a test it did not touch fail and pass; repeat 5. A pass and a fail here
-#   quarantine the test, and this run files its priority:critical issue.
+#   quarantine the test, and this run files its priority:critical issue. When all 5 pass, the flake is rare but still a
+#   bug: this run files (or comments on) the priority:critical flaky issue of each test in `tests`, without
+#   quarantining it (#8317).
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
 
 on:
@@ -27,6 +29,9 @@ on:
                 default: "1"
             pr:
                 description: The pull request that asked (optional); a pass here comments on it
+                required: false
+            tests:
+                description: The flaky tests' names, as a JSON array (optional); a 5-repeat pass files their issues
                 required: false
 
 permissions:
@@ -147,3 +152,13 @@ jobs:
               run: |
                   [[ "$PR" =~ ^[0-9]+$ ]] || exit 0
                   gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "[UNRELATED] base check: \`$FILE\` passes on master at $BASE ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID), so the failure this pull request saw is not master's. Look for a flaky test or a cause in this pull request."
+
+            - name: File the flaky issue of each test master passes
+              if: ${{ success() && inputs.repeat == '5' && inputs.tests != '' }}
+              env:
+                  FILE: ${{ inputs.file }}
+                  VARIANT: ${{ inputs.variant }}
+                  BASE: ${{ inputs.base }}
+                  TESTS: ${{ inputs.tests }}
+                  PR: ${{ inputs.pr }}
+              run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" file-flaky --variant "$VARIANT" --file "$FILE" --base "$BASE" --tests "$TESTS" --pr "$PR"

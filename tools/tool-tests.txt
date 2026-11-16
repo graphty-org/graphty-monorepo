@@ -1,3 +1,12 @@
+design/ui/studio/tool/dry-run-pass.test.mjs
+design/ui/studio/tool/dry-run-review.test.mjs
+design/ui/studio/tool/measure.test.mjs
+design/ui/studio/tool/profiles.test.mjs
+design/ui/studio/tool/serve-dist.test.mjs
+design/ui/studio/tool/tier4.test.mjs
+design/ui/studio/tool/tier5.test.mjs
+design/ui/studio/tool/tier6.test.mjs
+design/ui/studio/tool/with-browser.test.mjs
 tools/acceptance.test.mjs
 tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
@@ -25,6 +34,7 @@ tools/check-figma-lock.test.mjs
 tools/check-packed-exports.test.mjs
 tools/check-published-deps.test.mjs
 tools/check-quick.test.mjs
+tools/load-time.test.mjs
 tools/check-saved-format-allowlist.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
@@ -79,6 +89,7 @@ tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
 tools/sonar/sonar-baseline.test.mjs
 tools/sonar/sonar-gate.test.mjs
+tools/sonarqube-mcp/lib.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs

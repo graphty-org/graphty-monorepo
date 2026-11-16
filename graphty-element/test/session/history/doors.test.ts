@@ -99,11 +99,20 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     NotesApi: (session) => session.notes,
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
     ProjectApi: (session) => session.project,
     SessionViews: (session) => session.views,
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
+    FilterDraft: (session) => session.visibility.draft({ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }),
     TimeApi: (session) => session.time,
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,

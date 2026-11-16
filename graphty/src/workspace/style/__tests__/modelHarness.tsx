@@ -7,12 +7,37 @@
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** A file a test chooses: a path from the package's folder (a folder chooses all of it), or its bytes. */
+type ChosenFile =
+    { readonly path: string } | { readonly name: string; readonly mimeType: string; readonly base64: string };
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        chooseNextFiles: (files: ChosenFile[]) => Promise<void>;
+        lastFileChooser: () => Promise<{ accept: string | null; multiple: boolean } | null>;
+    }
+}
+
+/**
+ * Files from the package's folder, read as the test server has them, for a drop.
+ * @param paths - each file's path from the package's folder.
+ * @returns the files.
+ */
+export async function filesAt(paths: readonly string[]): Promise<File[]> {
+    return Promise.all(
+        paths.map(async (at) => {
+            const bytes = Uint8Array.from(atob(await commands.readFile(at, "base64")), (c) => c.codePointAt(0) ?? 0);
+            return new File([bytes], at.slice(at.lastIndexOf("/") + 1));
+        }),
+    );
+}
 
 const NODES = [
     { id: "1", position: { x: -2, y: 0, z: 0 } },
@@ -166,30 +191,51 @@ export function dropOn(target: EventTarget, files: readonly File[]): void {
 }
 
 /**
- * The file input behind a pop-over's chooser button, which `userEvent.upload` fills as the
- * browser's file chooser would.
- * @param within - the pop-over.
- * @param folder - the folder chooser's input rather than the files chooser's.
- * @returns the input.
+ * A file's bytes as base64, to hand to the browser command that answers the file picker.
+ * @param file - the file.
+ * @returns the base64.
  */
-export function fileInput(within: HTMLElement, folder = false): HTMLInputElement {
-    const input = within.querySelector<HTMLInputElement>(
-        folder ? "input[type=file][webkitdirectory]" : "input[type=file]:not([webkitdirectory])",
-    );
-    if (input === null) {
-        throw new Error("no file input");
+async function base64(file: File): Promise<string> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let text = "";
+    for (let at = 0; at < bytes.length; at += 0x8000) {
+        text += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));
     }
-    return input;
+    return btoa(text);
 }
 
 /**
- * Opens the Load custom model dialog from the Models pop-over's Custom model... button.
+ * Clicks a button that opens the browser's file picker, and answers the picker with files, as a
+ * reader choosing them: each a File, or a path from the package's folder. A path to a folder, with
+ * the button that opens the folder picker, chooses that folder.
+ * @param scope - where the button is.
+ * @param name - the button's accessible name, "Choose file".
+ * @param files - the files.
+ */
+export async function choose(
+    scope: HTMLElement,
+    name: string | RegExp,
+    files: readonly (File | string)[],
+): Promise<void> {
+    const chosen = await Promise.all(
+        files.map(async (file) =>
+            typeof file === "string"
+                ? { path: file }
+                : { name: file.name, mimeType: file.type, base64: await base64(file) },
+        ),
+    );
+    await commands.chooseNextFiles(chosen);
+    await userEvent.click(within(scope).getByRole("button", { name }));
+}
+
+/**
+ * Opens the Load custom model dialog from the Models pop-over's Add custom model... button.
  * @param tab - the Style tab.
  * @returns the dialog.
  */
 export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
     const models = await openModels(tab);
-    await userEvent.click(within(models).getByRole("button", { name: "Custom model..." }));
+    await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
     return screen.findByRole("dialog", { name: "Load custom model" });
 }
 

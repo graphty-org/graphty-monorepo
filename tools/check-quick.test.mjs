@@ -23,7 +23,7 @@ const envDump = (file, rcVar) =>
     `writeFileSync(${JSON.stringify(file)}, JSON.stringify({ env: process.env, argv: process.argv.slice(2), cwd: process.cwd() }));\n` +
     `process.exit(Number(process.env.${rcVar} ?? 0));\n`;
 
-function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
+function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "check-quick-"));
     const repo = join(dir, "repo");
     const out = (n) => join(dir, n);
@@ -43,9 +43,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     writeFileSync(join(repo, "graph-format/package.json"), "{}");
     mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
     writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
-    copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
-    writeFileSync(join(repo, "tools/copy-docs-content.js"), "");
-    writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "docs:api:graph-io": "x" } }));
+    writeFileSync(join(repo, "package.json"), "{}");
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
@@ -57,6 +55,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     git("add", ".");
     git("commit", "-q", "-m", "a");
     writeFileSync(join(repo, "changed.ts"), "x\n");
+    for (const [f, text] of Object.entries(files)) writeFileSync(join(repo, f), text);
     const r = spawnSync("bash", [join(repo, "tools/check-quick.sh"), "--base", "main", ...args], {
         cwd: repo,
         encoding: "utf8",
@@ -162,13 +161,26 @@ describe("tools/check-quick.sh", () => {
         assert.equal(gpu.env.GIT_CONFIG_GLOBAL, "/dev/null");
     });
 
-    it("runs PR Integrity on HEAD, and the docs build and bundle sizes when their packages are affected", () => {
+    it("runs PR Integrity on HEAD, and the bundle sizes when their packages are affected", () => {
         const { r, pnpm, integrity } = sandbox({ affected: "graph-io graphty-element cytoscape-extensions" });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.deepEqual(integrity.argv, ["--local", "--base", "main"]);
-        assert.match(pnpm, /^run docs:build$/m);
         assert.match(pnpm, /^run check:bundle-size$/m);
         assert.match(pnpm, /^--filter @graphty\/cytoscape-extensions run size$/m);
+    });
+
+    // CI's Docs job and its Checks job's "Formatting" step run these on every pull request that needs them,
+    // and they were the two slowest steps here after the tests and the builds (issue #8052).
+    it("leaves the docs-site build and the whole-repository format check to CI", () => {
+        const { r, pnpm } = sandbox({
+            affected: "graph-io graphty-element",
+            files: { "package.json": '{"x":1}\n', ".prettierrc": "{}\n" },
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.doesNotMatch(pnpm, /docs:build|format:check/);
+        // The sandbox has no docs inputs, so the run alone cannot see a docs step come back: read the script too.
+        assert.doesNotMatch(readFileSync(SCRIPT, "utf8"), /^\s*step\b.*\b(docs:build|format:check)\b/m);
+        assert.match(pnpm, /^exec prettier --check --ignore-unknown /m, "the changed files are still formatted");
     });
 
     it("names a failed PR Integrity in the summary", () => {
@@ -257,7 +269,10 @@ describe("tools/check-quick.sh", () => {
     it("runs every `pnpm run` script of ci.yml's Checks job, so the two cannot drift", () => {
         const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
         const job = ci.split(/^ {4}checks:$/m)[1].split(/^ {4}[a-z][\w-]*:$/m)[0];
-        const scripts = [...new Set([...job.matchAll(/pnpm run ([\w:-]+)/g)].map((m) => m[1]))];
+        // format:check is left to CI (issue #8052); the changed files are still checked.
+        const scripts = [...new Set([...job.matchAll(/pnpm run ([\w:-]+)/g)].map((m) => m[1]))].filter(
+            (s) => s !== "format:check",
+        );
         assert.ok(scripts.length > 10, `found the Checks job's scripts: ${scripts}`);
         const quick = readFileSync(SCRIPT, "utf8");
         for (const script of scripts) assert.match(quick, new RegExp(`pnpm run ${script}\\b`), script);

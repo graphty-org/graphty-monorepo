@@ -84,18 +84,19 @@ describe("a value's name", () => {
         session.dispose();
     });
 
-    it("follows its group when the run is computed again and renumbers the groups", async () => {
+    it("stays on its group when the run is computed again and its algorithm renumbers the groups", async () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
         const path = `results.${run.runId}.group`;
         await session.data.setValueLabel(path, 0, "First two");
 
-        // A data change makes the same run compute again; the a-and-b group is now numbered 1.
+        // A data change makes the same run compute again; the algorithm numbers the a-and-b group
+        // 1 this time, and the element keeps the number the group had.
         await session.data.addNodes([{ id: "e" }]);
         await session.runs.start("louvain", {});
         await session.styles.settled();
-        assert.strictEqual(session.runs.get(run.runId)?.result?.node("a")?.group, 1);
-        assert.deepStrictEqual([...session.data.valueLabels(path)], [["1", "First two"]]);
+        assert.strictEqual(session.runs.get(run.runId)?.result?.node("a")?.group, 0);
+        assert.deepStrictEqual([...session.data.valueLabels(path)], [["0", "First two"]]);
         session.dispose();
     });
 

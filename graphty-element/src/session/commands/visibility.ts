@@ -1,12 +1,20 @@
 /**
  * @file The visibility ops: `visibility.set` (the filter), `visibility.steps` (the filter steps),
- * `visibility.conditions` (the filter conditions), `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
- * faintly). Each is one undoable step.
+ * `visibility.conditions` (the filter conditions), `visibility.window` (the time window),
+ * `visibility.context` (whether hidden nodes are drawn faintly), `visibility.playback` (how
+ * `session.time` moves windows) and `visibility.hide` (nodes hidden from the drawing only). Each
+ * is one undoable step.
  *
- * All three run on the immediate lane: the value is written to the `visibility` slice when the
+ * The slice's stored values are `filter`, `conditions`, `window`, `showContext`, `playback` and
+ * `hidden`. There is no separate steps value: `visibility.steps` and `visibility.conditions` both
+ * write `conditions`, and the steps are the keep and exclude conditions seen through `stepsOf`
+ * and `conditionsOfSteps`.
+ *
+ * Every op runs on the immediate lane: the value is written to the `visibility` slice when the
  * command is dispatched, and the masks are evaluated on the derivation lane against whatever the
  * slice holds when the pass runs, so a filter superseded before then is never evaluated. The
- * masks are not state; they are derived from these three values and the graph. See
+ * masks are not state; they are derived from the filter, the conditions, the time window and the
+ * graph. See
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
@@ -113,7 +121,7 @@ function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
     }
 }
 
-/** Shared by the three ops. */
+/** Shared by every visibility op except `visibility.playback`, which neither moves nor draws. */
 const COMMON = { moves: false, draws: true, lane: { kind: "immediate" } } as const;
 
 /**

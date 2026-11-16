@@ -23,11 +23,14 @@ screen, and update these rather than a screen when a rule changes.
 | `REGISTER-1.5.md`          | One glyph and one tooltip string per verb                         |
 | `COMPACTION-1.6.md`        | The ten row types and the routing rules                           |
 | `FIXTURES.md`              | Canonical numbers for the three sample datasets                   |
-| `LEGEND-1.8.md`            | The legend component                                              |
+| `LEGEND-1.8.md`            | The legend component (rebuilt from the record; see its preamble)  |
 | `DECISIONS-1.5/1.7/1.8.md` | Why each revision decided what it did                             |
 | `ARTBOARD-FORMAT.md`       | The file format every artboard must follow                        |
 
-## Rebuilding the canvas
+## The published canvas
 
-The screens are published as one pan-and-zoom canvas at
-https://claude.ai/code/artifact/52b64d25-6ec8-4a35-aeab-06bce8c7f379
+The screens were also published as one pan-and-zoom canvas at
+https://claude.ai/code/artifact/52b64d25-6ec8-4a35-aeab-06bce8c7f379.
+This directory is the source of truth; the canvas is a copy of it, laid out in
+the order and grouping `artboards/canvas.json` gives. There is no build step:
+to see a screen, open its file in a browser.

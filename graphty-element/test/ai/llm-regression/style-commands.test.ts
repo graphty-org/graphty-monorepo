@@ -105,7 +105,9 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         // the model or the check was wrong.
         onTestFailed(() => {
             for (const result of results) {
-                console.log(`[llm-regression] calls "${result.prompt}"\n${callLines(result).join("\n") || "none"}`);
+                console.log(
+                    `[llm-regression] calls "${result.prompt}"\n${callLines(result).join("\n") || "none"}\nanswer: ${result.llmText ?? ""}`,
+                );
             }
         });
         harness = await LlmRegressionTestHarness.create({

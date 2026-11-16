@@ -737,8 +737,8 @@ const LITERAL_DEFAULTS: ReadonlySet<string> = new Set(["true", "false", "null", 
 function withoutDefault(doc: string): string {
     const trimmed = doc
         // linear: the two branches of each group never match the same character (and the text is our own doc comments)
-        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(S5852): disjoint branches, trusted input
-        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(S5852): disjoint branches, trusted input
+        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // disjoint branches, trusted input
+        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // disjoint branches, trusted input
         .replaceAll(/ \(default [^)]+\)/gi, "");
     return trimmed
         .split(/(?<=\.)\s+(?=[A-Z`"])/)

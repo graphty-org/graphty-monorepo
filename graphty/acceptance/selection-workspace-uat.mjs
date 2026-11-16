@@ -1952,7 +1952,7 @@ async function serve(dist) {
         process.exit(2);
     }
     const http = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
+        const url = new URL(req.url, "https://x");
         const file = join(root, normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, ""));
         if (file !== root && !file.startsWith(root + sep)) {
             return res.writeHead(403).end();

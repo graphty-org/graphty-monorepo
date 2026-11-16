@@ -34,7 +34,7 @@ export type InstantReading = "strict" | "loose" | "missing" | "unparsed";
  * and the expanded signed year (`-000500`, `+012000`) for years before 1000 CE and BCE dates.
  */
 const ISO =
-    /^([+-]\d{6}|\d{4})(?:-(\d{2})(?:-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:?\d{2})?)?)?)?$/; // NOSONAR(S5843): one anchored pattern for the whole ISO 8601 subset; splitting it hides which forms are accepted
+    /^([+-]\d{6}|\d{4})(?:-(\d{2})(?:-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:?\d{2})?)?)?)?$/; // one anchored pattern for the whole ISO 8601 subset; splitting it hides which forms are accepted
 
 /** A plain decimal number written as text, such as a CSV cell holding an epoch. */
 const NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
@@ -135,7 +135,7 @@ const DATE_TIME_LENGTH = 24;
  * @returns The code.
  */
 function codeAt(text: string, at: number): number {
-    return text.charCodeAt(at); // NOSONAR(S7758): only ASCII matters here, and codePointAt's undefined would need a check per character on a path run a million times
+    return text.charCodeAt(at); // eslint-disable-line unicorn/prefer-code-point -- only ASCII matters here, and codePointAt's undefined would need a check per character on a path run a million times
 }
 
 /**
@@ -302,7 +302,7 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
  * A column name that speaks of time, as whole words: `sent_at` and `startDate` do, `friend` and
  * `candidate` do not. Run on the name with its camel case split and lowered.
  */
-const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent|when|period)s?(?:$|[^a-z])/; // NOSONAR(S5843): one flat list of words between two word edges
+const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent|when|period)s?(?:$|[^a-z])/; // one flat list of words between two word edges
 
 /** A loose reading counts toward a candidate only with a four-digit year in it. */
 const HAS_YEAR = /\d{4}/;

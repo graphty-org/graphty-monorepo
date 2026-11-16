@@ -1,0 +1,60 @@
+{
+  "scripts/build-bundle.js": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "src/algorithms/optimization/lbfgs.ts": {
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "src/index.ts": {
+    "unicorn/prefer-export-from": {
+      "count": 1
+    }
+  },
+  "src/indexed/kamada-kawai.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/indexed/planar.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/indexed/spectral.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/indexed/start.ts": {
+    "unicorn/prefer-default-parameters": {
+      "count": 1
+    }
+  },
+  "src/positions.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/simulation/forceatlas2.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    },
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/simulation/fruchterman-reingold.ts": {
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/simulation/inputs.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    }
+  }
+}

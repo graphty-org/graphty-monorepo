@@ -1,0 +1,27 @@
+{
+  "scripts/size.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/algorithms.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/elements.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/io.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/snapshot.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  }
+}

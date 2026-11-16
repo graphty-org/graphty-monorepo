@@ -92,7 +92,7 @@ function RowCount({ paints }: Readonly<{ paints: Paints }>): React.JSX.Element {
 function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Element {
     return (
         <Tooltip label={words}>
-            <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                 role="img"
                 aria-label={words}
                 className="ws-row-over"
@@ -124,7 +124,7 @@ function WaitMark({
         <>
             {waits && (
                 <Tooltip label={words}>
-                    <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                    <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                         role="img"
                         aria-label={words}
                         className="ws-row-over"
@@ -165,7 +165,7 @@ function OutOfDateMark({ words, children }: Readonly<{ words: string; children: 
     return (
         <span className="ws-row-stale">
             <Tooltip label={words}>
-                <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                     role="img"
                     aria-label={words}
                     className="ws-row-over"
@@ -509,7 +509,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         );
         if (command?.disabled(row, session) === null) {
             event.preventDefault();
-            void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
+            void command.run(workspace, row); // a deliberately unawaited promise, marked as no-floating-promises asks
         }
     };
 

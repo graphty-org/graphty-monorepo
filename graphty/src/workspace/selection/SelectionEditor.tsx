@@ -1345,7 +1345,7 @@ export function SelectionEditor({
                     const branchId = branch.id ?? "";
                     const newOp = adding?.op ?? newVerb(branch);
                     return (
-                        <div // NOSONAR(S6819): a tree's subtree is an ARIA group of treeitems; a fieldset is not one
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a tree's subtree is an ARIA group of treeitems; a fieldset is not one
                             key={branch.id}
                             role="group"
                             className="sel-group"
@@ -1358,7 +1358,7 @@ export function SelectionEditor({
                                     disabled={!ws || !previewing || underOf(at).length === 0}
                                     openDelay={500}
                                 >
-                                    <div // NOSONAR(S6848): a treeitem; rowProps gives its role, tab stop and keys
+                                    <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a treeitem; rowProps gives its role, tab stop and keys
                                         {...rowProps(
                                             branchId,
                                             branchId,
@@ -1449,7 +1449,7 @@ export function SelectionEditor({
                             )}
                             {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
                             {allRow(branch) && !(ws && adding?.branch === branch.id) && (
-                                <div // NOSONAR(S6848): a pointer shortcut; its group's own row above is the keyboard stop
+                                <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a pointer shortcut; its group's own row above is the keyboard stop
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
                                         : {
@@ -2276,7 +2276,7 @@ export function SelectionEditor({
                   <PopoutManager>
                       <DrawnSwatches.Provider value={!colors}>
                           <div className="sel-ws-scrim" aria-hidden />
-                          <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
+                          <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches keys and presses bubbling from its own controls
                               ref={wsBox}
                               role="dialog"
                               aria-modal="true"

@@ -1036,7 +1036,7 @@ function CardStep({
     test: React.ReactNode;
 }>): React.JSX.Element {
     return (
-        <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
             aria-label={label}
             className="sel-pane sel-card-body"

@@ -775,7 +775,14 @@ void main() {
                 : this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine ? LEAN_TEMPLATE : undefined);
+            return new PulledLineBatch(
+                mesh,
+                scene,
+                rowPositions,
+                curve,
+                leanLine ? LEAN_TEMPLATE : undefined,
+                kind === true && !flat,
+            );
         });
     }
 

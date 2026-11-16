@@ -50,7 +50,7 @@ export function RowMenuItems({
                         reason={reason}
                         reasonDrawn={false}
                         onRun={() => {
-                            void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
+                            void command.run(workspace, row); // a deliberately unawaited promise, marked as no-floating-promises asks
                         }}
                     />
                 );

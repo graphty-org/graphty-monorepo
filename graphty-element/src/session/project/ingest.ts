@@ -16,7 +16,13 @@ import type { FileLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
-import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READERS } from "../../data/DataSource";
+import {
+    DataSource,
+    type DataSourceChunk,
+    type DeclaredDirection,
+    READER_SIGNALS,
+    TIMELINE_READERS,
+} from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
@@ -2327,6 +2333,9 @@ export class Ingest<K extends KnownEdge> {
             if (source !== null && this.host.timeline?.() === true) {
                 TIMELINE_READERS.add(source);
             }
+            if (source !== null && signal !== undefined) {
+                READER_SIGNALS.set(source, signal);
+            }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);
@@ -2367,7 +2376,7 @@ export class Ingest<K extends KnownEdge> {
                     type,
                     tally,
                     writer,
-                    held === undefined ? undefined : HELD_KINDS.get(held), // NOSONAR(S4158): data.ts and draft.ts fill HELD_KINDS; the rule reads one file
+                    held === undefined ? undefined : HELD_KINDS.get(held), // eslint-disable-line sonarjs/no-empty-collection -- data.ts and draft.ts fill HELD_KINDS; the rule reads one file
                 );
                 this.sealedTally = tally;
                 await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);

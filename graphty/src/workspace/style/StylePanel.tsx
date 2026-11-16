@@ -681,7 +681,7 @@ export function SelectionStyle(): React.JSX.Element | null {
                     <Text size="xs" fw={600} pl={4}>
                         {part.title}
                     </Text>
-                    <div // NOSONAR(S6819): an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
                         role="group"
                         aria-label="Color"
                     >

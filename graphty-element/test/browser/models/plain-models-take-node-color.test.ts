@@ -91,6 +91,17 @@ describe("a model part with no color of its own", () => {
         assert.isAbove(count(await readFrame(element), RED), 500, "the cube is drawn red");
     });
 
+    it("keeps a plain gray model's own gray when a layer sets node.modelTint to false", async () => {
+        const element = await mount();
+        const files = await gltfWith((json) => {
+            json.materials = [
+                { name: "Material", pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0 } },
+            ];
+        });
+        await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000", "node.modelTint": false });
+        assert.equal(count(await readFrame(element), RED), 0, "the cube is not drawn red");
+    });
+
     it("keeps a see-through metallic gray as the file draws it", async () => {
         const element = await mount();
         const files = await gltfWith((json) => {

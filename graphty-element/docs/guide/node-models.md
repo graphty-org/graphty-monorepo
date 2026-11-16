@@ -359,7 +359,10 @@ own materials -- its embedded pictures dropped too -- use `"replace"`.
 A part the file gives no material, no picture and no vertex colors -- an OBJ loaded with no `.mtl`
 (or with its `.mtl` skipped), most STL and PLY files, a glTF primitive with no material, or a
 material left at its defaults (white, with no picture, map or glow) -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
-says. When a layer colors a model node and some part keeps the file's own color, the color is not
+says. A model whose materials are all plain, opaque, non-metallic grays (white and black included)
+with no picture -- such as Blender's default material -- is shaded, not colored, so it too is drawn
+in `node.color` while `node.modelTint` is unset; a layer that sets `node.modelTint: false` keeps
+its grays. When a layer colors a model node and some part keeps the file's own color, the color is not
 drawn there and the element reports `W_MODEL_COLOR_IGNORED` with the layers that set it, so the
 color never disappears in silence.
 

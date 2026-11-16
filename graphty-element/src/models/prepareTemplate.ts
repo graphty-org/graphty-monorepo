@@ -441,7 +441,8 @@ function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
  * gives its color up too. Under "replace" every part draws in the flat material.
  * @param first - The group's first part.
  * @param colored - Whether the group carries vertex colors.
- * @param gray - Whether the whole model states no color of its own (`allPlainGray`).
+ * @param gray - Whether the whole model states no color of its own (`allPlainGray`) and no layer
+ *   set `node.modelTint` to false.
  * @param options - The template options.
  * @param flat - The template's flat material, made on first use.
  * @returns The material, and whether the group follows the node's color.
@@ -494,7 +495,7 @@ function mergeGroups(
     made: Made,
 ): void {
     const { used, meshes, follows } = made;
-    const gray = allPlainGray(groups);
+    const gray = options.ownColors !== true && allPlainGray(groups);
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.vertices.positions?.length ?? 0) / 3, 0);

@@ -244,7 +244,7 @@ export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
  * @param canvas - the canvas graphty-element draws the preview in.
  * @returns the count of drawn pixels.
  */
-export function drawnPixels(canvas: HTMLCanvasElement): number {
+function drawnPixels(canvas: HTMLCanvasElement): number {
     const copy = document.createElement("canvas");
     copy.width = canvas.width;
     copy.height = canvas.height;
@@ -265,7 +265,7 @@ export function drawnPixels(canvas: HTMLCanvasElement): number {
  * @param name - the model's name.
  * @returns the canvas, or null while there is none.
  */
-export function previewCanvas(dialog: HTMLElement, name: string): HTMLCanvasElement | null {
+function previewCanvas(dialog: HTMLElement, name: string): HTMLCanvasElement | null {
     return within(dialog).queryByRole<HTMLCanvasElement>("img", { name: new RegExp(`^${name} preview`) });
 }
 

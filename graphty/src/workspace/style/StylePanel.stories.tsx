@@ -799,7 +799,7 @@ export const CustomModelPointCloud: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
-        await within(dialog).findByRole("img", { name: "points preview" });
+        await within(dialog).findByRole("img", { name: /^points preview/ });
         await within(dialog).findByText("Approximated");
     }),
     "Custom model, point cloud",
@@ -847,6 +847,20 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         const tile = within(own).getByRole("button", { name: "police" });
         await waitFor(() => {
             expect(tile.querySelector("img")).not.toBeNull();
+        });
+        // The pop-over focuses Box as it opens, before the tile pictures arrive, and a picture drawn
+        // after the focus outline left one pixel of the outline's corner drawn either way. Once every
+        // picture is decoded, the arrow keys take focus off Box and back, so the outline is drawn
+        // last, the same on every run.
+        await Promise.all([...models.querySelectorAll("img")].map(async (picture) => picture.decode()));
+        const box = within(models).getByRole("button", { name: "Box" });
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            expect(document.activeElement).not.toBe(box);
+        });
+        await userEvent.keyboard("{ArrowLeft}");
+        await waitFor(() => {
+            expect(document.activeElement).toBe(box);
         });
     }),
     "Custom model, project tile",

@@ -755,6 +755,9 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+const PREVIEW = exempt(
+    "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
+);
 const TRANSPORT = exempt(
     "In-flight layout computation; where the layout comes to rest is recorded with the step that moved it.",
 );
@@ -2430,6 +2433,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Whether followView would lay the graph out again; it only reads.
             viewChanged: READ,
         },
+    },
+    {
+        name: "ModelPreview",
+        file: "src/meshes/ModelPreview.ts",
+        half: "renderer",
+        whole: PREVIEW,
     },
     {
         name: "SupportPoints",

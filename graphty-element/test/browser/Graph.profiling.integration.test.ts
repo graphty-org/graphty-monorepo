@@ -160,12 +160,16 @@ describe("graphty-element - enableDetailedProfiling", () => {
     });
 
     /**
-     * Mounts an element with the profiling attribute in its markup and waits for it to come up.
+     * Mounts an element, with the profiling attribute in its markup unless told otherwise, and
+     * waits for it to come up.
+     * @param withAttribute - Whether the markup carries `enable-detailed-profiling`.
      * @returns The mounted element.
      */
-    async function mountProfiled(): Promise<Graphty> {
+    async function mountProfiled(withAttribute = true): Promise<Graphty> {
         const mounted = document.createElement("graphty-element");
-        mounted.setAttribute("enable-detailed-profiling", "");
+        if (withAttribute) {
+            mounted.setAttribute("enable-detailed-profiling", "");
+        }
         mounted.style.display = "block";
         mounted.style.width = "800px";
         mounted.style.height = "600px";
@@ -189,5 +193,34 @@ describe("graphty-element - enableDetailedProfiling", () => {
 
         const labels = statsManager.getSnapshot().cpu.map((m) => m.label);
         assert.include(labels, "element-operation");
+    });
+
+    it("starts collecting when the property is set after the element initialized", async () => {
+        const mounted = await mountProfiled(false);
+        const statsManager = mounted.graph.getStatsManager();
+        statsManager.measure("before", () => 1);
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
+
+        mounted.enableDetailedProfiling = true;
+        statsManager.measure("after", () => 1);
+
+        const labels = statsManager.getSnapshot().cpu.map((m) => m.label);
+        assert.deepEqual(labels, ["after"]);
+    });
+
+    it("stops collecting and clears measurements when the property is set back to false", async () => {
+        const mounted = await mountProfiled();
+        const statsManager = mounted.graph.getStatsManager();
+        statsManager.measure("while-on", () => 1);
+        assert.include(
+            statsManager.getSnapshot().cpu.map((m) => m.label),
+            "while-on",
+        );
+
+        mounted.enableDetailedProfiling = false;
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
+
+        statsManager.measure("while-off", () => 1);
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
     });
 });

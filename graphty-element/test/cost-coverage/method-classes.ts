@@ -990,6 +990,11 @@ export const READ_ONLY: readonly string[] = [
     "LayoutManager.setPaused",
     // Wiring: stores the graph context and listens to its acceleration; changes no graph state.
     "LayoutManager.setGraphContext",
+    // The camera link reads and places cameras, which no project saves.
+    "LinkedCameraView.addEventListener",
+    "LinkedCameraView.getCameraState",
+    "LinkedCameraView.removeEventListener",
+    "LinkedCameraView.setCameraState",
     "LlmProvider.configure",
     "LlmProvider.generate",
     "LlmProvider.generateStream",

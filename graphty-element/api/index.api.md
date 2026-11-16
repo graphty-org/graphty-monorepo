@@ -5376,6 +5376,17 @@ export interface Limits {
     selectionCap: number;
 }
 
+// @public
+export function linkCameras(...views: LinkedCameraView[]): () => void;
+
+// @public
+export interface LinkedCameraView {
+    addEventListener(type: "overview-changed", listener: () => void): void;
+    getCameraState(): CameraState;
+    removeEventListener(type: "overview-changed", listener: () => void): void;
+    setCameraState(state: CameraState): Promise<void>;
+}
+
 export { listSources }
 
 export { LoadFromSourceOptions }
@@ -5553,6 +5564,8 @@ class Node_2 implements ModelUser {
     get drawnScaling(): Readonly<Vector3>;
     // @internal
     get drawnScene(): Scene;
+    // @internal
+    get drawnSelectionHalo(): boolean;
     // @internal
     get drawnSourceMesh(): AbstractMesh;
     // @internal

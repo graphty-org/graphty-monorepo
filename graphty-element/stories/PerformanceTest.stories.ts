@@ -1,4 +1,4 @@
-// Registers the <graphty-element> custom element; the type is no longer referenced.
+// Registers the <graphty-element> custom element; the story names no type from it.
 import "../src/graphty-element";
 // Registers the WebGPU accelerator factory, the one line a consumer writes to get acceleration.
 // Storybook loads story files on demand, so this file needs its own import: the one in
@@ -27,7 +27,7 @@ const meta: Meta = {
     },
     args: {
         // ForceAtlas2 runs on the GPU when the page has a WebGPU adapter and on the CPU when it does
-        // not. The ngraph layout this story used to pick has no GPU path at all.
+        // not, so the story measures whichever path the page offers.
         layout: "forceatlas2",
         layoutConfig: { seed: 42 },
         setup: storySetup({

@@ -2352,6 +2352,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScene(): Scene;
     // @internal
+    get drawnSelectionHalo(): boolean;
+    // @internal
     get drawnSourceMesh(): AbstractMesh;
     // @internal
     drawnWorldMatrix(force?: boolean): Matrix;

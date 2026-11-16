@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
@@ -305,7 +306,9 @@ const dropFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (
 
 /**
  * Click the first element `selector` names with the real mouse and answer the file picker it opens
- * with `files`, as a reader choosing them in the browser's dialog.
+ * with `files`, as a reader choosing them in the browser's dialog. Files named by a path
+ * ("kit/car.obj") are written to a fresh folder on disk and that folder ("kit") is chosen, as the
+ * folder picker gives them.
  * @param ctx - the browser command context
  * @param selector - CSS selector of the control that opens the picker, inside the test frame
  * @param files - the files to choose
@@ -316,6 +319,15 @@ const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async
         ctx.page.waitForEvent("filechooser"),
         frame.locator(selector).first().click(),
     ]);
+    if (files.some((file) => file.name.includes("/"))) {
+        const root = mkdtempSync(join(tmpdir(), "cm-folder-"));
+        for (const file of files) {
+            mkdirSync(dirname(join(root, file.name)), { recursive: true });
+            writeFileSync(join(root, file.name), file.text);
+        }
+        await chooser.setFiles(join(root, files[0].name.split("/")[0]));
+        return;
+    }
     await chooser.setFiles(
         files.map((file) => ({ name: file.name, mimeType: file.type, buffer: Buffer.from(file.text) })),
     );

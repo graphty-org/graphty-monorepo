@@ -95,6 +95,7 @@ import {
     type GateKind,
     type JsonObject,
     type MessageState,
+    type ToolHost,
 } from "./tools/types";
 
 export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
@@ -658,6 +659,8 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
      * message starts afresh), `"memory"`, `"browser"`, or the options.
@@ -713,6 +716,26 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
+ * The engine's image model, as a tool host offers it.
+ * @param engine - The engine.
+ * @returns `{ image }`, or nothing when the engine makes no pictures.
+ */
+function imageOf(engine: AiEngine): Pick<ToolHost, "image"> {
+    const { imageModel } = engine;
+    return imageModel === undefined || engine.generateImage === undefined
+        ? {}
+        : {
+              image: {
+                  model: imageModel,
+                  generate: (prompt, signal) => {
+                      // Present with `imageModel`, so never absent here.
+                      return engine.generateImage?.(prompt, signal) ?? Promise.reject(new Error("no image model"));
+                  },
+              },
+          };
+}
+
+/**
  * Controller that orchestrates LLM providers and command execution.
  * Manages the conversation flow, command dispatch, and status updates.
  */
@@ -760,6 +783,7 @@ export class AiController {
     private readonly instructions: string;
     private readonly gate: Readonly<AssistantGateLimits> | false;
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
+    private readonly datasetBaseUrl: string | undefined;
     /** Runs the assistant started, which it may cancel without asking. */
     private readonly assistantRuns = new Set<string>();
     /**
@@ -839,6 +863,7 @@ export class AiController {
         this.gate =
             !generated || options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
+        this.datasetBaseUrl = options.datasetBaseUrl;
         this.policy = generated ? policyOf(options.approvals) : undefined;
         this.asks = options.questions === true;
         this.model = options.model ?? defaultModelOf(options.provider.name);
@@ -1338,6 +1363,23 @@ export class AiController {
     }
 
     /**
+     * What a message's tools reach the host by.
+     * @param emit - Hands the reader's application an event.
+     * @param readerText - The reader's own text in this message.
+     * @returns The host.
+     */
+    private toolHost(emit: ToolHost["emit"], readerText: string): ToolHost {
+        return {
+            emit,
+            readerText,
+            ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+            ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+            provider: this.engine.providerName,
+            ...imageOf(this.engine),
+        };
+    }
+
+    /**
      * The loop's run of one message: its conversation, engine, tools and state, and the
      * controller's settings that shape it.
      * @param run - The message.
@@ -1402,11 +1444,7 @@ export class AiController {
                 ...(this.recordsEvidence(session) ? { evidence: true } : {}),
                 ...(binding === undefined ? {} : { binding }),
             },
-            host: {
-                emit,
-                readerText: input,
-                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-            },
+            host: this.toolHost(emit, input),
             hold: (held, messageId, helper) =>
                 this.hold({
                     held,

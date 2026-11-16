@@ -391,6 +391,16 @@ const named = (add: { properties?: readonly string[] } | undefined, property: st
     add?.properties === undefined || add.properties.includes(property);
 
 /**
+ * The issue numbers a reason cites: `#` and one to five digits standing alone. A color (`#505050`, `#5F809D`) or an
+ * HTML entity (`&#123;`) is not an issue.
+ * @param reason - the reason
+ * @returns the numbers, in the order the reason names them
+ */
+export function citedIssues(reason: string): number[] {
+    return [...reason.matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/g)].map((m) => Number(m[1]));
+}
+
+/**
  * Refuses a reason too short to say anything, or one that names no issue (`#1234`): a known failure or an accepted drop
  * stays on the list until its issue is fixed, so each one must say which issue that is (#7015).
  * @param reason - the reason given
@@ -400,9 +410,55 @@ export function checkReason(reason: string, what: string): void {
     if (reason.trim().length < 10) {
         throw new Error(`${what} needs a reason of 10 or more characters`);
     }
-    if (!/#\d+/.test(reason)) {
+    if (citedIssues(reason).length === 0) {
         throw new Error(`${what} needs a reason that names the issue tracking it (#1234)`);
     }
+}
+
+/** A listed known failure that no open issue tracks. */
+export interface UntrackedKnown {
+    key: string;
+    property: string;
+    id: string;
+    /** Every issue the reasons that added it cite (none when no reason records it, or its reasons cite none). */
+    cited: number[];
+}
+
+/**
+ * The listed known failures that no open issue tracks: each element whose reasons (every reason that added it) cite no
+ * issue, or cite only issues that are closed. A known failure stays on the list until its issue is fixed, so one whose
+ * issue is closed needs a new issue or a fix (#7015).
+ * @param records - the known failures
+ * @param open - the cited issues that are open
+ * @returns the untracked known failures, in the list's order
+ */
+export function untrackedKnown(records: KnownRecords, open: ReadonlySet<number>): UntrackedKnown[] {
+    const cites = new Map<string, Set<number>>();
+    for (const r of records.reasons) {
+        const issues = citedIssues(r.reason);
+        for (const [key, props] of Object.entries(r.added)) {
+            for (const [property, ids] of Object.entries(props)) {
+                for (const id of ids) {
+                    const at = `${key}\0${property}\0${id}`;
+                    const set = cites.get(at) ?? new Set<number>();
+                    issues.forEach((n) => set.add(n));
+                    cites.set(at, set);
+                }
+            }
+        }
+    }
+    const out: UntrackedKnown[] = [];
+    for (const [key, props] of Object.entries(records.known)) {
+        for (const [property, ids] of Object.entries(props)) {
+            for (const id of ids) {
+                const cited = [...(cites.get(`${key}\0${property}\0${id}`) ?? [])].sort((a, b) => a - b);
+                if (!cited.some((n) => open.has(n))) {
+                    out.push({ key, property, id, cited });
+                }
+            }
+        }
+    }
+    return out;
 }
 
 /**

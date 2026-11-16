@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
@@ -31,18 +32,21 @@ import {
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
-import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { baseCheck, flakyNames, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, readersOf, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, refreshSnapshot, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
+    fileFlakyUnrelated,
     fileIssues,
     groupKeys,
     groupFamily,
+    groupShape,
     junitOf,
+    namesFlakyTest,
     newFlakyJudge,
     postRecords,
     prJudge,
@@ -581,6 +585,13 @@ describe("runGroup", () => {
         assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
         assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
         assert.notEqual(key("on"), key("off"));
+        // a pull request's On bin past the shard count has no SHARDS entry: its command says it is On (#7847)
+        const bin = (command) => groupShape({ shardName: "g-features-on-37", shard: undefined, command, env: e });
+        assert.equal(
+            bin("cd g && GRAPHTY_FEATURES_ON=1 pnpm exec vitest run 'a.test.ts'").variant,
+            "g-features-on|flags=on|selected",
+        );
+        assert.equal(bin("cd g && pnpm exec vitest run 'a.test.ts'").flags, "off");
     });
 });
 
@@ -778,13 +789,18 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
-    it("never asks about a full-run-only family, such as the On shards", () => {
-        const on = {
-            shard: "graphty-element-browser-features-on-1",
-            package: "graphty-element",
-            "full-run-only": true,
-        };
-        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    it("never asks about a full-run-only family, such as lifecycle", () => {
+        const life = { shard: "graphty-element-lifecycle", package: "graphty-element", "full-run-only": true };
+        assert.deepEqual(variantsOf([...shards, life], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
+    it("asks about an On family under flags=on: its selected files run on a pull request (#7847)", () => {
+        const on = { shard: "graphty-element-browser-features-on-1", package: "graphty-element", flags: "on" };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), [
+            "graphty-element-browser|flags=off|whole",
+            "graphty-element-browser|flags=off|selected",
+            "graphty-element-browser-features-on|flags=on|whole",
+            "graphty-element-browser-features-on|flags=on|selected",
+        ]);
     });
     it("also asks for a story shard's screenshot family, whatever the family is called", () => {
         const stories = [
@@ -857,6 +873,93 @@ describe("planRead", () => {
         });
         assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
     });
+    it("packs by the durations snapshot when the store gives no plan, only the families it asked about (#7851)", async () => {
+        const out = join(TMP, "plan-snapshot");
+        const snapshot = join(TMP, "plan-snapshot.json");
+        const at = Date.parse("2026-11-14T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: { layout: { "layout/a.test.ts": 4000 }, "remote-logger": { "r.test.ts": 1 } },
+            }),
+        );
+        mock.method(globalThis, "fetch", () =>
+            Promise.resolve(new Response('{"error":"internal error"}', { status: 500 })),
+        );
+        const { r, lines } = await logged({
+            out,
+            snapshot,
+            env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 4000 },
+        });
+        assert.match(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).unavailable, /HTTP 500/);
+        assert.deepEqual(lines, [
+            '::error::results store: no plan (HTTP 500: {"error":"internal error"}); test bins are packed by the durations snapshot of 2026-11-14T10:00:00.000Z',
+        ]);
+        // a missing or empty snapshot packs without history, as before
+        const none = await logged({ out, snapshot: join(TMP, "no-such.json"), env: {} });
+        assert.match(none.lines[0], /packed without history/);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("refreshes the snapshot one family at a time, keeping a family whose read failed, once an hour (#7851)", async () => {
+        const root = join(TMP, "snapshot-root");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout" }, { shard: "graphty-1", package: "graphty" },
+                { shard: "graphty-2", package: "graphty" }];\nexport const STORY_SHARDS = ["layout"];\n`,
+        );
+        const { url, seen } = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            if (variants[0].startsWith("graphty|")) return {}; // an answer with no durations keeps the previous ones
+            return {
+                variants: Object.fromEntries(variants.map((v) => [v, { fileMs: { [`${v.split("|")[0]}.ts`]: 7 } }])),
+            };
+        });
+        const file = join(root, "snap", "durations.json");
+        const old = { at: 0, durations: { graphty: { "old.ts": 3 }, layout: { "gone.ts": 9 } } };
+        mkdirSync(join(root, "snap"));
+        writeFileSync(file, JSON.stringify(old));
+        const env = { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" };
+        const now = Date.parse("2026-11-14T10:00:00Z");
+        const r = await refreshSnapshot({ root, file, env, now });
+        assert.equal(r.refreshed, true);
+        assert.deepEqual(r.answered, ["layout"]);
+        assert.match(r.failed[0], /^graphty /);
+        // one read per family, its `-shots` family with it
+        assert.deepEqual(
+            seen.map((s) => new URL(s.url, url).searchParams.get("variants")),
+            [
+                "graphty|flags=off|whole,graphty|flags=off|selected",
+                "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            ],
+        );
+        assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
+            at: now,
+            durations: {
+                graphty: { "old.ts": 3 },
+                layout: { "layout.ts": 7 },
+                "layout-shots": { "layout-shots.ts": 7 },
+            },
+        });
+        const again = await refreshSnapshot({ root, file, env, now: now + 60e3 });
+        assert.equal(again.refreshed, false);
+        assert.equal(seen.length, 2, "under an hour old: no read");
+    });
+    it("loads the real test matrix from only the files the Durations snapshot job checks out (#7851)", async () => {
+        // cone mode: the listed directories plus the root files
+        const job = readFileSync(".github/workflows/ci.yml", "utf8").split("\n    durations-snapshot:\n")[1];
+        const paths = /sparse-checkout: \|\n((?:\s+\S+\n)+)/.exec(job)[1].trim().split(/\s+/);
+        const root = join(TMP, "durations-job-checkout");
+        for (const p of paths) cpSync(p, join(root, p), { recursive: true });
+        for (const f of readdirSync(".", { withFileTypes: true })) if (f.isFile()) cpSync(f.name, join(root, f.name));
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        assert.ok(SHARDS.length > 0);
+    });
     it("reads the plan once and writes its durations", async () => {
         const { url, seen } = await serve();
         const out = join(TMP, "plan-on");
@@ -884,6 +987,8 @@ describe("planRead", () => {
         );
         assert.equal(q.get("inputs"), variants.map(() => "-").join(","));
         assert.equal(q.get("files"), "layout/src/x.ts");
+        // the changed files stay in the plan, so a re-run's prJudge() still never excuses a changed test (#8051)
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).changed, ["layout/src/x.ts"]);
     });
     it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
         const packages = ["graph-io", "graphty-element", "graphty", "layout"];
@@ -1048,14 +1153,14 @@ describe("the pull request rules", () => {
         );
         const checks = readChecks(join(dir, "checks"));
         assert.deepEqual(checks, [
-            { base: "abc1234", file: "a.test.ts", variant, repeat: 5 },
+            { base: "abc1234", file: "a.test.ts", variant, repeat: 5, names: ["flips"] },
             { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
         ]);
         const calls = [];
         assert.equal(await dispatchChecks(checks, (args) => calls.push(args.join(" "))), 2);
         assert.equal(
             calls[0],
-            `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5`,
+            `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5 -f tests=["flips"]`,
         );
         assert.deepEqual(readChecks(join(dir, "none")), []);
         rmSync(dir, { recursive: true, force: true });
@@ -1086,6 +1191,38 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(elsewhere, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
     });
 
+    it("#8051: says [KNOWN] for a touched test master fails the same way; a touched test's own failure still fails", () => {
+        const { key } = failureHashes("AssertionError: known", "a.test.ts");
+        const row = { variant: `${FAMILY}|flags=off|whole`, sha: "m1", file: "a.test.ts", name: "known", key };
+        const plan = { quarantine: [], failingOnBase: [row], affected: ["a.test.ts"], changed: ["a.ts"] };
+        const known = report(fail("known"));
+        assert.deepEqual(tags(judge(plan, known, known)), ["warn [KNOWN]"]);
+        assert.equal(judge(plan, known, known).pass, true);
+        // the pull request changed the test file itself (a re-run's plan has the row back), or the plan cannot
+        // tell (no `changed`: a screenshot plan): it fails
+        assert.deepEqual(tags(judge({ ...plan, changed: ["a.test.ts"] }, known, known)), ["fail [FAIL]"]);
+        assert.deepEqual(tags(judge({ ...plan, changed: undefined }, known, known)), ["fail [FAIL]"]);
+        // a GPU family is never excused
+        const gpu = { ...plan, failingOnBase: [{ ...row, variant: "webgpu-graph-algorithms-node|flags=off|whole" }] };
+        const gpuJudge = prJudge(gpu, {
+            ...o,
+            family: "webgpu-graph-algorithms-node",
+            shard: "webgpu-graph-algorithms-node",
+            variant: "webgpu-graph-algorithms-node|flags=off|whole",
+        });
+        const d = decide({
+            family: "webgpu-graph-algorithms-node",
+            first: known,
+            firstOutcome: "failed",
+            second: known,
+            list: [],
+        });
+        assert.deepEqual(tags(gpuJudge(d, { firstOutcome: "failed" })), ["fail [FAIL]"]);
+        // the same test failing another way (another key) is this pull request's: it fails
+        const other = { ...plan, failingOnBase: [{ ...row, key: "nope" }] };
+        assert.deepEqual(tags(judge(other, known, known)), ["fail [FAIL]"]);
+    });
+
     it("#3925: passes an untouched failure as [UNRELATED] with a summary line; never a touched, GPU or crashed one", () => {
         const dir = mkdtempSync(join(tmpdir(), "unrelated-"));
         const env = { GITHUB_STEP_SUMMARY: join(dir, "summary.md") };
@@ -1111,6 +1248,71 @@ describe("the pull request rules", () => {
         const crashed = { pass: false, flaky: [], excused: [], failing: [fail("theirs")] };
         assert.equal(prJudge(plan, { ...o, env })(crashed, { firstOutcome: "error" }).pass, false);
         rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#8317: a passing 5-repeat check files each flaky test's issue, or comments on an open one naming it", () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const line = (o) =>
+            `${JSON.stringify({ base: "abc1234", file: "x/a.test.ts", variant: o.variant ?? "f|flags=off|selected", ...o })}\n`;
+        // two flaky tests of one file share one check; a name with a newline is dropped; a 1-repeat line names none
+        writeFileSync(
+            join(dir, "s.jsonl"),
+            line({ repeat: 5, name: "d > one" }) +
+                line({ repeat: 5, name: "d > two" }) +
+                line({ repeat: 5, name: "bad\nname" }) +
+                line({ repeat: 1, name: "d > three" }),
+        );
+        assert.deepEqual(readChecks(dir), [
+            {
+                base: "abc1234",
+                file: "x/a.test.ts",
+                variant: "f|flags=off|selected",
+                repeat: 5,
+                names: ["d > one", "d > two"],
+            },
+        ]);
+        rmSync(dir, { recursive: true, force: true });
+        assert.deepEqual(flakyNames(JSON.stringify(["d > one", 3, "a\u0007b"])), ["d > one"]);
+        assert.deepEqual(flakyNames("not json"), []);
+
+        // a title that does not name the test still counts, when the body does and the issue says flaky
+        const loose = { number: 7, title: "a.test.ts is flaky", body: "the `d > one` test times out" };
+        assert.equal(namesFlakyTest(loose, { file: "x/a.test.ts", name: "d > one" }), true);
+        assert.equal(namesFlakyTest(loose, { file: "x/a.test.ts", name: "d > two" }), false);
+        assert.equal(
+            namesFlakyTest({ ...loose, title: "a.test.ts fails" }, { file: "x/a.test.ts", name: "d > one" }),
+            false,
+        );
+
+        const calls = [];
+        const gh = (args) => {
+            calls.push(args);
+            if (args[1] === "list") return JSON.stringify([loose]);
+            if (args[1] === "create") return "https://github.com/o/r/issues/9\n";
+            return "";
+        };
+        const out = fileFlakyUnrelated(
+            {
+                file: "x/a.test.ts",
+                variant: "f|flags=off|selected",
+                base: "abc1234",
+                names: ["d > one", "d > two"],
+                pr: "42",
+            },
+            gh,
+        );
+        assert.deepEqual(out, [
+            { name: "d > one", number: 7 },
+            { name: "d > two", number: 9 },
+        ]);
+        assert.equal(calls.filter((a) => a[1] === "list").length, 1, "one search for the file");
+        const comment = calls.find((a) => a[1] === "comment");
+        assert.equal(comment[2], "7");
+        assert.ok(calls.some((a) => a[1] === "edit" && a[2] === "7" && a.includes("priority:critical")));
+        const create = calls.find((a) => a[1] === "create");
+        assert.equal(create[create.indexOf("--title") + 1], "Flaky test: x/a.test.ts > d > two");
+        for (const l of ["bug", "priority:critical", "effort:medium"]) assert.ok(create.includes(l));
+        assert.match(create[create.indexOf("--body") + 1], /pull request #42.*\n.*abc1234/s);
     });
 
     it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
@@ -1169,6 +1371,17 @@ describe("the pull request rules", () => {
         assert.equal(q.get("variants"), `${FAMILY}|flags=off|whole,${FAMILY}|flags=off|selected`);
         const down = config({ RESULTS_URL: "http://127.0.0.1:9", GRAPHTY_RESULTS_TOKEN: "t" });
         assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
+    });
+
+    it("asks an On twin's re-run for master's flags=on evidence, not flags=off (#7847)", async () => {
+        const plan = { base: "b1", affected: [], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({ quarantine: [], failingOnBase: [{ name: "k" }] }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const on = "graphty-features-on";
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: on, variant: `${on}|flags=on|selected` });
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("variants"), `${on}|flags=on|whole,${on}|flags=on|selected`);
     });
 
     it("leaves a run that did not end in test failures alone", () => {

@@ -397,6 +397,8 @@ export const GRAPHML_LOSS = Object.freeze({
      * yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name.
      */
     PORTS_DROPPED: "W_GRAPHML_PORTS_DROPPED",
+    /** A kept namespace prefix that is not an XML NCName, or is `xml` or `xmlns`, is not written on the root tag. */
+    NAMESPACE_DROPPED: "W_GRAPHML_NAMESPACE_DROPPED",
     /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

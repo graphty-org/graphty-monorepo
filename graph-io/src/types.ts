@@ -502,7 +502,8 @@ export interface CommonExportOptions {
      * What to do with node ids the format cannot hold. "error": the export throws (E_INVALID_ID) and
      * no node is renamed. "mangle": such ids are rewritten and the originals are written to the
      * file too, so an import with `restoreMangledIds` (on by default) reads the original ids back.
-     * Pajek is the exception: it always numbers nodes 1 to N and keeps the old ids as labels.
+     * Pajek is the exception: it always numbers nodes 1 to N and keeps the old ids as labels. A GML
+     * export without the option renumbers such ids as "mangle" does, since GML ids are integers.
      * @defaultValue "error"
      */
     sanitizeIds?: "error" | "mangle" | undefined;
@@ -665,6 +666,12 @@ export interface ImportReport {
     readonly lossy: readonly LossNote[];
     /** How long reading the file took, in milliseconds. */
     readonly durationMs: number;
+    /**
+     * The options the importer worked out from the file because they were not given, by option
+     * name: the CSV importer's `idColumn` (the header name of the column a node table was keyed
+     * by). Pass them back to read the file the same way again, whatever the defaults become.
+     */
+    readonly resolved?: Readonly<Record<string, unknown>> | undefined;
     /** What a load from a network source did: requests, bytes, where to resume. Experimental. */
     readonly source?: SourceReportInfo | undefined;
 }

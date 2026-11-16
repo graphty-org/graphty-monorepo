@@ -1655,7 +1655,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // a source starts with no shortest path: every count is 0 and every ratio NaN
             name: "seed-sigma-zero",
-            find: "sigmaK[t] = one;",
+            find: "sigmaK[t] = select(1u, 0x3f800000u, SCALED);",
             replace: "sigmaK[t] = 0u;",
             minFactor: 10,
             test: BETWEENNESS_TEST,

@@ -19,6 +19,7 @@
  * renderer's manager to talk to it.
  */
 
+import { askedWeight } from "../../algorithms/input/weight";
 import { paletteDescriptor } from "../../catalog/palettes";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
@@ -350,6 +351,13 @@ export interface SessionRunsApi extends RunsApi {
      * @param id - The run id.
      */
     restoreDerived(id: RunId): void;
+    /**
+     * How many elements a run over a scope would hold if it started now: what a project open
+     * compares with a saved run's, to restore the run over the elements it ran on.
+     * @param spec - The scope; absent, the default run scope.
+     * @returns The counts, or null when the scope does not resolve.
+     */
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null;
     /**
      * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
      * its step, or the one a command hands its deferred members.
@@ -1316,6 +1324,19 @@ class Runs implements SessionRunsApi {
         this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
     }
 
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null {
+        try {
+            const resolved = this.options.resolveScope(spec ?? this.defaultScope);
+            return { nodes: resolved.nodeCount, edges: resolved.edgeCount };
+        } catch (error) {
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            return null;
+        }
+    }
+
     heldOf(id: RunId): HeldCaptures {
         return this.runs.get(id)?.held ?? NO_HELD;
     }
@@ -1646,6 +1667,7 @@ class Runs implements SessionRunsApi {
                 this.announce(run, phase);
             },
             entry: () => this.dispatcher.state.runs.get(id),
+            numberedAfter: () => this.sameQuestion(id)?.result,
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
@@ -1664,6 +1686,32 @@ class Runs implements SessionRunsApi {
         run.start();
 
         return run;
+    }
+
+    /**
+     * The newest other listed run that asked a run's question (the same algorithm over the same
+     * scope as spelled) and answered it, whose group numbers the run's first answer keeps.
+     * @param id - The run.
+     * @returns The other run, or undefined.
+     */
+    private sameQuestion(id: RunId): Run | undefined {
+        const spelled = this.spellings.get(id);
+        if (spelled === undefined) {
+            return undefined;
+        }
+        const others = [...this.runs.values()];
+        for (let at = others.length - 1; at >= 0; at--) {
+            const other = others[at];
+            if (
+                other.id !== id &&
+                this.spellings.get(other.id) === spelled &&
+                other.status === "succeeded" &&
+                this.listed(other)
+            ) {
+                return other;
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -1774,14 +1822,16 @@ class Runs implements SessionRunsApi {
      */
     private weightMoved(run: ManagedRun): boolean {
         const recorded = this.weightKeys.get(run.id);
-        if (recorded === undefined || this.options.defaultWeight === undefined || run.params.weight !== undefined) {
+        const descriptor = this.descriptorFor(run.algorithm);
+        if (
+            recorded === undefined ||
+            this.options.defaultWeight === undefined ||
+            askedWeight(run.params.weight, descriptor.options) !== undefined
+        ) {
             return false;
         }
 
-        return (
-            (this.descriptorFor(run.algorithm).weightMeaning ?? null) !== null &&
-            this.options.defaultWeight() !== recorded
-        );
+        return (descriptor.weightMeaning ?? null) !== null && this.options.defaultWeight() !== recorded;
     }
 
     /**

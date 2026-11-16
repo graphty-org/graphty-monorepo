@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
+    | OverviewChangedEvent
     | GraphGenericEvent
     | DataLoadingProgressEvent
     | DataLoadingErrorEvent
@@ -94,6 +95,8 @@ export type GraphEvent =
     | LayoutWarningEvent
     | LimitsWarningEvent
     | BasemapStatusEvent
+    | RenderLostEvent
+    | RenderRestoredEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -260,6 +263,14 @@ export interface CameraStateChangedEvent {
     };
 }
 
+/**
+ * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at
+ * most once per drawn frame, never per node; read `getOverview()` in the listener.
+ */
+export interface OverviewChangedEvent {
+    type: "overview-changed";
+}
+
 // Generic events for internal manager communication
 export interface GraphGenericEvent {
     type:
@@ -267,7 +278,9 @@ export interface GraphGenericEvent {
         | "manager-initialized"
         | "lifecycle-initialized"
         | "lifecycle-disposed"
+        // A skybox image arrived (`url`), or could not be loaded (`skybox-failed`, `url`).
         | "skybox-loaded"
+        | "skybox-failed"
         | "operation-queue-active"
         | "operation-queue-idle"
         | "operation-batch-complete"
@@ -509,6 +522,37 @@ export interface LimitsWarningEvent {
     code: GraphtyWarningCode;
     /** The code's parameters, as the code's documentation lists them. */
     params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL
+ * context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser
+ * reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false
+ * meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+ *
+ * The element asks for the device back by itself, and `render-restored` follows when it is
+ * drawing again. Should the browser not give it back, `restartRenderer()` asks again.
+ * A code and facts, never a sentence.
+ * @since 3.53.0
+ */
+export interface RenderLostEvent {
+    type: "render-lost";
+    /** What happened: `E_RENDER_LOST`. */
+    code: "E_RENDER_LOST";
+    /** `renderer`: the renderer whose device was lost, `"webgl"` or `"webgpu"`. */
+    params: { readonly renderer: "webgl" | "webgpu" };
+}
+
+/**
+ * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or
+ * through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph
+ * held in memory. `rendererStatus.drawing` is true again.
+ * @since 3.53.0
+ */
+export interface RenderRestoredEvent {
+    type: "render-restored";
+    /** The renderer drawing again, `"webgl"` or `"webgpu"`. */
+    renderer: "webgl" | "webgpu";
 }
 
 /**
@@ -970,10 +1014,20 @@ export interface AiApprovalRequest {
     /**
      * Why it was held; `"policy"` when the host's approval policy asked, `"plan"` for a hand-off
      * to a helper while `confirmPlans` is set, `"web-content"` for a change asked for while the
-     * message holds web content. OPEN UNION.
+     * message holds web content, `"paid"` for a call the provider bills (a generated picture). OPEN
+     * UNION.
      */
     readonly gate:
-        "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {}); // NOSONAR(S4335): the open-union idiom
+        | "slow"
+        | "large"
+        | "replaces"
+        | "irreversible"
+        | "network"
+        | "policy"
+        | "plan"
+        | "web-content"
+        | "paid"
+        | (string & {}); // NOSONAR(S4335): the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
@@ -1140,6 +1194,12 @@ export interface AiApprovalPreview {
     readonly mode?: "merge" | "replace";
     /** The URL an import would fetch, which the reader did not give. */
     readonly url?: string;
+    /** The provider a `"paid"` call is billed by (`AiProviderId`). */
+    readonly provider?: string;
+    /** The model a `"paid"` call runs (an `AI_IMAGE_MODELS` id). */
+    readonly model?: string;
+    /** What a `"paid"` call is expected to cost, in US dollars (`AiImageModelDescriptor.costUsd`). */
+    readonly costUsd?: number;
     /**
      * Every element a `large` change would touch, for `session.selection.peek(target)`, where `ids`
      * stops at ten. Under the generated tools with the `assistant` experiment on.

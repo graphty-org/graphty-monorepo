@@ -31,7 +31,8 @@
         "test/types/consumer/**/*.tsx",
         "docs/examples/file-styles/**/*.ts",
         "docs/examples/shaders/**/*.ts",
-        "docs/examples/node-models/**/*.ts"
+        "docs/examples/node-models/**/*.ts",
+        "docs/examples/figures/**/*.ts"
     ],
     "exclude": ["node_modules", "coverage", "tmp"]
 }

@@ -18,10 +18,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { START_SAMPLES } from "../../../data/sampleManifest";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
 const PRE_STEPS = 1000;
@@ -77,7 +82,10 @@ async function openProject(name: string): Promise<{ session: GraphSession; store
  * @returns the layer and the path.
  */
 async function runGroups(session: GraphSession, algorithm: string): Promise<{ layer: Layer; path: string }> {
-    const { runId } = await session.runs.start(algorithm);
+    // Leiden draws a new seed every run unless given one, and how many groups it finds depends on
+    // the seed (a run on College football found 8); a fixed seed gives the same groups every time.
+    const params = algorithm === "leiden" ? { randomSeed: 1 } : undefined;
+    const { runId } = await session.runs.start(algorithm, params);
     await session.styles.settled();
     const layer = session.styles
         .list()

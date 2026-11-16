@@ -22,7 +22,7 @@ import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
-import type { ErrorAggregator } from "./ErrorAggregator.js";
+import type { DataLoadingError, ErrorAggregator } from "./ErrorAggregator.js";
 import { applyFilePositions, filePositionsOf } from "./filePositions.js";
 
 /** How the scratch builder treats what the importer pushes, beyond what graph-format does itself. */
@@ -169,7 +169,7 @@ export async function importDocument<Opts>(
     try {
         report = await importer.import(text, builder, { ids: "string", ...options });
     } catch (error) {
-        throw error instanceof ImportError ? parseFailed(importer, error) : error;
+        throw error instanceof ImportError ? parseFailed(importer.format, error) : error;
     }
 
     return { snapshot: builder.freeze(), report, importer, declared: builder.declared };
@@ -200,12 +200,12 @@ export function emptyLoad(error: unknown, format: string): GraphtyError | null {
 
 /**
  * The error a load fails with when the importer could not read the file.
- * @param importer - the graph-io importer for the format
+ * @param format - the format the file was read as
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
  */
-function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError {
-    const empty = emptyLoad(error, importer.format);
+export function parseFailed(format: string, error: ImportError): GraphtyError {
+    const empty = emptyLoad(error, format);
     if (empty !== null) {
         return empty;
     }
@@ -215,8 +215,14 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",
         source: "data",
-        message: `Failed to read the ${importer.format} file${where}: ${error.message}`,
-        details: { format: importer.format, line, errors: error.report.errorCount },
+        message: `Failed to read the ${format} file${where}: ${error.message}`,
+        details: {
+            format,
+            line,
+            errors: error.report.errorCount,
+            ...(error.issue === null ? {} : { issue: error.issue.code }),
+            ...(typeof error.issue?.element === "string" ? { element: error.issue.element } : {}),
+        },
     });
 }
 
@@ -470,26 +476,56 @@ function errorOf(issue: ImportReport["issues"][number]): Parameters<ErrorAggrega
 }
 
 /**
+ * The error a reader stops with once its aggregator's error limit is reached.
+ * @param errors - the data source's aggregator
+ * @param format - the format being read
+ * @returns a `GraphtyError` with `E_PARSE_FAILED`, the same code a replacing load that stopped at
+ *     the limit fails with
+ */
+function errorLimitReached(errors: ErrorAggregator, format: string): GraphtyError {
+    const rowErrors = errors.getErrorCount();
+    return new GraphtyError({
+        code: "E_PARSE_FAILED",
+        source: "data",
+        message: `The ${format} source stopped after ${rowErrors} rejected rows, its error limit, so only part of it was read.`,
+        details: { format, rowErrors, limit: errors.getErrorLimit() },
+    });
+}
+
+/**
+ * Record a reader's error, and stop the read at the error limit.
+ * @param errors - the data source's aggregator
+ * @param error - the error
+ * @param format - the format being read
+ * @throws A `GraphtyError` with `E_PARSE_FAILED` once the limit is reached
+ */
+export function addErrorOrStop(errors: ErrorAggregator, error: DataLoadingError, format: string): void {
+    if (!errors.addError(error)) {
+        throw errorLimitReached(errors, format);
+    }
+}
+
+/**
  * Copy the errors of an import report into the source's aggregator.
  *
  * Warnings stay in the report: the aggregator has always counted only what went wrong, and a
  * warning is something the importer read and kept.
  * @param report - the importer's report
  * @param errors - the data source's aggregator
- * @param stopAtLimit - throw once the aggregator's error limit is reached, as the CSV and JSON
- *     readers always have
- * @throws Error when `stopAtLimit` is set and the limit is reached
+ * @param stopAtLimitFor - the format being read, to throw once the aggregator's error limit is
+ *     reached, as the CSV and JSON readers always have; omitted, the copy never throws
+ * @throws A `GraphtyError` with `E_PARSE_FAILED` when `stopAtLimitFor` is set and the limit is reached
  */
-export function aggregateErrors(report: ImportReport, errors: ErrorAggregator, stopAtLimit = false): void {
+export function aggregateErrors(report: ImportReport, errors: ErrorAggregator, stopAtLimitFor?: string): void {
     for (const issue of report.issues) {
         if (issue.severity !== "error") {
             continue;
         }
 
-        const canContinue = errors.addError(errorOf(issue));
-
-        if (stopAtLimit && !canContinue) {
-            throw new Error(`Too many errors (${errors.getErrorCount()}), aborting parse`);
+        if (stopAtLimitFor === undefined) {
+            errors.addError(errorOf(issue));
+        } else {
+            addErrorOrStop(errors, errorOf(issue), stopAtLimitFor);
         }
     }
 }

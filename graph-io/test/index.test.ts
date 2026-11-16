@@ -216,6 +216,7 @@ const VALUE_EXPORTS = [
     "GRAPH_NOT_FOUND_CODE",
     "HYPEREDGE_CODE",
     "ID_TEXT_COLLISION_CODE",
+    "ID_TEXT_RENAMED_CODE",
     "ID_TEXT_TYPE_CODE",
     "INPUT_ISSUE",
     "INTEGRAL_F64_CODE",
@@ -320,9 +321,16 @@ const VALUE_EXPORTS = [
     "SOURCE_ATTR_PREFIX",
     "SOURCE_STUB_ATTR",
     "SPARQL_SOURCE_ID",
+    "GITHUB_SOURCE_ID",
+    "S3_SOURCE_ID",
+    "ZENODO_SOURCE_ID",
     "SOURCE_DEGREE_ATTR",
     "SOURCE_ENTITY_ATTR",
     "SOURCE_FORMAT_PREFIX",
+    "URL_SOURCE_ID",
+    "URL_DESCRIPTOR",
+    "sourceEndpoint",
+    "sourceFileName",
 ];
 
 describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {

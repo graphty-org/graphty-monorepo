@@ -23,15 +23,11 @@ export const bcFinalizeWgsl = /* wgsl */ `
 fn bc_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
     if (lid.x != 0u) { return; }                                     // one lane; no barrier follows (3.5 rule 1)
     if (P.role == 1u) {                                              // the seed of a batch
-        // one shortest path, as the u32 1 or (SCALED) the f32 bits of 1.0; a branch, not
-        // select(1u, bitcast<u32>(1.0), SCALED): WebKit 27.2 cannot evaluate that pipeline-constant expression
-        // at pipeline creation (its "Failed to evaluate" error)
-        var one = 1u;
-        if (SCALED) { one = bitcast<u32>(1.0); }
         for (var i = 0u; i < P.k; i = i + 1u) {
             let t = S[i];
             depthK[t] = 0u;                                          // the source is at depth 0
-            sigmaK[t] = one;                                         // with one shortest path, itself
+            sigmaK[t] = select(1u, 0x3f800000u, SCALED);             // with one shortest path, itself (the f32 1.0's bits when SCALED;
+                                                                     // no bitcast beside an override: Safari cannot evaluate it, #8215)
         }
         levelMax[0] = bitcast<u32>(1.0);                             // the largest count at depth 0
         ends[0] = 0u;

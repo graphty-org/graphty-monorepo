@@ -75,10 +75,15 @@ each frees up.
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
 the whole app. It is separate from the dry run and runs against any served build with the
-`selection-workspace` feature on:
+`selection-workspace` feature on, in Chromium and then in Playwright's WebKit (Safari's engine) unless
+`--browser chromium` or `--browser webkit` picks one. Every pull request that affects the graphty app
+runs it in both, one CI job per browser (`Selection workspace (chromium)` and `(webkit)`, report-only
+for now):
 
 ```bash
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist          # serves the build itself
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/?features=selection-workspace"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
 ```
@@ -136,14 +141,16 @@ Name controls the way a screen reader hears them: `page.getByRole("treeitem", { 
 /^Everything,/ })`, `page.getByRole("option", { name: /^hours(,|$)/ })`. `routes.mjs` has steps many
 routes share (`openSample`, `openFile`, `newLayer`, `addCondition`, `match`, `fill`, `analyze`,
 `line`); use them, and add one when a second route needs the same steps. A step waits for its
-control to appear (up to 20 seconds), so a walk never waits on a clock. `openSample` and `openFile`
+control to appear, with no deadline but the repository's one hang guard (`tools/test-wait-guard.mjs`),
+so a walk never waits on a clock. `openSample` and `openFile`
 wait until the Everything layer counts the graph's nodes: the layer shows "0 nodes" before the data
 arrives, and a walk that went on then acted on an empty graph.
 
 ### Reading the outcome: `g`
 
 A check is a function of `g` that throws (with `assert`) when the outcome is wrong. It is retried
-every 250 ms until it passes or 15 seconds pass, because the app reaches its state on its own time.
+after every page frame until it passes, because the app reaches its state on its own time; only the
+hang guard ends a check that never passes, and a route that hangs as a whole.
 
 The looks the checks read are the style graphty-element resolved for each node and edge
 (`session.styles.explain()`), not the pixels on the canvas. A defect where the style resolves

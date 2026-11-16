@@ -4,8 +4,9 @@
  *
  * GML has one syntax and many vocabularies. The `Creator` line (top level, or inside the graph as Gephi writes it,
  * quoted or not) names the writer: yEd and yFiles, Cytoscape, Gephi, OGDF and igraph are recognized; every other file
- * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet). A recognized drawing program's
- * defaults go beneath the file's own values; igraph and unknown writers get none.
+ * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet), drawn as the Tk canvas its graphics
+ * follow draws them. A recognized drawing program's defaults go beneath the file's own values; igraph and unknown
+ * writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
  * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
@@ -88,6 +89,7 @@ import {
     YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
+    yedArcControl,
     yedArrowLength,
     yedArrowWidth,
     yedColor,
@@ -98,7 +100,7 @@ import {
 } from "../graphml/styles-yed.js";
 import type { YedBox } from "../graphml/yed-group-bounds.js";
 import { gmlGroupBounds } from "./groups.js";
-import { writtenByGv2gml } from "./positions.js";
+import { gmlWrittenPositions, writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
 /** A GML record as the importer keeps it (a json cell). */
@@ -190,6 +192,58 @@ const GV2GML_WRITER: GmlWriter = {
 
 /** A file graphty wrote: yEd keys, and the `graphty.styles` block gives the rules. */
 const GRAPHTY_WRITER: GmlWriter = { ...WRITERS[0][1], tool: null };
+
+/**
+ * Whether a file's graphics are the GML draft's alone, no program's beneath: drawn as the draft says, by the Tk canvas
+ * its graphics are "modelled after" (A.4) -- Tk's colors, stipples, outline widths, picture items and smoothed lines.
+ * @param writer - the writer
+ * @returns true for the draft's keys with no program's defaults
+ */
+function drawnByDraft(writer: GmlWriter): boolean {
+    return writer.tool === null && writer.vocabulary === "graphlet";
+}
+
+/**
+ * Tk's gray stipples (Tk_GetBitmap, https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): the fraction of the bits on,
+ * where Tk draws the fill or line through the bitmap and nothing where a bit is off.
+ */
+const TK_STIPPLES: ReadonlyMap<string, number> = new Map([
+    ["gray12", 0.125],
+    ["gray25", 0.25],
+    ["gray50", 0.5],
+    ["gray75", 0.75],
+]);
+
+/**
+ * How much of a fill or line a draft file's `stipple` lets through, as an opacity.
+ * @param raw - the `stipple` value
+ * @param site - where it was read
+ * @returns the fraction, or null with no stipple or one Tk draws no gray with (noted)
+ */
+function tkStipple(raw: unknown, site: CanonSite): number | null {
+    if (raw === undefined) {
+        return null;
+    }
+    const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+    const fraction = TK_STIPPLES.get(name);
+    if (fraction === undefined) {
+        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, sampleOf(raw));
+        return null;
+    }
+    return fraction;
+}
+
+/** The draft's node types Tk draws as a picture, a rectangle with no outline: A.4 image and bitmap. */
+const TK_PICTURES: ReadonlySet<string> = new Set(["image", "bitmap"]);
+
+/**
+ * A node `type`'s name, lowercase.
+ * @param type - the `type` value
+ * @returns the name, or "" when it is not text
+ */
+function typeName(type: unknown): string {
+    return typeof type === "string" ? type.trim().toLowerCase() : "";
+}
 
 /**
  * The graph key holding the `graphty.styles` block: the block's name under the GML writer's rule for names that are
@@ -421,17 +475,26 @@ function first(r: Rec, ...keys: string[]): unknown {
  * @param writer - the writer
  * @param put - receives the values
  * @param at - the sites
+ * @param stated - an opacity the file states apart from the color (a draft file's stipple), or null
  */
-function readColor(raw: unknown, property: string, opacity: string | null, writer: GmlWriter, put: Put, at: At): void {
+function readColor(
+    raw: unknown,
+    property: string,
+    opacity: string | null,
+    writer: GmlWriter,
+    put: Put,
+    at: At,
+    stated: number | null = null,
+): void {
     if (raw === undefined) {
         return;
     }
-    const c = canonColor(raw, writer.spelling, at(property));
+    const c = canonColor(raw, drawnByDraft(writer) ? "tk" : writer.spelling, at(property));
     if (c === null) {
         return;
     }
     put(property, c.color);
-    const alpha = colorOpacity(c, null, at(property), opacity !== null);
+    const alpha = colorOpacity(c, stated, at(property), opacity !== null);
     if (opacity !== null) {
         put(opacity, alpha);
     }
@@ -558,6 +621,9 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, name.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
         put("shape", shape ?? null);
+    } else if (drawnByDraft(writer) && TK_PICTURES.has(typeName(g.type))) {
+        // the picture, scaled to the node's size, draws the node (A.4 image and bitmap)
+        put("shape", "rectangle");
     } else if (g.type !== undefined) {
         readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
@@ -749,6 +815,7 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             put(property, value);
         },
         at,
+        drawnByDraft(writer) ? tkStipple(g.stipple, at("fillOpacity")) : null,
     );
     if (g.fill2 === undefined) {
         return;
@@ -792,6 +859,13 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
     const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    if (drawnByDraft(writer)) {
+        // Tk draws a picture item with no outline, and any other outline at least one pixel wide (an X11 line of
+        // width 0 is a thin line)
+        const thin = read === null ? null : Math.max(read, 1);
+        put("borderWidth", TK_PICTURES.has(typeName(g.type)) ? 0 : thin);
+        return;
+    }
     put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
@@ -827,7 +901,8 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         readGv2gmlEdge(g, writer, put, at);
         return;
     }
-    readColor(g.fill, "color", "opacity", writer, put, at);
+    const draft = drawnByDraft(writer);
+    readColor(g.fill, "color", "opacity", writer, put, at, draft ? tkStipple(g.stipple, at("opacity")) : null);
     if (v === "cytoscape") {
         // Cytoscape's GML reader paints the whole edge with `fill`, its arrowheads too (gml-specimen-arrows-p4)
         readColor(g.fill, "sourceArrowColor", null, writer, put, at);
@@ -843,6 +918,24 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     readEdgeArrows(g, writer, put, at);
     if (v === "yed") {
         readYedCurve(g, put);
+    }
+    if (draft) {
+        readTkSmooth(g, put);
+    }
+}
+
+/**
+ * Reads a draft file's `smooth`: Tk draws a smoothed line as parabolic splines, one for each two segments, from its
+ * first point to its last (tkTrig.c TkMakeBezierCurve) -- a curve through the middle of each segment with the bends as
+ * its control points; a line of two points stays straight.
+ * @param g - the edge's `graphics` record
+ * @param put - receives the values
+ */
+function readTkSmooth(g: Rec, put: Put): void {
+    const points = isRec(g.Line) ? g.Line.point : undefined;
+    if (Number(g.smooth) === 1 && Array.isArray(points) && points.length > 2) {
+        put("curved", true);
+        put("bendCurve", "midpoints");
     }
 }
 
@@ -970,10 +1063,32 @@ function gv2gmlArrowEnds(g: Rec, directed: boolean): readonly [boolean, boolean]
  * @param put - receives the value
  */
 function readYedCurve(g: Rec, put: Put): void {
+    if (yedArc(g) !== null) {
+        // yEd draws an arc edge as one quadratic Bezier between its ends, as GraphML's ArcEdge (`readLineRoute`
+        // puts its control point as the one bend)
+        put("curved", true);
+        put("bendCurve", "bezier");
+        return;
+    }
     if (g.smoothBends !== undefined) {
         const points = isRec(g.Line) ? g.Line.point : undefined;
         put("curved", Number(g.smoothBends) === 1 && Array.isArray(points) && points.length > 2);
     }
+}
+
+/**
+ * A yEd arc edge's `arcType` and its height or ratio (`arcHeight`, `arcRatio`): yEd draws a `fixedRatio` arc from its
+ * ratio whatever height and apex point the file also stores, as for GraphML's `y:Arc` (`yedArcControl`).
+ * @param g - the edge's `graphics` record
+ * @returns whether it is a fixed-ratio arc and its value, or null for an edge that is no arc
+ */
+function yedArc(g: Rec): { readonly ratio: boolean; readonly value: number } | null {
+    if (typeof g.type !== "string" || g.type.trim().toLowerCase() !== "arc") {
+        return null;
+    }
+    const ratio = typeof g.arcType === "string" && g.arcType.trim() === "fixedRatio";
+    const value = Number(ratio ? g.arcRatio : g.arcHeight);
+    return Number.isFinite(value) ? { ratio, value } : null;
 }
 
 /**
@@ -1133,6 +1248,23 @@ function readLabelFont(lg: Rec, java: boolean, put: Put, at: At): void {
 }
 
 /**
+ * Reads an edge with no `graphics`, as its writer still draws it: gv2gml writes no graphics before a layout, and
+ * Graphviz draws its defaults (a digraph's arrowheads); yEd gives such an edge its own default edge, a standard head
+ * at the target whatever the graph's `directed` says (gml-specimen-arrows-p2, gml-specimen-edges-lines-p2: 12 long,
+ * 10 wide, black), where an edge whose graphics name no arrow has none (gml-dunnart-autobahn).
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBareEdge(writer: GmlWriter, put: Put, at: At): void {
+    if (writer.vocabulary === "graphviz") {
+        readEdgeGraphics({}, writer, put, at);
+    } else if (writer.tool === "yed") {
+        readEdgeArrows({ targetArrow: "standard" }, writer, put, at);
+    }
+}
+
+/**
  * Reads one element: its `graphics` and `LabelGraphics`, and the `label` key where the writer draws it.
  * @param target - nodes or edges
  * @param g - the graphics value
@@ -1157,11 +1289,10 @@ function readElement(
         text ||= property === "label" && value !== null;
         put(property, value);
     };
-    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
-    } else if (writer.vocabulary === "graphviz" && target === "edge") {
-        readEdgeGraphics({}, writer, put, at);
+    } else if (target === "edge") {
+        readBareEdge(writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
@@ -1316,6 +1447,7 @@ function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
  * @param e - the edge's row
  * @param bendsOnly - whether the points are the bends alone (OGDF)
  * @param put - receives the values
+ * @param arcs - whether a yEd arc edge's one bend is its arc's control point (`yedArc`)
  */
 function readLineRoute(
     snapshot: GraphSnapshot,
@@ -1323,15 +1455,25 @@ function readLineRoute(
     e: number,
     bendsOnly: boolean,
     put: (property: string, value: string) => void,
+    arcs = false,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
     const list = isRec(raw) ? [raw] : raw;
+    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    const arc = arcs && isRec(g) && s !== t ? yedArc(g) : null;
+    const lined = Array.isArray(list) && list.length >= 2;
+    if (arc !== null && !lined) {
+        // an arc with no Line runs between the node centers
+        putArcBends(snapshot, s, t, arc, put);
+        return;
+    }
     if (!Array.isArray(list) || list.length < (bendsOnly ? 1 : 2)) {
         return;
     }
     const all = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
-    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-    const points = bendsOnly ? all : all.slice(1, -1);
+    // an arc's Line holds its ends and its apex; yEd draws it from its arc type and value (`yedArc`)
+    const control = arc === null ? null : yedArcControl(arc.ratio, arc.value, [all[0], all.at(-1) ?? all[0]]);
+    const points = control ?? (bendsOnly ? all : all.slice(1, -1));
     const bends =
         s === t
             ? canonNodeOffsets(centerOf(snapshot, s), sizeOf(snapshot, s), points, true)
@@ -1339,21 +1481,59 @@ function readLineRoute(
     if (bends !== null) {
         put("bends", bends);
     }
-    if (bendsOnly) {
-        return;
+    if (!bendsOnly) {
+        putLinePort(snapshot, "sourcePort", s, all[0], put);
+        putLinePort(snapshot, "targetPort", t, all.at(-1) ?? all[0], put);
     }
-    for (const [property, k, end] of [
-        ["sourcePort", s, all[0]],
-        ["targetPort", t, all.at(-1) ?? all[0]],
-    ] as const) {
-        const center = centerOf(snapshot, k);
-        const port =
-            end[0] === center[0] && end[1] === center[1]
-                ? null
-                : canonNodeOffsets(center, sizeOf(snapshot, k), [end], true);
-        if (port !== null) {
-            put(property, port);
-        }
+}
+
+/**
+ * Puts where a `Line` attaches to one of its nodes, off the node's center relative to its size; nothing at the center.
+ * @param snapshot - the graph
+ * @param property - `sourcePort` or `targetPort`
+ * @param k - the node
+ * @param end - the Line's point at that end
+ * @param put - receives the values
+ */
+function putLinePort(
+    snapshot: GraphSnapshot,
+    property: "sourcePort" | "targetPort",
+    k: number,
+    end: BendPoint,
+    put: (property: string, value: string) => void,
+): void {
+    const center = centerOf(snapshot, k);
+    const port =
+        end[0] === center[0] && end[1] === center[1]
+            ? null
+            : canonNodeOffsets(center, sizeOf(snapshot, k), [end], true);
+    if (port !== null) {
+        put(property, port);
+    }
+}
+
+/**
+ * Puts the one bend of a yEd arc edge with no `Line`: its curve's control point off the line between the centers.
+ * @param snapshot - the graph
+ * @param s - the source node
+ * @param t - the target node
+ * @param arc - the arc (`yedArc`)
+ * @param arc.ratio - whether it is a fixed-ratio arc
+ * @param arc.value - its ratio or height
+ * @param put - receives the values
+ */
+function putArcBends(
+    snapshot: GraphSnapshot,
+    s: number,
+    t: number,
+    arc: { readonly ratio: boolean; readonly value: number },
+    put: (property: string, value: string) => void,
+): void {
+    const ends: [BendPoint, BendPoint] = [centerOf(snapshot, s), centerOf(snapshot, t)];
+    const control = yedArcControl(arc.ratio, arc.value, ends);
+    const bends = control === null ? null : canonBends(ends[0], ends[1], control, true);
+    if (bends !== null) {
+        put("bends", bends);
     }
 }
 
@@ -1580,6 +1760,22 @@ function hideGephiDroppedEdges(snapshot: GraphSnapshot, values: ValueColumns): v
 }
 
 /**
+ * Whether a writer draws elements of a target that have no graphics: Cytoscape names every element, and Graphviz
+ * labels every node and arrows a digraph's edges, with or without graphics (gv2gml writes graphics only once a layout
+ * ran); yEd heads every bare edge (`readBareEdge`).
+ * @param writer - the writer
+ * @param target - nodes or edges
+ * @returns true when they are drawn styled
+ */
+function drawnBare(writer: GmlWriter, target: StyleTarget): boolean {
+    return (
+        writer.vocabulary === "cytoscape" ||
+        writer.vocabulary === "graphviz" ||
+        (writer.tool === "yed" && target === "edge")
+    );
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -1598,10 +1794,7 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
-        // without graphics (gv2gml writes graphics only once a layout ran)
-        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
-        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare(writer, target)) {
             return out.values;
         }
         // yEd draws an open group round its members, not at the size the file stores
@@ -1650,6 +1843,7 @@ function readValues(
                         found = true;
                         out.put(i, property, value);
                     },
+                    writer.vocabulary === "yed",
                 );
             }
         }
@@ -2180,12 +2374,16 @@ function writeGraphicsColumns(
         const [w, h] = [getNode(k)("width"), getNode(k)("height")];
         return typeof w === "number" && typeof h === "number" ? [w, h] : sizeOf(snapshot, k);
     };
+    // the centers the writer writes, in the file's spelling, so a route reads back off the nodes as drawn
+    const written = target === "edge" ? gmlWrittenPositions(snapshot) : null;
+    const center = (k: number): BendPoint =>
+        written === null ? centerOf(snapshot, k) : [written[3 * k], written[3 * k + 1]];
     const graphics: unknown[] = [];
     const labels: unknown[] = [];
     for (let i = 0; i < n; i++) {
         const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
         if (target === "edge") {
-            const line = routeLine(snapshot, get(i), i, size);
+            const line = routeLine(snapshot, get(i), i, size, center);
             if (line !== null) {
                 g.Line = line;
             }
@@ -2213,12 +2411,19 @@ function writeGraphicsColumns(
  * @param get - the edge's values
  * @param e - the edge's row
  * @param size - each node's written width and height
+ * @param center - each node's written center
  * @returns the `Line` record, or null without a value or without both centers
  */
-function routeLine(snapshot: GraphSnapshot, get: Get, e: number, size: (k: number) => BendPoint): Rec | null {
+function routeLine(
+    snapshot: GraphSnapshot,
+    get: Get,
+    e: number,
+    size: (k: number) => BendPoint,
+    center: (k: number) => BendPoint,
+): Rec | null {
     const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-    const source = centerOf(snapshot, s);
-    const target = centerOf(snapshot, t);
+    const source = center(s);
+    const target = center(t);
     if (![...source, ...target].every(Number.isFinite)) {
         return null;
     }

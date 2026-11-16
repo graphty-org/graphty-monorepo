@@ -138,8 +138,9 @@ A red master build comes first: it also blocks canary and the build cache every 
 - **While master's build is red:** no other pull request is opened (steps 8 and 9 wait); the same holds while the
   newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
   first (see "While master is red" in the shared file).
-- **A critical issue no later step owns** is still this skill's alarm (issue-round skips every `priority:critical`
-  issue): mark it and start a fix subagent the same way.
+- **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
+  `priority:critical` issues first; the `in-progress` label and `taken` marker keep the two off each other): mark it
+  and start a fix subagent the same way.
 
 **Fix prompt** (alarms, holds, red pull requests), filled in, followed by the "Subagent rules" paragraph from the
 shared file:
@@ -291,7 +292,9 @@ starts: issue-round counts the pull request's files again from then on.
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
   code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
-  `origin/master` (never rebase), fixes and pushes. Already on master: wait.
+  `origin/master` (never rebase), fixes and pushes.
+- **Inherited from master** (check this first, see "Inherited failures" in the shared file): link the master-break
+  issue with an `inherited` marker and start no fix job; once its fix merged, `PUT pulls/<n>/update-branch`.
 - **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
   with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
   a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
@@ -326,11 +329,13 @@ Every round, over `marked` in the state file and the branch list above (no extra
 - An idle claim (see "Idle claims" in the shared file): ask its session once, and in a later round with no answer
   and still no activity, release it or treat its branch as stranded.
 - An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
-- A stranded branch (see "Stranded" in the shared file; at most one per round, only when nothing above acted): a
-  branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is provably
-  gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened, and whose
-  worktree has no process inside. Its issue still open and the work still wanted:
-  mark the issue and hand the branch to a fix subagent to merge `origin/master`, finish, and open its pull request.
+- Every stranded branch (see "Stranded" in the shared file), every round, even when a step above acted or ended the
+  round: a branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is
+  provably gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened,
+  and whose worktree has no process inside. Its issue still open and the work still wanted: mark the issue and start
+  one background fix subagent per branch to merge `origin/master`, finish, and open its pull request, oldest commit
+  first, with no fixed number (only issue-round's limits on test slots, load, memory and disk, and its start rate,
+  checked again before each start). Branches left when a limit stops the starts wait for the next round.
   Not wanted: a `stranded branch` marker with the reason; never delete the branch. A branch with no issue gets one
   first (`node tools/branch-note.mjs new-issue --title "<what it does>" --branch <b>`).
 
@@ -339,6 +344,11 @@ Every round, over `marked` in the state file and the branch list above (no extra
 `tools/worktree-cleanup.mjs` removes finished worktrees on its own (the servherd server `worktree-cleanup`, every 15
 minutes, from `.worktrees/worktree-cleanup-live`). Check only that `servherd_list` shows it online, else start it:
 `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
+A server left online keeps its worktree forever, so also stop servers whose job is over: in `servherd_list`, every
+online server whose cwd no longer exists, or lies in a worktree whose branch merged or is `[gone]` (the candidates of
+`./tools/worktree-prune.sh --dry-run`, which lists each one's servers), gets `servherd_stop` then `servherd_remove`.
+Never stop one in the main checkout, a live tool (`tools/live-tools.json`), the broker, a review server, a watcher, or
+any you are unsure of; list those older than 3 days in the round's last line instead.
 
 ### 12. Dashboard members no step covers
 

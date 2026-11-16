@@ -98,6 +98,40 @@ describe("GML styles: who wrote the file", () => {
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
     });
 
+    it("gives a yEd edge with no graphics yEd's standard head, and one whose graphics name no arrow none", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [ directed 0",
+                "  node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ] node [ id 1 graphics [ x 100 y 0 w 10 h 10 ] ]",
+                "  edge [ source 0 target 1 ]",
+                '  edge [ source 1 target 0 graphics [ fill "#505050" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none"]);
+        expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)).toEqual(["none", "none"]);
+    });
+
+    it("draws a yEd arc edge as one quadratic curve, its apex the arc's height or ratio off the line", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                "  node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ] node [ id 1 graphics [ x 100 y 0 w 10 h 10 ] ]",
+                '  edge [ source 0 target 1 graphics [ type "arc" arcType "fixedHeight" arcHeight -15.0 ] ]',
+                '  edge [ source 0 target 1 graphics [ type "arc" arcType "fixedRatio" arcHeight 3.0 arcRatio 1.0',
+                "    Line [ point [ x 0 y 0 ] point [ x 50 y -3 ] point [ x 100 y 0 ] ] ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true]);
+        expect(resolveStyles(styles, "edge", "bendCurve", snapshot)).toEqual(["bezier", "bezier"]);
+        // the control point is twice the apex's offset: 15 below the line (y down), and a quarter of 100 above it
+        // relative to the line from center to center: half way along, 0.3 of its length to one side and 0.5 to the other
+        expect(resolveStyles(styles, "edge", "bends", snapshot)).toEqual(["0.5,-0.3", "0.5,0.5"]);
+    });
+
     it("reads yEd's fill2 as yEd draws it: left to right, and a diamond corner to corner", async () => {
         const { snapshot, styles } = await load(
             [
@@ -512,6 +546,45 @@ describe("GML styles: who wrote the file", () => {
             'Creator "yFiles"\ngraph [ node [ id 1 label "A" graphics [ x 0 y 0 w 20 h 20 ] LabelGraphics [ text "A" anchor "n" ] ] ]',
         );
         expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
+    });
+
+    it("draws a plain GML file as Tk draws the draft's graphics: colors, stipples, outlines, pictures, smooth lines", async () => {
+        const node = (id: number, graphics: string): string =>
+            `  node [ id ${String(id)} graphics [ x ${String(id * 40)} y 0 w 20 h 20 ${graphics} ] ]`;
+        const doc = [
+            "graph [",
+            node(1, 'type "oval" fill "#FFF888000" outline "#505050" width 1'),
+            node(2, 'type "oval" fill "#FFFF88880000" outline "#505050" width 0'),
+            node(3, 'type "oval" fill "light blue" stipple "gray25" width 2'),
+            node(4, 'type "image" fill "#C8C8C8" outline "#505050" width 1 image "a.png"'),
+            node(5, 'type "bitmap" fill "#0000FF" outline "#505050" width 1 bitmap "a.xbm"'),
+            node(6, 'type "oval" fill "#C8C8C8" stipple "questhead"'),
+            '  edge [ source 1 target 2 graphics [ fill "#505050" width 4 stipple "gray50" ] ]',
+            '  edge [ source 2 target 3 graphics [ fill "#505050" smooth 1 Line [ point [ x 40 y 0 ] point [ x 60 y 30 ] point [ x 80 y 0 ] ] ] ]',
+            '  edge [ source 3 target 4 graphics [ fill "#505050" smooth 1 Line [ point [ x 120 y 0 ] point [ x 160 y 0 ] ] ] ]',
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const node_ = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "node", p, snapshot);
+        const edge = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "edge", p, snapshot);
+        // Tk_GetColor: 3- and 4-digit components, and X11 names written with spaces
+        expect(node_("fill").slice(0, 3)).toEqual(["#ff8800", "#ff8800", "#add8e6"]);
+        // the gray stipples let that much of the fill or line through; one Tk draws no gray with is noted
+        expect(node_("fillOpacity")).toEqual([null, null, 0.25, null, null, null]);
+        expect(edge("opacity")).toEqual([0.5, null, null]);
+        expect(
+            styles.styles.notes.some(
+                (n) => n.code === "W_STYLE_UNKNOWN_VALUE" && JSON.stringify(n).includes("questhead"),
+            ),
+        ).toBe(true);
+        // an outline is at least a pixel wide; a picture draws a rectangle with none
+        expect(node_("borderWidth")).toEqual([1, 1, 2, 0, 0, null]);
+        expect(node_("shape").slice(3, 5)).toEqual(["rectangle", "rectangle"]);
+        // a smoothed line of three or more points curves through the middles of its segments; two points stay straight
+        expect(edge("curved")).toEqual([null, true, null]);
+        expect(edge("bendCurve")).toEqual([null, "midpoints", null]);
     });
 
     it("reads a yEd label's fill and outline as its box and keeps them through a save, on nodes and edges alike", async () => {

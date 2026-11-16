@@ -68,6 +68,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
 async function open(designate = true, csv = CSV): Promise<{ session: GraphSession; executions: () => number }> {
     let count = 0;
     const session = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: async (context) => {
                 count++;
@@ -290,7 +291,7 @@ describe("the window, its step and playback", () => {
         });
 
         const { text } = await session.project.save();
-        const reopened = createGraphSession({ runs: { execute } });
+        const reopened = createGraphSession({ runs: { execute }, workingGraph: false });
         await reopened.project.open(text);
         assert.strictEqual(reopened.time.settings.mode, "cumulative");
         assert.strictEqual(reopened.time.settings.step, "day");
@@ -361,6 +362,12 @@ describe("the window, its step and playback", () => {
         const visible = session.data.statistics({ scope: "visible" });
         assert.strictEqual(visible.edgeCount, session.visibility.summary.visibleEdges);
         assert.strictEqual(session.data.statistics().edgeCount, 6);
+        // Measured once per visible set, however often it is read (#7966).
+        assert.strictEqual(session.data.statistics({ scope: "visible" }), visible);
+        await session.time.window({ from: T0, to: T0 + 3 * DAY, step: "day" });
+        const wider = session.data.statistics({ scope: "visible" });
+        assert.notStrictEqual(wider, visible);
+        assert.strictEqual(wider.edgeCount, session.visibility.summary.visibleEdges);
         session.dispose();
     });
 });

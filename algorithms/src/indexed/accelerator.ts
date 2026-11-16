@@ -22,7 +22,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { ConvergenceError, PathCountOverflowError } from "../errors.js";
+import { checkWeights, ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import {
@@ -830,9 +830,16 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                   }),
         sssp: (s, sourceNode, options) => {
             const source = resolveNode(s, sourceNode);
-            return acc?.sssp !== undefined
-                ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))
-                : Promise.resolve(indexed.dijkstra(s, source, options));
+            const gpuSssp = acc?.sssp?.bind(acc);
+            // Both paths refuse the same weights, and the executor turns E_BAD_WEIGHT into a rejection.
+            return gpuSssp !== undefined
+                ? new Promise<SsspResultLike>((resolve) => {
+                      checkWeights("dijkstra", options?.weights ?? s.weights, s.arcCount);
+                      resolve(gpuSssp(s, source, options));
+                  }).then((like) => decorateSssp(s, source, like))
+                : new Promise((resolve) => {
+                      resolve(indexed.dijkstra(s, source, options));
+                  });
         },
         bellmanFord: (s, sourceNode, options) => {
             const source = resolveNode(s, sourceNode);

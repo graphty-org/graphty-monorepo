@@ -174,7 +174,8 @@ const listed = async () => (await listAutosaves(params.get("key"))).map((e) => (
 if (params.get("list") === "1") {
     let item = null;
     try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
-    report("listed", { item, entries: await listed() });
+    // A listing the browser's database held up is refused: reported with the refusal's code.
+    report("listed", await listed().then((entries) => ({ item, entries }), (e) => ({ item, entries: null, code: e.code })));
 }
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
@@ -364,6 +365,23 @@ function bodyOf(request: IncomingMessage): Promise<string> {
         request.on("error", reject);
     });
 }
+
+/**
+ * Opens the autosave database and keeps a read-write transaction on the "parts" store busy until
+ * `window.__release` is set; resolves once the transaction runs.
+ */
+export const HOLD_PARTS = `new Promise((resolve, reject) => {
+    const req = indexedDB.open("graphty-autosave");
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["parts"], "readwrite");
+        const store = tx.objectStore("parts");
+        window.__release = false;
+        const spin = () => { resolve(); if (!window.__release) store.count().onsuccess = spin; };
+        spin();
+    };
+})`;
 
 /**
  * Start the fixture server on a free loopback port.

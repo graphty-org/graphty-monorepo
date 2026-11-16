@@ -19,7 +19,9 @@
  *   files without coverage, replacing the shard it came from; a shard the plan selects nothing for is left
  *   out; a shard it runs whole stays as it is.
  *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run
- *   (the features-on twins, FEATURES_ON_SHARDS, and graphty-element-lifecycle), unless --only names them.
+ *   (graphty-element-lifecycle, the fidelity slices), unless --only names them. A shard marked
+ *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS) runs on a pull request only as the bins
+ *   of the files the change selected, never whole and never as a whole family packed into bins.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -65,18 +67,29 @@ const dirName = (project) => project.replace(/^@graphty\//, "");
  * family's cost is mostly per file -- each file runs alone in the browser and pays 5 to 7.5 s of setup and import
  * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
  * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
- * the 900 s shard budget (#5822); eight bring that to about 630 s.
+ * the 900 s shard budget (#5822); eight brought that to about 630 s. By 2026-11-14 the eight parts ran 907 s median
+ * and 1,123 s p90 in full runs, and the experiments-on twins' five parts 1,021 s and 1,303 s. Ten parts would bring the
+ * p90 to 898 s only if time shrank in exact proportion, but each part also pays a fixed cost (browser launch, vitest
+ * start, package import, coverage write), so twelve: about 750 s by proportion, with margin for that cost (#7849).
  */
-const ELEMENT_BROWSER_PARTS = 8;
+const ELEMENT_BROWSER_PARTS = 12;
+
+/**
+ * How many parts graphty-element's default and mesh tests split into. In one part they ran 908 s median and 1,241 s
+ * p90 in full runs to 2026-11-14 (#7849); two bring the p90 to about 620 s.
+ */
+const ELEMENT_DEFAULT_PARTS = 2;
 
 /**
  * How many parts graphty's tests (graphty-N) and their experiments-on twins (graphty-features-on-N) split into. A
  * part's time is mostly its real-element files, run one at a time, which graphty/test/story-shards.ts places by
  * measured time. In full runs 42921328419 to 42996342490 (2026-11-10 and 11) the five parts held about 6,300 s of
  * vitest together, so even an even split was about 1,260 s a part, and the slowest part reached its job's 30-minute
- * deadline three times (#6620). Six parts, split by measured time, plan about 1,060 s each (the twins about 940 s).
+ * deadline three times (#6620). Six parts, split by measured time, planned about 1,060 s each (the twins about 940 s),
+ * and ran 1,089 s median and 1,333 s p90 in full runs to 2026-11-14. Nine would reach about 890 s only by exact
+ * proportion, with no room for each part's fixed cost; ten bring the p90 to about 800 s by proportion (#7849).
  */
-export const GRAPHTY_PARTS = 6;
+export const GRAPHTY_PARTS = 10;
 const graphtyParts = Array.from({ length: GRAPHTY_PARTS }, (_, i) => i + 1);
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
@@ -125,6 +138,10 @@ const OFF_SHARDS = [
         "test-command": `cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook --shard=${n}/2`,
         "needs-browser": true,
         lfs: "graph-io/test/fidelity/oracles/*.png",
+        // the stories import graphty-element's source and test helpers, but graph-io/project.json negates that
+        // dependency (graphty-element depends on graph-io, and the edge would be a cycle), so nx never calls
+        // graph-io affected by a graphty-element change: these shards name the package themselves (#7196)
+        "affected-by": ["graphty-element"],
     })),
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
@@ -206,6 +223,13 @@ const OFF_SHARDS = [
         shard: "babylonjs-map",
         package: "babylonjs-map",
         "test-command": "pnpm exec nx run babylonjs-map:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
+    // babylonjs-models - single shard (Node.js, no browser); its packaging test reads babylonjs-models/dist
+    {
+        shard: "babylonjs-models",
+        package: "babylonjs-models",
+        "test-command": "pnpm exec nx run babylonjs-models:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
@@ -341,13 +365,13 @@ const OFF_SHARDS = [
     // The timing benchmarks (the bench and browser-bench projects) gate nothing: a stopwatch on a
     // busy machine measures the machine. They run in ci.yml's advisory "performance" job; what
     // they time is pinned here by counts (repaint.test.ts, round-trip.test.ts, bulk-teardown.test.ts).
-    {
-        shard: "graphty-element-default",
+    ...Array.from({ length: ELEMENT_DEFAULT_PARTS }, (_, i) => i + 1).map((n) => ({
+        shard: `graphty-element-default-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --shard=${n}/${ELEMENT_DEFAULT_PARTS} --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         // test/packaging/program-wasm.test.ts runs the pages it builds with Vite and webpack in Chromium.
         "needs-browser": true,
-    },
+    })),
     // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
     // "minimum-work" runs the tests of "the picture is final" again with every frame doing the least
@@ -428,6 +452,19 @@ const OFF_SHARDS = [
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),
+    // The drawn fidelity scorecard on the "batched" render path (the forced-batched project). The browser shards run
+    // it on the objects path only, and the whole forced-batched project runs only when render-proof.yml is
+    // dispatched by hand, so a batched-path defect that turned 37 of its 41 samples white went unseen (issue #8221).
+    // One file, a few minutes of browser; no coverage.
+    {
+        shard: "graphty-element-forced-batched-scorecard",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // npx vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts by hand.
+        local: "never",
+    },
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -455,8 +492,10 @@ const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).j
  * The "On" configuration (design/ci/channels-pipeline/features.md, section 7.3): the graphty-element and
  * graphty shards again with every declared experiment switched on, through the "<project>-features-on"
  * vitest projects (tools/features-on.mjs), which exist only under GRAPHTY_FEATURES_ON=1. The same commands as their Off twins without coverage (judged on
- * the Off run) or a blob report (the Off run's reports are the ones merged). "full-run-only": planned only
- * in a full run, never on a pull request (plan()). They exist only while graphty-element declares an
+ * the Off run) or a blob report (the Off run's reports are the ones merged). "pull-request": "selected": on a
+ * pull request only the bins of the files its change selected run (plan()), so a change that breaks a twin fails
+ * its own pull request (issue #7847: about 10 such changes reached the full run in two weeks); a whole twin
+ * family (an everything change, a config change) runs only in a full run. They exist only while graphty-element declares an
  * experiment: with none, On would equal Off, and SHARDS holds no On shard at all. `flags: "on"` makes
  * tools/results/run-group.mjs file their results under the store's flags=on variant.
  */
@@ -468,10 +507,10 @@ export const FEATURES_ON_SHARDS = [
         // As its Off twin: test/packaging/program-wasm.test.ts runs the pages it builds in Chromium.
         "needs-browser": true,
     },
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
     })),
     ...[1, 2, 3, 4, 5].map((n) => ({
@@ -492,7 +531,7 @@ export const FEATURES_ON_SHARDS = [
         "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")}`,
         "needs-browser": true,
     },
-].map((s) => ({ ...s, "full-run-only": true, local: "never", flags: "on" }));
+].map((s) => ({ ...s, "pull-request": "selected", local: "never", flags: "on" }));
 
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
@@ -546,30 +585,25 @@ export const STORY_RUNS = {
  * the groups a full run would ask for 42 test runners at once; with them it asks for 27.
  *
  * Each group is kept under about 15 minutes so no test job holds up a pull request's CI or a
- * re-run of one failed job. Measured on CI runners (ci.yml runs 39537734606 of 2026-10-21 and
- * 39883665524, 39887583054, 39896390282 of 2026-10-23; vitest's own Duration line, plus about 1.5
- * minutes of checkout, install and browser setup per job):
- *   small-node     graph-format 0.8, graph-samples 0.4, cytoscape-extensions 0.5,
- *                  cytoscape-extensions-cytoscape-versions 0.8, layout 0.3, algorithms-default 0.4
- *                                                                    about 3 + setup = 5 minutes
- *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
- *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
- *                  algorithms-storybook 1.8,
- *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
- *                                                                    about 10 + setup = 12 minutes
+ * re-run of one failed job. A full run runs every member, so a group must also fit its test step's
+ * deadline (TEST_STEP_LIMIT_MS) on a slow runner: GROUP_MEMBER_SECONDS holds each member's slowest
+ * measured time, and tools/ci-workflows.test.mjs fails a member with no measurement or a group that
+ * does not fit. Every member is measured before it joins a group (#7848).
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-6 (about 105 minutes in all, see SHARDS), graphty-large-graph-1 to -6 (one file each, at most about 6 minutes)
  * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
  * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
- * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).
+ * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035)
+ * and graphty-element-webgpu (143 to 312 s of vitest on SwiftShader; it joined small-browser unmeasured and
+ * the group's step took 24 min 58 s of its 26 minute deadline in full run 43547830976, #7848).
  */
 export const GROUPS = {
     "small-node": [
         "graph-format",
         "graph-samples",
         "babylonjs-map",
+        "babylonjs-models",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
         "layout",
@@ -582,11 +616,36 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
-        "graphty-element-webgpu",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
+};
+
+/**
+ * Each group member's slowest vitest Duration (seconds, summed over its vitest runs) in full runs
+ * 43275345618, 43527306776 and 43547830976 (2026-11-12 to 14). Remeasure from a group job's log when a
+ * member is added or grows.
+ */
+export const GROUP_MEMBER_SECONDS = {
+    "graph-format": 78,
+    "graph-samples": 39,
+    "babylonjs-map": 3,
+    // Measured locally on 2026-11-14 (about 2 s of vitest with coverage); remeasure from the group job's log.
+    "babylonjs-models": 4,
+    "cytoscape-extensions": 15,
+    "cytoscape-extensions-cytoscape-versions": 25,
+    layout: 46,
+    "algorithms-default": 40,
+    "algorithms-browser": 4,
+    "graph-io-browser": 20,
+    "remote-logger": 17,
+    "compact-mantine": 463,
+    "visual-review": 286,
+    "webgpu-graph-algorithms-browser": 76,
+    "algorithms-storybook": 135,
+    "layout-storybook": 32,
+    "cytoscape-extensions-storybook": 54,
 };
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
@@ -666,7 +725,8 @@ export function ciCommand(shard) {
  * @param affected package directory names
  * @param [only] shard names: when given, every other shard is left out
  * @param [light] tools/test-select.mjs --plan output: its bins replace their shards, its `none` shards are left out
- * @param [pullRequest] leave out the "full-run-only" shards and their bins (--only naming one plans it either way)
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins, and every "pull-request": "selected"
+ *   shard but its selected bins (--only naming one plans it either way)
  * @param [shards] the shards to plan from (for tests)
  * @returns the matrix's include list
  */
@@ -675,11 +735,12 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
     const runs = (s) => !s?.["full-run-only"] || !pullRequest || only !== undefined;
+    // a "pull-request": "selected" shard runs on a pull request only as bins of the files the change selected
+    const whole = (s) => runs(s) && (s?.["pull-request"] !== "selected" || !pullRequest || only !== undefined);
+    // a shard runs when its package is affected, or one its "affected-by" names (a dependency nx cannot see)
+    const touched = (s) => [s.package, ...(s["affected-by"] ?? [])].some((p) => affected.includes(p));
     const wanted = (s) =>
-        affected.includes(s.package) &&
-        (only === undefined || only.includes(s.shard)) &&
-        !replaced.has(s.shard) &&
-        runs(s);
+        touched(s) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard) && whole(s);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = shards
@@ -698,9 +759,10 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
     // a packed whole family (`whole`: its package) is left out with its package, as its shards would be
-    const bins = (light?.bins ?? []).filter(
-        (b) => runs(shards.find((s) => s.shard === b.shard)) && (!b.whole || affected.includes(b.whole)),
-    );
+    const bins = (light?.bins ?? []).filter((b) => {
+        const shard = shards.find((s) => s.shard === b.shard);
+        return runs(shard) && (!b.whole || (touched(shard ?? { package: b.whole }) && whole(shard)));
+    });
     const all = [...include, ...bins.map((b) => binEntry(b, shards))];
     return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];
 }

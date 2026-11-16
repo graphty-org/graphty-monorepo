@@ -42,7 +42,6 @@ import {
     COLUMN_RENAMED_CODE,
     DUPLICATE_NODE_CODE as SHARED_DUPLICATE_NODE_CODE,
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
-    MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     NO_GRAPH_CODE as SHARED_NO_GRAPH_CODE,
     PRECISION_CODE as SHARED_PRECISION_CODE,
@@ -63,6 +62,7 @@ import {
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseWeightText, reportWeightPrecision, weightFromValue } from "../../common/weights.js";
+import type { YAxis } from "../../positions/types.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -70,7 +70,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { gmlPositions } from "./positions.js";
+import { gmlPositions, gmlYAxisOf } from "./positions.js";
 import { gmlStyles } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
@@ -128,10 +128,11 @@ export const NO_GRAPH_CODE = SHARED_NO_GRAPH_CODE;
  */
 export const SECOND_GRAPH_CODE = MULTIPLE_GRAPHS_CODE;
 /**
- * A node block has no `id` key.
+ * A node block has no `id` key: it is given the next integer above every integer id, source and target of the graph,
+ * as igraph does. Reported once per file.
  * @category Issue and loss codes
  */
-export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
+export const GENERATED_ID_CODE = "W_GML_GENERATED_ID";
 /**
  * A node block has no `label` key under `nodeIdFrom: "label"`.
  * @category Issue and loss codes
@@ -448,6 +449,10 @@ class GmlImport {
     private creatorToken = -1;
 
     private versionToken = -1;
+    /** The graph block's first `Creator` value token (Gephi writes its Creator there), or -1. */
+    private graphCreatorToken = -1;
+    /** The graph block's first `version` value token (gv2gml writes `version 2` there), or -1. */
+    private graphVersionToken = -1;
 
     private nodeCount = 0;
 
@@ -462,6 +467,9 @@ class GmlImport {
     private seq = 0;
 
     private nodeOrdinal = 0;
+
+    /** The largest integer id, source or target of the graph block, which the ids generated for nodes without one follow. */
+    private largestId = -1;
 
     private elementsSinceCheck = 0;
 
@@ -635,9 +643,44 @@ class GmlImport {
                     }
                     break;
                 default:
+                    this.noteWriterKey(key, v);
                     this.observe(this.graphSchema, "graph", key, v, GRAPH_SEQ);
             }
         }
+    }
+
+    /**
+     * Keep the graph block's first `Creator` and `version` tokens, which say which way the file's y grows.
+     * @param key - the graph block key
+     * @param v - its value token
+     */
+    private noteWriterKey(key: string, v: number): void {
+        if (key === "Creator" && this.graphCreatorToken < 0) {
+            this.graphCreatorToken = v;
+        } else if (key === "version" && this.graphVersionToken < 0) {
+            this.graphVersionToken = v;
+        }
+    }
+
+    /**
+     * How the position column spells its coordinates, recorded in its `meta.extra` so every writer reads the file's
+     * y axis without the importer (`gmlYAxisOf`, the rule the positions hook applies).
+     * @returns the column's spelling
+     */
+    private positionSpelling(): { units: "px"; yAxis: YAxis } {
+        const t = this.requireTokens();
+        const valueOf = (v: number): string | undefined => {
+            if (v < 0) {
+                return undefined;
+            }
+            return t.kind[v] === TOKEN_STRING ? t.stringOf(v) : t.textOf(v);
+        };
+        const { yAxis } = gmlYAxisOf(
+            valueOf(this.creatorToken) ?? null,
+            valueOf(this.graphCreatorToken),
+            valueOf(this.graphVersionToken),
+        );
+        return { units: "px", yAxis };
     }
 
     /**
@@ -675,9 +718,17 @@ class GmlImport {
                 this.hasOriginalId = true;
                 return true;
             }
-            return key === "id";
+            if (key === "id") {
+                this.noteIntegerId(v);
+                return true;
+            }
+            return false;
         }
-        if (key === "source" || key === "target" || key === "directed") {
+        if (key === "source" || key === "target") {
+            this.noteIntegerId(v);
+            return true;
+        }
+        if (key === "directed") {
             return true;
         }
         if (key === weightFrom) {
@@ -685,6 +736,20 @@ class GmlImport {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Note an integer id, source or target, so a generated id never names a node of the file.
+     * @param v - the value token
+     */
+    private noteIntegerId(v: number): void {
+        const t = this.requireTokens();
+        if (t.kind[v] === TOKEN_INT) {
+            const n = Number(t.textOf(v));
+            if (Number.isSafeInteger(n) && n > this.largestId) {
+                this.largestId = n;
+            }
+        }
     }
 
     /**
@@ -1406,6 +1471,23 @@ class GmlImport {
     }
 
     /**
+     * The id of a node block without one, as igraph gives it: the next integer above every integer id, source and
+     * target of the graph block. Warned once per file.
+     * @param line - the node block's line
+     * @returns the id, under the ids rule
+     */
+    private generatedId(line: number): NodeId {
+        const n = ++this.largestId;
+        this.report.warnOnce(
+            "missing-value",
+            GENERATED_ID_CODE,
+            `node has no id; it is given ${String(n)}, the next integer above the file's ids`,
+            { line, element: "node" },
+        );
+        return this.coercer.mode === "string" ? this.coercer.text(String(n)) : this.coercer.value(n);
+    }
+
+    /**
      * Note which sink id a file id resolves to, warning when a file id is declared twice.
      * @param fileId - the file id
      * @param sinkId - the sink id it now resolves to
@@ -1443,12 +1525,9 @@ class GmlImport {
         let fileId: NodeId | undefined;
         try {
             const { idTok, labelTok, originalTok } = this.nodeKeyTokens(open, close);
-            if (idTok < 0) {
-                throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
-            }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
-            fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
+            fileId = idTok < 0 ? this.generatedId(line) : this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             sinkId = this.nodeSinkId(fileId, labelTok, originalTok, ordinal);
             index = sink.addNode(sinkId);
             this.mapFileId(fileId, sinkId, line);
@@ -1802,9 +1881,6 @@ class GmlImport {
         if (err instanceof GraphFormatError && err.code === "E_INVALID_ID") {
             const { reason } = err.details;
             switch (reason) {
-                case "missing id":
-                    report.error("missing-value", MISSING_ID_CODE, err.message, { line, element: "node" });
-                    return;
                 case "missing label":
                     report.error("missing-value", MISSING_LABEL_CODE, err.message, { line, element: "node" });
                     return;
@@ -2088,6 +2164,7 @@ class GmlImport {
         }
         if (plan.role === "position") {
             decl.components = 3;
+            decl.extra = this.positionSpelling();
         }
         if (plan.role !== null) {
             decl.role = plan.role;

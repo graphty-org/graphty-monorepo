@@ -171,9 +171,9 @@ describe("corpus", () => {
     it("sigma-format.json: graphology keys, nested attributes, an f64 weight shadow for 0.8", async () => {
         const { s } = await load(readCorpusText("json", "sigma-format.json"));
         expect(s.ids.toArray()).toEqual(["a", "b", "c", "d", "e"]);
-        expect(names(s, "nodes")).toEqual(["label", "x", "y", "size"]);
-        expect(s.nodes.require("x").dtype).toBe("f64");
-        expect(cell(s, "nodes", "x", 3)).toBe(1.5);
+        // sigma.js's x / y are the position, as written
+        expect(names(s, "nodes")).toEqual(["position", "label", "size"]);
+        expect(Array.from(s.nodes.byRole("position")?.value(3) as ArrayLike<number>)[0]).toBe(1.5);
         expect(cell(s, "nodes", "size", 1)).toBe(15);
         expect(s.edges.byRole("id")?.value(0)).toBe("e1");
         const shadow = s.edges.byRole("weight");
@@ -262,21 +262,23 @@ describe("node-link", () => {
         expect((await load(json(doc), { edgesKey: "links" })).s.edgeCount).toBe(0);
     });
 
-    it("reports the edge array it does not read, naming the key and its entry count", async () => {
+    it("reads both edge arrays, unless edgesKey names one; then it reports the other with its entry count", async () => {
         const doc = {
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
             edges: [{ source: "a", target: "b" }],
             links: [{ source: "b", target: "c" }],
         };
         const { s, report } = await load(json(doc));
-        expect(s.edgeCount).toBe(1);
-        expect(report.issues).toHaveLength(1);
-        expect(report.issues[0]).toMatchObject({
+        expect([edge(s, 0), edge(s, 1)]).toEqual(["a->b", "b->c"]);
+        expect(report.issues).toEqual([]);
+        const named = await load(json(doc), { edgesKey: "edges" });
+        expect(named.s.edgeCount).toBe(1);
+        expect(named.report.issues[0]).toMatchObject({
             code: JSON_ISSUE.UNREAD_KEY,
             severity: "warning",
             element: "links",
         });
-        expect(report.issues[0].message).toContain("1 entry");
+        expect(named.report.issues[0].message).toContain("1 entry");
         const flipped = await load(json(doc), { edgesKey: "links" });
         expect(edge(flipped.s, 0)).toBe("b->c");
         expect(flipped.report.issues.map((i) => [i.code, i.element])).toEqual([[JSON_ISSUE.UNREAD_KEY, "edges"]]);

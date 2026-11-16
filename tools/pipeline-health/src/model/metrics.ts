@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
+import { groupMemberDim } from "./groups.js";
 import { type JobItem, MIN, type RawItem, type RawKind } from "./items.js";
 
 export interface Contribution {
@@ -49,7 +50,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun-clean-file-runs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun-clean-file-runs-group-member-time`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -217,6 +218,17 @@ export const METRICS: MetricDef[] = [
                       { value: s.secs * 1000, exact: true, sum: FULL_SHARD_BUDGET_MS, dim: s.variant }
                     : null,
             ),
+        ],
+    },
+    // A test group's members in full runs (groups.ts): each try's time by [group, run, member], summed per run to
+    // compare the group's total with its test step's deadline. Every outcome counts: a failed try used the step too.
+    {
+        id: "ci.full_group_member_time",
+        from: [
+            src("shard_run", "endedAt", (s) => {
+                const dim = s.source === "ci" && s.full ? groupMemberDim(s) : undefined;
+                return dim ? { sum: s.secs * 1000, dim } : null;
+            }),
         ],
     },
     // The Shard times section's pull request bins view: bin time per family, against the 8-minute packing target.

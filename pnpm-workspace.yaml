@@ -4,6 +4,7 @@ packages:
     - "webgpu-graph-algorithms"
     - "graph-samples"
     - "babylonjs-map"
+    - "babylonjs-models"
     - "algorithms"
     - "layout"
     - "cytoscape-extensions"

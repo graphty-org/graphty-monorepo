@@ -149,12 +149,12 @@ export function preferLocalDatasets(prefer: boolean): void {
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
- * (its site.json's `datasets`), else graph-samples' default.
- * @returns the options naming it, or none for graph-samples' default.
+ * (its site.json's `datasets`), else graph-samples' default. graphty-element has no default of
+ * its own, so every load names one.
+ * @returns the options naming it.
  */
-export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = localDatasets ?? siteConfig().datasets;
-    return baseUrl === undefined ? {} : { baseUrl };
+export function datasetBase(): { readonly baseUrl: string } {
+    return { baseUrl: localDatasets ?? siteConfig().datasets ?? DEFAULT_DATASET_BASE_URL };
 }
 
 /**
@@ -165,9 +165,7 @@ export function datasetBase(): { readonly baseUrl?: string } {
  * @returns the address, or undefined when it has no picture.
  */
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+    return entry.thumbnail === undefined ? undefined : new URL(entry.thumbnail, datasetBase().baseUrl).href;
 }
 
 /** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
@@ -407,29 +405,9 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * @param url - the address.
  * @returns the source.
  */
-function urlSource(url: string): Incoming {
+export function urlSource(url: string): Incoming {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
     return { name, source: { config: { url }, name } };
-}
-
-/**
- * Opens the graph file at a web address as a new project named after the file, drawn as a first
- * file is. The element reads the format from the address and the file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    openSeparate(workspace, urlSource(url));
-}
-
-/**
- * The graph file at a web address, added as any source is (Paste of an address, the Web address
- * box): on the start screen it opens as a new project; in a project it is added to it.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
 }
 
 /**
@@ -631,11 +609,12 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    if (pasted.kind === "url") {
-        addUrl(ctx, pasted.url);
-        return;
-    }
-    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
+    addSource(
+        ctx,
+        pasted.kind === "url"
+            ? urlSource(pasted.url)
+            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
+    );
 }
 
 /**

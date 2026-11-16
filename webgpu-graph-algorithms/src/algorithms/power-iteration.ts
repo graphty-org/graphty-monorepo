@@ -298,9 +298,9 @@ export async function runPowerIteration(
                     groups,
                     iteration,
                     trackConvergence: 1,
-                    // NORM_MODE 2 (eigenvector) holds the change to the tolerance relative to the iterate: pr-finalize
-                    // scales this by the folded L1 size. The others keep the per-node threshold.
-                    convergeThreshold: config.normMode === 2 ? config.tolerance : config.tolerance * n,
+                    // every mode holds the change to the tolerance relative to the iterate: pr-finalize scales this
+                    // by the folded L1 size, so the stop does not loosen with the node count (issue #1182)
+                    convergeThreshold: config.tolerance,
                 });
                 const rankIn = ring[(iteration - 1) % ring.length];
                 // the slot the pull overwrites still holds x(iteration - ring.length): that is rankPrev (PD-9)

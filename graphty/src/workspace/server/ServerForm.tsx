@@ -487,7 +487,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     return (
-        <form // NOSONAR(S6847): the handler only marks an Escape the dropdown inside already used
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- the handler only marks an Escape the dropdown inside already used
             aria-label="Network data"
             onSubmit={(event) => {
                 event.preventDefault();
@@ -678,7 +678,7 @@ function WaitingLoads(): React.JSX.Element | null {
     }
     const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
     return (
-        <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
             role="list"
             aria-label="Waiting loads"
             className="sv-waiting"
@@ -688,7 +688,7 @@ function WaitingLoads(): React.JSX.Element | null {
                 const name = `${names.get(load.source) ?? load.source} ${host}`.trim();
                 const fact = failed[load.id];
                 return (
-                    <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                         key={load.id}
                         role="listitem"
                         aria-label={name}

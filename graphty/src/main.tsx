@@ -2,7 +2,7 @@ import "./index.css";
 import "@mantine/core/styles.css";
 
 // Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
-import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
+import type {} from "@graphty/graphty-element/jsx"; // the element's documented JSX opt-in, a types-only import
 import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "@graphty/graphty-element/logging";
 import { MantineProvider, Tooltip } from "@mantine/core";
 import React from "react";
@@ -21,7 +21,7 @@ export { theme } from "./theme";
 // Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.
-void loadSiteConfig().then(startUsageDataIfShared); // NOSONAR(S7785): a top-level await would hold the first paint for the fetch
+void loadSiteConfig().then(startUsageDataIfShared); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the fetch
 
 // The element reads nothing off the page's address, so the app turns its logging on from the
 // documented parameter: `?graphty-element-logging=voice:debug` shows what speech recognition did.
@@ -62,7 +62,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
         level: LogLevel.INFO,
         modules: ["autosave", "workspace", "view"],
     });
-    void remoteLogging.then(logPageStart); // NOSONAR(S7785): a top-level await would hold the first paint for the logger
+    void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger
 }
 
 const rootElement = document.getElementById("root");

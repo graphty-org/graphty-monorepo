@@ -18,7 +18,7 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderTicksOf } from "../../../src/Graph";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
@@ -60,8 +60,7 @@ async function pageFrame(): Promise<void> {
  * @returns Frames drawn and ticks rested.
  */
 function ticksOf(element: Graphty): { drawn: number; rested: number } {
-    return (element.graph as unknown as { renderManager: { ticks: { drawn: number; rested: number } } }).renderManager
-        .ticks;
+    return renderTicksOf(element.graph);
 }
 
 /**

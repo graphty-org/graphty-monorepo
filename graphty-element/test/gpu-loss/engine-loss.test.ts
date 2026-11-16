@@ -11,13 +11,14 @@
 
 import "../../src/graphty-element";
 
-import { Logger, type WebGPUEngine } from "@babylonjs/core";
+import type { WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
 import { GraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { Graph, operationQueueOf, renderTicksOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
+import { countUncaptured, deviceNowOf, mounted, unmount } from "./device-helpers";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -31,29 +32,10 @@ declare module "vitest/browser" {
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}` }));
 const EDGES = NODES.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i + 1) % 12)}` }));
 
-const mounted: { graph: Graph; container: HTMLElement }[] = [];
-
-/** Disposes every graph the test built. */
-function unmount(): void {
-    for (const { graph, container } of mounted.splice(0)) {
-        graph.dispose();
-        container.remove();
-    }
-}
-
 afterEach(() => {
     vi.restoreAllMocks();
     unmount();
 });
-
-/**
- * The device an engine is drawing on.
- * @param graph - The graph.
- * @returns The device.
- */
-function deviceOf(graph: Graph): GPUDevice {
-    return (graph.engine as unknown as { _device: GPUDevice })._device;
-}
 
 /**
  * Builds a ring on WebGPU and waits for its picture.
@@ -86,7 +68,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
  * @returns The counts, copied.
  */
 function ticksOf(graph: Graph): RenderManager["ticks"] {
-    return { ...(graph as unknown as { renderManager: RenderManager }).renderManager.ticks };
+    return { ...renderTicksOf(graph) };
 }
 
 /** The browser's own requests, taken before any test spies on them. */
@@ -127,7 +109,7 @@ function countAnswers(proto: object, name: keyof typeof REAL): { asked: number; 
  * @returns Once the engine says it is back.
  */
 async function lose(graph: Graph, loseDevice: (device: GPUDevice) => Promise<void>): Promise<void> {
-    const old = deviceOf(graph);
+    const old = deviceNowOf(graph);
     const engine = graph.engine as WebGPUEngine;
     const adapters = countAnswers(GPU.prototype, "requestAdapter");
     const devices = countAnswers(GPUAdapter.prototype, "requestDevice");
@@ -153,7 +135,7 @@ async function lose(graph: Graph, loseDevice: (device: GPUDevice) => Promise<voi
     });
     await loseDevice(old);
     await Promise.race([restored, gone]);
-    assert.notStrictEqual(deviceOf(graph), old, "restored on the device that was lost");
+    assert.notStrictEqual(deviceNowOf(graph), old, "restored on the device that was lost");
 }
 
 /**
@@ -180,15 +162,6 @@ async function waitForPicture(graph: Graph, want: string): Promise<void> {
         assert.isFalse(restedOnIt, `the loop rested on a different picture: ${JSON.stringify(now.ticks)}`);
         last = now;
     }
-}
-
-/**
- * Counts Babylon's reports of an uncaptured device error from now on.
- * @returns The number so far.
- */
-function countUncaptured(): () => number {
-    const warn = vi.spyOn(Logger, "Warn");
-    return () => warn.mock.calls.filter(([message]) => String(message).includes("uncaptured error")).length;
 }
 
 const DRILLS: Record<string, (device: GPUDevice) => Promise<void>> = {
@@ -272,7 +245,7 @@ describe("a lost WebGPU device", () => {
             new DOMException("Instance dropped error in getCompilationInfo", "OperationError"),
         );
 
-        deviceOf(graph).createShaderModule({
+        deviceNowOf(graph).createShaderModule({
             code: "@vertex fn main() -> @builtin(position) vec4f { return vec4f(); }",
         });
         // A task later, for an unhandled rejection to reach test/setup.ts, which fails the test.
@@ -293,7 +266,7 @@ describe("a lost WebGPU device", () => {
             });
         });
 
-        deviceOf(graph).destroy();
+        deviceNowOf(graph).destroy();
         await lost;
         unmount();
         await Promise.all(opened.mock.results.map(async ({ value }) => await (value as Promise<unknown>)));
@@ -310,7 +283,7 @@ describe("a lost WebGPU device", () => {
             });
         });
 
-        deviceOf(graph).destroy();
+        deviceNowOf(graph).destroy();
         const error = await refused;
 
         assert.instanceOf(error, GraphtyError);

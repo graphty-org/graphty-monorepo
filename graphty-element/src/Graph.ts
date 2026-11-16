@@ -559,6 +559,8 @@ interface Reservation {
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
+/** Each graph's reader of its render loop's tick counts; see {@link renderTicksOf}. */
+const TICKS = new WeakMap<Graph, () => RenderManager["ticks"]>();
 
 /** How the element's data-source pair loads; see {@link loadSourcePair}. */
 interface PairImport {
@@ -623,6 +625,22 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     }
 
     return queue;
+}
+
+/**
+ * What a graph's render loop has done with its ticks (see `RenderManager.ticks`), for its tests to
+ * tell "it drew nothing" from "it had no chance to". Not published. The counts start again when the
+ * renderer is switched, since that builds a new loop.
+ * @param graph - The graph.
+ * @returns The live counts of its current loop.
+ */
+export function renderTicksOf(graph: Graph): RenderManager["ticks"] {
+    const ticks = TICKS.get(graph);
+    if (ticks === undefined) {
+        throw new Error("That graph has no render loop yet.");
+    }
+
+    return ticks();
 }
 
 /** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
@@ -1151,6 +1169,7 @@ export class Graph implements GraphContext {
             autoStart: true,
         });
         QUEUES.set(this, this.operationQueue);
+        TICKS.set(this, () => this.renderManager.ticks);
 
         // The element's configuration document: id paths, view mode, background, layout and its
         // options, the run-on-load algorithms and the behaviour settings. It carries no style

@@ -236,6 +236,7 @@ export function withhold(value) {
 const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", import.meta.url));
 const FREE_QUEUE_MAX_AGE_MS = 2 * 3_600_000;
 const MAX_JOB = 4;
+const hashes = (numbers) => numbers.map((n) => `#${n}`).join(" ");
 // Generated, append-mostly or registry files: sharing one is not a reason to group (issue-round step 4's list).
 const SHARED_FILES = [
     /\/api\/[^/]+\.api\.md$/,
@@ -261,7 +262,8 @@ export function jobs(cache, q, now) {
     if (!cache) return { stale: "no free queue" };
     if (!Array.isArray(cache.jobs)) return { stale: "the free queue has no jobs list" };
     const age = now - Date.parse(cache.builtAt);
-    if (!(age <= FREE_QUEUE_MAX_AGE_MS)) return { stale: `the free queue is older than 2 hours (${cache.builtAt})` };
+    if (Number.isNaN(age) || age > FREE_QUEUE_MAX_AGE_MS)
+        return { stale: `the free queue is older than 2 hours (${cache.builtAt})` };
     const pos = new Map(q.map((i, k) => [i.number, k]));
     const byNumber = new Map(q.map((i) => [i.number, i]));
     const blocked = new Set((cache.blocked ?? []).map((b) => b.issue));
@@ -281,7 +283,7 @@ export function jobs(cache, q, now) {
         .slice(0, 10)
         .map((i) => i.number)
         .filter((n) => !seen.has(n) && !blocked.has(n));
-    if (missing.length) return { stale: `top of the queue in no job: ${missing.map((n) => `#${n}`).join(" ")}` };
+    if (missing.length) return { stale: `top of the queue in no job: ${hashes(missing)}` };
     if (!cleaned.length && q.some((i) => !blocked.has(i.number))) return { stale: "no job left in the queue" };
     const families = (j) => j.issues.map((n) => byNumber.get(n).family).filter(Boolean);
     const merged = [];
@@ -322,16 +324,18 @@ export function takenMarker(argv, session) {
     const [branch, worktree, ...nums] = flag < 0 ? argv : argv.slice(0, flag);
     const files = [];
     let why = "";
-    for (let k = flag < 0 ? argv.length : flag; k < argv.length; k++) {
-        if (argv[k] === "--why") why = argv[++k] ?? "";
-        else if (argv[k] === "--files") while (argv[k + 1] && !argv[k + 1].startsWith("--")) files.push(argv[++k]);
+    let mode = "";
+    for (const a of flag < 0 ? [] : argv.slice(flag)) {
+        if (a === "--files" || a === "--why") mode = a;
+        else if (mode === "--files") files.push(a);
+        else if (mode === "--why") why = a;
     }
     const usage = "usage: taken <branch> <worktree> <n>... --files <path>... --why <reason>";
     if (!branch || !worktree || !nums.length || !nums.every((n) => /^\d+$/.test(n))) return { error: usage };
     if (!files.length) return { error: "taken: --files is required: name the files the fix will touch" };
     if (!why.trim()) return { error: "taken: --why is required: name the rule or job that picked it" };
     if (!session) return { error: "taken: CLAUDE_CODE_SESSION_ID is not set" };
-    const group = nums.length > 1 ? `, group ${nums.map((n) => `#${n}`).join(" ")}` : "";
+    const group = nums.length > 1 ? `, group ${hashes(nums)}` : "";
     const body = `pipeline-round: taken by session ${session}, branch ${branch}, worktree ${worktree}${group} -- ${why}; files ${files.join(" ")}`;
     return { issues: nums.map(Number), body };
 }
@@ -396,6 +400,41 @@ export function fetchOpen(run = gh) {
 }
 
 /**
+ * The `jobs` output.
+ * @param result from jobs()
+ * @param rest the arguments after `jobs`
+ * @returns `{ code, out }`, code 3 when the free queue must be rebuilt
+ */
+function jobsCommand(result, rest) {
+    if (result.stale) return { code: 3, out: `stale: rebuild the free queue (${result.stale})` };
+    if (rest.includes("--json")) return { code: 0, out: JSON.stringify(result, null, 2) };
+    const lines = result.jobs.map((j) => {
+        const why = j.why || "no reason given";
+        return ascii(`job ${hashes(j.issues)} ${j.priority} -- ${why}; files ${j.files.join(" ") || "none named"}`);
+    });
+    const issues = result.jobs.reduce((t, j) => t + j.issues.length, 0);
+    const grouped = result.jobs.filter((j) => j.issues.length > 1).length;
+    lines.push(`${result.jobs.length} jobs, ${issues} issues, ${grouped} grouped`);
+    return { code: 0, out: lines.join("\n") };
+}
+
+/**
+ * Marks a job: the in-progress label and the taken marker on each of its issues.
+ * @param marker from takenMarker()
+ * @param cli runs a gh command
+ * @returns `{ code, out }`
+ */
+function takenCommand(marker, cli) {
+    if (marker.error) return { code: 2, out: marker.error };
+    const repo = `${REPO.owner}/${REPO.name}`;
+    for (const n of marker.issues) {
+        cli(["issue", "edit", String(n), "-R", repo, "--add-label", "in-progress"]);
+        cli(["issue", "comment", String(n), "-R", repo, "--body", marker.body]);
+    }
+    return { code: 0, out: marker.body };
+}
+
+/**
  * The command line.
  * @param argv arguments after the script
  * @param run the GraphQL runner
@@ -407,30 +446,8 @@ export function fetchOpen(run = gh) {
 export function main(argv, run = gh, now = Date.now(), stdin = () => readFileSync(0, "utf8"), deps = {}) {
     const { freeQueue = readFreeQueue, cli = ghCli, env = process.env } = deps;
     const [cmd, ...rest] = argv;
-    if (cmd === "jobs") {
-        const result = jobs(freeQueue(), queue(fetchOpen(run), now).queue, now);
-        if (result.stale) return { code: 3, out: `stale: rebuild the free queue (${result.stale})` };
-        if (rest.includes("--json")) return { code: 0, out: JSON.stringify(result, null, 2) };
-        const lines = result.jobs.map((j) =>
-            ascii(
-                `job ${j.issues.map((n) => `#${n}`).join(" ")} ${j.priority} -- ${j.why || "no reason given"}; files ${j.files.join(" ") || "none named"}`,
-            ),
-        );
-        const issues = result.jobs.reduce((t, j) => t + j.issues.length, 0);
-        const grouped = result.jobs.filter((j) => j.issues.length > 1).length;
-        lines.push(`${result.jobs.length} jobs, ${issues} issues, ${grouped} grouped`);
-        return { code: 0, out: lines.join("\n") };
-    }
-    if (cmd === "taken") {
-        const marker = takenMarker(rest, env.CLAUDE_CODE_SESSION_ID);
-        if (marker.error) return { code: 2, out: marker.error };
-        const repo = `${REPO.owner}/${REPO.name}`;
-        for (const n of marker.issues) {
-            cli(["issue", "edit", String(n), "-R", repo, "--add-label", "in-progress"]);
-            cli(["issue", "comment", String(n), "-R", repo, "--body", marker.body]);
-        }
-        return { code: 0, out: marker.body };
-    }
+    if (cmd === "jobs") return jobsCommand(jobs(freeQueue(), queue(fetchOpen(run), now).queue, now), rest);
+    if (cmd === "taken") return takenCommand(takenMarker(rest, env.CLAUDE_CODE_SESSION_ID), cli);
     if (cmd === "list") {
         const i = rest.indexOf("--limit");
         const limit = i >= 0 ? Number(rest[i + 1]) : Infinity;

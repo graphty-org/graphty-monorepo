@@ -10,7 +10,7 @@ import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import packageJson from "../../package.json";
 import { readDrawn } from "./drawn-scene";
-import { extractScene } from "./extract-scene";
+import { comparerEdgeIds, extractScene } from "./extract-scene";
 
 /** The force layout's seed, for a sample whose file does not place every node. */
 export const SEED = 42;
@@ -132,11 +132,13 @@ export async function importSample(
  * @returns the scene
  */
 export function drawnScene(element: Graphty, sha256: string, command: string): Scene {
-    return extractScene(element, readDrawn(element.graph), {
+    const scene = extractScene(element, readDrawn(element.graph), {
         version: `${packageJson.version} (source)`,
         command,
         sourceSha256: sha256,
     });
+    const ids = comparerEdgeIds(element.session.data.edges());
+    return { ...scene, edges: scene.edges.map((e) => ({ ...e, id: ids.get(e.id) ?? e.id })) };
 }
 
 /**

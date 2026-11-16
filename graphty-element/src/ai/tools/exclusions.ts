@@ -280,7 +280,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionVisibilityApi", members: ["drawsContext"], reason: "panel-state", kind: BY_DESIGN },
     { root: "SessionVisibilityApi", members: ["workingGraphChanged"], reason: "internal-handle", kind: BY_DESIGN },
-    { root: "Graphty", members: ["antialias", "limits"], reason: "machine-preference", kind: BY_DESIGN },
+    {
+        root: "Graphty",
+        members: ["antialias", "preserveDrawingBuffer", "limits"],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
     { root: "Graph", members: ["setLimits"], reason: "machine-preference", kind: BY_DESIGN },
     { root: "Graphty", members: ["shaderSettings"], reason: "reader-trust", kind: BY_DESIGN },
     { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },

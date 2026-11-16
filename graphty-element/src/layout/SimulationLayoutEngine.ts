@@ -468,7 +468,9 @@ function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
 interface DrawnSimulation {
     readonly landedDrawn?: GPUBuffer | null;
     readonly landedDrawnTransform?: DrawnTransform | null;
-    setDrawn(output: { slots: number; rows: Float32Array } | null): void;
+    /** The landed slot's rows read back to the host, when the ring was set with `readBack`. */
+    readonly landedDrawnRows?: Float32Array | null;
+    setDrawn(output: { slots: number; rows: Float32Array; readBack?: boolean } | null): void;
     setDrawnTransform(transform: DrawnTransform): void;
     setDrawnSkip(mask: Uint32Array): void;
     writeDrawn(index: number, x: number, y: number, z: number, w: number): void;
@@ -1394,7 +1396,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /**
      * {@link SimulationLayoutEngine.publishPositions}, which a landing copied on the card may owe.
      *
-     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device),
+     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device), or as
+     * read back (renderPath "batched" on any other renderer, `RowTable.uploadLanded`),
      * the card already draws it, so no row is written, repacked or walked on the CPU for it: the
      * lane is owed the publish (`ElementPositions.owe`), and the first read or write of a row --
      * a pick, a node's position, a drag, a freeze -- writes it, from the latest landing with the
@@ -1419,7 +1422,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // ON THE CARD, A LANDING IS PUBLISHED WITH THE TRANSFORM ITS BATCH DREW WITH, so the lane and the
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
-        const landed = drawn?.simulation.landedDrawn ?? null;
+        const landed = drawn === null ? null : this.#landedOf(drawn);
         const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
         if (mayOwe && drawn !== null && viaCard !== null) {
@@ -1500,6 +1503,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
             first,
             this.#origin === null ? this.#fixedRows : new Set([...this.#fixedRows].map((row) => this.#elementRow(row))),
         );
+    }
+
+    /**
+     * The newest landed slot as the run's target takes it: the buffer on a shared device, else its rows
+     * read back to the host (a GPU package that cannot read them back offers none).
+     * @param run - The run.
+     * @returns The slot, its rows, or null.
+     */
+    #landedOf(run: DrawnRun): GPUBuffer | Float32Array | null {
+        const { simulation } = run;
+        return run.target.device === null ? (simulation.landedDrawnRows ?? null) : (simulation.landedDrawn ?? null);
     }
 
     /**
@@ -1592,7 +1606,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         try {
-            drawn.setDrawn({ slots: DRAWN_SLOTS, rows: target.table.rowPosition.subarray(0, 4 * nodeCount) });
+            drawn.setDrawn({
+                slots: DRAWN_SLOTS,
+                rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
+                // On another device than the texture's, each landed slot comes back in the batch's readback.
+                readBack: target.device === null,
+            });
         } catch (error) {
             this.#onError(error, simulation);
             return;
@@ -1669,10 +1688,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
      * the landed slot, and the transform the next batches draw with.
      * @param run - The run.
-     * @param landed - The landed slot to copy, or null when this publish goes up by upload.
+     * @param landed - The landed slot to copy (its rows when read back from another device), or null when
+     * this publish goes up by upload.
      * @returns True when the landed slot was copied.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): boolean {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null): boolean {
         const simulation = this.#simulation;
         let copied = false;
         try {
@@ -1680,7 +1700,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (landed === null) {
                 run.target.table.dropCopy();
             } else {
-                copied = run.target.table.copyLanded(run.target.device, landed, run.n);
+                const { table, device } = run.target;
+                copied =
+                    landed instanceof Float32Array
+                        ? table.uploadLanded(landed, run.n)
+                        : device !== null && table.copyLanded(device, landed, run.n);
                 this.#resendTold(run);
             }
 
@@ -2132,18 +2156,50 @@ export class SimulationLayoutEngine extends LayoutEngine {
      *
      * A group following its members is drawn round them, not laid out with them: inert in the
      * simulation, it neither repels them nor pulls on them, so they settle exactly where they
-     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason). A
+     * node the filter hides needs none of this: it has no row in the simulation (see `#adopt`).
+     *
+     * `setInert` is optional on `LayoutSimulation`, so a third-party accelerator may lack it. Such
+     * a simulation would let a following group push and pull its members, so the bridge stops it
+     * and refuses with `E_UNSUPPORTED` rather than run it (issue #7964).
      * @param simulation - The running simulation.
      * @param nodeCount - The loaded snapshot's node count.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a row must be inert and the simulation cannot make it so.
      */
     #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
         const inert = makeMask(nodeCount);
+        let any = false;
         for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
             if (this.isFollower(this.#elementRow(i))) {
                 maskSet(inert, i, true);
+                any = true;
             }
         }
-        simulation.setInert?.(inert);
+
+        if (simulation.setInert === undefined) {
+            if (!any) {
+                return;
+            }
+
+            this.#failed = true;
+            this.#syncWork();
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message:
+                    `the layout "${this.type}" cannot leave group-following nodes out: its ` +
+                    `"${this.simulationType}" simulation has no setInert. ` +
+                    `Set the acceleration attribute to "off", or attach an accelerator whose simulations implement setInert.`,
+                source: "layout",
+                details: {
+                    layout: this.type,
+                    simulation: this.simulationType,
+                    accelerated: this.#accelerated,
+                    reason: "simulation-cannot-leave-nodes-out",
+                },
+            });
+        }
+
+        simulation.setInert(inert);
     }
 
     /**

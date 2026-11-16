@@ -244,6 +244,7 @@ import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import type { AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import {
@@ -787,7 +788,34 @@ export class Graph implements GraphContext {
      * asked for replaces the default before it is built. See {@link Graph.openingSignalFor}.
      */
     #openingSignal: AbortSignal | undefined;
-    enableDetailedProfiling?: boolean;
+    #enableDetailedProfiling?: boolean;
+
+    /**
+     * Whether detailed profiling (hierarchical CPU timing in the stats manager) is on. Takes
+     * effect whenever it is set, before or after `init()`; setting it to `false` turns profiling
+     * off and clears what was measured.
+     * @returns Whether detailed profiling is on, or `undefined` when it was never set.
+     */
+    get enableDetailedProfiling(): boolean | undefined {
+        return this.#enableDetailedProfiling;
+    }
+
+    /**
+     * Turns detailed profiling on or off at once; `false` also clears what was measured.
+     * @param value - Whether detailed profiling is on.
+     */
+    set enableDetailedProfiling(value: boolean | undefined) {
+        if (value === this.#enableDetailedProfiling) {
+            return;
+        }
+
+        this.#enableDetailedProfiling = value;
+        if (value) {
+            this.statsManager.enableProfiling();
+        } else {
+            this.statsManager.disableProfiling();
+        }
+    }
     /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
     /** Moves on every write of the view settings, so the frozen configuration knows to rebuild. */
@@ -1034,17 +1062,30 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether the WebGL canvas keeps each drawn frame, as the engine was built: the constructor's
+     * `preserveDrawingBuffer`. Fixed for the life of the graph.
+     */
+    readonly preserveDrawingBuffer: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
      * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
      *     frame a still scene rests on (`"at-rest"`). Left out, true.
+     * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
+     *     the page can read it between frames. Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: Antialias } = {}) {
+    constructor(
+        element: Element | string,
+        useMockInput = false,
+        options: { readonly antialias?: Antialias; readonly preserveDrawingBuffer?: boolean } = {},
+    ) {
         this.useMockInput = useMockInput;
         this.#antialias = options.antialias ?? true;
         this.#multisampled = this.#antialias !== false;
+        this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -1101,6 +1142,7 @@ export class Graph implements GraphContext {
             pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
+            preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
 
         this.basemapManager = new BasemapManager(
@@ -5303,6 +5345,11 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
+            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                node.holdOffBatch();
+            }
+
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -5434,22 +5481,29 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The row table a layout on the drawing device fills on the card: only under renderPath
-     * "batched" on a device shared with the accelerator.
+     * The row table an accelerated layout fills: only under renderPath "batched". On a device shared
+     * with the accelerator it copies each landing on the card; on any other renderer `device` is null and
+     * it sends each landing's drawn rows as its readback brought them.
      * @returns The table and the device, or null.
      * @internal
      */
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null || !(engine instanceof RecoveringWebGPUEngine)) {
+        if (this.#renderPath !== "batched" || table === null) {
             return null;
         }
 
-        const device = engine.sharesDevice ? engine.deviceNow() : null;
+        const shared = engine instanceof RecoveringWebGPUEngine && engine.sharesDevice;
+        const device = shared ? engine.deviceNow() : null;
+        if (shared && device === null) {
+            return null;
+        }
+
         // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
         const suspended = transitionsOf(this.layoutManager)?.active === true;
-        return device === null ? null : { table, device, suspended };
+        // On a device of its own (WebGL, or WebGPU not shared) the layout reads its drawn rows back instead.
+        return { table, device, suspended };
     }
 
     // ============================================================================
@@ -7471,7 +7525,8 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     rejected or waiting model, its first problem's code and params (a waiting model with
+     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
      *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
      *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
@@ -7495,7 +7550,11 @@ export class Graph implements GraphContext {
                       params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
                   }
                 : record.problems[0];
-        if (record.state !== "accepted" || record.kind === "image") {
+        const standIn =
+            options.standInMissing === true && record.state !== "accepted"
+                ? (assets as AssetsApiInternal).standIn(record.id)
+                : undefined;
+        if ((record.state !== "accepted" && standIn === undefined) || record.kind === "image") {
             throw new GraphtyError({
                 code: (problem?.code ?? "E_MODEL_UNKNOWN_ASSET") as GraphtyError["code"],
                 source: "data",
@@ -7518,7 +7577,7 @@ export class Graph implements GraphContext {
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
-            "model",
+            standIn === undefined ? "model" : "model-stand-in",
             record.digest,
             options.size,
             style["node.color"],
@@ -7538,13 +7597,12 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const files = assets.files(record.id);
                 const container = await loadModel(
                     this.scene,
-                    files,
-                    record.path ?? "",
-                    record.format,
-                    record.skipped,
+                    standIn?.files ?? assets.files(record.id),
+                    standIn?.main ?? record.path ?? "",
+                    standIn?.format ?? record.format,
+                    standIn?.skipped ?? record.skipped,
                 ).catch((error: unknown) => {
                     if (!(error instanceof ModelLoadFailure)) {
                         throw error;
@@ -7562,7 +7620,7 @@ export class Graph implements GraphContext {
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                    optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
                         unlit: style["node.unlit"] === true,
                         wireframe: style["node.wireframe"] === true,
                     }),

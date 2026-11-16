@@ -121,6 +121,12 @@ const byText = (a: PText, b: PText): number => {
  * @returns true on one line
  */
 const sameLine = (a: PBox, b: PBox): boolean => cy(b) >= a.y0 && cy(b) <= a.y1 && cy(a) >= b.y0 && cy(a) <= b.y1;
+/**
+ * Two runs on one line ({@link joinRuns}, {@link besideTexts}): on the same line, or sharing at least 0.4 of the shorter one's height, as a run
+ * raised or lowered by half a line does (vis-network's `font.bold.vadjust`).
+ */
+const runsOnLine = (a: PBox, b: PBox): boolean =>
+    sameLine(a, b) || Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) >= 0.4 * Math.min(bh(a), bh(b));
 
 /**
  * The shape class a primitive draws.
@@ -510,7 +516,11 @@ function nodeFrom(
             : sorted.flatMap((s) =>
                   s.fill === null || s.kind === "image" ? [] : [{ box: s.box, color: s.fill.color }],
               );
-    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    // a node drawn as its picture alone (yEd's image and SVG nodes) is read by its picture's bounds, as graphty's side
+    // reads one (`drawnPrimitives`): a box, whatever the picture draws inside it
+    const pictureOnly = outline === undefined && pictures.length > 0;
+    const pictureShape: PShape | null = pictureOnly ? "rect" : null;
+    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : pictureShape;
     const nodeFill = paintedFill ?? filled?.fill ?? null;
     const bands = shapes.flatMap((s) =>
         s.uncut !== undefined && s.fill !== null && s.fill.color !== nodeFill?.color
@@ -565,7 +575,9 @@ function nodeFrom(
  * Runs of one line drawn as separate text elements side by side, joined into the line they make: Graphviz writes each
  * font change of an HTML-like label as its own `<text>` on the same baseline (`<FONT>`, `<U>`, a `<SUP>` raised a
  * little), so "mono u s x2" is five texts and one line. A run is a text starting where the one before it on the line
- * ends (within half its font size) whose middle lies within that one's height; a space is put between two runs
+ * ends (within half its font size) whose middle lies within that one's height, or that shares 0.4 of it (`runsOnLine`:
+ * vis-network's bold "B" of "B x" drawn 6 px lower by `font.bold.vadjust`, its middle just past the "x" it is before,
+ * vis-network-specimen-labels-p2 font-bold-vadjust); a space is put between two runs
  * apart by more than a sixth of the font size, or where either keeps a blank at that side.
  * @param texts - the texts
  * @param keepApart - two texts never joined, whatever their places
@@ -580,7 +592,7 @@ function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => bo
     const level = (p: PText): boolean => p.rotation === 0 && (p.lines?.length ?? 1) < 2;
     for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
-        const onLine = level(t) ? out.filter((a) => level(a) && sameLine(a.box, t.box)) : [];
+        const onLine = level(t) ? out.filter((a) => level(a) && runsOnLine(a.box, t.box)) : [];
         const last = onLine.reduce<PText | undefined>(
             (m, a) => (m === undefined || (lastRun.get(a) ?? a).box.x0 > (lastRun.get(m) ?? m).box.x0 ? a : m),
             undefined,
@@ -1833,6 +1845,48 @@ function tipsMiddle(p: Prim, e: PEdge): boolean {
     );
 }
 
+/** How far past its node's far side, in px along its line, a shape may reach and still be that line's head there. */
+const PAST_NODE_SLACK = 1;
+
+/**
+ * Whether a shape runs on from a line's end through that end's node and out past its far side. A head at a line's end
+ * reaches the node's outline at most, so such a shape is no head of that line there: it is a long head of another edge,
+ * drawn alone across the node (cx-syn-mappings: 189->192, drawn with no line between 189 and 192, its circle and its
+ * half arrow running back through 192 from 192->201's source end, were read as that line's heads).
+ * @param shape - the shape's points
+ * @param e - the line
+ * @param end - which end
+ * @param n - the node at that end
+ * @returns true for a shape through the node
+ */
+export function runsThroughNode(
+    shape: readonly Pt[],
+    e: PEdge,
+    end: "source" | "target",
+    n: PNode | undefined,
+): boolean {
+    const q = endOf(e, end);
+    const r = end === "source" ? (e.points[1] ?? q) : (e.points.at(-2) ?? q);
+    const len = Math.hypot(r[0] - q[0], r[1] - q[1]);
+    if (n === undefined || len < 1e-9 || e.source === e.target || shape.length === 0) {
+        return false;
+    }
+    // outward, from the line into the node
+    const [ux, uy] = [(q[0] - r[0]) / len, (q[1] - r[1]) / len];
+    const depth = (v: Pt): number => (v[0] - q[0]) * ux + (v[1] - q[1]) * uy;
+    // a line between nodes nearer than their outlines runs back from one outline to the other, away from its own node
+    // (cx-radiation-bibliography 164->169), whose heads cross over: only a line leaving its node is judged
+    const center = depth([n.cx, n.cy]);
+    const farSide = center + (Math.abs(ux) * n.w + Math.abs(uy) * n.h) / 2;
+    // a head centered on its node sits on it, not through it: yEd centers a head on a node smaller than the head
+    // (graphml-stm32-func n70->n10: a 2.7 px circle on a 0.6 px junction node reaches past its far side)
+    const box = boxOfPoints(shape);
+    const onNode =
+        Math.abs((box.x0 + box.x1) / 2 - n.cx) <= n.w / 2 + PAST_NODE_SLACK &&
+        Math.abs((box.y0 + box.y1) / 2 - n.cy) <= n.h / 2 + PAST_NODE_SLACK;
+    return center > 0 && !onNode && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
+}
+
 /**
  * The geometric edge end a closed shape caps as an arrowhead, or null when it caps none. An
  * arrowhead sits at the end (its box within reach of the end point), is small beside its edge
@@ -1885,7 +1939,15 @@ export function arrowheadEdge(
     // across a long line's middle, and is that other edge's.
     const reach = size * 1.5 + 3;
     const from = (q: Pt): number => Math.hypot(c[0] - q[0], c[1] - q[1]);
-    const near = nearestEnd(edges, (e, end) => from(endOf(e, end)), reach, ["source", "target"]);
+    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    const pastNode = (e: PEdge, end: "source" | "target"): boolean =>
+        runsThroughNode(p.points, e, end, nodeById(nodes, end === "source" ? e.source : e.target));
+    const near = nearestEnd(
+        edges,
+        (e, end) => (pastNode(e, end) ? Number.POSITIVE_INFINITY : from(endOf(e, end))),
+        reach,
+        ["source", "target"],
+    );
     // How far a shape reaches back along a line from its end, inward: about 0 for a cap whose base the line stops at
     // (Cytoscape desktop stops every line at its arrowhead's base), its length for one the line runs on under.
     const behind = (e: PEdge, end: "source" | "target"): number => {
@@ -1940,7 +2002,6 @@ export function arrowheadEdge(
     // the head is the line's it lies along, its middle on that line, never one it merely touches (json-vis-siblings:
     // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
     // edges drawn over one another, a line's two ends) go by the nearest tip
-    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
     // both searches below measure the same tips and the same distances off each line: each is measured once
     const tips = new Map<PEdge, Partial<Record<string, number>>>();
     const tipOf = (e: PEdge, end: "source" | "target", across: boolean): number => {
@@ -1963,7 +2024,7 @@ export function arrowheadEdge(
     const touching = (across: boolean): { e: PEdge; end: ArrowEnd } | null => {
         const onLine = nearestEnd(
             edges,
-            (e, end) => (tipOf(e, end, across) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY),
+            (e, end) => (tipOf(e, end, across) <= 3 && !pastNode(e, end) ? offOf(e) : Number.POSITIVE_INFINITY),
             Number.MAX_VALUE,
             ["source", "target"],
         );
@@ -1973,7 +2034,9 @@ export function arrowheadEdge(
                   edges,
                   (e, end) => {
                       const tip = tipOf(e, end, across);
-                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 && !pastNode(e, end)
+                          ? tip
+                          : Number.POSITIVE_INFINITY;
                   },
                   3,
                   ["source", "target"],
@@ -3452,7 +3515,9 @@ export function associate(
             // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
             for (const [i, hs] of own.entries()) {
                 const end = i === 0 ? "source" : "target";
-                hs.forEach((h) => ownCaps.set(h, { e: edge, end }));
+                hs.filter((h) => !runsThroughNode(h.points, edge, end, end === "source" ? a : b)).forEach((h) =>
+                    ownCaps.set(h, { e: edge, end }),
+                );
             }
         } else if (
             box === undefined &&
@@ -4725,7 +4790,7 @@ function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
             .filter(
                 (q) =>
                     q !== p &&
-                    sameLine(p.box, q.box) &&
+                    runsOnLine(p.box, q.box) &&
                     (q.box.x0 > p.box.x0 || (q.box.x0 === p.box.x0 && q.index > p.index)),
             )
             .sort((a, b) => a.box.x0 - b.box.x0 || a.index - b.index)[0];
@@ -4809,6 +4874,13 @@ const TWIN_OVERLAP = 0.25;
 const LABEL_BACKGROUND_COST = 0.5;
 
 /**
+ * What a picture adds to its cost as a node's body (`matchBodies`): a shape on the same spot is the body and the
+ * picture is drawn over it (Cytoscape.js's background image over its disc, cytoscapejs-specimen-images-charts); a
+ * picture with no shape under it is still the body (yEd's SVG node).
+ */
+const PICTURE_BODY_COST = 0.05;
+
+/**
  * Nodes graphty places this close in the oracle's frame, in oracle pixels, are on one spot (`matchBodies`): a quarter
  * pixel moves no pixel's center, so which of them is nearer a shape drawn there is noise of the fit, not the drawing.
  */
@@ -4848,12 +4920,32 @@ const filledAlike = (a: Prim, b: Prim): boolean =>
  * @returns the body
  */
 function topAlike(body: Prim, free: readonly Prim[]): Prim {
-    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) ? q : top), body);
+    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) && paintsOver(q, top) ? q : top), body);
 }
 
 /** Two shapes drawn alike, each within the other's box but for half a pixel: one hides the other. */
 const onOneSpot = (a: Prim, b: Prim): boolean =>
     drawnAlike(a, b) && boxWithin(a.box, b.box, INSIDE_SLACK) && boxWithin(b.box, a.box, INSIDE_SLACK);
+
+/**
+ * Whether a shape's outline holds every point of another's, within half a pixel: it paints over all of it. Lines a
+ * node draws inside its own outline in the outline's paint, as one path in the outline's box, hold none of its corners
+ * (yEd Live's internal storage: its two inner lines drawn after the box, in the box's fill and stroke).
+ * @param top - the shape drawn over
+ * @param under - the shape it may hide
+ * @returns true when it hides all of it
+ */
+const paintsOver = (top: Prim, under: Prim): boolean =>
+    under.points.every((q) => inPolygon(q, top.points) || toOutline(q, top.points) <= INSIDE_SLACK);
+
+/**
+ * Whether a shape drawn alike on a body's spot is the body's own lines: inside the body's outline, without painting
+ * over it (yEd Live's internal storage).
+ * @param q - the shape
+ * @param body - the node's body
+ * @returns true for the body's own lines
+ */
+const ownLinesOf = (q: Prim, body: Prim): boolean => onOneSpot(q, body) && paintsOver(body, q) && !paintsOver(q, body);
 
 /**
  * Where each node is matched from: graphty's prediction, except that nodes predicted on one spot (`COINCIDENT_PX`)
@@ -4980,7 +5072,8 @@ function matchBodies(
                 cost:
                     d / Math.max(s, 4) +
                     0.5 * Math.abs(Math.log((size + 1) / (s + 1))) +
-                    (backsALabel(p) ? LABEL_BACKGROUND_COST : 0),
+                    (backsALabel(p) ? LABEL_BACKGROUND_COST : 0) +
+                    (p.kind === "image" ? PICTURE_BODY_COST : 0),
                 id: n.id,
                 p,
             });
@@ -5019,7 +5112,13 @@ function matchBodies(
               );
         taken.add(body.index);
         for (const q of shapes) {
-            if (!c.id.startsWith(GROUP_CLAIM) && q !== body && !taken.has(q.index) && onOneSpot(q, body)) {
+            if (
+                !c.id.startsWith(GROUP_CLAIM) &&
+                q !== body &&
+                !taken.has(q.index) &&
+                onOneSpot(q, body) &&
+                !ownLinesOf(q, body)
+            ) {
                 hidden.add(q.index);
             }
         }
@@ -5042,7 +5141,7 @@ function matchBodies(
                     // in the body's own paint at another size off its middle, which no outline is (json-cyjs-perf: n571's
                     // disc drawn over n570's, a fifth wider and 5.6 px off, was read as n570's outline, and n570's lines
                     // as another node's, #5196); one on its middle is the node's own (yEd's double ellipse)
-                    !drawnAlike(q, body) &&
+                    (!drawnAlike(q, body) || ownLinesOf(q, body)) &&
                     !(
                         filledAlike(q, body) &&
                         Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) > 0.05 * size + 0.5
@@ -5479,10 +5578,11 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         boxWithin(boxOf(a), boxOf(b), slack) &&
         boxWithin(boxOf(b), boxOf(a), slack);
     // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
-    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
-    // point round a round node's outline
+    // arm, and a round node only what lies under its ellipse, as graphty's side judges them (`coveredBy` in
+    // extract-scene.ts): every corner of the box, or every point round a round node's outline (`pajek-1crn` v1 pokes
+    // out of v289's circle, though it lies inside its box)
     const underFigure = (n: PNode, c: PNode): boolean => {
-        if (c.figure === undefined) {
+        if (c.figure === undefined && c.shape !== "ellipse") {
             return true;
         }
         const b = boxOf(n);
@@ -5500,6 +5600,10 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
                       [b.x1, b.y1],
                   ];
         const reach = slack + (c.stroke?.width ?? 0) / 2;
+        if (c.figure === undefined) {
+            const [rx, ry] = [c.w / 2 + reach, c.h / 2 + reach];
+            return points.every(([x, y]) => Math.hypot((x - c.cx) / rx, (y - c.cy) / ry) <= 1);
+        }
         return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
     };
     for (const n of scene.nodes) {

@@ -13,7 +13,7 @@
 import "@graphty/graphty-element";
 
 import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
-import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -416,6 +416,48 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
+    it("ends a reopen the browser's storage never answers in a reported failure, and reopens once it does (#8207)", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
+
+        // Another tab holds the entries' parts in a write it never finishes: the listing (entries
+        // only) answers, so the reload reopens this tab's work, and the reopen cannot read it.
+        const release = await holdParts(DATABASE, "parts");
+        const boot: { line?: string; done?: boolean }[] = [];
+        const hear = (event: Event): void => {
+            boot.push((event as CustomEvent<{ line?: string; done?: boolean }>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        const second = mountWorkspace();
+        const error = await openBy(second.store, () => Promise.resolve()).then(
+            () => null,
+            (failure: unknown) => failure,
+        );
+        assert.isTrue(isGraphtyError(error) && error.code === "E_AUTOSAVE_STALLED", String(error));
+        await screen.findByText(
+            `${FLORENTINE.name} could not be opened: the browser's storage did not answer; close other graphty tabs, then reload.`,
+            { selector: ".cm-toast-message" },
+        );
+        // The loading screen is told the open is over, and never that the project opened.
+        await waitFor(() => {
+            assert.isTrue(
+                boot.some((detail) => detail.done === true),
+                "the loading screen was not ended",
+            );
+        });
+        assert.isFalse(boot.some((detail) => detail.line === "project opened"));
+        document.removeEventListener("graphty-boot", hear);
+
+        // The other tab lets go: the next reload reopens the same work.
+        release();
+        second.view.unmount();
+        const third = mountWorkspace();
+        await openBy(third.store, () => Promise.resolve());
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        third.view.unmount();
+    });
+
     it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
         resetSiteConfig();
         await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
@@ -755,7 +797,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         const { element, session } = openedElement();
         const inspector = (): ReturnType<typeof within> =>
             within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
+        await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const layers = JSON.stringify(session.styles.list());
         await fromAnotherTab(await leave(element, first.view));
@@ -765,7 +808,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         await waitFor(() => {
-            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
         });
         second.view.unmount();
     });

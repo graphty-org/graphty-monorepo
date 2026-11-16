@@ -106,8 +106,8 @@ export function durationsOf(plan) {
 }
 
 /**
- * Says why there is no plan, as a ::warning:: annotation on the run page: the bins fall back to one per file, which
- * multiplies the run's jobs (#6164), or to the durations snapshot (#7851).
+ * Says why there is no plan, as a ::warning:: annotation on the run page (::error:: when the store answered 5xx):
+ * the bins fall back to one per file, which multiplies the run's jobs (#6164), or to the durations snapshot (#7851).
  * @param why the reason the read failed
  * @param [snapshot] the durations snapshot the bins are packed by instead (readSnapshot())
  */
@@ -115,7 +115,9 @@ export function fallback(why, snapshot = null) {
     const how = snapshot
         ? `packed by the durations snapshot of ${new Date(snapshot.at).toISOString()}`
         : "packed without history, one job per file";
-    console.log(`::warning::results store: no plan (${why}); test bins are ${how}`);
+    // a 5xx is a fault in the store, never a normal miss: an error annotation, so it is seen and fixed (#8208)
+    const level = /^HTTP 5\d\d\b/.test(why) ? "error" : "warning";
+    console.log(`::${level}::results store: no plan (${why}); test bins are ${how}`);
 }
 
 /**

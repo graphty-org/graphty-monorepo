@@ -35,6 +35,7 @@ import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
+import { neutralPositions } from "../../positions/convert.js";
 import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
@@ -304,6 +305,8 @@ interface Plan {
     readonly networkTable: readonly TableColumn[];
     readonly rootTable: readonly TableColumn[];
     readonly position: Column | null;
+    /** The position column's rows in the neutral form (center, y up), x, y, z per node; null without one. */
+    readonly neutral: Float64Array | null;
     /** The z column written as the view's z, or null. */
     readonly z: Column | null;
     /** Whether a position's own z is written as the view's z (no z column). */
@@ -1116,6 +1119,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
         networkTable,
         rootTable,
         position,
+        neutral: position === null ? null : neutralPositions(snapshot, position),
         z: placed ? z : null,
         positionZ,
         styled,
@@ -1396,8 +1400,8 @@ function* viewGraphics(coords: readonly string[], locked: ReadonlyMap<string, un
  */
 function viewCoords(p: Plan, i: number): string[] {
     const coords: string[] = [];
-    if (p.position?.isSet(i) === true) {
-        const xyz = Array.from(p.position.value(i) as ArrayLike<number>);
+    if (p.position?.isSet(i) === true && p.neutral !== null) {
+        const xyz = Array.from(p.neutral.subarray(3 * i, 3 * i + 3));
         const [x, y] = xyz;
         const z = itemAt(xyz, 2);
         const fmt = p.position.dtype === "f32" ? formatF32 : formatF64;

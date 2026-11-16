@@ -100,12 +100,15 @@ export interface ModelDraw {
  * @param ref - what a layer names, or undefined for no model.
  * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
  * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
+ * @param standIn - also draw a model still waiting for parts, its missing pictures and materials
+ *     stood in for (`modelThumbnail`'s `standInMissing`).
  * @returns the picture, the failure and a retry.
  */
 export function useModelDraw(
     ref: string | undefined,
     size: number,
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    standIn = false,
 ): ModelDraw {
     const { session, element } = useWorkspace();
     // Read again when a model moves on, so a model that just got its parts is drawn.
@@ -114,7 +117,10 @@ export function useModelDraw(
     const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
     const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
     const key =
-        record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null, attempt]) : undefined;
+        record !== undefined && (record.state === "accepted" || standIn)
+            ? // The state too: a waiting model keeps its id and digest once its main file is picked.
+              JSON.stringify([ref, record.digest, record.state, size, style ?? null, attempt])
+            : undefined;
     const [drawn, setDrawn] = useState<{
         readonly key: string;
         readonly url?: string;
@@ -125,7 +131,8 @@ export function useModelDraw(
             return undefined;
         }
         // Read back from the key, so a style object made anew on every render draws once.
-        const [asked, , side, values] = JSON.parse(key) as [
+        const [asked, , , side, values] = JSON.parse(key) as [
+            string,
             string,
             string,
             number,
@@ -133,7 +140,11 @@ export function useModelDraw(
         ];
         let live = true;
         element
-            .modelThumbnail(asked, { size: side * Math.ceil(window.devicePixelRatio || 1), style: values ?? {} })
+            .modelThumbnail(asked, {
+                size: side * Math.ceil(window.devicePixelRatio || 1),
+                style: values ?? {},
+                standInMissing: standIn,
+            })
             .then((url) => {
                 if (live) {
                     setDrawn({ key, url });
@@ -152,7 +163,7 @@ export function useModelDraw(
         return () => {
             live = false;
         };
-    }, [key, element]);
+    }, [key, element, standIn]);
     const mine = drawn !== null && drawn.key === key ? drawn : undefined;
     return {
         url: sample ?? mine?.url,

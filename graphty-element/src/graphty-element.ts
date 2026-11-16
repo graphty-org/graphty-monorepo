@@ -139,6 +139,16 @@ function antialiasFromAttribute(value: string | null): Antialias {
 }
 
 /**
+ * The `preserve-drawing-buffer` attribute's value: only `"false"` turns it off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether the canvas keeps each drawn frame.
+ */
+function preserveDrawingBufferFromAttribute(value: string | null): boolean {
+    return value !== "false";
+}
+
+/**
  * Whether two property values are the same: identical, or equal as JSON.
  * @param a - One value.
  * @param b - The other.
@@ -240,6 +250,8 @@ export class Graphty extends LitElement {
     #builtGraph: Graph | undefined;
     /** The `antialias` property as set before the engine was built; undefined when it was not. */
     #antialias: Antialias | undefined;
+    /** The `preserveDrawingBuffer` property as set before the engine was built; undefined when it was not. */
+    #preserveDrawingBuffer: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -318,6 +330,9 @@ export class Graphty extends LitElement {
             // already present, though its own callback may not have run yet.
             const graph = new Graph(this.#element, false, {
                 antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+                preserveDrawingBuffer:
+                    this.#preserveDrawingBuffer ??
+                    preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer")),
             });
             this.#builtGraph = graph;
             waitFirstFor(
@@ -1005,11 +1020,15 @@ export class Graphty extends LitElement {
                 return;
             }
 
+            // `error` does not bubble: a bubbling `error` reaches `window`, where every page-wide
+            // error handler (window.onerror, error reporters, test runners) takes it for an uncaught
+            // exception -- a refusal the caller already caught would be reported as a crash (#8231).
+            const bubbles = event.type !== "error";
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
-                    bubbles: true,
-                    composed: true,
+                    bubbles,
+                    composed: bubbles,
                 }),
             );
             this.#announceSkybox(event);
@@ -4447,7 +4466,8 @@ export class Graphty extends LitElement {
      *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected model or one waiting for parts, its first problem's code and params.
+     *     rejected model or one waiting for parts, its first problem's code and params (with
+     *     `standInMissing`, a model waiting only for pictures or materials is drawn without them).
      * @example
      * ```typescript
      * const asset = await element.session.assets.add(input.files);
@@ -7207,6 +7227,54 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Whether the WebGL canvas keeps each drawn frame (WebGL's `preserveDrawingBuffer`), so the
+     * page can read the canvas between frames with `canvas.toDataURL()`, `toBlob()` or
+     * `drawImage(canvas)`. `false` saves a full-frame copy on every frame drawn; a read of the
+     * canvas outside a frame then gets a blank image. `captureScreenshot` and `captureAnimation`
+     * work either way. Read once, when the element builds its engine; a WebGPU canvas never keeps
+     * its frames.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_PRESERVE_DRAWING_BUFFER_LATE`, as a `graphty-warning` event.
+     * @example
+     * ```html
+     * <graphty-element preserve-drawing-buffer="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas keeps each drawn frame; true by default.
+     */
+    @property({
+        attribute: "preserve-drawing-buffer",
+        converter: { fromAttribute: preserveDrawingBufferFromAttribute },
+    })
+    get preserveDrawingBuffer(): boolean {
+        return (
+            this.#builtGraph?.preserveDrawingBuffer ??
+            this.#preserveDrawingBuffer ??
+            preserveDrawingBufferFromAttribute(this.getAttribute("preserve-drawing-buffer"))
+        );
+    }
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    set preserveDrawingBuffer(value: boolean) {
+        const oldValue = this.preserveDrawingBuffer;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#preserveDrawingBuffer = value;
+        } else if (value !== built.preserveDrawingBuffer) {
+            this.#warn({
+                code: "W_PRESERVE_DRAWING_BUFFER_LATE",
+                params: { requested: value, active: built.preserveDrawingBuffer },
+            });
+            return;
+        }
+
+        this.requestUpdate("preserveDrawingBuffer", oldValue);
     }
 
     /**

@@ -45,7 +45,8 @@ describe("the selection editor on 50,000 nodes", () => {
                 throw new Error("the workspace is open");
             }
             const closing = await framesUntilClosed(() =>
-                userEvent.click(within(ws).getByRole("button", { name: button })),
+                // A button's name may carry its key after its word.
+                userEvent.click(within(ws).getByRole("button", { name: new RegExp(`^${button}`) })),
             );
             assert.strictEqual(
                 closing.quiet,

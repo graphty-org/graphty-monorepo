@@ -80,13 +80,9 @@ describe("Video Capture - 2D Orthographic Camera", () => {
     test("2D video capture fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
-        // Use eventManager to listen for events
-        const { eventManager } = graph as {
-            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
-        };
-        eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as { progress: number };
-            progressEvents.push(progressData.progress);
+        graph.on("animation-progress", (event) => {
+            assert.isNumber(event.progress);
+            progressEvents.push(Number(event.progress));
         });
 
         await graph.captureAnimation({
@@ -187,13 +183,9 @@ describe("Video Capture - 2D Animated Camera", () => {
     test("2D animated video fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
-        // Use eventManager to listen for events
-        const { eventManager } = graph as {
-            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
-        };
-        eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as { progress: number };
-            progressEvents.push(progressData.progress);
+        graph.on("animation-progress", (event) => {
+            assert.isNumber(event.progress);
+            progressEvents.push(Number(event.progress));
         });
 
         const cameraPath: ViewWaypoint[] = [

@@ -232,6 +232,8 @@ describe("the timeline's switch in the app", () => {
         assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the Time window.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
         await userEvent.keyboard("{Escape}");
@@ -265,6 +267,8 @@ describe("the timeline's switch in the app", () => {
         assert.deepEqual(session.time.field, { edges: { start: "sent" } });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the Time window.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("option", { name: "Time window" });
         await userEvent.keyboard("{Escape}");
 
@@ -308,6 +312,8 @@ describe("the timeline's switch in the app", () => {
         });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
+        // The new card opens in the selection workspace: its Value list holds the Time window.
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
         await userEvent.keyboard("{Escape}");

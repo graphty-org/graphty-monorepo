@@ -874,25 +874,33 @@ function shareKey(layerId: LayerId, value: unknown): string {
  * @param winner.value - The value it painted.
  * @param covered - Whether a shader draws in place of the channel on this element.
  * @param own - The layers of the row being read over, if any.
+ * @param weight - How many elements this one stands for.
  */
 function tallyOne(
     tally: Tally,
     winner: { readonly layerId: LayerId; readonly value: unknown },
     covered: boolean,
     own: ReadonlySet<LayerId> | undefined,
+    weight: number,
 ): void {
     const { layerId, value } = winner;
-    tally.painted++;
-    tally.covered += covered ? 1 : 0;
-    tally.overridden += covered || own?.has(layerId) === false ? 1 : 0;
+    tally.painted += weight;
+    tally.covered += covered ? weight : 0;
+    tally.overridden += covered || own?.has(layerId) === false ? weight : 0;
     const key = shareKey(layerId, value);
     const share = tally.shares.get(key);
     if (share === undefined) {
-        tally.shares.set(key, { value, layerId, count: 1 });
+        tally.shares.set(key, { value, layerId, count: weight });
     } else {
-        share.count++;
+        share.count += weight;
     }
 }
+
+/** Work done by {@link styleAgreement}, for a test that counts it rather than times it. */
+export const agreementCounters = {
+    /** Walks of the stack over one element. */
+    walks: 0,
+};
 
 /**
  * Answer how several elements look, channel by channel.
@@ -923,45 +931,73 @@ export function styleAgreement(
     const winners = new Map<Channel, { layerId: LayerId; value: unknown }>();
     const rankOf = ranksOf(stack);
 
+    // WALKED ONCE PER LOOK, as styleCounts is: with no binding reading data, elements the same
+    // layers apply to look alike, so one walk stands for all of them (issue #7966: a panel's
+    // readings walked 50,000 nodes each after every filter change). Groups are tallied in the order
+    // their first element came, which keeps the order shares were first met in.
+    const grouped = readsNoData(stack, []);
+
+    const one = (target: SelectorTarget, columns: ElementColumns, index: number, weight: number): void => {
+        agreementCounters.walks++;
+        totals[target] += weight;
+        winners.clear();
+        const list: Channel = `${target}.shaders`;
+        let uses: unknown;
+        const useLayers = new Map<ShaderUse, LayerId>();
+        let shapeLayer: LayerId | undefined;
+        paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
+            if (prepared.channel === list) {
+                uses = mergeListValue(list, uses, result, layer.id, useLayers);
+            } else if (prepared.channel === "node.shape") {
+                shapeLayer = layer.id;
+            }
+
+            if (only === undefined || prepared.channel === only) {
+                const value = prepared.channel === list ? uses : result;
+                winners.set(prepared.channel, { layerId: layer.id, value });
+            }
+        });
+        const covering = coveringShader(
+            target,
+            { [list]: uses },
+            useLayers,
+            (channel) => (channel === "node.shape" ? shapeLayer : undefined),
+            rankOf,
+        );
+
+        for (const [channel, winner] of winners) {
+            let tally = tallies.get(channel);
+            if (tally === undefined) {
+                tally = { shares: new Map(), painted: 0, covered: 0, overridden: 0 };
+                tallies.set(channel, tally);
+            }
+
+            tallyOne(tally, winner, covering?.covers.includes(channel) === true, own, weight);
+        }
+    };
+
     const read = (target: SelectorTarget, indices: Iterable<number>): void => {
         const columns = columnsFor(sources.elements, target);
-
-        for (const index of indices) {
-            totals[target]++;
-            winners.clear();
-            const list: Channel = `${target}.shaders`;
-            let uses: unknown;
-            const useLayers = new Map<ShaderUse, LayerId>();
-            let shapeLayer: LayerId | undefined;
-            paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
-                if (prepared.channel === list) {
-                    uses = mergeListValue(list, uses, result, layer.id, useLayers);
-                } else if (prepared.channel === "node.shape") {
-                    shapeLayer = layer.id;
-                }
-
-                if (only === undefined || prepared.channel === only) {
-                    const value = prepared.channel === list ? uses : result;
-                    winners.set(prepared.channel, { layerId: layer.id, value });
-                }
-            });
-            const covering = coveringShader(
-                target,
-                { [list]: uses },
-                useLayers,
-                (channel) => (channel === "node.shape" ? shapeLayer : undefined),
-                rankOf,
-            );
-
-            for (const [channel, winner] of winners) {
-                let tally = tallies.get(channel);
-                if (tally === undefined) {
-                    tally = { shares: new Map(), painted: 0, covered: 0, overridden: 0 };
-                    tallies.set(channel, tally);
-                }
-
-                tallyOne(tally, winner, covering?.covers.includes(channel) === true, own);
+        if (!grouped) {
+            for (const index of indices) {
+                one(target, columns, index, 1);
             }
+            return;
+        }
+
+        const groups = new Map<string, { index: number; weight: number }>();
+        for (const index of indices) {
+            const key = appliesKey(stack, { target, index });
+            const group = groups.get(key);
+            if (group === undefined) {
+                groups.set(key, { index, weight: 1 });
+            } else {
+                group.weight++;
+            }
+        }
+
+        for (const { index, weight } of groups.values()) {
+            one(target, columns, index, weight);
         }
     };
 

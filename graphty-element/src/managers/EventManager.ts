@@ -409,6 +409,7 @@ export class EventManager implements Manager {
      * @param report - What the load did, including which endpoint spelling resolved
      * @param loadId - Which load this is, when it is one
      */
+    // eslint-disable-next-line max-params -- public API (api/index.api.md): grouping these parameters is a breaking change
     emitDataLoadingComplete(
         format: string,
         nodesLoaded: number,

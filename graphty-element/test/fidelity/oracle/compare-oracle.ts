@@ -741,11 +741,13 @@ const fromOwnEnd = (line: readonly Pt[], q: Pt, end: "source" | "target"): { px:
  * draws part-way (`partWay`), wherever the program draws its own, and one graphty draws part-way against a program's
  * head with no place of its own is not judged at all (it passed). Part-way is a quarter of the line or more from its
  * own end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a third
- * along it (the specimen sheets' short lines).
+ * along it (the specimen sheets' short lines). On a short line the share allowed is at least a render pixel, which no
+ * reader sees (pajek-graphstream-b 28 -> 17: 0.58 oracle px apart on an 11 px line, a share of 0.052).
  * @param oLine - the oracle's line, between its nodes' outlines
  * @param oa - the oracle's arrowhead
  * @param gLine - graphty's line, between its nodes' outlines
  * @param ga - graphty's arrowhead, in the same frame
+ * @param pixel - a render pixel, in oracle pixels
  * @returns the miss and what each side measured, or null where nothing can be judged
  */
 function arrowPlaceMiss(
@@ -753,6 +755,7 @@ function arrowPlaceMiss(
     oa: PArrow,
     gLine: readonly Pt[],
     ga: PArrow,
+    pixel = 0,
 ): { miss: number; oracle: number | null; graphty: number } | null {
     if (oa.end === "middle") {
         return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
@@ -767,8 +770,10 @@ function arrowPlaceMiss(
     }
     const along = o.share;
     const mine = fromOwnEnd(gLine, ga.at, oa.end).share;
+    const length = o.share > 0 ? o.px / o.share : 0;
+    const allowed = Math.max(ARROW_ALONG_SHARE, length > 0 ? pixel / length : 0);
     return {
-        miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
+        miss: Math.max(0, Math.abs(mine - along) - allowed) / allowed,
         oracle: R(along),
         graphty: R(mine),
     };
@@ -2809,9 +2814,13 @@ export function compareOracle(
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);
+        // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader
+        // sees either: graphty draws none there (#7759), and the program's, drawn before the nodes, lies under them
+        // (pajek-iliad 125 -> 123)
+        const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
-            const oa = o.arrows.find((a) => a.end === end);
             const gg = ga.find((a) => a.end === end);
+            const oa = unseen && gg === undefined ? undefined : o.arrows.find((a) => a.end === end);
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
@@ -2837,7 +2846,8 @@ export function compareOracle(
             );
             const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
             const place =
-                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ??
+                arrowPlaceMiss(vo, oa, vg, framed, pixel);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(
@@ -3737,8 +3747,11 @@ export function lineAngleAt(pts: readonly Pt[], q: Pt): number {
  * labelRenderedSizeThreshold, `node.labelMinNodeScreenSize`) shows while its node is drawn at least so many px
  * across, which depends on how large each side frames the graph, a camera choice judged apart (frame.zoom): it is
  * shown here where its node, at the oracle's scale, meets the rule (json-gephi-worldcup: 8 labels sigma shows on
- * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). ponytail: only the node's own
- * label; a node with further texts under such a rule would lose them here, and no format draws one yet.
+ * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). A label under a font-size rule
+ * (vis-network's drawThreshold, `node.labelMinScreenSize`) is judged the same way by its letters' height
+ * (json-vis-siblings: graphty's layout frames the labels 5.3 px tall, vis-network's 3.5 px, under its 4 px rule, #8196).
+ * ponytail: only the node's own label; a node with further texts under such a rule would lose them here, and no
+ * format draws one yet.
  * @param g - graphty's node
  * @param scale - oracle px per graphty px
  * @param oracle - the oracle's label, which decides a node on the rule's edge
@@ -3757,6 +3770,20 @@ function labelAtScale(g: PNode, scale: number, oracle: PText | null): PText | nu
         return oracle === null ? null : label;
     }
     return share > 0 ? label : null;
+}
+
+/**
+ * Whether a label is drawn level on a line that is not: its turn on screen within `tol` degrees of none, its line's
+ * more than `tol` degrees off level either way.
+ * @param rotation - the label's turn on screen, degrees
+ * @param line - its line's angle there, degrees
+ * @param tol - degrees
+ * @returns true for a label kept level against its line
+ */
+function levelOnSlope(rotation: number, line: number, tol: number): boolean {
+    const off = (deg: number, period: number): number =>
+        Math.abs((((deg % period) + period * 1.5) % period) - period / 2);
+    return off(rotation, 360) <= tol && off(line, 180) > tol;
 }
 
 /**
@@ -3810,13 +3837,19 @@ function judgeLabel(
     // own line there (a label drawn along its line on both sides, or level on both), in the oracle's line's frame.
     // A label kept upright on its line turns half round with the line's way, so there a half turn is no turn.
     const middle = (t: PText): Pt => [(t.box.x0 + t.box.x1) / 2, (t.box.y0 + t.box.y1) / 2];
+    // A label the program kept level on a line that is not (vis-network's default horizontal edge labels) is level
+    // whatever way the line runs: there the turn is the one on screen (json-vis-nodelegend, #8197). On a level line
+    // the two readings agree on the program's side, so it is judged along the line.
     const relative = place?.kind === "line" && place.relative && place.o.length >= 2 && place.g.length >= 2;
-    const turned = relative
-        ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
-        : angleToOracle(g.rotation);
-    const turn = relative
-        ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
-        : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
+    const keptLevel = relative && levelOnSlope(o.rotation, lineAngleAt(place.o, middle(o)), T.rotationDeg);
+    const turned =
+        relative && !keptLevel
+            ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
+            : angleToOracle(g.rotation);
+    const turn =
+        relative && !keptLevel
+            ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
+            : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
     j.add("label.rotation", kind, id, Math.max(0, Math.abs(turn) - T.rotationDeg), o.rotation, turned);
     const [on, gn] = [lineCount(o), lineCount(g)];
     j.add("label.lines", kind, id, Math.abs(on - gn), on, gn);

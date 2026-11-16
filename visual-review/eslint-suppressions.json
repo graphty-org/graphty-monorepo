@@ -1,0 +1,108 @@
+{
+  "capture/capture.mjs": {
+    "sonarjs/no-clear-text-protocols": {
+      "count": 1
+    },
+    "sonarjs/no-os-command-from-path": {
+      "count": 3
+    },
+    "unicorn/prefer-structured-clone": {
+      "count": 1
+    },
+    "unicorn/prefer-type-error": {
+      "count": 1
+    }
+  },
+  "capture/story-test.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "trusted/gate.mjs": {
+    "sonarjs/no-os-command-from-path": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "trusted/lib/accept.mjs": {
+    "sonarjs/no-nested-template-literals": {
+      "count": 6
+    },
+    "sonarjs/no-os-command-from-path": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    }
+  },
+  "trusted/lib/approval.mjs": {
+    "sonarjs/no-nested-template-literals": {
+      "count": 1
+    },
+    "unicorn/prefer-type-error": {
+      "count": 1
+    }
+  },
+  "trusted/lib/config.mjs": {
+    "sonarjs/no-os-command-from-path": {
+      "count": 2
+    }
+  },
+  "trusted/lib/inbox.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "trusted/lib/init.mjs": {
+    "sonarjs/no-os-command-from-path": {
+      "count": 2
+    }
+  },
+  "trusted/lib/serve.mjs": {
+    "sonarjs/no-os-command-from-path": {
+      "count": 1
+    },
+    "unicorn/consistent-function-scoping": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 8
+    }
+  },
+  "trusted/page/passkey.js": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-code-point": {
+      "count": 2
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 2
+    }
+  },
+  "trusted/page/review.js": {
+    "sonarjs/cognitive-complexity": {
+      "count": 5
+    },
+    "sonarjs/no-nested-assignment": {
+      "count": 1
+    },
+    "sonarjs/no-nested-template-literals": {
+      "count": 5
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 14
+    },
+    "unicorn/prefer-set-has": {
+      "count": 4
+    },
+    "unicorn/prefer-top-level-await": {
+      "count": 2
+    }
+  }
+}

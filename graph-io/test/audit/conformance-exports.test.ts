@@ -206,6 +206,8 @@ interface DesignImportReport {
     readonly durationMs: number;
     // added by the network sources design (section 8)
     readonly source?: SourceReportInfo | undefined;
+    // the options the importer worked out, to read a file the same way again
+    readonly resolved?: Readonly<Record<string, unknown>> | undefined;
 }
 
 describe("design 12.4: the io contract types are exported with the listed shapes", () => {

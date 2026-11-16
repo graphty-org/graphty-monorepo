@@ -14,7 +14,6 @@ import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -82,14 +81,11 @@ describe("A yes-or-no column", () => {
             ["Yes", "No"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
-        // With the selection workspace on, the card is a draft until Done writes it as one step
-        // (design/working-graph/design.md, section 3); off, each edit is written as it is made.
-        if (selectionWorkspaceOn(session)) {
-            assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
-            const modal = document.querySelector<HTMLElement>(".sel-ws");
-            assert.isNotNull(modal, "the new card opens in the selection workspace");
-            await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
-        }
+        // The card is a draft until Done writes it as one step (design/working-graph/design.md, section 3).
+        assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
+        const modal = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(modal, "the new card opens in the selection workspace");
+        await userEvent.click(within(modal ?? document.body).getByRole("button", { name: "Done" }));
 
         await waitFor(() => {
             assert.equal(session.visibility.conditions.length, 1);

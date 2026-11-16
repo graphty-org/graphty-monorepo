@@ -218,6 +218,24 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
     });
 
+    it("lines up a label's lines by its alignment, in a box sized to its words too", async () => {
+        // yed-graphml-specimen-labels.svg: `alignment-left` draws "ab" under the start of "Wide line", `alignment-right`
+        // under its end, in a label box yEd sized to the words (autoSizePolicy="content")
+        const node = (id: string, align: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="40" width="60" x="0" y="0"/>` +
+            `<y:NodeLabel alignment="${align}" autoSizePolicy="content" modelName="internal" modelPosition="c" ` +
+            `x="0.1" y="5" width="59.8" height="30">Wide line\nab</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("left", "left"),
+            node("center", "center"),
+            node("right", "right"),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelTextAlign", snapshot)).toEqual(["left", "center", "right"]);
+    });
+
     it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
         // a NodeLabel with no modelName is in yEd's internal model, whose places are inside the node; the exterior
         // places are the compass names (yFiles InteriorLabelModel and ExteriorLabelModel)

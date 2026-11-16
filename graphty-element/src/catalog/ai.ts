@@ -336,7 +336,7 @@ export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilitySta
 /** What the assistant can use with a provider and model (`getAiCapabilities()`). */
 export interface AiCapabilities {
     /** The provider: one of `AI_PROVIDER_IDS`, or the `name` of a provider instance of your own. */
-    readonly provider: AiProviderId | (string & {}); // NOSONAR(S4335): the open-union idiom
+    readonly provider: AiProviderId | (string & {}); // the open-union idiom
     /** The model id; empty when a provider instance of your own does not say. */
     readonly model: string;
     /** Each tool, and whether it can be used. */

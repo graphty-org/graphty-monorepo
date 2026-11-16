@@ -213,8 +213,8 @@ reopen an issue for it. pipeline-round's step 10 finishes it or records why not.
 `pr-open.sh` refuse. Continue on a new branch made from the old one in a new worktree
 (`./tools/worktree-new.sh <new-branch> origin/<old-branch> <name> --issue <N>`); never restore the file, delete it
 from git's view or force-remove the old worktree. The script records the old branch as the new one's stacked base,
-so then run `git config branch.<new-branch>.prBase master`, or the sonar gate and pr-open compare against the old
-branch (#4247).
+so then run `git config branch.<new-branch>.prBase master`, or the duplicate code check and pr-open compare against
+the old branch (#4247).
 
 ## Subagent rules
 
@@ -261,7 +261,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > `git grep` the error codes, labels, defaults and strings your change altered across `*/test`, `*/src/**/__tests__`
 > and `graphty/src`, and run every test file it hits: a third of 2026-11-13's red pull requests were tests in another
 > file or package still pinning the old behavior. (Not `pnpm run check:quick`: it runs whole browser shards.) Then
-> run `node tools/sonar-gate.mjs` on the merged code and commit. A check failing on something your branch did not
+> run `pnpm run check:duplicates` on the merged code and commit. A check failing on something your branch did not
 > touch (Docs, knip, a push guard) is master's: merge origin/master, which clears it. A commit pushed after
 > `pr-open.sh` ran needs `tools/pr-open.sh` run again, since PR Integrity reviews the head. A change that adds a graphty-element channel or a
 > graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,

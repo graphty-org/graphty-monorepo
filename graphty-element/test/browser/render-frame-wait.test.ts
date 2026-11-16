@@ -5,6 +5,7 @@ import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { isGraphtyError } from "../../src/errors";
 import { setDefaultFeatures } from "../../src/features/resolve";
+import { renderManagerOf } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 import { takeCaughtErrors } from "../helpers/caught-errors";
@@ -172,7 +173,7 @@ describe("a play waiting for frames on a real element", () => {
         };
         await made.waitForSettled();
 
-        return { element: made, manager: Reflect.get(made.graph, "renderManager") as RenderManager };
+        return { element: made, manager: renderManagerOf(made.graph) };
     }
 
     /**

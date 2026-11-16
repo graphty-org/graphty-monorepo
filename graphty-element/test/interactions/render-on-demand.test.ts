@@ -20,8 +20,7 @@ import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
-import { operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
 
 // The timeline is an experiment: this file's sessions switch it on.
@@ -110,7 +109,7 @@ function countDraws(element: Graphty): { readonly count: () => number } {
  * @returns The loop's running counts.
  */
 function loopTicks(element: Graphty): { readonly drawn: number; readonly rested: number } {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.ticks;
+    return renderManagerOf(element.graph).ticks;
 }
 
 /**
@@ -344,8 +343,9 @@ describe("renderOnDemand", () => {
          * @param element - The element.
          */
         function gpuStaysBehind(element: Graphty): void {
-            const manager = (element.graph as unknown as { renderManager: { gpuBehind: () => boolean } }).renderManager;
-            const spy = vi.spyOn(manager, "gpuBehind").mockReturnValue(true);
+            const manager = renderManagerOf(element.graph);
+            // gpuBehind is the render manager's own private probe; this mechanism test replaces it.
+            const spy = vi.spyOn(manager as unknown as { gpuBehind: () => boolean }, "gpuBehind").mockReturnValue(true);
             cleanups.push(() => {
                 spy.mockRestore();
             });

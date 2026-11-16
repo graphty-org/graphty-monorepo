@@ -2,12 +2,8 @@
 # runner has: Playwright's WebKit on macOS, real Safari through safaridriver, and Safari on iOS in the iOS
 # Simulator, including a return to a discarded tab that must keep its session storage and its own autosave entry
 # (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
-# ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element.
-#
-# Beside them, the few tests whose defects only Safari showed: a reopen the held database stalls, in real Safari
-# (#8207), and the selection workspace's acceptance test, sliders included, in Playwright's WebKit on macOS (#8309).
-# The acceptance test drives the app through Playwright, which cannot drive real Safari (its WebKit is its own
-# build; only safaridriver drives Safari), so on macOS it runs in that WebKit, with Apple's own frame timing.
+# ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element. The safari job
+# also reopens kept work while the autosave database is held (#8207), which only real Safari showed stalling.
 #
 # Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
 # holds the release; and on demand (gh workflow run work-protection-macos.yml --ref <branch>). Never on a pull
@@ -78,17 +74,6 @@ jobs:
                   name: work-protection-bundle
                   path: graphty-element/dist/graphty.bundle.js
                   retention-days: 3
-            # The graphty app, for the selection workspace's acceptance test in the webkit job.
-            - name: Build the graphty app
-              if: ${{ !inputs.files }}
-              run: pnpm exec nx run graphty:build
-              env: { NODE_OPTIONS: "--max-old-space-size=8192" }
-            - if: ${{ !inputs.files }}
-              uses: actions/upload-artifact@v7
-              with:
-                  name: selection-workspace-app
-                  path: graphty/dist
-                  retention-days: 3
 
     # The kill and relaunch rows: Playwright's WebKit on a persistent profile, the browser killed and relaunched,
     # and its web content process killed. Real Safari cannot run these: each safaridriver session may start
@@ -98,7 +83,7 @@ jobs:
         needs: bundle
         if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/engines.test.ts') || contains(inputs.files, 'test/lifecycle/autosave-engines.bench.test.ts') }}
         runs-on: macos-26
-        timeout-minutes: 55
+        timeout-minutes: 25
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
@@ -115,25 +100,6 @@ jobs:
             - run: pnpm exec playwright install webkit
             - name: Kill and relaunch (Playwright WebKit)
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/engines.test.ts -t "^webkit|WebKit web process killed"
-            - if: ${{ !inputs.files }}
-              uses: actions/download-artifact@v8
-              with: { name: selection-workspace-app, path: graphty/dist }
-            # Every scenario, sliders included, in Playwright's WebKit on macOS; ci.yml runs it on Linux on every
-            # pull request that affects the app.
-            - name: The selection workspace's acceptance test (Playwright WebKit)
-              if: ${{ !inputs.files }}
-              # 147 scenarios took about 18 minutes at 3 at a time on macos-26 (three cores)
-              timeout-minutes: 30
-              working-directory: .
-              run: node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit --out "$RUNNER_TEMP/selection-workspace"
-            - name: Keep the screenshots of failed scenarios
-              if: failure()
-              uses: actions/upload-artifact@v7
-              with:
-                  name: selection-workspace-webkit-macos
-                  path: ${{ runner.temp }}/selection-workspace
-                  if-no-files-found: ignore
-                  retention-days: 7
             # Recorded against design section 5.4, never asserted; it gates nothing.
             - name: Benchmark (WebKit, recorded)
               continue-on-error: true

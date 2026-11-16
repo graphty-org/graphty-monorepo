@@ -151,13 +151,15 @@ describe.skipIf(!MACOS)("real Safari", () => {
     it("refuses a reopen the held database stalls, and reopens once it is let go", async () => {
         const key = "safari-restore-stall";
         await inSession(async (safari) => {
-            // The first page keeps work, then leaves, which frees its entry.
+            // The first page keeps work, then its tab closes, which frees its entry. Navigating away would
+            // not: Safari keeps the page in its back-forward cache, holding the entry (pagehide persisted).
             await safari.navigate(fx.url({ key, tab: `${key}.a` }));
             await ready(safari);
             const probe = await safari.execute<number>("return fixture.next()");
             const saved = (await fx.waitFor(
                 (e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= probe,
             )) as LogEvent & { entry: string };
+            await safari.replaceTab();
 
             // The next page leaves the restore to itself, as an app reopening a tab's project does, and a
             // connection of the same origin holds a read-write transaction on the parts and never finishes it.

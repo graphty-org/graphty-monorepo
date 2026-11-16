@@ -113,6 +113,50 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
+    it("T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row", async () => {
+        const session = await openKarate();
+        // The finished load is announced with its size, read from the element.
+        await screen.findByText("Untitled: 34 nodes, 78 edges");
+
+        await analyze("PageRank", "PageRank");
+        // Running closes the popover; a screen reader hears the run start, then, on the same
+        // line, that it finished (on Karate it may already have).
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
+        });
+        assert.isNotNull(screen.getByText(/^PageRank (added, running|finished: .+ ranks first, .+)$/));
+        // Focus goes back to Analyze, not to the page.
+        await waitFor(() => {
+            assert.equal(document.activeElement, analyzeTool());
+        });
+
+        const runId = await finished(session, "pagerank");
+        // It names the node that ranks first.
+        await screen.findByText(/^PageRank finished: .+ ranks first, .+$/);
+        // The run's suggested style landed as a layer bound to the run: it paints.
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(runId).length, 0);
+        });
+
+        const steps = session.history.steps.length;
+        // Picking it again revises the same row, so the button says so; with the settings the
+        // layer already shows, pressing it would change nothing, so it is not offered.
+        await userEvent.click(analyzeTool());
+        const recent = await screen.findByRole("group", { name: "Recent" });
+        await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
+        const update = await screen.findByRole("button", { name: "Update PageRank layer" });
+        assert.strictEqual(update.getAttribute("aria-disabled"), "true");
+        // A real press on the dimmed button (force: it is aria-disabled, so it would wait for enabled).
+        await userEvent.click(update, { force: true });
+        assert.strictEqual(session.history.steps.length, steps, "pressing it records nothing");
+        assert.isNotNull(screen.getByText("PageRank is up to date with these settings."));
+        assert.isNotNull(screen.getByRole("combobox", { name: "Filter analyses" }), "Analyze stays open");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
+        });
+    });
+
     it("a run that made no layer (canceled) leaves Analyze offering Run, not Update <name> layer", async () => {
         const session = await openKarate();
         const run = session.runs.start("betweenness");
@@ -129,6 +173,36 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.match(action.textContent ?? "", /^Run\b/);
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise", async () => {
+        const session = await openKarate();
+
+        // A single match: typing then Enter chooses it, focus moves to its Run, and Enter runs it.
+        await userEvent.click(analyzeTool());
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
+        const run = await screen.findByRole("button", { name: "Run Betweenness" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, run);
+        });
+        await userEvent.keyboard("{Enter}");
+        await finished(session, "betweenness");
+
+        // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter chooses it.
+        await userEvent.click(analyzeTool());
+        const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+        assert.isNull(box.getAttribute("aria-activedescendant"));
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
+        const options = screen.getAllByRole("option");
+        assert.equal(box.getAttribute("aria-activedescendant"), options[1].id);
+        assert.equal(options[1].getAttribute("aria-selected"), "true");
+        assert.equal(document.activeElement, box);
+        const name = options[1].getAttribute("aria-label") ?? "";
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isTrue(screen.getAllByRole("option")[1].hasAttribute("data-chosen"), `${name} is chosen`);
+        });
+        assert.isNotNull(screen.getByRole("button", { name: new RegExp(`^(Run|Update|Add) ${name}`) }));
     });
 
     it("T8: after Betweenness, Analyze > Find groups > Louvain runs and paints", async () => {

@@ -740,7 +740,7 @@ export function SelectionEditor({
             const rows = [...root.querySelectorAll<HTMLElement>(ROW)];
             target = rows[Math.min(want, rows.length - 1)];
         } else if (want === PANE_FOCUS) {
-            target = paneTarget(root);
+            target = paneTarget(root, selected);
         } else {
             target = (typeof want === "string" ? [want] : want)
                 .map((each) => root.querySelector<HTMLElement>(each))
@@ -768,7 +768,7 @@ export function SelectionEditor({
         reading.branches.find((branch) => branch.id === id);
 
     const focusPane = (): boolean => {
-        const target = paneTarget(wsBox.current);
+        const target = paneTarget(wsBox.current, selected);
         if (target === undefined) {
             return false;
         }
@@ -2412,14 +2412,16 @@ export function SelectionEditor({
 }
 
 /**
- * The control focus goes to in the workspace's pane: the first of {@link PANE_FOCUS} that can take
- * focus (a box inside a collapsed Advanced cannot).
+ * The control focus goes to in the selected step's card: the first of {@link PANE_FOCUS} that can
+ * take focus.
  * @param root - the workspace.
+ * @param step - the selected step, whose card is searched; with none, the first card that has one.
  * @returns the control, or undefined when none can take focus.
  */
-function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
+function paneTarget(root: HTMLElement | null, step: string | null): HTMLElement | undefined {
+    const card = step === null ? "" : `[data-step-pane="${CSS.escape(step)}"] `;
     for (const selector of PANE_FOCUS) {
-        const found = [...(root?.querySelectorAll<HTMLElement>(selector) ?? [])].find(
+        const found = [...(root?.querySelectorAll<HTMLElement>(card + selector) ?? [])].find(
             (each) => canFocus(each) && each.tabIndex >= 0,
         );
         if (found !== undefined) {
@@ -2463,12 +2465,12 @@ const TEST_FOCUS: readonly string[] = [
     ".sel-ws-cards .sel-test-box input:not([type=hidden])",
 ];
 
-/** Where focus goes in a pane that was entered: its first box to type in, else its first control. */
+/** Where focus goes in a step's card that was entered: its test's first box to type in, else its first control. */
 const PANE_FOCUS: readonly string[] = [
-    ".sel-pane-box [data-first-focus]",
-    ".sel-pane-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
-    ".sel-pane-box input:not([type=hidden])",
-    ".sel-pane-box button",
+    ".sel-test-box [data-first-focus]",
+    ".sel-test-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
+    ".sel-test-box input:not([type=hidden])",
+    ".sel-test-box button",
 ];
 
 /**

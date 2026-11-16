@@ -136,26 +136,26 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
-            rollupOptions: {
+            rolldownOptions: {
                 output: {
                     // Babylon.js in a chunk of its own. In one entry chunk with the app it made an
                     // 11 MB chunk whose 44 MB sourcemap took the build past Node's default heap
                     // (#2563). graphty-element (bundled from source, see vite.aliases.ts) is not
                     // named here: the app loads its renderer with a dynamic import
-                    // (src/elementLoader.ts), so Rollup puts it in a chunk of its own, and the
-                    // Node-safe entries the start page imports (session types, schema, catalog)
-                    // stay with the app instead of pulling Babylon.js into the first load.
-                    manualChunks(id) {
-                        // Vite's dynamic-import helper in a chunk of its own: left to Rollup it
-                        // lands in the Babylon.js chunk, and the first load then fetches all of
-                        // Babylon.js to get one small function.
-                        if (id.includes("vite/preload-helper")) {
-                            return "preload-helper";
-                        }
-                        if (id.includes("/node_modules/@babylonjs/")) {
-                            return "babylon";
-                        }
-                        return undefined;
+                    // (src/elementLoader.ts), so it gets a chunk of its own, and the Node-safe
+                    // entries the start page imports (session types, schema, catalog) stay with
+                    // the app instead of pulling Babylon.js into the first load.
+                    //
+                    // Vite's dynamic-import helper gets a chunk of its own, listed first so it
+                    // wins: left to the bundler it lands in the Babylon.js chunk, and every
+                    // import() in the first load then fetches all of Babylon.js before the start
+                    // page shows (issue #8225). Rolldown never passes the helper to a
+                    // `manualChunks` function, so this is a `codeSplitting` group.
+                    codeSplitting: {
+                        groups: [
+                            { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
+                            { name: "babylon", test: /\/node_modules\/@babylonjs\//, priority: 1 },
+                        ],
                     },
                 },
             },

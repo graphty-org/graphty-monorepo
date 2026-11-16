@@ -12,13 +12,15 @@
  * - stall detection: a write held behind another transaction is reported as `E_AUTOSAVE_STALLED`,
  *   and the next change commits once the database is free.
  * - `persist()`: the element's `status.persisted` agrees with `navigator.storage.persisted()`.
+ * - a reopen the held database stalls (#8207, restore-stall.test.ts in the other engines): refused as
+ *   `E_AUTOSAVE_STALLED` with the entry left as it was, then reopened once the database is let go.
  */
 
 import { appendFileSync } from "node:fs";
 
 import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
-import { type Fixture, startFixture } from "./fixture";
+import { type Fixture, HOLD_PARTS, type LogEvent, startFixture } from "./fixture";
 import { type Safari, type SafariDriver, startSafariDriver } from "./safaridriver";
 
 const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
@@ -143,6 +145,46 @@ describe.skipIf(!MACOS)("real Safari", () => {
             const after = await safari.execute<number>("return fixture.next()");
             await fx.waitFor((e) => e.tab === tab && e.type === "saved" && (e.revision as number) >= after);
             note("a held write was reported as E_AUTOSAVE_STALLED, and the next change committed");
+        });
+    });
+
+    it("refuses a reopen the held database stalls, and reopens once it is let go", async () => {
+        const key = "safari-restore-stall";
+        await inSession(async (safari) => {
+            // The first page keeps work, then leaves, which frees its entry.
+            await safari.navigate(fx.url({ key, tab: `${key}.a` }));
+            await ready(safari);
+            const probe = await safari.execute<number>("return fixture.next()");
+            const saved = (await fx.waitFor(
+                (e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= probe,
+            )) as LogEvent & { entry: string };
+
+            // The next page leaves the restore to itself, as an app reopening a tab's project does, and a
+            // connection of the same origin holds a read-write transaction on the parts and never finishes it.
+            await safari.navigate(fx.url({ key, tab: `${key}.b`, restore: "manual" }));
+            await ready(safari);
+            await safari.execute(`return ${HOLD_PARTS}`);
+
+            const refused = await safari.execute<{ code: string; details: { step: string } } | null>(
+                `return fixture.el.autosaver.restore(arguments[0], { discard: true }).then(
+                    () => null,
+                    (e) => ({ code: e.code, details: e.details }),
+                );`,
+                [saved.entry],
+            );
+            assert.isNotNull(refused, "the reopen was refused, not opened, while the database is held");
+            assert.strictEqual(refused?.code, "E_AUTOSAVE_STALLED");
+            assert.include(["read", "restore"], refused?.details.step);
+
+            // Let go: the entry was left as it was and its lock is free, so the same reopen opens it.
+            await safari.execute("window.__release = true; return true;");
+            const check = await safari.execute<{ restored: { entry: string } | null; probes: unknown[] }>(
+                "return fixture.restore(arguments[0])",
+                [saved.entry],
+            );
+            assert.strictEqual(check.restored?.entry, saved.entry);
+            assert.deepStrictEqual(check.probes, [probe], "the kept work came back");
+            note("a reopen the held database stalled was refused as E_AUTOSAVE_STALLED, then reopened");
         });
     });
 

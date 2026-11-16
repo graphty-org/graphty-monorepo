@@ -147,7 +147,8 @@ aboutCredits.textContent = map.attribution.join(" | ");
   `beyond`, `radius`, `sun` or `atmosphere` change the map. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
-  screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
+  screen), `maxTiles` (256 tiles chosen per source and world copy; loaded
+  stand-ins for a tile still loading are drawn in addition), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
   `renderingGroupId` (0) and `loadTexture` (your own loader).
 - `map.root` is the parent of every map mesh: move, rotate or scale it to place the map. Map meshes
   are not pickable.

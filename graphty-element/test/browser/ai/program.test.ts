@@ -151,11 +151,14 @@ describe("in-page code sandbox (built chunk)", () => {
     it("stops a program past its memory as program-memory", async () => {
         const { runProgram, openProgramContexts } = await sandbox();
         const result = await runProgram(
-            // Arrays, not repeated strings: QuickJS builds a repeated string as a rope of shared
-            // pieces, so a thousand copies of one take almost no memory.
-            "const a = [];\nwhile (true) a.push(new Array(1000).fill(a.length));",
+            // Many small arrays, not repeated strings: QuickJS builds a repeated string as a rope of
+            // shared pieces, so a thousand copies of one take almost no memory. Small ones reach the
+            // limit in tens of milliseconds, where arrays of a thousand take seconds of CPU.
+            "const a = [];\nwhile (true) a.push([a.length]);",
             {},
-            { ...LIMITS, memoryMb: 4 },
+            // No time limit: memory, not a wall clock, must end it, or a loaded machine could
+            // interrupt it first and report program-timeout.
+            { ...LIMITS, memoryMb: 4, timeoutMs: Infinity },
             never,
         );
         assert.strictEqual(result.params.cause, "program-memory");

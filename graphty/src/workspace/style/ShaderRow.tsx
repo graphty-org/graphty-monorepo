@@ -378,7 +378,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
     };
     const removeName = `Remove ${name.toLowerCase()}`;
     const row = (
-        <div // NOSONAR(S6848): catches Alt+Up and Alt+Down bubbling from the row's own controls to reorder it
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- catches Alt+Up and Alt+Down bubbling from the row's own controls to reorder it
             ref={box}
             className="ws-row ws-shader-row"
             data-line={entry.key}

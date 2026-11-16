@@ -63,7 +63,6 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     tooltip: "Tooltip",
     head: "At target",
     tail: "At source",
-    xlabel: "Extra",
 };
 
 /** Where a label can sit, in the order the position select lists them. */
@@ -200,8 +199,7 @@ export function LabelSection({
     };
     const options: AddOption[] = kinds.flatMap((kind) => {
         if (!hasEntry(kind)) {
-            // A kind an experiment the element has off adds (the extra label) is not offered.
-            if (picking === kind.id || typing === kind.id || descriptorOf(session, target, kind.words) === undefined) {
+            if (picking === kind.id || typing === kind.id) {
                 return [];
             }
             // A node or edge label can also start as a card (a row of one layer only).
@@ -231,7 +229,7 @@ export function LabelSection({
         const style = styleOf(styleLine);
         let write: Promise<unknown>;
         if (part === "size") {
-            const size = kind.size === undefined ? undefined : descriptorOf(session, target, kind.size);
+            const size = descriptorOf(session, target, kind.size);
             if (size === undefined) {
                 return;
             }
@@ -592,7 +590,7 @@ function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<ty
 }
 
 /**
- * A text entry's own "+" ("Add to node label"): its look, size, position and table while it sets none.
+ * A text entry's own "+" ("Add to node label"): its look, size and position while it sets none.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.kind - the kind of text
@@ -623,13 +621,13 @@ interface TextEntryProps {
     kind: TextKindSpec;
     /** Writes the words: typed, or read from a value. */
     onWords: (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }) => void;
-    /** Adds the entry's look, size, position or table, by `<kind>:<part>`. */
+    /** Adds the entry's look, size or position, by `<kind>:<part>`. */
     onPart: (key: string) => void;
     onFail: (error: unknown) => void;
 }
 
 /**
- * What a text entry's own "+" can still add: its look, size, position and table while it sets none.
+ * What a text entry's own "+" can still add: its look, size and position while it sets none.
  * @param ctx - the row.
  * @param kind - the kind of text.
  * @returns the menu items, keyed `<kind>:<part>`.
@@ -640,39 +638,14 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
     if (style.look === undefined) {
         parts.push({ key: `${kind.id}:look`, label: "Look" });
     }
-    if (
-        kind.size !== undefined &&
-        lineIn(ctx, kind.size) === undefined &&
-        descriptorOf(ctx.session, ctx.side, kind.size) !== undefined
-    ) {
+    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
         parts.push({ key: `${kind.id}:size`, label: "Size" });
     }
     const location = fieldChannelOf(ctx.side, kind.words, "location");
     if (style.location === undefined && (location === undefined || lineIn(ctx, location) === undefined)) {
         parts.push({ key: `${kind.id}:position`, label: "Position" });
     }
-    // A table is drawn in place of the label's words; it is typed as the element's table JSON.
-    if (
-        kind.table !== undefined &&
-        lineIn(ctx, kind.table) === undefined &&
-        descriptorOf(ctx.session, ctx.side, kind.table) !== undefined
-    ) {
-        parts.push({ key: `${kind.id}:table`, label: "Table" });
-    }
     return parts;
-}
-
-/**
- * A channel of a text entry as the row draws it: as the element offers it, or, when the row already
- * sets it, as graphty-element ships it.
- * @param ctx - the row.
- * @param channel - the channel, absent on a kind that has none.
- * @returns its descriptor, or undefined.
- */
-function shownIn(ctx: RowContext, channel: Channel | undefined): ChannelDescriptor | undefined {
-    return channel === undefined
-        ? undefined
-        : shownChannel(ctx.session, ctx.side, channel, lineIn(ctx, channel) !== undefined);
 }
 
 /**
@@ -693,8 +666,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [sourceOpen, setSourceOpen] = useState(false);
     const [typing, setTyping] = useState(false);
-    // The table "+" added, waiting for its words: nothing is written until they are typed.
-    const [tableWaiting, setTableWaiting] = useState(false);
     const { session, side: target, layers } = ctx;
     const noun = kind.name.toLowerCase();
     const kindWord = target === "node" ? "Node" : "Edge";
@@ -702,7 +673,9 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
-    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined => shownIn(ctx, channel);
+    // What the element offers, and a setting the row already sets even when it is not offered.
+    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
+        shownChannel(session, target, channel, lineIn(ctx, channel) !== undefined);
     // A write from the row drops `enabled: false`, which the row no longer sets: a label hidden
     // before the row lost its eye is drawn again once the reader changes it here.
     const writeStyle = (patch: Partial<LabelStyle>): void => {
@@ -727,17 +700,9 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         value: look.id,
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
-    const sizeDescriptor = shownIn(ctx, kind.size);
+    const sizeDescriptor = descriptorOf(kind.size);
     // The position varies by a value from its own line, as a setting varies from Label settings.
     const locationVary = vary("location");
-    const addPart = (key: string): void => {
-        if (key === `${kind.id}:table` && kind.table !== undefined) {
-            focusLineNext(session, kind.table);
-            setTableWaiting(true);
-            return;
-        }
-        onPart(key);
-    };
     const where = `${kindWord} ${noun}`;
     const sourcePicker = (trigger: React.ReactElement): React.JSX.Element => (
         <SourcePicker
@@ -800,7 +765,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
-                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={addPart} />
+                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
                 {sourceControl}
                 <SettingsPopout
@@ -894,14 +859,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
             {sizeDescriptor === undefined ? null : <Field ctx={ctx} descriptor={sizeDescriptor} word="Size" />}
-            <TableLine
-                ctx={ctx}
-                descriptor={shownIn(ctx, kind.table)}
-                waiting={tableWaiting}
-                onCancel={() => {
-                    setTableWaiting(false);
-                }}
-            />
             {locationVary?.field ?? (
                 <StyleLine
                     word="Position"
@@ -925,41 +882,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 </StyleLine>
             )}
         </Stack>
-    );
-}
-
-/**
- * A label's table, drawn as a words field: while "+" has added it and nothing is typed yet, it waits
- * for the table's words, writing nothing.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.descriptor - the table's channel, when the element offers it
- * @param props.waiting - whether "+" added it
- * @param props.onCancel - drops it while it waits
- * @returns The line, or nothing
- */
-function TableLine({
-    ctx,
-    descriptor,
-    waiting,
-    onCancel,
-}: Readonly<{
-    ctx: RowContext;
-    descriptor: ChannelDescriptor | undefined;
-    waiting: boolean;
-    onCancel: () => void;
-}>): React.JSX.Element | null {
-    if (descriptor === undefined) {
-        return null;
-    }
-    return (
-        <Field
-            ctx={ctx}
-            descriptor={descriptor}
-            word="Table"
-            pending={waiting && lineIn(ctx, descriptor.channel) === undefined}
-            onCancel={onCancel}
-        />
     );
 }
 

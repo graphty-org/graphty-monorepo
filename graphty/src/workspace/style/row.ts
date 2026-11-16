@@ -628,12 +628,6 @@ const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = {
     "node.chartMin": 0,
     "node.chartMax": 1,
     "node.halo": true,
-    // Unset, a chart's plot box and an open cap's inside are left empty; one added starts white.
-    "node.chartBackgroundColor": "#ffffff",
-    "edge.arrowHeadFillColor": "#ffffff",
-    "edge.arrowTailFillColor": "#ffffff",
-    "edge.arrowMiddleHeadFillColor": "#ffffff",
-    "edge.arrowMiddleTailFillColor": "#ffffff",
 };
 
 /**

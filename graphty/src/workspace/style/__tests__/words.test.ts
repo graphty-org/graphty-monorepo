@@ -32,7 +32,7 @@ describe("the Style tab's words and arrangement", () => {
     it("draws Nodes and Edges in their fixed sections", () => {
         assert.deepEqual(
             SECTIONS.node.map((section) => section.title),
-            ["Shape", "Visibility", "Text", "Fill", "Borders", "Charts", "Shaders"],
+            ["Shape", "Visibility", "Text", "Fill", "Shaders"],
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),

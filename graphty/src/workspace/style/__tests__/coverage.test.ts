@@ -1,4 +1,4 @@
-import { CHANNELS, channelsFor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/catalog";
+import { CHANNEL_DESCRIPTORS, CHANNELS, channelsFor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -82,6 +82,14 @@ const VARIED = (["node", "edge"] as const).flatMap((side) =>
 const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? []), ...VARIED]);
 
 /**
+ * The file-styles experiment's channels that no section draws: the panel by part places them
+ * (`parts/__tests__/parts.test.ts`), so this map gives them that one reason.
+ */
+const BY_PART = new Set<string>(
+    CHANNELS.filter((channel) => CHANNEL_DESCRIPTORS[channel].feature === "file-styles" && !DRAWN.has(channel)),
+);
+
+/**
  * The only styles the panel may leave without a control, each for a reason no control could fix.
  * Every other channel, label style field and graph setting has an `at(...)` home, so a channel
  * graphty-element adds later fails here until the panel draws a control for it.
@@ -114,7 +122,7 @@ describe("every style has a home", () => {
     it("gives every style a control except the few no control could set", () => {
         assert.deepEqual(
             [
-                ...notOfferedIn(CHANNEL_HOMES),
+                ...notOfferedIn(CHANNEL_HOMES).filter((channel) => !BY_PART.has(channel)),
                 ...notOfferedIn(LABEL_FIELD_HOMES, "label field "),
                 ...notOfferedIn(GRAPH_SETTING_HOMES),
             ],
@@ -142,7 +150,18 @@ describe("every style has a home", () => {
 
     it("places exactly the channels the Style tab draws, and gives the rest a reason", () => {
         for (const channel of CHANNELS) {
-            assert.strictEqual("place" in CHANNEL_HOMES[channel], PLACED.has(channel), channel);
+            assert.strictEqual(
+                "place" in CHANNEL_HOMES[channel],
+                PLACED.has(channel) && !BY_PART.has(channel),
+                channel,
+            );
+        }
+        for (const channel of BY_PART) {
+            assert.deepEqual(
+                CHANNEL_HOMES[channel as keyof typeof CHANNEL_HOMES],
+                { notOffered: "file-styles: the panel by part places it (parts/parts.ts)" },
+                channel,
+            );
         }
     });
 

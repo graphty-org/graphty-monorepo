@@ -51,22 +51,16 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, but a pattern count, a chart's range, a halo's Shown and an empty fill", () => {
+    it("is the element's own value for every channel a line can add, but a pattern count, a chart's range and a halo's Shown", () => {
         // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
         // draws a mark at each end only, so the app starts it at 10 marks. A chart's range unset
         // follows each node's values, so the app starts it at 0 to 1.
         // A halo's Shown unset depends on the node (selected, or a halo color set), so it starts On.
-        // A chart's background and an open cap's fill unset draw nothing, so they start white.
-        const appStarts: Partial<Record<string, number | boolean | string>> = {
+        const appStarts: Partial<Record<string, number | boolean>> = {
             "edge.patternCount": 10,
             "node.chartMin": 0,
             "node.chartMax": 1,
             "node.halo": true,
-            "node.chartBackgroundColor": "#ffffff",
-            "edge.arrowHeadFillColor": "#ffffff",
-            "edge.arrowTailFillColor": "#ffffff",
-            "edge.arrowMiddleHeadFillColor": "#ffffff",
-            "edge.arrowMiddleTailFillColor": "#ffffff",
         };
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);

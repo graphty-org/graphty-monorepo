@@ -128,7 +128,7 @@ what the file holds.
 `session.data.import` loads a file, a URL or inline text as one step that undo takes back whole.
 Name the format with `type`, or leave it out and the element detects it the same way
 `loadFromUrl` and `loadFromFile` do: from the file name or the URL's extension first, then from
-the first bytes, fetching a URL once when its name says nothing. Data no format recognises
+the first bytes, fetching a URL once when its name says nothing. Data no format recognizes
 rejects with `E_UNKNOWN_FORMAT`, and the error lists the formats the element reads.
 
 ```typescript
@@ -357,12 +357,12 @@ If that pair's load failed, assigning it again retries it.
 | OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
 
 An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
-recognised by its content and read with the `json` format.
+recognized by its content and read with the `json` format.
 
 ### Cytoscape and ontology files
 
 XGMML, CX, CX2, Cytoscape sessions and OBO are read by `@graphty/graph-io` with nothing to wire
-up: hand the element the file and it loads. The format is recognised from the file name or, failing
+up: hand the element the file and it loads. The format is recognized from the file name or, failing
 that, from the bytes:
 
 ```typescript
@@ -585,7 +585,7 @@ an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#
 attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
 
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
-`viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+`viz:` position, color and size override attributes titled `position`, `color` or `size`.
 
 A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
 and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
@@ -612,7 +612,7 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
 - a GML node declared twice keeps its first declaration, as the element keeps the first record
   of a repeated id. A Pajek vertex written on two lines is one node: the first line's values win,
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
-  0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
+  0.1, 0.2 labeled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
 - a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
   `fillcolor` and so on). A node's `pos` stays the text the file wrote, and it and a cluster's `bb`
@@ -681,7 +681,7 @@ strings the file wrote:
 | several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices; an untimed `<attvalue>` among them comes first, as `{ value }` |
 
 An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
-has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.
+has. Timed `viz:*` elements (a position, color or size that changes over time) are not read.
 
 ### JSON Format (Native)
 
@@ -941,7 +941,7 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 
 ## Exporting the Graph
 
-`exportGraph(format, options?)` writes the graph in any format the catalogue lists with
+`exportGraph(format, options?)` writes the graph in any format the catalog lists with
 `canExport: true` -- every built-in format, and any format a writer was registered for.
 
 ```typescript
@@ -954,12 +954,12 @@ const text = await result.text(); // or iterate result.bytes for a large file
 
 An export carries whatever the format can represent: every node and edge with its attributes,
 the current positions, every published algorithm result (as attributes named
-`results.<runId>.<field>`, the element's rank and percentile included) and the colour, size and
+`results.<runId>.<field>`, the element's rank and percentile included) and the color, size and
 edge width and node shape each element is drawn with. Edge weights are the weights the element
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML (unless the export asks for `styles: true`, see
+colors in GraphML (unless the export asks for `styles: true`, see
 [Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
 is listed in `losses`, one per kind of omission, about the table or file actually written:
 exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
@@ -1024,28 +1024,28 @@ back with `styles: "file"` rebuilds them. `session.catalog.formats()` says what 
 (`styles.write`: `"rules"`, `"values"` or `"none"`). Anything the format cannot hold is a loss with
 a `W_STYLE_` code (`W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`,
 `W_STYLE_LAYER_FLATTENED`), naming the `target` and `property` it is about. With `styles: true` the
-drawn colour, size, shape and width columns are left out, because the style slots carry them.
+drawn color, size, shape and width columns are left out, because the style slots carry them.
 
 Without `styles: true` the export is the file it always was, and a graph with layers of its own
 above the element's base layers reports one more loss, `W_STYLES_NOT_EXPORTED`, whose `count` is
 how many layers were left out. Use it to warn a reader before their styles are lost. See
 [Styles from Files](./file-styles#exporting-with-styles).
 
-| Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
-| ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GEXF       | yes           | yes             | yes             |                                                                                                                                                                                      |
-| GML        | yes           | no              | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
-| DOT, Pajek | yes           | no              | yes             |                                                                                                                                                                                      |
-| GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
-| JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
-| CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+| Format     | Positions     | Color and size | Node attributes | Notes                                                                                                                                                                                |
+| ---------- | ------------- | -------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GEXF       | yes           | yes            | yes             |                                                                                                                                                                                      |
+| GML        | yes           | no             | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
+| DOT, Pajek | yes           | no             | yes             |                                                                                                                                                                                      |
+| GraphML    | no            | no             | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
+| JSON       | as attributes | as attributes  | yes             |                                                                                                                                                                                      |
+| CSV        | no            | no             | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
 
 CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
 each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
-instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+instead). A Cytoscape session is a zip file, so its catalog entry says `binary: true`: its
 `text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
 
-The "Colour and size" column describes an export without `styles: true`. With it, each format
+The "Color and size" column describes an export without `styles: true`. With it, each format
 writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
 
 A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
@@ -1055,7 +1055,7 @@ formula. Numbers, and texts that are numbers such as `-2.31`, are never touched.
 
 ### Kinds of file a format writes
 
-JSON and CSV each write several kinds of file. Their catalogue entries list them in
+JSON and CSV each write several kinds of file. Their catalog entries list them in
 `exportVariants`, one entry per kind, so a picker can offer them by name:
 
 | Format | Variants                                                                                                                |
@@ -1083,7 +1083,7 @@ reads back exactly -- styles, results, layout and notes -- and it is read back b
 `session.project.open`, never by `session.data.import`, which refuses the name with
 `E_UNKNOWN_FORMAT`. It takes no options, has no loss notes, and is built as one string.
 
-Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
+Each format's options are listed in its catalog entry's `writerOptions`, graph-io's
 `sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with
 `E_UNKNOWN_OPTION`, and a value outside its choices with `E_OPTION_RANGE`.
 

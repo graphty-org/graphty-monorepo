@@ -183,7 +183,7 @@ Word the band yourself from its `id`:
 The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
 Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely
 better than a random one. The same scale and the citation are on the modularity field of the
-algorithm's catalogue entry (`fields[].interpretation`), so it can be shown before anything has
+algorithm's catalog entry (`fields[].interpretation`), so it can be shown before anything has
 run. `band()` returns `undefined` for a field with no scale or no finite value. A band's
 `plainName` and `description`, and the scale's `summary`, are English and deprecated; they are
 removed in the next major.
@@ -510,7 +510,7 @@ With no `scope`, a run is over `"visible"`: the whole graph, or what the visibil
 
 ### Describing an entry in your own words
 
-Every catalogue entry the element ships -- algorithm, layout, layout engine, camera, log destination,
+Every catalog entry the element ships -- algorithm, layout, layout engine, camera, log destination,
 and a format that needs explaining -- carries a `descriptionId`, a stable id to key your own words on:
 `algorithm.<key>`, `layout.<id>`, `layout.<id>:<engine>`, `camera.<id>`, `logSink.<id>` and
 `format.<id>`. Each described option carries one too (`algorithm.<key>.<option>`). The English
@@ -655,7 +655,7 @@ const run = await element.run("pagerank");
 // Size every measured node by its rank, on one call
 await element.session.styles.encode({ run, channel: "node.size" });
 
-// And colour it, through a palette of your choosing
+// And color it, through a palette of your choosing
 await element.session.styles.encode({ run, channel: "node.color", palette: "viridis" });
 ```
 
@@ -675,22 +675,22 @@ await element.session.styles.encode({ run, channel: "node.size", range: [1, 5] }
 ### Sizing by a measurement in one flag
 
 A node measurement -- PageRank, degree, betweenness and the rest -- can size the nodes as well as
-colour them, asked for when the run starts:
+color them, asked for when the run starts:
 
 ```typescript
-// Colour AND size by PageRank. Sizes run from 1 (the default node size) to 3.
+// Color AND size by PageRank. Sizes run from 1 (the default node size) to 3.
 element.run("pagerank", {}, { style: { size: true } });
 
 // Or pick the range
 element.run("pagerank", {}, { style: { size: [1, 5] } });
 ```
 
-`style: true` (the default) paints the colour alone and `style: false` paints nothing. For an
+`style: true` (the default) paints the color alone and `style: false` paints nothing. For an
 edge measurement, such as max flow or edge betweenness, `size` draws edge width instead: `size:
 true` runs from the default edge width to twice it, and `[min, max]` is in edge width units.
 
 ```typescript
-// Colour AND widen each edge by the flow it carries.
+// Color AND widen each edge by the flow it carries.
 element.run("max-flow", { source: "a", sink: "z" }, { style: { size: true } });
 ```
 
@@ -700,7 +700,7 @@ The size layer paints only the elements the run measured and is removed with the
 ### Running algorithms when the data loads
 
 `algorithmsOnLoad` lists algorithms to run once the data has loaded, and `runAlgorithmsOnLoad`
-switches the list on. An entry is an algorithm name -- a catalogue key such as `"degree"` or a
+switches the list on. An entry is an algorithm name -- a catalog key such as `"degree"` or a
 1.x address such as `"graphty:degree"` -- or an object carrying the same run options
 `element.run()` takes. The list is a property, set from script; the switch is also the
 `run-algorithms-on-load` attribute:
@@ -715,7 +715,7 @@ element.runAlgorithmsOnLoad = true;
 | `algorithm` | Required. The algorithm, as a name above                           |
 | `params`    | Its parameters, as `run()` takes them                              |
 | `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }` |
-| `seed`      | The seed for a randomised method, so the load is reproducible      |
+| `seed`      | The seed for a randomized method, so the load is reproducible      |
 | `as`        | The run's id, for a saved document or a later `session.runs.get()` |
 
 The other `run()` options are not accepted here, because each one answers a question nobody can
@@ -724,30 +724,30 @@ ask before the data arrives: `signal`, `onProgress` and `queue` steer a run some
 respond to a cost estimate. Start the run yourself when you need them. A misspelled or malformed
 entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` that names the entry and its position.
 
-### More groups than colours
+### More groups than colors
 
-The default palette for groups, Okabe-Ito, has eight colours that stay apart for every kind of
-colour vision. When a community run finds more groups than that, `encode()` decides with
+The default palette for groups, Okabe-Ito, has eight colors that stay apart for every kind of
+color vision. When a community run finds more groups than that, `encode()` decides with
 `overflow`:
 
 ```typescript
-// Default: the 8 largest groups keep their colours; the rest share one grey,
-// and the legend lists that grey as its last row, with role: "other" and its count
+// Default: the 8 largest groups keep their colors; the rest share one gray,
+// and the legend lists that gray as its last row, with role: "other" and its count
 await element.session.styles.encode({ run, channel: "node.color" });
 
-// Cycle the colours and change node shape on each cycle: group 9 is orange again, as a box
+// Cycle the colors and change node shape on each cycle: group 9 is orange again, as a box
 await element.session.styles.encode({ run, channel: "node.color", overflow: "shape" });
 
-// A colour per group, however many -- past eight they are not guaranteed to be told apart
+// A color per group, however many -- past eight they are not guaranteed to be told apart
 await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
 ```
 
 `"shape"` is for nodes only; an edge encoding refuses it. Its edge counterpart is `"pattern"`:
-the colours cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
-...), so two edge groups that share a colour never share a pattern. A layer that varies only the
-colour with either policy still draws the second cue. If you name a `palette` and no
+the colors cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
+...), so two edge groups that share a color never share a pattern. A layer that varies only the
+color with either policy still draws the second cue. If you name a `palette` and no
 `overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
-folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
+folded, because you asked for exactly those colors; name an `overflow` as well to apply it.
 
 ## Multiple Algorithms
 
@@ -761,7 +761,7 @@ await element.session.styles.encode({ run: communities, channel: "node.color" })
 await element.session.styles.encode({ run: degree, channel: "node.size" });
 ```
 
-Layers stack, so the two do not fight: one decides colour, the other decides size, and
+Layers stack, so the two do not fight: one decides color, the other decides size, and
 `session.styles.legend()` describes both.
 
 ### What a run painted

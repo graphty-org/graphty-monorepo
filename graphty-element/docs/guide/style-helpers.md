@@ -1,18 +1,9 @@
 # Palettes & Scales
 
-How a measurement becomes a colour, a size or a width, and which colours the element ships.
+How a measurement becomes a color, a size or a width, and which colors the element ships.
 
-::: warning What changed in 2.0
-This page used to teach a `StyleHelpers` namespace -- `StyleHelpers.color.sequential.viridis(0.7)`
-and some forty more functions -- imported from `@graphty/graphty-element`. **That namespace is not
-exported and never resolves.** It existed to be in scope for a 1.x `calculatedStyle` expression,
-the expression evaluator is gone, and every code block on this page threw before you saw a colour.
-
-The colours themselves are all still here, and there are more of them. What changed is who does
-the arithmetic: you used to normalise a value and call a ramp; now you name a run, a channel and a
-palette, and the element reads the extent, applies the scale and paints -- in one call, on the
-GPU-side paint path, with a legend that can be read back.
-:::
+You name a run, a channel and a palette, and the element reads the extent, applies the scale and
+paints -- in one call, on the GPU-side paint path, with a legend that can be read back.
 
 ## One call, from a measurement to a picture
 
@@ -64,7 +55,7 @@ const why = element.session.styles.explain({ node: "alice" });
 
 ## The palettes
 
-Every palette is data, not a function. The catalogue is importable on its own, with no renderer
+Every palette is data, not a function. The catalog is importable on its own, with no renderer
 and no 3D engine behind it, so a palette picker is built from it directly:
 
 ```typescript
@@ -75,7 +66,7 @@ paletteDescriptor("okabe-ito").colors; // the hex strings themselves
 ```
 
 Each descriptor carries `id`, `plainName`, `kind`, `colors`, `capacity` (how many distinct values
-it can carry, `null` when continuous) and `colorblindSafe` -- the list of colour vision
+it can carry, `null` when continuous) and `colorblindSafe` -- the list of color vision
 deficiencies it has been checked against, which is the fact a picker should be filtering on rather
 than a footnote a reader has to remember.
 
@@ -91,12 +82,12 @@ than a footnote a reader has to remember.
 | `greens`  | Shades of Green  | not checked safe                     |
 | `oranges` | Shades of Orange | not checked safe                     |
 
-`ylorbr` is the default for a measure: Paul Tol's YlOrBr ("Colour Schemes", 2021), trimmed to the
+`ylorbr` is the default for a measure: Paul Tol's YlOrBr ("Color Schemes", 2021), trimmed to the
 five steps that stand off the element's light background, so the palest node is still visible. It
 stays inside one hue family, from orange for the lowest value to dark brown for the highest, which
 reads as "how much"; a ramp that sweeps through several hues makes a sparse set of nodes read as
 separate groups. `viridis`, `plasma` and `inferno` are perceptually uniform: equal steps in the
-number look like equal steps in the colour, which a rainbow ramp does not.
+number look like equal steps in the color, which a rainbow ramp does not.
 
 ### Categorical -- groups with no order
 
@@ -108,10 +99,10 @@ number look like equal steps in the colour, which a rainbow ramp does not.
 | `pastel`      | Eight Pale Colors      | 8        | deuteranopia, protanopia, tritanopia |
 | `carbon`      | Five Enterprise Colors | 5        | not checked safe                     |
 
-`okabe-ito` is the default for groups: the eight colours Okabe and Ito published in 2008, black
+`okabe-ito` is the default for groups: the eight colors Okabe and Ito published in 2008, black
 included, with yellow in the last slot because it barely shows on a light background. Capacity is a real limit: a community detection that finds
-thirty communities has more groups than any of these has colours, and the honest answers are to
-colour the largest few and leave the rest alone, or to pick a different channel.
+thirty communities has more groups than any of these has colors, and the honest answers are to
+color the largest few and leave the rest alone, or to pick a different channel.
 
 ### Diverging -- values around a meaningful middle
 
@@ -123,11 +114,11 @@ colour the largest few and leave the rest alone, or to pick a different channel.
 
 Use one only when zero -- or some other midpoint -- means something. `red-blue` is in the list
 because temperature data conventionally uses it, and it is the one palette here that a
-red-green colour blind reader cannot separate.
+red-green color blind reader cannot separate.
 
 ### Highlight -- two states
 
-`blue-highlight`, `green-highlight` and `orange-highlight` each carry a marked colour and a
+`blue-highlight`, `green-highlight` and `orange-highlight` each carry a marked color and a
 neutral one, for "this element is in the result, that one is not".
 
 ## The scales
@@ -173,7 +164,7 @@ a picker should show rather than an unearned tick.
 
 See [Custom Palettes](./extending/custom-palettes) for the full contract.
 
-## Choosing colours
+## Choosing colors
 
 **Do**
 
@@ -181,15 +172,15 @@ See [Custom Palettes](./extending/custom-palettes) for the full contract.
   something with a meaningful middle is diverging.
 - Filter a picker on `colorblindSafe` rather than trusting a memory of which palette was fine.
 - Stay inside a categorical palette's `capacity`.
-- Encode the same thing twice when it matters -- colour and size together survives a reader who
-  cannot separate two of the colours.
+- Encode the same thing twice when it matters -- color and size together survives a reader who
+  cannot separate two of the colors.
 
 **Don't**
 
 - Use red and green for opposite meanings.
-- Offer more categorical colours than a reader can hold apart -- seven to nine is the practical
+- Offer more categorical colors than a reader can hold apart -- seven to nine is the practical
   ceiling, which is why none of the built-ins goes past nine.
-- Rely on colour alone to carry the finding. The legend and the labels are part of the answer.
+- Rely on color alone to carry the finding. The legend and the labels are part of the answer.
 
 ## Interactive examples
 

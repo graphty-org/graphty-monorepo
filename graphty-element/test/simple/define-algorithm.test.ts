@@ -42,8 +42,8 @@ const ADVANCED_HEADING = "## Advanced: full control";
 
 /** The guide's "use it" lines for the first plugin, run as written by the browser tests. */
 const FIRST_PLUGIN_USE = [
-    'element.run("acme-confidence-degree", {}, { as: "strength" }); // colours the nodes',
-    'element.run("acme-confidence-share", {}, { as: "share" }); // colours the edges',
+    'element.run("acme-confidence-degree", {}, { as: "strength" }); // colors the nodes',
+    'element.run("acme-confidence-share", {}, { as: "share" }); // colors the edges',
 ];
 
 /**

@@ -5,8 +5,8 @@ Available from graphty-element 3.0.
 An algorithm computes something over the graph and publishes a result: a score for every node, a
 score for every edge, or a group for every node. You write the part that is yours -- how to score
 one node, say -- and the element does the rest: it lists your algorithm beside its own, checks the
-options a reader passes, runs it with progress and cancellation, ranks and summarises what it
-returns, and colours the graph from it.
+options a reader passes, runs it with progress and cancellation, ranks and summarizes what it
+returns, and colors the graph from it.
 
 ## Your first algorithm
 
@@ -46,17 +46,17 @@ defineAlgorithm({
 **Use it:**
 
 ```ts
-element.run("acme-confidence-degree", {}, { as: "strength" }); // colours the nodes
-element.run("acme-confidence-share", {}, { as: "share" }); // colours the edges
+element.run("acme-confidence-degree", {}, { as: "strength" }); // colors the nodes
+element.run("acme-confidence-share", {}, { as: "share" }); // colors the edges
 ```
 
 `element` is the `<graphty-element>` on your page. The middle `{}` is the run's options (none
-here, so each takes its default); `{ as: "strength" }` names the result. A run colours the graph
-when it first completes, with no style code: a node score becomes a colour ramp over the nodes it
+here, so each takes its default); `{ as: "strength" }` names the result. A run colors the graph
+when it first completes, with no style code: a node score becomes a color ramp over the nodes it
 measured, an edge score one over the edges. Your own style layer reaches the values at
 `results.strength.value` and `results.share.value` -- the path is `results.<as name>.value` -- and a
 script reads them from the result the run resolves to: `(await element.run(...)).node(id)?.value`.
-The colour layer is written just after the run resolves, so a script that inspects the style
+The color layer is written just after the run resolves, so a script that inspects the style
 layers straight after the `await` may not see it yet.
 
 An edge score is keyed by the element's edge id. To read each one with its two ends -- to compare
@@ -92,10 +92,10 @@ build step, import it from the bundle, as in
   `async` `node` is refused with a message that says so.
 - **"Not measured".** Returning `undefined`, `null`, `NaN` or an infinity leaves that node or edge
   out of the result, which is different from a score of 0. Only the elements you measured are
-  ranked, summarised and coloured: the rest keep whatever the layers beneath painted.
+  ranked, summarized and colored: the rest keep whatever the layers beneath painted.
 - **Missing values.** `strength` and `weight` leave out an edge with no number at the attribute,
   and the run's record says how many there were (`run.caveats.notes`). You never write `?? 0`.
-- **The rest.** The catalogue entry a picker offers (`session.catalog.algorithms()`, named "Acme
+- **The rest.** The catalog entry a picker offers (`session.catalog.algorithms()`, named "Acme
   confidence degree" from the id unless you give a `name`), a cost estimate before the click, the
   ranking, distribution and summary of every result, and saved documents that record the run by
   your id.
@@ -277,8 +277,8 @@ defineAlgorithm({
 ```
 
 ```ts
-element.run("acme-reach"); // results.acme_reach.value, labelled "Acme reach"
-element.run("acme-reach", { hops: 3 }); // results.acme_reach_3.value, labelled "Reach in 3 hops"
+element.run("acme-reach"); // results.acme_reach.value, labeled "Acme reach"
+element.run("acme-reach", { hops: 3 }); // results.acme_reach_3.value, labeled "Reach in 3 hops"
 ```
 
 How the element uses the name:
@@ -302,8 +302,8 @@ more. Keep the same id when you do: documents, saved options and style layers th
 ## Advanced: full control
 
 The advanced tier is the class the simple tier builds for you. Extend `DeclaredAlgorithm` and
-register the class: you write the descriptor the catalogue shows, read the graph as graph-format
-arrays, walk it yourself and build the output. That is what a class the catalogue carries needs
+register the class: you write the descriptor the catalog shows, read the graph as graph-format
+arrays, walk it yourself and build the output. That is what a class the catalog carries needs
 to be started as a run -- progress, cancellation, a cost estimate before the click, a ranking, a
 summary, a reading and the derived picture all hang off a run.
 
@@ -340,7 +340,7 @@ const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
     description: "How much of the weaker end's total strength one tie between two nodes carries.",
     category: "structure",
     // The shape fixes the FIELD NAMES, which is how any consumer reads `results.<runId>.value`
-    // without opening the catalogue first.
+    // without opening the catalog first.
     shape: "edge-metric",
     // Ten descriptors for one measured number, each carrying a published path string a plugin
     // should never have to learn or retype.
@@ -674,7 +674,7 @@ row saying `false` or `0` for an element you did not measure turns "not in my re
 instruction -- and, because layers stack, it erases whatever the layers beneath it painted.
 
 Do not ship styling with your algorithm. There is no `suggestedStyles` field, and dimming or
-greying what your algorithm did not select is a reader's choice, not yours. What an algorithm may
+graying what your algorithm did not select is a reader's choice, not yours. What an algorithm may
 suggest is a NAME for its result, through `suggestedName` (see "Naming its result").
 
 ### Deliberate limits
@@ -689,7 +689,7 @@ element's own algorithms as much as to yours. The scope does reach it, through `
 (see "Computing over the run's scope"). The run option `scopeAs` is reserved and refused.
 
 **The 1.10 `namespace:type` address still works** and still calls `run()` directly, with no run
-record, no progress, no cancel and no published result. Start a run by the catalogue key instead.
+record, no progress, no cancel and no published result. Start a run by the catalog key instead.
 It is still one undoable step: the `Graph` such an algorithm is handed records what it writes onto
 records and graph-level results, and every door it calls on that `Graph`, into the one step (see
 [Undo and History](../undo#plugin-algorithms-without-a-descriptor)).

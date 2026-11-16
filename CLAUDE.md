@@ -269,7 +269,7 @@ pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to st
 
 ### Styling and algorithms
 
-- Node and edge appearance is applied only through a style layer handed to graphty-element's StyleManager, never
+- Node and edge appearance is applied only through a style layer handed to graphty-element's `session.styles`, never
   by mutating a mesh, a material or a node or edge object.
 - An algorithm's suggested style layers write only to the nodes and edges that carry its own result (scope them
   with a selector on the result); dimming what it did not select is the reader's choice, never in

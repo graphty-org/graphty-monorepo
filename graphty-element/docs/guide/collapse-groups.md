@@ -47,7 +47,7 @@ A group is named in one of two ways:
 
 ## What a collapse does
 
-- The members leave the graph and one node takes their place, at the centre of where they stood.
+- The members leave the graph and one node takes their place, at the center of where they stood.
 - Their edges to each node outside the group become one edge to that node. Edges among the members
   go with them.
 - Expanding puts every member back with its record, its coordinates, its pin and its edges, exactly

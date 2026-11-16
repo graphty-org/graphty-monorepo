@@ -131,7 +131,7 @@ The `dataSource` and `dataSourceConfig` getters report where data came from, nev
 const text = myOwnCopyOfTheData; // keep your own reference to the payload you assigned
 ```
 
-## Some layout behaviour settings are preferences
+## Some layout behavior settings are preferences
 
 `layoutBehavior`'s `pinOnDrag`, `declutter`, `maxInFlight`, `iterationsPerStep` and
 `zoomStepInterval` are not undoable. Nothing to change: they are preferences, as before.
@@ -370,3 +370,10 @@ They are grouped by kind of algorithm.
 - **Adamic-Adar link prediction scores can differ in the last bits** (up to about 2e-11), so pairs
   whose scores tie exactly can come out in another order, and at the `topK` cut-off another of the
   tied pairs can be kept. The common-neighbors method is unchanged.
+
+## StyleHelpers is not exported
+
+The 1.x `StyleHelpers` namespace (`StyleHelpers.color.sequential.viridis(0.7)` and about forty
+more functions) is not exported, so an import of it never resolves. Its palettes are all still
+shipped; instead of normalizing a value and calling a ramp, pass a run, a channel and a palette to
+`session.styles.encode()` (see [Palettes & Scales](./style-helpers)).

@@ -386,7 +386,7 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
-  Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
+  Europe) draws its nodes further apart instead of as one gray patch: `{ mapScale: 3 }` gives
   three times the room between neighbors. The camera still opens framed on the whole map. With
   nodes sized on screen (below), a flat map's nodes are drawn `mapScale` times smaller on screen,
   which gives the same room; a globe's keep their size on screen.
@@ -396,7 +396,7 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   on a flat map (`flatNodeScale` defaults to 1), whatever the zoom, with its arrowheads in
   proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
-  draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
+  draws a glow of air around the globe's rim, clears the canvas to a color while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view
   setting, not saved with the project.
 - **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
@@ -425,7 +425,7 @@ Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling comm
 graph.setLayout("forceatlas2", {
     seed: 42, // Same seed, same settled shape
     scalingRatio: 2.0, // Node repulsion
-    gravity: 1.0, // Pull towards the centre
+    gravity: 1.0, // Pull towards the center
     linlog: false, // Log attraction: tighter clusters
     dissuadeHubs: false, // Push high-degree nodes outwards
 });
@@ -641,7 +641,7 @@ Where a weight comes from is `data.knownFields.edgeWeightPath`, which defaults t
 Parallel edges are summed into one weight per ordered pair, because the layout functions read a
 weight by endpoint pair and have nowhere to put a second one.
 
-Ask the catalogue rather than hard-coding the list of two:
+Ask the catalog rather than hard-coding the list of two:
 
 ```typescript
 for (const layout of element.session.catalog.layouts()) {
@@ -664,7 +664,7 @@ element.unpin("alice");
 element.pinnedNodes; // a Set of the pinned node ids
 ```
 
-Turn the drag behaviour off with `pinOnDrag: false` in the graph's behaviour configuration; the
+Turn the drag behavior off with `pinOnDrag: false` in the graph's behavior configuration; the
 verbs above still work.
 
 ## Laying out part of the graph
@@ -703,7 +703,7 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
 visible -- while the element's `workingGraph` option is on, the default,
-and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behavior to choose for layouts
 alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
 shown nodes keep the places the whole graph gave them.
 
@@ -715,7 +715,7 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 ```
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
-  circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
+  circle, a grid or any other layout gives it no slot. Every layout honors it, your own included.
 - **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.

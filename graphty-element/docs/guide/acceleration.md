@@ -208,7 +208,7 @@ That last one is checked against a bound on the graph's largest eigenvalue: a hu
 neighbors raises it to about the square root of d, so at the default `alpha` of 0.1 a graph stays
 on the CPU once its busiest region is roughly as dense as a hub of 100 neighbors, or a hub of 10
 whose neighbors have 10 each. So does an `eigenvector` run that follows edge direction or runs over a graph
-with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
+with a two-colorable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 

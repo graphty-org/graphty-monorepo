@@ -59,7 +59,7 @@ sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is r
 major release, so read `code` instead.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
-with a serialisable detail, when edge picking lands.
+with a serializable detail, when edge picking lands.
 
 ### The two load events count different things, and say so in their field names
 

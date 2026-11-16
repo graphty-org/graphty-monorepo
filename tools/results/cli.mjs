@@ -235,6 +235,18 @@ export function flakyNames(json) {
     return list.filter((n) => typeof n === "string" && /^[^\p{Cc}]{1,500}$/u.test(n)).slice(0, 10);
 }
 
+// `file-flaky`: files the issues of the tests base-check.yml names, and always succeeds (a refusal is logged)
+function fileFlakyCli(values) {
+    const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
+    const runUrl = GITHUB_RUN_ID
+        ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`
+        : undefined;
+    const pr = /^\d+$/.test(values.pr ?? "") ? values.pr : undefined;
+    const filed = fileFlakyUnrelated({ ...values, names: flakyNames(values.tests), pr, runUrl });
+    for (const f of filed) console.log(`file-flaky: ${values.file} > ${f.name}: issue #${f.number || "not filed"}`);
+    return 0;
+}
+
 const mainCheckout = (cwd) =>
     resolve(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
@@ -283,16 +295,8 @@ async function cli(argv) {
         const repeat = Math.max(1, Number(values.repeat) || 1);
         return baseCheck({ root, variant: values.variant, file: values.file, repeat, build: values.build });
     }
-    if (positionals[0] === "file-flaky" && values.variant && values.file && values.base && values.tests) {
-        const names = flakyNames(values.tests);
-        const runUrl = process.env.GITHUB_RUN_ID
-            ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-            : undefined;
-        const pr = /^\d+$/.test(values.pr ?? "") ? values.pr : undefined;
-        const filed = fileFlakyUnrelated({ ...values, names, pr, runUrl });
-        for (const f of filed) console.log(`file-flaky: ${values.file} > ${f.name}: issue #${f.number || "not filed"}`);
-        return 0;
-    }
+    if (positionals[0] === "file-flaky" && values.variant && values.file && values.base && values.tests)
+        return fileFlakyCli(values);
     console.error("usage: node tools/results/cli.mjs import [--dir <records>] [--dry-run]");
     console.error("       node tools/results/cli.mjs base-check --variant <v> --file <f> [--repeat <n>] [--build]");
     console.error(

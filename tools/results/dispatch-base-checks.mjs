@@ -29,6 +29,33 @@ const VARIANT = /^[\w.-]+\|flags=(on|off)\|[\w-]+$/;
 const NAME = /^[^\p{Cc}]{1,500}$/u;
 const MAX_NAMES = 10;
 
+// One JSON line as a check, or null when it is not valid JSON or a field fails its pattern.
+function checkOf(line) {
+    let c;
+    try {
+        c = JSON.parse(line);
+    } catch {
+        return null;
+    }
+    const ok =
+        SHA.test(c?.base) &&
+        FILE.test(c.file) &&
+        !c.file.includes("..") &&
+        VARIANT.test(c.variant) &&
+        [1, 5].includes(c.repeat);
+    return ok ? c : null;
+}
+
+// A check merged into the one already asked for its base, file and variant: a test both flaky and failing in one
+// file is answered by the 5 repeats, which also file the issues of the file's flaky tests when they pass (#8317)
+function merged(had, c) {
+    const check =
+        !had || had.repeat < c.repeat ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat } : had;
+    const names = [...(had?.names ?? []), ...(c.repeat === 5 && NAME.test(c.name ?? "") ? [c.name] : [])];
+    if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
+    return check;
+}
+
 /**
  * The valid, distinct base checks in a directory's JSON lines.
  * @param dir the directory (missing: none)
@@ -44,30 +71,10 @@ export function readChecks(dir) {
     const out = new Map();
     for (const n of names.sort())
         for (const line of readFileSync(join(dir, n), "utf8").split("\n")) {
-            let c;
-            try {
-                c = JSON.parse(line);
-            } catch {
-                continue;
-            }
-            const ok =
-                SHA.test(c?.base) &&
-                FILE.test(c.file) &&
-                !c.file.includes("..") &&
-                VARIANT.test(c.variant) &&
-                [1, 5].includes(c.repeat);
-            if (!ok) continue;
+            const c = checkOf(line);
+            if (!c) continue;
             const key = `${c.base} ${c.file} ${c.variant}`;
-            const had = out.get(key);
-            // a test both flaky and failing in one file: the 5 repeats answer both
-            const check =
-                !had || had.repeat < c.repeat
-                    ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat }
-                    : had;
-            // the flaky tests a passing 5-repeat check files issues for (#8317)
-            const names = [...(had?.names ?? []), ...(c.repeat === 5 && NAME.test(c.name ?? "") ? [c.name] : [])];
-            if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
-            out.set(key, check);
+            out.set(key, merged(out.get(key), c));
         }
     return [...out.values()].slice(0, MAX_CHECKS);
 }

@@ -547,9 +547,10 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
         const t = { file, name };
         const had = open.find((i) => namesFlakyTest(i, t))?.number;
         const seen = pr ? `pull request #${pr}` : "a pull request";
+        const run = runUrl ? ` (${runUrl})` : "";
         const body = [
             `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not touch it.`,
-            `Its base check then passed 5 times on master at ${base}${runUrl ? ` (${runUrl})` : ""}, so it is a rare`,
+            `Its base check then passed 5 times on master at ${base}${run}, so it is a rare`,
             "flake: not quarantined, since master did not reproduce it.",
             "Find the mechanism: timing or load is not an accepted cause without one.",
         ].join("\n");

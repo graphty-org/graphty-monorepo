@@ -488,6 +488,43 @@ describe("GradientEditor", () => {
             expect(screen.getByRole("slider", { name: "Stop 2 position" })).toHaveAttribute("aria-valuenow", "40");
         });
 
+        it("steps a typed stop position with the arrows, and puts back text that is not a number", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+
+            const position = screen.getAllByRole("textbox", { name: "Stop 1 position" })[0];
+            await user.click(position);
+            await user.keyboard("{ArrowUp}");
+            expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBeCloseTo(0.01);
+            await user.keyboard("{Shift>}{ArrowUp}{/Shift}{ArrowDown}");
+            expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBeCloseTo(0.1);
+            const calls = onChange.mock.calls.length;
+            await user.clear(position);
+            await user.type(position, "abc{Enter}");
+            expect(onChange).toHaveBeenCalledTimes(calls);
+            expect(screen.getByRole("slider", { name: "Stop 1 position" })).toHaveAttribute("aria-valuenow", "10");
+        });
+
+        it("reports nothing for a handle key that leaves the stop where it is", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+            await user.click(screen.getByRole("slider", { name: "Stop 1 position" }));
+            await user.keyboard("{Home}{ArrowLeft}");
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
+        it("adds no stop from a click on the bar once it holds the most stops", async () => {
+            const onChange = vi.fn();
+            const five = [0, 0.25, 0.5, 0.75, 1].map((offset) => createColorStop(offset, "#00FF00"));
+            renderGradientEditor(<GradientEditor defaultStops={five} onChange={onChange} />);
+            const bar = screen.getByTestId("gradient-editor-bar");
+            const { width, height } = bar.getBoundingClientRect();
+            await userEvent.click(bar, { position: { x: width / 8, y: height / 2 } });
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
         it("flips the stops and rotates the angle a quarter turn", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();

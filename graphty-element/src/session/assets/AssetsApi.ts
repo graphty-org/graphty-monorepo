@@ -1455,7 +1455,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             try {
                 records.push(await waitFor(work, options, undefined));
             } catch (error) {
-                records.forEach(letGo);
+                for (const record of records) {
+                    letGo(record);
+                }
                 work.then(letGo, () => undefined);
                 throw error;
             }
@@ -1967,6 +1969,41 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         });
     };
 
+    type ModelFiles = typeof import("babylonjs-models/files");
+    /**
+     * Reads a set of files for `add` and `addEach`; a set refused outright comes back as its rejected record.
+     * @param intakeModule - babylonjs-models' file intake, loaded.
+     * @param source - The files, folder entries or zip.
+     * @param options - The add options; their onProgress hears the read.
+     * @returns The read set, or the record of a set refused outright.
+     */
+    const readSet = async (
+        intakeModule: ModelFiles,
+        source: Parameters<ModelFiles["readModelFiles"]>[0],
+        options: AddAssetOptions,
+    ): Promise<{ read: Awaited<ReturnType<ModelFiles["readModelFiles"]>> } | { refused: AssetRecord }> => {
+        const { onProgress } = options;
+        try {
+            return {
+                read: await intakeModule.readModelFiles(
+                    source,
+                    limits,
+                    onProgress === undefined
+                        ? undefined
+                        : (progress) => {
+                              onProgress(progressChange(progress, undefined));
+                          },
+                ),
+            };
+        } catch (error) {
+            if (!(error instanceof ModelError)) {
+                throw error;
+            }
+
+            return { refused: early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`) };
+        }
+    };
+
     const api: AssetsApiInternal = {
         async add(source, options = {}) {
             if (options.name !== undefined && !isAssetId(options.name)) {
@@ -2001,28 +2038,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             const reading = (async (): Promise<AssetRecord> => {
-                let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
-                const { onProgress } = options;
-                try {
-                    read = await (
-                        await loadIntake()
-                    ).readModelFiles(
-                        source,
-                        limits,
-                        onProgress === undefined
-                            ? undefined
-                            : (progress) => {
-                                  onProgress(progressChange(progress, undefined));
-                              },
-                    );
-                } catch (error) {
-                    if (!(error instanceof ModelError)) {
-                        throw error;
-                    }
-
-                    return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
+                const got = await readSet(await loadIntake(), source, options);
+                if ("refused" in got) {
+                    return got.refused;
                 }
 
+                const { read } = got;
                 options.signal?.throwIfAborted();
                 return intake(read.given, options, read.main);
             })();
@@ -2036,25 +2057,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             options.signal?.throwIfAborted();
             const intakeModule = await loadIntake();
-            const { onProgress } = options;
-            let read: Awaited<ReturnType<typeof intakeModule.readModelFiles>>;
-            try {
-                read = await intakeModule.readModelFiles(
-                    source,
-                    limits,
-                    onProgress === undefined
-                        ? undefined
-                        : (progress) => {
-                              onProgress(progressChange(progress, undefined));
-                          },
-                );
-            } catch (error) {
-                if (!(error instanceof ModelError)) {
-                    throw error;
-                }
-
-                return [early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`)];
+            const got = await readSet(intakeModule, source, options);
+            if ("refused" in got) {
+                return [got.refused];
             }
+
+            const { read } = got;
 
             options.signal?.throwIfAborted();
             const files = await asEntries(read.given);
@@ -2223,11 +2231,13 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         usedBy(ref) {
+            // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             const id = api.find(ref)?.id;
             const names = (value: unknown): boolean =>
                 typeof value === "string"
-                    ? value === ref || (id !== undefined && api.find(value)?.id === id)
-                    : typeof value === "object" && value !== null && Object.values(value).some(names);
+                    ? // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+                      value === ref || (id !== undefined && api.find(value)?.id === id)
+                    : typeof value === "object" && value !== null && Object.values(value).some((v) => names(v));
             const layers = styles?.().list() ?? [];
             return Object.freeze(
                 layers

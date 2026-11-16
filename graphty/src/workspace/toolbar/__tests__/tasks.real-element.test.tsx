@@ -113,6 +113,24 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
+    it("a run that made no layer (canceled) leaves Analyze offering Run, not Update <name> layer", async () => {
+        const session = await openKarate();
+        const run = session.runs.start("betweenness");
+        run.cancel();
+        await waitFor(() => {
+            assert.equal(session.runs.get(run.id)?.status, "canceled");
+        });
+        assert.lengthOf(session.runs.bindings(run.id), 0);
+
+        await userEvent.click(analyzeTool());
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Betweenness");
+        await userEvent.click(await screen.findByRole("option", { name: /^Betweenness/ }));
+        const action = await screen.findByRole("button", { name: /^(Run\b|(Update|Add) Betweenness layer)/ });
+        assert.match(action.textContent ?? "", /^Run\b/);
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("T8: after Betweenness, Analyze > Find groups > Louvain runs and paints", async () => {
         const session = await openKarate();
 

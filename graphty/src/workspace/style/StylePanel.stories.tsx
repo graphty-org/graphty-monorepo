@@ -836,6 +836,12 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         await waitFor(() => {
             expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
         });
+        // "police added to the project" leaves after 6 s of real time, so the picture held it or
+        // not by how long the rest took (#7905): dismissed by real input, it is never in the picture.
+        await userEvent.click(await page().findByRole("button", { name: "Dismiss" }));
+        await waitFor(() => {
+            expect(page().queryByText("police added to the project")).toBeNull();
+        });
         const { models } = await openModels();
         const own = within(models).getByRole("group", { name: "In this project" });
         const tile = within(own).getByRole("button", { name: "police" });

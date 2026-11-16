@@ -6,7 +6,7 @@
 #   run again on a fresh runner and the second attempt's verdict decides (a lane that passes is filed as flaky and
 #   does not block). Never the version, land, publish or promote jobs: a failed one of those files what the verdict
 #   deferred instead (tools/full-run.mjs file-deferred), since no second attempt will.
-# - any other run that holds a T4 job (a GPU dispatch, a legacy or shadow Release run, the weekly paired benchmark):
+# - any other run that holds a T4 job (a GPU dispatch, a shadow Release run, the weekly paired benchmark):
 #   re-run once only when every failed job lost its machine.dev runner (tools/gpu-runner-lost.sh), a spot reclaim and
 #   not a test result. A workflow_call's jobs belong to the CALLER's run, so the train's T4 is seen through "Release".
 # - a Release run whose verdict decided (not red) and then only the Verdict job failed (the screenshot gate, the

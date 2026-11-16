@@ -3634,7 +3634,6 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             "pick",
             "held",
             "version",
-            "approve",
             "land",
             "unhold",
             "publish",
@@ -4212,7 +4211,6 @@ describe("release.yml", () => {
     const land = job(release, "land");
     const landSh = readFileSync(new URL("./channel/land.sh", import.meta.url), "utf8");
     const publish = job(release, "publish");
-    const approve = job(release, "approve");
 
     it("gives the land its identity in the environment, so a local run cannot write the shared .git/config", () => {
         assert.doesNotMatch(landSh, /^\s*git config/m);
@@ -4266,24 +4264,22 @@ describe("release.yml", () => {
         assert.doesNotMatch(on, /^\s+push:/m);
     });
 
-    it("lands and publishes only in an owner-approved legacy run; a full run, the default, only tests", () => {
+    it("has no legacy mode: nothing in release.yml publishes npm latest (#3467); a full run is the default", () => {
         assert.match(
             release,
-            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n\s+- candidate\n\s+- promote-nightly\n\s+candidate:\n[^\n]*\n\s+required: false\n\s+default: ""\n\s+type: string\n\s+accept:\n/,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- candidate\n\s+- promote-nightly\n\s+candidate:\n[^\n]*\n\s+required: false\n\s+default: ""\n\s+type: string\n\s+accept:\n/,
         );
         assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode \|\| 'full' \}\}\n/m);
-        // the owner's approval in production stands before the land job, and refuses a production that asks nobody
-        assert.match(approve, /\n {8}environment: production\n/);
-        assert.match(approve, /\n {8}permissions:\n {12}actions: read\n {8}steps:/);
-        assert.match(approve, /select\(.type == "required_reviewers"\)/);
-        assert.match(approve, /\[ "\$reviewers" -gt 0 \] \|\| \{\n[^\n]*::error::[^\n]*\n\s+exit 1\n/);
-        assert.doesNotMatch(approve, /secrets\./);
+        assert.doesNotMatch(
+            release,
+            /mode == 'legacy'|- legacy\n|mode=legacy|environment: production|\n {4}approve:\n/,
+        );
         // every job that reads an outside-world secret declares its environment
         assert.match(land, /\n {8}environment: release # the deploy key\n/);
         assert.match(publish, /\n {8}environment: release # /);
         assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
-        // pick and held read Pushover only for a legacy run's announcements
-        assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        // pick reads Pushover for its dead-man check and a settled publish hold; held for a failed promotion
+        assert.match(pick, /\n {8}environment: release # Pushover\n/);
         assert.match(held, /\n {8}environment: \$\{\{ inputs.mode != 'shadow' && 'release' \|\| '' \}\}\n/);
         // the full run's verdict announces a red run or an owner item
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
@@ -4296,7 +4292,7 @@ describe("release.yml", () => {
         assert.match(job(release, "candidate_branch"), /\n {8}environment: release # the deploy key\n/);
         // and so does the fix forward's merge into it
         assert.match(job(release, "candidate_fix"), /\n {8}environment: release # the deploy key\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 10);
+        assert.equal(release.match(/\n {8}environment: /g).length, 9);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -4308,7 +4304,7 @@ describe("release.yml", () => {
 
     it("a full run picks its candidate from the results store and ends in one verdict", () => {
         const verdict = job(release, "verdict");
-        // the store's pick replaces the 29-minute nx check, which only shadow and legacy runs still make
+        // the store's pick replaces the 29-minute nx check, which only shadow runs still make
         assert.match(
             pick,
             /id: candidate\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && \(env.MODE == 'full' \|\| env.MODE == 'restart' \|\| env.MODE == 'candidate'\) && steps.resume.outputs.resume != 'true' \}\}/,
@@ -4377,7 +4373,7 @@ describe("release.yml", () => {
         );
         assert.match(verdict, /node tools\/release-status.mjs "\$STATE" --sha "\$SHA"/);
         // a full run versions, lands and publishes nothing, and never opens a "Release held" issue
-        for (const j of [version, held]) assert.match(j, /inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'/);
+        for (const j of [version, held]) assert.match(j, /\(inputs.mode == 'shadow' && /);
         assert.match(job(release, "timings"), /needs:\s+\[[^\]]*\bverdict\b/);
     });
 
@@ -4515,10 +4511,10 @@ describe("release.yml", () => {
             version,
             /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume\]/,
         );
-        // shadow and legacy: every lane passed; a nightly promotion: the verdict job decided to promote
+        // shadow: every lane passed; a nightly promotion: the verdict job decided to promote
         assert.match(
             version,
-            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(inputs.mode == 'shadow' && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
@@ -4543,13 +4539,9 @@ describe("release.yml", () => {
             /if ! GITHUB_OUTPUT="\$RUNNER_TEMP\/approvals" node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"; then[\s\S]*?git reset --hard --quiet "\$SHA"[\s\S]*?commit=\$\(tools\/release-version.sh "\$PACKAGES"\)[\s\S]*?node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"\n\s+fi\n\s+node tools\/release-diff.mjs/,
         );
         assert.match(landSh, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        // land and publish follow only a version commit made after every lane passed, and the owner's approval
-        // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)
-        assert.match(
-            approve,
-            /needs: \[pick, version\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
-        );
-        assert.match(land, /needs: \[pick, version, approve\]\n/);
+        // land and publish follow only a version commit made after the verdict's decision to promote (a nightly;
+        // the land and site tests below)
+        assert.match(land, /needs: \[pick, version\]\n/);
         assert.match(
             publish,
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true'/,
@@ -4680,7 +4672,7 @@ describe("release.yml", () => {
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
         assert.match(
             held,
-            /needs:\s+\[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume, version, approve, land\]/,
+            /needs:\s+\[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume, version, land\]/,
         );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them -- besides a held
@@ -4721,7 +4713,6 @@ describe("release.yml", () => {
             /if \[ -n "\$LLM_OWNER_ITEM" \]; then\n\s+echo\n\s+echo "The LLM regression job did not fail on code: [^\n]*it is an owner item/,
         );
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
-        assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
         // a full or restart run whose promotion failed in versioning or landing reports it in its own issue
         assert.match(
             held,
@@ -4752,14 +4743,13 @@ describe("release.yml", () => {
         assert.match(helper, /gh issue edit "\$open"[^\n]*--title "\$2"/);
         assert.match(helper, /gh issue comment "\$open"/);
         assert.match(helper, /--label bug --label priority:high --label effort:medium/);
-        assert.match(held, /::error::release held/);
+        assert.match(held, /::error::nightly promotion: /);
         // the only way out without an issue is the T4 runner loss the re-run repeats (tested with it)
         assert.equal(held.match(/\n\s+exit [0-9]/g).length, 1);
         // a refused or lost T4 runner has no code fix: the issue says so
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
-        // and the next train that lands closes it, only after the push
-        const close = land.indexOf("tools/release-held.sh close");
-        assert.ok(close > land.indexOf("tools/channel/land.sh"), "closed only after the release is on master");
+        // the nightly site's deploy closes it (nightly-site.yml), never the land job
+        assert.doesNotMatch(land, /release-held.sh close/);
     });
 
     // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
@@ -4778,7 +4768,7 @@ describe("release.yml", () => {
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
         // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
-        const runs = (results, release = "true", pushed = "", mode = "legacy", promote = "") =>
+        const runs = (results, release = "true", pushed = "", mode = "shadow", promote = "") =>
             new Function(
                 "needs",
                 "inputs",
@@ -4797,7 +4787,6 @@ describe("release.yml", () => {
                         "verdict",
                         "resume",
                         "version",
-                        "approve",
                         "land",
                     ].map((j) => [
                         j,
@@ -4834,9 +4823,7 @@ describe("release.yml", () => {
             ]);
             assert.match(
                 held,
-                new RegExp(
-                    `needs:\\s+\\[${trainNeeds.slice(0, -2).join(", ")}, verdict, resume, version, approve, land\\]`,
-                ),
+                new RegExp(`needs:\\s+\\[${trainNeeds.slice(0, -2).join(", ")}, verdict, resume, version, land\\]`),
             );
             // a promotion after the owner's approval that did not land files the nightly promotion's issue too
             assert.match(
@@ -4934,11 +4921,8 @@ describe("release.yml", () => {
             );
         });
 
-        it("stays quiet for a green shadow run, which lands nothing, and when the owner declines the approval", () => {
-            assert.equal(runs({ approve: "skipped", land: "skipped" }), false);
-            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
-                assert.equal(runs({ approve: result, land: "skipped" }), false, `approve ${result}`);
-            }
+        it("stays quiet for a green shadow run, which lands nothing", () => {
+            assert.equal(runs({ land: "skipped" }), false);
         });
 
         it("never runs in a full run, which ends in its verdict instead", () => {
@@ -4961,7 +4945,7 @@ describe("release.yml", () => {
         it("still opens the held issue when versioning or landing fails before the push", () => {
             for (const result of NOT_SUCCESS) {
                 assert.equal(runs({ version: result, land: "skipped" }, "true", ""), true, `version ${result}`);
-                assert.equal(runs({ land: result }, "true", ""), true, `land ${result}`);
+                assert.equal(runs({ land: result }, "true", "", "full", "true"), true, `land ${result}`);
             }
         });
 
@@ -5001,7 +4985,8 @@ describe("release.yml", () => {
                         GITHUB_OUTPUT: join(dir, "output"),
                         RUNNER_TEMP: dir,
                         TRIGGER: "schedule",
-                        MODE: "legacy",
+                        MODE: "full",
+                        NIGHTLY: "true",
                         SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
                         PICK_RESULT: "success",
                         CI_RESULT: "success",
@@ -5043,7 +5028,7 @@ describe("release.yml", () => {
 
         it("opens the issue for an abandoned CI call, naming the job that never ran", () => {
             const { title, body } = issue({ CI_RESULT: "abandoned" }, JOBS);
-            assert.equal(title, "Release held: CI failed on 44ab26d\n");
+            assert.equal(title, "Nightly promotion failed: CI on 44ab26d\n");
             assert.match(body, /Results: candidate pick success, CI abandoned, T4 GPU success, /);
             assert.match(body, /Jobs that did not pass: CI \/ All Checks Pass, CI \/ Queue Checks Pass\n/);
             assert.match(body, /\nCI \/ All Checks Pass: never finished \(still queued\)/);
@@ -5053,7 +5038,7 @@ describe("release.yml", () => {
         });
 
         it("in a shadow run, comments once on #3418 instead of opening a Release held issue", () => {
-            const { title, body } = issue({ MODE: "shadow", T4_RESULT: "failure" }, []);
+            const { title, body } = issue({ MODE: "shadow", NIGHTLY: "false", T4_RESULT: "failure" }, []);
             assert.equal(title, "#3418\n");
             assert.match(body, /^\*\*Shadow release run: T4 GPU failed on 44ab26d\*\*\n/);
             assert.match(body, /A shadow run: it never pushes or publishes, and it holds nothing/);
@@ -5064,7 +5049,7 @@ describe("release.yml", () => {
 
         it("opens the issue when a lane was only cancelled", () => {
             const { title } = issue({ T4_RESULT: "cancelled" }, []);
-            assert.equal(title, "Release held: T4 GPU failed on 44ab26d\n");
+            assert.equal(title, "Nightly promotion failed: T4 GPU on 44ab26d\n");
         });
 
         it("opens the issue when the pick itself failed", () => {
@@ -5080,23 +5065,23 @@ describe("release.yml", () => {
                 },
                 [],
             );
-            assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
+            assert.equal(title, "Nightly promotion failed: candidate pick on 44ab26d\n");
         });
 
         it("names a failed LLM lane, and an owner item as one", () => {
             assert.equal(
                 issue({ LLM_RESULT: "failure" }, []).title,
-                "Release held: LLM regression failed on 44ab26d\n",
+                "Nightly promotion failed: LLM regression on 44ab26d\n",
             );
             assert.equal(
                 issue({ LLM_RESULT: "cancelled" }, []).title,
-                "Release held: LLM regression failed on 44ab26d\n",
+                "Nightly promotion failed: LLM regression on 44ab26d\n",
             );
             const { title, body } = issue(
                 { LLM_RESULT: "failure", LLM_OWNER_ITEM: "the provider refused the account (credit balance too low)" },
                 [],
             );
-            assert.equal(title, "Release held: LLM regression (owner item: Google account) failed on 44ab26d\n");
+            assert.equal(title, "Nightly promotion failed: LLM regression (owner item: Google account) on 44ab26d\n");
             assert.match(body, /LLM regression \(owner item: Google account\) failure/);
             assert.match(body, /The LLM regression job did not fail on code: the provider refused the account/);
             assert.doesNotMatch(body, /githubstatus/);
@@ -5112,13 +5097,13 @@ describe("release.yml", () => {
                     steps: [{ name: "Push the version commit and its tags to master", conclusion: "failure" }],
                 },
             ]);
-            assert.equal(title, "Release held: landing on master failed on 44ab26d\n");
+            assert.equal(title, "Nightly promotion failed: landing on master on 44ab26d\n");
             assert.match(body, /Land the release on master \(failure\): Push the version commit/);
-            assert.match(body, /Nothing was pushed to master and nothing was published\./);
+            assert.match(body, /nothing reached master, npm `next` did not move/);
             assert.doesNotMatch(body, /githubstatus|pull request was/);
             assert.equal(
                 issue({ VERSION_RESULT: "failure" }, []).title,
-                "Release held: versioning failed on 44ab26d\n",
+                "Nightly promotion failed: versioning on 44ab26d\n",
             );
         });
     });
@@ -5264,11 +5249,6 @@ describe("release.yml", () => {
         it("shares the one train group, so two pushes in a row never start two trains", () => {
             assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         });
-
-        it("tells a legacy hold's fix to keep the issue open and dispatch again", () => {
-            assert.match(held, /Refs #<this issue>/);
-            assert.match(held, /gh workflow run release.yml --ref master -f mode=legacy/);
-        });
     });
 
     it("publishes the landed version commit, from this run's tested builds, with OIDC", () => {
@@ -5280,26 +5260,19 @@ describe("release.yml", () => {
         assert.match(publish, /gh release create "\$tag" --verify-tag /);
     });
 
-    it("publishes npm next for the nightly path and latest for legacy, from the one release environment", () => {
-        assert.match(release, /^ {4}DIST_TAG: \$\{\{ inputs.mode == 'legacy' && 'latest' \|\| 'next' \}\}\n/m);
+    it("publishes npm next only (promote.yml moves latest), from the one release environment", () => {
+        assert.match(release, /^ {4}DIST_TAG: next\n/m);
         assert.match(publish, /\n {8}environment: release # npm trusted publishing/);
         assert.match(publish, /nx release publish --projects="\$PROJECTS" --tag "\$DIST_TAG" /);
         // a next release is a GitHub prerelease, never "Latest"
         assert.match(publish, /\[ "\$DIST_TAG" = latest \] \|\| flags=\(--prerelease --latest=false\)/);
         assert.match(publish, /gh release create "\$tag" --verify-tag "\$\{flags\[@\]\}" /);
-        // no dependency's install script runs beside npm's OIDC in a nightly publish; legacy installs as before
-        assert.deepEqual(publish.match(/pnpm install[^\n]*/g), [
-            "pnpm install --frozen-lockfile ${{ inputs.mode != 'legacy' && '--ignore-scripts' || '' }}",
-        ]);
-        // legacy still lands and publishes only behind the owner's production approval; a nightly promotion lands
-        // once its version job passed (the verdict decided to promote)
+        // no dependency's install script runs beside npm's OIDC
+        assert.deepEqual(publish.match(/pnpm install[^\n]*/g), ["pnpm install --frozen-lockfile --ignore-scripts"]);
+        // a nightly promotion lands once its version job passed (the verdict decided to promote); shadow never lands
         assert.match(
             land,
-            /needs: \[pick, version, approve\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(needs.approve.result == 'success' \|\| inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate' \|\| inputs.mode == 'promote-nightly'\) \}\}/,
-        );
-        assert.match(
-            approve,
-            /if: \$\{\{ !cancelled\(\) && inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
+            /needs: \[pick, version\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate' \|\| inputs.mode == 'promote-nightly'\) \}\}/,
         );
         // npm next moves only when something was versioned; the site and channel/nightly move either way
         assert.match(
@@ -5561,18 +5534,7 @@ describe("release.yml", () => {
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
 
-    it("sends a phone notice when a train starts testing a candidate, RETRYING after a fix or on a re-run", () => {
-        // after the pending and nothing-releasable checks, only when there is something to release
-        assert.ok(pick.indexOf("- name: Announce the train attempt") > pick.indexOf("id: releasable"));
-        assert.match(
-            pick,
-            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' && inputs.mode == 'legacy' \}\}\n\s+continue-on-error: true\n/,
-        );
-        assert.match(pick, /TAGS: \$\{\{ steps.releasable.outputs.tags \}\}/);
-        assert.match(
-            pick,
-            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
-        );
+    it("sends a phone notice RETRYING on a re-run of a failed publish", () => {
         // a re-run of a failed publish says it is retrying, before anything else in the job
         assert.match(
             publish,
@@ -5621,11 +5583,11 @@ describe("release.yml", () => {
             watch,
             /if: \$\{\{ github.event_name == 'workflow_dispatch' \|\| \(!contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.display_title != 'Release \(shadow\)'\) \}\}/,
         );
-        // a shadow run is named so, and never announced: it publishes nothing. A full run is announced like a legacy
-        // one: its verdict comments on a red run, and the backstop covers one that ended before its verdict.
+        // a shadow run is named so, and never announced: it publishes nothing. A full run's verdict comments on a
+        // red run, and the backstop covers one that ended before its verdict.
         assert.match(
             release,
-            /^run-name: \$\{\{ inputs.mode == 'legacy' && 'Release \(legacy\)' \|\| inputs.mode == 'shadow' && 'Release \(shadow\)' \|\| format\('Release \(\{0\}\)', inputs.mode \|\| 'full'\) \}\}\n/m,
+            /^run-name: \$\{\{ inputs.mode == 'shadow' && 'Release \(shadow\)' \|\| format\('Release \(\{0\}\)', inputs.mode \|\| 'full'\) \}\}\n/m,
         );
         assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
@@ -7244,8 +7206,8 @@ describe("release.yml's version dry run with nothing releasable", () => {
             assert.match(r.stdout, /nothing releasable changed on abc/);
         }
     });
-    it("fails in shadow and legacy mode, where the pick job checked releasability", () => {
-        for (const mode of ["shadow", "legacy"]) {
+    it("fails in shadow mode, where the pick job checked releasability", () => {
+        for (const mode of ["shadow"]) {
             const r = runWith(mode);
             assert.equal(r.status, 1, mode);
             assert.match(r.stdout, /nx versioned nothing on abc/);
@@ -7647,9 +7609,11 @@ describe("release.yml's nightly promotion (#1020)", () => {
             steps.site.steps[at("Close the failed-deploy and failed-promotion issues")].run,
             /^rc=0\nnode tools\/channel\/nightly.mjs deployed \|\| rc=\$\?\n/m,
         );
-        // a nightly closes no legacy train hold
-        const closeHeld = steps.land.steps.find((st) => st.name === "Close the held-release issue");
-        assert.equal(closeHeld.if, "${{ inputs.mode == 'legacy' }}");
+        // the land job closes no train hold: only a legacy release opened one (#3467 removed it)
+        assert.equal(
+            steps.land.steps.find((st) => st.name === "Close the held-release issue"),
+            undefined,
+        );
         // the release and its assets in one call (immutable releases, #4149): tools/channel/nightly.mjs site-release
         assert.equal(
             steps.site.steps[at("Hang the site on the site-<sha> prerelease")].run,

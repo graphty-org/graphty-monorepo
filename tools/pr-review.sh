@@ -324,7 +324,8 @@ mkdir -p "$(dirname "$report")"
     echo "$marker"
     if [ "${#findings[@]}" -gt 0 ]; then
         echo "$integrity_marker"
-        printf '%s\n' "${cleared[@]}"
+        # nothing for no cleared finding: an empty line would end the header above the markers below
+        [ "${#cleared[@]}" = 0 ] || printf '%s\n' "${cleared[@]}"
     fi
     [ -z "$members_marker" ] || echo "$members_marker"
     [ "${#unaddressed[@]}" = 0 ] || printf '%s\n' "${unaddressed[@]}"

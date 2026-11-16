@@ -21,6 +21,7 @@ import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
+import { readAuthor } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
@@ -135,16 +136,19 @@ export function Workspace({
             askAboveMs: 1000,
             branchPalette: cardPalette(session.catalog.palettes()),
         });
+        // The reader's name from Settings, which graphty-element stamps on each note and never
+        // saves in a project file, so each opened project is told it again.
+        const author = readAuthor();
+        const patch = {
+            ...(session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top"
+                ? {}
+                : { startingRows: true, editableBase: true, runPlacement: "top" as const, pinnedStyle: PINNED_LOOK }),
+            ...(author === "" || session.config.author === author ? {} : { author }),
+        };
         const defaults =
-            project?.id === startProjectId ||
-            (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
+            project?.id === startProjectId || Object.keys(patch).length === 0
                 ? Promise.resolve()
-                : session.config.set({
-                      startingRows: true,
-                      editableBase: true,
-                      runPlacement: "top",
-                      pinnedStyle: PINNED_LOOK,
-                  });
+                : session.config.set(patch);
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {

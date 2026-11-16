@@ -331,9 +331,15 @@ export interface WorkspaceState {
     readonly notice: Notice | null;
     /**
      * The note being written in the Notes place: what it is about, fixed when its door opened
-     * it, and the text so far, kept until it is saved or cleared. Null when no editor is open.
+     * it, and the text and tags so far, kept until it is saved or cleared. Null when no editor is open.
      */
-    readonly noteDraft: { readonly targets: readonly NoteTargetInput[]; readonly text: string } | null;
+    readonly noteDraft: {
+        readonly targets: readonly NoteTargetInput[];
+        readonly text: string;
+        readonly tags?: readonly string[];
+    } | null;
+    /** The reader closed the "no author name" warning over the note editor, for this page view. */
+    readonly authorWarningClosed: boolean;
     /**
      * The one polite status line for the core path: a load finished with its size, a run
      * started, a run finished. Each replaces the last.
@@ -445,6 +451,7 @@ const INITIAL: WorkspaceState = {
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
+    authorWarningClosed: false,
     announcement: "",
     announced: 0,
     opening: null,

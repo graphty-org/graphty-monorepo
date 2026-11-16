@@ -392,6 +392,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "network.setProjectHosts()": "writes",
     "notes.add()": "writes",
     "notes.authors()": "not the graph",
+    "notes.tags()": "not the graph",
     "notes.counts()": "not the graph",
     "notes.get()": "not the graph",
     "notes.list()": "not the graph",

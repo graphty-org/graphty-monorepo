@@ -8,6 +8,7 @@ import {
     Stack,
     Switch,
     Text,
+    TextInput,
     Title,
     useMantineColorScheme,
 } from "@mantine/core";
@@ -29,8 +30,10 @@ import {
     fileStylesChoice,
     MAP_DEPTH_INDEPENDENT_SIZE,
     NUMBER_FORMAT,
+    readAuthor,
     readPreference,
     SINGLE_KEY_SHORTCUTS,
+    writeAuthor,
     writeFileStylesChoice,
     writePreference,
 } from "./preferences";
@@ -45,7 +48,41 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
 
 /**
- * General: Theme (the app's chrome only), Number format, Import styles from files and the map
+ * Your name: kept in this browser and written on the open project's author setting, which
+ * graphty-element stamps on each note added. Taken when the field is left or Enter is pressed.
+ * @returns The field
+ */
+function YourName(): React.JSX.Element {
+    const { session } = useWorkspace();
+    const [name, setName] = useState(readAuthor);
+    const take = (): void => {
+        writeAuthor(name);
+        const next = name.trim() === "" ? undefined : name.trim();
+        if (session !== null && session.config.author !== next) {
+            void session.config.set({ author: next ?? null });
+        }
+    };
+    return (
+        <TextInput
+            label="Your name"
+            description="Signed on the notes you write."
+            value={name}
+            maxLength={256}
+            onChange={(event) => {
+                setName(event.currentTarget.value);
+            }}
+            onBlur={take}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    take();
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * General: Your name, Theme (the app's chrome only), Number format, Import styles from files and the map
  * layout's node size rule.
  * @returns The section
  */
@@ -60,6 +97,7 @@ function General(): React.JSX.Element {
     const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
     return (
         <Stack gap="md">
+            <YourName />
             <Input.Wrapper label="Theme" description="The app's panels and menus.">
                 <SegmentedControl
                     value={colorScheme}

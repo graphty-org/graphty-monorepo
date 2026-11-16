@@ -159,6 +159,8 @@ Each line is the rule to obey; the measurement and evidence are in the reference
 - Both Dawn and Chromium accept a misaligned uniform struct: always generate structs with `UniformBlock`.
 - WebKit fails `createComputePipeline` when `constants` names an unread override: pass only the referenced subset
   (`ComposedModule.constants`).
+- WebKit cannot evaluate `bitcast` in an override-expression ("Failed to evaluate override value" at pipeline
+  creation, #8215): no bitcast in a statement naming an override; write the bits as a hex literal.
 - Never unmap or destroy a staging buffer whose `mapAsync` is pending (RB-1; Metal crashes): every map goes through
   the readback ring.
 - Vitest freezes a test's timeout at collection: give slow adapters less work, never a bigger timeout (G5-F13).

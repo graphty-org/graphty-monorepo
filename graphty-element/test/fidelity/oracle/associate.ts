@@ -215,7 +215,32 @@ function curvedShapeOf(p: Prim): PShape | null {
     ).length;
     // a rounded rectangle rounds every corner: one drawn square is a shape with a curved side (yEd's delay, document
     // and stored data), which also fills most of its box
-    return fills > 0.86 && onSide >= 0.3 * p.points.length && p.squareCorner !== true ? "roundrect" : "other";
+    if (p.squareCorner === true || onSide < 0.3 * p.points.length) {
+        return "other";
+    }
+    // a short pill (corners rounded by half its shorter side) fills less than 0.86: one whose every point lies on the
+    // pill its box holds is one (vis-network clamps a box's borderRadius 12 to 11 on a box 22 tall, #8197)
+    return fills > 0.86 || onPill(p.points, mx, my, a, c) ? "roundrect" : "other";
+}
+
+/**
+ * Whether every point lies on the pill a box holds: a rectangle rounded by half its shorter side, within 5% of that
+ * radius (the rounded rectangle's signed distance).
+ * @param points - the outline's sampled points
+ * @param mx - the box's middle, x
+ * @param my - its middle, y
+ * @param a - its half width
+ * @param c - its half height
+ * @returns true on the pill
+ */
+function onPill(points: readonly Pt[], mx: number, my: number, a: number, c: number): boolean {
+    const r = Math.min(a, c);
+    return points.every(([x, y]) => {
+        const qx = Math.abs(x - mx) - (a - r);
+        const qy = Math.abs(y - my) - (c - r);
+        const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+        return Math.abs(sd) <= 0.05 * r;
+    });
 }
 
 /**

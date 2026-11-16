@@ -410,6 +410,8 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                 reaches: [
                     { op: "data.import" },
                     { op: "data.apply" },
+                    // A replacing load of a file that holds annotations writes them.
+                    { op: "annotations.set" },
                     { door: "SessionDataApi.import" },
                     { options: "formats" },
                     ...formats.map((id) => ({ catalog: `formats/${id}` })),

@@ -26,7 +26,7 @@ export interface JsonRecordsOptions extends Omit<JsonImportOptions, "dialect"> {
  * A JSON document read as flat records: one node record per node the document declared, in its order, and one edge
  * record per edge the importer kept. Every record holds the document's own top-level keys; a node record also holds
  * `id` and, when the document placed it, `position: { x, y, z }` (its center, y up, in the file's units), and an
- * edge record also holds `source` and `target`.
+ * edge record names its endpoints under the document's own keys (`source` and `target`, or vis.js's `from` and `to`).
  * @category Loading
  */
 export interface JsonRecords {
@@ -165,7 +165,7 @@ function cytoscapeRecords(snapshot: GraphSnapshot, declared: readonly NodeId[]):
 
 /**
  * A graphology or vis.js document's records: each record as the file wrote it, a graphology node gaining `id` (its
- * `key`), a vis.js edge gaining `source` and `target` (its `from` and `to`); only the edges the importer kept.
+ * `key`); only the edges the importer kept.
  * @param snapshot - the imported graph
  * @param root - the parsed document
  * @param dialect - graphology or vis
@@ -194,11 +194,8 @@ function fileRecords(snapshot: GraphSnapshot, root: Record<string, unknown>, dia
             }
         }
     }
-    const edges = [...edgeRecords.values()].map((edge) =>
-        hasKey(edge, "source") && hasKey(edge, "target")
-            ? edge
-            : { source: edge[sourceKey], target: edge[targetKey], ...edge },
-    );
+    // as the file wrote them, so a reader can still say which keys named the endpoints
+    const edges = [...edgeRecords.values()];
 
     return { nodes, edges, path: recordPaths(snapshot, nodes, edgeRecords, rawPath) };
 }

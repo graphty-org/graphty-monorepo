@@ -89,7 +89,8 @@ describe("JsonDataSource: the same graph from any program's JSON", () => {
             const { nodes, edges } = await recordsOf(doc);
             return {
                 nodes: nodes.map((node) => ({ id: node.id, position: node.position })),
-                edges: edges.map((edge) => ({ source: edge.source, target: edge.target })),
+                // under the file's own keys, which the element resolves (vis.js writes from and to)
+                edges: edges.map((edge) => ({ source: edge.source ?? edge.from, target: edge.target ?? edge.to })),
             };
         };
         const want = await shape(vis);

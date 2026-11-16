@@ -228,8 +228,7 @@ describe("JSON read through graph-io", () => {
             { id: "a", value: 42, tags: ["x"] },
             { id: "b", value: "n/a", nested: { deep: true } },
         ]);
-        // The ends are also written as source and target, as every JSON reader of records gives them.
-        assert.deepStrictEqual(edges, [{ source: "a", target: "b", from: "a", to: "b", weight: 0.1 }]);
+        assert.deepStrictEqual(edges, [{ from: "a", to: "b", weight: 0.1 }]);
     });
 
     test("yields no record for a node only an edge names", async () => {

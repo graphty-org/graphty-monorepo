@@ -29,7 +29,8 @@ const VIS = JSON.stringify({
 });
 
 /**
- * The parts of a read that every dialect shares: node ids and whether each is placed, edge endpoints.
+ * The parts of a read that every dialect shares: node ids and whether each is placed, edge endpoints (under
+ * the document's own keys, `source`/`target` or vis.js's `from`/`to`).
  * @param text - the document
  * @returns the common record shape
  */
@@ -37,7 +38,7 @@ async function shapeOf(text: string): Promise<unknown> {
     const read = await readJsonRecords(text);
     return {
         nodes: read?.nodes.map((n) => ({ id: n.id, placed: typeof n.position === "object" })),
-        edges: read?.edges.map((e) => ({ source: e.source, target: e.target })),
+        edges: read?.edges.map((e) => ({ source: e.source ?? e.from, target: e.target ?? e.to })),
     };
 }
 
@@ -85,7 +86,7 @@ describe("readJsonRecords", () => {
         });
         const read = await readJsonRecords(text);
         expect(read?.edges.map((e) => e.w)).toEqual([1, 3]);
-        expect(read?.edges[1]).toMatchObject({ source: "b", target: "a" });
+        expect(read?.edges[1]).toMatchObject({ from: "b", to: "a" });
     });
 
     it("answers null for a document of another dialect", async () => {

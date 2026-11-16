@@ -710,10 +710,15 @@ describe("jobs", () => {
             { n: 2, test: "T1-fold" },
             { n: 3, test: "T3" },
         ]);
-        const result = ledgerJobs(l, q([1, "high"], [2, "high"], [3, "high"]), NOW);
+        const result = ledgerJobs(l, q([1, "high"], [2, "high"], [3, "high"]), NOW, { everyMemberReviewed: false });
         assert.deepEqual(
             result.jobs.map((j) => j.issues),
             [[1, 2], [3]],
+        );
+        // every member reviewed (the default now): the whole group is one job
+        assert.deepEqual(
+            ledgerJobs(l, q([1, "high"], [2, "high"], [3, "high"]), NOW).jobs.map((j) => j.issues),
+            [[1, 2, 3]],
         );
     });
 
@@ -854,10 +859,7 @@ describe("the command line", () => {
         );
         assert.match(main(["import-scan", scan], { ledgerPath, now: NOW }).out, /imported 1 proposed groups, 2 issues/);
         const out = main(["jobs"], { ledgerPath, now: NOW, fetchQueue: () => q([1, "high"], [2, "high"]) }).out;
-        assert.match(
-            out,
-            /^job #1 high g2 -- T5 \(split until every member is reviewed\); files d\.md\njob #2 high g2 /,
-        );
+        assert.match(out, /^job #1 #2 high g2 tests 1:scan 2:lead -- T5; files d\.md$/m);
     });
 
     it("appends a metrics record", () => {

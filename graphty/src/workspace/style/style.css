@@ -652,8 +652,9 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings on the left and
-   the model on the right in a 240 px column (blank until a model is loaded), the footer across both.
+/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings, Files and Details
+   on the left and the model on the right in a 240 px column (blank until a model is loaded), the
+   footer across both. The right column fits the dialog's height, so its box never scrolls away.
    The whole body takes a drop, and shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
@@ -764,6 +765,17 @@
     pointer-events: none;
 }
 
+/* One model of a set that Add leaves out (Load this model unchecked): faded, its name struck through. */
+.ws-model-preview[data-skipped] .ws-model-live,
+.ws-model-preview[data-skipped] .ws-model-preview-over {
+    opacity: 0.35;
+}
+
+.ws-model-preview[data-skipped] .ws-model-label {
+    text-decoration: line-through;
+    color: var(--cm-text-secondary);
+}
+
 /* Under a set's preview: the arrows and their count, then Load this model. */
 .ws-model-steps {
     width: 240px;
@@ -783,13 +795,9 @@
     border-radius: var(--mantine-radius-sm);
 }
 
-/* Details takes the side column's height left under the preview, down to a few rows, and scrolls in it. */
-.ws-model-details-box {
-    min-height: 88px;
-}
-
+/* Details, under the settings in the left column: tall enough for its usual rows, scrolling past them. */
 .ws-model-details-box .ws-model-scroll {
-    min-height: 0;
+    max-height: 240px;
 }
 
 .ws-model-scroll:focus-visible {

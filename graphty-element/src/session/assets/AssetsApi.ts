@@ -174,7 +174,8 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     /**
      * The main file's path inside the set, cut to 256 characters; also on a model waiting for
-     * parts, once its main file is known.
+     * parts, once its main file is known, and on a refused model whose main file was named (each
+     * model {@link AssetsApi.addEach} finds in a set).
      */
     readonly path?: string;
     /** `pending` while a URL downloads; `accepted` once checked; `rejected` with its `E_MODEL_*` in `problems`. */
@@ -316,7 +317,8 @@ export interface AssetsApi {
      * more than one model (two .glb files, an .obj with its .mtl beside a .gltf with its .bin) give
      * one record per model, holding the files that model uses. A source of one model, a URL, or a
      * source naming its `main` gives one record, exactly as {@link AssetsApi.add}. Each record
-     * settles as `add`'s does: a model missing a part waits for it.
+     * settles as `add`'s does: a model missing a part waits for it. Stopped by the signal partway,
+     * it rejects and keeps none of the models it took that the session did not already hold.
      * @param source - The models.
      * @param options - A signal and a progress listener; `name` and `main` apply only to a source of one model.
      * @returns The settled records, by the path of each model's file.
@@ -1082,8 +1084,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             const problems = error.facts;
-            // A model waiting for parts is named by its main file, as an accepted one is.
-            const main = onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined;
+            // A model waiting for parts is named by its main file, as an accepted one is, and so is
+            // one refused whose main file was named (each model of a set names its own).
+            const main = options.main ?? (onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined);
             const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
                 settled: record({
@@ -2027,9 +2030,24 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             // A friendly id names one model, so each of several takes its digest.
             const { name: _name, ...each } = options;
             const records: AssetRecord[] = [];
+            // Stopped partway, the call keeps nothing it took: the models already in, and the one
+            // still being read once it settles, are let go unless the session held them before.
+            const heldBefore = new Set([...api.list(), ...api.waiting()].map((r) => r.id));
+            const letGo = (r: AssetRecord): void => {
+                if (!heldBefore.has(r.id)) {
+                    api.remove(r.id);
+                }
+            };
             for (const model of models) {
                 const own = new Map(model.files.map((path) => [path, files.get(path) as Uint8Array]));
-                records.push(await waitFor(intake(own, each, model.main), each, undefined));
+                const work = intake(own, each, model.main);
+                try {
+                    records.push(await waitFor(work, each, undefined));
+                } catch (error) {
+                    records.forEach(letGo);
+                    work.then(letGo, () => undefined);
+                    throw error;
+                }
             }
 
             return records;

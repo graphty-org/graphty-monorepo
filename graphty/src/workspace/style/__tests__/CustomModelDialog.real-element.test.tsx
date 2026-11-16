@@ -47,6 +47,9 @@ withoutFeatures(["file-styles"]);
 /** The car kit's folder, as the file chooser reads it (relative to the graphty project). */
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";
 
+/** A folder of two models, points.ply and damaged.ply (which graphty-element accepts but cannot draw). */
+const VARIANTS_FOLDER = "src/workspace/style/__fixtures__/variants";
+
 /**
  * A fixture as a file, from the test server.
  * @param url - its URL.
@@ -243,17 +246,32 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         assert.equal(position.textContent, "1 of 3");
         assert.equal(label.textContent, "police", "the box names the model it shows");
+        assert.isTrue(within(dialog).getByTestId("model-preview").contains(label), "the name sits on the box");
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "quad");
         assert.equal(position.textContent, "2 of 3");
         assert.equal(label.textContent, "quad");
+        const preview = within(dialog).getByTestId("model-preview");
+        assert.isNull(preview.getAttribute("data-skipped"));
         await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
         assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
+        assert.equal(preview.getAttribute("data-skipped"), "true", "an unchecked model looks left out");
+        assert.include(getComputedStyle(label).textDecorationLine, "line-through");
+        assert.isBelow(Number(getComputedStyle(preview.querySelector(".ws-model-live") as Element).opacity), 1);
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "wall");
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("checkbox", { name: "Load this model" }).checked);
+        assert.isNull(preview.getAttribute("data-skipped"), "a checked model is drawn as usual");
+        // The box, its name and Reset view stay in view: the right column fits the dialog, and
+        // Details, in the left column, ends above the footer.
+        const side = dialog.querySelector<HTMLElement>(".ws-model-side");
+        assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the model's column does not scroll");
+        const details = within(dialog).getByTestId("model-details");
+        const footer = dialog.querySelector(".ws-model-footer") as Element;
+        assert.isAtMost(details.getBoundingClientRect().bottom, footer.getBoundingClientRect().top);
+        assert.isAtLeast(details.clientHeight, Math.min(details.scrollHeight, 150), "Details shows most of its rows");
         const nameField = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(nameField);
         await userEvent.type(nameField, "Wall panel");
@@ -306,6 +324,42 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(dialog).queryByTestId("model-label"));
     });
 
+    it("chooses a folder of two models, and keeps Add blocked by the one it cannot draw", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose folder", [VARIANTS_FOLDER]);
+        const position = await within(dialog).findByTestId("model-position");
+        assert.equal(position.textContent, "1 of 2");
+        const preview = within(dialog).getByTestId("model-preview");
+        assert.isNotNull(await within(preview).findByText("Not loaded"), "damaged.ply cannot be drawn");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "points");
+        const add = within(dialog).getByRole("button", { name: "Add 2 models" });
+        assert.equal(add.getAttribute("aria-disabled"), "true", "the model not on screen still blocks Add");
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Previous model" }));
+        await within(preview).findByText("Not loaded");
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await previewOf(dialog, "points");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.deepEqual(models(session), ["points.ply"], "damaged.ply is let go");
+        });
+    });
+
+    it("says which models of a drop were refused", async () => {
+        const { store, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const wall = new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" });
+        const broken = new File([new Uint8Array([1, 2, 3, 4])], "broken.glb", { type: "model/gltf-binary" });
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), wall, broken]);
+        const refused = await within(dialog).findByTestId("model-refused");
+        assert.match(refused.textContent, /^broken\.glb: /);
+        assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
+        assert.include(store.get().announcement, "broken.glb: ");
+    });
+
     it("hands files that are not a model to the model waiting, and replaces it with a model", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
@@ -345,6 +399,8 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         const chooser = within(dialog).getByRole("button", { name: "Choose file" });
         assert.equal(chooser.querySelector("svg")?.getAttribute("data-glyph"), "fileUpload");
+        const folder = within(dialog).getByRole("button", { name: "Choose folder" });
+        assert.equal(folder.querySelector("svg")?.getAttribute("data-glyph"), "folderUpload");
         const address = within(dialog).getByRole("textbox", { name: "Model address" });
         assert.equal(address.getAttribute("placeholder"), "Model address, or drop a file");
         const empty = within(dialog).getByTestId("model-preview");

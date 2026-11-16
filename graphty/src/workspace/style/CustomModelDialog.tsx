@@ -82,7 +82,7 @@ const ADDRESS_CODES: ReadonlySet<string> = new Set(["E_MODEL_FETCH", "E_MODEL_UR
 /** Format refusals: the line says which formats would do. */
 const FORMAT_CODES: ReadonlySet<string> = new Set(["E_MODEL_FORMAT_UNKNOWN", "E_MODEL_FORMAT_UNSUPPORTED"]);
 
-/** The warnings the closed Details line shows as chips, in this order. */
+/** The warnings the Details line shows as chips, in this order. */
 const DETAIL_CHIP_CODES: readonly string[] = [
     "W_MODEL_UP_GUESSED",
     "W_MODEL_HAS_ANIMATIONS",
@@ -109,6 +109,14 @@ interface Member {
     readonly name: string;
     /** Whether Add takes it (Load this model). */
     readonly load: boolean;
+    /** Why graphty-element could not draw it, once the preview has shown it; Add is blocked while it is taken. */
+    readonly failure?: CodedFact;
+}
+
+/** A model of a set refused outright: never held, said by its file. */
+interface Refused {
+    readonly name: string;
+    readonly problem: CodedFact;
 }
 
 /**
@@ -254,51 +262,34 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 }
 
 /**
- * The preview: graphty-element draws the model live in it (`modelPreview`) once it is accepted or,
- * while it waits for parts, with them stood in for; the reader turns it by dragging or with the
- * arrow keys, and its clip plays. Over it: a spinner while it loads or draws, the cube and the
- * "N missing" chip while it waits for a part it cannot be drawn without, or the cube and the chip
- * saying why graphty-element could not draw it.
- * @param props - Component props
- * @param props.held - the model, if any
- * @param props.name - its name
- * @param props.label - its name drawn on the box, for one model of several
- * @param props.draw - whether graphty-element drew it, or why it could not
- * @param props.busy - a source is loading
- * @param props.onHost - takes the element graphty-element draws in
- * @returns The preview box, with Reset view in its top-right corner once the model is drawn
+ * What stands over the preview: graphty-element draws the model live in it (`modelPreview`) once it
+ * is accepted or, while it waits for parts, with them stood in for; the reader turns it by dragging
+ * or with the arrow keys, and its clip plays. Over it: a spinner while it loads or draws, the cube
+ * and the "N missing" chip while it waits for a part it cannot be drawn without, or the cube and the
+ * chip saying why graphty-element could not draw it.
+ * @param held - the model, if any
+ * @param name - its name
+ * @param draw - whether graphty-element drew it, or why it could not
+ * @param busy - a source is loading
+ * @returns what stands over the box, or null once the model is drawn
  */
-function Preview({
-    held,
-    name,
-    label,
-    draw,
-    busy,
-    onHost,
-}: Readonly<{
-    held: Held | null;
-    name: string;
-    label?: string;
-    draw: ModelLive;
-    busy: boolean;
-    onHost: (host: HTMLDivElement | null) => void;
-}>): React.JSX.Element {
-    const showReset = held !== null && !busy && draw.drawn;
+function previewOver(held: Held | null, name: string, draw: ModelLive, busy: boolean): React.ReactNode {
     const accepted = held?.record.state === "accepted";
     const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
-    let over: React.ReactNode;
     if (draw.drawn && !busy) {
-        over = null;
-    } else if (draw.failure !== undefined && !busy) {
-        over = (
+        return null;
+    }
+    if (draw.failure !== undefined && !busy) {
+        return (
             <Stack gap={4} align="center">
                 <GLYPHS.model size={32} aria-hidden />
                 <ModelChip chip={modelChip(draw.failure)} />
             </Stack>
         );
-    } else if (held === null) {
+    }
+    if (held === null) {
         // Before a model is loaded the box says the dialog takes a dropped file, as a drop area does.
-        over = (
+        return (
             <Stack gap={6} align="center" className="ws-model-drop-hint">
                 <UiGlyph name="fileUpload" size={24} />
                 <Text size="xs" ta="center">
@@ -306,21 +297,61 @@ function Preview({
                 </Text>
             </Stack>
         );
-    } else if (draw.unavailable && !busy) {
+    }
+    if (draw.unavailable && !busy) {
         // The preview could not draw here (no WebGL context for it); the model itself may be fine.
-        over = <GLYPHS.model size={32} aria-hidden />;
-    } else if (busy || accepted || missing === undefined) {
-        over = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
-    } else {
-        over = (
-            <Stack gap={4} align="center">
-                <GLYPHS.model size={32} aria-hidden />
-                <ModelChip chip={missing} />
-            </Stack>
-        );
+        return <GLYPHS.model size={32} aria-hidden />;
+    }
+    if (busy || accepted || missing === undefined) {
+        return <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     }
     return (
-        <div className="ws-model-preview" data-testid="model-preview" data-empty={held === null || undefined}>
+        <Stack gap={4} align="center">
+            <GLYPHS.model size={32} aria-hidden />
+            <ModelChip chip={missing} />
+        </Stack>
+    );
+}
+
+/**
+ * The preview box: graphty-element's live drawing, what stands in over it, the model's name for
+ * one of several, and Reset view in its top-right corner once the model is drawn.
+ * @param props - Component props
+ * @param props.held - the model, if any
+ * @param props.name - its name
+ * @param props.label - its name drawn on the box, for one model of several
+ * @param props.skipped - one model of several that Add leaves out: drawn faded, its name struck through
+ * @param props.draw - whether graphty-element drew it, or why it could not
+ * @param props.busy - a source is loading
+ * @param props.onHost - takes the element graphty-element draws in
+ * @returns The preview box
+ */
+function Preview({
+    held,
+    name,
+    label,
+    skipped,
+    draw,
+    busy,
+    onHost,
+}: Readonly<{
+    held: Held | null;
+    name: string;
+    label?: string;
+    skipped?: boolean;
+    draw: ModelLive;
+    busy: boolean;
+    onHost: (host: HTMLDivElement | null) => void;
+}>): React.JSX.Element {
+    const showReset = held !== null && !busy && draw.drawn;
+    const over = previewOver(held, name, draw, busy);
+    return (
+        <div
+            className="ws-model-preview"
+            data-testid="model-preview"
+            data-empty={held === null || undefined}
+            data-skipped={skipped === true || undefined}
+        >
             {held === null || busy ? null : (
                 <div ref={onHost} className="ws-model-live" aria-busy={draw.drawing || undefined} />
             )}
@@ -635,15 +666,55 @@ function RotateButtons({
 }
 
 /**
+ * Why Add cannot take the models chosen yet, or null when it can.
+ * @param loadingName - what is loading, if anything
+ * @param members - every model the dialog holds
+ * @param current - the model shown
+ * @param failure - why graphty-element could not draw the model shown, if it could not
+ * @returns Add's tooltip while blocked, or null
+ */
+function addBlock(
+    loadingName: string | undefined,
+    members: readonly Member[],
+    current: Member | undefined,
+    failure: CodedFact | undefined,
+): string | null {
+    const many = members.length > 1;
+    const taking = many ? members.filter((m) => m.load) : members;
+    if (loadingName !== undefined) {
+        return CUSTOM_MODEL.loading(loadingName);
+    }
+    if (many && taking.length === 0) {
+        return CUSTOM_MODEL.noneChosen;
+    }
+    const notReady = taking.find((m) => m.held.record.state !== "accepted");
+    if (members.length === 0 || notReady !== undefined) {
+        const firstMissing = notReady?.held.record.problems.find((p) => PART_CODES.has(p.code))?.params.name;
+        return typeof firstMissing === "string"
+            ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
+            : CUSTOM_MODEL.addFirst;
+    }
+    // Every model taken that graphty-element could not draw blocks Add, not only the one shown.
+    for (const member of taking) {
+        const why = member === current ? failure : member.failure;
+        if (why !== undefined) {
+            return member === current ? refusalLine(why) : CUSTOM_MODEL.ofSet(member.name, refusalLine(why));
+        }
+    }
+    return null;
+}
+
+/**
  * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
  * own file (its parts are asked for after, in Files), its folder, a .zip or a drop of any files
  * anywhere on the dialog; while it loads, graphty-element's
- * progress with Cancel load; once loaded, two columns: the name and the settings on the left (Color,
- * Animation for a model with clips, More options, and Files when a part needs an answer), and the
- * model drawn by graphty-element on the right with its rotate buttons and its Details table.
- * Settings are a draft until Add. One model per dialog: files that are not a model, arriving while
- * it waits, go to it; a model, a folder holding one or a .zip replaces it, and the x beside its
- * name takes it out. Cancel lets go of what it loaded that no layer uses. Mounted only while open.
+ * progress with Cancel load; once loaded, two columns: the settings on the left (Color, Animation
+ * for a model with clips, More options, Files for a set of files, and the Details table), and the
+ * model drawn by graphty-element on the right with its name and its rotate buttons under it.
+ * Settings are a draft until Add. A folder, a .zip or a drop of several models holds each, stepped
+ * through under the box, each with its own name and Load this model; files that are not a model,
+ * arriving while one waits, go to it; a new model replaces what is held, and the x beside the file
+ * takes it out. Cancel lets go of what it loaded that no layer uses. Mounted only while open.
  * @param props - Component props
  * @param props.forLayer - whether a layer takes the model
  * @param props.baseStyle - the target layer's own values
@@ -665,6 +736,8 @@ export function CustomModelDialog({
     const [problem, setProblem] = useState<CodedFact | null>(null);
     const [tried, setTried] = useState<string | null>(null);
     const [picture, setPicture] = useState<Arrived | null>(null);
+    // The models of a set refused outright, said under the file loader.
+    const [refused, setRefused] = useState<readonly Refused[]>([]);
     // Every model loaded, and which one the preview shows; one for a model's own file.
     const [members, setMembers] = useState<readonly Member[]>([]);
     const [index, setIndex] = useState(0);
@@ -721,6 +794,20 @@ export function CustomModelDialog({
             nameField.current?.focus();
         }
     }, [heldKey, waits, body, busy]);
+    // Each model of a set remembers whether it could be drawn, so Add stays blocked by one that
+    // could not after the reader steps away from it.
+    const heldId = held?.record.id;
+    const { failure } = draw;
+    useEffect(() => {
+        if (heldId === undefined) {
+            return;
+        }
+        setMembers((now) =>
+            now.some((m) => m.held.record.id === heldId && m.failure !== failure)
+                ? now.map((m) => (m.held.record.id === heldId ? { ...m, failure } : m))
+                : now,
+        );
+    }, [heldId, failure]);
     // A model that is in but cannot be drawn is said, as an intake refusal is.
     const failureLine = draw.failure === undefined ? null : refusalLine(draw.failure);
     useEffect(() => {
@@ -844,14 +931,22 @@ export function CustomModelDialog({
             say(refusalLine(fact));
             return;
         }
-        for (const r of records.filter((each) => !kept.includes(each))) {
-            letGo(r.id);
-        }
+        // The models of the set refused outright are let go, and said by their files.
+        const out = records
+            .filter((each) => !kept.includes(each))
+            .map((r) => {
+                letGo(r.id);
+                return { name: r.path ?? r.id, problem: r.problems[0] ?? { code: "E_MODEL_PARSE", params: {} } };
+            });
+        setRefused(out);
         holdAll(kept.map((r) => ({ ...(url === undefined ? {} : { url }), record: r })));
         say(
-            kept.length > 1
-                ? CUSTOM_MODEL.loadedMany(kept.length)
-                : CUSTOM_MODEL.loaded(kept[0].plainName ?? modelName(session, url ?? kept[0].id)),
+            [
+                kept.length > 1
+                    ? CUSTOM_MODEL.loadedMany(kept.length)
+                    : CUSTOM_MODEL.loaded(kept[0].plainName ?? modelName(session, url ?? kept[0].id)),
+                ...out.map((r) => CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem))),
+            ].join(". "),
         );
     };
     const load = (source: AssetSource, files: readonly File[], shown: string): void => {
@@ -862,6 +957,7 @@ export function CustomModelDialog({
         setLoading({ name: shown, byAddress, controller, completed: 0, total: null });
         setProblem(null);
         setPicture(null);
+        setRefused([]);
         setTried(byAddress ? source : null);
         say(CUSTOM_MODEL.loading(shown));
         const stillOpen = start();
@@ -913,21 +1009,7 @@ export function CustomModelDialog({
     const accepted = held?.record.state === "accepted" ? held : null;
     // Of a set, Add takes the models checked; of one model, that model.
     const taking = many ? members.filter((m) => m.load) : members;
-    const notReady = taking.find((m) => m.held.record.state !== "accepted");
-    const firstMissing = notReady?.held.record.problems.find((p) => PART_CODES.has(p.code))?.params.name;
-    let blocked: string | null = null;
-    if (busy) {
-        blocked = CUSTOM_MODEL.loading(loading.name);
-    } else if (many && taking.length === 0) {
-        blocked = CUSTOM_MODEL.noneChosen;
-    } else if (members.length === 0 || notReady !== undefined) {
-        blocked =
-            typeof firstMissing === "string"
-                ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
-                : CUSTOM_MODEL.addFirst;
-    } else if (draw.failure !== undefined && current?.load === true) {
-        blocked = refusalLine(draw.failure);
-    }
+    const blocked = addBlock(loading?.name, members, current, draw.failure);
     let addWord: string = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     if (taking.length > 1) {
         addWord = CUSTOM_MODEL.addMany(taking.length);
@@ -1011,6 +1093,7 @@ export function CustomModelDialog({
         setProblem(null);
         setTried(null);
         setPicture(null);
+        setRefused([]);
         setAddress("");
         setMoreOpen(false);
         say(CUSTOM_MODEL.removed(heldFile));
@@ -1072,6 +1155,13 @@ export function CustomModelDialog({
                 />
             )}
             {fileProblem === null || busy ? null : <Refusal problem={fileProblem} />}
+            {busy
+                ? null
+                : refused.map((r) => (
+                      <Text key={r.name} size="xs" c="var(--cm-text-danger)" data-testid="model-refused">
+                          {CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem))}
+                      </Text>
+                  ))}
             {picture === null ? null : (
                 <Group gap={4} wrap="nowrap">
                     <Text size="xs" c="var(--cm-text-warning)">
@@ -1162,8 +1252,7 @@ export function CustomModelDialog({
                         className="ws-model-files ws-model-scroll"
                         data-testid="model-files"
                         aria-labelledby={`${uid}-files`}
-                        // A scrolled list takes focus, so the keyboard scrolls it too.
-                        tabIndex={0}
+                        tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
                         <Stack gap={6}>
                             {waitingFor
@@ -1209,6 +1298,28 @@ export function CustomModelDialog({
                     </section>
                 </Stack>
             )}
+            {summary === undefined || accepted === null || busy ? null : (
+                <Stack gap={4} className="ws-model-details-box">
+                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
+                        <Text size="sm" id={`${uid}-details`}>
+                            {CUSTOM_MODEL.details}
+                        </Text>
+                        {detailChips.map((chip) => (
+                            <ModelChip key={chip.word} chip={chip} tone="warning" />
+                        ))}
+                    </Group>
+                    <section
+                        data-testid="model-details"
+                        className="ws-model-details ws-model-scroll"
+                        aria-labelledby={`${uid}-details`}
+                        tabIndex={0} // NOSONAR(S6845): a scrolling table takes focus so the keyboard scrolls it (WCAG 2.1.1)
+                    >
+                        {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
+                            <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
+                        ))}
+                    </section>
+                </Stack>
+            )}
         </Stack>
     );
 
@@ -1218,6 +1329,7 @@ export function CustomModelDialog({
                 held={held}
                 name={name}
                 label={many && !busy ? name : undefined}
+                skipped={many && current?.load === false}
                 draw={draw}
                 busy={busy}
                 onHost={setPreviewHost}
@@ -1273,29 +1385,6 @@ export function CustomModelDialog({
             {forLayer && accepted !== null && !busy ? (
                 <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
             ) : null}
-            {summary === undefined || accepted === null || busy ? null : (
-                <Stack gap={4} className="ws-model-details-box">
-                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
-                        <Text size="sm" id={`${uid}-details`}>
-                            {CUSTOM_MODEL.details}
-                        </Text>
-                        {detailChips.map((chip) => (
-                            <ModelChip key={chip.word} chip={chip} tone="warning" />
-                        ))}
-                    </Group>
-                    <section
-                        data-testid="model-details"
-                        className="ws-model-details ws-model-scroll"
-                        aria-labelledby={`${uid}-details`}
-                        // A scrolled table takes focus, so the keyboard scrolls it too.
-                        tabIndex={0}
-                    >
-                        {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
-                            <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
-                        ))}
-                    </section>
-                </Stack>
-            )}
         </Stack>
     );
 

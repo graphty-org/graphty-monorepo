@@ -2276,6 +2276,14 @@ export const CUSTOM_MODEL = {
     loadThis: "Load this model",
     /** Add's tooltip while no model of a set is chosen. */
     noneChosen: "Choose a model to load",
+    /**
+     * One model of a set, by its file or its name, and what is wrong with it: a refusal, or why it
+     * cannot be drawn.
+     * @param name - the model's file or name.
+     * @param line - the refusal's sentence.
+     * @returns the words.
+     */
+    ofSet: (name: string, line: string): string => `${name}: ${line}`,
 } as const;
 
 /** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */

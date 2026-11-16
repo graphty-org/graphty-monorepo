@@ -44378,14 +44378,14 @@
     },
     "specificationFloors": {
         "gml-specimen-arrows~specification": {
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 0
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1
         },
         "gml-specimen-arrows~specification@matched": {
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 0
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1
         },
         "gml-specimen-edge-labels~specification": {
             "edge.arrow": 1

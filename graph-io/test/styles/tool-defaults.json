@@ -482,5 +482,12 @@
                 "arrow": "triangle"
             }
         ]
+    },
+    "tk": {
+        "units": "px",
+        "node": {},
+        "edge": {},
+        "graph": {},
+        "derived": []
     }
 }

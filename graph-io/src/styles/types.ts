@@ -1194,6 +1194,8 @@ export type StyleTool =
     | "ogdf"
     /** NetworkX's matplotlib drawing (`draw_networkx`). */
     | "networkx"
+    /** The Tk canvas, which draws a plain GML file's graphics (the GML draft's, modelled after Tk's). */
+    | "tk"
     /** graphty itself, for a file holding a `graphty.styles` block. */
     | "graphty"
     | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values

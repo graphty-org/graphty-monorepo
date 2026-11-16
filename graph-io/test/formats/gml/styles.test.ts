@@ -485,13 +485,13 @@ describe("GML styles: who wrote the file", () => {
         expect(gmlPositions(snapshot)?.yAxis).toBe("up");
     });
 
-    it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {
+    it("gives an unknown writer (NetworkX writes no Creator) its own values, drawn as Tk draws them, and no defaults", async () => {
         for (const doc of [
             file("networkx-graphics.gml"),
             new Uint8Array(readFileSync(join(CORPUS, "di-unipi-socc_dgLBF__germany50.gml"))),
         ]) {
             const { snapshot, styles } = await load(doc);
-            expect(styles.styles.source.tool).toBeNull();
+            expect(styles.styles.source.tool).toBe("tk");
             expect(toolRules(styles)).toEqual([]);
             expect(resolveStyles(styles, "node", "fill", snapshot).every((v) => v !== null)).toBe(true);
         }

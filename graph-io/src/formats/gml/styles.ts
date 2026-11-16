@@ -1863,7 +1863,8 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     return {
         canonical: true,
         dialect: writer.dialect,
-        tool: writer.tool,
+        // the draft's graphics are drawn as the Tk canvas draws them (its arrowheads: TOOL_DEFAULTS "tk")
+        tool: drawnByDraft(writer) ? "tk" : writer.tool,
         units: writer.units,
         node: { values: values.node, ...gephi.node },
         edge: { values: values.edge, ...gephi.edge },

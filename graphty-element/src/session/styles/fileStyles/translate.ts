@@ -1344,10 +1344,11 @@ export function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): st
  * one of its arrows narrower or wider than its shape.
  * @param geometry - How the program sizes its arrowheads.
  * @param end - The end.
+ * @param width - The line's width.
  * @param i - The edge.
  * @returns The multiple, or null for the cap's own.
  */
-function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): number | null {
+function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number | null {
     const picture = imageSizeOf(end, i);
     if (picture !== null) {
         const across = round(picture.width / picture.height);
@@ -1358,10 +1359,30 @@ function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): numb
     const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
     const theirs =
         geometry.shapes?.[shape as StyleArrowShape]?.aspect ??
-        (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
+        (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape)
+            ? triangleAspect(geometry, end, width, i)
+            : undefined);
     const aspect = own === undefined || theirs === undefined ? 1 : theirs / own;
     const breadth = round((aspect * factor(end.breadth, i)) / factor(end.length, i));
     return breadth === 1 ? null : breadth;
+}
+
+/**
+ * The program's triangle width over its length at an edge's end: its fixed `aspect`, or its `width` rule over its
+ * length where its width grows with the line's (Tk's).
+ * @param geometry - How the program sizes its arrowheads.
+ * @param end - The end.
+ * @param width - The line's width.
+ * @param i - The edge.
+ * @returns The aspect.
+ */
+function triangleAspect(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
+    if (geometry.width === undefined) {
+        return geometry.aspect;
+    }
+    const size = end.size(i);
+    const length = geometry.length(size, width, sourceShapeOf(end.sources[i]));
+    return length > 0 ? geometry.width(size, width) / length : geometry.aspect;
 }
 
 /**
@@ -3412,7 +3433,7 @@ class KindTranslation {
             );
             encode(
                 `edge.arrow${end}Width`,
-                sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, i)),
+                sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, factor(width, i, 0), i)),
             );
             // an open cap stroked with the line's pen, as thick as the line; a part of a row behind it takes its outline
             if (stroked) {
@@ -3443,7 +3464,7 @@ class KindTranslation {
                             };
                             return {
                                 size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),
-                                width: arrowBreadthOf(geometry, part, i),
+                                width: arrowBreadthOf(geometry, part, factor(width, i, 0), i),
                             };
                         });
                     }),

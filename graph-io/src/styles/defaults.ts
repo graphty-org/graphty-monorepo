@@ -180,6 +180,15 @@ export interface ToolArrowhead {
     /** Its width across the line as a fraction of its length, which its diamond shares. */
     readonly aspect: number;
     /**
+     * The triangle's width across its line, for a program whose width is not a fixed fraction of its length (Tk
+     * adds the line's own width to its arrowhead's): where set, it is used in place of `aspect` for the triangle
+     * and the shapes drawn in its proportions.
+     * @param arrowSize - the edge's neutral `arrowSize`
+     * @param width - the edge's line width
+     * @returns the width
+     */
+    readonly width?: (arrowSize: number, width: number) => number;
+    /**
      * Another arrow shape's length along its line as a fraction of the triangle's, and its width as a fraction of
      * its own length, where they differ.
      */
@@ -231,6 +240,7 @@ const OGDF = "ogdf master 1a40505ac006";
 const OGDF_SVG =
     "OGDF 2025.10 GraphIO::drawSVG with its default SVGSettings (graph-io/test/fidelity/oracles/gml-specimen-labels-p5.svg: ";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
+const TK = "Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), line item";
 const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
 const PAJEK_SVG = `${MEASURED}pajek-`;
 
@@ -1139,6 +1149,25 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         source: `${NX} 1848 (arrowstyle "-|>" for directed graphs)`,
                     },
                 ],
+            },
+            {
+                // the GML draft's graphics are "modelled after" the Tk canvas (A.4): a plain GML file's are drawn as Tk
+                // draws them, with no program's defaults beneath
+                tool: "tk",
+                version: "Tk 8.6",
+                units: "px",
+                // -arrowshape's default {8 10 3}: the trailing points 10 back from the tip and 3 out from each of the
+                // line's edges, so 6 more than the line's width across
+                arrowhead: {
+                    length: (size) => 10 * size,
+                    aspect: 0.6,
+                    width: (size, width) => 6 * size + width,
+                    source: `${TK} -arrowshape (default {8 10 3})`,
+                },
+                node: {},
+                edge: {},
+                graph: {},
+                derived: [],
             },
         ] satisfies ToolDefaults[]
     ).map((d): [StyleTool, ToolDefaults] => [d.tool, d]),

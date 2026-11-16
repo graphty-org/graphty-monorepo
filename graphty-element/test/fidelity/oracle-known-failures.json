@@ -23801,14 +23801,14 @@
             "node.shape": []
         },
         "gml-specimen-arrows~specification": {
-            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"]
+            "edge.arrowLength": [],
+            "edge.arrowWidth": [],
+            "edge.arrowToSpacing": []
         },
         "gml-specimen-arrows~specification@matched": {
-            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"]
+            "edge.arrowLength": [],
+            "edge.arrowWidth": [],
+            "edge.arrowToSpacing": []
         },
         "gml-specimen-edge-labels": {
             "node.present": [],

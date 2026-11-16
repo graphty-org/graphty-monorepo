@@ -247,7 +247,9 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 
 /**
  * A new card opens in the selection workspace over the whole app, whose scrim takes every click
- * until it closes: Done closes it, as a reader would, before the next "Add filter".
+ * until it closes: Done closes it, as a reader would, before the next "Add filter". The card is a
+ * draft until Done writes it (design/working-graph/design.md, section 3), so a story waits for the
+ * written condition after Done.
  */
 async function done(): Promise<void> {
     const modal = await workspace();

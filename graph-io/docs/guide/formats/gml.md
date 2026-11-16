@@ -30,15 +30,14 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-// got.gml was saved with sanitizeIds: "mangle": its ids are numbers, and the names are restored on reading
+// got.gml's ids are numbers, and the names kept beside them are restored on reading
 const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
 console.log(`node 0: id ${JSON.stringify(snapshot.ids.idOf(0))}, label ${String(snapshot.nodes.value("label", 0))}`);
 
-// Saving it again needs the same option, because the ids are text once more
-const options = { sanitizeIds: "mangle" } as const;
-console.log(checkExport(snapshot, "gml", options).map((n) => n.code));
-await writeFile("got-copy.gml", await exportGraphToBytes(snapshot, "gml", options));
+// Saving it again numbers the nodes and keeps the names the same way
+console.log(checkExport(snapshot, "gml").map((n) => n.code));
+await writeFile("got-copy.gml", await exportGraphToBytes(snapshot, "gml"));
 ```
 
 <!-- generated:end -->
@@ -53,10 +52,10 @@ node 0: id "Aemon", label Aemon
 
 <!-- generated:end -->
 
-GML node ids are integers, so `got.gml` was saved with `sanitizeIds: "mangle"`: the file numbers
-the nodes and keeps each character's name in a `graphty_originalId` key, and graph-io reads the
-names back as the ids. Saving the graph to GML again needs the same option, and the only note is
-`W_ID_MANGLED`.
+GML node ids are integers, so a graph whose ids are not is saved numbered: the file numbers the
+nodes and keeps each original id (here each character's name) in a `graphty_originalId` key, and
+graph-io reads the names back as the ids. The only note is `W_ID_MANGLED`; pass
+`sanitizeIds: "error"` to refuse such ids instead.
 
 ## How graph-io reads it
 
@@ -104,8 +103,8 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
 What does not survive:
 
 - One direction per file. A graph with both kinds of edges needs `onMixedDirection`.
-- Node ids must be integers. Other ids need `sanitizeIds: "mangle"`, which numbers the nodes and
-  keeps each original id in a `graphty_originalId` key that graph-io restores.
+- Node ids are integers. Other ids are numbered, and each original id is kept in a
+  `graphty_originalId` key that graph-io restores (`sanitizeIds: "error"` refuses them instead).
 - Column names must be GML keys: a letter or `_` followed by letters, digits or underscores (NetworkX
   reads only keys that start with a letter; graph-tool writes `_pos`), and not one
   of GML's own keys. Other names make the export throw (`E_GML_INVALID_KEY`,

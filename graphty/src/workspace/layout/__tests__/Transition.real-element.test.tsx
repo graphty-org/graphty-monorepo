@@ -72,9 +72,7 @@ function trackDrawn(element: Element, id: string): () => { x: number; y: number 
     };
 }
 
-// TEMPORARY (#6125): with the selection workspace on, the layout popover is short and the
-// Transition list is cut to a strip whose scroll chevrons cover Glide, so the click never lands.
-// Remove this pin when compact-mantine opens such a list toward the room.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the layout form's Transition", () => {

@@ -269,7 +269,7 @@ export class HealthStack extends Stack {
         alertsAlarm.addOkAction(new SnsAction(topic));
 
         // Spend protection, layer 2 (section 10.5): a monthly Budget that emails and, at 100%
-        // actual, attaches a deny-all policy to the three Lambda roles.
+        // actual, attaches a deny-all policy to the four Lambda roles.
         const budgetName = "graphty-health";
         const notify = (
             notificationType: string,

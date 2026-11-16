@@ -120,7 +120,11 @@ def scene(path):
             while rest and num(rest[0]) is not None and len(coords) < 3:
                 coords.append(num(rest.pop(0)))
             named = bool(rest) and rest[0].lower() in SHAPES
-            shape = rest.pop(0).lower() if named else "ellipse"
+            shape = rest.pop(0) if named else "ellipse"
+            # Pajek 6.02's SVG export draws a cross, and a keyword in any case but lower (Box, Triangle), as an
+            # ellipse (pajek-specimen-node-shapes shape-cross, shape-box-capitalized, shape-triangle-capitalized)
+            if shape == "cross" or shape != shape.lower():
+                shape = "ellipse"
             k = keyed(rest, VERTEX_KEYS)
             if not named and not k and prev_vertex is not None:
                 shape, k = prev_vertex  # a vertex line that sets nothing is drawn as the one before it

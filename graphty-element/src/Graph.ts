@@ -788,7 +788,34 @@ export class Graph implements GraphContext {
      * asked for replaces the default before it is built. See {@link Graph.openingSignalFor}.
      */
     #openingSignal: AbortSignal | undefined;
-    enableDetailedProfiling?: boolean;
+    #enableDetailedProfiling?: boolean;
+
+    /**
+     * Whether detailed profiling (hierarchical CPU timing in the stats manager) is on. Takes
+     * effect whenever it is set, before or after `init()`; setting it to `false` turns profiling
+     * off and clears what was measured.
+     * @returns Whether detailed profiling is on, or `undefined` when it was never set.
+     */
+    get enableDetailedProfiling(): boolean | undefined {
+        return this.#enableDetailedProfiling;
+    }
+
+    /**
+     * Turns detailed profiling on or off at once; `false` also clears what was measured.
+     * @param value - Whether detailed profiling is on.
+     */
+    set enableDetailedProfiling(value: boolean | undefined) {
+        if (value === this.#enableDetailedProfiling) {
+            return;
+        }
+
+        this.#enableDetailedProfiling = value;
+        if (value) {
+            this.statsManager.enableProfiling();
+        } else {
+            this.statsManager.disableProfiling();
+        }
+    }
     /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
     /** Moves on every write of the view settings, so the frozen configuration knows to rebuild. */
@@ -1000,15 +1027,28 @@ export class Graph implements GraphContext {
     readonly antialias: boolean;
 
     /**
+     * Whether the WebGL canvas keeps each drawn frame, as the engine was built: the constructor's
+     * `preserveDrawingBuffer`. Fixed for the life of the graph.
+     */
+    readonly preserveDrawingBuffer: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
      * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
+     * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
+     *     the page can read it between frames. Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
+    constructor(
+        element: Element | string,
+        useMockInput = false,
+        options: { readonly antialias?: boolean; readonly preserveDrawingBuffer?: boolean } = {},
+    ) {
         this.useMockInput = useMockInput;
         this.antialias = options.antialias ?? true;
+        this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -1064,6 +1104,7 @@ export class Graph implements GraphContext {
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.antialias,
+            preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
 
         this.basemapManager = new BasemapManager(
@@ -5401,22 +5442,29 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The row table a layout on the drawing device fills on the card: only under renderPath
-     * "batched" on a device shared with the accelerator.
+     * The row table an accelerated layout fills: only under renderPath "batched". On a device shared
+     * with the accelerator it copies each landing on the card; on any other renderer `device` is null and
+     * it sends each landing's drawn rows as its readback brought them.
      * @returns The table and the device, or null.
      * @internal
      */
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null || !(engine instanceof RecoveringWebGPUEngine)) {
+        if (this.#renderPath !== "batched" || table === null) {
             return null;
         }
 
-        const device = engine.sharesDevice ? engine.deviceNow() : null;
+        const shared = engine instanceof RecoveringWebGPUEngine && engine.sharesDevice;
+        const device = shared ? engine.deviceNow() : null;
+        if (shared && device === null) {
+            return null;
+        }
+
         // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
         const suspended = transitionsOf(this.layoutManager)?.active === true;
-        return device === null ? null : { table, device, suspended };
+        // On a device of its own (WebGL, or WebGPU not shared) the layout reads its drawn rows back instead.
+        return { table, device, suspended };
     }
 
     // ============================================================================

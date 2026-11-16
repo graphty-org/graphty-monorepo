@@ -7,6 +7,7 @@
  * of a download and stops it on a signal.
  */
 
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { assert, describe, it, vi } from "vitest";
 
 import manifest from "../../../../babylonjs-models/test/fixtures/variants/manifest.json";
@@ -347,6 +348,29 @@ describe("marks on model nodes", () => {
 
         element.graph.deselectNode();
         assert.strictEqual(count(await readFrame(element), MARK), 0, "the mark goes with the selection");
+    });
+
+    it("keeps drawing a selected model beside a mesh with no geometry, with no render-loop error", async () => {
+        const element = await mount(600, 300);
+        await drawModel(element, "glb", [
+            { id: "a", x: -1 },
+            { id: "b", x: 1 },
+        ]);
+        // A mesh with no geometry has no submeshes; the model's mark draws every mesh it is asked about.
+        const empty = new Mesh("no geometry", element.graph.scene);
+        cleanups.push(() => {
+            empty.dispose();
+        });
+        const errors: unknown[] = [];
+        const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+            errors.push(args);
+        });
+        cleanups.push(() => {
+            spy.mockRestore();
+        });
+        assert.isTrue(element.graph.selectNode("a"));
+        assert.isAbove(count(await readFrame(element), MARK), 100, "the selected node is marked");
+        assert.deepStrictEqual(errors, [], "nothing is logged by the render loop");
     });
 
     it("glows one node of a model and leaves the other node of the same model unmarked", async () => {

@@ -219,6 +219,26 @@ describe("pr-review.sh", () => {
         assert.ok(existsSync(argsLog), "the forged marker did not stand for the joined group");
     });
 
+    it("keeps the member markers in the header when no test-integrity finding is cleared", () => {
+        git(work, "checkout", "-q", "master");
+        writeFileSync(join(work, "a.test.mjs"), 'it("a", () => { expect(1).toBe(1); });\n');
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "test: one test");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        git(work, "merge", "-q", "--no-edit", "origin/master");
+        rmSync(join(work, "a.test.mjs"));
+        git(work, "commit", "-q", "-am", "test: drop it\n\nFixes #1");
+        const r = run(
+            undefined,
+            "Member #1234: addressed -- a\nMember #1: not addressed -- no\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        const header = readFileSync(reportPath(), "utf8").split("\n\n")[0].split("\n");
+        assert.ok(header.includes("<!-- review-members Fixes #1234 Fixes #1 -->"), header.join("\n"));
+        assert.ok(header.includes("<!-- member-not-addressed 1 -->"), header.join("\n"));
+    });
+
     it("reviews a clean group report again when a member joins", () => {
         group();
         assert.equal(run(undefined, `${ALL_ADDRESSED}\nBlocking findings: 0`).code, 0);

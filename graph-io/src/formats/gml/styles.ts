@@ -99,7 +99,7 @@ import {
 } from "../graphml/styles-yed.js";
 import type { YedBox } from "../graphml/yed-group-bounds.js";
 import { gmlGroupBounds } from "./groups.js";
-import { writtenByGv2gml } from "./positions.js";
+import { gmlWrittenPositions, writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
 /** A GML record as the importer keeps it (a json cell). */
@@ -2272,12 +2272,16 @@ function writeGraphicsColumns(
         const [w, h] = [getNode(k)("width"), getNode(k)("height")];
         return typeof w === "number" && typeof h === "number" ? [w, h] : sizeOf(snapshot, k);
     };
+    // the centers the writer writes, in the file's spelling, so a route reads back off the nodes as drawn
+    const written = target === "edge" ? gmlWrittenPositions(snapshot) : null;
+    const center = (k: number): BendPoint =>
+        written === null ? centerOf(snapshot, k) : [written[3 * k], written[3 * k + 1]];
     const graphics: unknown[] = [];
     const labels: unknown[] = [];
     for (let i = 0; i < n; i++) {
         const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
         if (target === "edge") {
-            const line = routeLine(snapshot, get(i), i, size);
+            const line = routeLine(snapshot, get(i), i, size, center);
             if (line !== null) {
                 g.Line = line;
             }
@@ -2305,12 +2309,19 @@ function writeGraphicsColumns(
  * @param get - the edge's values
  * @param e - the edge's row
  * @param size - each node's written width and height
+ * @param center - each node's written center
  * @returns the `Line` record, or null without a value or without both centers
  */
-function routeLine(snapshot: GraphSnapshot, get: Get, e: number, size: (k: number) => BendPoint): Rec | null {
+function routeLine(
+    snapshot: GraphSnapshot,
+    get: Get,
+    e: number,
+    size: (k: number) => BendPoint,
+    center: (k: number) => BendPoint,
+): Rec | null {
     const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-    const source = centerOf(snapshot, s);
-    const target = centerOf(snapshot, t);
+    const source = center(s);
+    const target = center(t);
     if (![...source, ...target].every(Number.isFinite)) {
         return null;
     }

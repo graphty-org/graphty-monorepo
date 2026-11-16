@@ -112,3 +112,45 @@ describe("antialias", () => {
         assert.strictEqual(warnings.length, 2, "an attribute set later is a later change too");
     });
 });
+
+describe("preserveDrawingBuffer", () => {
+    it("is read from the attribute even when it comes last in the tag", async () => {
+        const host = document.createElement("div");
+        document.body.appendChild(host);
+        cleanups.push(() => {
+            host.remove();
+        });
+        host.innerHTML = '<graphty-element view-mode="2d" preserve-drawing-buffer="false"></graphty-element>';
+        const element = host.querySelector("graphty-element") as Graphty;
+        await mount(element);
+
+        assert.isFalse(element.preserveDrawingBuffer);
+        assert.isFalse(contextOf(element).preserveDrawingBuffer);
+        assert.isTrue(contextOf(element).antialias, "only the drawing buffer changes");
+    });
+
+    it("is read from the property set before the element is in the page", async () => {
+        const element: Graphty = document.createElement("graphty-element");
+        element.preserveDrawingBuffer = false;
+        await mount(element);
+
+        assert.isFalse(element.preserveDrawingBuffer);
+        assert.isFalse(contextOf(element).preserveDrawingBuffer);
+    });
+
+    it("keeps the engine as built when changed later, and says so", async () => {
+        const element = await mount(document.createElement("graphty-element"));
+        const warnings: CodedFact[] = [];
+        element.addEventListener("graphty-warning", (event) => warnings.push(event.detail));
+
+        element.preserveDrawingBuffer = true;
+        assert.deepEqual(warnings, [], "the value it already has is no change");
+
+        element.preserveDrawingBuffer = false;
+        assert.isTrue(element.preserveDrawingBuffer);
+        assert.isTrue(contextOf(element).preserveDrawingBuffer);
+        assert.deepEqual(warnings, [
+            { code: "W_PRESERVE_DRAWING_BUFFER_LATE", params: { requested: false, active: true } },
+        ]);
+    });
+});

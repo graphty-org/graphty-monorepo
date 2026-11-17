@@ -66,12 +66,11 @@ Each package also has its own `npm run coverage:preview`.
 
 The monorepo uses shared configuration files in the root directory:
 
-| File                      | Purpose                                                         |
-| ------------------------- | --------------------------------------------------------------- |
-| `vite.shared.config.ts`   | Shared Vite config factory (build formats)                      |
-| `vitest.shared.config.ts` | Shared Vitest config factory (coverage thresholds, environment) |
-| `tsconfig.base.json`      | Shared TypeScript settings with project references              |
-| `eslint.config.js`        | Shared ESLint flat config                                       |
+| File                 | Purpose                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| `vitest.base.mjs`    | Shared Vitest settings every package spreads in (`baseTest()`) |
+| `tsconfig.base.json` | Shared TypeScript settings with project references             |
+| `eslint.config.js`   | Shared ESLint flat config                                      |
 
 ### Lint
 
@@ -514,7 +513,5 @@ graphty-monorepo/
 |-- nx.json               # Nx configuration
 |-- pnpm-workspace.yaml   # pnpm workspace config
 |-- tsconfig.base.json    # Shared TypeScript config (project references)
-|-- vite.shared.config.ts # Shared Vite config factory
-|-- vitest.shared.config.ts # Shared Vitest config factory
 `-- eslint.config.js      # Shared ESLint config
 ```

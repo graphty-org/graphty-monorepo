@@ -1817,8 +1817,6 @@ export function CustomModelDialog({
                         data-testid="model-details"
                         className="ws-model-details ws-model-scroll"
                         aria-labelledby={`${uid}-details`}
-                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
-                        tabIndex={0} // NOSONAR(S6845): a scrolling table takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
                         {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
                             (row) => (

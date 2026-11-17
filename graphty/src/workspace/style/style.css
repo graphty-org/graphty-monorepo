@@ -696,8 +696,24 @@
    arrows and Name under it. Nothing sits beside the model, so no column is left blank. */
 .ws-dialog-columns.ws-model-body[data-alone] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, max-content) minmax(330px, 1fr) auto;
+    /* The model, all of Details and Name never give up height: the file and its settings on top
+       scroll first, down to nothing in a short window (#8606). */
+    grid-template-rows: minmax(0, max-content) minmax(min-content, 1fr) auto;
     height: min(680px, calc(100dvh - 184px));
+}
+
+/* The model, Details and Name end where the file and its settings above them do: those stop short
+   of the right edge by the top's scroll gutter (its 18 px padding and its 10 px scrollbar). */
+.ws-model-body[data-alone] .ws-model-side {
+    min-height: 330px;
+    padding-right: 28px;
+}
+
+/* Every Details row shows whole, its value wrapped: the list is as tall as its rows. */
+.ws-model-body[data-alone] .ws-model-details-box,
+.ws-model-body[data-alone] .ws-model-details-box .ws-model-scroll {
+    flex: none;
+    max-height: none;
 }
 
 .ws-model-body[data-alone] .ws-model-preview {

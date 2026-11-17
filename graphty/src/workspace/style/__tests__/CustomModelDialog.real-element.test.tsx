@@ -126,7 +126,33 @@ function assertNoBlank(dialog: HTMLElement, where: string): void {
     assert.isAbove(preview.width, width * 0.95, `the model takes the body's width (${where})`);
     assert.isAtLeast(preview.height, 150, `drawn at a size to see (${where})`);
     assert.isAtMost(details.scrollHeight, details.clientHeight + 1, `every Details row shows (${where})`);
+    // Each row, its name and its whole value, inside the list and inside the model's column.
+    const side = (body.querySelector(".ws-model-side") as HTMLElement).getBoundingClientRect();
+    const list = details.getBoundingClientRect();
+    for (const row of details.children) {
+        for (const part of [row, ...row.querySelectorAll("*")]) {
+            const at = part.getBoundingClientRect();
+            if (at.width === 0 && at.height === 0) {
+                continue;
+            }
+            const what = `${row.textContent} (${where})`;
+            assert.isAtLeast(at.top, Math.max(list.top, side.top) - 0.5, `${what} shows from its top`);
+            assert.isAtMost(at.bottom, Math.min(list.bottom, side.bottom) + 0.5, `${what} shows to its bottom`);
+            assert.isAtMost(at.right, list.right + 0.5, `${what} shows to its end`);
+            assert.isAtMost(part.scrollWidth, part.clientWidth + 1, `${what} is not cut`);
+        }
+    }
     assert.isAbove(name.bottom, footer.top - 24, `Name ends at the footer (${where})`);
+    // One right edge for the column: the file, its settings and Files, the model, Details and Name.
+    const edges = [
+        (body.querySelector(".ws-model-left") as HTMLElement).firstElementChild,
+        within(dialog).queryByTestId("model-settings"),
+        within(dialog).queryByTestId("model-files"),
+        within(dialog).getByTestId("model-preview"),
+        details,
+        body.querySelector(".ws-model-name"),
+    ].flatMap((el) => (el === null ? [] : [Math.round(el.getBoundingClientRect().right)]));
+    assert.isAtMost(Math.max(...edges) - Math.min(...edges), 1, `one right edge: ${edges.join(", ")} (${where})`);
 }
 
 afterEach(() => {
@@ -799,16 +825,15 @@ describe("the Load custom model dialog, on the real element", () => {
         await within(dialog).findByRole("button", { name: "Choose file" });
     });
 
-    it("shows the model's Details as table rows at once, in a list that scrolls on its own", async () => {
+    it("shows the model's Details as table rows at once, every row in view with no scrolling (#8606)", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         assert.isNull(within(dialog).queryByRole("button", { name: "Details" }), "Details is no disclosure");
         const table = within(dialog).getByRole("region", { name: "Details" });
-        assert.equal(getComputedStyle(table).overflowY, "auto", "it scrolls past its height");
-        assert.notEqual(getComputedStyle(table).maxHeight, "none", "it has a height to scroll past");
-        assert.equal(table.tabIndex, 0, "the keyboard scrolls it too");
+        assert.isAtMost(table.scrollHeight, table.clientHeight + 1, "as tall as its rows: nothing to scroll");
+        assert.equal(table.tabIndex, -1, "so it is no tab stop");
         assert.include(within(table).getByRole("group", { name: "Format" }).textContent, "GLB");
         assert.include(within(table).getByRole("group", { name: "Triangles" }).textContent, "4");
         assert.isNull(within(table).queryByRole("group", { name: "Animations" }), "only what the file has");
@@ -884,6 +909,18 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(record?.defaults?.style["node.modelSourceUp"], "-z", "the model keeps its rotation");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90);
         assert.isUndefined(written(session, "node.modelTurn"), "the layer starts from the model's");
+    });
+
+    it("shows every Details row of an animated Fox whole with Model settings open, and keeps the model's size (#8606)", async () => {
+        await openShapes();
+        const dialog = await fromMenu();
+        await choose(dialog, "Choose file", ["../graphty-element/test/fixtures/models/Fox.glb"]);
+        await previewOf(dialog, "Fox");
+        assertNoBlank(dialog, "settings closed");
+        await openSettings(dialog);
+        assertNoBlank(dialog, "settings open");
+        const size = within(within(dialog).getByTestId("model-details")).getByRole("group", { name: "Size" });
+        assert.isNotNull(size, "the Size row is there");
     });
 
     it("leaves no blank under Model settings for the second model of a .zip of two", async () => {

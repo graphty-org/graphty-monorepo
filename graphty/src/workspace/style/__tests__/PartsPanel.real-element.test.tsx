@@ -472,3 +472,19 @@ describe("the node tab by part of the drawing", () => {
         assert.isTrue(dotted(tab, "text"));
     });
 });
+
+describe("the Model line, with node models on", () => {
+    withFeatures(["file-styles", "node-models"]);
+
+    it("the Model line names the model the layer draws, never its asset id", async () => {
+        const session = await openProject([]);
+        const stl =
+            "solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t\n";
+        const record = await session.assets.add({ files: new Map([["wedge.stl", new TextEncoder().encode(stl)]]) });
+        await session.styles.add(everyNode("Key", { "node.model": record.id }));
+        const tab = await openStyle("Key");
+        const field = await within(tab).findByRole<HTMLInputElement>("textbox", { name: "Node model" });
+        assert.equal(field.value, "wedge");
+        assert.equal(field.title, record.id, "the id stays in its title");
+    });
+});

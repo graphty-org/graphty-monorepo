@@ -2000,6 +2000,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,

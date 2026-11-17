@@ -402,9 +402,6 @@ export function heldEdgeProblems(held: Iterable<Edge>, drawn: ReadonlyMap<string
     return problems;
 }
 
-/** Where a column is published: any node of it, the element's array itself, or nowhere. */
-type PublishTarget = Node | ElementPositions | undefined;
-
 /** The base every layout engine extends: how the element adds, places, steps and removes. */
 export abstract class LayoutEngine {
     static {
@@ -1237,7 +1234,7 @@ export abstract class LayoutEngine {
      * @internal
      */
     protected publishColumn(
-        n: PublishTarget,
+        n: Node | ElementPositions | undefined,
         rows: Float64Array,
         coords: Float64Array,
         count: number,
@@ -1261,7 +1258,7 @@ export abstract class LayoutEngine {
      * @param firstPlacement - see {@link LayoutEngine.publishColumn}
      */
     #publishColumn(
-        n: PublishTarget,
+        n: Parameters<LayoutEngine["publishColumn"]>[0],
         rows: Float64Array,
         coords: Float64Array,
         count: number,

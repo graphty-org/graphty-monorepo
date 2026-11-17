@@ -1,4 +1,4 @@
-import { ComboInput, PanelField, Slider } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, Slider, ToggleRow } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { CodedFact, GraphSession, ModelSummary } from "@graphty/graphty-element/session";
@@ -145,6 +145,10 @@ function SettingControl({
             value={chosen ?? null}
             placeholder={chosen === undefined ? unsetWord : undefined}
             onChange={(next) => {
+                // Choosing the chosen value again deselects it (empty): it stays chosen.
+                if (next === null || next === "") {
+                    return;
+                }
                 write(parsed(String(next)));
             }}
         />
@@ -152,7 +156,7 @@ function SettingControl({
 }
 
 /**
- * The Pose slider, under Animation while a clip is chosen: the moment of the clip the model holds.
+ * The Pose slider, in the Animation group while the model is still on a clip: the moment of it held.
  * Moving it writes Start and stops the clip there (Speed 0).
  * @param props - Component props
  * @param props.seconds - the clip's length
@@ -210,7 +214,7 @@ interface SettingRowsProps {
     readonly write: (channel: Channel, value: ChannelValue) => void;
     /** Takes a set row back to its default; a set row shows its minus. */
     readonly remove: (channel: Channel) => void;
-    /** The model's clips: the Animation menu's choices. Without any, the animation rows are left out. */
+    /** The model's clips: the Clip menu's choices. Without any, the Animation group is left out. */
     readonly clips?: readonly ModelClip[];
     /** The model's own values (`AssetRecord.defaults.style`): an unset row shows them as its default. */
     readonly inherited?: Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -220,8 +224,9 @@ interface SettingRowsProps {
  * Model settings' rows (node-models design 13.3): one compact property row each, an unset one
  * showing graphty-element's default as its placeholder, a set one with its minus. The element's
  * `W_MODEL_UP_GUESSED` and `W_MODEL_COLOR_IGNORED` mark Up and Color with a chip. Shared by the
- * Model settings pop-over and the Load custom model dialog, which writes a draft. While a clip is
- * chosen, a Pose slider under Animation picks the moment of it the model holds.
+ * Model settings pop-over and the Load custom model dialog, which writes a draft. A model with clips
+ * gets an Animation group, above Sides: a Playing switch, the clip, then Speed and Start while it
+ * plays, or a Pose slider (the moment of the clip the model holds) while it is still.
  * @param props - Component props
  * @param props.channels - the rows
  * @param props.values - each row's value
@@ -241,91 +246,152 @@ export function SettingRows({
     clips = [],
     inherited = {},
 }: Readonly<SettingRowsProps>): React.JSX.Element {
-    const shown = MODEL_SETTING_ROWS.filter(
-        (row) => channels.includes(row.channel) && (clips.length > 0 || !ANIMATION_CHANNELS.has(row.channel)),
-    );
-    const clip = clips.find((c) => c.name === (values["node.modelAnimation"] ?? inherited["node.modelAnimation"]));
+    const animated = clips.length > 0 && channels.includes("node.modelAnimation");
+    const shown = MODEL_SETTING_ROWS.filter((row) => channels.includes(row.channel));
+    const own = (channel: Channel): unknown => values[channel] ?? inherited[channel];
+    const clip = clips.find((c) => c.name === own("node.modelAnimation"));
     const offset = values["node.modelAnimationOffset"];
+    // Playing: a clip chosen and a speed other than 0. Off, the model holds a pose of the clip, or Still.
+    const playing = clip !== undefined && own("node.modelAnimationSpeed") !== 0;
+    const row = ({ channel, word, choices, unit, step }: (typeof MODEL_SETTING_ROWS)[number]): React.JSX.Element => {
+        const value = values[channel];
+        const chip = MODEL_SETTING_CHIPS[channel];
+        const flagged = chip !== undefined && problems.some((p) => p.code === chip.code);
+        const removeName = `Remove model ${word.toLowerCase()}`;
+        const listed = choicesOf(channel, choices, clips);
+        return (
+            <div key={channel} className="ws-row" data-line={channel}>
+                <div className="ws-field" data-named="">
+                    <span className="ws-field-label">
+                        <span className="ws-field-name" title={word} aria-hidden>
+                            {word}
+                        </span>
+                    </span>
+                    <div className="ws-field-control">
+                        <SettingControl
+                            descriptor={channelsFor("node").find((d) => d.channel === channel)}
+                            word={word}
+                            // Playing, the menu offers only clips: Still is the switch's off.
+                            choices={playing ? listed?.filter(([key]) => key !== STILL) : listed}
+                            unit={unit}
+                            step={step}
+                            value={value}
+                            inherited={inherited[channel]}
+                            write={(next) => {
+                                write(channel, next);
+                                // A clip chosen while off holds its first moment, still.
+                                if (channel === "node.modelAnimation" && next !== "" && !playing) {
+                                    write("node.modelAnimationSpeed", 0);
+                                    write("node.modelAnimationOffset", 0);
+                                }
+                            }}
+                        />
+                    </div>
+                    <span className="ws-slot">
+                        {value === undefined ? null : (
+                            <Tooltip label={removeName}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    aria-label={removeName}
+                                    onClick={() => {
+                                        remove(channel);
+                                    }}
+                                >
+                                    <GLYPHS.remove size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
+                    </span>
+                </div>
+                {flagged ? (
+                    <div className="ws-model-chips">
+                        <ModelChip chip={{ word: chip.word, tip: chip.tip }} tone="warning" />
+                    </div>
+                ) : null}
+            </div>
+        );
+    };
+    const rowOf = (channel: Channel): React.JSX.Element | null => {
+        const found = shown.find((r) => r.channel === channel);
+        return found === undefined ? null : row(found);
+    };
+    const animation = (
+        <AnimationGroup
+            key="animation"
+            playing={playing}
+            onPlay={(on) => {
+                if (!on) {
+                    write("node.modelAnimationSpeed", 0);
+                    return;
+                }
+                if (clip === undefined) {
+                    write("node.modelAnimation", clips[0].name);
+                }
+                write("node.modelAnimationSpeed", 1);
+            }}
+        >
+            {rowOf("node.modelAnimation")}
+            {playing ? rowOf("node.modelAnimationSpeed") : null}
+            {playing ? rowOf("node.modelAnimationOffset") : null}
+            {!playing && clip !== undefined ? (
+                <PoseRow
+                    seconds={clip.seconds}
+                    value={typeof offset === "number" ? offset : 0}
+                    write={(next) => {
+                        write("node.modelAnimationOffset", next);
+                        if (values["node.modelAnimationSpeed"] !== 0) {
+                            write("node.modelAnimationSpeed", 0);
+                        }
+                    }}
+                />
+            ) : null}
+        </AnimationGroup>
+    );
     return (
         <Stack gap={4} className="ws-model-settings">
-            {shown.map(({ channel, word, choices, unit, step }) => {
-                const value = values[channel];
-                const chip = MODEL_SETTING_CHIPS[channel];
-                const flagged = chip !== undefined && problems.some((p) => p.code === chip.code);
-                const removeName = `Remove model ${word.toLowerCase()}`;
-                return (
-                    <div key={channel} className="ws-row" data-line={channel}>
-                        <div className="ws-field" data-named="">
-                            <span className="ws-field-label">
-                                <span className="ws-field-name" title={word} aria-hidden>
-                                    {word}
-                                </span>
-                            </span>
-                            <div className="ws-field-control">
-                                <SettingControl
-                                    descriptor={channelsFor("node").find((d) => d.channel === channel)}
-                                    word={word}
-                                    choices={choicesOf(channel, choices, clips)}
-                                    unit={unit}
-                                    step={step}
-                                    value={value}
-                                    inherited={inherited[channel]}
-                                    write={(next) => {
-                                        write(channel, next);
-                                        // A clip chosen plays: over a pose held still (Speed 0, set here or
-                                        // inherited from the model) it would stay frozen at the pose.
-                                        const speed =
-                                            values["node.modelAnimationSpeed"] ?? inherited["node.modelAnimationSpeed"];
-                                        if (channel === "node.modelAnimation" && next !== "" && speed === 0) {
-                                            write("node.modelAnimationSpeed", 1);
-                                            write("node.modelAnimationOffset", 0);
-                                        }
-                                    }}
-                                />
-                            </div>
-                            <span className="ws-slot">
-                                {value === undefined ? null : (
-                                    <Tooltip label={removeName}>
-                                        <ActionIcon
-                                            variant="subtle"
-                                            size="sm"
-                                            aria-label={removeName}
-                                            onClick={() => {
-                                                remove(channel);
-                                            }}
-                                        >
-                                            <GLYPHS.remove size={14} aria-hidden />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                )}
-                            </span>
-                        </div>
-                        {flagged ? (
-                            <div className="ws-model-chips">
-                                <ModelChip chip={{ word: chip.word, tip: chip.tip }} tone="warning" />
-                            </div>
-                        ) : null}
-                        {channel === "node.modelAnimation" && clip !== undefined ? (
-                            <PoseRow
-                                seconds={clip.seconds}
-                                value={typeof offset === "number" ? offset : 0}
-                                write={(next) => {
-                                    write("node.modelAnimationOffset", next);
-                                    if (values["node.modelAnimationSpeed"] !== 0) {
-                                        write("node.modelAnimationSpeed", 0);
-                                    }
-                                }}
-                            />
-                        ) : null}
-                    </div>
-                );
+            {shown.map((r) => {
+                if (!ANIMATION_CHANNELS.has(r.channel)) {
+                    return row(r);
+                }
+                return r.channel === "node.modelAnimation" && animated ? animation : null;
             })}
         </Stack>
     );
 }
 
 /**
- * Model settings (node-models design 13.3): Up, Turn, Color, Fit, Center, the animation rows for a
+ * Model settings' Animation group, for a model with clips: its heading, the switch that plays the
+ * model or holds it still, then the rows for each.
+ * @param props - Component props
+ * @param props.playing - whether the model plays
+ * @param props.onPlay - turns playing on or off
+ * @param props.children - the rows
+ * @returns The group
+ */
+function AnimationGroup({
+    playing,
+    onPlay,
+    children,
+}: Readonly<{ playing: boolean; onPlay: (on: boolean) => void; children: React.ReactNode }>): React.JSX.Element {
+    // A plain group headed as Textures is; space under it so Sides reads as the next setting.
+    return (
+        <fieldset className="ws-model-textures" data-testid="model-animation">
+            <legend>
+                <Text size="sm" span>
+                    {CUSTOM_MODEL.animation}
+                </Text>
+            </legend>
+            <Stack gap={4} pt={4} pb={6}>
+                <ToggleRow label={CUSTOM_MODEL.playing} control="switch" checked={playing} onChange={onPlay} />
+                {children}
+            </Stack>
+        </fieldset>
+    );
+}
+
+/**
+ * Model settings (node-models design 13.3): Up, Turn, Color, Fit, Center, the Animation group for a
  * model with clips, Sides and Light, opened by the Shape
  * line's Model settings button while the field holds a model, written to the line's layer. Above
  * them, what is wrong with the model (a refusal, a part it did not need), which the Shape field

@@ -140,11 +140,20 @@ describe("models in the Shape field, on the real element", () => {
         await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
         const panel = await screen.findByRole("dialog", { name: "Model settings" });
         // The dialog kept the first clip as the model's own: an unset row shows it as its default.
-        const animation = within(panel).getByRole("combobox", { name: /^Animation, default spin, / });
+        const group = within(panel).getByRole("group", { name: "Animation" });
+        const animation = within(group).getByRole("combobox", { name: /^Clip, default spin, / });
         assert.match(animation.getAttribute("placeholder") ?? "", /^spin, /, "the model's clip as the placeholder");
         assert.isUndefined(written(session, "node.modelAnimation"), "the layer sets none");
-        assert.isNotNull(within(panel).getByRole("slider", { name: "Pose" }), "a pose of the model's clip");
-        await userEvent.click(animation);
+        // The model's clip plays: Playing is on, with Speed, and no Pose.
+        const playing = within(group).getByRole("switch", { name: "Playing" });
+        assert.isTrue((playing as HTMLInputElement).checked);
+        assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
+        await userEvent.click(playing);
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelAnimationSpeed"), 0, "off holds the model still");
+        });
+        assert.isNotNull(await within(panel).findByRole("slider", { name: "Pose" }), "a pose of the model's clip");
+        await userEvent.click(within(panel).getByRole("combobox", { name: /^Clip, / }));
         await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
         pose.focus();

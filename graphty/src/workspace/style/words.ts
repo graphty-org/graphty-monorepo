@@ -1083,7 +1083,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
     W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Choose one under Animation to play it.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Turn on Playing under Animation to play one.",
     W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
     W_MODEL_ANIMATION_UNKNOWN: (p) =>
         `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,
@@ -2090,7 +2090,10 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     settingsStep: (name: string): string => `setting ${name}'s model settings`,
+    /** The heading over Model settings' animation rows. */
     animation: "Animation",
+    /** The Animation group's switch: on plays the clip, off holds the model still. */
+    playing: "Playing",
     still: "Still",
     pose: "Pose",
     /**
@@ -2389,7 +2392,7 @@ export const MODEL_SETTING_ROWS: readonly {
         ],
     },
     // Its choices are the model's clips, which the row reads from graphty-element's summary.
-    { channel: "node.modelAnimation", word: "Animation", choices: [["", "Still"]] },
+    { channel: "node.modelAnimation", word: "Clip", choices: [["", "Still"]] },
     { channel: "node.modelAnimationSpeed", word: "Speed", unit: "x", step: 0.1 },
     { channel: "node.modelAnimationOffset", word: "Start", unit: "s", step: 0.1 },
     {

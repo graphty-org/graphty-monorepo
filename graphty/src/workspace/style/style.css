@@ -791,13 +791,21 @@
     grid-template-columns: 48px minmax(0, 1fr) 24px;
 }
 
-/* Files and Details: always shown, each a list that scrolls on its own past its height. */
+/* Files, Models and Details: always shown, each a ScrollArea (with its scroll cue) that scrolls on
+   its own past its height. The frame is the root's; the viewport fills it and scrolls. */
 .ws-model-scroll {
     max-height: 160px;
-    overflow-y: auto;
-    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
     border: 1px solid var(--cm-border);
     border-radius: var(--mantine-radius-sm);
+}
+
+.ws-model-scroll > .cm-scroll-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    padding: 4px 6px;
 }
 
 /* Details, under Name, as wide as the model: it takes the column's height left under Name (190 px
@@ -836,10 +844,6 @@
     margin: 0;
     padding: 0;
     min-width: 0;
-}
-
-.ws-model-scroll:focus-visible {
-    outline: 1px solid var(--cm-border-selected);
 }
 
 /* A part's answers sit under its name, in the name's column. */

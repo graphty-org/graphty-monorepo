@@ -1,4 +1,4 @@
-import { DataRow, FileSource, ModalFooter, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, ModalFooter, ScrollArea, useFileDrop } from "@graphty/compact-mantine";
 import {
     assetFileExtensions,
     detectModelFormat,
@@ -225,6 +225,41 @@ function defaultsPatch(session: GraphSession, member: Member, record: AssetRecor
         return undefined;
     }
     return sameHidden ? { style } : { style, hiddenTextures: hidden };
+}
+
+/**
+ * One of the dialog's scrolling lists (Files, Models, Details): a framed ScrollArea whose scroll
+ * cue shows the thumb and fades a cut edge, so a reader sees it scrolls. Its viewport is the named
+ * region, and a Tab stop so the keyboard scrolls it (WCAG 2.1.1).
+ * @param props - Component props
+ * @param props.className - the list's own class, beside ws-model-scroll
+ * @param props.testId - the viewport's test id
+ * @param props.labelledBy - the id of the heading that names it
+ * @param props.children - the rows
+ * @returns The list
+ */
+function ScrollList({
+    className,
+    testId,
+    labelledBy,
+    children,
+}: Readonly<{ className?: string; testId: string; labelledBy: string; children: React.ReactNode }>): React.JSX.Element {
+    const viewport: React.ComponentPropsWithoutRef<"div"> & { "data-testid": string } = {
+        role: "region",
+        "aria-labelledby": labelledBy,
+        "data-testid": testId,
+    };
+    return (
+        <ScrollArea
+            className={className === undefined ? "ws-model-scroll" : `${className} ws-model-scroll`}
+            scrollbars="y"
+            scrollCue
+            focusableViewport
+            viewportProps={viewport}
+        >
+            {children}
+        </ScrollArea>
+    );
 }
 
 /** A picture that arrived where a model was expected. */
@@ -1645,13 +1680,7 @@ export function CustomModelDialog({
                 <Text size="sm" id={`${uid}-files`}>
                     {CUSTOM_MODEL.files}
                 </Text>
-                <section
-                    className="ws-model-files ws-model-scroll"
-                    data-testid="model-files"
-                    aria-labelledby={`${uid}-files`}
-                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
-                    tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
-                >
+                <ScrollList className="ws-model-files" testId="model-files" labelledBy={`${uid}-files`}>
                     <Stack gap={6}>
                         {waitingFor
                             .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
@@ -1716,7 +1745,7 @@ export function CustomModelDialog({
                                 <FactChip key={String(fact.params.fileName)} fact={fact} />
                             ))}
                     </Stack>
-                </section>
+                </ScrollList>
             </Stack>
         );
 
@@ -1743,13 +1772,7 @@ export function CustomModelDialog({
                 <Text size="sm" id={`${uid}-set`}>
                     {CUSTOM_MODEL.setModels}
                 </Text>
-                <section
-                    className="ws-model-scroll"
-                    data-testid="model-set"
-                    aria-labelledby={`${uid}-set`}
-                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
-                    tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
-                >
+                <ScrollList testId="model-set" labelledBy={`${uid}-set`}>
                     <Stack gap={6}>
                         {members.map((member, at) => {
                             const file = member.held.record.path ?? member.held.url?.split("/").pop() ?? member.name;
@@ -1789,7 +1812,7 @@ export function CustomModelDialog({
                             );
                         })}
                     </Stack>
-                </section>
+                </ScrollList>
             </Stack>
         );
 
@@ -1963,19 +1986,13 @@ export function CustomModelDialog({
                             <ModelChip key={chip.word} chip={chip} tone="warning" />
                         ))}
                     </Group>
-                    <section
-                        data-testid="model-details"
-                        className="ws-model-details ws-model-scroll"
-                        aria-labelledby={`${uid}-details`}
-                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
-                        tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
-                    >
+                    <ScrollList className="ws-model-details" testId="model-details" labelledBy={`${uid}-details`}>
                         {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
                             (row) => (
                                 <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
                             ),
                         )}
-                    </section>
+                    </ScrollList>
                 </div>
             )}
         </div>

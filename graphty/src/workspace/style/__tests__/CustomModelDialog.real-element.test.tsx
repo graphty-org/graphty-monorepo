@@ -196,7 +196,9 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
     // About five rows in view, never a row and a half (owner, 2026-11-17).
     assert.isAtLeast(details.clientHeight, 150, `Details shows several rows at once (${where})`);
     assert.include(["auto", "scroll"], getComputedStyle(details).overflowY, `Details scrolls (${where})`);
-    for (const row of details.children) {
+    // The rows, inside the ScrollArea viewport's content box.
+    const rows = details.firstElementChild as HTMLElement;
+    for (const row of rows.children) {
         for (const part of [row, ...row.querySelectorAll("*")]) {
             const at = part.getBoundingClientRect();
             if (at.width === 0 && at.height === 0) {
@@ -211,8 +213,8 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
     if (screen.queryByRole("dialog", { name: "Model settings" }) !== null) {
         return;
     }
-    const last = details.lastElementChild as HTMLElement;
-    await userEvent.click(details.firstElementChild as HTMLElement);
+    const last = rows.lastElementChild as HTMLElement;
+    await userEvent.click(rows.firstElementChild as HTMLElement);
     assert.equal(document.activeElement, details, `Details takes focus to scroll (${where})`);
     await userEvent.keyboard("{End}");
     await waitFor(() => {
@@ -357,9 +359,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const files = await within(dialog).findByTestId("model-files");
         const row = within(files).getByRole("group", { name: "colormap.png" });
         assert.isNotNull(within(row).getByText("Texture"));
-        assert.equal(files.tagName, "SECTION", "a plain list, no disclosure");
+        assert.equal(files.getAttribute("role"), "region", "a plain list, no disclosure");
         assert.isNull(within(dialog).queryByRole("button", { name: "Files" }));
-        assert.equal(getComputedStyle(files).overflowY, "auto", "it scrolls past its height");
+        assert.include(["auto", "scroll"], getComputedStyle(files).overflowY, "it scrolls past its height");
         assert.isTrue(
             row.contains(files.querySelector("[data-part], .ws-part-row")),
             "the part that needs an answer is listed first",
@@ -853,6 +855,11 @@ describe("the Load custom model dialog, on the real element", () => {
         }
         assert.isNotNull(within(rows).getByRole("group", { name: "Rotate" }));
         assert.isNull(
+            within(rows).queryByRole("group", { name: "Animation" }),
+            "a model with no clips has no Animation",
+        );
+        assert.isNull(within(rows).queryByRole("switch", { name: "Playing" }));
+        assert.isNull(
             within(rows).queryByRole("combobox", { name: /^Wireframe, / }),
             "a layer's own rows need a layer",
         );
@@ -1120,8 +1127,11 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.hover(within(within(dialog).getByTestId("model-details-line")).getByText("Animated"));
         await screen.findByRole("tooltip", { name: /open Model settings/ });
         const rows = await openSettings(dialog);
-        assert.isNotNull(within(rows).getByRole("combobox", { name: /^Animation, spin, / }), "the first clip");
-        const pose = within(rows).getByRole("slider", { name: "Pose" });
+        const group = within(rows).getByRole("group", { name: "Animation" });
+        assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }), "the first clip");
+        // Off, the model holds a pose of the clip.
+        await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
+        const pose = await within(group).findByRole("slider", { name: "Pose" });
         await dragAcross(pose, 60);
         await waitFor(() => {
             assert.isAbove(Number(pose.getAttribute("aria-valuenow")), 0, "dragged into the clip");
@@ -1143,7 +1153,8 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
         await previewOf(dialog, "cube");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Animation, / }));
+        await userEvent.click(within(rows).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(within(rows).getByRole("combobox", { name: /^Clip, / }));
         await userEvent.click(await screen.findByRole("option", { name: "Still" }));
         assert.isNull(within(rows).queryByRole("slider", { name: "Pose" }), "no pose without a clip");
         await addModel(dialog, "Add to project");
@@ -1151,6 +1162,80 @@ describe("the Load custom model dialog, on the real element", () => {
             const record = session.assets.list().find((r) => r.path === "cube.glb" && r.state === "accepted");
             assert.equal(record?.defaults?.style["node.modelAnimation"], "");
         });
+    });
+
+    it("groups the animation rows under Animation, above Sides, with a Playing switch (owner, 2026-11-17)", async () => {
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        await previewOf(dialog, "cube");
+        const rows = await openSettings(dialog);
+        const group = within(rows).getByRole("group", { name: "Animation" });
+        const sides = within(rows).getByRole("combobox", { name: /^Sides, / });
+        assert.isFalse(group.contains(sides), "Sides is not an animation setting");
+        assert.isAtMost(
+            group.getBoundingClientRect().bottom,
+            sides.getBoundingClientRect().top,
+            "Animation above Sides",
+        );
+        const playing = within(group).getByRole("switch", { name: "Playing" });
+        // The group starts with its switch: on, the clip, Speed and Start, and no Pose.
+        assert.isTrue((playing as HTMLInputElement).checked, "the dialog plays the first clip");
+        assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, / }));
+        assert.isNotNull(within(group).getByRole("textbox", { name: /^Speed/ }));
+        assert.isNotNull(within(group).getByRole("textbox", { name: /^Start/ }));
+        assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
+        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, / }));
+        const spin = await screen.findByRole("option", { name: /^spin, / });
+        assert.isNull(screen.queryByRole("option", { name: "Still" }), "playing, the menu offers only clips");
+        await userEvent.click(spin);
+        // Off: the clip and its Pose, no Speed or Start.
+        await userEvent.click(playing);
+        await within(group).findByRole("slider", { name: "Pose" });
+        assert.isNull(within(group).queryByText("Speed"));
+        assert.isNull(within(group).queryByText("Start"));
+        assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }));
+        // On again: it plays.
+        await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
+        await within(group).findByText("Speed");
+        assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
+        await addModel(dialog, "Add to project");
+        await waitFor(() => {
+            const record = session.assets.list().find((r) => r.path === "cube.glb" && r.state === "accepted");
+            assert.equal(record?.defaults?.style["node.modelAnimation"], "spin");
+            assert.equal(record?.defaults?.style["node.modelAnimationSpeed"], 1, "playing again");
+        });
+    });
+
+    it("cues that Details scrolls: the thumb shows and the cut edge fades, following the keyboard (owner, 2026-11-17)", async () => {
+        await openShapes();
+        await page.viewport(1280, 720);
+        try {
+            const dialog = await fromMenu();
+            await choose(dialog, "Choose file", ["../graphty-element/test/fixtures/models/Fox.glb"]);
+            await previewOf(dialog, "Fox");
+            const details = await within(dialog).findByTestId("model-details");
+            const root = details.closest(".ws-model-scroll") as HTMLElement;
+            assert.isAbove(details.scrollHeight, details.clientHeight + 1, "Fox's Details overflow at 1280 x 720");
+            await waitFor(() => {
+                assert.isTrue(root.hasAttribute("data-cue-bottom"), "more below: the bottom fades");
+                const bar = root.querySelector<HTMLElement>(".cm-scroll-scrollbar[data-orientation='vertical']");
+                assert.isTrue(bar?.checkVisibility() === true, "the thumb shows without hovering");
+            });
+            assert.isFalse(root.hasAttribute("data-cue-top"));
+            details.focus();
+            await userEvent.keyboard("{End}");
+            await waitFor(() => {
+                assert.isTrue(root.hasAttribute("data-cue-top"), "scrolled down: the top fades");
+                assert.isFalse(root.hasAttribute("data-cue-bottom"), "at the end: nothing below");
+            });
+            for (const id of ["model-files"]) {
+                const list = within(dialog).getByTestId(id);
+                assert.isTrue(list.closest(".ws-model-scroll")?.hasAttribute("data-scroll-cue"), `${id} has the cue`);
+            }
+        } finally {
+            await page.viewport(1440, 900);
+        }
     });
 
     it("draws a model without its pictures when All textures is cleared, and keeps that with the model", async () => {

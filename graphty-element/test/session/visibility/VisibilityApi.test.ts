@@ -205,7 +205,7 @@ describe("applying a filter", () => {
 });
 
 describe("a filter and a window are two producers of one model", () => {
-    it("composes them, and leaves each one standing when the other is cleared", async () => {
+    it("keeps them apart, and leaves each one standing when the other is cleared", async () => {
         const harness = harnessOf([
             { id: "a", type: "host", at: 1 },
             { id: "b", type: "host", at: 90 },
@@ -216,12 +216,19 @@ describe("a filter and a window are two producers of one model", () => {
         await visibility.set(HOSTS);
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"]);
 
+        // A window narrows nothing visible: what lies outside it is in the outsideWindow state.
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
-        assert.deepStrictEqual([...visibility.nodes], ["a"], "a host, inside the window");
+        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"], "the hosts, the window aside");
+        assert.deepStrictEqual(
+            [0, 1, 2].map((row) => visibility.outsideWindow("node", row)),
+            [false, true, false],
+            "b, a host, is outside the window",
+        );
         assert.deepStrictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
 
         await visibility.set(null);
-        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "c"], "the window is still in force");
+        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b", "c"], "the window hides nothing");
+        assert.isTrue(visibility.outsideWindow("node", 1), "the window is still in force");
 
         await visibility.setWindow(null);
         assert.strictEqual(visibility.summary.visibleNodes, 3);

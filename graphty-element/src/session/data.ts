@@ -71,7 +71,7 @@ import {
     resolveLocation,
 } from "../layout/locationMap/source";
 import { eachAdjacentArc } from "./adjacency";
-import { describeAttributes } from "./attributes";
+import { describeAttributes, describeShownFigures } from "./attributes";
 import {
     convertValue,
     isValueType,
@@ -111,6 +111,7 @@ import {
     LOAD_ROLES,
     type ReadSource,
     readSource,
+    weightAmong,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
 import { RESTORE as GROUP_RESTORE } from "./groups";
@@ -275,7 +276,7 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -383,10 +384,10 @@ interface PageSources {
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
     /**
-     * Whether the timeline experiment is on; absent reads on.
-     * @returns true when it is
+     * The columns whose values read as time, most read first (`session.time.candidates()`).
+     * @returns the candidates
      */
-    timeline?(): boolean;
+    timeCandidates?(): readonly { readonly kind: "node" | "edge"; readonly column: string }[];
     /**
      * Whether the file styles experiment is on; absent reads on.
      * @returns true when it is
@@ -849,6 +850,11 @@ export class SessionData implements SessionDataApi {
     private derived: Derived | null = null;
     /** The statistics of each working graph view read, kept while the view is. */
     private readonly viewStatistics = new WeakMap<WorkingView, GraphStatistics>();
+    /** The columns' figures over what one view shows, and the whole graph's columns they were laid on. */
+    private readonly viewColumns = new WeakMap<
+        WorkingView,
+        { readonly whole: readonly AttributeDescriptor[]; readonly shown: readonly AttributeDescriptor[] }
+    >();
     /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
     private draft: Draft | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
@@ -1191,8 +1197,12 @@ export class SessionData implements SessionDataApi {
             throw featureOff("file-styles", "styles");
         }
 
-        // A network source's read honours the signal, so its wait for its turn does too.
-        const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
+        // An abort stops the load wherever it is -- waiting for its turn, reading the file or the
+        // URL, or between two chunks -- and the import rejects with the caller's own reason; the
+        // dispatcher reverts what it wrote, so the graph and the history are as they were.
+        const { signal } = options;
+        signal?.throwIfAborted();
+        const turn = this.loadLine.join(signal);
         try {
             if (source.source !== undefined) {
                 await (
@@ -1203,7 +1213,10 @@ export class SessionData implements SessionDataApi {
 
             // Taken before the first await: a transaction routes only what a verb dispatches
             // synchronously, and detecting the format may have to read the file or fetch the URL.
-            await this.importVia(this.keeping(this.writes.importer(), source), source, options, turn);
+            await this.importVia(this.keeping(this.writes.importer(signal), source), source, options, turn);
+        } catch (error) {
+            // The dispatcher rejects a withdrawn command with its own AbortError.
+            throw signal?.aborted === true ? signal.reason : error;
         } finally {
             turn.leave();
         }
@@ -1390,7 +1403,7 @@ export class SessionData implements SessionDataApi {
     private async importVia(
         dispatch: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
-        options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
         sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
     ): Promise<void> {
@@ -1412,7 +1425,7 @@ export class SessionData implements SessionDataApi {
         }
         this.draft?.dispose();
         if (readsThroughDraft(options)) {
-            const draft = await this.prepare(source);
+            const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
                 await turn.wait();
                 await draft.loadVia((command) => turn.issue(() => send(command)), options);
@@ -1425,7 +1438,7 @@ export class SessionData implements SessionDataApi {
 
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
-        const resolving = resolveImportSource(source);
+        const resolving = resolveImportSource(source, options.signal);
         const resolved = resolving instanceof Promise ? await resolving : resolving;
         resolvedConfig = resolved.config ?? source.config;
         // Waited for only when a load asked for earlier is still reading, so one with nothing
@@ -1912,7 +1925,6 @@ export class SessionData implements SessionDataApi {
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
-            readDates: () => this.timelineOn,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -1988,12 +2000,7 @@ export class SessionData implements SessionDataApi {
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(
-            source,
-            options.signal,
-            (change) => this.writes.progress?.(change),
-            this.pages.timeline?.() === true,
-        );
+        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
     }
@@ -2020,7 +2027,6 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
-                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -2030,7 +2036,7 @@ export class SessionData implements SessionDataApi {
                         const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
                         pairs.add(pairKeyOf(source, target));
                         if (!snapshot.directed) {
-                            pairs.add(pairKeyOf(target, source)); // NOSONAR(S2234): the reverse pair, so an undirected edge matches either way
+                            pairs.add(pairKeyOf(target, source)); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
                         }
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
@@ -2509,7 +2515,7 @@ export class SessionData implements SessionDataApi {
             return typeof value === "number" && Number.isFinite(value) ? value : undefined;
         };
         if (asked !== undefined) {
-            resolveColumn(this.attributes(), { kind: "edge", name: asked.attribute });
+            resolveColumn(this.columns(), { kind: "edge", name: asked.attribute });
             return { measuredBy: asked, read: fromRecords(asked.attribute) };
         }
 
@@ -2522,7 +2528,7 @@ export class SessionData implements SessionDataApi {
 
         const meaning = this.readConfig().knownFields.edgeWeightMeaning === "distance" ? "distance" : "strength";
         const measuredBy: WeightMeaning = { attribute, meaning };
-        const carried = this.attributes().some((column) => column.kind === "edge" && column.name === attribute);
+        const carried = this.columns().some((column) => column.kind === "edge" && column.name === attribute);
         // A session with no view holds no record attributes, only the store's weights, where a
         // missing number already weighs 1.
         return {
@@ -3059,7 +3065,7 @@ export class SessionData implements SessionDataApi {
     private foundIssues(): readonly FoundIssue[] {
         const state = this.issueState();
         const snapshot = this.current();
-        const columns = this.attributes();
+        const columns = this.columns();
         const known = this.readConfig().knownFields;
         const gazetteer = gazetteerGeneration();
         const memo = this.issuesMemo;
@@ -3751,7 +3757,7 @@ export class SessionData implements SessionDataApi {
     ): { kind: "node" | "edge"; name: string }[] {
         const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
             new Set(rows.flatMap((row) => Object.keys(row)));
-        const elsewhere = this.columnSources(this.attributes());
+        const elsewhere = this.columnSources(this.columns());
         const gone: { kind: "node" | "edge"; name: string }[] = [];
         for (const [kind, before, after] of [
             ["node", keysOf(nodes.map((each) => each.data)), keysOf(held.nodes)],
@@ -3906,7 +3912,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
+        const read = await readWithProgress(source, undefined, () => undefined);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }
@@ -4556,19 +4562,23 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Whether the timeline experiment is on; a session built without the switch reads on.
-     * @returns True when it is on.
-     */
-    private get timelineOn(): boolean {
-        return this.pages.timeline?.() !== false;
-    }
-
-    /**
      * Every attribute the graph's records carry.
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
+        // While the working graph is on, a column's figures are what is shown (design decision
+        // 78); the columns themselves, and what each is, stay the whole graph's.
+        return this.shownColumns(this.columns());
+    }
+
+    /**
+     * Every attribute the graph's records carry, each measured over the whole graph: what the
+     * session's own readers resolve a column with, so naming a column never builds the view.
+     * @returns the descriptors, node attributes first
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    columns(): readonly AttributeDescriptor[] {
         // Keyed on the data revision, which moves on a freeze AND on an attribute write (keyed on the
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
@@ -4577,7 +4587,7 @@ export class SessionData implements SessionDataApi {
         // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
-                describeAttributes(snapshot, this.records, this.timelineOn).filter(
+                describeAttributes(snapshot, this.records).filter(
                     (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
@@ -4623,7 +4633,6 @@ export class SessionData implements SessionDataApi {
             joined,
             parsed,
             snapshot,
-            timeline: this.timelineOn,
         };
         const result =
             declarations.size === 0 &&
@@ -4637,6 +4646,28 @@ export class SessionData implements SessionDataApi {
                 : Object.freeze(described.map((each) => overlaidAttribute(each, overlay)));
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The columns with their figures (completeness, distinct values, range, samples) measured over
+     * what the working graph shows, built once per view.
+     * @param whole - The whole graph's columns.
+     * @returns The columns, the whole graph's when nothing is hidden.
+     */
+    private shownColumns(whole: readonly AttributeDescriptor[]): readonly AttributeDescriptor[] {
+        const view = this.records === null ? null : this.viewOf(undefined);
+        if (view === null || this.records === null) {
+            return whole;
+        }
+
+        const held = this.viewColumns.get(view);
+        if (held?.whole === whole) {
+            return held.shown;
+        }
+
+        const shown = describeShownFigures(whole, this.current(), this.records, view);
+        this.viewColumns.set(view, { whole, shown });
+        return shown;
     }
 
     /**
@@ -4762,7 +4793,7 @@ export class SessionData implements SessionDataApi {
         return readableValues({
             snapshot,
             directed: ["directed", "mixed"].includes(this.statistics({ scope: "all" }).directedness),
-            attributes: this.attributes(),
+            attributes: this.columns(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
             layersReading: (path, on) =>
@@ -4895,7 +4926,7 @@ export class SessionData implements SessionDataApi {
      */
     async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
         this.requireLive("declare");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         await this.writes.declare({ kind, name }, declaration);
     }
 
@@ -4985,6 +5016,48 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The column the element would read a role from, when one is obvious; see the public docs.
+     * @param kind - nodes or edges
+     * @param role - the role
+     * @returns the column's name, or null
+     */
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null {
+        // A column that already plays a role, or that a run or a formula made, is never offered.
+        const free = this.attributes().filter(
+            (a) =>
+                a.kind === kind &&
+                a.roles === undefined &&
+                a.hidden !== true &&
+                (a.origin === "imported" || a.origin === "joined"),
+        );
+        const has = (name: string): boolean => free.some((a) => a.name === name);
+        const times = (this.pages.timeCandidates?.() ?? []).filter((each) => each.kind === kind);
+        if (role === "time") {
+            return times.find((each) => has(each.column))?.column ?? null;
+        }
+
+        if (role === "label") {
+            const text = free.filter((a) => a.type === "string" || a.type === "category");
+            return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
+        }
+
+        if (role === "weight" && kind === "edge") {
+            // As a load reads one, and a load reads a weight for edges only.
+            return weightAmong(
+                free
+                    .filter(
+                        (a) =>
+                            (a.type === "number" || a.type === "integer") &&
+                            !times.some((each) => each.column === a.name),
+                    )
+                    .map((a) => a.name),
+            );
+        }
+
+        return null;
+    }
+
+    /**
      * Give a column a role, or take its roles away, as one undoable step.
      * @param column - the column
      * @param role - the role, or null for none
@@ -4992,11 +5065,7 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
-        if (role === "time" && !this.timelineOn) {
-            throw featureOff("timeline", "data.setRole");
-        }
-
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
         const { knownFields } = this.readConfig();
@@ -5040,7 +5109,7 @@ export class SessionData implements SessionDataApi {
     private locationListing(): LocationListing {
         const known = this.readConfig().knownFields;
         const nodes = this.nodes();
-        const columns = this.attributes().flatMap((c) =>
+        const columns = this.columns().flatMap((c) =>
             c.kind === "node" ? [{ name: c.name, values: nodes.map((row) => row[c.name]) }] : [],
         );
         const places = cachedGazetteer();
@@ -5118,7 +5187,7 @@ export class SessionData implements SessionDataApi {
      */
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview {
         this.requireLive("previewType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         SessionData.checkType(type);
         return previewConversion(
             this.rawRows(kind).map((row) => row.data?.[name]),
@@ -5149,7 +5218,7 @@ export class SessionData implements SessionDataApi {
      */
     private async setTypeNow(column: ColumnRef, type: ValueType): Promise<void> {
         this.requireLive("setType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.columns(), column);
         SessionData.checkType(type);
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
         let fails = 0;
@@ -5214,7 +5283,7 @@ export class SessionData implements SessionDataApi {
      */
     private async renameColumnNow(column: ColumnRef, name: string): Promise<void> {
         this.requireLive("renameColumn");
-        const attributes = this.attributes();
+        const attributes = this.columns();
         const { kind, name: from } = resolveColumn(attributes, column);
         if (typeof name !== "string" || name.trim() === "") {
             throw new GraphtyError({
@@ -5354,7 +5423,7 @@ export class SessionData implements SessionDataApi {
 
         const existing = this.derivedColumns();
         const replacing = existing.some((each) => each.kind === kind && each.name === name);
-        if (!replacing && this.attributes().some((each) => each.kind === kind && each.name === name)) {
+        if (!replacing && this.columns().some((each) => each.kind === kind && each.name === name)) {
             throw refuse("name-taken", `A ${kind} column is already named ${JSON.stringify(name)}.`);
         }
 
@@ -5407,7 +5476,7 @@ export class SessionData implements SessionDataApi {
      */
     async setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void> {
         this.requireLive("setHidden");
-        const attributes = this.attributes();
+        const attributes = this.columns();
         // The id and the ends every record has, even when no column carries them (a graph file).
         const keyField = (column: ColumnRef): boolean =>
             (column.kind === "node" ? column.name === "id" : column.name === "source" || column.name === "target") &&
@@ -5451,7 +5520,7 @@ export class SessionData implements SessionDataApi {
      */
     histogram(column: ColumnRef, options: HistogramOptions & { readonly scope?: WorkingScope } = {}): ColumnHistogram {
         const snapshot = this.current();
-        const descriptor = resolveColumn(this.attributes(), column);
+        const descriptor = resolveColumn(this.columns(), column);
         const { name } = descriptor;
         const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const shown = this.shownOf(descriptor.kind, options.scope);
@@ -5541,7 +5610,7 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         const paths =
             options.columns ??
-            this.attributes()
+            this.columns()
                 .filter(
                     (each) =>
                         each.kind === "node" &&
@@ -5873,8 +5942,6 @@ function unboundFactsOf(
 
 /** What `attributes()` lays over the described columns. */
 interface AttributeOverlay {
-    /** Whether the timeline experiment is on, so a time role measures time. */
-    readonly timeline: boolean;
     readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
     readonly roles: ReadonlyMap<string, AttributeRole[]>;
     readonly uses: ReadonlyMap<string, AttributeUse[]>;
@@ -5897,7 +5964,6 @@ interface ColumnOverlay {
     readonly isJoined: boolean;
     readonly times: number | undefined;
     readonly rows: number;
-    readonly timeline: boolean;
 }
 
 /**
@@ -5918,7 +5984,6 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
         isJoined: overlay.joined.has(key),
         times: overlay.parsed.get(each),
         rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
-        timeline: overlay.timeline,
     };
     return facts.declared === undefined &&
         facts.played === undefined &&
@@ -5939,7 +6004,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
  * @returns The fields.
  */
 function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
-    const { declared, played, used, from, typed, isHidden, isJoined, times, rows, timeline } = facts;
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
     return {
         ...(isJoined ? { origin: "joined" as const } : {}),
         ...(typed === undefined ? {} : typedFields(each, typed)),
@@ -5951,7 +6016,7 @@ function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial
                   measurementSource: "declared" as const,
               }),
         // Designating a column as the time field makes it time.
-        ...(timeline && declared === undefined && played?.includes("time") === true
+        ...(declared === undefined && played?.includes("time") === true
             ? { measurement: "time" as const, measurementSource: "declared" as const }
             : {}),
         ...(played === undefined ? {} : { roles: Object.freeze(played) }),
@@ -6684,7 +6749,6 @@ export function headlessDataService(
         loadComplete: () => undefined,
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
-        timeline: () => dispatcher.services.timeline?.() === true,
         batched: () => dispatcher.services.batched?.() === true,
     });
 
@@ -6776,7 +6840,6 @@ function fileOf(
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
- * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What was read.
  * @throws What reading throws, after the end is published.
  */
@@ -6784,7 +6847,6 @@ async function readWithProgress(
     source: DataSourceInput,
     signal: AbortSignal | undefined,
     publish: (change: ProgressChange) => void,
-    timeline = false,
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
@@ -6813,7 +6875,6 @@ async function readWithProgress(
                 fraction = share ?? null;
                 change("progress");
             },
-            timeline,
         );
         change("end", { outcome: "succeeded" });
         return read;
@@ -6840,6 +6901,7 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
  * handed on, so the data source does not fetch it again.
  * @param source - The source as the caller named it.
+ * @param signal - Cancels reading the file's head or fetching the URL.
  * @returns The source the `data.import` command carries.
  * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
@@ -6876,7 +6938,7 @@ function tallyScalars(
     return { counts, present, total };
 }
 
-function resolveImportSource(source: DataSourceInput): ImportSource | Promise<ImportSource> {
+function resolveImportSource(source: DataSourceInput, signal?: AbortSignal): ImportSource | Promise<ImportSource> {
     const { config } = source;
     const file = fileOf(config.file);
     const url = typeof config.url === "string" ? config.url : undefined;
@@ -6919,13 +6981,16 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return file
             .slice(0, DETECTION_SAMPLE * 2)
             .arrayBuffer()
-            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
+            .then((bytes) => {
+                signal?.throwIfAborted();
+                return detect(sampleOf(new Uint8Array(bytes)));
+            });
     }
 
     if (url !== undefined) {
         // Read once, as bytes, and handed on: the reader does not fetch it again, and the importer
         // decodes it.
-        return fetchBytes(url).then((bytes) => detect(sampleOf(bytes), bytes));
+        return fetchBytes(url, signal).then((bytes) => detect(sampleOf(bytes), bytes));
     }
 
     return detect(undefined);

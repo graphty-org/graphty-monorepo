@@ -104,12 +104,6 @@ interface ViewReader {
     readonly view: Ask;
     /** The reader naming the whole graph, when it has a word for it. */
     readonly whole?: Ask;
-    /**
-     * It reads what is visible through the visibility masks, which the time window still narrows:
-     * the window is not part of the working graph, but it hides through those masks until PR #7424
-     * moves it to styles.
-     */
-    readonly windowMasks?: true;
 }
 
 /**
@@ -156,6 +150,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.rename()": "writes",
     "assets.usedBy()": "not the graph",
     "data.readExample()": "not the graph",
+    // A column's name, read from the column descriptors as `data.attributes()` is.
+    "data.roleCandidate()": "not the graph",
     "data.sourceSettings()": "not the graph",
     "features.has()": "not the graph",
     "project.assetChoices()": "not the graph",
@@ -180,6 +176,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     // The colours the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
     "assets.add()": "writes",
+    "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",
     "assets.files()": "not the graph",
     "assets.find()": "not the graph",
@@ -211,6 +208,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.runPlacement": "not the graph",
     "config.selectionStyle": "not the graph",
     "config.startingRows": "not the graph",
+    "config.timelineHiddenLook": "not the graph",
     "config.viewRotation": "not the graph",
     "config.acceleration": "not the graph",
     "config.backgroundColor": "not the graph",
@@ -227,7 +225,6 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.edgePage()": {
         view: (s) => s.data.edgePage({ limit: 50 }),
         whole: (s) => s.data.edgePage({ limit: 50, scope: "graph" }),
-        windowMasks: true,
     },
     "data.count()": { view: (s) => s.data.count() },
     "data.edges()": { view: (s) => s.data.edges() },
@@ -270,13 +267,11 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.neighbors()": {
         view: (s) => s.data.neighbors("a"),
         whole: (s) => s.data.neighbors("a", { scope: "graph" }),
-        windowMasks: true,
     },
     "data.node()": "names its target",
     "data.nodePage()": {
         view: (s) => s.data.nodePage({ limit: 50 }),
         whole: (s) => s.data.nodePage({ limit: 50, scope: "graph" }),
-        windowMasks: true,
     },
     "data.nodes()": { view: (s) => s.data.nodes() },
     "data.nodeSource()": "names its target",
@@ -346,7 +341,6 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "find()": {
         view: (s) => s.find("host"),
         whole: (s) => s.find("host", { scope: "graph" }),
-        windowMasks: true,
     },
     "fingerprint()": "not the graph",
     "hidden.add()": "writes",
@@ -392,6 +386,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "network.setProjectHosts()": "writes",
     "notes.add()": "writes",
     "notes.authors()": "not the graph",
+    "notes.tags()": "not the graph",
     "notes.counts()": "not the graph",
     "notes.get()": "not the graph",
     "notes.list()": "not the graph",
@@ -471,14 +466,12 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
             await s.selection.apply({ where: "type == 'host'" });
             return [...s.selection.nodes];
         },
-        windowMasks: true,
     },
     "selection.cap": "not the graph",
     "selection.checkRule()": "names its target",
     "selection.clear()": "writes",
     "selection.count()": {
         view: (s) => s.selection.count({ where: "type == 'host'" }),
-        windowMasks: true,
     },
     "selection.edgeMask()": "state",
     "selection.edges": "state",
@@ -538,7 +531,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.addRow()": "writes",
     "styles.agreement()": "names its target",
     "styles.applyTemplate()": "writes",
-    "styles.categories()": { view: (s) => s.styles.categories(layerOf(s), "node.color"), windowMasks: true },
+    "styles.categories()": { view: (s) => s.styles.categories(layerOf(s), "node.color") },
     "styles.colors()": "names its target",
     "styles.counts()": {
         view: (s) => {
@@ -549,14 +542,13 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
             const { matched, painted, noValue } = s.styles.counts(layerOf(s), { scope: "graph" });
             return { matched, painted, noValue };
         },
-        windowMasks: true,
     },
     "styles.defaultValue()": "not the graph",
     "styles.deleteRow()": "writes",
     "styles.encode()": "writes",
     "styles.explain()": "names its target",
     "styles.get()": "not the graph",
-    "styles.groups()": { view: (s) => s.styles.groups(layerOf(s), "data.type"), windowMasks: true },
+    "styles.groups()": { view: (s) => s.styles.groups(layerOf(s), "data.type") },
     "styles.hideRow()": "writes",
     "styles.highlight()": "writes",
     "styles.highlightStyle()": "names its target",
@@ -564,10 +556,9 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.layersUnder()": "names its target",
     // A key's rows are the categories some shown element carries; its painted count is the whole
     // graph's unless the legend names `within` (decision C), so the probes read the rows.
-    "styles.legend()": { view: async (s) => legendRows(await weightLayer(s), s.styles.legend()), windowMasks: true },
+    "styles.legend()": { view: async (s) => legendRows(await weightLayer(s), s.styles.legend()) },
     "styles.legendOf()": {
         view: async (s) => legendRows(await weightLayer(s), s.styles.legendOf(await weightLayer(s))),
-        windowMasks: true,
     },
     "styles.list()": "not the graph",
     "styles.lockRow()": "writes",
@@ -615,6 +606,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "time.current": "state",
     "time.extent()": { wholeProbe: (s) => s.time.extent() },
     "time.field": "not the graph",
+    "time.inside": "the filter's own",
     "time.interval": "not the graph",
     "time.mode": "not the graph",
     "time.notices()": "not the graph",
@@ -770,7 +762,6 @@ type Hider = "filter" | "window";
 async function sessionOf(withHidden: boolean, hider: Hider | null): Promise<GraphSession> {
     const session = createGraphSession({
         runs: { execute: executeNothing },
-        features: ["timeline"],
         workingGraph: true,
     });
     await session.data.addNodes(withHidden ? [...SHOWN, HIDDEN] : SHOWN);
@@ -900,15 +891,7 @@ describe("a view reader answers as on the graph without what is hidden", () => {
             // The time window is not part of the working graph (owner rule 2026-11-12): a reader of
             // the view reads a node only the window hides as if nothing hid it.
             const windowed = await answers(kind.view, "window");
-            if (kind.windowMasks === true) {
-                assert.deepStrictEqual(windowed.filtered, windowed.without, `${member} reads the visible masks`);
-            } else {
-                assert.deepStrictEqual(
-                    windowed.filtered,
-                    windowed.unfiltered,
-                    `${member} leaves the time window aside`,
-                );
-            }
+            assert.deepStrictEqual(windowed.filtered, windowed.unfiltered, `${member} leaves the time window aside`);
             if (kind.whole !== undefined) {
                 const whole = await answers(kind.whole);
                 // A reader allowed to find hidden items marks them hidden; the marks aside, it reads it all.

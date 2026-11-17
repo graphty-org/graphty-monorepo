@@ -138,11 +138,6 @@
 }
 
 /* Fields: the load's name, then each side's rows under its node or edge chip. */
-/* The per-load groups span the panel as the Fields section does, so their headers line up with it. */
-.dp-field-groups {
-    margin-inline: -16px -8px;
-}
-
 /* A side's header: its chip, and the "+" that adds a field, at the right end. */
 .dp-fields-group {
     display: flex;
@@ -224,7 +219,7 @@
     flex: none;
 }
 
-/* The Calculated tab (the selection-workspace experiment): one row a result, its name taking the
+/* The Calculated tab: one row a result, its name taking the
    room, then its quiet marks (what uses it, an unusual scope or out of date), then "..." on hover
    or focus, in a slot that keeps its width so the marks never move. */
 .dp-run-head {

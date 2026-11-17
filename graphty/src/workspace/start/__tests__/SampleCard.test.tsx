@@ -6,7 +6,6 @@
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -28,7 +27,6 @@ function seen(cards: readonly HTMLElement[]): string[] {
 
 describe("the sample card", () => {
     it("shows the same samples, in the same order and with the same pictures, on the start page and in Samples", async () => {
-        await siteFeatures(["timeline"]);
         const start = render(<Workspace store={createWorkspaceStore()} />);
         const library = await screen.findByRole("region", { name: "Sample library" });
         const onStart = seen([...library.querySelectorAll<HTMLElement>("button.ws-land-sample")]);

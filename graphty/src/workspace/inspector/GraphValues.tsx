@@ -15,7 +15,7 @@ import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { designate, timelineOn } from "../time/timeActions";
+import { designate } from "../time/timeActions";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
 import {
@@ -130,7 +130,7 @@ export function Overview(): React.JSX.Element | null {
     const statistics = session.data.statistics({ scope: "all" });
     // With no time field yet, the column the element reads as time is offered once: a door to its
     // home, Data > Fields, with the Time entry added and that column chosen.
-    const found = timelineOn(session) && session.time.field === null ? session.time.candidates().at(0) : undefined;
+    const found = session.time.field === null ? session.time.candidates().at(0) : undefined;
     const timeFound =
         found === undefined ? null : (
             <ActionRow
@@ -166,9 +166,8 @@ export function Overview(): React.JSX.Element | null {
         void session.selection.apply({ scope }, "replace", { cause: "user" });
     };
     const weight = session.data.loadedWeight();
-    // A time window limits what is showing exactly as a filter card does.
-    const filtered =
-        session.visibility.conditions.some((c) => c.on && c.effect !== "select") || session.visibility.window !== null;
+    // A timeline window changes only the drawing, so it limits nothing that is showing.
+    const filtered = session.visibility.conditions.some((c) => c.on && c.effect !== "select");
     const showing = session.visibility.summary;
 
     const whole = (
@@ -291,7 +290,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
                     value={
                         <Tooltip label={gloss} multiline w={220}>
                             <span
-                                tabIndex={0} // NOSONAR(S6845): focusable so a keyboard reader can open the tooltip that explains the measurement
+                                tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- focusable so a keyboard reader can open the tooltip that explains the measurement
                             >
                                 {measurement}
                             </span>

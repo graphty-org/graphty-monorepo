@@ -164,14 +164,16 @@ function clipsOf(session: GraphSession, record: AssetRecord): ModelSummary["anim
  * preview plays it. Playing is the dialog's choice: graphty-element's default draws a model still.
  * @param session - the element's session.
  * @param member - the model.
+ * @param record - the model as graphty-element holds it now: Add reads the accepted record, since a
+ *   model accepted while its pictures still download is held under a new id.
  * @returns the settings.
  */
-function settingsOf(session: GraphSession, member: Member): ModelDraft {
+function settingsOf(session: GraphSession, member: Member, record: AssetRecord = member.held.record): ModelDraft {
     if (member.settings !== undefined) {
         return member.settings;
     }
     const own = member.held.record.defaults?.style ?? {};
-    const [first] = clipsOf(session, member.held.record);
+    const [first] = clipsOf(session, record);
     return own["node.modelAnimation"] === undefined && first !== undefined
         ? { ...own, "node.modelAnimation": first.name }
         : own;
@@ -195,7 +197,7 @@ function hiddenOf(member: Member): readonly string[] {
  * @returns the patch, or undefined when nothing changed.
  */
 function defaultsPatch(session: GraphSession, member: Member, record: AssetRecord): ModelDefaultsPatch | undefined {
-    const settings = settingsOf(session, member);
+    const settings = settingsOf(session, member, record);
     const before = record.defaults;
     const style = Object.fromEntries(
         MODEL_DEFAULT_CHANNELS.flatMap((channel) =>

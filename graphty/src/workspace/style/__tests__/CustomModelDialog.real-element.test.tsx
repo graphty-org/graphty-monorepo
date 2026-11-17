@@ -20,6 +20,7 @@ import { commands, userEvent } from "vitest/browser";
 import { withoutFeatures } from "../../../test/features";
 import { dragAcross, dragTo } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import damagedPlyUrl from "../__fixtures__/variants/damaged.ply?url";
@@ -35,7 +36,7 @@ import {
     previewPicture,
     written,
 } from "./modelHarness";
-import { dotPng, quadGlb } from "./quadGlb";
+import { dotPng, quadGlb, withOutsidePicture } from "./quadGlb";
 
 /** babylonjs-models' variant fixtures, as the file chooser reads them (relative to the graphty project). */
 const VARIANTS = "../babylonjs-models/test/fixtures/variants";
@@ -175,14 +176,25 @@ function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) 
  */
 async function policeWaitingForPicture(base: string): Promise<{ stopped: boolean }> {
     const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    return waitingForPicture(`${base}police.glb`, police, `${base}Textures/colormap.png`);
+}
+
+/**
+ * Serves a model at an address at once, and its picture as a download that never arrives.
+ * @param url - the model's address.
+ * @param model - the model's bytes.
+ * @param picture - the picture's address.
+ * @returns whether the picture's download was stopped.
+ */
+function waitingForPicture(url: string, model: Uint8Array, picture: string): { stopped: boolean } {
     const original = globalThis.fetch.bind(globalThis);
     const state = { stopped: false };
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
         const to = input instanceof Request ? input.url : String(input);
-        if (to === `${base}police.glb`) {
-            return Promise.resolve(new Response(police, { status: 200 }));
+        if (to === url) {
+            return Promise.resolve(new Response(model as Uint8Array<ArrayBuffer>, { status: 200 }));
         }
-        if (to === `${base}Textures/colormap.png`) {
+        if (to === picture) {
             init?.signal?.addEventListener("abort", () => {
                 state.stopped = true;
             });
@@ -1112,6 +1124,26 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90, "with what the reader set meanwhile");
+    });
+
+    it("adds an animated model by address while its picture downloads with the clip it plays, as once it arrived (#8614)", async () => {
+        const base = "https://models.example.com/spin/";
+        const cube = new Uint8Array(await (await fetch(animatedCubeUrl)).arrayBuffer());
+        const served = waitingForPicture(`${base}cube.glb`, withOutsidePicture(cube, "pic.png"), `${base}pic.png`);
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}cube.glb`);
+        await userEvent.tab();
+        await previewOf(dialog, "cube");
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "its picture still downloads");
+        await addModel(dialog, "Add to project");
+        const record = await waitFor(() => {
+            const found = session.assets.list().find((r) => r.state === "accepted" && r.path === "cube.glb");
+            assert.isDefined(found);
+            return found;
+        });
+        assert.isTrue(served.stopped, "added without the picture");
+        assert.equal(record.defaults?.style["node.modelAnimation"], "spin", "the clip the dialog played");
     });
 
     it("keeps a model by address when Cancel load stops only its pictures, and adds it without them", async () => {

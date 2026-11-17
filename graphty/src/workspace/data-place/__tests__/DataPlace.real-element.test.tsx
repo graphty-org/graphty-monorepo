@@ -9,12 +9,11 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -96,7 +95,7 @@ const shown = (label: string): string =>
     within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
 
 /**
- * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the submenu that
  * opens.
  * @param side - node or edge.
  * @param kind - the kind of field, as "+" lists it.
@@ -104,8 +103,9 @@ const shown = (label: string): string =>
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
     await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    // No obvious column for these: the kind opens a submenu of its columns.
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
 }
 
 /**
@@ -230,9 +230,6 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
-        // Time is the timeline experiment's role: the list holds it only with the experiment on.
-        await siteFeatures(["timeline"]);
-        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
@@ -263,10 +260,13 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        // Two number columns: neither is obvious, so Weight opens a submenu, those first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("menuitem", { name: "bytes" });
+        const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 

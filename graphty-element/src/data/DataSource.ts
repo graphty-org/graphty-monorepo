@@ -282,24 +282,16 @@ export interface ImporterSourceOptions<Opts> {
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
     /**
-     * The time field the file declares, which a load with the timeline experiment on designates
+     * The time field the file declares, which a load designates
      * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
      * when the file declares none. Left out, no file declares one.
      * @param snapshot - the imported graph
      * @param report - the importer's report
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     readonly time?: (snapshot: GraphSnapshot, report: ImportReport) => TimeField | null;
 }
-
-/**
- * The readers a load with the timeline experiment on reads through: a reader in it keeps the time
- * data only the timeline reads (GEXF's lists of instants), so a load with the experiment off keeps
- * its records exactly as they were.
- */
-export const TIMELINE_READERS = new WeakSet();
 
 /**
  * The cancel signal of the load a reader is read for, set by the session before it reads: reading
@@ -899,7 +891,6 @@ export abstract class DataSource {
     /**
      * The time field the file declared, or null when it declared none. Read it after the last chunk.
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     get declaredTime(): TimeField | null {
@@ -907,12 +898,11 @@ export abstract class DataSource {
     }
 
     /**
-     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. With
-     * the timeline experiment on, the load designates it (`session.time.field`, and `time:field`
-     * fires) in the load's own step, unless a time field is already set; off, it is ignored. Call it
+     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. The
+     * load designates it (`session.time.field`, and `time:field` fires) in the load's own step,
+     * unless a time field is already set. Call it
      * only when the file itself says which columns hold time.
      * @param field - the field, with paths as the records name them
-     * @experimental timeline
      * @beta
      * @example
      * ```ts

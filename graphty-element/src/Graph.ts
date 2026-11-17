@@ -559,8 +559,6 @@ interface Reservation {
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
-/** Each graph's reader of its render loop's tick counts; see {@link renderTicksOf}. */
-const TICKS = new WeakMap<Graph, () => RenderManager["ticks"]>();
 
 /** How the element's data-source pair loads; see {@link loadSourcePair}. */
 interface PairImport {
@@ -627,20 +625,17 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
-/**
- * What a graph's render loop has done with its ticks (see `RenderManager.ticks`), for its tests to
- * tell "it drew nothing" from "it had no chance to". Not published. The counts start again when the
- * renderer is switched, since that builds a new loop.
- * @param graph - The graph.
- * @returns The live counts of its current loop.
- */
-export function renderTicksOf(graph: Graph): RenderManager["ticks"] {
-    const ticks = TICKS.get(graph);
-    if (ticks === undefined) {
-        throw new Error("That graph has no render loop yet.");
-    }
+/** Reads a graph's private render manager; the class sets it, since only its own code may read the field. */
+let readRenderManager: (graph: Graph) => RenderManager;
 
-    return ticks();
+/**
+ * A graph's render manager: what its tests hold frames, count ticks and read shader passes on, typed so a rename in
+ * `Graph` fails to compile rather than at run time (issue #6988). Not published, like {@link operationQueueOf}.
+ * @param graph - The graph.
+ * @returns Its render manager, the one in use now.
+ */
+export function renderManagerOf(graph: Graph): RenderManager {
+    return readRenderManager(graph);
 }
 
 /** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
@@ -984,6 +979,9 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
+    static {
+        readRenderManager = (graph) => graph.renderManager;
+    }
     /** Draws the map under a geographic layout. */
     private readonly basemapManager: BasemapManager;
     private readonly lifecycleManager: LifecycleManager;
@@ -1169,7 +1167,6 @@ export class Graph implements GraphContext {
             autoStart: true,
         });
         QUEUES.set(this, this.operationQueue);
-        TICKS.set(this, () => this.renderManager.ticks);
 
         // The element's configuration document: id paths, view mode, background, layout and its
         // options, the run-on-load algorithms and the behaviour settings. It carries no style
@@ -1865,11 +1862,10 @@ export class Graph implements GraphContext {
             },
             // Off while the working graph is on: nothing outside the view is drawn.
             showContext: () => this.session.visibility.drawsContext,
-            // What is drawn: the visible elements, plus the ghosts outside the time window when
-            // the timeline draws them. Visible stays the data scope everything else reads.
+            // What is drawn: the visible elements, plus what lies outside a time window, which the
+            // style layers hide or ghost. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
-            timeline: () => this.session.features.enabled.includes("timeline"),
             timeWindow: () => this.session.time.current !== null,
             ageFade: () => this.session.edgeAges(),
         };
@@ -1936,10 +1932,11 @@ export class Graph implements GraphContext {
                 this.layoutManager.releaseDetachedScope();
             }
         });
-        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
-        // layouts run over what is shown, the running layout follows it once
-        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it. A
-        // restore or a rollback brings back an arrangement of its own.
+        // WHAT IS SHOWN CHANGED: a filter, or an undo or redo of one (a time window hides by style
+        // and changes nothing shown, so it moves no node). While layouts run over what is shown,
+        // the running layout follows it once (design/working-graph/design.md, section 7); queued,
+        // so `waitForSettled` waits for it. A restore or a rollback brings back an arrangement of
+        // its own.
         this.session.on("visibility:changed", ({ cause }) => {
             if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
                 this.followShown(cause === "undo" || cause === "redo");
@@ -2005,8 +2002,10 @@ export class Graph implements GraphContext {
             .catch(() => undefined);
 
         // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
+        // Logged at most 4 times a second: a settling force layout refits on every frame.
+        const fitLogDue = throttle(CAMERA_LOG_INTERVAL_MS);
         this.eventManager.addListener("zoom-to-fit-complete", () => {
-            if (GraphtyLogger.isEnabled()) {
+            if (GraphtyLogger.isEnabled() && fitLogDue()) {
                 viewLog.info("camera fit", {
                     layout: this.layoutManager.layoutType ?? null,
                     ...this.getCameraState(),
@@ -2109,8 +2108,8 @@ export class Graph implements GraphContext {
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
-            if (controller && "pivot" in controller) {
-                this.scene.stopAnimation((controller as { pivot: unknown }).pivot);
+            if (controller instanceof OrbitCameraController) {
+                this.scene.stopAnimation(controller.pivot);
             }
             // Note: 2D animations use direct animation on dummy objects
             // and will be cleaned up when the scene is disposed
@@ -8401,23 +8400,14 @@ export class Graph implements GraphContext {
         // Get the active camera controller (OrbitCameraController or TwoDCameraController)
         const controller = this.camera.getActiveController();
 
-        if (controller && "pivot" in controller && "cameraDistance" in controller) {
+        if (controller instanceof OrbitCameraController) {
             // OrbitCameraController - get world position and pivot position
-            const orbitController = controller as unknown as {
-                pivot: {
-                    position: Vector3;
-                    rotation: Vector3;
-                    rotationQuaternion: Quaternion | null;
-                    computeWorldMatrix: (force: boolean) => void;
-                };
-                cameraDistance: number;
-                camera: { position: Vector3; parent: unknown; computeWorldMatrix: (force: boolean) => void };
-            };
+            const orbitController = controller;
 
             // Get camera's world position
             // Compute world matrix first
             orbitController.pivot.computeWorldMatrix(true);
-            orbitController.camera.computeWorldMatrix(true);
+            orbitController.camera.computeWorldMatrix();
 
             // Extract world position from world matrix
             const worldMatrix = camera.getWorldMatrix();
@@ -8453,20 +8443,9 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
-        } else if (controller && "velocity" in controller) {
+        } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan
-            const twoDController = controller as unknown as {
-                camera: {
-                    position: Vector3;
-                    orthoLeft: number | null;
-                    orthoRight: number | null;
-                    orthoTop: number | null;
-                    orthoBottom: number | null;
-                };
-                config: {
-                    initialOrthoSize: number;
-                };
-            };
+            const twoDController = controller;
 
             // Calculate current zoom from ortho bounds
             const currentSize = (twoDController.camera.orthoRight ?? 1) - (twoDController.camera.orthoLeft ?? -1);
@@ -8479,9 +8458,7 @@ export class Graph implements GraphContext {
                 x: twoDController.camera.position.x,
                 y: twoDController.camera.position.y,
             };
-            if (controller instanceof TwoDCameraController) {
-                state.rotation = controller.rotation;
-            }
+            state.rotation = controller.rotation;
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -8565,15 +8542,9 @@ export class Graph implements GraphContext {
                 const controller = this.camera.getActiveController();
 
                 try {
-                    if (controller && "pivot" in controller && "cameraDistance" in controller) {
-                        // OrbitCameraController (3D)
+                    if (controller instanceof OrbitCameraController) {
                         await this.animateOrbitCamera(resolvedState, options, context.signal);
-                    } else if (
-                        controller &&
-                        "velocity" in controller &&
-                        typeof (controller as { velocity?: unknown }).velocity === "object"
-                    ) {
-                        // TwoDCameraController (2D) - has velocity object
+                    } else if (controller instanceof TwoDCameraController) {
                         await this.animate2DCamera(resolvedState, options, context.signal);
                     } else {
                         // Unknown controller, apply immediately
@@ -8615,9 +8586,9 @@ export class Graph implements GraphContext {
         // Get the active camera controller
         const controller = this.camera.getActiveController();
 
-        if (controller && "pivot" in controller && "cameraDistance" in controller) {
+        if (controller instanceof OrbitCameraController) {
             this.applyOrbitCameraState(controller, state);
-        } else if (controller && "velocity" in controller) {
+        } else if (controller instanceof TwoDCameraController) {
             this.applyTwoDCameraState(controller, state);
         } else {
             this.applyFallbackCameraState(camera, state);
@@ -8626,26 +8597,13 @@ export class Graph implements GraphContext {
 
     /**
      * Apply a camera state to an orbit controller through its pivot: target, rotation, distance.
-     * @param controller - The active orbit camera controller
+     * @param orbitController - The active orbit camera controller
      * @param state - Camera state to apply
      */
     private applyOrbitCameraState(
-        controller: CameraController,
+        orbitController: OrbitCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // OrbitCameraController - work with pivot system
-        const orbitController = controller as unknown as {
-            pivot: {
-                position: Vector3;
-                rotation: Vector3;
-                rotationQuaternion: Quaternion | null;
-                computeWorldMatrix: (force: boolean) => void;
-            };
-            cameraDistance: number;
-            clampDistance: (distance: number) => number;
-            updateCameraPosition: () => void;
-        };
-
         // Set pivot position (target)
         if (state.target) {
             orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
@@ -8704,40 +8662,21 @@ export class Graph implements GraphContext {
      * @param state - Camera state to apply
      */
     private applyTwoDCameraState(
-        controller: CameraController,
+        controller: TwoDCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // TwoDCameraController - handle zoom and pan
-        const twoDController = controller as unknown as {
-            camera: {
-                position: Vector3;
-                orthoLeft: number | null;
-                orthoRight: number | null;
-                orthoTop: number | null;
-                orthoBottom: number | null;
-            };
-            config: {
-                initialOrthoSize: number;
-            };
-            updateOrtho: (size: number) => void;
-        };
-
         // Set zoom (ortho bounds)
         if (state.zoom !== undefined) {
-            const initialSize = twoDController.config.initialOrthoSize;
-            const targetSize = initialSize / state.zoom;
-            twoDController.updateOrtho(targetSize); // Reuse controller method
+            controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
         }
 
-        if (controller instanceof TwoDCameraController) {
-            if (state.rotation !== undefined) {
-                controller.rotation = state.rotation;
-            }
+        if (state.rotation !== undefined) {
+            controller.rotation = state.rotation;
+        }
 
-            // Set pan (camera position): the view's center, in world units however the view is turned
-            if (state.pan) {
-                controller.panTo(state.pan.x, state.pan.y);
-            }
+        // Set pan (camera position): the view's center, in world units however the view is turned
+        if (state.pan) {
+            controller.panTo(state.pan.x, state.pan.y);
         }
     }
 
@@ -8894,24 +8833,13 @@ export class Graph implements GraphContext {
     ): Promise<void> {
         const controller = this.camera.getActiveController();
 
-        // Type guard - ensure we have OrbitCameraController
-        if (!controller || !("pivot" in controller) || !("cameraDistance" in controller)) {
+        if (!(controller instanceof OrbitCameraController)) {
             // Fallback to immediate if controller doesn't match
             this.applyCameraStateImmediate(targetState);
             return;
         }
 
-        const orbitController = controller as unknown as {
-            pivot: {
-                position: Vector3;
-                rotation: Vector3;
-                animations?: Animation[];
-                computeWorldMatrix: (force: boolean) => void;
-            };
-            cameraDistance: number;
-            clampDistance: (distance: number) => number;
-            updateCameraPosition: () => void;
-        };
+        const orbitController = controller;
 
         const fps = 60;
         const duration = options.duration ?? 1000;
@@ -9137,29 +9065,17 @@ export class Graph implements GraphContext {
     ): Promise<void> {
         const controller = this.camera.getActiveController();
 
-        // Type guard for 2D controller
-        if (!controller || !("velocity" in controller)) {
+        if (!(controller instanceof TwoDCameraController)) {
             this.applyCameraStateImmediate(targetState);
             return;
         }
 
         // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
-        if (targetState.rotation !== undefined && controller instanceof TwoDCameraController) {
+        if (targetState.rotation !== undefined) {
             controller.rotation = targetState.rotation;
         }
 
-        const twoDController = controller as unknown as {
-            camera: {
-                position: Vector3;
-                orthoLeft: number | null;
-                orthoRight: number | null;
-                orthoTop: number | null;
-                orthoBottom: number | null;
-            };
-            config: {
-                initialOrthoSize: number;
-            };
-        };
+        const twoDController = controller;
 
         const fps = 60;
         const duration = options.duration ?? 1000;

@@ -16,7 +16,7 @@ import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
 import { GraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf, renderTicksOf } from "../../src/Graph";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import { countUncaptured, deviceNowOf, mounted, unmount } from "./device-helpers";
 
@@ -68,7 +68,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
  * @returns The counts, copied.
  */
 function ticksOf(graph: Graph): RenderManager["ticks"] {
-    return { ...renderTicksOf(graph) };
+    return { ...renderManagerOf(graph).ticks };
 }
 
 /** The browser's own requests, taken before any test spies on them. */

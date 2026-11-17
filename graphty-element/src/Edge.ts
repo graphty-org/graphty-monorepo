@@ -1118,8 +1118,6 @@ export class Edge {
 
     /** The arrow-tail text block the glyph on screen was built from. See {@link syncContent}. */
     private drawnArrowTailText?: NonNullable<EdgeStyleConfig["arrowTail"]>["text"];
-    // Debug flag for logging lineDirection (reserved for future use)
-    private readonly _loggedLineDirection: boolean = false;
 
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
@@ -1464,12 +1462,12 @@ export class Edge {
         }
 
         // create arrow mesh if needed
-        this.arrowCap = this.createEndCap(paint.meshKey, style, "arrowHead");
+        this.arrowCap = this.createEndCap(style, "arrowHead");
 
         // create arrow tail mesh if needed
-        this.arrowTailCap = this.createEndCap(paint.meshKey, style, "arrowTail");
+        this.arrowTailCap = this.createEndCap(style, "arrowTail");
 
-        this.createMidCaps(paint.meshKey, style);
+        this.createMidCaps(style);
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
@@ -2126,16 +2124,16 @@ export class Edge {
             this.arrowCap.dispose();
         }
 
-        this.arrowCap = this.createEndCap(meshKey, style, "arrowHead");
+        this.arrowCap = this.createEndCap(style, "arrowHead");
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
             this.arrowTailCap.dispose();
         }
 
-        this.arrowTailCap = this.createEndCap(meshKey, style, "arrowTail");
+        this.arrowTailCap = this.createEndCap(style, "arrowTail");
 
-        this.createMidCaps(meshKey, style);
+        this.createMidCaps(style);
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
@@ -2159,7 +2157,6 @@ export class Edge {
 
     /**
      * Build one end cap a resolved style asks for.
-     * @param meshKey - Which source mesh the edge is drawn from.
      * @param style - The resolved style.
      * @param end - The head or the tail.
      * @param reuse - The cap drawn at that end now, recolored and handed back when the new look's
@@ -2167,15 +2164,12 @@ export class Edge {
      * @returns The cap, or null for none.
      */
     private createEndCap(
-        meshKey: string,
         style: EdgeStyleConfig,
         end: "arrowHead" | "arrowTail",
         reuse: ArrowCap | null = null,
     ): ArrowCap | null {
         const arrow = style[end];
         return EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            end === "arrowHead" ? meshKey : `${meshKey}-tail`,
             {
                 type: arrow?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -2305,7 +2299,7 @@ export class Edge {
         }
 
         this.colorLine(style);
-        placed = this.moveEndCaps(meshKey, style) && placed;
+        placed = this.moveEndCaps(style) && placed;
 
         // Whatever could not be copied is placed by the next update.
         if (!placed) {
@@ -2317,15 +2311,14 @@ export class Edge {
 
     /**
      * Rebuild both end caps in a new look, each standing where its old cap stood.
-     * @param meshKey - The new look's mesh key.
      * @param style - The new look.
      * @returns False when a cap could not take its old cap's place and must be placed again.
      */
-    private moveEndCaps(meshKey: string, style: EdgeStyleConfig): boolean {
+    private moveEndCaps(style: EdgeStyleConfig): boolean {
         let placed = true;
         const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
             const live = cap !== null && !cap.isDisposed();
-            const made = this.createEndCap(meshKey, style, end, live ? cap : null);
+            const made = this.createEndCap(style, end, live ? cap : null);
             // A cap whose batch draws the new look too was recolored where it stands, and stays.
             if (live && made !== cap) {
                 placed = (made?.takePlaceOf(cap) ?? false) && placed;
@@ -5110,19 +5103,16 @@ export class Edge {
     /**
      * Build the caps drawn part-way along the line (`arrowMiddleHead`, `arrowMiddleTail`), disposing any
      * drawn before. Each is a slot in the batch every cap of its appearance shares, as the end caps are.
-     * @param meshKey - The source mesh key the edge is drawn under.
      * @param style - The resolved style.
      */
-    private createMidCaps(meshKey: string, style: EdgeStyleConfig): void {
+    private createMidCaps(style: EdgeStyleConfig): void {
         for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
             if (cap && !cap.isDisposed()) {
                 cap.dispose();
             }
         }
-        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"], suffix: string): ArrowCap | null =>
+        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"]): ArrowCap | null =>
             EdgeMesh.createArrowHead(
-                this.context.getMeshCache(),
-                `${meshKey}-${suffix}`,
                 {
                     type: arrow?.type ?? "none",
                     width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -5137,8 +5127,8 @@ export class Edge {
                 },
                 this.context.getScene(),
             );
-        this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
-        this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+        this.arrowMiddleHeadCap = make(style.arrowMiddleHead);
+        this.arrowMiddleTailCap = make(style.arrowMiddleTail);
 
         for (const cap of this.stackCaps()) {
             if (!cap.isDisposed()) {
@@ -5146,28 +5136,22 @@ export class Edge {
             }
         }
         // a row of caps behind an end cap, each part in the end cap's colour and opacity
-        const stack = (
-            arrow: EdgeStyleConfig["arrowHead"],
-            suffix: string,
-        ): { cap: ArrowCap; part: ArrowStackPart }[] =>
+        const stack = (arrow: EdgeStyleConfig["arrowHead"]): { cap: ArrowCap; part: ArrowStackPart }[] =>
             !arrow?.type || arrow.type === "none" || (arrow.size ?? 1) <= 0
                 ? []
-                : parseArrowStack(arrow.stack).flatMap((part, i) => {
-                      const cap = make(
-                          {
-                              ...arrow,
-                              type: part.type as NonNullable<typeof arrow.type>,
-                              size: part.size ?? arrow.size,
-                              width: part.width,
-                              side: part.side,
-                              outlineWidth: part.outline ?? arrow.outlineWidth,
-                          },
-                          `${suffix}-${String(i)}`,
-                      );
+                : parseArrowStack(arrow.stack).flatMap((part) => {
+                      const cap = make({
+                          ...arrow,
+                          type: part.type as NonNullable<typeof arrow.type>,
+                          size: part.size ?? arrow.size,
+                          width: part.width,
+                          side: part.side,
+                          outlineWidth: part.outline ?? arrow.outlineWidth,
+                      });
                       return cap === null ? [] : [{ cap, part }];
                   });
-        this.headStack = stack(style.arrowHead, "head-stack");
-        this.tailStack = stack(style.arrowTail, "tail-stack");
+        this.headStack = stack(style.arrowHead);
+        this.tailStack = stack(style.arrowTail);
     }
 
     /**

@@ -24,6 +24,7 @@ import {
     emptyLedger,
     freeze,
     groupClass,
+    idleVerdict,
     importScan,
     jobLines,
     ledgerJobs,
@@ -38,6 +39,7 @@ import {
     ready,
     release,
     route,
+    runningJobs,
     size,
     start,
     validate,
@@ -1462,5 +1464,81 @@ describe("the ledger file", () => {
         );
         assert.equal(readLedger(ledgerPath).groups.length, 1);
         assert.ok(!existsSync(`${ledgerPath}.lock`));
+    });
+});
+
+describe("idle", () => {
+    const base = { running: 0, slots: { count: 4, held: 1, waitedMs: 0 }, load: 6, cores: 32, startable: 10 };
+    const taken = (id, session, branch, login) =>
+        comment(id, `pipeline-round: taken by session ${session}, branch ${branch}, worktree w -- x`, login);
+
+    it("is idle with startable jobs, free slots, no long wait and load under the cores", () => {
+        const v = idleVerdict(base);
+        assert.equal(v.idle, true);
+        assert.equal(v.line, "idle: running 0, slots free 3 of 4, load 6/32, startable 10 -- start jobs");
+    });
+
+    it("is not idle when nothing is startable, the slots are full, a run waits or the load is high", () => {
+        const cases = [
+            [{ startable: 0 }, "nothing startable"],
+            [{ running: 3 }, "the running jobs fill the free slots"],
+            [{ slots: { count: 4, held: 4, waitedMs: 0 } }, "the running jobs fill the free slots"],
+            [{ slots: { count: 4, held: 1, waitedMs: 11 * 60_000 } }, "a run has waited 11 min for a slot"],
+            [{ load: 32 }, "load is at or over the cores"],
+        ];
+        for (const [change, reason] of cases) {
+            const v = idleVerdict({ ...base, ...change });
+            assert.equal(v.idle, false, reason);
+            assert.equal(v.reason, reason);
+        }
+        assert.equal(idleVerdict({ ...base, slots: { count: 0, held: 0, waitedMs: 0 } }).free, null);
+    });
+
+    it("counts the session's own taken markers, one job per branch, and nothing after ready or released", () => {
+        const issues = new Map([
+            [1, { comments: [taken(1, "s1", "fix/1-a")] }],
+            [2, { comments: [taken(2, "s1", "fix/1-a")] }],
+            [3, { comments: [taken(3, "s1", "fix/3-b")] }],
+            [4, { comments: [taken(4, "s2", "fix/4-c")] }],
+            [5, { comments: [taken(5, "s1", "fix/5-d"), comment(6, "pipeline-round: ready fix/5-d abc")] }],
+            [6, { comments: [taken(7, "s1", "fix/6-e"), comment(8, "pipeline-round: released -- x")] }],
+            [7, { comments: [taken(9, "s1", "fix/7-f", "stranger")] }],
+            [8, { comments: [taken(10, "s10", "fix/8-g")] }],
+        ]);
+        assert.deepEqual(runningJobs(issues, "s1"), { jobs: 2, issues: [1, 2, 3] });
+        assert.deepEqual(runningJobs(issues, null), { jobs: 0, issues: [] });
+    });
+
+    it("reads the open issues once and the markers of in-progress ones, exits 1 when idle and caches the verdict", () => {
+        const dir = tempDir();
+        const ledgerPath = join(dir, "groups.json");
+        const issue = (number, labels) => ({
+            ...q([number, "high"])[0],
+            labels: { nodes: labels.map((name) => ({ name })) },
+        });
+        const author = { __typename: "User", login: "graphty-agent" };
+        const open = [issue(1, ["priority:high"]), issue(2, ["in-progress"])].map((i) => ({ ...i, author, body: "" }));
+        const asked = [];
+        const deps = {
+            ledgerPath,
+            now: NOW,
+            fetchOpen: () => open,
+            session: () => "s1",
+            markers: (numbers) => {
+                asked.push(numbers);
+                return new Map([[2, { comments: [taken(1, "s1", "fix/2-a")] }]]);
+            },
+            machine: () => ({ slots: { count: 4, held: 0, waitedMs: 0 }, load: 1, cores: 32 }),
+        };
+        const r = main(["idle"], deps);
+        assert.equal(r.code, 1);
+        assert.equal(r.out, "idle: running 1, slots free 4 of 4, load 1/32, startable 1 -- start jobs");
+        assert.deepEqual(asked, [[2]]);
+        const cached = JSON.parse(readFileSync(join(dir, "idle.json"), "utf8"));
+        assert.equal(cached.at, NOW);
+        assert.equal(cached.idle, true);
+        const quiet = main(["idle", "--json"], { ...deps, fetchOpen: () => open.slice(1) });
+        assert.equal(quiet.code, 0);
+        assert.equal(JSON.parse(quiet.out).reason, "nothing startable");
     });
 });

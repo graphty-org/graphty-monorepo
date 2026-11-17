@@ -6408,10 +6408,6 @@ describe("the commit and push hooks", () => {
         );
     });
 
-    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
-        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
-    });
-
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));

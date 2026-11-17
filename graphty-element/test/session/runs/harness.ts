@@ -274,6 +274,8 @@ export function stubResult(runId: RunId): RunResult {
         reading: () => "A stub result.",
         readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,
+        toTsv: () => "",
+        memberIds: () => [],
     };
 }
 

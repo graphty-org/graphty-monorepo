@@ -5619,6 +5619,7 @@ export interface RunResult {
         readonly nodes: number;
         readonly edges: number;
     };
+    memberIds(): readonly NodeId[];
     node(id: NodeId): Readonly<Record<string, unknown>> | undefined;
     ranking(field: string, limit?: number): readonly RankingEntry[];
     // @deprecated
@@ -5628,6 +5629,7 @@ export interface RunResult {
     readonly shape: ResultShape;
     summary(): ResultSummary;
     top(field: string, n: number): TopRanking;
+    toTsv(): string;
 }
 
 // @public

@@ -179,7 +179,7 @@ aboutCredits.textContent = map.attribution.join(" | ");
 <!-- #region projections -->
 
 ```ts
-import { boundsOf, createMapFrame, latLonToSphere, webMercator } from "babylonjs-map/projection";
+import { boundsOf, createMapFrame, latLonToSphere, raySphere, webMercator } from "babylonjs-map/projection";
 
 webMercator.forward({ lat: 40.64, lon: -73.78 }); // { x, y } on a map one unit wide
 const box = boundsOf(points, { margin: 0.1 }); // the box around some points, or null

@@ -861,6 +861,9 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
         centers: { ref: centersOf(ref), subject: centersOf(subject) },
         subjectNodes: new Map(subject.nodes.map((n) => [n.id, n])),
     };
+    if (transform !== null) {
+        pairLookalikeParallels(m, { t: transform, centers: ctx.centers });
+    }
 
     const properties = {} as Record<Property, PropertyResult>;
     for (const p of PROPERTIES) {
@@ -945,6 +948,81 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
         properties[p] = judge(p, ref, subject, m, ctx, options.idMap);
     }
     return { transform, counts: m.counts, properties };
+}
+
+/** What an edge looks like apart from its path: two edges alike in it can be told apart only by their paths. */
+function edgeLook(e: SceneEdge): string {
+    return JSON.stringify([e.color, e.opacity, e.width, e.style, e.arrow, e.label]);
+}
+
+/** What pairing a line with a curve costs, above any distance between two paths. */
+const CURVE_MISMATCH = 1e12;
+
+/** The largest bundle of lookalike parallel edges whose pairings are all tried (n! of them). */
+const MAX_LOOKALIKE_BUNDLE = 6;
+
+/**
+ * Every ordering of the indices 0..n-1.
+ * @param n - how many
+ * @returns the orderings
+ */
+function permutations(n: number): number[][] {
+    if (n <= 1) {
+        return [[0]];
+    }
+    return permutations(n - 1).flatMap((p) =>
+        Array.from({ length: n }, (_, at) => [...p.slice(0, at), n - 1, ...p.slice(at)]),
+    );
+}
+
+/**
+ * Re-pairs parallel edges that look alike on each side: where the reference's edges joining two nodes the same way
+ * round all look the same apart from their paths, and so do the subject's, nothing but the order each side lists
+ * them in tells which is which, and the two sides number them differently (Cytoscape desktop by its view order,
+ * graphty by the file's). They are paired so their paths agree best, which changes no other property's verdict.
+ * ponytail: bundles over MAX_LOOKALIKE_BUNDLE keep their order pairing.
+ * @param m - the matching, changed in place
+ * @param ctx - the fitted transform and each side's node centers
+ * @param ctx.t - the fitted transform
+ * @param ctx.centers - each side's node centers
+ */
+function pairLookalikeParallels(
+    m: Matching,
+    ctx: { t: Omit<Transform, "rms">; centers: { ref: ReadonlyMap<string, Pt>; subject: ReadonlyMap<string, Pt> } },
+): void {
+    const bundles = new Map<string, number[]>();
+    m.edges.forEach(([r, , reversed], i) => {
+        if (r.source !== r.target) {
+            const key = `${r.source}\u0000${r.target}\u0000${String(reversed)}`;
+            bundles.set(key, [...(bundles.get(key) ?? []), i]);
+        }
+    });
+    const cost = (r: SceneEdge, s: SceneEdge, reversed: boolean): number => {
+        const mapped = centerToCenter(s, ctx.centers.subject).map((p) => apply(ctx.t, p));
+        const got = reversed ? mapped.reverse() : mapped;
+        const want = centerToCenter(r, ctx.centers.ref);
+        const d = frechet(resample(want, THRESHOLDS.pathSamples), resample(got, THRESHOLDS.pathSamples));
+        // a line paired with a curve fails edgePath whatever the distance, so it is the last resort
+        return (r.curved === s.curved ? 0 : CURVE_MISMATCH) + d;
+    };
+    for (const at of bundles.values()) {
+        const pairs = at.map((i) => m.edges[i]);
+        const alike = (side: 0 | 1): boolean => new Set(pairs.map((p) => edgeLook(p[side]))).size === 1;
+        if (at.length < 2 || at.length > MAX_LOOKALIKE_BUNDLE || !alike(0) || !alike(1)) {
+            continue;
+        }
+        let best: number[] = [];
+        let bestCost = Number.POSITIVE_INFINITY;
+        for (const order of permutations(at.length)) {
+            const c = order.reduce((sum, j, k) => sum + cost(pairs[k][0], pairs[j][1], pairs[j][2]), 0);
+            if (c < bestCost) {
+                [best, bestCost] = [order, c];
+            }
+        }
+        best.forEach((j, k) => {
+            m.edges[at[k]] = [pairs[k][0], pairs[j][1], pairs[j][2]];
+        });
+    }
 }
 
 /** The properties judged by the fitted scale alone, never by the rotation or the offset. */
@@ -1098,14 +1176,17 @@ function judge(
         case "annotations": {
             const subs = subject.annotations ?? [];
             const refs = ref.annotations ?? [];
+            // A side of 0 in a reference box is an extent its route did not record (CyREST gives a text annotation
+            // no width): that side is the subject's, so the box is judged by where it is and the extent it has.
+            const overlap = (r: Box, s: Box): number => {
+                const b = transformBox(t, s);
+                return iou({ ...r, w: r.w === 0 ? b.w : r.w, h: r.h === 0 ? b.h : r.h }, b);
+            };
             // An annotation the subject draws where the reference has none of its kind is a fail.
             const extra = subs
                 .map((s, i) => ({ s, i }))
                 .filter(
-                    ({ s }) =>
-                        !refs.some(
-                            (r) => r.kind === s.kind && iou(r.bbox, transformBox(t, s.bbox)) >= THRESHOLDS.groupIoU,
-                        ),
+                    ({ s }) => !refs.some((r) => r.kind === s.kind && overlap(r.bbox, s.bbox) >= THRESHOLDS.groupIoU),
                 )
                 .map(({ s, i }) => ({
                     id: `extra ${s.kind}#${String(i)}`,
@@ -1116,7 +1197,7 @@ function judge(
                 ...refs.map((r, i) => {
                     const best = Math.max(
                         0,
-                        ...subs.filter((s) => s.kind === r.kind).map((s) => iou(r.bbox, transformBox(t, s.bbox))),
+                        ...subs.filter((s) => s.kind === r.kind).map((s) => overlap(r.bbox, s.bbox)),
                     );
                     return {
                         id: `${r.kind}#${String(i)}`,

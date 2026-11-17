@@ -98,9 +98,9 @@ async function openWhich(u) {
 }
 
 /**
- * A condition on the column. In the selection workspace: the new step's Value (or And...
- * for a further step), the column typed into the value picker and Enter; focus lands on the
- * step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
+ * A condition on the column. In the selection workspace: the new card's Value (or the card's
+ * Keep for a further condition), the column typed into the value picker and Enter; focus lands on
+ * the step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
  * @param u the user's hands (README.md)
  * @param column the column, as the pickers name it
  */
@@ -119,7 +119,7 @@ async function addCondition(u, column) {
         return;
     }
     const value = ws.getByRole("button", { name: "Value", exact: true });
-    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: /^(And|Add)\.\.\.$/ })).click();
+    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: "Keep", exact: true })).click();
     await u.page.getByRole("combobox", { name: "Find attributes, results" }).waitFor();
     await u.type(column);
     await u.key("Enter");
@@ -229,9 +229,6 @@ async function everythingColor(u, color) {
 
 const STARTING_NODE_COLOR = "#6366F1";
 const STARTING_EDGE_COLOR = "#A9A9A9";
-// graphty-element's default edge width (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, in world units since #125). Pinned,
-// not imported: the constant is exported only from graphty-element's main entry, which loads Babylon.js.
-const STARTING_EDGE_WIDTH = 4.5;
 const yes = (v) => v === true || v === "yes" || v === "true";
 const missing = (v) => v === null || v === undefined || v === "";
 
@@ -283,7 +280,7 @@ async function onlyTheseEdges(g, test, look, count) {
     assert.equal(want.size, count, `the data holds ${count} such edges`);
     const drawn = { width: await g.edgeLook("edge.width"), color: await g.edgeLook("edge.color") };
     for (const e of edges) {
-        const expect = want.has(e.id) ? look : { width: STARTING_EDGE_WIDTH, color: STARTING_EDGE_COLOR };
+        const expect = want.has(e.id) ? look : { width: 8, color: STARTING_EDGE_COLOR };
         assert.deepEqual({ width: drawn.width[e.id], color: drawn.color[e.id] }, expect, `edge ${e.id}`);
     }
 }

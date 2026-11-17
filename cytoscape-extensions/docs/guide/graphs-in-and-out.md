@@ -142,7 +142,7 @@ two.
   the stylesheet carries them, and a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness`
   are not data fields. Without `styles`, they are: `data.color` as four numbers from 0 to 1 (red,
   green, blue, alpha), `data.size`, `data.shape` and `data.thickness`. These fields are deprecated
-  and are removed in the next major release; use `styles: true` instead.
+  and may be removed in a later release; use `styles: true` instead.
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
   z coordinate in `data.z`. CX, CX2, XGMML and Cytoscape JSON keep Cytoscape's own coordinates, so
   a node sits where Cytoscape drew it. GEXF, GML, DOT and Pajek are y-up, so y is negated on import
@@ -377,6 +377,19 @@ import { generateElements } from "@graphty/cytoscape-extensions/samples";
 const { elements } = generateElements("grid", { rows: 2, cols: 2, positions: true });
 const eles = cytoscape({ headless: true, elements, layout: { name: "preset" } }).elements();
 const gexf = await exportElements(eles, "gexf");
+```
+
+`importElements(input, format, { styles: true })` also returns a `stylesheet` and a `bypass` per
+element. Add the elements first, then set the bypasses with `applyBypass`; given as each
+definition's `style` instead, an edge's `curve-style` throws in Cytoscape:
+
+```js
+import { applyBypass, importElements } from "@graphty/cytoscape-extensions/io";
+
+const r = await importElements(text, "auto", { styles: true });
+applyBypass(cy.add(r.elements), r.elements, r.bypass);
+for (const rule of r.stylesheet) cy.style().selector(rule.selector).style(rule.style);
+cy.style().update();
 ```
 
 ## Next

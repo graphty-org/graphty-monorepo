@@ -405,7 +405,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Degree centrality",
         description: "Counts how many edges each node has, incoming, outgoing and in total.",
         category: "centrality",
-        keywords: ["connections", "links", "neighbors"],
+        keywords: ["connections", "links", "neighbors", "most connected", "hubs"],
         shape: "node-metric",
         fields: [
             ...metricFields("node", {

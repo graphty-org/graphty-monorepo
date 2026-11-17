@@ -7,24 +7,30 @@
 // screen and typing check a run leaves out.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { BAR6, BAR6_PLANTS, bar6Gaps, styleChanges, styleContent } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, "..");
-const repo = resolve(studio, "../../..");
 const real = join(here, "real.mjs");
-const scratchOf = (dir) => join(repo, "tmp/studio-sessions", dir.slice(studio.length + 1));
-const brief = (...a) =>
-    spawnSync(process.execPath, [real, "--brief", ...a], { encoding: "utf8", env: { ...process.env, REAL_TIER: "" } });
+// the planted rounds and their briefings in a folder of this run's own (REAL_STUDIO, REAL_SCRATCH), never
+// in the studio's files or the checkout's tmp/: two runs at once shared one fixed path (#8412)
+const own = mkdtempSync(join(tmpdir(), "tier3-"));
+after(() => rmSync(own, { recursive: true, force: true }));
+const planted = join(own, "studio");
+const scratch = join(own, "studio-sessions");
+const ENV = { ...process.env, REAL_TIER: "", REAL_STUDIO: planted, REAL_SCRATCH: scratch };
+const scratchOf = (dir) => join(scratch, dir.slice(planted.length + 1));
+const brief = (...a) => spawnSync(process.execPath, [real, "--brief", ...a], { encoding: "utf8", env: ENV });
 
 test("a tier 3 folder is briefed from tier 3's files, as a first-time user", () => {
-    const dir = join(studio, "tier3/rounds/zz-tool-test/sessions/t1");
+    const dir = join(planted, "tier3/rounds/zz-tool-test/sessions/t1");
     const r = brief(dir, "--task", "T40B", "--persona", "Maren");
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
@@ -36,7 +42,7 @@ test("a tier 3 folder is briefed from tier 3's files, as a first-time user", () 
 });
 
 test("a tier 2 folder is still briefed from tier 2's files (the planted wrong tier)", () => {
-    const dir = join(studio, "tier2/rounds/zz-tool-test/sessions/t1");
+    const dir = join(planted, "tier2/rounds/zz-tool-test/sessions/t1");
     const r = brief(dir, "--task", "T20A", "--persona", "Grace");
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
@@ -45,7 +51,7 @@ test("a tier 2 folder is still briefed from tier 2's files (the planted wrong ti
 });
 
 test("every planned tier 3 row in a plan briefs, and a keyboard-only start keeps --keys", async () => {
-    const rd = join(studio, "tier3/rounds/zz-tool-test");
+    const rd = join(planted, "tier3/rounds/zz-tool-test");
     await mkdir(rd, { recursive: true });
     const roster = readFileSync(join(studio, "tier3/roster.md"), "utf8");
     // one row per task half of the roster's allocation table, with each persona named first there
@@ -97,7 +103,7 @@ test("the style-tree comparison catches a planted removal and a changed color, n
 });
 
 test("a briefing points the participant at no study file (the persona's hypotheses line)", () => {
-    const dir = join(studio, "tier3/rounds/zz-tool-test/sessions/t2");
+    const dir = join(planted, "tier3/rounds/zz-tool-test/sessions/t2");
     const r = brief(dir, "--task", "T39A", "--persona", "Elena");
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
@@ -122,7 +128,7 @@ test("a briefing holds no stray markup and no note to the study team", () => {
         ["T39A", "Tom"],
         ["T39A", "Elena"],
     ].entries()) {
-        const dir = join(studio, `tier3/rounds/zz-tool-test/sessions/m${i}`);
+        const dir = join(planted, `tier3/rounds/zz-tool-test/sessions/m${i}`);
         const r = brief(dir, "--task", task, "--persona", p);
         assert.equal(r.status, 0, r.stdout + r.stderr);
         const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
@@ -203,7 +209,7 @@ test("bar 6 is checked at 900 x 700 too: each check left out or unproven there i
 // The gate on a planted tier 3 round: a frozen-build walk is any commit whose app code is the
 // frozen build's (22cb4d4365 holds 758b8e8081's), never one whose app code differs (31e8c23878)
 test("the gate holds a half only with its walks by half folder, and a bars run that covers bar 6", async () => {
-    const rd = join(studio, "tier3/rounds/zz-gate-test");
+    const rd = join(planted, "tier3/rounds/zz-gate-test");
     const frozen = "758b8e8081dc3a8daa2eaf3a8996e989fa2b2a58";
     const walk = async (half, name, json = {}) => {
         const d = join(rd, "pilot", half, name);
@@ -233,8 +239,7 @@ test("the gate holds a half only with its walks by half folder, and a bars run t
         "| r9-s02 | T39 | A: Les Miserables | Sam | `empty --keys` |",
         "| r9-s03 | T40 | B: yeast genes | Ruth | `empty` |",
     ].join("\n");
-    const gate = () =>
-        spawnSync(process.execPath, [real, "--gate", rd], { encoding: "utf8", env: { ...process.env, REAL_TIER: "" } });
+    const gate = () => spawnSync(process.execPath, [real, "--gate", rd], { encoding: "utf8", env: ENV });
     const good = async () => {
         await rm(rd, { recursive: true, force: true });
         await mkdir(rd, { recursive: true });

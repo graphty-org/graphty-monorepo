@@ -7575,11 +7575,15 @@ export class RenderManager implements Manager {
     // (undocumented)
     engine: Engine | WebGPUEngine;
     // @internal
+    fencedFrames(): number;
+    // @internal
     frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;
     };
+    // @internal
+    gpuFinishedFrame(frame: number): boolean;
     // (undocumented)
     graphRoot: TransformNode;
     holdFrames(): () => void;
@@ -8507,6 +8511,11 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
+    // @internal
+    gpuFrames: {
+        fenced: () => number;
+        finished: (frame: number) => boolean;
+    } | null;
     get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     init(): Promise<void>;

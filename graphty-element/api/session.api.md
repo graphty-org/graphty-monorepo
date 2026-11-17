@@ -1865,7 +1865,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -3445,6 +3445,7 @@ export interface LayerProblem {
     readonly message: string;
     readonly path?: string;
     readonly position?: number;
+    readonly scope?: Selector_2;
 }
 
 // @public
@@ -4439,6 +4440,19 @@ export type Path = string;
 
 // @public
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
+
+// @public
+export type PathParts = {
+    readonly from: "data";
+    readonly column: string;
+} | {
+    readonly from: "run";
+    readonly runId: RunId;
+    readonly field: string;
+};
+
+// @public
+export function pathParts(path: Path): PathParts | undefined;
 
 // @public
 export type PendingId = string & {

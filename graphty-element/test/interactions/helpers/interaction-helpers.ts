@@ -143,7 +143,7 @@ export function getCameraState(graph: Graph): CameraState {
 
 /**
  * Set up a test graph with specified options.
- * Creates a graph instance using NullEngine for headless testing.
+ * Creates a graph instance on a real WebGL engine, since picking needs one.
  *
  * @param options - Configuration options for the test graph
  * @returns The initialized graph instance

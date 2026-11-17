@@ -258,34 +258,6 @@ export function selectionRow(session: GraphSession): LayerId[] {
 }
 
 /**
- * The selector a binding needs on a row that paints everything, when graphty-element refuses it
- * there: a binding to a run's result is refused on a layer that paints every element
- * (`E_UNSCOPED_RUN_ENCODING`), and the element's own remedy is a layer scoped to the elements
- * that carry the result.
- * @param session - the element's session.
- * @param target - nodes or edges.
- * @param channel - the bound channel.
- * @param binding - the binding.
- * @returns the scoped selector, or undefined when a layer that paints everything may hold it.
- */
-function scopeFor(
-    session: TransactionScope,
-    target: Target,
-    channel: Channel,
-    binding: DataBinding,
-): Layer["selector"] | undefined {
-    const check = session.styles.validate({
-        name: "check",
-        target,
-        selector: { match: "everything" },
-        encode: { [channel]: binding },
-    });
-    return check.errors.some((error) => error.code === "E_UNSCOPED_RUN_ENCODING")
-        ? { match: "has", path: binding.by }
-        : undefined;
-}
-
-/**
  * The place directly above a row, in the folder that holds it (bottom-first index).
  * @param session - the element's session.
  * @param id - the row.
@@ -343,7 +315,18 @@ export async function writeLine(
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
-    const scope = everything && "binding" in write ? scopeFor(session, target, channel, write.binding) : undefined;
+    // A binding graphty-element refuses on a layer that paints everything goes on the layer it names instead.
+    const scope =
+        everything && "binding" in write
+            ? session.styles
+                  .validate({
+                      name: write.binding.by,
+                      target,
+                      selector: { match: "everything" },
+                      encode: { [channel]: write.binding },
+                  })
+                  .errors.find((error) => error.scope !== undefined)?.scope
+            : undefined;
     const home = scope ?? fresh?.selector;
     const own = [...layers]
         .reverse()

@@ -476,6 +476,9 @@ describe("JSON styles: reading", () => {
                 },
                 { id: "d", shape: "image", image: "d.png", opacity: 0.4 },
                 { id: "e", shape: "triangleDown" },
+                { id: "f", shape: "triangle" },
+                { id: "g", shape: "image", image: "g.png" },
+                { id: "h", shape: "circularImage", image: "h.png" },
             ],
             edges: [{ from: "a", to: "e" }],
         });
@@ -485,9 +488,16 @@ describe("JSON styles: reading", () => {
         // offsets y down, from the node's center
         expect(values(r, "node", "imageOffsetX").slice(0, 3)).toEqual([0, -5, 10]);
         expect(values(r, "node", "imageOffsetY").slice(0, 3)).toEqual([0, -2, 10]);
-        expect(values(r, "node", "imageOpacity")).toEqual([null, null, null, 0.4, null]);
-        expect(values(r, "node", "shape")[4]).toBe("polygon");
-        expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
+        expect(values(r, "node", "imageOpacity")).toEqual([null, null, null, 0.4, null, null, null, null]);
+        // vis-network's triangles are equilateral, 1.15 times their size across, a little lower than their 2 * size square
+        expect(values(r, "node", "shape").slice(4, 6)).toEqual(["polygon", "polygon"]);
+        expect(values(r, "node", "shapePoints").slice(4, 6)).toEqual([
+            "0,-1.0117 1.15,0.9802 -1.15,0.9802",
+            "0,1.0117 1.15,-0.9802 -1.15,-0.9802",
+        ]);
+        expect(values(r, "node", "shapePointsStretch").slice(4, 6)).toEqual([false, false]);
+        // an image node takes its picture's proportions; a padded or circular one does not
+        expect(values(r, "node", "imageAspect")).toEqual([null, null, true, true, null, null, true, null]);
     });
 
     it("fades a vis.js edge by color.opacity only where its color is hex or rgb(), as vis-network does", async () => {

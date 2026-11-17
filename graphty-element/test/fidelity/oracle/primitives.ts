@@ -753,6 +753,10 @@ const lengthOf = (pts: readonly Pt[]): number => {
     return s;
 };
 
+/** The length of an open route, first point to last. */
+const routeLength = (pts: readonly Pt[]): number =>
+    pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+
 const areaOf = (b: PBox): number => (b.x1 - b.x0) * (b.y1 - b.y0);
 const holds = (outer: PBox, inner: PBox): boolean =>
     inner.x0 > outer.x0 && inner.y0 > outer.y0 && inner.x1 < outer.x1 && inner.y1 < outer.y1;
@@ -1313,7 +1317,7 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     const [a0, a1] = [Math.min(...along), Math.max(...along)];
     const spread = Math.max(...across) - Math.min(...across);
     if (a1 - a0 < BAND_ASPECT * Math.max(spread, 1e-9)) {
-        return null;
+        return turnedBand(subpaths);
     }
     const box = boxOfPoints(all);
     const mid = (Math.max(...across) + Math.min(...across)) / 2;
@@ -1365,8 +1369,97 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     if (spread <= 2 * median(pieceAcross) || (dashClass === "double" && reach(centers) <= median(pieceAcross))) {
         return result;
     }
+    // A route that turns back along the axis is scrambled by that order: its pieces are taken in the order drawn.
+    const turned = dashClass === "double" ? null : drawnRoute(subpaths);
+    if (turned !== null && routeLength(sorted) > BAND_ASPECT * routeLength(turned)) {
+        return { ...result, ends: [turned[0], turned[turned.length - 1]], route: turned };
+    }
     const out = (c: Pt, a: number): Pt => [c[0] + (a - alongOf(c)) * u[0], c[1] + (a - alongOf(c)) * u[1]];
     return { ...result, route: [out(centers[0], a0), ...centers, out(centers[centers.length - 1], a1)] };
+}
+
+/**
+ * The centers of a band's pieces in the order they are drawn, when that order walks the line: Cytoscape desktop draws a
+ * patterned edge's pieces one after the other from one end to the other, however its route bends. Null unless each
+ * piece is drawn near the last (no step over four times the usual one) and the walk ends away from where it started
+ * (a ring of pieces, a node's border, comes back).
+ * @param subpaths - the pieces, in drawing order
+ * @returns the route, or null
+ */
+function drawnRoute(subpaths: readonly (readonly Pt[])[]): Pt[] | null {
+    if (subpaths.length < 3) {
+        return null;
+    }
+    const centers = subpaths.map((q): Pt => [
+        q.reduce((t, p) => t + p[0], 0) / q.length,
+        q.reduce((t, p) => t + p[1], 0) / q.length,
+    ]);
+    const steps = centers.slice(1).map((c, i) => Math.hypot(c[0] - centers[i][0], c[1] - centers[i][1]));
+    const walk = routeLength(centers);
+    const [first, last] = [centers[0], centers[centers.length - 1]];
+    const ok =
+        Math.max(...steps) <= 4 * median(steps) && Math.hypot(last[0] - first[0], last[1] - first[1]) >= 0.25 * walk;
+    return ok ? centers : null;
+}
+
+/**
+ * A band of pieces whose route turns back on itself (cx-syn-bypass's bent slashed edge, out across the sheet and back),
+ * which no one axis is long against its width: read along the route the pieces are drawn on, each piece against the
+ * route's own direction where it sits.
+ * @param subpaths - the pieces, in drawing order
+ * @returns the band, its ends the route's, or null when the pieces do not walk a line
+ */
+function turnedBand(subpaths: readonly (readonly Pt[])[]): PaintedBand | null {
+    // a line's worth of pieces, not a handful of marks
+    const route = subpaths.length >= 8 ? drawnRoute(subpaths) : null;
+    if (route === null) {
+        return null;
+    }
+    const at: number[] = [0];
+    for (let i = 1; i < route.length; i++) {
+        at.push(at[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
+    }
+    const nearest = ([x, y]: Pt): number => {
+        let best = 0;
+        for (let i = 1; i < route.length; i++) {
+            if (Math.hypot(route[i][0] - x, route[i][1] - y) < Math.hypot(route[best][0] - x, route[best][1] - y)) {
+                best = i;
+            }
+        }
+        return best;
+    };
+    const local = (i: number): { c: Pt; t: Pt } => {
+        const [a, b] = [route[Math.max(0, i - 2)], route[Math.min(route.length - 1, i + 2)]];
+        const len = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), 1e-9);
+        return { c: route[i], t: [(b[0] - a[0]) / len, (b[1] - a[1]) / len] };
+    };
+    const frame: PatternFrame = (p) => {
+        const { c, t } = local(nearest(p));
+        return { tangent: t, across: -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0] };
+    };
+    const { dashClass, width } = piecesPattern(subpaths, frame, {
+        length: at[at.length - 1],
+        along: (p) => at[nearest(p)],
+        mirror: (p) => {
+            const { c, t } = local(nearest(p));
+            const k = -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0];
+            return [p[0] + 2 * k * t[1], p[1] - 2 * k * t[0]];
+        },
+    });
+    // how far a piece reaches across the route where it sits
+    const across = median(
+        subpaths.map((q, i) => {
+            const { c, t } = local(i);
+            const k = q.map((p) => -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0]);
+            return Math.max(...k) - Math.min(...k);
+        }),
+    );
+    return {
+        ...patternResult(dashClass, width, boxOfPoints(subpaths.flat())),
+        ends: [route[0], route[route.length - 1]],
+        across,
+        route,
+    };
 }
 
 /**

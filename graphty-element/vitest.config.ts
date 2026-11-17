@@ -1180,7 +1180,12 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands, ...heldRequestCommands },
+                        commands: {
+                            ...mapTileCommands,
+                            ...samplePictureCommands,
+                            ...heldRequestCommands,
+                            emulateReducedMotion,
+                        },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

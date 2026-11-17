@@ -26,10 +26,54 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
+                # forced-batched in the full run's shape: the same twelve shards (ELEMENT_BROWSER_PARTS in
+                # tools/ci-test-matrix.mjs) and no GPU flags, so a green run here is a green full run, and a crash in
+                # one file ends one shard rather than the whole project.
                 run:
-                    - { name: render-parity webgl, project: render-parity, renderer: webgl }
-                    - { name: render-parity webgpu, project: render-parity, renderer: webgpu }
-                    - { name: forced-batched, project: forced-batched, renderer: webgl }
+                    - {
+                          name: render-parity webgl,
+                          project: render-parity,
+                          renderer: webgl,
+                          gpu: swiftshader,
+                          shard: "",
+                      }
+                    - {
+                          name: render-parity webgpu,
+                          project: render-parity,
+                          renderer: webgpu,
+                          gpu: swiftshader,
+                          shard: "",
+                      }
+                    - { name: forced-batched 1, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=1/12 }
+                    - { name: forced-batched 2, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=2/12 }
+                    - { name: forced-batched 3, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=3/12 }
+                    - { name: forced-batched 4, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=4/12 }
+                    - { name: forced-batched 5, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=5/12 }
+                    - { name: forced-batched 6, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=6/12 }
+                    - { name: forced-batched 7, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=7/12 }
+                    - { name: forced-batched 8, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=8/12 }
+                    - { name: forced-batched 9, project: forced-batched, renderer: webgl, gpu: "", shard: --shard=9/12 }
+                    - {
+                          name: forced-batched 10,
+                          project: forced-batched,
+                          renderer: webgl,
+                          gpu: "",
+                          shard: --shard=10/12,
+                      }
+                    - {
+                          name: forced-batched 11,
+                          project: forced-batched,
+                          renderer: webgl,
+                          gpu: "",
+                          shard: --shard=11/12,
+                      }
+                    - {
+                          name: forced-batched 12,
+                          project: forced-batched,
+                          renderer: webgl,
+                          gpu: "",
+                          shard: --shard=12/12,
+                      }
         steps:
             - uses: actions/checkout@v7
               with:
@@ -46,8 +90,8 @@ jobs:
             - uses: ./.github/actions/drop-microsoft-apt-source
             - run: pnpm exec playwright install --with-deps chromium
               working-directory: graphty-element
-            - run: pnpm exec vitest run --project=${{ matrix.run.project }}
+            - run: pnpm exec vitest run --project=${{ matrix.run.project }} ${{ matrix.run.shard }}
               working-directory: graphty-element
               env:
-                  GRAPHTY_BROWSER_GPU: swiftshader
+                  GRAPHTY_BROWSER_GPU: ${{ matrix.run.gpu }}
                   VITE_PARITY_RENDERER: ${{ matrix.run.renderer }}

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { CX2_ISSUE, cx2Importer, type Cx2ImportOptions } from "../../src/formats/cx2/index.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
+import { codes, uniqueCodes } from "./helpers.js";
 
 type Options = Cx2ImportOptions & CommonImportOptions;
 
@@ -47,8 +48,6 @@ async function failure(input: ImportInput, options?: Options): Promise<ImportErr
     }
     throw new Error("expected an ImportError");
 }
-
-const codes = (report: ImportReport): string[] => [...new Set(report.issues.map((i) => i.code))];
 
 const issuesOf = (report: ImportReport, code: string): ImportReport["issues"] =>
     report.issues.filter((i) => i.code === code);
@@ -163,7 +162,7 @@ describe("cx2 robustness: values", () => {
                 },
             ]),
         );
-        expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(2);
         expect(snapshot.edgeCount).toBe(2);
     });
@@ -176,7 +175,7 @@ describe("cx2 robustness: values", () => {
                 { nodeBypasses: [{ id: 0, v: { "": "x", NODE_SIZE: 3 } }] },
             ]),
         );
-        expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE, CX2_ISSUE.UNDECLARED_ATTRIBUTE]);
+        expect(uniqueCodes(report)).toEqual([CX2_ISSUE.BAD_VALUE, CX2_ISSUE.UNDECLARED_ATTRIBUTE]);
         expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(3);
         expect(value(snapshot, "a", 0)).toBe("b");
         expect(value(snapshot, "NODE_SIZE", 0)).toBe(3);
@@ -189,7 +188,7 @@ describe("cx2 robustness: values", () => {
             { foo: [{ a: "LONE" }] },
         ]).replace(/LONE/g, "x\\ud800");
         const { snapshot, report } = await load(text);
-        expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(2);
         const repaired = `x${String.fromCharCode(0xfffd)}`;
         expect(value(snapshot, "label", 0)).toBe(repaired);
@@ -200,7 +199,7 @@ describe("cx2 robustness: values", () => {
     it("repairs a lone surrogate in an opaque element's own key, and warns when two keys become one", async () => {
         const text = cx2([{ foo: [{ KEY: 1 }] }, { nodes: [{ id: 0, v: { ONE: 1, TWO: 2 } }] }]);
         const kept = await load(text.replace("KEY", "\\ud800k").replace("ONE", "\\ud800").replace("TWO", "\\ud801"));
-        expect(codes(kept.report)).toEqual([
+        expect(uniqueCodes(kept.report)).toEqual([
             CX2_ISSUE.BAD_VALUE,
             CX2_ISSUE.DUPLICATE_ATTRIBUTE,
             CX2_ISSUE.UNDECLARED_ATTRIBUTE,
@@ -261,7 +260,7 @@ describe("cx2 robustness: values", () => {
                 { nodes: [{ id: 0, v: Object.fromEntries(types.map((_d, i) => [`a${i}`, 7])) }] },
             ]),
         );
-        expect(codes(report)).toEqual([CX2_ISSUE.UNKNOWN_ATTR_TYPE]);
+        expect(uniqueCodes(report)).toEqual([CX2_ISSUE.UNKNOWN_ATTR_TYPE]);
         expect(issuesOf(report, CX2_ISSUE.UNKNOWN_ATTR_TYPE)).toHaveLength(4);
         for (let i = 0; i < types.length; i++) {
             expect(value(snapshot, `a${i}`, 0)).toBe(7);
@@ -366,7 +365,7 @@ describe("cx2 robustness: coordinates, bypasses and restored ids", () => {
                 },
             ]),
         );
-        expect(codes(report)).toEqual([CX2_ISSUE.DUPLICATE_ATTRIBUTE]);
+        expect(uniqueCodes(report)).toEqual([CX2_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(issuesOf(report, CX2_ISSUE.DUPLICATE_ATTRIBUTE)).toHaveLength(2);
         expect(point(snapshot, 0)).toEqual([1, -1, 0]);
         expect(point(snapshot, 1)).toEqual([3, -3, 0]);

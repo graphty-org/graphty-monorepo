@@ -1903,8 +1903,36 @@ const showCommand = (ledger, arg, json) => {
     return ok(JSON.stringify({ group: g ?? null, waits }, null, 2));
 };
 
+/**
+ * The combine plan of the ledger's ready branches, read from GitHub and git.
+ * @param c the command context
+ * @param links `[{ a, b, test }]` pairs the round judged
+ * @returns `{ families, refused, judge }`
+ */
+const planCombines = (c, links = []) => {
+    const ledger = readLedger(c.ledgerPath);
+    const ready = ledger.groups.filter((g) => g.state === "ready" && g.branch);
+    const branches = ready.map((g) => g.branch);
+    const facts = {
+        issues: fetchFacts(
+            ready.flatMap((g) => g.members.map((m) => m.n)),
+            [],
+            c.run,
+            true,
+        ).issues,
+        openPrs: fetchOpenPrs(branches, c.run),
+        tips: new Map(branches.map((b) => [b, c.git.tip(b)])),
+        diffs: new Map(branches.map((b) => [b, c.git.diff(b)])),
+    };
+    return combinePlan(ledger, facts, { links, guard: c.guard() });
+};
+
 const metricsCommand = (ctx) => {
     const record = metrics(readLedger(ctx.ledgerPath), fetchClosedPrs(ctx.now, ctx.run), ctx.now);
+    // the health dashboard shows how many finished branches could open as fewer pull requests
+    const plan = planCombines(ctx);
+    record.combinable = plan.families.length;
+    record.combinableBranches = plan.families.reduce((t, f) => t + f.branches.length, 0);
     if (ctx.o.append) appendFileSync(ctx.metricsLog, `${JSON.stringify(record)}\n`);
     if (ctx.o.json) return ok(JSON.stringify(record, null, 2));
     const g = record.grouped;
@@ -2020,26 +2048,12 @@ const COMMANDS = {
         return ok(c.o.json ? JSON.stringify(result, null, 2) : jobLines(result).join("\n"));
     },
     "combine-plan": (c) => {
-        const ledger = readLedger(c.ledgerPath);
-        const ready = ledger.groups.filter((g) => g.state === "ready" && g.branch);
-        const branches = ready.map((g) => g.branch);
         const links = (c.o.link ?? []).map((arg) => {
             const [a, b, test] = arg.split(":");
             checkTest(test);
             return { a: num(a), b: num(b), test };
         });
-        const facts = {
-            issues: fetchFacts(
-                ready.flatMap((g) => g.members.map((m) => m.n)),
-                [],
-                c.run,
-                true,
-            ).issues,
-            openPrs: fetchOpenPrs(branches, c.run),
-            tips: new Map(branches.map((b) => [b, c.git.tip(b)])),
-            diffs: new Map(branches.map((b) => [b, c.git.diff(b)])),
-        };
-        const plan = combinePlan(ledger, facts, { links, guard: c.guard() });
+        const plan = planCombines(c, links);
         return ok(c.o.json ? JSON.stringify(plan, null, 2) : combineLines(plan).join("\n"));
     },
     metrics: (c) => metricsCommand(c),

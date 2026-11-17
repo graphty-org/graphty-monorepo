@@ -5955,8 +5955,7 @@ export class Graph implements GraphContext {
      * @deprecated Use getViewMode() === "2d" instead
      */
     is2D(): boolean {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        return this.styles.config.graph.twoD;
+        return this.dimension() === "2d";
     }
 
     /**

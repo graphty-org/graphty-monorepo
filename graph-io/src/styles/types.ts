@@ -626,6 +626,13 @@ export interface NodeStyleValues {
     /** The image's opacity, 0..1. */
     readonly imageOpacity: number;
     /**
+     * Whether the node takes its image's proportions: its box grows the longer way until the image, at its own
+     * proportions, covers the node's width and height (vis-network's image nodes, sized to their picture with its
+     * shorter side across `2 * size`). The image's size is read when it loads; until then, and for an image that cannot
+     * be read, the node keeps its own box. Unset, false.
+     */
+    readonly imageAspect: boolean;
+    /**
      * A character or short text drawn over the node, centered on it (vis-network's icon nodes: an icon font's
      * glyph), in `glyphFont` (a CSS font family) at `glyphSize` (the font's size, in the units of `width`),
      * `glyphWeight` and `glyphColor`.

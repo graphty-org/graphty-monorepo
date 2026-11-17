@@ -481,7 +481,7 @@
         "dot-synth-nodes": {
             "position": 0,
             "size": 0.8113207547169812,
-            "shape": 0.8867924528301887,
+            "shape": 0.9056603773584906,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 0.9905660377358491,
@@ -978,7 +978,7 @@
         "json-vis-synth": {
             "position": 1,
             "size": 0.9436619718309859,
-            "shape": 0.9436619718309859,
+            "shape": 0.9577464788732394,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -2421,7 +2421,7 @@
         },
         "pajek-synth-vertices/shape": {
             "floor": 1,
-            "to": 0.8641975308641975,
+            "to": 0.8765432098765432,
             "reason": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample; and a placed vertex line that names no shape and starts with bc, bw, s_size or another such key is drawn in the shape before it (Pajek 6.02 probes of the third fix round)",
             "date": "2026-11-13"
         },

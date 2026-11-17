@@ -417,9 +417,6 @@
     }
   },
   "src/managers/EventManager.ts": {
-    "eslint-comments/require-description": {
-      "count": 2
-    },
     "unicorn/no-array-callback-reference": {
       "count": 1
     },

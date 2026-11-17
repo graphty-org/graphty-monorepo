@@ -1063,7 +1063,8 @@ class Session implements ElementSession {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
-                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    ? (...args: unknown[]): unknown =>
+                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the

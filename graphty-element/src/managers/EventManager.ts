@@ -72,18 +72,8 @@ export class EventManager implements Manager {
         return this.graphObservable as Observable<GraphErrorEvent>;
     }
 
-    // Track observers for cleanup
-    // Using any here is required due to BabylonJS Observable/Observer type limitations
-    private readonly observers = new Map<
-        symbol,
-        {
-            type: "graph" | "node" | "edge";
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observable: any;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observer: any;
-        }
-    >();
+    // Track observers for cleanup: each entry removes its own observer from its own observable.
+    private readonly observers = new Map<symbol, { type: "graph" | "node" | "edge"; remove: () => void }>();
 
     // Error handling configuration
     private readonly errorRetryCount = 3;
@@ -103,8 +93,8 @@ export class EventManager implements Manager {
      */
     dispose(): void {
         // Clear all observers
-        for (const { observable, observer } of this.observers.values()) {
-            observable.remove(observer);
+        for (const { remove } of this.observers.values()) {
+            remove();
         }
         this.observers.clear();
 
@@ -589,8 +579,7 @@ export class EventManager implements Manager {
                 });
                 this.observers.set(id, {
                     type: "graph",
-                    observable: this.graphObservable,
-                    observer,
+                    remove: () => this.graphObservable.remove(observer),
                 });
                 break;
             }
@@ -609,8 +598,7 @@ export class EventManager implements Manager {
                 });
                 this.observers.set(id, {
                     type: "node",
-                    observable: this.nodeObservable,
-                    observer,
+                    remove: () => this.nodeObservable.remove(observer),
                 });
                 break;
             }
@@ -625,8 +613,7 @@ export class EventManager implements Manager {
                 });
                 this.observers.set(id, {
                     type: "edge",
-                    observable: this.edgeObservable,
-                    observer,
+                    remove: () => this.edgeObservable.remove(observer),
                 });
                 break;
             }
@@ -652,7 +639,7 @@ export class EventManager implements Manager {
             return false;
         }
 
-        entry.observable.remove(entry.observer);
+        entry.remove();
         this.observers.delete(id);
         return true;
     }

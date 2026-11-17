@@ -14,7 +14,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -94,7 +94,7 @@ async function loadSample(store: WorkspaceStore, name: string): Promise<ElementU
  * reopen the place on its own between a check and a click.
  * @returns queries inside it.
  */
-async function fields(): Promise<ReturnType<typeof within>> {
+async function fields(): Promise<Within> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     const place = await screen.findByRole("region", { name: "Data place" });
@@ -108,7 +108,7 @@ async function fields(): Promise<ReturnType<typeof within>> {
  * @param side - nodes or edges.
  * @returns the entries' kinds.
  */
-function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): string[] {
+function entries(section: Within, side: "nodes" | "edges"): string[] {
     const plus: HTMLElement = section.getByRole("button", {
         name: `Add to ${side === "nodes" ? "node" : "edge"} attributes`,
     });
@@ -133,8 +133,8 @@ async function pickFromSubmenu(kind: string, column: string | RegExp): Promise<v
  * @param name - the dropdown's name.
  * @returns its text.
  */
-const shown = (section: ReturnType<typeof within>, name: string): string =>
-    (section.getByRole("combobox", { name }) as HTMLInputElement).value;
+const shown = (section: Within, name: string): string =>
+    section.getByRole<HTMLInputElement>("combobox", { name }).value;
 
 /**
  * Drops files as the browser does, on the window. A synthetic DragEvent, the one exception to

@@ -292,7 +292,21 @@ A part that drew in the model's own color picture and was left out takes the nod
 (`node.color`) instead, in every format, so a model added without its textures can be colored by a
 style layer. Once every picture that colored the model is gone, the whole model takes the node's
 color, its parts colored only by a plain material color included; see-through parts (a watch's
-glass) keep their look, and a layer that sets `node.modelTint: false` keeps every plain color.
+glass) take it too and stay see-through, and a layer that sets `node.modelTint: false` keeps every
+plain color.
+
+### A second model of the same file
+
+`assets.add` hands back the model the session already holds for the same files or address, with
+its settings. To set the same file up twice -- walking on one layer, standing still on another --
+add a second model of it with `assets.copy(ref)`: it has an id of its own (name it by that id, not
+by the address, which still names the first) and none of the first one's settings or name.
+
+```ts
+const walking = await element.session.assets.add("https://example.com/fox.glb");
+const still = await element.session.assets.copy(walking.id);
+await element.session.assets.setDefaults(still.id, { style: { "node.modelAnimationSpeed": 0 } });
+```
 
 ### Taking a part back out
 

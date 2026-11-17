@@ -201,6 +201,7 @@ export interface AssetsApi {
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
     addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     allowHosts(hosts: readonly string[]): void;
+    copy(ref: string): Promise<AssetRecord>;
     dropPart(ref: string, name: string): Promise<AssetRecord>;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
     find(ref: string): AssetRecord | undefined;

@@ -254,3 +254,36 @@ describe("session.assets.dropPart", () => {
         session.dispose();
     });
 });
+
+describe("session.assets.copy", () => {
+    it("adds a second model of the same files with an id of its own and none of the first one's settings", async () => {
+        const { session, id } = await withModel();
+        await session.assets.setDefaults(id, { style: { "node.modelAnimation": "walk" } });
+        session.assets.rename(id, "Walker");
+        const again = await session.assets.add({ files: gltfPair() });
+        assert.strictEqual(again.id, id, "add hands back the model already held");
+
+        const copy = await session.assets.copy(id);
+        assert.strictEqual(copy.state, "accepted");
+        assert.notStrictEqual(copy.id, id);
+        assert.strictEqual(copy.digest, again.digest, "the same files");
+        assert.isUndefined(copy.defaults, "none of the first one's settings");
+        assert.isUndefined(copy.plainName, "nor its name");
+
+        await session.assets.setDefaults(copy.id, { style: { "node.modelAnimationSpeed": 0 } });
+        assert.deepEqual(
+            session.assets.find(id)?.defaults?.style,
+            { "node.modelAnimation": "walk" },
+            "the first is unchanged",
+        );
+        const third = await session.assets.copy(id);
+        assert.notInclude([id, copy.id], third.id, "each copy has its own id");
+        assert.strictEqual(
+            session.assets.list().filter((r) => r.state === "accepted").length,
+            3,
+            "three models of one file",
+        );
+        assert.strictEqual(await codeOf(session.assets.copy("asset:nothing")), "E_MODEL_UNKNOWN_ASSET");
+        session.dispose();
+    });
+});

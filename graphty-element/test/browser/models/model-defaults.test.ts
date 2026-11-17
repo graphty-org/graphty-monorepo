@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
+import { glb, unpackGlb } from "../../fixtures/models/fixtures";
 import { colorShare, drawnShare } from "../../helpers/pictureFacts";
 import { drawModel, filesOf, type Frame, mount, pixelsChanged, readFrame } from "./helpers";
 
@@ -209,6 +210,52 @@ describe("a model's own settings", () => {
         const added = await element.modelThumbnail(bare.id, { size: 96, style: red });
         assert.isAtLeast(await colorShare(added, "red"), 0.06, "added without its pictures, every cube takes it");
         assert.isBelow(await colorShare(added, "blue"), 0.005);
+    });
+
+    it("draw a see-through part in the node's color too once every picture is gone (#8613)", async () => {
+        const element = await mount();
+        const files = await threeCubes();
+        const gltf = JSON.parse(new TextDecoder().decode(files.get("cube.gltf"))) as {
+            materials: Record<string, unknown>[];
+        };
+        gltf.materials[2] = {
+            pbrMetallicRoughness: { baseColorFactor: [0, 0, 1, 0.6], metallicFactor: 0, roughnessFactor: 1 },
+            alphaMode: "BLEND",
+        };
+        files.set("cube.gltf", new TextEncoder().encode(JSON.stringify(gltf)));
+        const record = await element.session.assets.add({ files });
+        const red = { "node.color": "#ff0000" };
+        const own = await element.modelThumbnail(record.id, { size: 96, style: red });
+        assert.isAtLeast(await colorShare(own, "blue"), 0.01, "the see-through cube is blue of its own");
+        const none = await element.modelThumbnail(record.id, {
+            size: 96,
+            style: red,
+            hiddenTextures: ["cube.png", "other.png"],
+        });
+        assert.isBelow(await colorShare(none, "blue"), 0.005, "the see-through cube gives up its blue");
+        assert.isAtLeast(await colorShare(none, "red"), 0.06, "every cube, the see-through one too, takes red");
+    });
+
+    it("say a model is animated while it still waits for its picture, as once it has it", async () => {
+        const element = await mount();
+        const [[name, bytes]] = await filesOf("gltf-animated");
+        const { json, bin } = unpackGlb(bytes);
+        const painted = {
+            ...json,
+            images: [{ uri: "late.png" }],
+            textures: [{ source: 0 }],
+            materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
+        };
+        const waiting = await element.session.assets.add({ files: new Map([[name, glb(painted, bin)]]) });
+        assert.strictEqual(waiting.state, "rejected", "it waits for late.png");
+        const codes = waiting.problems.map((p) => p.code);
+        assert.include(codes, "E_MODEL_MISSING_FILE");
+        assert.include(codes, "W_MODEL_HAS_ANIMATIONS", "its clips are known before its picture");
+        assert.deepInclude(
+            element.session.assets.waiting().map((r) => r.id),
+            waiting.id,
+            "and it still waits, for the picture alone",
+        );
     });
 
     it("hold a pose in a preview: the clip at Speed 0 stays at its Start", async () => {

@@ -480,7 +480,8 @@ function picturesAllGone(groups: ReadonlyMap<string, Part[]>): boolean {
  * @param options - The template options.
  * @param flat - The template's flat material, made on first use.
  * @param bare - Whether every picture that colored the model is gone (`picturesAllGone`) and no
- *   layer set `node.modelTint` to false: every opaque part takes the node's color.
+ *   layer set `node.modelTint` to false: every part takes the node's color, a see-through one
+ *   keeping its own see-through material.
  * @returns The material, and whether the group follows the node's color.
  */
 function lookOf(
@@ -507,11 +508,23 @@ function lookOf(
         statesNoColor(material) ||
         // Added or drawn without the picture that was its color: no look of its own is left (#8614).
         drawsWithoutPicture(material) ||
-        // A see-through part (a watch's glass) keeps its look: drawn flat and opaque, it would cover what is under it.
         (bare && material.alpha >= 1) ||
         (options.untextured === true && !hasPicture(material))
     ) {
         return { material: flat(), follows: true };
+    }
+
+    if (bare) {
+        // A see-through part (a watch's glass) takes the node's color too, and stays see-through:
+        // its own material, its base color white, so the node's color is what shows through it.
+        // Drawn flat and opaque, it would cover what is under it.
+        if (material instanceof PBRMaterial) {
+            material.albedoColor = Color3.White();
+        } else if (material instanceof StandardMaterial) {
+            material.diffuseColor = Color3.White();
+        }
+
+        return { material, follows: true };
     }
 
     return { material, follows: false };

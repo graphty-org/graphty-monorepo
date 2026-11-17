@@ -315,6 +315,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "add",
             "addEach",
             "allowHosts",
+            "copy",
+            "dropPart",
             "files",
             "offer",
             "ready",

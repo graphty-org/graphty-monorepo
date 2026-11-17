@@ -488,6 +488,23 @@ export interface AssetsApi {
      */
     dropPart(ref: string, name: string): Promise<AssetRecord>;
     /**
+     * A second model of the same files as an accepted one, with an id of its own and none of the
+     * first one's settings (`defaults`) or name, so the two can be set up apart: the same file
+     * walking on one layer and standing still on another. `add` hands back the model the session
+     * already holds for the same files or address; `copy` is how to get another. The copy is named
+     * by its id, never by the first one's address, which still names the first.
+     * @param ref - What a layer named, or the record's id.
+     * @returns The copy's record, accepted.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref with no accepted model.
+     * @example
+     * ```ts
+     * const walking = await graph.session.assets.add("https://example.com/fox.glb");
+     * const still = await graph.session.assets.copy(walking.id);
+     * await graph.session.assets.setDefaults(still.id, { style: { "node.modelAnimationSpeed": 0 } });
+     * ```
+     */
+    copy(ref: string): Promise<AssetRecord>;
+    /**
      * Hand files to the session first, before treating them as new assets: every file that exactly
      * one waiting model is missing (by its folder path, then by its base name, in any case) is
      * supplied to that model. A file two models could take is never guessed; it stays in `rest`.
@@ -1110,7 +1127,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @returns True when every error is a missing, ambiguous or unchosen part.
      */
     const onlyParts = (problems: readonly CodedFact[]): boolean =>
-        problems.length > 0 && problems.every((fact) => PART_CODES.has(fact.code));
+        problems.some((fact) => PART_CODES.has(fact.code)) &&
+        // A warning beside the missing parts (what the file says of itself) does not refuse it.
+        problems.every((fact) => PART_CODES.has(fact.code) || fact.code.startsWith("W_"));
 
     /**
      * A set as its entries: a `.zip` unpacked (its id is its entries' digest, so a zip, a folder
@@ -1310,8 +1329,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return settled;
         }
 
-        await summarizeHeld(entry);
-        return fill ? fillFromProject(entry) : settled;
+        const summarized = await summarizeHeld(entry);
+        return fill ? fillFromProject(entry) : summarized;
     };
 
     /**
@@ -1428,14 +1447,14 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
                 entry.held = { ...held, skipped: [], options: shared, url: named };
                 entry.record = waiting;
-                await summarizeHeld(entry);
+                const summarized = await summarizeHeld(entry);
                 if (arrived) {
                     return;
                 }
 
-                fetch.waiting = waiting;
+                fetch.waiting = summarized;
                 for (const waiter of fetch.waiters) {
-                    waiter(waiting);
+                    waiter(summarized);
                 }
             });
         };
@@ -1495,7 +1514,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
                     settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
-                    await summarizeHeld(entry);
+                    settled = await summarizeHeld(entry);
                     settled = await fillFromProject(entry);
                 }
             }
@@ -1956,22 +1975,33 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      */
     /**
      * What a model waiting for pictures or materials holds, read as it is drawn meanwhile (with
-     * them stood in for), so `inspect` answers for it too: its clips, pictures and size.
+     * them stood in for), so `inspect` answers for it too: its clips, pictures and size. The
+     * warnings the file gives of itself join its record.
      * @param entry - The waiting model.
+     * @returns Its record now.
      */
-    const summarizeHeld = async (entry: Entry): Promise<void> => {
+    const summarizeHeld = async (entry: Entry): Promise<AssetRecord> => {
         const standIn = api.standIn(entry.record.id);
         if (standIn === undefined) {
-            return;
+            return entry.record;
         }
 
         try {
             const intakeModule = await loadIntake();
             const { files, main, format, skipped } = standIn;
-            entry.summary = (await intakeModule.checkModelFiles(files, { main, format, skipped }, limits)).summary;
+            const checked = await intakeModule.checkModelFiles(files, { main, format, skipped }, limits);
+            entry.summary = checked.summary;
+            // What the file says of itself (its clips, how it is drawn) is known before its pictures
+            // arrive: the waiting record carries those warnings as the accepted one will.
+            const has = new Set(entry.record.problems.map((p) => p.code));
+            const known = checked.warnings.filter((w) => !has.has(w.code));
+            if (known.length > 0) {
+                entry.record = record({ ...entry.record, problems: [...entry.record.problems, ...known] });
+            }
         } catch {
             // Not readable without them: `inspect` keeps refusing, as before.
         }
+        return entry.record;
     };
 
     const heldRecord = async (
@@ -2073,7 +2103,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             entries.set(settled.id, entry);
         } else {
             entry.held = { ...held, given, ...(main === undefined ? {} : { main }), skipped };
-            await summarizeHeld(entry);
+            return summarizeHeld(entry);
         }
 
         return settled;
@@ -2425,6 +2455,26 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return current;
         },
 
+        async copy(ref) {
+            const named = findEntry(ref);
+            // A model by address is held, once accepted, under its digest id with its files.
+            const entry = (named === undefined ? undefined : entries.get(named.record.id)) ?? named;
+            if (entry?.record.state !== "accepted" || entry.given === undefined) {
+                return unknownAsset(ref as AssetId);
+            }
+
+            const from = entry.record.id;
+            let n = 2;
+            while (entries.has(`${from}-${n}`)) {
+                n += 1;
+            }
+
+            const { skipped } = entry.record;
+            const options: AddAssetOptions = { name: `${from}-${n}`, ...(skipped === undefined ? {} : { skipped }) };
+            // Not filled from the project's pictures: the copy holds exactly what the first one does.
+            return intake(entry.given, options, entry.record.path, false, undefined, undefined, false);
+        },
+
         async dropPart(ref, name) {
             const named = findEntry(ref);
             // A model by address is held, once accepted, under its digest id with its files.
@@ -2477,8 +2527,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             entry.held = { ...held, given: rest, skipped };
-            await summarizeHeld(entry);
-            return settled;
+            return summarizeHeld(entry);
         },
 
         async offer(files, options = {}) {

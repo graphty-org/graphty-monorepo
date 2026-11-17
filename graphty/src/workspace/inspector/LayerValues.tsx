@@ -81,13 +81,13 @@ function stateWords(run: Run | undefined): string {
 }
 
 /**
- * A layer's elements whose value at `path` is `value`, as a scope.
- * @param layer - the layer.
+ * The elements whose value at `path` is `value`, as a scope: nodes, or edges by their ends.
+ * @param target - what a layer reading it paints.
  * @param path - the value's path.
  * @param value - the value.
  * @returns the scope.
  */
-function valueScope(layer: Layer, path: Path, value: unknown): ScopeInput {
+function valueScope(target: Layer["target"], path: Path, value: unknown): ScopeInput {
     return {
         define: {
             kind: "rule",
@@ -95,7 +95,7 @@ function valueScope(layer: Layer, path: Path, value: unknown): ScopeInput {
                 kind: "categories",
                 attribute: path,
                 values: [String(value)],
-                ...(layer.target === "edge" ? { nodes: "ends" as const } : {}),
+                ...(target === "edge" ? { nodes: "ends" as const } : {}),
             },
             reading: "clipped",
         },
@@ -294,7 +294,7 @@ function CategoryValues({
                             }
                             onClick={() => {
                                 void session.selection.apply(
-                                    { scope: valueScope(layer, read.path, category.value) },
+                                    { scope: valueScope(layer.target, read.path, category.value) },
                                     "replace",
                                     { cause: "user" },
                                 );
@@ -673,7 +673,43 @@ export function EverythingRowValues(): React.JSX.Element | null {
 }
 
 /**
- * The Values tab of a folder: the values its layers read, each with the layers that read it.
+ * A run's groups, largest first, each with its size; a click selects the group's nodes. For a
+ * folder of a run's group layers, which bind no value a layer's own groups list could read.
+ * @param props - Component props
+ * @param props.session - the session
+ * @param props.path - the value the folder's layers read
+ * @returns the section, or null when no run's result groups that value
+ */
+function RunGroups({ session, path }: Readonly<{ session: GraphSession; path: Path }>): React.JSX.Element | null {
+    const read = valueRead(session, path);
+    const groups = read.run?.result?.groups();
+    if (groups === undefined || groups.length === 0) {
+        return null;
+    }
+    return (
+        <ControlSection label={read.name} collapsible={false} headingLevel={3}>
+            <DataRowHeader label="Groups, largest first" />
+            <FirstRows
+                rows={groups.map(({ group, size }) => (
+                    <DataRow
+                        key={String(group)}
+                        name={valueName(session, path, group)}
+                        value={size}
+                        onClick={() => {
+                            void session.selection.apply({ scope: valueScope("node", path, group) }, "replace", {
+                                cause: "user",
+                            });
+                        }}
+                    />
+                ))}
+            />
+        </ControlSection>
+    );
+}
+
+/**
+ * The Values tab of a folder: the values its layers read, each with the layers that read it, then
+ * each run's groups among them.
  * @param props - Component props
  * @param props.id - the folder
  * @returns the tab
@@ -705,16 +741,21 @@ export function FolderValues({ id }: Readonly<{ id: string }>): React.JSX.Elemen
     };
     walk([...(found?.row.children ?? [])].reverse());
     return (
-        <ControlSection label="Values read" collapsible={false} headingLevel={3}>
-            {byPath.size === 0 ? (
-                <Text size="sm" c="dimmed">
-                    Its layers read no values
-                </Text>
-            ) : (
-                [...byPath].map(([path, names]) => (
-                    <DataRow key={path} stat name={valueRead(session, path).name} value={names.join(", ")} />
-                ))
-            )}
-        </ControlSection>
+        <>
+            <ControlSection label="Values read" collapsible={false} headingLevel={3}>
+                {byPath.size === 0 ? (
+                    <Text size="sm" c="dimmed">
+                        Its layers read no values
+                    </Text>
+                ) : (
+                    [...byPath].map(([path, names]) => (
+                        <DataRow key={path} stat name={valueRead(session, path).name} value={names.join(", ")} />
+                    ))
+                )}
+            </ControlSection>
+            {[...byPath.keys()].map((path) => (
+                <RunGroups key={path} session={session} path={path} />
+            ))}
+        </>
     );
 }

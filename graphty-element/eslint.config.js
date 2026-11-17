@@ -160,7 +160,9 @@ export default tseslint.config(
     // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
     // its rules here. Add the rest as their findings are fixed.
     {
-        files: ["src/**/*.ts"],
+        files: ["src/**/*.ts", "test/**/*.ts", "stories/**/*.ts"],
+        // Scripts and benchmarks are linted without type information (the root config's block).
+        ignores: ["**/scripts/**", "**/benchmarks/**", "**/*.config.ts"],
         rules: {
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-return": "error",

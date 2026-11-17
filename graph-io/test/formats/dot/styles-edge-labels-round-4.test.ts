@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles, type StyleProperty } from "../../../src/styles/index.js";
+import { unsettledStyles } from "../../../src/styles/settle.js";
 
 const registry = createRegistry();
 
@@ -22,7 +23,8 @@ async function edges(doc: string, property: string): Promise<readonly unknown[]>
     if (result.styles === null || result.styles === undefined) {
         throw new Error("no styles");
     }
-    return resolveStyles(result.styles, "edge", property as StyleProperty, result.snapshot);
+    // the reader's values, before they are settled for drawing
+    return resolveStyles(unsettledStyles(result.styles), "edge", property as StyleProperty, result.snapshot);
 }
 
 describe("DOT styles: the head and tail labels' face", () => {

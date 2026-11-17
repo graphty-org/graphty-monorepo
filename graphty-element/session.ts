@@ -182,6 +182,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
     SessionCatalogApi,
@@ -209,6 +210,7 @@ export type {
     ValueCounts,
     ValueType,
 } from "./src/session";
+export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
@@ -308,38 +310,24 @@ export { recommendLayout } from "./src/session";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
-    FileStyleColumnValues,
-    FileStyleKind,
-    FileStyleLoadValues,
-    FileStyleMappingKind,
-    FileStyleMeaning,
     FileStyleNote,
     FileStyleNoteCode,
     FileStyleOptions,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-    FileStyleScalar,
-    FileStyleShapeTable,
     FileStyleSummary,
-    FileStyleTool,
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
 export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_FLATTEN_REASONS,
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
-    FILE_STYLE_REASONS,
-    FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
-    fileStyleOf,
-    fileStyleWords,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

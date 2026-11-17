@@ -184,9 +184,26 @@ own bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 la
 `POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
 API takes only from master's workflows.
 
+### The results service's copy
+
+The health API also keeps the results service's own records (issue #3607), in `RS#` items of the same table, so
+CI's `RESULTS_URL` can later name this API instead of the Cloudflare Worker. The ingest Lambda stores them from the
+same posts, under the Worker's claim rules: `POST /v1/invocations` (each evidence run's file durations, its failed
+files, master's failures, and the flaky proof that quarantines a test), `/v1/verdicts`, and two routes only the
+results service has, `POST /v1/issues` and `POST /v1/channel-moves`. The Results Lambda answers
+`GET /v1/plan` and `GET /v1/site` with the Worker's query strings, answers and `{ "error": "..." }` refusals (see
+[`tools/results-service/README.md`](../results-service/README.md)). Like every read here, both are public.
+
+Where they differ from the Worker: records are kept 90 days; a quarantine entry's `passes` are counted as master's
+runs are stored, not on read; and `passedWithInputs` looks only at the variant's newest 1,000 runs. The failure
+signatures come from `tools/results-service/src/signature.js`, so a change there reaches AWS with the next deploy of
+this directory. The other results routes (base checks, the hold, candidate and release state, story captures,
+duration trends and histories) are not here yet.
+
 Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
 `permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer
-(`https://token.actions.githubusercontent.com`), audience and expiry; the ingest Lambda then checks
+(`https://token.actions.githubusercontent.com`), audience (`graphty-health`, or the results service's
+`graphty-results`) and expiry; the ingest Lambda then checks
 the `repository`, `repository_id`, `job_workflow_ref` and `ref` claims against what that workflow may
 write (pull request runs, or the listed workflows on master). A body is at most 1 MB.
 

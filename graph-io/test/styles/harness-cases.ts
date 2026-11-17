@@ -8,7 +8,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { extractStyles } from "../../src/styles/internal.js";
+import { readFileStyles } from "../../src/styles/internal.js";
 import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import {
     checkHostileBlocks,
@@ -125,7 +125,7 @@ export function writeSlice(slice: number): (readonly [string, StyleWriter, Write
  */
 export async function writeProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : roundTrip(writer, loaded, ex, !SCALE_POINTS.has(input.name));
 }
 
@@ -138,6 +138,6 @@ export async function writeProblems(writer: StyleWriter, input: StyleInput): Pro
  */
 export async function hostileProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : checkHostileBlocks(writer, loaded, ex);
 }

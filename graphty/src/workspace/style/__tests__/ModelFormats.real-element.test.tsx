@@ -107,11 +107,15 @@ function shares(picture: HTMLCanvasElement, color: Variant["color"]): { drawn: n
 async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<void> {
     // The name graphty-element's record gives it, as the dialog's Name field shows it.
     const name = (await within(dialog).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value;
-    const { drawn, colored } = shares(await previewOf(dialog, name), variant.color);
-    assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
-    if (variant.color !== "any") {
-        assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
-    }
+    const canvas = await previewOf(dialog, name);
+    // A model that waited for a part is drawn at once with it stood in for, then again with it.
+    await waitFor(() => {
+        const { drawn, colored } = shares(canvas, variant.color);
+        assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
+        if (variant.color !== "any") {
+            assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
+        }
+    });
 }
 
 /**

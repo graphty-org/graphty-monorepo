@@ -1109,6 +1109,7 @@ export const READ_ONLY: readonly string[] = [
     "RunResult.edge",
     "RunResult.groupRanks",
     "RunResult.groupSizes",
+    "RunResult.groups",
     "RunResult.histogram",
     "RunResult.ids",
     "RunResult.node",

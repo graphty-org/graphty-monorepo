@@ -5680,6 +5680,8 @@ export interface RunResult {
     readonly graph: Readonly<Record<string, unknown>>;
     // @beta
     groupRanks(): ReadonlyMap<string, number> | undefined;
+    // @beta
+    groups(): readonly SummaryGroup[] | undefined;
     groupSizes(options?: HistogramOptions): Histogram;
     histogram(field: string, options?: HistogramOptions): Histogram;
     ids(field: string): readonly NodeId[];

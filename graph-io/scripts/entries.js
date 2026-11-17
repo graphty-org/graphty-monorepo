@@ -24,6 +24,8 @@ export const ENTRIES = Object.freeze({
     cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
     cys: "src/formats/cys/index.ts",
+    // the default source list, without any importer (@graphty/graph-io/sources)
+    sources: "src/sources/index.ts",
     // the network sources, each loaded on first use (@graphty/graph-io/sources/<name>)
     "sources-ndex": "src/sources/ndex/index.ts",
     "sources-cypher": "src/sources/cypher/index.ts",

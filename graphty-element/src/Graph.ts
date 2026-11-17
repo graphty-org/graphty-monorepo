@@ -625,6 +625,19 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
+/** Reads a graph's private render manager; the class sets it, since only its own code may read the field. */
+let readRenderManager: (graph: Graph) => RenderManager;
+
+/**
+ * A graph's render manager: what its tests hold frames, count ticks and read shader passes on, typed so a rename in
+ * `Graph` fails to compile rather than at run time (issue #6988). Not published, like {@link operationQueueOf}.
+ * @param graph - The graph.
+ * @returns Its render manager, the one in use now.
+ */
+export function renderManagerOf(graph: Graph): RenderManager {
+    return readRenderManager(graph);
+}
+
 /** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
 const PENDING = new WeakMap<Graph, PendingWork>();
 
@@ -966,6 +979,9 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
+    static {
+        readRenderManager = (graph) => graph.renderManager;
+    }
     /** Draws the map under a geographic layout. */
     private readonly basemapManager: BasemapManager;
     private readonly lifecycleManager: LifecycleManager;

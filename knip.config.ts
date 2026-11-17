@@ -75,11 +75,13 @@ const config: KnipConfig = {
         // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
         // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
-            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
+            // the network source list and each source are published entries of their own
+            // (@graphty/graph-io/sources and @graphty/graph-io/sources/<name>)
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
                 "src/positions/index.ts!",
+                "src/sources/index.ts!",
                 "src/sources/*/index.ts!",
                 // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
                 "src/styles/internal.ts",

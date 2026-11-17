@@ -4426,6 +4426,19 @@ export type Path = string;
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 // @public
+export type PathParts = {
+    readonly from: "data";
+    readonly column: string;
+} | {
+    readonly from: "run";
+    readonly runId: RunId;
+    readonly field: string;
+};
+
+// @public
+export function pathParts(path: Path): PathParts | undefined;
+
+// @public
 export type PendingId = string & {
     readonly __brand: "PendingId";
 };

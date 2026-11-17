@@ -659,16 +659,17 @@
 /* The Load custom model dialog (node-models design 14.2). */
 
 /* Its body: the shared two-column dialog (.ws-dialog-columns) at every state. On the left the
-   loading: the file loader, its progress bar, the loaded file, lines about the load and Files,
-   scrolling as one. On the right, in a 240 px column, what was loaded: the model (blank until one
-   is), a set's arrows, Name with the Model settings gear, and Details, which takes the rest of the
-   column's height and scrolls on its own. The footer runs across both. The whole body takes a drop,
-   and shows it while files are held over it. */
+   loading: the file loader, its progress bar, the loaded file, lines about the load, a set's
+   Models and Files, scrolling as one. On the right, in a column as wide as the left, what was
+   loaded: the model (blank until one is), a set's arrows, Name with the Model settings gear, and
+   Details, which takes the rest of the column's height and scrolls on its own. The body grows with
+   a taller window, up to 640 px. The footer runs across both. The whole body takes a drop, and
+   shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
-    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     row-gap: 12px;
-    height: min(540px, calc(100dvh - 184px));
+    height: min(640px, calc(100dvh - 184px));
     border-radius: var(--mantine-radius-sm);
 }
 
@@ -714,14 +715,18 @@
     }
 }
 
-/* The model drawn alone, 240 px square, on the panel's ground. */
+/* The model drawn alone, on the panel's ground: square, as wide as its column, but never so tall
+   that Details under Name gets less than its 190 px (about five rows): with a set's arrows under
+   it, it gives up more height. */
 .ws-model-preview {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 240px;
-    height: 240px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: calc(100% - 248px);
+    min-height: 160px;
     border: 1px solid var(--cm-border);
     border-radius: var(--mantine-radius-sm);
     background: var(--cm-bg-secondary);
@@ -781,7 +786,7 @@
 
 /* Under a set's preview: the arrows and their count, then Load this model. */
 .ws-model-steps {
-    width: 240px;
+    width: 100%;
 }
 
 /* Name, under the preview (and the arrows of a set): a short label column, as the side column is
@@ -799,11 +804,12 @@
     border-radius: var(--mantine-radius-sm);
 }
 
-/* Details, under Name, as wide as the model: it takes the column's height left under Name (48 px
-   at least) and scrolls past it, every row's whole value wrapped onto as many lines as it needs. */
+/* Details, under Name, as wide as the model: it takes the column's height left under Name (190 px
+   at least, about five rows) and scrolls past it, every row's whole value wrapped onto as many
+   lines as it needs. */
 .ws-model-details-box {
     flex: 1 1 0;
-    min-height: 72px;
+    min-height: 190px;
     display: flex;
     flex-direction: column;
     gap: 4px;

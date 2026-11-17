@@ -106,6 +106,11 @@ async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
     const popover = await screen.findByRole("dialog", { name: "Model settings" });
     assert.isFalse(dialog.contains(popover), "a pop-over over the dialog, not a part of it");
     assert.equal(popover.getAttribute("aria-modal"), "true", "a modal pop-over");
+    // It lies over the loading column, never over the model, so each change is seen as it is made.
+    const frame = (popover.closest(".mantine-Modal-content") ?? popover).getBoundingClientRect();
+    const model = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+    const clear = frame.right <= model.left + 0.5 || frame.top >= model.bottom - 0.5;
+    assert.isTrue(clear, "Model settings leave the model in sight");
     return within(popover).findByTestId("model-settings");
 }
 
@@ -168,6 +173,9 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
     }
     assert.isTrue(nameRow.contains(gear), `the gear beside Name (${where})`);
     assert.isAtLeast(preview.getBoundingClientRect().height, 150, `the model drawn at a size to see (${where})`);
+    // The columns share the width: the model as wide as its column, as wide as the loading's.
+    assert.isAbove(right.width, left.width * 0.8, `what was loaded has as much room as the loading (${where})`);
+    assert.isAbove(preview.getBoundingClientRect().width, right.width - 20, `the model fills its column (${where})`);
     // Nothing of the right column hangs below it or past the footer.
     const footer = (body.querySelector(".ws-model-footer") as HTMLElement).getBoundingClientRect();
     assert.isAtMost(right.bottom, footer.top + 0.5, `the right column ends above the footer (${where})`);
@@ -180,7 +188,8 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
     }
     // Details: a box that scrolls past its height, never cutting a row's value off sideways.
     const list = details.getBoundingClientRect();
-    assert.isAtLeast(list.height, 40, `Details has room for rows (${where})`);
+    // About five rows in view, never a row and a half (owner, 2026-11-17).
+    assert.isAtLeast(details.clientHeight, 150, `Details shows several rows at once (${where})`);
     assert.include(["auto", "scroll"], getComputedStyle(details).overflowY, `Details scrolls (${where})`);
     for (const row of details.children) {
         for (const part of [row, ...row.querySelectorAll("*")]) {
@@ -469,6 +478,35 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(named?.plainName, "Wall panel");
         const police = session.assets.list().find((r) => r.path === "police.glb");
         assert.equal(written(session, "node.model"), police?.id, "the layer takes the model shown");
+    });
+
+    it("lists a set's models on the left, each checked for Add and taken out with its x (owner, 2026-11-17)", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const wall = new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" });
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), wall, await fixture(policeUrl, "police.glb")]);
+        await previewOf(dialog, "police");
+        const list = within(dialog).getByRole("region", { name: "Models" });
+        const main = dialog.querySelector(".ws-model-main") as HTMLElement;
+        assert.isTrue(main.contains(list), "the set's models are in the loading column");
+        for (const file of ["police.glb", "quad.glb", "wall.glb"]) {
+            assert.isTrue(within(list).getByRole<HTMLInputElement>("checkbox", { name: `Load ${file}` }).checked);
+            assert.isNotNull(within(list).getByRole("button", { name: `Remove ${file}` }));
+        }
+        // Unchecked in the list, it is unchecked under the preview too, and Add takes one fewer.
+        await userEvent.click(within(list).getByRole("checkbox", { name: "Load police.glb" }));
+        assert.isFalse(within(dialog).getByRole<HTMLInputElement>("checkbox", { name: "Load this model" }).checked);
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
+        // Its x takes the model out of the set.
+        await userEvent.click(within(list).getByRole("button", { name: "Remove quad.glb" }));
+        await waitFor(() => {
+            assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
+        });
+        assert.isNull(within(list).queryByRole("checkbox", { name: "Load quad.glb" }));
+        await addModel(dialog, "Add model");
+        await waitFor(() => {
+            assert.deepEqual(models(session), ["wall.glb"], "the unchecked and the removed are let go");
+        });
     });
 
     it("unchecks every model of a set and blocks Add", async () => {

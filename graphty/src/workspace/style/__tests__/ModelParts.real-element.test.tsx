@@ -31,7 +31,7 @@ const PART = "Textures/colormap.png";
 /** The part as the reader reads and hears it: its file name (design 13.9). */
 const PART_NAME = "colormap.png";
 
-const CHIP = "police: 1 file missing";
+const CHIP = "Add parts: police: 1 file missing";
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -145,7 +145,7 @@ async function drawn(session: GraphSession): Promise<void> {
 
 /**
  * A layer naming police.glb, added alone, as a saved project whose picture moved names it: the
- * Shape field shows police with the "1 missing" chip.
+ * Shape field shows police with its Add parts button, and no chip.
  * @returns the session, the Style tab and the chip.
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
@@ -154,7 +154,10 @@ async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement;
         "node.model": (await each.assets.add(police)).id,
     }));
     const chip = await within(tab).findByRole("button", { name: CHIP });
-    assert.equal(chip.textContent, "1 missing");
+    assert.equal(chip.textContent, "Add parts");
+    // The Style panel holds controls only: no chip, pill or description from the model under Shape.
+    assert.isNull(tab.querySelector(".ws-model-chips .mantine-Badge-root"), "no chip under the Shape field");
+    assert.isNull(within(tab).queryByText(/missing/), "no words about what is missing");
     assert.isNotNull(within(tab).getByRole("combobox", { name: "Node shape, police" }));
     return { session, tab, chip };
 }
@@ -216,9 +219,9 @@ describe("a model missing parts, on the real element", () => {
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 
-    it("shows '1 missing' for police.glb alone, and takes colormap.png dropped on its row", async () => {
+    it("offers Add parts for police.glb alone, and takes colormap.png dropped on its row", async () => {
         const { session, tab, chip } = await policeAlone();
-        // The detail is the chip's description, for a screen reader.
+        // What is missing is the button's description, for a screen reader.
         assert.include(document.getElementById(chip.getAttribute("aria-describedby") ?? "")?.textContent, PART);
         const parts = await openParts(chip);
         const row = within(parts).getByRole("group", { name: PART_NAME });

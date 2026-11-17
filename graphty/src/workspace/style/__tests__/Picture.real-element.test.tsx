@@ -147,7 +147,10 @@ describe("pictures on nodes, on the real element", () => {
             return { "node.model": id };
         });
 
-        await userEvent.click(await within(tab).findByRole("button", { name: "Use colormap as picture" }));
+        const use = await within(tab).findByRole("button", { name: "Use colormap as picture" });
+        // The Shape field offers the button only: the refusal is no chip in the Style panel.
+        assert.isNull(tab.querySelector(".ws-model-chips .mantine-Badge-root"), "no chip under the Shape field");
+        await userEvent.click(use);
         await waitFor(() => {
             assert.equal(written(session, "node.texture"), id);
             assert.isUndefined(written(session, "node.model"));

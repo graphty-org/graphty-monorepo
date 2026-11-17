@@ -8,7 +8,8 @@ import React from "react";
 import { useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { ModelChip } from "./ModelChip";
+import { FactChip, ModelChip } from "./ModelChip";
+import { PART_CODES } from "./modelWords";
 import type { RowContext } from "./PropertyRow";
 import { lineIn, removeLine, writeIn } from "./row";
 import { ANIMATION_CHANNELS, CUSTOM_MODEL, failureWords, MODEL_SETTING_CHIPS, MODEL_SETTING_ROWS } from "./words";
@@ -326,7 +327,9 @@ export function SettingRows({
 /**
  * Model settings (node-models design 13.3): Up, Turn, Color, Fit, Center, the animation rows for a
  * model with clips, Sides and Light, opened by the Shape
- * line's Model settings button while the field holds a model, written to the line's layer.
+ * line's Model settings button while the field holds a model, written to the line's layer. Above
+ * them, what is wrong with the model (a refusal, a part it did not need), which the Shape field
+ * never shows.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.model - what the layer's `node.model` names
@@ -347,7 +350,12 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
         const line = lineIn(ctx, channel);
         return line?.layer.locked === true ? undefined : line;
     };
-    return (
+    // What is wrong with the model is said here, never in the Style panel's Shape field: a refusal
+    // (a missing part is the Parts pop-over's), and a part given that it did not need.
+    const notes = problems.filter(
+        (p) => (p.code.startsWith("E_") && !PART_CODES.has(p.code)) || p.code === "W_MODEL_PART_UNUSED",
+    );
+    const rows = (
         <SettingRows
             channels={MODEL_SETTING_ROWS.map((row) => row.channel)}
             values={Object.fromEntries(MODEL_SETTING_ROWS.map((row) => [row.channel, owned(row.channel)?.value]))}
@@ -365,5 +373,18 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
             // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             inherited={session.assets.find(model)?.defaults?.style}
         />
+    );
+    if (notes.length === 0) {
+        return rows;
+    }
+    return (
+        <Stack gap={6}>
+            <Group gap={4} data-testid="model-notes">
+                {notes.map((fact) => (
+                    <FactChip key={`${fact.code}:${JSON.stringify(fact.params)}`} fact={fact} />
+                ))}
+            </Group>
+            {rows}
+        </Stack>
     );
 }

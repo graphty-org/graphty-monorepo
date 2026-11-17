@@ -2070,6 +2070,8 @@ export const CUSTOM_MODEL = {
     settings: "Model settings",
     /** The x that closes the Model settings pop-over, back to the dialog. */
     closeSettings: "Close model settings",
+    /** The Shape field's button that opens the Parts pop-over while a model waits for its files. */
+    addParts: "Add parts",
     textures: "Textures",
     allTextures: "All textures",
     /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */
@@ -2306,6 +2308,14 @@ export const CUSTOM_MODEL = {
     position: (at: number, count: number): string => `${at} of ${count}`,
     previousModel: "Previous model",
     nextModel: "Next model",
+    /** Over a set's list of its models, in the loading column. */
+    setModels: "Models",
+    /**
+     * A set's list: the checkbox that says whether Add takes the model in this file.
+     * @param file - the model's file.
+     * @returns the words.
+     */
+    loadFile: (file: string): string => `Load ${file}`,
     /** The checkbox under a set's preview: whether Add takes the model shown. */
     loadThis: "Load this model",
     /** Add's tooltip while no model of a set is chosen. */

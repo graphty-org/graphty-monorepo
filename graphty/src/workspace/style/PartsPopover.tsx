@@ -1,12 +1,12 @@
 import { FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
 import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from "@graphty/graphty-element/session";
-import { Button, Group, Loader, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Group, Loader, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { modelName, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FactChip, ModelChip } from "./ModelChip";
+import { FactChip } from "./ModelChip";
 import { countChip, middleCut, PART_CODES, roleWord } from "./modelWords";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
@@ -495,12 +495,6 @@ function partsName(model: string, parts: readonly CodedFact[]): string {
     return `${model}: ${String(parts.length)} ${parts.length === 1 ? "file" : "files"} missing`;
 }
 
-/**
- * The warnings the Shape field shows; the rest belong to Model settings. A substituted part is
- * worth knowing, not worth a chip on a model that draws as it should.
- */
-const FIELD_WARNINGS = new Set(["W_MODEL_PART_UNUSED"]);
-
 /** Props for ModelProblems. */
 interface ModelProblemsProps {
     /** What the layer's `node.model` names. */
@@ -518,10 +512,11 @@ interface ModelProblemsProps {
 }
 
 /**
- * What the Shape field says about the model it names (design 13.9, 13.6), read from
- * graphty-element's model states: "N missing" while the model waits for parts, opening the Parts
- * pop-over; a chip for any other refusal, with Use as
- * picture when the model named is a picture.
+ * What the Shape field offers for the model it names (design 13.9, 13.6), read from
+ * graphty-element's model states: buttons only, never a chip or a description (the Style panel is
+ * for controls; what is wrong is said in Model settings and the Parts pop-over). Add parts while the
+ * model waits for parts, opening the Parts pop-over, and Use as picture when the model named is a
+ * picture.
  * @param props - Component props
  * @param props.modelRef - what the layer names
  * @param props.anchor - the row the pop-over opens beside
@@ -543,6 +538,7 @@ export function ModelProblems({
     const states = useModelStates(session);
     const [open, setOpen] = useState(false);
     const chipRef = useRef<HTMLButtonElement>(null);
+    const detail = useId();
     const change = states.find((s) => s.ref === modelRef);
     const problems = change?.problems ?? [];
     const parts = change?.state === "rejected" ? problems.filter((p) => PART_CODES.has(p.code)) : [];
@@ -571,25 +567,33 @@ export function ModelProblems({
     }
     const partsChip = countChip(parts);
     const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
-    const notes = problems.filter((p) => FIELD_WARNINGS.has(p.code));
-    if (partsChip === undefined && refusal === undefined && notes.length === 0) {
+    const asPicture = refusal?.params.assetKind === "image" && onUseAsPicture !== undefined;
+    if (partsChip === undefined && !asPicture) {
         return null;
     }
     return (
         <Group gap={4} className="ws-model-chips">
             {partsChip === undefined ? null : (
-                <ModelChip
-                    ref={chipRef}
-                    chip={partsChip}
-                    name={partsName(name, parts)}
-                    expanded={open}
-                    onClick={() => {
-                        setOpen(true);
-                    }}
-                />
+                <Tooltip label={partsChip.tip}>
+                    <Button
+                        ref={chipRef}
+                        size="compact-xs"
+                        variant="default"
+                        aria-label={`${CUSTOM_MODEL.addParts}: ${partsName(name, parts)}`}
+                        aria-describedby={detail}
+                        aria-haspopup="dialog"
+                        aria-expanded={open}
+                        onClick={() => {
+                            setOpen(true);
+                        }}
+                    >
+                        {CUSTOM_MODEL.addParts}
+                    </Button>
+                </Tooltip>
             )}
-            {refusal === undefined ? null : <FactChip fact={refusal} />}
-            {refusal?.params.assetKind === "image" && onUseAsPicture !== undefined ? (
+            {/* What is missing, for a screen reader as for the tooltip; never shown in the panel. */}
+            {partsChip === undefined ? null : <VisuallyHidden id={detail}>{partsChip.tip}</VisuallyHidden>}
+            {asPicture ? (
                 <Tooltip label={`Use ${name} as picture`}>
                     <Button
                         size="compact-xs"
@@ -601,9 +605,6 @@ export function ModelProblems({
                     </Button>
                 </Tooltip>
             ) : null}
-            {notes.map((fact) => (
-                <FactChip key={`${fact.code}:${JSON.stringify(fact.params)}`} fact={fact} />
-            ))}
             {waiting ? (
                 <PartsPopover
                     opened={open}

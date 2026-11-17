@@ -945,8 +945,11 @@ export function CustomModelDialog({
     // A model's own settings (Color, Animation and Pose, Up, Turn, Textures...) are each model's, kept
     // with it on Add. The layer's own (Light, Wireframe, Picture) are one draft for the layer.
     const [draft, setDraft] = useState<ModelDraft>({});
-    // Model settings open in a modal pop-over over the dialog, from the gear beside Name.
+    // Model settings open in a modal pop-over over the dialog, from the gear beside Name. It lies over
+    // the loading column, where it was when the gear was pressed, so the model stays in sight while
+    // the reader turns it, poses it or takes its pictures away.
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsOver, setSettingsOver] = useState<DOMRect | null>(null);
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
@@ -1631,6 +1634,8 @@ export function CustomModelDialog({
                                     aria-haspopup="dialog"
                                     aria-expanded={settingsOpen}
                                     onClick={() => {
+                                        const column = body?.querySelector(".ws-model-main");
+                                        setSettingsOver(column?.getBoundingClientRect() ?? null);
                                         setSettingsOpen(true);
                                     }}
                                 >
@@ -1710,6 +1715,79 @@ export function CustomModelDialog({
                             .map((fact) => (
                                 <FactChip key={String(fact.params.fileName)} fact={fact} />
                             ))}
+                    </Stack>
+                </section>
+            </Stack>
+        );
+
+    // A set's models, each by its file: checked for Add, the one shown marked, and an x that takes it
+    // out of the set. The arrows under the preview step through the same models.
+    const dropMember = (at: number): void => {
+        const member = members.at(at);
+        if (member === undefined) {
+            return;
+        }
+        if (members.length === 1) {
+            clear();
+            return;
+        }
+        letGo(refOf(member.held));
+        setMembers((now) => now.filter((_, i) => i !== at));
+        setIndex((now) => (at < now || now === members.length - 1 ? Math.max(0, now - 1) : now));
+        setSettingsOpen(false);
+        say(CUSTOM_MODEL.removed(member.name));
+    };
+    const setBox =
+        !many || busy ? null : (
+            <Stack gap={4}>
+                <Text size="sm" id={`${uid}-set`}>
+                    {CUSTOM_MODEL.setModels}
+                </Text>
+                <section
+                    className="ws-model-scroll"
+                    data-testid="model-set"
+                    aria-labelledby={`${uid}-set`}
+                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
+                    tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
+                >
+                    <Stack gap={6}>
+                        {members.map((member, at) => {
+                            const file = member.held.record.path ?? member.held.url?.split("/").pop() ?? member.name;
+                            return (
+                                <Group
+                                    key={member.held.record.id}
+                                    gap={4}
+                                    wrap="nowrap"
+                                    justify="space-between"
+                                    aria-current={at === index || undefined}
+                                >
+                                    <Checkbox
+                                        size="xs"
+                                        label={middleCut(file, 40)}
+                                        aria-label={CUSTOM_MODEL.loadFile(file)}
+                                        title={file}
+                                        checked={member.load}
+                                        fw={at === index ? 600 : undefined}
+                                        onChange={(event) => {
+                                            const load = event.currentTarget.checked;
+                                            setMembers((now) => now.map((m, i) => (i === at ? { ...m, load } : m)));
+                                        }}
+                                    />
+                                    <Tooltip label={CUSTOM_MODEL.remove(file)}>
+                                        <ActionIcon
+                                            variant="subtle"
+                                            size="sm"
+                                            aria-label={CUSTOM_MODEL.remove(file)}
+                                            onClick={() => {
+                                                dropMember(at);
+                                            }}
+                                        >
+                                            <GLYPHS.close size={14} aria-hidden />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                </Group>
+                            );
+                        })}
                     </Stack>
                 </section>
             </Stack>
@@ -1924,6 +2002,7 @@ export function CustomModelDialog({
                 <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
                     <Stack gap="sm" className="ws-model-left">
                         {top}
+                        {setBox}
                         {filesBox}
                     </Stack>
                 </ScrollArea>
@@ -1936,6 +2015,20 @@ export function CustomModelDialog({
                     closeOnEscape={!pictureOpen}
                     title={CUSTOM_MODEL.settings}
                     closeButtonProps={{ "aria-label": CUSTOM_MODEL.closeSettings }}
+                    // Clear, so the model beside it is seen as each setting changes it.
+                    overlayProps={{ backgroundOpacity: 0 }}
+                    styles={
+                        settingsOver === null
+                            ? undefined
+                            : {
+                                  inner: {
+                                      justifyContent: "flex-start",
+                                      alignItems: "flex-start",
+                                      padding: `${settingsOver.top}px 0 0 ${settingsOver.left}px`,
+                                  },
+                                  content: { flex: `0 0 ${settingsOver.width}px`, maxHeight: settingsOver.height },
+                              }
+                    }
                 >
                     {settings}
                 </Modal>

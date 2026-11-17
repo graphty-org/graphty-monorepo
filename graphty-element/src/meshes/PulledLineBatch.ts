@@ -57,10 +57,18 @@ export const pulledEdgesDefault: { value: boolean } = { value: false };
 export const antialiasDefault: { value: Antialias } = { value: true };
 
 /**
- * How the canvas multisamples (graphty-element's `antialias`): always (`true`), never (`false`), or
- * only on the frame a still scene rests on (`"at-rest"`).
+ * How the canvas multisamples (graphty-element's `antialias`): always (`true`), never (`false`),
+ * only on the frame a still scene rests on (`"at-rest"`), or never while the line shader smooths
+ * the lines' edges itself (`"shader"`).
  */
-export type Antialias = boolean | "at-rest";
+export type Antialias = boolean | "at-rest" | "shader";
+
+/**
+ * Which program a straight pulled line draws (`GraphContext.leansLines`): the join template
+ * (`false`), the lean rectangle (`true`, `EDGE_PULLED_LEAN`), or the lean rectangle a pixel wider
+ * with its edges smoothed in the fragment shader (`"smooth"`, `EDGE_LINE_AA`).
+ */
+export type LeanLines = boolean | "smooth";
 
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;

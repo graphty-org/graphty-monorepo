@@ -361,7 +361,7 @@ export interface AnimationResult {
 }
 
 // @public
-export type Antialias = boolean | "at-rest";
+export type Antialias = boolean | "at-rest" | "shader";
 
 // @public
 export type AssetStorage = "embed" | "url";
@@ -2976,7 +2976,7 @@ export class Graph implements GraphContext {
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
     // @internal
-    leansLines(): boolean;
+    leansLines(): LeanLines;
     get limits(): Readonly<LimitsOption>;
     listAiConversations(options?: {
         readonly allKeys?: boolean;
@@ -3238,7 +3238,7 @@ export interface GraphContext {
     is2D(): boolean;
     isRunning(): boolean;
     // @internal
-    leansLines?(): boolean;
+    leansLines?(): LeanLines;
     // @deprecated
     needsRayUpdate(): boolean;
     // @internal

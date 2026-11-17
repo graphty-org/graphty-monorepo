@@ -132,7 +132,8 @@ const ELEMENT_LAYOUT = "element-layout";
 
 /**
  * The `antialias` attribute's value: `"false"` turns multisampling off, `"at-rest"` multisamples
- * only the frame a still scene rests on, and any other value or no attribute leaves it on.
+ * only the frame a still scene rests on, `"shader"` turns it off and smooths lines in their shader,
+ * and any other value or no attribute leaves it on.
  * @param value - The attribute, or null when there is none.
  * @returns The setting.
  */
@@ -141,7 +142,11 @@ function antialiasFromAttribute(value: string | null): Antialias {
         return antialiasDefault.value;
     }
 
-    return value === "at-rest" ? "at-rest" : value !== "false";
+    if (value === "at-rest" || value === "shader") {
+        return value;
+    }
+
+    return value !== "false";
 }
 
 /**
@@ -7206,6 +7211,13 @@ export class Graphty extends LitElement {
      * multisampled, the same picture `true` draws, and keeps it on screen. It holds that frame by not
      * drawing again until something changes, as `layoutBehavior.rendering.onDemand` does, whether or
      * not that is set. A screenshot taken at any time is the multisampled picture.
+     *
+     * `"shader"` builds the canvas without multisampling, as `false` does, and under renderPath
+     * "batched" draws plain straight edges with the cheaper line program, their edges smoothed by
+     * the line shader itself: smooth lines, still or moving, at close to `false`'s cost. Everything
+     * else is drawn as `false` draws it, with hard edges: nodes, curved, looped, bent, arc, animated,
+     * dashed and capped lines, and lines with `blending` off. On renderPath "objects" it draws as
+     * `false` does.
      * @remarks
      * Set it as an attribute, in any position in the tag, or as a property before using any other
      * property or method of the element: the engine reads it once, when it is built. After that,
@@ -7216,6 +7228,7 @@ export class Graphty extends LitElement {
      * @example
      * ```html
      * <graphty-element render-path="batched" antialias="at-rest"></graphty-element>
+     * <graphty-element render-path="batched" antialias="shader"></graphty-element>
      * ```
      * @returns The setting; true by default.
      */

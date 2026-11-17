@@ -812,6 +812,12 @@
     gap: 4px;
 }
 
+/* With a set's arrows under the model, Details gives up their height (about half a row) so the
+   column still fits a 720 px window with the model at 240 px. */
+.ws-model-side:has(.ws-model-steps) .ws-model-details-box {
+    min-height: 176px;
+}
+
 /* Files, the loading column's last box, down to the footer: at least a few lines. */
 .ws-model-files-box {
     min-height: 120px;

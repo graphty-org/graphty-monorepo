@@ -1035,6 +1035,22 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     }
 
+    it("fits a set's arrows, Name and Details in a 1280 x 720 window with no scroll of the model's column", async () => {
+        const { tab } = await openShapes();
+        await page.viewport(1280, 720);
+        try {
+            const dialog = await openCustom(tab);
+            dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), await fixture(policeUrl, "police.glb")]);
+            await within(dialog).findByTestId("model-position");
+            await previewOf(dialog, "police");
+            const side = dialog.querySelector(".ws-model-side") as HTMLElement;
+            assert.isAtMost(side.scrollHeight, side.clientHeight, "the model's column does not scroll");
+            await assertTwoColumns(dialog, "a set at 1280 x 720");
+        } finally {
+            await page.viewport(1440, 900);
+        }
+    });
+
     it("adds a file the project already holds as a second model, set up apart, leaving the first as it was (#8609, #8610)", async () => {
         const { session } = await openShapes();
         const first = await session.assets.add(quadFile());

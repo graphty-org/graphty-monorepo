@@ -3176,7 +3176,7 @@ const VIS_SHAPES: ReadonlyMap<string, readonly [string, boolean]> = new Map([
     ["ellipse", ["dot", true]],
     ["rectangle", ["square", true]],
     ["round-rectangle", ["box", true]],
-    ["triangle", ["triangle", true]],
+    ["triangle", ["triangle", false]],
     ["diamond", ["diamond", true]],
     ["star", ["star", true]],
     ["hexagon", ["hexagon", true]],
@@ -3296,22 +3296,24 @@ const visFitBack =
     };
 
 /**
- * How far down a written vis.js node's label is read back: the reader's own reading (visNodeRow) of what the writer
- * writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as the
- * block's offset.
- * @param want - the block's values of the element
- * @returns the offset read back
+ * A fact of a written vis.js node as the reader reads it back: the reader's own reading (visNodeRow) of what the
+ * writer writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as
+ * the block's offset, and a triangle as the block's triangle, not the equilateral polygon vis-network draws.
+ * @param property - the fact
+ * @returns the reading back of the element's values
  */
-const visOffsetBack = (want: (p: string) => StyleValue | null): StyleValue | null => {
-    const size = visSize(want);
-    const layer: VisLayer = {
-        label: want("label") ?? undefined,
-        fontSize: want("labelSize") ?? undefined,
-        size: typeof size === "number" ? size / 2 : undefined,
+const visRowBack =
+    (property: string) =>
+    (want: (p: string) => StyleValue | null): StyleValue | null => {
+        const size = visSize(want);
+        const layer: VisLayer = {
+            label: want("label") ?? undefined,
+            fontSize: want("labelSize") ?? undefined,
+            size: typeof size === "number" ? size / 2 : undefined,
+        };
+        const site = (p: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property: p });
+        return visNodeRow(layer, visShapeBack(want), null, site)[property] ?? null;
     };
-    const site = (property: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property });
-    return visNodeRow(layer, visShapeBack(want), null, site).labelOffsetY ?? null;
-};
 
 /**
  * What reading a file graphty wrote in vis.js gives back: VIS_WRITTEN, and for a self-loop the route the reader draws
@@ -3356,7 +3358,9 @@ const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
         height: (want) => visHexagonHeightBack(want) ?? visSize(want) ?? visFitBack("height")(want),
-        labelOffsetY: visOffsetBack,
+        labelOffsetY: visRowBack("labelOffsetY"),
+        shapePoints: visRowBack("shapePoints"),
+        shapePointsStretch: visRowBack("shapePointsStretch"),
         labelFit: visFitBack("labelFit"),
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
@@ -3372,7 +3376,7 @@ const VIS_WRITTEN: Written = {
                 return null;
             }
             const site = { notes: new StyleNotes(), target: "node" as const, property: "shape" };
-            return canonEnum("shape", visShapeBack(want), "vis", site);
+            return visRowBack("shape")(want) ?? canonEnum("shape", visShapeBack(want), "vis", site);
         },
         labelPosition: (want) => {
             if (typeof want("shape") !== "string") {

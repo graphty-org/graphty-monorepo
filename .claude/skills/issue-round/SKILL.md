@@ -1,6 +1,6 @@
 ---
 name: issue-round
-description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of up to four related issues, by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, never merges, reverts or fixes red pull requests of other sessions, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of related issues (up to its risk class cap), by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, never merges, reverts or fixes red pull requests of other sessions, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
 ---
 
 # One round of issue work
@@ -268,7 +268,7 @@ owner-guarded paths, breaking with non-breaking, staged behind something else, a
 on master). For source changes the same topic, package, label, oracle program or record file is never enough. Each
 member records its own test, the member it holds against and its own reason, never the group's summary. Caps by the
 group's riskiest member: **docs** (only Markdown, `design/`, READMEs, doc and code comments) 10 issues; **tests**
-(only test files, fixtures, test helpers) 8 issues and 12 points; **source** 4 issues and 6 points (`effort:low` 1,
+(only test files, fixtures, test helpers) 8 issues and 12 points; **source** 5 issues and 8 points (`effort:low` 1,
 `medium` 2, `high` 3, none 2; a fold 0). When unsure about a source change, do not group.
 
 **Routing a single issue** (an `unscanned` job, or the top issue while `jobs` exits 3): read it and the code it points

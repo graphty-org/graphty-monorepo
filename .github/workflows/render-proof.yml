@@ -2,8 +2,8 @@ name: Render proof
 
 # The whole of the render-parity and forced-batched test projects of graphty-element
 # (design/rendering/row-renderer.md 7). By dispatch on a branch only: it gates nothing, and neither
-# project joins a pull request; the full run runs the whole of forced-batched too, in twelve shards
-# (graphty-element-forced-batched-<n>, tools/ci-test-matrix.mjs), so this adds render-parity. Stages 11, 13 and 16 cite its run in
+# project joins a pull request; the full run runs one file of forced-batched, the drawn fidelity scorecard
+# (shard graphty-element-forced-batched-scorecard, tools/ci-test-matrix.mjs). Stages 11, 13 and 16 cite its run in
 # their Proof.
 
 on:

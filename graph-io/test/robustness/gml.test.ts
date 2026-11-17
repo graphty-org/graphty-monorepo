@@ -13,16 +13,15 @@ import {
     type ImportGraphResult,
     sniff,
 } from "../../src/index.js";
+import { codes, ids } from "./helpers.js";
 import {
     chunks,
-    codes,
     column,
     concat,
     edgePairs,
     fatalCode,
     GZIP_BYTES,
     HTML_404,
-    ids,
     issue,
     latin1,
     rejects,

@@ -605,9 +605,10 @@
 
 /* The node-models experiment (issue #3396). */
 
-/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width. */
+/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width.
+   The column fits the longest name ("Animation", "Wireframe") at 11px without cutting it. */
 .ws-model-settings .ws-field {
-    grid-template-columns: 48px minmax(0, 1fr) 24px;
+    grid-template-columns: 60px minmax(0, 1fr) 24px;
 }
 
 /* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
@@ -651,8 +652,9 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings on the left and
-   the model on the right in a 240 px column (blank until a model is loaded), the footer across both.
+/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings, Files and Details
+   on the left and the model on the right in a 240 px column (blank until a model is loaded), the
+   footer across both. The right column fits the dialog's height, so its box never scrolls away.
    The whole body takes a drop, and shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
@@ -669,6 +671,13 @@
 
 .ws-model-main {
     min-height: 0;
+}
+
+/* The scroll thumb takes clicks 22 px either side of its center, 5 px in from the column's edge,
+   past the 10 px the scrollbar is offset by: the column's own controls (the loaded file's x, a
+   row's remove) keep clear of it, so a click on them is never the thumb's. */
+.ws-model-main .ws-model-left {
+    padding-right: 18px;
 }
 
 .ws-model-side {
@@ -705,9 +714,97 @@
     border-radius: var(--mantine-radius-sm);
     background: var(--cm-bg-secondary);
     color: var(--cm-text-secondary);
+    position: relative;
+    overflow: hidden;
 }
 
-/* Files, More options and Details: a chevron and a word that open their rows, as the selection pane's Advanced. */
+/* graphty-element's live preview fills the box; what stands in while it draws sits over it. */
+.ws-model-live {
+    position: absolute;
+    inset: 0;
+    cursor: grab;
+}
+
+.ws-model-live:active {
+    cursor: grabbing;
+}
+
+.ws-model-preview-over {
+    position: relative;
+    pointer-events: none;
+}
+
+/* Empty, the box is the dialog's drop area: dashed, with what it takes. */
+.ws-model-preview[data-empty] {
+    border-style: dashed;
+}
+
+.ws-model-drop-hint {
+    max-width: 180px;
+}
+
+/* Reset view, over the live preview in the box's top-right corner. */
+.ws-model-reset {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 1;
+}
+
+/* One model of several: its name on the box, top-left, clear of Reset view. */
+.ws-model-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 36px;
+    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-primary);
+    pointer-events: none;
+}
+
+/* One model of a set that Add leaves out (Load this model unchecked): faded, its name struck through. */
+.ws-model-preview[data-skipped] .ws-model-live,
+.ws-model-preview[data-skipped] .ws-model-preview-over {
+    opacity: 0.35;
+}
+
+.ws-model-preview[data-skipped] .ws-model-label {
+    text-decoration: line-through;
+    color: var(--cm-text-secondary);
+}
+
+/* Under a set's preview: the arrows and their count, then Load this model. */
+.ws-model-steps {
+    width: 240px;
+}
+
+/* Name, under the preview: a short label column, as the side column is narrow. */
+.ws-model-name .ws-field {
+    grid-template-columns: 48px minmax(0, 1fr);
+}
+
+/* Files and Details: always shown, each a list that scrolls on its own past its height. */
+.ws-model-scroll {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 4px 6px;
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+}
+
+/* Details, under the settings in the left column: tall enough for its usual rows, scrolling past them. */
+.ws-model-details-box .ws-model-scroll {
+    max-height: 240px;
+}
+
+.ws-model-scroll:focus-visible {
+    outline: 1px solid var(--cm-border-selected);
+}
+
+/* More options: a chevron and a word that open its rows, as the selection pane's Advanced. */
 .ws-disclosure {
     display: inline-flex;
     align-items: center;

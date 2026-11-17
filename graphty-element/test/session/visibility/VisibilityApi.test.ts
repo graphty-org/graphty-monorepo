@@ -1,7 +1,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { NodeId, Path } from "../../../src/catalog/types";
-import { isGraphtyError } from "../../../src/errors";
 import { createScopeApi } from "../../../src/session/scope/index";
 import {
     createVisibilityApi,
@@ -14,7 +13,7 @@ import {
     type VisibilitySources,
     type VisibilitySummary,
 } from "../../../src/session/visibility/index";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
     const harness = makeSession();
@@ -48,17 +47,6 @@ const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["
 /** How much is showing, read through the consumer surface a third party sees. */
 function summaryOf(visibility: VisibilityApi): VisibilitySummary {
     return visibility.summary;
-}
-
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 /** Await a run that is expected to be cancelled, and answer with the error's name. */
@@ -185,7 +173,7 @@ describe("applying a filter", () => {
         const visibility = modelOf(harness);
 
         assert.strictEqual(
-            codeOf(() => visibility.set({ kind: "nope" } as unknown as RuleTree)),
+            rejectionCode(() => visibility.set({ kind: "nope" } as unknown as RuleTree)),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(visibility.summary.visibleNodes, 1, "a refused filter changed nothing");
@@ -197,7 +185,7 @@ describe("applying a filter", () => {
         const visibility = modelOf(harness);
 
         assert.strictEqual(
-            codeOf(() => visibility.set(HOSTS, { dryRun: true })),
+            rejectionCode(() => visibility.set(HOSTS, { dryRun: true })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();
@@ -205,7 +193,7 @@ describe("applying a filter", () => {
 });
 
 describe("a filter and a window are two producers of one model", () => {
-    it("composes them, and leaves each one standing when the other is cleared", async () => {
+    it("keeps them apart, and leaves each one standing when the other is cleared", async () => {
         const harness = harnessOf([
             { id: "a", type: "host", at: 1 },
             { id: "b", type: "host", at: 90 },
@@ -216,12 +204,19 @@ describe("a filter and a window are two producers of one model", () => {
         await visibility.set(HOSTS);
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"]);
 
+        // A window narrows nothing visible: what lies outside it is in the outsideWindow state.
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
-        assert.deepStrictEqual([...visibility.nodes], ["a"], "a host, inside the window");
+        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"], "the hosts, the window aside");
+        assert.deepStrictEqual(
+            [0, 1, 2].map((row) => visibility.outsideWindow("node", row)),
+            [false, true, false],
+            "b, a host, is outside the window",
+        );
         assert.deepStrictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
 
         await visibility.set(null);
-        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "c"], "the window is still in force");
+        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b", "c"], "the window hides nothing");
+        assert.isTrue(visibility.outsideWindow("node", 1), "the window is still in force");
 
         await visibility.setWindow(null);
         assert.strictEqual(visibility.summary.visibleNodes, 3);
@@ -253,11 +248,11 @@ describe("the lazy id sets", () => {
         const ids = visibility.nodes as Set<NodeId>;
 
         assert.strictEqual(
-            codeOf(() => ids.add("b")),
+            rejectionCode(() => ids.add("b")),
             "E_READONLY",
         );
         assert.strictEqual(
-            codeOf(() => ids.clear()),
+            rejectionCode(() => ids.clear()),
             "E_READONLY",
         );
         harness.session.dispose();
@@ -544,7 +539,7 @@ describe("a filter on an edge attribute", () => {
         const visibility = modelOf(harness);
 
         assert.strictEqual(
-            codeOf(() =>
+            rejectionCode(() =>
                 visibility.set({
                     kind: "range",
                     attribute: "data.weight",

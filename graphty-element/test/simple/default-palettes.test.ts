@@ -13,6 +13,9 @@ import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
 import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
 import { LogLevel, type LogRecord } from "../../src/logging/types.js";
 import { createGraphSession } from "../../src/session";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 definePalette({ id: "acme-groups", kind: "categorical", colors: ["#0B1D51", "#1B7F79", "#F2A65A"] });
 definePalette({ id: "acme-ramp", kind: "sequential", colors: ["#E8F1FA", "#0B1D51"] });
@@ -92,7 +95,7 @@ function refusal(call: () => unknown): string | null {
 
 describe("setDefaultPalettes", () => {
     it("names the default of each kind in a binding that names none, when the layer is written", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.setDefaultPalettes({
             categorical: "acme-groups",
             sequential: "acme-ramp",
@@ -116,7 +119,7 @@ describe("setDefaultPalettes", () => {
     });
 
     it("leaves a binding naming no palette as it was when no default is set", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("groups", { scale: "ordinal" }));
 
         assert.deepStrictEqual(palettes(session), { groups: undefined });
@@ -124,7 +127,7 @@ describe("setDefaultPalettes", () => {
 
     it("logs a warning naming the layers, when called after layers took the previous default", async () => {
         const records = await listen();
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("early", { scale: "ordinal" }));
         await session.styles.add(colour("named", { scale: "ordinal", palette: "okabe-ito" }));
         const ids = Object.fromEntries(session.styles.list().map((layer) => [layer.name, layer.id]));
@@ -139,7 +142,7 @@ describe("setDefaultPalettes", () => {
 
     it("re-resolves the layers that took the previous default with reapply, and no other", async () => {
         const records = await listen();
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("early", { scale: "ordinal" }));
         await session.styles.setDefaultPalettes({ categorical: "okabe-ito" });
         records.length = 0;
@@ -159,7 +162,7 @@ describe("setDefaultPalettes", () => {
     });
 
     it("rejects when a reapplied layer cannot be updated, and retries that layer on the next call", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.setDefaultPalettes({ categorical: "okabe-ito" });
         await session.styles.add(colour("defaulted", { scale: "ordinal" }));
         const refused = new Error("refused");
@@ -186,7 +189,7 @@ describe("setDefaultPalettes", () => {
     });
 
     it("refuses a palette it cannot use as the default of that kind", () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
 
         assert.strictEqual(
             refusal(() => session.styles.setDefaultPalettes({ categorical: "acme-missing" })),

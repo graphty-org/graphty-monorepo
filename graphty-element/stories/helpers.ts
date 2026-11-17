@@ -1,6 +1,6 @@
 /**
- * Enhanced helpers that integrate loader-based event waiting
- * This approach prevents race conditions while maintaining backwards compatibility
+ * Shared story helpers: the story setup (data, styles, layout settings), waits on the element's
+ * own events and public state, and the real-input parameter stories use to click, drag and type.
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
@@ -158,11 +158,9 @@ async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
  * element's own answer to "is this the finished picture", and every consumer has it, not just
  * these stories.
  *
- * IT THROWS RATHER THAN GIVING UP. What stood here before raced the settle event against a five
- * second timer and resolved either way, so a story that had not finished moving was photographed
- * anyway and said nothing about it -- a determinism device that failed silently, which is the
- * same defect as a waiver that hides a bug. A story that cannot reach a final frame now fails,
- * with the element's account of what was still moving.
+ * IT THROWS RATHER THAN GIVING UP. A wait that resolved either way would photograph a story that
+ * had not finished moving and say nothing about it. A story that cannot reach a final frame
+ * fails, with the element's account of what was still moving.
  * @param canvasElement - The story's root element.
  */
 export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<void> {
@@ -228,8 +226,7 @@ export function skyboxReady(meshes: readonly AbstractMesh[]): boolean {
  *
  * ONE STACK, ONE DOCUMENT. `node`, `edge`, `nodeEncode`, `edgeEncode` and `layers` become layers
  * on `session.styles`, which is the only style stack there is; the rest are the element's own
- * configuration properties. What used to sit here instead was a 1.x style template, which
- * carried both halves in one object and replaced the whole of it every time a story applied one.
+ * configuration properties, set one by one so a story changes only what it names.
  */
 interface StorySetup {
     /** Channels every node is painted with, such as `{"node.color": "red"}`. */
@@ -438,11 +435,9 @@ function applyStyleLayers(element: Graphty, setup: StorySetup): void {
 /**
  * Apply the configuration half of a story's setup to the element.
  *
- * TWO OF THESE REACH THROUGH `graph`, AND SHOULD NOT HAVE TO. The layout pre-step count and the
- * list of algorithms to run on load were reachable only through the style template, and when that
- * was removed nothing replaced them: every other setting it carried has a property on
- * `<graphty-element>` -- `viewMode`, `background`, `startingCameraDistance`, `layout` -- and these
- * two have none. Until the element grows them, a story writes the configuration document.
+ * Every setting goes through a public property of `<graphty-element>`: `viewMode`,
+ * `background`, `startingCameraDistance`, `layoutBehavior` (layout pre-steps, the step
+ * multiplier, label decluttering and text) and `algorithmsOnLoad`.
  * @param element - The element to configure.
  * @param setup - What the story asked for.
  */
@@ -459,8 +454,8 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    // One document, written once: two assignments would leave only the second, and a story that
-    // declutters its labels used to lose its pre-steps that way.
+    // One document, written once: two assignments would leave only the second, so a story that
+    // declutters its labels would lose its pre-steps.
     const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
     const labels = {
         ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
@@ -589,8 +584,8 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // A `layoutConfig.<option>` the reader changed wins over the controls above. The panel labels a
     // control by the option it sets (`layoutConfig.weighted`), but its arg key is something else
     // (`kamadaWeighted`), so a link built from the label -- `?args=layoutConfig.weighted:!false` --
-    // reaches Storybook as a nested write into the `layoutConfig` arg, and the control's unchanged
-    // value used to overwrite it. Either spelling works in a URL now (issue #229).
+    // reaches Storybook as a nested write into the `layoutConfig` arg, which the control's
+    // unchanged value must not overwrite. Either spelling works in a URL (issue #229).
     const initialLayoutConfig = (storyConfig.initialArgs.layoutConfig ?? {}) as Record<string, unknown>;
 
     for (const [option, value] of Object.entries((args.layoutConfig ?? {}) as Record<string, unknown>)) {

@@ -8,7 +8,8 @@ import { type GraphBuilder, type GraphSink } from "@graphty/graph-format";
 
 import { type FormatRegistry, type ImportGraphResult } from "../registry.js";
 import { type ImportReport } from "../types.js";
-import { checkLazySource, checkSource } from "./define.js";
+import { SourceCatalog } from "./catalog.js";
+import { checkSource } from "./define.js";
 import { failAlone } from "./fail.js";
 import { runIntoSink, runMethod, sourceFormat, stopAtLimit, withSource, wrapCursor, wrapSink } from "./run.js";
 import {
@@ -25,30 +26,8 @@ import {
     type SourceValidators,
 } from "./types.js";
 
-/** A registered source: loaded, or a lazy one with its descriptor. */
-interface Entry {
-    /** The descriptor known without loading. */
-    readonly descriptor: SourceDescriptor;
-    /** The lazy registration, if any. */
-    readonly lazy: LazySource | null;
-    /** The loaded source. */
-    source: GraphSource<never> | null;
-    /** The load in flight. */
-    loading: Promise<GraphSource<never>> | null;
-}
-
-/**
- * Whether a registration is a lazy source rather than a source.
- * @param value - the registration
- * @returns true for a LazySource
- */
-function isLazy(value: GraphSource<never> | LazySource): value is LazySource {
-    const v = value as { load?: unknown; records?: unknown; file?: unknown; import?: unknown };
-    return typeof v.load === "function" && v.records === undefined && v.file === undefined && v.import === undefined;
-}
-
 /** What a SourceRegistry borrows from its FormatRegistry: building and freezing a graph. */
-interface SourceBuilding {
+export interface SourceBuilding {
     /**
      * A builder seeded from the load options.
      * @param options - the options
@@ -77,16 +56,17 @@ interface SourceBuilding {
  * @category Network sources
  */
 export class SourceRegistry {
-    private readonly entries = new Map<string, Entry>();
-
     /**
      * Create one for a format registry, whose importers read `file` sources.
      * @param formats - the format registry
      * @param building - how it builds and freezes graphs
+     * @param catalog - the sources it holds: a new list, or the default sources shared with
+     * `listSources()` and `registerSource()`
      */
     constructor(
         private readonly formats: FormatRegistry,
         private readonly building: SourceBuilding,
+        private readonly catalog: SourceCatalog = new SourceCatalog(),
     ) {}
 
     /**
@@ -95,24 +75,7 @@ export class SourceRegistry {
      * @param source - the source
      */
     register(source: GraphSource<never> | LazySource): void {
-        if (isLazy(source)) {
-            checkLazySource(source);
-        } else {
-            checkSource(source);
-        }
-        if (this.entries.has(source.id)) {
-            failAlone("E_SOURCE_INVALID", `a source with id ${source.id} is already registered`, {
-                id: source.id,
-                reason: "duplicate",
-            });
-        }
-        const lazy = isLazy(source) ? source : null;
-        this.entries.set(source.id, {
-            descriptor: source.descriptor ?? { plainName: source.id, params: [] },
-            lazy,
-            source: lazy === null ? (source as GraphSource<never>) : null,
-            loading: null,
-        });
+        this.catalog.register(source);
     }
 
     /**
@@ -121,7 +84,7 @@ export class SourceRegistry {
      * @returns true when registered
      */
     has(id: string): boolean {
-        return this.entries.has(id);
+        return this.catalog.has(id);
     }
 
     /**
@@ -129,11 +92,7 @@ export class SourceRegistry {
      * @returns one entry per source, in registration order
      */
     list(): readonly SourceInfo[] {
-        return Object.freeze(
-            [...this.entries].map(([id, e]) =>
-                Object.freeze({ id, descriptor: e.descriptor, loaded: e.source !== null }),
-            ),
-        );
+        return this.catalog.list();
     }
 
     /**
@@ -146,12 +105,12 @@ export class SourceRegistry {
             checkSource(source);
             return source;
         }
-        const entry = this.entries.get(source);
+        const entry = this.catalog.entry(source);
         if (entry === undefined) {
             return failAlone(
                 "E_SOURCE_UNKNOWN",
                 `no source has id ${JSON.stringify(source)}`,
-                { id: source, known: [...this.entries.keys()] },
+                { id: source, known: this.catalog.ids() },
                 sourceFormat(source),
             );
         }

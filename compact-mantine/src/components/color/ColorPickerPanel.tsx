@@ -507,7 +507,7 @@ export function ColorPickerPanel({
             ) : (
                 <>
                     <div className="cm-color-picker-body">
-                        <div // NOSONAR(S6819): a two-axis saturation and value field; input type=range is one axis only
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a two-axis saturation and value field; input type=range is one axis only
                             ref={fieldRef}
                             className="cm-color-saturation"
                             data-testid="color-picker-saturation"

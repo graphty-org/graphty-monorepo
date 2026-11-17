@@ -77,6 +77,11 @@
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
         },
+        "./sources": {
+            "types": "./dist/sources.d.ts",
+            "import": "./dist/sources.js",
+            "default": "./dist/sources.js"
+        },
         "./sources/ndex": {
             "types": "./dist/sources-ndex.d.ts",
             "import": "./dist/sources-ndex.js",
@@ -148,7 +153,7 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json && tsc --noEmit -p fidelity-stories/tsconfig.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json && tsc --noEmit -p fidelity-stories/tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p fidelity-stories/tsconfig.json",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",

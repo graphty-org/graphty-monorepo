@@ -22,8 +22,10 @@ export function CustomModelHost(): React.JSX.Element | null {
     return (
         <CustomModelDialog
             forLayer={false}
-            onAdd={(ref) => {
-                store.set({ dialog: null, notice: { message: CUSTOM_MODEL.added(modelName(session, ref)) } });
+            onAdd={(ref, _settings, refs) => {
+                const message =
+                    refs.length > 1 ? CUSTOM_MODEL.addedMany(refs.length) : CUSTOM_MODEL.added(modelName(session, ref));
+                store.set({ dialog: null, notice: { message } });
             }}
             onClose={() => {
                 store.set({ dialog: null });

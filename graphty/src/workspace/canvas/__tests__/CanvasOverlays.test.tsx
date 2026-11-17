@@ -487,10 +487,10 @@ describe("the legend card", () => {
         assert.notEqual(chips[0], chips[1]);
     });
 
-    it("says nothing is styled yet when the reader asked for the key over nothing", () => {
+    it("says No styles when the reader asked for the key over nothing", () => {
         renderOver(standIn({ blocks: [] }).session, { legendAsked: true });
         const legend = screen.getByRole("region", { name: "Legend" });
-        assert.equal(legend.textContent, "Nothing is styled yet");
+        assert.equal(legend.textContent, "No styles");
     });
 
     it("draws no key over nothing while the switch is only on by default", () => {

@@ -22,8 +22,8 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { sourceName } from "../words";
 
-// The tabs belong to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * Les Miserables in the workspace, on the Data place.

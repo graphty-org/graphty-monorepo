@@ -84,8 +84,10 @@ holds no node matches nothing. A filter condition cannot follow the pointer: `"s
 `frozenFrom`.
 
 A step can also read what the reader is doing, with the rule leaf `{ kind: "state", state }`:
-`"selected"`, `"hovered"`, `"pinned"` or `"ghosted"` (outside the time window, so a selection on it
-reads `within: "graph"`). It is a calculated value like any other, so it takes Add, Keep and Except
+`"selected"`, `"hovered"`, `"pinned"`, `"outsideWindow"` (outside the time window; experimental, with
+the timeline) or `"ghosted"` (what the filter condition a reader is editing would remove, drawn faint
+while a branches view holds that condition: `styles.showBranches` with `hold`). Neither of the last
+two is visible, so a selection on one reads `within: "graph"`. It is a calculated value like any other, so it takes Add, Keep and Except
 beside other conditions, and a layer on it repaints as the state moves, with no undo step:
 
 ```ts

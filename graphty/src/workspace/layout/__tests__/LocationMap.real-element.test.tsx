@@ -387,8 +387,8 @@ describe("the location map", () => {
             assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
         });
         await userEvent.click(place.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Coordinates" }));
-        await userEvent.click(await screen.findByRole("option", { name: "home" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Coordinates" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "home" }));
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",

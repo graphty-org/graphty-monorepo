@@ -58,17 +58,6 @@ export function conditionWords(session: GraphSession, rule: RuleTree): string {
     return rule.kind === "union" ? selectionWords(session, rule) : ruleWords(rule, namerOf(session));
 }
 
-/** The Filters row, and the inspected id, of the time window. */
-export const TIME_ROW = "time-window";
-
-/**
- * Opens the time window's card in the inspector on the Data place.
- * @param store - the chrome store.
- */
-export function openTimeCard(store: WorkspaceStore): void {
-    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW }, ...panelsInView() });
-}
-
 /** `openFilterDraft`'s target that opens the Filters section's "+" list. */
 export const PLUS = "+";
 

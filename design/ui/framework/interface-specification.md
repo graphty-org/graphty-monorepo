@@ -419,7 +419,9 @@ The type row is panel furniture (7.3) in the form of Figma's page header
 4.2, "A selection's type row is one line"): line 1, the kind glyph and the name at the panel's full
 width less the overflow; line 2, the kind word and the columns below, then three verbs as
 `ActionIcon`s with tooltips (`TooltipShortcut`; a `SplitButton` where a verb has variants), then the
-overflow. The name truncates by `content-design.md`'s name rule. **Which commands a kind's type row
+overflow. A verb with a key binding shows its key chip inside its button after the glyph, and the
+tooltip repeats it (`principles.md`, Rules, "Every shortcut is on a visible control"); an overflow
+row shows its binding right-aligned. The name truncates by `content-design.md`'s name rule. **Which commands a kind's type row
 carries is `output-homes.md` 3's**; this table arranges them. **Promotion:** on a kept set or
 path the first slot is Select members, the slot of Figma's Select matching layers; an offered
 variant leads with its keep verb, because it is gone at the next run unless kept. The other slots follow the

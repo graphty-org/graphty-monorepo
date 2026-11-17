@@ -1,5 +1,10 @@
 # babylonjs-models
 
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![npm version](https://img.shields.io/npm/v/babylonjs-models.svg)](https://www.npmjs.com/package/babylonjs-models)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, a File, a folder, a
 `.zip` or bytes. Every file is checked before Babylon reads it, a model reads only its own files, and
 nothing is fetched from a CDN: the Draco decoder and the KTX2 transcoders ship inside the package.
@@ -72,7 +77,9 @@ console.log(checked.format, checked.summary.triangles, checked.warnings);
 
 A refused set throws a `ModelError`. Its `facts` lists every problem found at once, such as each
 missing part of a model: `listParts(files, {}, DEFAULT_MODEL_LIMITS)` names every file a model needs
-and whether the set holds it. `loadModelFiles(scene, checked.files, checked.main, checked.format)`
+and whether the set holds it, and `listModels(files, DEFAULT_MODEL_LIMITS)` lists every model a set
+holds (each `{ main, format, files }`) when a folder or `.zip` carries more than one.
+`loadModelFiles(scene, checked.files, checked.main, checked.format)`
 then loads a checked set.
 
 ## Codes

@@ -1107,6 +1107,7 @@ export class PendingRows {
 
     /** Drop every row. */
     clear(): void {
+        this.waiting.fill(0);
         this.empty();
     }
 
@@ -1145,16 +1146,12 @@ export class PendingRows {
     }
 
     /**
-     * Empty the queue, and let go of arrays a load grew to every row (10 MiB at 1M nodes and 1M
-     * edges): once drained they would otherwise be kept, all zero, for the life of the graph.
+     * Empty the queue, and let go of the ring a load grew to every row (8 MiB at 1M nodes and 1M
+     * edges): once drained it would otherwise be kept, unused, for the life of the graph. The flag
+     * per row is kept (a byte per row, all zero once drained): dropping it would make every later
+     * repaint of a high row allocate and zero a flag array as long as that row number.
      */
     private empty(): void {
-        if (this.waiting.length > INITIAL_PENDING) {
-            this.waiting = new Uint8Array(INITIAL_PENDING);
-        } else {
-            this.waiting.fill(0);
-        }
-
         if (this.order.length > INITIAL_PENDING) {
             this.order = new Int32Array(INITIAL_PENDING);
         }

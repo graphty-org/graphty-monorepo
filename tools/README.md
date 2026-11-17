@@ -455,7 +455,7 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 The `design/` directory contains architecture documentation:
 
-- `monorepo/monorepo-design.md` - Overall architecture
+- `README.md` - The index of every design directory
 - `ci/channels-pipeline.md` - The pipeline: pull requests, canary, nightly, production
 - `graph-format/graph-format-design.md` - The shared graph data format and the consumer migration
 - `graph-samples/graph-samples-design.md` - The generators and datasets package: API, the seed determinism contract, dataset hosting and licensing, roadmap

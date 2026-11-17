@@ -323,6 +323,13 @@ const heldRequestCommands: {
                 await answer(route, entry.refuse);
             }
         });
+        // A URL this page already loaded is otherwise answered from the browser's memory without a
+        // request, so it would never be held: since Chromium 158 (Playwright 1.65) a second image
+        // of the same URL is reused even while routing has the cache off (#3568). Clearing the
+        // cache makes the next load of it a real request, which the route above holds.
+        const cdp = await ctx.page.context().newCDPSession(ctx.page);
+        await cdp.send("Network.clearBrowserCache");
+        await cdp.detach();
     },
     /**
      * Once a held request has come, lets every one go: answered as the page asked, or refused as an

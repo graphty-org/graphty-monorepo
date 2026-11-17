@@ -933,7 +933,7 @@ export async function fetchModelSet(
         }
 
         pictures?.onWaiting?.({ given: new Map(given), main }, facts);
-        await fetchPictures(fresh, fetching, tried, pictures?.signal);
+        await fetchPictures(fresh, fetching, tried, pictures?.signal, pictures?.part);
     }
 }
 
@@ -952,6 +952,11 @@ function notPictures(fresh: readonly ModelFact[], pictures: PictureFetch | undef
 export interface PictureFetch {
     /** Stops fetching pictures; the rest of the set is kept. */
     readonly signal?: AbortSignal;
+    /**
+     * Stops fetching one picture, by its name in the set's facts: it is then reported missing, as
+     * one stopped by `signal` is, and the other pictures go on.
+     */
+    readonly part?: (name: string) => AbortSignal | undefined;
     /** Hears the set once only pictures are left to fetch, and the facts naming them. */
     readonly onWaiting?: (
         held: { readonly given: Map<string, Uint8Array>; readonly main: string },
@@ -966,24 +971,29 @@ export interface PictureFetch {
  * @param fetching - The shared state.
  * @param tried - The addresses tried, by part name.
  * @param stop - Stops fetching pictures.
+ * @param part - Stops fetching one picture, by name.
  */
 async function fetchPictures(
     facts: readonly ModelFact[],
     fetching: PartFetch,
     tried: Map<string, string[]>,
     stop: AbortSignal | undefined,
+    part?: (name: string) => AbortSignal | undefined,
 ): Promise<void> {
     const outer = fetching.signal;
-    // Read afresh after each await: a reader may stop the pictures while one downloads.
-    const stopped = (): boolean => stop?.aborted === true;
-    fetching.signal = stop === undefined || outer === undefined ? (stop ?? outer) : AbortSignal.any([outer, stop]);
     try {
         for (const fact of facts) {
+            const name = String(fact.params.name);
+            const one = part?.(name);
+            // Read afresh after each await: a reader may stop the pictures, or this one, while it downloads.
+            const stopped = (): boolean => stop?.aborted === true || one?.aborted === true;
             if (stopped()) {
-                tried.set(String(fact.params.name), tried.get(String(fact.params.name)) ?? []);
+                tried.set(name, tried.get(name) ?? []);
                 continue;
             }
 
+            const signals = [outer, stop, one].filter((s): s is AbortSignal => s !== undefined);
+            fetching.signal = signals.length <= 1 ? signals[0] : AbortSignal.any(signals);
             try {
                 await fetchPart(fact, fetching, tried);
             } catch (error) {

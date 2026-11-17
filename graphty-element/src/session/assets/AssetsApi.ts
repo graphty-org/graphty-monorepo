@@ -475,7 +475,9 @@ export interface AssetsApi {
      * for, or drawn without, as any missing part). Pictures, `.mtl` files and buffers only; the
      * model's own file is cleared with `remove`. A model still waiting for parts is read again in
      * place, keeping its id; an accepted one gives a new record, and the model as it was stays
-     * held until the caller removes it.
+     * held until the caller removes it. A picture of a URL still downloading (its
+     * `E_MODEL_MISSING_FILE` says `downloading: true`) stops downloading at once while the others
+     * go on, and the model waits for it as for any missing part.
      * @param ref - What a layer named, or the record's id.
      * @param name - The part's name, as `record.parts` lists it.
      * @returns The model read without it: a new record, waiting for that part.
@@ -606,6 +608,55 @@ interface Entry {
     fetch?: UrlFetch;
 }
 
+/**
+ * What stops one picture of a URL's download, made the first time it is asked for.
+ * @param fetch - The download.
+ * @param name - The picture's name in the set.
+ * @returns Its controller.
+ */
+function partStop(fetch: UrlFetch, name: string): AbortController {
+    let stop = fetch.parts.get(name);
+    if (stop === undefined) {
+        stop = new AbortController();
+        fetch.parts.set(name, stop);
+    }
+    return stop;
+}
+
+/**
+ * Take a picture still downloading out of a model by URL: that download stops, and the model waits
+ * for the picture as for any missing one; the other pictures go on.
+ * @param entry - The model's entry.
+ * @param name - The picture's name in the set.
+ * @returns The model's record now, or undefined when that picture is not downloading.
+ */
+function stopDownload(entry: Entry, name: string): AssetRecord | undefined {
+    const downloading = entry.fetch;
+    const isDownloading = (p: CodedFact): boolean =>
+        p.code === "E_MODEL_MISSING_FILE" && p.params.downloading === true && String(p.params.name) === name;
+    if (downloading === undefined || !entry.record.problems.some(isDownloading)) {
+        return undefined;
+    }
+
+    partStop(downloading, name).abort();
+    const after = record({
+        ...entry.record,
+        problems: entry.record.problems.map((p) =>
+            isDownloading(p)
+                ? {
+                      code: p.code,
+                      params: Object.fromEntries(Object.entries(p.params).filter(([k]) => k !== "downloading")),
+                  }
+                : p,
+        ),
+    });
+    entry.record = after;
+    if (downloading.waiting !== undefined) {
+        downloading.waiting = after;
+    }
+    return after;
+}
+
 /** A URL's download, shared by every caller of `add` asking for it. */
 interface UrlFetch {
     /** The URL, as the session keys it. */
@@ -618,6 +669,8 @@ interface UrlFetch {
     pinned: boolean;
     /** Stops downloading the pictures; the rest of the set is kept (`accept`). */
     readonly pictures: AbortController;
+    /** What stops one picture's download, by its name (`dropPart` while it downloads). */
+    readonly parts: Map<string, AbortController>;
     /** The model held while its pictures download, once everything else has arrived. */
     waiting?: AssetRecord;
     /** Who hears {@link UrlFetch.waiting} (`onWaiting`). */
@@ -1429,6 +1482,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             callers: 0,
             pinned: false,
             pictures: new AbortController(),
+            parts: new Map(),
             waiters: new Set(),
         };
         // The download has ended: a waiting record built after it is stale.
@@ -1476,7 +1530,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                                 listener(progress);
                             }
                         },
-                        { signal: fetch.pictures.signal, onWaiting },
+                        { signal: fetch.pictures.signal, onWaiting, part: (name) => partStop(fetch, name).signal },
                     )
                     .finally(() => {
                         arrived = true;
@@ -1515,7 +1569,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
                     settled = await summarizeHeld(entry);
-                    settled = await fillFromProject(entry);
+                    // A picture the reader took out while it downloaded is not filled straight back.
+                    const dropped = [...fetch.parts].filter(([, stop]) => stop.signal.aborted).map(([name]) => name);
+                    settled = await fillFromProject(entry, new Set(dropped));
                 }
             }
 
@@ -2156,16 +2212,17 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * Supply a model that has just started waiting with the pictures the session already holds
      * (design 12.4): a kit whose models share one picture asks for it once.
      * @param entry - The held model.
+     * @param skip - Pictures not to fill, by name: those the reader took out.
      * @returns Its record afterwards.
      */
-    const fillFromProject = async (entry: Entry): Promise<AssetRecord> => {
+    const fillFromProject = async (entry: Entry, skip: ReadonlySet<string> = new Set()): Promise<AssetRecord> => {
         const substituted: CodedFact[] = [];
         for (const fact of [...entry.record.problems]) {
-            if (fact.code !== "E_MODEL_MISSING_FILE" || fact.params.role !== "texture") {
+            const name = String(fact.params.name);
+            if (fact.code !== "E_MODEL_MISSING_FILE" || fact.params.role !== "texture" || skip.has(name)) {
                 continue;
             }
 
-            const name = String(fact.params.name);
             const found = projectPicture(name, entry);
             if (found === undefined || entry.held === undefined) {
                 continue;
@@ -2477,6 +2534,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         async dropPart(ref, name) {
             const named = findEntry(ref);
+            const stopped = named === undefined ? undefined : stopDownload(named, name);
+            if (stopped !== undefined) {
+                return stopped;
+            }
             // A model by address is held, once accepted, under its digest id with its files.
             const entry = (named === undefined ? undefined : lookup(named.record.id)) ?? named;
             const given = entry?.held?.given ?? entry?.given;

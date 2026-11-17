@@ -177,6 +177,47 @@ describe("a model by address whose pictures are still downloading", () => {
     });
 });
 
+describe("a picture taken back out while it downloads", () => {
+    it("stops that download alone, and the model waits for that picture (#8609)", async () => {
+        const files = await filesOf("gltf-transmission-required");
+        const base = "https://models.example.com/drop/";
+        stubFetch(new Map([...files].filter(([name]) => !name.endsWith(".webp")).map(([n, b]) => [base + n, b])));
+        const spy = vi.spyOn(globalThis, "fetch");
+        const plain = spy.getMockImplementation();
+        const stopped: string[] = [];
+        spy.mockImplementation((input, init) => {
+            const url = input instanceof Request ? input.url : String(input);
+            if (!url.endsWith(".webp")) {
+                return (plain as typeof fetch)(input, init);
+            }
+            return new Promise((_, reject) => {
+                init?.signal?.addEventListener("abort", () => {
+                    stopped.push(url);
+                    reject(new DOMException("stopped", "AbortError"));
+                });
+            });
+        });
+        const element = await mount();
+        const { assets } = element.session;
+        const heard = new Promise<AssetRecord>((resolve) => {
+            void assets.add(`${base}cube.gltf`, { onWaiting: resolve });
+        });
+        const early = await heard;
+        const first = early.problems.find((p) => p.code === "E_MODEL_MISSING_FILE");
+        assert.isDefined(first);
+        const name = String(first.params.name);
+
+        const after = await assets.dropPart(`${base}cube.gltf`, name);
+        assert.deepEqual(stopped, [base + name], "only that picture's download stopped");
+        const facts = after.problems.filter((p) => p.code === "E_MODEL_MISSING_FILE");
+        assert.isUndefined(facts.find((p) => p.params.name === name)?.params.downloading, "no longer downloading");
+        assert.isTrue(
+            facts.filter((p) => p.params.name !== name).every((p) => p.params.downloading === true),
+            "the other pictures go on downloading",
+        );
+    });
+});
+
 describe("model colors", () => {
     it("draws a model whose file gives it no material in the node's color, with no tint asked (tree.obj)", async () => {
         const element = await mount();

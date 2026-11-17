@@ -660,7 +660,7 @@
 
 /* Its body: the shared two-column dialog (.ws-dialog-columns) at every state. On the left the
    loading: the file loader, its progress bar, the loaded file, lines about the load, a set's
-   Models and Files, scrolling as one. On the right, in a column as wide as the left, what was
+   Models, then Files, which takes the rest of the column's height and scrolls on its own. On the right, in a column as wide as the left, what was
    loaded: the model (blank until one is), a set's arrows, Name with the Model settings gear, and
    Details, which takes the rest of the column's height and scrolls on its own. The body grows with
    a taller window, up to 640 px. The footer runs across both. The whole body takes a drop, and
@@ -678,15 +678,10 @@
     outline-offset: 4px;
 }
 
+/* In a window too short for all of it, the column scrolls rather than cut anything off. */
 .ws-model-main {
     min-height: 0;
-}
-
-/* The scroll thumb takes clicks 22 px either side of its center, 5 px in from the column's edge,
-   past the 10 px the scrollbar is offset by: the column's own controls (the loaded file's x, a
-   row's remove) keep clear of it, so a click on them is never the thumb's. */
-.ws-model-main .ws-model-left {
-    padding-right: 18px;
+    overflow: hidden auto;
 }
 
 /* In a window too short for all of it, the column scrolls rather than cut anything off. */
@@ -717,7 +712,8 @@
 
 /* The model drawn alone, on the panel's ground: square, as wide as its column, but never so tall
    that Details under Name gets less than its 190 px (about five rows): with a set's arrows under
-   it, it gives up more height. */
+   it, it gives up more height. It keeps 240 px however short the window: below about 660 px the
+   column scrolls rather than draw the model too small to see. */
 .ws-model-preview {
     flex: 0 1 auto;
     display: flex;
@@ -726,7 +722,7 @@
     width: 100%;
     aspect-ratio: 1 / 1;
     max-height: calc(100% - 248px);
-    min-height: 160px;
+    min-height: 240px;
     border: 1px solid var(--cm-border);
     border-radius: var(--mantine-radius-sm);
     background: var(--cm-bg-secondary);
@@ -807,7 +803,8 @@
 /* Details, under Name, as wide as the model: it takes the column's height left under Name (190 px
    at least, about five rows) and scrolls past it, every row's whole value wrapped onto as many
    lines as it needs. */
-.ws-model-details-box {
+.ws-model-details-box,
+.ws-model-files-box {
     flex: 1 1 0;
     min-height: 190px;
     display: flex;
@@ -815,7 +812,13 @@
     gap: 4px;
 }
 
-.ws-model-details-box .ws-model-scroll {
+/* Files, the loading column's last box, down to the footer: at least a few lines. */
+.ws-model-files-box {
+    min-height: 120px;
+}
+
+.ws-model-details-box .ws-model-scroll,
+.ws-model-files-box .ws-model-scroll {
     flex: 1 1 0;
     min-height: 48px;
     max-height: none;

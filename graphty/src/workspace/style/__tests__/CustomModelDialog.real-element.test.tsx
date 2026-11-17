@@ -143,12 +143,17 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
     assert.isAtLeast(right.left, left.right - 0.5, `what was loaded is right of the loading (${where})`);
     assert.isBelow(Math.abs(right.top - left.top), 1, `the columns start together (${where})`);
     assert.isAbove(left.width, 200, `the loading column has room (${where})`);
-    // The left column: the loaded file with its x, and Files when the model has them.
+    // The left column: the loaded file with its x, then Files, down to the column's end: no blank
+    // column beside the model, a single file included (owner, 2026-11-14).
     const file = dialog.querySelector(".cm-file-loaded");
     assert.isNotNull(file, `the loaded file's line (${where})`);
     assert.isTrue(main.contains(file), `the loaded file on the left (${where})`);
-    const files = within(dialog).queryByTestId("model-files");
-    assert.isTrue(files === null || main.contains(files), `Files on the left (${where})`);
+    const files = within(dialog).getByTestId("model-files");
+    assert.isTrue(main.contains(files), `Files on the left (${where})`);
+    if (main.scrollHeight <= main.clientHeight + 1) {
+        const end = files.getBoundingClientRect().bottom;
+        assert.isBelow(Math.abs(end - left.bottom), 2, `Files reaches the column's end (${where})`);
+    }
     assert.isNull(within(dialog).queryByTestId("model-settings"), `no settings inside the dialog (${where})`);
     // The right column, in order, each directly under the one before.
     const preview = within(dialog).getByTestId("model-preview");
@@ -172,7 +177,7 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
         assert.isBelow(below.top - above.bottom, 16, `directly under it (${where})`);
     }
     assert.isTrue(nameRow.contains(gear), `the gear beside Name (${where})`);
-    assert.isAtLeast(preview.getBoundingClientRect().height, 150, `the model drawn at a size to see (${where})`);
+    assert.isAtLeast(preview.getBoundingClientRect().height, 239.5, `the model drawn at a size to see (${where})`);
     // The columns share the width: the model as wide as its column, as wide as the loading's.
     assert.isAbove(right.width, left.width * 0.8, `what was loaded has as much room as the loading (${where})`);
     assert.isAbove(preview.getBoundingClientRect().width, right.width - 20, `the model fills its column (${where})`);
@@ -682,13 +687,22 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        // One line says what was loaded: its name and the x, with no chooser or address under it.
-        const line = within(dialog).getByTitle("quad.glb");
-        assert.isTrue(line.classList.contains("cm-file-loaded"), "the file loader's loaded line");
+        // One line says what was loaded: its name and the x, with no chooser or address under it
+        // (Files under it lists the file too).
+        const line = within(dialog)
+            .getAllByTitle("quad.glb")
+            .find((el) => el.classList.contains("cm-file-loaded"));
+        assert.isDefined(line, "the file loader's loaded line");
         assert.equal(line.textContent, "quad.glb");
         assert.isNull(within(dialog).queryByRole("button", { name: "Choose file" }), "no chooser");
         assert.isNull(within(dialog).queryByRole("textbox", { name: "Model address" }), "no address field");
-        assert.lengthOf(within(dialog).getAllByText("quad.glb"), 1, "the name is said once");
+        // Outside Files' list of what the model was loaded from, the name is said once.
+        const files = within(dialog).getByTestId("model-files");
+        const said = within(dialog)
+            .getAllByText("quad.glb")
+            .filter((el) => !files.contains(el));
+        assert.lengthOf(said, 1, "the name is said once");
+        assert.isNotNull(within(files).getByText("quad.glb"), "Files lists the one file loaded");
         const name = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(name);
         await userEvent.type(name, "Panel");
@@ -907,7 +921,7 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }), "Model settings closed");
         });
         assert.isTrue(dialog.isConnected, "the dialog stays");
-        assert.isNotNull(within(dialog).queryByTitle("quad.glb"), "with its model");
+        assert.isNotEmpty(within(dialog).queryAllByTitle("quad.glb"), "with its model");
         // With both gone, Escape closes the dialog again.
         await userEvent.click(within(dialog).getByRole("textbox", { name: "Name" }));
         await userEvent.keyboard("{Escape}");
@@ -1349,6 +1363,25 @@ describe("the Load custom model dialog, on the real element", () => {
             const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
             assert.include(record?.skipped ?? [], "Textures/colormap.png", "added without its picture");
         });
+    });
+
+    it("takes a picture out with the x on its line while it still downloads (#8609)", async () => {
+        const base = "https://models.example.com/drop/";
+        const served = await policeWaitingForPicture(base);
+        await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.tab();
+        await previewOf(dialog, "police");
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        assert.isNotNull(within(files).getByText("Downloading"), "the picture is still on its way");
+        await userEvent.click(within(files).getByRole("button", { name: "Remove colormap.png" }));
+        await waitFor(() => {
+            assert.isTrue(served.stopped, "the picture's download stopped");
+        });
+        assert.isNotNull(await within(dialog).findByRole("group", { name: "colormap.png" }), "and is asked for");
+        assert.isNull(within(files).queryByText("Downloading"));
+        await previewOf(dialog, "police");
     });
 
     it("replaces a load still under way with a model chosen through Choose file, and tips Choose folder", async () => {

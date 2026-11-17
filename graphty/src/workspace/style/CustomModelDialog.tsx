@@ -21,19 +21,7 @@ import {
     type ProgressChange,
     type TransactionScope,
 } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Checkbox,
-    Group,
-    Loader,
-    Modal,
-    ScrollArea,
-    Stack,
-    Text,
-    TextInput,
-    Tooltip,
-} from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Loader, Modal, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
@@ -1465,8 +1453,9 @@ export function CustomModelDialog({
     const unused = unusedParts.map((p) => p.name);
     const unusedFiles = new Set(unused.map((n) => n.split("/").pop()));
     const facts = new Map(waitingFor.map((fact) => [String(fact.params.name ?? ""), fact]));
-    // One self-contained file says nothing the preview and Name do not: no Files line.
-    const showFiles = held !== null && (parts.length > 1 || waits);
+    // Files lists what the model was loaded from, a single file too: the loading column holds what
+    // was loaded down to the footer, as Details does beside it.
+    const showFiles = held !== null;
     // The parts that need an answer come first, so the list's scroll never hides them.
     const listed = [...parts.filter((p) => facts.has(p.name)), ...parts.filter((p) => !facts.has(p.name))];
     // A model waiting for pictures or materials is read as it is drawn meanwhile: set up before Add.
@@ -1648,10 +1637,11 @@ export function CustomModelDialog({
             </div>
         );
 
-    // Files: under the file, in the loading column, a list that scrolls past its height.
+    // Files: under the file, in the loading column, a list that takes the column's height left and
+    // scrolls past it.
     const filesBox =
         held === null || !showFiles || busy ? null : (
-            <Stack gap={4}>
+            <Stack gap={4} className="ws-model-files-box">
                 <Text size="sm" id={`${uid}-files`}>
                     {CUSTOM_MODEL.files}
                 </Text>
@@ -1679,7 +1669,17 @@ export function CustomModelDialog({
                         {listed.map((part) => {
                             const fact = facts.get(part.name);
                             if (fact?.params.downloading === true) {
-                                return <PartLine key={part.name} part={part} downloading />;
+                                // Its x stops that download: the model then asks for the picture.
+                                return (
+                                    <PartLine
+                                        key={part.name}
+                                        part={part}
+                                        downloading
+                                        onDrop={() => {
+                                            dropPart(part.name);
+                                        }}
+                                    />
+                                );
                             }
                             return fact === undefined ? (
                                 <PartLine
@@ -1999,13 +1999,11 @@ export function CustomModelDialog({
                 data-testid="custom-model"
                 data-over={over || undefined}
             >
-                <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
-                    <Stack gap="sm" className="ws-model-left">
-                        {top}
-                        {setBox}
-                        {filesBox}
-                    </Stack>
-                </ScrollArea>
+                <Stack gap="sm" className="ws-model-main">
+                    {top}
+                    {setBox}
+                    {filesBox}
+                </Stack>
                 {side}
                 <Modal
                     opened={settings !== null}

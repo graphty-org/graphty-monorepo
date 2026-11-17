@@ -319,6 +319,57 @@ describe("fetching a model by URL", () => {
         );
     });
 
+    it("stops fetching one picture by its name while the others arrive", async () => {
+        const gltf = JSON.parse(new TextDecoder().decode(fixture("gltf-textured", "cube.gltf"))) as {
+            images: { uri: string }[];
+            textures: { source: number }[];
+            materials: { emissiveTexture?: { index: number } }[];
+        };
+        gltf.images.push({ uri: "glow.png" });
+        gltf.textures.push({ source: 1 });
+        gltf.materials[0].emissiveTexture = { index: 1 };
+        const answers: Record<string, Uint8Array> = {
+            [`${BASE}cube.gltf`]: new TextEncoder().encode(JSON.stringify(gltf)),
+            [`${BASE}cube.bin`]: fixture("gltf-textured", "cube.bin"),
+            [`${BASE}glow.png`]: fixture("gltf-textured", "cube.png"),
+        };
+        const asked: string[] = [];
+        const one = new AbortController();
+        // cube.png never arrives: the reader stops that one picture while it downloads.
+        vi.stubGlobal("fetch", (url: string, init: { signal: AbortSignal }) => {
+            asked.push(url);
+            const bytes = answers[url];
+            if (bytes === undefined) {
+                queueMicrotask(() => {
+                    one.abort();
+                });
+                return new Promise((_, reject) => {
+                    init.signal.addEventListener("abort", () => {
+                        reject(new Error("stopped"));
+                    });
+                });
+            }
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                redirected: false,
+                url,
+                headers: { get: (name: string) => (name === "content-length" ? String(bytes.length) : null) },
+                body: null,
+                arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
+            });
+        });
+        const error = await refusal(
+            fetchModelSet(new URL(`${BASE}cube.gltf`), DEFAULT_MODEL_LIMITS, undefined, undefined, undefined, {
+                part: (name) => (name === "cube.png" ? one.signal : undefined),
+            }),
+        );
+        assert.strictEqual(error.code, "E_MODEL_MISSING_FILE");
+        assert.strictEqual(error.fact.params.name, "cube.png");
+        assert.sameMembers([...(error.held?.given.keys() ?? [])], ["cube.gltf", "cube.bin", "glow.png"]);
+        assert.strictEqual(asked.filter((url) => url.endsWith("cube.png")).length, 1, "stopped, not tried again");
+    });
+
     it("stops reading a body that does not end with its request when the caller stops", async () => {
         vi.stubGlobal("fetch", () =>
             Promise.resolve({

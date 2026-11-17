@@ -202,12 +202,6 @@
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
         },
         {
-            "file": "src/layout/D3GraphLayoutEngine.ts",
-            "function": "D3GraphEngine.readRadii",
-            "case": "not agreed",
-            "reason": "Maps the bodies it holds to the element's rows to read their drawn sizes for nodeGap."
-        },
-        {
             "file": "src/layout/NGraphLayoutEngine.ts",
             "function": "NGraphEngine.publishPositions",
             "case": "not agreed",
@@ -224,12 +218,6 @@
             "function": "NGraphEngine.loadArrangement",
             "case": "not agreed",
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
-        },
-        {
-            "file": "src/layout/NGraphLayoutEngine.ts",
-            "function": "NGraphEngine.gather",
-            "case": "not agreed",
-            "reason": "Maps the bodies it holds to the element's rows to read their drawn sizes for nodeGap."
         },
         {
             "file": "src/layout/SimulationLayoutEngine.ts",

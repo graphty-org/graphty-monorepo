@@ -92,8 +92,8 @@ export interface RowExtent {
 export interface D3RowSource {
     getSnapshot(): GraphSnapshot;
     readonly positions: ElementPositions;
-    /** How far a row reaches as the row table measured it; null before it is measured. */
-    extentOf?(row: number): RowExtent | null;
+    /** How far a node's row reaches as the row table measured it; null for no row, or before it is measured. */
+    extentOf?(id: NodeIdType): RowExtent | null;
 }
 
 /**
@@ -248,6 +248,8 @@ export class D3GraphEngine extends LayoutEngine {
     private rowSource: D3RowSource | null = null;
     /** Rows were added since the last refresh. */
     private rowsAdded = false;
+    /** The ids of the follower nodes and rows, as the last hold read them. */
+    private followerIds: ReadonlySet<NodeIdType> = new Set();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** The links of edges stored with no `Edge`, by edge id. See {@link D3GraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, D3InputEdge>();
@@ -401,11 +403,8 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         // A row drawn with no `Node` (renderPath "batched") is sized from the row table, as its `Node` would be.
-        const source = this.rowSource;
-        const snapshot = this.rowBodies.size > 0 && source ? wholeGraph(source) : undefined;
-        for (const id of snapshot === undefined ? [] : this.rowBodies.keys()) {
-            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
-            const size = row === INVALID_INDEX || this.isFollower(row) ? null : (source?.extentOf?.(row) ?? null);
+        for (const id of this.rowBodies.keys()) {
+            const size = this.followerIds.has(id) ? null : (this.rowSource?.extentOf?.(id) ?? null);
             radii.set(id, size === null ? 0 : spacingOf(size, flat) + nodeGap / 2);
         }
 
@@ -971,6 +970,8 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         this.holdRowBodies(followers);
+        this.followerIds = followers;
+        this.radiiStale = true;
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {

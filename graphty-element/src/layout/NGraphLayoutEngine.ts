@@ -183,6 +183,8 @@ export class NGraphEngine extends LayoutEngine {
     private readonly rowNodes = new Map<NodeIdType, NGraphNode>();
     /** Where a row body finds its row and publishes, once rows were added. */
     private rowSource: D3RowSource | null = null;
+    /** The ids of the follower rows drawn with no `Node`, as the last hold read them. */
+    private readonly rowFollowers = new Set<NodeIdType>();
     edgeMapping = new Map<Edge, NGraphLink>();
     /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, NGraphLink>();
@@ -458,12 +460,9 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         // A row drawn with no `Node` (renderPath "batched") is sized from the row table, as its `Node` would be.
-        const source = this.rowSource;
-        const snapshot = this.rowNodes.size > 0 && source ? wholeGraph(source) : undefined;
-        for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
-            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
-            const size = row === INVALID_INDEX ? null : (source?.extentOf?.(row) ?? null);
-            add(ngraphNode, size ?? { radius: 0, half: null }, row !== INVALID_INDEX && this.isFollower(row));
+        for (const [id, ngraphNode] of this.rowNodes) {
+            const size = this.rowSource?.extentOf?.(id) ?? null;
+            add(ngraphNode, size ?? { radius: 0, half: null }, this.rowFollowers.has(id));
         }
 
         return { largest, x: max[0] - min[0], y: max[1] - min[1], z: max[2] - min[2] };
@@ -781,11 +780,15 @@ export class NGraphEngine extends LayoutEngine {
      */
     private holdRowBodies(): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        this.rowFollowers.clear();
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
                 this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
                 this.weigh(row, id);
+                if (this.isFollower(row)) {
+                    this.rowFollowers.add(id);
+                }
             }
         }
     }

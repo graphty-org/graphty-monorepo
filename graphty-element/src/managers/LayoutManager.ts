@@ -1786,11 +1786,11 @@ export class LayoutManager implements Manager {
     /**
      * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
      * answer for `layoutRadius` and `drawnHalfExtents`.
-     * @param row - The row.
-     * @returns The reach; null off renderPath "batched", or before the row is measured.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
      */
     private rowExtent(row: number): RowExtent | null {
-        if (this.dataManager.renderLimits?.batched() !== true) {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
             return null;
         }
 
@@ -1818,7 +1818,7 @@ export class LayoutManager implements Manager {
                 engine.addRows(ids, {
                     getSnapshot: () => wholeGraph(this.dataManager),
                     positions: this.dataManager[WRITABLE_LANE],
-                    extentOf: (row) => this.rowExtent(row),
+                    extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
                 });
             };
         }
@@ -1940,7 +1940,7 @@ export class LayoutManager implements Manager {
         const source: D3RowSource = {
             getSnapshot: () => wholeGraph(this.dataManager),
             positions: this.dataManager[WRITABLE_LANE],
-            extentOf: (row) => this.rowExtent(row),
+            extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
         };
         const byRow = new Map<number, Node>();
         const later: Node[] = [];

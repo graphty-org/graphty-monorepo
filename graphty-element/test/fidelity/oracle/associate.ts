@@ -1568,31 +1568,49 @@ function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | un
     }
     let at = byLine.get(run);
     if (at === undefined) {
-        at = leaveBox(run, boxOfNode(node));
+        at = leaveBox(run, boxOfNode(node), node.shape === "ellipse");
         byLine.set(run, at);
     }
     return at;
 }
 
 /**
- * Where a line starting inside a box first crosses its outline.
+ * Where a line starting inside a node crosses its outline, found as vis-network finds where to stand an arrowhead: by
+ * halving the line's run from its middle, away from the node while the point is inside it and back while outside
+ * (vis-network 9 `_findBorderPositionBezier`), against the ellipse for an ellipse node and the box for any other. On a
+ * line that crosses the outline once that is the crossing; on a curve that comes back into the node (between
+ * overlapping nodes) it need not be the first (json-vis-siblings: Deanna Jagow -> Sarah Maltese's head stands at
+ * Sarah's outline beside Deanna, where the curve enters Sarah's ellipse from its source).
  * @param run - the line, starting inside the box
- * @param box - the box
+ * @param box - the node's box
+ * @param ellipse - whether the node is the ellipse its box holds
  * @returns the crossing, or the line's start where it does not start inside
  */
-function leaveBox(run: readonly Pt[], box: PBox): Pt {
+function leaveBox(run: readonly Pt[], box: PBox, ellipse = false): Pt {
     const under = (p: Pt): boolean => p[0] > box.x0 + 1 && p[0] < box.x1 - 1 && p[1] > box.y0 + 1 && p[1] < box.y1 - 1;
-    const out = run.findIndex((p) => !under(p));
-    if (out <= 0) {
+    if (run.length < 2 || !under(run[0])) {
         return run[0];
     }
-    // the crossing of the box's outline on the segment that leaves it, by bisection
-    let [a, b] = [run[out - 1], run[out]];
-    for (let i = 0; i < 20; i++) {
-        const m: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-        [a, b] = under(m) ? [m, b] : [a, m];
+    const [ex, ey, rx, ry] = [
+        (box.x0 + box.x1) / 2,
+        (box.y0 + box.y1) / 2,
+        (box.x1 - box.x0) / 2,
+        (box.y1 - box.y0) / 2,
+    ];
+    const within = ellipse ? (p: Pt): boolean => ((p[0] - ex) / rx) ** 2 + ((p[1] - ey) / ry) ** 2 < 1 : under;
+    // the point a share of the way along the run, by its points, as its curve's parameter
+    const at = (u: number): Pt => {
+        const f = u * (run.length - 1);
+        const i = Math.min(Math.floor(f), run.length - 2);
+        const [p, q] = [run[i], run[i + 1]];
+        return [p[0] + (q[0] - p[0]) * (f - i), p[1] + (q[1] - p[1]) * (f - i)];
+    };
+    let [lo, hi] = [0, 1];
+    for (let i = 0; i < 30; i++) {
+        const m = (lo + hi) / 2;
+        [lo, hi] = within(at(m)) ? [m, hi] : [lo, m];
     }
-    return b;
+    return at(hi);
 }
 
 /**
@@ -1944,12 +1962,19 @@ export function arrowheadEdge(
     // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
     // spans its middle (gml-synthetic-coverage, 29->40).
     const armsOnly = p.closed && p.points.length > 2 && areaCentroid(p.points) === null;
+    // where lines run on to the nodes' centers (vis-network, which paints its arrowheads after every node), a shape
+    // drawn after a later node's drawing is no piece of an earlier node's: a head over a neighbor's center
+    // (json-vis-siblings: five heads left as strays)
+    const lastBefore = centerLines
+        ? Math.max(...nodes.map((m) => (m.order !== undefined && m.order < p.index ? m.order : -1)))
+        : Number.NEGATIVE_INFINITY;
+    const laterDrawn = (n: PNode): boolean => n.order !== undefined && n.order < lastBefore;
     if (
         !lineEnd &&
         !armsOnly &&
         nodes.some(
             (n) =>
-                inside([n.cx, n.cy], p.box) ||
+                (!laterDrawn(n) && inside([n.cx, n.cy], p.box)) ||
                 // its middle on the outline is its line's end, not the node's inside (yEd's transparent_circle)
                 (inside(c, boxOfNode(n), -ON_OUTLINE_PX) && size >= 0.5 * Math.sqrt(n.w * n.h)),
         )
@@ -1965,7 +1990,21 @@ export function arrowheadEdge(
     const reach = size * 1.5 + 3;
     const from = (q: Pt): number => Math.hypot(c[0] - q[0], c[1] - q[1]);
     const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    // the searches below measure the same tips and the same distances off each line: each is measured once
+    const tips = new Map<PEdge, Partial<Record<string, number>>>();
+    const tipOf = (e: PEdge, end: "source" | "target", across: boolean): number => {
+        let byEnd = tips.get(e);
+        if (byEnd === undefined) {
+            byEnd = {};
+            tips.set(e, byEnd);
+        }
+        return (byEnd[`${end}${String(across)}`] ??= tipGap(p, e, end, nodes, across));
+    };
+    // a head whose tip touches where its line, run on to the center, meets the node is at that end, not through the
+    // node, however the line turns inside it: a curve between overlapping nodes meets its target beside its source and
+    // runs on through the target (json-vis-siblings: Deanna Jagow -> Sarah Maltese)
     const pastNode = (e: PEdge, end: "source" | "target"): boolean =>
+        !(centerLines && tipOf(e, end, false) <= 1) &&
         runsThroughNode(p.points, e, end, nodeById(nodes, end === "source" ? e.source : e.target));
     const near = nearestEnd(
         edges,
@@ -2027,16 +2066,6 @@ export function arrowheadEdge(
     // the head is the line's it lies along, its middle on that line, never one it merely touches (json-vis-siblings:
     // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
     // edges drawn over one another, a line's two ends) go by the nearest tip
-    // both searches below measure the same tips and the same distances off each line: each is measured once
-    const tips = new Map<PEdge, Partial<Record<string, number>>>();
-    const tipOf = (e: PEdge, end: "source" | "target", across: boolean): number => {
-        let byEnd = tips.get(e);
-        if (byEnd === undefined) {
-            byEnd = {};
-            tips.set(e, byEnd);
-        }
-        return (byEnd[`${end}${String(across)}`] ??= tipGap(p, e, end, nodes, across));
-    };
     const offs = new Map<PEdge, number>();
     const offOf = (e: PEdge): number => {
         let d = offs.get(e);
@@ -2046,7 +2075,7 @@ export function arrowheadEdge(
         }
         return d;
     };
-    const touching = (across: boolean): { e: PEdge; end: ArrowEnd } | null => {
+    const touching = (across: boolean): { e: PEdge; end: "source" | "target" } | null => {
         const onLine = nearestEnd(
             edges,
             (e, end) => (tipOf(e, end, across) <= 3 && !pastNode(e, end) ? offOf(e) : Number.POSITIVE_INFINITY),
@@ -2067,11 +2096,14 @@ export function arrowheadEdge(
                   ["source", "target"],
               );
     };
-    // by a corner first; only a head no line's end touches at a corner, and no line's middle it points at, is measured
-    // by its sides and its front (a bar, a box, a crow at the node's outline): a neighbor's head at a crowded node lies
-    // with a side by many ends (json-vis-siblings), a middle cap's base across its line by the source
+    // by a corner first, unless it only comes near the end and points at a line's middle (vis-network-specimen-arrows'
+    // scale-factor-middle: a middle cap's base corner 2.8 px from where the line leaves its 7 px source); only a head no
+    // line's end touches at a corner, and no line's middle it points at, is measured by its sides and its front (a bar,
+    // a box, a crow at the node's outline): a neighbor's head at a crowded node lies with a side by many ends
+    // (json-vis-siblings), a middle cap's base across its line by the source
+    const cornered = centerLines ? touching(false) : null;
     const best =
-        (centerLines ? touching(false) : null) ??
+        (cornered !== null && (pointed === null || tipOf(cornered.e, cornered.end, false) <= 1) ? cornered : null) ??
         pointed ??
         (centerLines ? touching(true) : null) ??
         // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
@@ -2462,12 +2494,28 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
             : (labelInside(n) || iconOf.has(n)) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
         bw(p.box) <= 1.5 * n.w + 2 &&
         bh(p.box) <= 1.5 * n.h + 2;
+    // A node's shapes are drawn together: a shape centered on a node that already has a shape, with another node's
+    // shape drawn in between, is drawn over it later and is no piece of it (json-vis-siblings: vis-network paints its
+    // arrowheads after every node, and five lying on a neighbor's center were read as its body, their lines left headless)
+    const shaped = new Set<string>();
+    let lastShapeOf: string | null = null;
     return prims.map((p) => {
         if (p.hint !== null || (p.kind !== "shape" && p.kind !== "image" && p.text === null)) {
             return p;
         }
         const at = drawn.nodes.filter((n) => on(p, n));
-        return at.length === 1 ? { ...p, hint: { role: "node", id: at[0].id, key: at[0].id } } : p;
+        if (at.length !== 1) {
+            return p;
+        }
+        const { id } = at[0];
+        if (p.kind === "shape") {
+            if (shaped.has(id) && lastShapeOf !== id) {
+                return p;
+            }
+            shaped.add(id);
+            lastShapeOf = id;
+        }
+        return { ...p, hint: { role: "node", id, key: id } };
     });
 }
 

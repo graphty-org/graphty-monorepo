@@ -455,7 +455,7 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 The `design/` directory contains architecture documentation:
 
-- `monorepo-design.md` - Overall architecture
+- `monorepo/monorepo-design.md` - Overall architecture
 - `ci/channels-pipeline.md` - The pipeline: pull requests, canary, nightly, production
 - `graph-format/graph-format-design.md` - The shared graph data format and the consumer migration
 - `graph-samples/graph-samples-design.md` - The generators and datasets package: API, the seed determinism contract, dataset hosting and licensing, roadmap
@@ -472,7 +472,7 @@ The `design/` directory contains architecture documentation:
 | `graphty-element/src/Node.ts`            | Node implementation       |
 | `graphty-element/src/Edge.ts`            | Edge implementation       |
 | `algorithms/src/index.ts`                | All algorithm exports     |
-| `layout/src/layouts/index.ts`            | All layout exports        |
+| `layout/src/index.ts`                    | All layout exports        |
 | `graphty/src/App.tsx`                    | React integration example |
 
 ### Package CLAUDE.md Files

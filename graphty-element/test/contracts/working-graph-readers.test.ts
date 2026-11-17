@@ -176,6 +176,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     // The colours the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
     "assets.add()": "writes",
+    "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",
     "assets.files()": "not the graph",
     "assets.find()": "not the graph",
@@ -385,6 +386,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "network.setProjectHosts()": "writes",
     "notes.add()": "writes",
     "notes.authors()": "not the graph",
+    "notes.tags()": "not the graph",
     "notes.counts()": "not the graph",
     "notes.get()": "not the graph",
     "notes.list()": "not the graph",

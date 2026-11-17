@@ -689,19 +689,19 @@ export const CustomModelEmpty: Story = nodeModelsStory(
     "Custom model, empty",
 );
 
-/** The dialog with police.glb and its picture loaded: Name and Color left, the preview graphty-element draws right with its rotate buttons and Details. */
+/** The dialog with police.glb and its picture loaded: Color and Files left, the live preview graphty-element draws right (drag to turn it) with Reset view in its corner, Name under it, its rotate buttons and Details. */
 export const CustomModelLoaded: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, loaded",
 );
 
 /**
- * The dialog with police.glb whose picture is named paint.png: Files open on the missing part and
- * Use file, and the preview draws police with a plain stand-in for the picture.
+ * The dialog with police.glb whose picture is named paint.png: Files lists the missing part first
+ * with Use file, and the preview draws police with a plain stand-in for the picture.
  */
 export const CustomModelMissingParts: Story = nodeModelsStory(
     sceneStory(async () => {
@@ -709,7 +709,7 @@ export const CustomModelMissingParts: Story = nodeModelsStory(
         await chooseInDialog(dialog, await carKit("paint.png"));
         const files = await within(dialog).findByTestId("model-files");
         await within(files).findByRole("combobox", { name: "File for colormap.png" });
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, missing parts",
 );
@@ -729,12 +729,12 @@ export const CustomModelUrlError: Story = nodeModelsStory(
     "Custom model, address error",
 );
 
-/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides and Light. */
+/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides, Light and Wireframe. */
 export const CustomModelMoreOptions: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
         await within(dialog).findByRole("combobox", { name: /^Up, / });
         // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
@@ -744,13 +744,12 @@ export const CustomModelMoreOptions: Story = nodeModelsStory(
     "Custom model, more options",
 );
 
-/** The dialog with police loaded and Details open: the model's facts as a table under the preview. */
+/** The dialog with police loaded: the model's facts as a table under the preview, in a list that scrolls on its own. */
 export const CustomModelDetails: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Details" }));
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
     }),
     "Custom model, details",
@@ -808,7 +807,7 @@ export const CustomModelPointCloud: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
-        await within(dialog).findByRole("img", { name: "points preview" });
+        await within(dialog).findByRole("img", { name: /^points preview/ });
         await within(dialog).findByText("Approximated");
     }),
     "Custom model, point cloud",
@@ -840,7 +839,7 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         await userEvent.click(await page().findByRole("menuitem", { name: "Add custom model..." }));
         const dialog = await page().findByRole("dialog", { name: "Load custom model" });
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
         await waitFor(() => {
             expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
@@ -856,6 +855,20 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         const tile = within(own).getByRole("button", { name: "police" });
         await waitFor(() => {
             expect(tile.querySelector("img")).not.toBeNull();
+        });
+        // The pop-over focuses Box as it opens, before the tile pictures arrive, and a picture drawn
+        // after the focus outline left one pixel of the outline's corner drawn either way. Once every
+        // picture is decoded, the arrow keys take focus off Box and back, so the outline is drawn
+        // last, the same on every run.
+        await Promise.all([...models.querySelectorAll("img")].map(async (picture) => picture.decode()));
+        const box = within(models).getByRole("button", { name: "Box" });
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            expect(document.activeElement).not.toBe(box);
+        });
+        await userEvent.keyboard("{ArrowLeft}");
+        await waitFor(() => {
+            expect(document.activeElement).toBe(box);
         });
     }),
     "Custom model, project tile",

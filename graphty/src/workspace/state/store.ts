@@ -313,6 +313,8 @@ export interface WorkspaceState {
      * showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "nodes" | "edges";
+    /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
+    readonly analyzeOn: string | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -324,9 +326,15 @@ export interface WorkspaceState {
     readonly notice: Notice | null;
     /**
      * The note being written in the Notes place: what it is about, fixed when its door opened
-     * it, and the text so far, kept until it is saved or cleared. Null when no editor is open.
+     * it, and the text and tags so far, kept until it is saved or cleared. Null when no editor is open.
      */
-    readonly noteDraft: { readonly targets: readonly NoteTargetInput[]; readonly text: string } | null;
+    readonly noteDraft: {
+        readonly targets: readonly NoteTargetInput[];
+        readonly text: string;
+        readonly tags?: readonly string[];
+    } | null;
+    /** The reader closed the "no author name" warning over the note editor, for this page view. */
+    readonly authorWarningClosed: boolean;
     /**
      * The one polite status line for the core path: a load finished with its size, a run
      * started, a run finished. Each replaces the last.
@@ -431,11 +439,13 @@ export const ON_RELOAD = {
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
+    analyzeOn: "fresh: set when a Quick actions row opens Analyze",
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
     notice: "fresh: a notice",
     noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
+    authorWarningClosed: "fresh: closed for this page view only",
     announcement: "fresh: a status line already spoken",
     announced: "fresh: a count of status lines",
     opening: "fresh: an open in flight",
@@ -539,10 +549,12 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
+    analyzeOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
+    authorWarningClosed: false,
     announcement: "",
     announced: 0,
     opening: null,

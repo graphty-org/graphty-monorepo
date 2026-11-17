@@ -54,6 +54,7 @@ import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/re
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
@@ -4465,6 +4466,34 @@ export class Graphty extends LitElement {
      */
     async modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string> {
         return this.#graph.modelThumbnail(ref, options);
+    }
+
+    /**
+     * One node drawn as a model, live, in a canvas that fills an element of yours (a sized `div`):
+     * the reader turns it by dragging, zooms
+     * with the wheel or a pinch, and turns it with the arrow keys while the canvas has focus, and a
+     * clip named by `node.modelAnimation` plays at `node.modelAnimationSpeed`. For a model picker or
+     * an import dialog. The preview draws with its own small WebGL context until you dispose it.
+     * @param ref - What `node.model` takes: an asset id from `session.assets.add`, a sample's id,
+     *     or a URL the session holds.
+     * @param host - The element the preview's canvas fills; size it with CSS. The canvas is
+     *     `preview.canvas`, for you to label; `dispose` removes it.
+     * @param options - The node's style values (`node.color`, the `node.model*` settings,
+     *     `node.unlit`, `node.wireframe`) and `standInMissing`, as for `modelThumbnail`.
+     * @returns The preview, once the model is drawn: `update(style)` redraws it with other values,
+     *     keeping the reader's view; `resetView()`; `dispose()`.
+     * @throws GraphtyError the same codes as `modelThumbnail`.
+     * @example
+     * ```typescript
+     * const asset = await element.session.assets.add(input.files);
+     * const preview = await element.modelPreview(asset.id, box, { style: { "node.color": "#e63946" } });
+     * preview.canvas.setAttribute("aria-label", "Model preview, drag to turn");
+     * await preview.update({ "node.modelAnimation": "Walk" });
+     * preview.dispose();
+     * ```
+     */
+    async modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview> {
+        return this.#graph.modelPreview(ref, host, options);
     }
 
     /**

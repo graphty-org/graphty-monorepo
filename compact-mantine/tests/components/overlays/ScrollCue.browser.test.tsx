@@ -84,6 +84,33 @@ describe("ScrollArea scrollCue (browser)", () => {
         });
     });
 
+    it("draws the keyboard ring on the unmasked root, so the fade never hides it", async () => {
+        render(<List count={30} cue />);
+        const root = screen.getByTestId("root");
+        const viewport = root.querySelector(".cm-scroll-viewport") as HTMLElement;
+        await userEvent.tab();
+        expect(document.activeElement).toBe(viewport);
+        await userEvent.keyboard("{PageDown}");
+        await untilPasses(() => {
+            expect(root.hasAttribute("data-cue-top")).toBe(true);
+            expect(root.hasAttribute("data-cue-bottom")).toBe(true);
+        });
+        expect(getComputedStyle(viewport).outlineStyle).toBe("none");
+        expect(getComputedStyle(root).outlineStyle).toBe("solid");
+        expect(getComputedStyle(root).outlineWidth).toBe("1px");
+        expect(getComputedStyle(root).maskImage).toBe("none");
+    });
+
+    it("keeps the ring on the viewport without the cue", async () => {
+        render(<List count={30} />);
+        const root = screen.getByTestId("root");
+        await userEvent.tab();
+        const viewport = root.querySelector(".cm-scroll-viewport") as HTMLElement;
+        expect(document.activeElement).toBe(viewport);
+        expect(getComputedStyle(viewport).outlineStyle).toBe("solid");
+        expect(getComputedStyle(root).outlineStyle).toBe("none");
+    });
+
     it("shows nothing when the content fits", async () => {
         render(<List count={3} cue />);
         const root = screen.getByTestId("root");

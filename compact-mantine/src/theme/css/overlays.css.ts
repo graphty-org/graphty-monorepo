@@ -501,6 +501,9 @@ const css = `
 }
 .cm-scroll-root[data-cue-top] > .cm-scroll-viewport { --cm-cue-top: 16px; }
 .cm-scroll-root[data-cue-bottom] > .cm-scroll-viewport { --cm-cue-bottom: 16px; }
+/* The fade masks the viewport, ring and all, so with the cue the ring is drawn on the unmasked root. */
+.cm-scroll-root[data-scroll-cue] > .cm-scroll-viewport:focus-visible { outline: none; }
+.cm-scroll-root[data-scroll-cue]:has(> .cm-scroll-viewport:focus-visible) { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 
 /* ---------------------------------------------------------------- 8.8 feedback */
 

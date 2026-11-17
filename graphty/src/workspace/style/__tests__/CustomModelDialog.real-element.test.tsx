@@ -1189,9 +1189,13 @@ describe("the Load custom model dialog, on the real element", () => {
         const spin = await screen.findByRole("option", { name: /^spin, / });
         assert.isNull(screen.queryByRole("option", { name: "Still" }), "playing, the menu offers only clips");
         await userEvent.click(spin);
+        // Speed starts unset: the placeholder, no minus.
+        assert.isNull(within(group).queryByRole("button", { name: "Remove model speed" }));
         // Off: the clip and its Pose, no Speed or Start.
         await userEvent.click(playing);
-        await within(group).findByRole("slider", { name: "Pose" });
+        const pose = await within(group).findByRole("slider", { name: "Pose" });
+        pose.focus();
+        await userEvent.keyboard("{ArrowRight}");
         assert.isNull(within(group).queryByText("Speed"));
         assert.isNull(within(group).queryByText("Start"));
         assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }));
@@ -1199,11 +1203,15 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
         await within(group).findByText("Speed");
         assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
+        // Off and on again leaves Speed and Start unset, as they were.
+        assert.isNull(within(group).queryByRole("button", { name: "Remove model speed" }));
+        assert.isNull(within(group).queryByRole("button", { name: "Remove model start" }));
         await addModel(dialog, "Add to project");
         await waitFor(() => {
             const record = session.assets.list().find((r) => r.path === "cube.glb" && r.state === "accepted");
             assert.equal(record?.defaults?.style["node.modelAnimation"], "spin");
-            assert.equal(record?.defaults?.style["node.modelAnimationSpeed"], 1, "playing again");
+            assert.isUndefined(record?.defaults?.style["node.modelAnimationSpeed"], "playing again, at the default");
+            assert.isUndefined(record?.defaults?.style["node.modelAnimationOffset"], "the pose went with the switch");
         });
     });
 

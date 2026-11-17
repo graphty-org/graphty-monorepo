@@ -250,7 +250,8 @@ export function SettingRows({
     const shown = MODEL_SETTING_ROWS.filter((row) => channels.includes(row.channel));
     const own = (channel: Channel): unknown => values[channel] ?? inherited[channel];
     const clip = clips.find((c) => c.name === own("node.modelAnimation"));
-    const offset = values["node.modelAnimationOffset"];
+    // The held pose, the layer's own or the model's (a model added still keeps its pose as its own).
+    const offset = own("node.modelAnimationOffset");
     // Playing: a clip chosen and a speed other than 0. Off, the model holds a pose of the clip, or Still.
     const playing = clip !== undefined && own("node.modelAnimationSpeed") !== 0;
     const row = ({ channel, word, choices, unit, step }: (typeof MODEL_SETTING_ROWS)[number]): React.JSX.Element => {
@@ -328,7 +329,16 @@ export function SettingRows({
                 if (clip === undefined) {
                     write("node.modelAnimation", clips[0].name);
                 }
-                write("node.modelAnimationSpeed", 1);
+                // Back on, the speed and start the switch and Pose wrote go, so the rows read unset
+                // again; only a model whose own speed is 0 needs a speed written to play.
+                if (inherited["node.modelAnimationSpeed"] === 0) {
+                    write("node.modelAnimationSpeed", 1);
+                } else if (values["node.modelAnimationSpeed"] !== undefined) {
+                    remove("node.modelAnimationSpeed");
+                }
+                if (values["node.modelAnimationOffset"] !== undefined) {
+                    remove("node.modelAnimationOffset");
+                }
             }}
         >
             {rowOf("node.modelAnimation")}

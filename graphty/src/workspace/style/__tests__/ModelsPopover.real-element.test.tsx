@@ -165,6 +165,36 @@ describe("models in the Shape field, on the real element", () => {
         assert.equal(written(session, "node.modelAnimation"), "spin");
     });
 
+    it("shows a model added still at its held pose in the layer's Pose slider", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
+        await previewOf(dialog, "cube");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Model settings" });
+        await userEvent.click(within(settings).getByRole("switch", { name: "Playing" }));
+        const held = await within(settings).findByRole("slider", { name: "Pose" });
+        held.focus();
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.equal(held.getAttribute("aria-valuenow"), "1");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
+        });
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        const panel = await screen.findByRole("dialog", { name: "Model settings" });
+        assert.isUndefined(written(session, "node.modelAnimationOffset"), "the layer sets none");
+        const pose = await within(panel).findByRole("slider", { name: "Pose" });
+        assert.equal(pose.getAttribute("aria-valuenow"), "1", "the model's own pose");
+        assert.equal(pose.getAttribute("aria-valuetext"), "1.00 s");
+    });
+
     it("walks the samples as one Tab stop with the arrows, stopping at the edges", async () => {
         const { tab } = await openShapes();
         const models = await openModels(tab);

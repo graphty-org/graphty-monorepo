@@ -26,6 +26,7 @@ import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
 import { graphvizAttributes, graphvizError, layoutStructure } from "../../src/layout/GraphvizLayoutEngine";
 import type { SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
+import type { Node } from "../../src/Node";
 
 /**
  * A small graph.
@@ -674,17 +675,17 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
     it("is what a layout's nodeSize: label hands over, and drawn sizes stay the default", () => {
         const snapshot = graph(true, [["a", "b"]]);
         const input = { stored: snapshot } as unknown as SnapshotLayoutInput;
-        const records: Record<string, unknown>[] = [];
-        records[snapshot.ids.requireIndex("a")] = { shape: "box" };
-        records[snapshot.ids.requireIndex("b")] = {};
-        const rows = { records, ranks: [] };
+        const nodes = [
+            { id: "a", data: { shape: "box" } },
+            { id: "b", data: {} },
+        ] as unknown as Node[];
 
-        const sized = layoutStructure(input, rows, [], new Map(), false, true);
+        const sized = layoutStructure(input, nodes, [], new Map(), false, true);
         assert.isTrue(sized.labelSized);
         assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("a")), { shape: "box", label: "a" });
         assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("b")), { label: "b" });
 
-        const drawn = layoutStructure(input, rows, [], new Map());
+        const drawn = layoutStructure(input, nodes, [], new Map());
         assert.isUndefined(drawn.labelSized);
         assert.isUndefined(drawn.nodeAttributes);
         const option = layoutDescriptor("graphviz-dot")?.options.find(({ name }) => name === "nodeSize");

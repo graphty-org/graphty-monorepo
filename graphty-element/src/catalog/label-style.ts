@@ -155,6 +155,12 @@ export interface LabelStyle {
      */
     wrapTrailingSpace?: boolean;
     /**
+     * With `wrapTrailingSpace`, whether the last word of a line of the text is measured without a space after
+     * it, as Cytoscape.js measures a line (the space after every other word still counts). Unset or false, the
+     * last word's space counts too, as Cytoscape desktop measures one.
+     */
+    wrapSkipEndSpace?: boolean;
+    /**
      * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
      * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -446,6 +452,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     italic: 0,
     wrapWidth: 0,
     wrapTrailingSpace: 0,
+    wrapSkipEndSpace: 0,
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
@@ -541,6 +548,7 @@ export const RICH_TEXT_KEYS = {
     letterSize: "letterSize",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
+    wrapSkipEndSpace: "wrapSkipEndSpace",
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
@@ -704,6 +712,7 @@ const FIELD_ROWS = {
     italic: flag("Italic"),
     wrapWidth: num("Wrap Width", { min: 0 }),
     wrapTrailingSpace: flag("Wrap Trailing Space"),
+    wrapSkipEndSpace: flag("Wrap Skip End Space"),
     wrapEllipsis: flag("Wrap Ellipsis"),
     wrapAnywhere: flag("Wrap Anywhere"),
     wrapSpaceCount: num("Wrap Space Count", { min: 0 }),

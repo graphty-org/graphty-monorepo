@@ -497,7 +497,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(60, `${CYL} 155`),
                     height: v(40, `${CYL} 163`),
                     borderColor: v("#000000", `${CYL} 230`),
-                    borderWidth: v(2, `${CYL} 54`),
+                    // the half of the 2 desktop strokes that its default opaque fill leaves showing (cytoscape/lexicon.ts
+                    // `visibleBorder`)
+                    borderWidth: v(1, `${CYL} 54, halved`),
                     borderPosition: CYTOSCAPE_BORDER_INSIDE,
                     borderWaveAmplitude: v(10, CY_WAVE),
                     borderWavePeriod: v(20, CY_WAVE),
@@ -583,9 +585,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
                     labelWeight: v("normal", `${CYJS} 18495`),
                     labelPosition: v("top", `${CYJS} 18470-18471`),
-                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width; ponytail: a
-                    // line's last word has no separator there, where graphty counts a space after it too
+                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width, and a line's
+                    // last word has no separator there
                     labelWrapTrailingSpace: v(true, `${CYJS} 25218`),
+                    labelWrapSkipEndSpace: v(true, `${CYJS} 25218`),
                 },
                 edge: {
                     color: v("#999999", `${CYJS} 18639`),

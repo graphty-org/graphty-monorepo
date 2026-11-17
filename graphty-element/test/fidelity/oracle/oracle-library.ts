@@ -201,6 +201,8 @@ async function associateOracle(
                 : prims;
         return associate(named, size.width, size.height, graphty, {
             ownLayout,
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders)
+            fillOverStroke: meta.program === "Cytoscape desktop",
             ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
         });
     }

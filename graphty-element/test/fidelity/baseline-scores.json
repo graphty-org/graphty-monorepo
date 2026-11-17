@@ -236,12 +236,12 @@
     },
     "known": {
         "cx-ndex-90f78bcd": {
-            "fill": ["https://identifiers.org/aop.events/1880","https://identifiers.org/aop.events/201","https://identifiers.org/aop.events/875","https://identifiers.org/aop.events/888"],
-            "fillOpacity": ["https://identifiers.org/aop.events/1880","https://identifiers.org/aop.events/201","https://identifiers.org/aop.events/875","https://identifiers.org/aop.events/888"]
+            "fill": [],
+            "fillOpacity": []
         },
         "cx2-ndex-90f78bcd": {
-            "fill": ["https://identifiers.org/aop.events/1880","https://identifiers.org/aop.events/201","https://identifiers.org/aop.events/875","https://identifiers.org/aop.events/888"],
-            "fillOpacity": ["https://identifiers.org/aop.events/1880","https://identifiers.org/aop.events/201","https://identifiers.org/aop.events/875","https://identifiers.org/aop.events/888"]
+            "fill": [],
+            "fillOpacity": []
         },
         "cyjs-genemania": {
             "edgeColor": [],

@@ -661,6 +661,8 @@ function targetEmit(
 const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
     // it measures each word with a space after it when it wraps a label
     ["labelWrapTrailingSpace", true],
+    // and counts that space after a line's last word too
+    ["labelWrapSkipEndSpace", false],
     // it curves an edge through its bends' midpoints
     ["bendCurve", "midpoints"],
 ]);
@@ -1408,7 +1410,7 @@ export function cytoscapeWritableProperties(target: StyleTarget, dialect: Cytosc
         ...WRITERS[dialect][target].keys(),
         ...FONT_PROPS,
         ...FIXED[target].keys(),
-        ...(target === "node" ? ["labelWrapTrailingSpace"] : ["bendCurve"]),
+        ...(target === "node" ? ["labelWrapTrailingSpace", "labelWrapSkipEndSpace"] : ["bendCurve"]),
     ];
 }
 

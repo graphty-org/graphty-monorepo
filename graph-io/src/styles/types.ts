@@ -287,6 +287,12 @@ export interface NodeStyleValues {
      */
     readonly labelWrapTrailingSpace: boolean;
     /**
+     * With `labelWrapTrailingSpace`, whether a line's last word is measured without a space after it, as Cytoscape.js
+     * measures a line (`subline + word + separator`, and the last word has no separator). Unset or false, the last
+     * word's space counts too, as Cytoscape desktop's does.
+     */
+    readonly labelWrapSkipEndSpace: boolean;
+    /**
      * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
      * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */

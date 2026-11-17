@@ -861,6 +861,7 @@ function channelPlans(
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
+            ["labelWrapSkipEndSpace", [id("node.labelWrapSkipEndSpace")]],
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],

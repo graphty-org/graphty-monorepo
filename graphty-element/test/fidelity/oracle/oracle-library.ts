@@ -203,7 +203,14 @@ async function associateOracle(
             ownLayout,
             // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders)
             fillOverStroke: meta.program === "Cytoscape desktop",
-            ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
+            ...(named === prims
+                ? {}
+                : {
+                      drawn: {
+                          ...(meta.drawn as DrawnNodes),
+                          scale: (meta.observed as { scale?: number } | undefined)?.scale,
+                      },
+                  }),
         });
     }
     const png = await pngPixels(pngUrl);

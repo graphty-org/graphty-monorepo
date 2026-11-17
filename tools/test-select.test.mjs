@@ -1891,31 +1891,17 @@ describe("packBins", () => {
 
     it("plans a family's bins at what they ran, so a bin that ran over 8 minutes is planned over (#5048)", () => {
         // [family, files, recorded ms, run-group wall ms]: every bin over 8 minutes in pull request runs
-        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file
+        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file;
+        // graphty-element-browser's rows left with its re-fit to the 2026-11-17 runs (FAMILY_BIN_COST, #5404)
         const ran = [
             ["graphty", 15, 404956, 502000],
             ["graphty", 10, 429763, 537000],
-            ["graphty-element-browser", 52, 219997, 533000],
-            ["graphty-element-browser", 31, 324812, 533000],
-            ["graphty-element-browser", 93, 14386, 555000],
-            ["graphty-element-browser", 88, 37527, 571000],
-            ["graphty-element-browser", 80, 76658, 560000],
             ["graphty", 15, 404917, 536000],
             ["graphty", 10, 428700, 506000],
-            ["graphty-element-browser", 88, 40000, 578000],
-            ["graphty-element-browser", 51, 224963, 504000],
-            ["graphty-element-browser", 93, 14218, 554000],
-            ["graphty-element-browser", 30, 327984, 523000],
             ["graphty-element-storybook", 34, 309521, 544000],
             ["graphty", 14, 409993, 503000],
             ["graphty", 21, 374911, 485000],
             ["graphty", 10, 429847, 499000],
-            ["graphty-element-browser", 71, 124990, 489000],
-            ["graphty-element-browser", 88, 39978, 594000],
-            ["graphty-element-browser", 51, 224972, 517000],
-            ["graphty-element-browser", 30, 329835, 545000],
-            ["graphty-element-browser", 93, 13825, 559000],
-            ["graphty-element-browser", 80, 76558, 529000],
             ["graphty-element-storybook", 34, 309752, 556000],
         ];
         for (const [family, n, recorded, wall] of ran) {
@@ -1925,6 +1911,18 @@ describe("packBins", () => {
             const planned = packBins(files, ms, Infinity, overheadMs, scale)[0].ms;
             assert.ok(planned >= wall, `${family}, ${n} files: planned ${planned} ms, ran ${wall} ms`);
         }
+    });
+
+    it("gives a features-on twin its family's cost (#5404)", () => {
+        for (const family of [
+            "graphty-element-browser",
+            "graphty-element-default",
+            "graphty-element-storybook",
+            "graphty",
+        ]) {
+            assert.deepEqual(binCost(`${family}-features-on`), binCost(family));
+        }
+        assert.deepEqual(binCost("graph-io-features-on"), { overheadMs: FILE_OVERHEAD_MS, scale: 1 });
     });
 
     it("packs a family that runs its files in parallel workers by its small per-file cost (#5048)", () => {

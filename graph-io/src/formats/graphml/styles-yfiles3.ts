@@ -1593,13 +1593,21 @@ function readBpmnEdgeStyle(refs: References, st: StyleObject, put: PutValue, at:
     put("lineStyle", look.line);
     put("sourceArrow", canonEnum("arrow", look.source, "yfiles3", at("sourceArrow")));
     put("targetArrow", canonEnum("arrow", look.target, "yfiles3", at("targetArrow")));
-    const [length, width] = BPMN_SOURCE_SIZES.get(look.source) ?? [null, null];
-    put("sourceArrowLength", length);
-    put("sourceArrowWidth", width);
+    for (const end of ["source", "target"] as const) {
+        const [length, width] = BPMN_HEAD_SIZES.get(look[end]) ?? [null, null];
+        put(`${end}ArrowLength`, length);
+        put(`${end}ArrowWidth`, width);
+    }
 }
 
-/** The length and width of a BPMN edge's source heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg). */
-const BPMN_SOURCE_SIZES: ReadonlyMap<string, readonly [number, number]> = new Map([["diamond-open", [16 / 8, 8 / 6]]]);
+/**
+ * The length and width of a BPMN edge's heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg):
+ * a conditional flow's 16 x 8 diamond, and an association's two arms, 4 long and 6 wide (M 4,0 L 8,3 L 4,6).
+ */
+const BPMN_HEAD_SIZES: ReadonlyMap<string, readonly [number, number | null]> = new Map([
+    ["diamond-open", [16 / 8, 8 / 6]],
+    ["OPEN", [4 / 8, null]],
+]);
 
 /**
  * Reads one end's arrow of an edge style: its type, and for an arrow element its color, drawn hollow in its

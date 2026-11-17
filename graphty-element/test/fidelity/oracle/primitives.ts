@@ -436,6 +436,12 @@ export interface PNode {
      * as at a box.
      */
     drawnBox?: true;
+    /**
+     * The oracle's side only: the box, centered on the node, its lines and arrowheads end at where that is not the
+     * node's own box: vis-network's icon node, whose glyph is its body, ends them at the glyph's box with its margin
+     * and border round it (`drawnBodyless`). A line is cut at it as at a box.
+     */
+    endBox?: { w: number; h: number };
 }
 
 /**

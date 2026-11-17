@@ -416,9 +416,39 @@ export function lineOnTop(line: Prim | undefined, shapes: readonly Prim[]): Prim
         s.stroke !== null &&
         s.stroke.width < width &&
         s.stroke.width >= width / 2 &&
-        s.points.length === line.points.length &&
-        s.points.every(([x, y], i) => Math.hypot(x - line.points[i][0], y - line.points[i][1]) <= 0.01);
+        samePoints(s, line);
     return shapes.filter(along).at(-1) ?? line;
+}
+
+/**
+ * Whether two shapes are drawn along the same points.
+ * @param a - one shape
+ * @param b - the other
+ * @returns whether they are
+ */
+const samePoints = (a: Prim, b: Prim): boolean =>
+    a.points.length === b.points.length &&
+    a.points.every(([x, y], i) => Math.hypot(x - b.points[i][0], y - b.points[i][1]) <= 0.01);
+
+/**
+ * How wide the part of a node's stroke a fill painted after it leaves showing: half of it, where an opaque fill with no
+ * stroke is painted later along the same points, so its inner half lies under the fill (Cytoscape desktop strokes a node's
+ * border along its outline inset by half the border, then fills that outline: cx-ndex-90f78bcd's 20-wide borders
+ * show 10 wide); else all of it.
+ * @param stroked - the node's stroked shape
+ * @param shapes - the node's shapes
+ * @returns the width showing, or null for a node without a stroke width
+ */
+function strokeShowing(stroked: Prim | undefined, shapes: readonly Prim[]): number | null {
+    const width = stroked?.stroke?.width;
+    // a patterned outline painted as a fill of its own has no width to halve
+    if (stroked === undefined || typeof width !== "number" || !Number.isFinite(width)) {
+        return null;
+    }
+    const over = shapes.some(
+        (s) => s.index > stroked.index && s.stroke === null && (s.fill?.opacity ?? 0) >= 1 && samePoints(s, stroked),
+    );
+    return over ? width / 2 : width;
 }
 
 /** The node shapes whose outline is not their box's, nor an ellipse in it: a line ends on their slanted sides. */
@@ -464,12 +494,13 @@ const PART_OF_BODY = 0.499;
 /** An icon glyph: one private-use character, as FontAwesome and its kind draw their icons. */
 const iconGlyph = (t: PText): boolean => /^[\uE000-\uF8FF]$/u.test(t.content);
 
-/** A node built from the primitives that draw it. */
+/** A node built from the primitives that draw it; `fillOverStroke` as `associate()` takes it. */
 function nodeFrom(
     id: string,
     drawn: readonly Prim[],
     texts: readonly PText[],
     rows: ReadonlySet<Prim> = new Set(),
+    fillOverStroke = false,
 ): PNode {
     const under = underlaysOf(drawn);
     const ringPrim = outerRingOf(drawn.filter((p) => !under.has(p)));
@@ -519,6 +550,10 @@ function nodeFrom(
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
     const stroked = lineOnTop(strokedFirst, all);
+    // the stroke showing beside a fill painted over its inner half: a ring half as wide, its middle a quarter of the
+    // stroke farther out than the outline, so the node's outline grows by that on every side
+    const showing = fillOverStroke ? strokeShowing(stroked, all) : (stroked?.stroke?.width ?? null);
+    const grown = showing === null ? 0 : (stroked?.stroke?.width ?? showing) - showing;
     // a gradient painted as a picture over the node's whole face (Cytoscape desktop's gradient custom graphics) is the
     // node's fill as a reader sees it, not a picture on it
     const overlap = (a: PBox, b: PBox): number =>
@@ -559,12 +594,15 @@ function nodeFrom(
         ...(bands.length > 0 ? { bands } : {}),
         cx: cx(box),
         cy: cy(box),
-        w: bw(box),
-        h: bh(box),
+        w: bw(box) + grown,
+        h: bh(box) + grown,
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
         shape,
         fill: nodeFill,
-        stroke: stroked?.stroke ?? null,
+        stroke:
+            stroked?.stroke === undefined || stroked.stroke === null || showing === null
+                ? (stroked?.stroke ?? null)
+                : { ...stroked.stroke, width: showing },
         ring:
             ringPrim === null || ringPrim.stroke === null
                 ? null
@@ -2797,6 +2835,8 @@ export function foldBevelHalves(prims: readonly Prim[]): Prim[] {
  *     its own, so the two drawings' extents relate no node to any body, and only ids or labels can pair them
  * @param options.drawn - where the program says it drew each node (`nameDrawnNodes`): a node it names but drew no body
  *     for is as large as the program drew it (`drawnBodyless`)
+ * @param options.fillOverStroke - the program paints a node's fill over the inner half of its outline (Cytoscape
+ *     desktop, `strokeShowing`): a stroke an opaque fill on the same points covers is read at the half showing
  * @returns the oracle scene
  */
 export function associate(
@@ -2804,8 +2844,9 @@ export function associate(
     width: number,
     height: number,
     guide: PScene,
-    options: { ownLayout?: boolean; drawn?: DrawnNodes } = {},
+    options: { ownLayout?: boolean; drawn?: DrawnNodes; fillOverStroke?: boolean } = {},
 ): Association {
+    const fillOverStroke = options.fillOverStroke === true;
     const prims = foldBevelHalves(foldRaisedBorders(primitives));
     const kept = new Set(prims.map((p) => p.index));
     const strips = primitives.filter((p) => !kept.has(p.index));
@@ -2864,6 +2905,8 @@ export function associate(
                     nid,
                     shapes,
                     ps.flatMap((p) => (p.text ? [p.text] : [])),
+                    undefined,
+                    fillOverStroke,
                 ),
             );
             ps.forEach(take);
@@ -3112,7 +3155,7 @@ export function associate(
             const under = underlaysOf(drawn);
             const shapes = drawn.filter((p) => !under.has(p));
             shapes.forEach(take);
-            nodes.set(id, nodeFrom(id, shapes, [], tableRowsOf.get(chosen)?.get(id)));
+            nodes.set(id, nodeFrom(id, shapes, [], tableRowsOf.get(chosen)?.get(id), fillOverStroke));
         }
     }
 
@@ -4244,6 +4287,16 @@ export function associate(
         const twin = groups.find((g) => sameBox(g.box, p.box));
         if (twin !== undefined) {
             take(p);
+            // an opaque fill painted over an outline drawn first covers its inner half, as over a node's
+            // (`strokeShowing`): Cytoscape desktop's group node
+            const covered = fillOverStroke && twin.fill === null && p.stroke === null && (p.fill?.opacity ?? 0) >= 1;
+            const width = twin.stroke?.width;
+            if (covered && twin.stroke !== null && typeof width === "number" && Number.isFinite(width)) {
+                twin.stroke = { ...twin.stroke, width: width / 2 };
+                // the ring showing is centered a quarter of the stroke farther out than the outline
+                const d = width / 4;
+                twin.box = { x0: twin.box.x0 - d, y0: twin.box.y0 - d, x1: twin.box.x1 + d, y1: twin.box.y1 + d };
+            }
             twin.fill ??= p.fill;
             twin.stroke ??= p.stroke;
             twin.panel ??= p.panel;

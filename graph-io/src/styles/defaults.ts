@@ -497,7 +497,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(60, `${CYL} 155`),
                     height: v(40, `${CYL} 163`),
                     borderColor: v("#000000", `${CYL} 230`),
-                    borderWidth: v(2, `${CYL} 54`),
+                    // the half of the 2 desktop strokes that its default opaque fill leaves showing (cytoscape/lexicon.ts
+                    // `visibleBorder`)
+                    borderWidth: v(1, `${CYL} 54, halved`),
                     borderPosition: CYTOSCAPE_BORDER_INSIDE,
                     borderWaveAmplitude: v(10, CY_WAVE),
                     borderWavePeriod: v(20, CY_WAVE),

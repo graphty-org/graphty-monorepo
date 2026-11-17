@@ -591,6 +591,18 @@ describe("batches", () => {
         assert.isAbove(seen.length, 0, "a batch publishes one progress stream");
     });
 
+    it("takes members whose style names groups with a function (issue #195)", async () => {
+        const { runs } = harness();
+        const groupName = ({ rank }: { readonly rank: number }): string => `Group ${String(rank)}`;
+
+        const result = await runs.batch([
+            { algorithm: "k-core", params: { k: 1 }, style: { name: "Cores", groupName } },
+            { algorithm: "degree", style: { name: "Degree", groupName } },
+        ]);
+
+        assert.strictEqual(result.completed, 2);
+    });
+
     it("keeps a member that failed from taking the batch down", async () => {
         const { runs } = harness((context) => {
             if (context.params.k === 2) {

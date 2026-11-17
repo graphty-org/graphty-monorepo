@@ -971,8 +971,6 @@ export class Graph implements GraphContext {
     private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
-    /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
-    private readonly useMockInput: boolean;
     /** See {@link Graph.setPixelRatio}. */
     #pixelRatio: PixelRatio = 1;
     /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
@@ -1126,7 +1124,6 @@ export class Graph implements GraphContext {
     /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
-     * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
      * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
      *     frame a still scene rests on (`"at-rest"`). Left out, true.
@@ -1135,10 +1132,8 @@ export class Graph implements GraphContext {
      */
     constructor(
         element: Element | string,
-        useMockInput = false,
         options: { readonly antialias?: Antialias; readonly preserveDrawingBuffer?: boolean } = {},
     ) {
-        this.useMockInput = useMockInput;
         this.#antialias = options.antialias ?? true;
         this.#multisampled = this.#antialias !== false;
         this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
@@ -2924,7 +2919,6 @@ export class Graph implements GraphContext {
      */
     private createInputManager(): InputManager {
         const inputConfig: InputManagerConfig = {
-            useMockInput: this.useMockInput,
             touchEnabled: true,
             keyboardEnabled: true,
             pointerLockEnabled: false,

@@ -329,7 +329,7 @@ export class Graphty extends LitElement {
         if (this.#builtGraph === undefined) {
             // Read here, the one moment the engine is built: an attribute anywhere in the tag is
             // already present, though its own callback may not have run yet.
-            const graph = new Graph(this.#element, false, {
+            const graph = new Graph(this.#element, {
                 antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
                 preserveDrawingBuffer:
                     this.#preserveDrawingBuffer ??

@@ -66,7 +66,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
-    const graph = new Graph(container, false, { antialias });
+    const graph = new Graph(container, { antialias });
     mounted.push({ graph, container });
     graph.setRenderer("webgpu");
     await graph.init();

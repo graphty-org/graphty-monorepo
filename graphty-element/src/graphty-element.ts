@@ -7207,6 +7207,11 @@ export class Graphty extends LitElement {
      * multisampled, the same picture `true` draws, and keeps it on screen. It holds that frame by not
      * drawing again until something changes, as `layoutBehavior.rendering.onDemand` does, whether or
      * not that is set. A screenshot taken at any time is the multisampled picture.
+     *
+     * `"shader"` builds the canvas without multisampling, as `false` does, and under renderPath
+     * "batched" draws plain straight edges with the cheaper line program, their edges smoothed by
+     * the line shader itself: smooth lines, still or moving, at close to `false`'s cost. Node edges
+     * are not multisampled. On renderPath "objects" it draws as `false` does.
      * @remarks
      * Set it as an attribute, in any position in the tag, or as a property before using any other
      * property or method of the element: the engine reads it once, when it is built. After that,
@@ -7217,6 +7222,7 @@ export class Graphty extends LitElement {
      * @example
      * ```html
      * <graphty-element render-path="batched" antialias="at-rest"></graphty-element>
+     * <graphty-element render-path="batched" antialias="shader"></graphty-element>
      * ```
      * @returns The setting; true by default.
      */

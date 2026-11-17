@@ -578,9 +578,6 @@ async function drawWithBox(
 
     assert.strictEqual(g.getNode("corner")?.shapeType, "box", "the box style was painted");
     await g.setCameraState(VIEW);
-    // The finished picture: on the batched path the label's row is painted in a later batch than
-    // the box, and the label pass places it only once it is drawn.
-    await g.waitForStableFrame();
     g.scene.render();
     g.scene.render();
     return g;

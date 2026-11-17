@@ -111,7 +111,8 @@ function ownVertices(mesh: Mesh): VertexData {
         data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
     }
 
-    if (data.normals === null && data.positions !== null && data.indices !== null) {
+    // A primitive with no NORMAL attribute comes out with `normals` undefined, not null (Fox.glb).
+    if ((data.normals?.length ?? 0) === 0 && data.positions !== null && data.indices !== null) {
         const normals: number[] = [];
         VertexData.ComputeNormals(data.positions, data.indices, normals);
         data.normals = normals;
@@ -150,7 +151,9 @@ function skinAtRest(mesh: Mesh, data: VertexData): void {
         }
     };
     const posed = Array.from(positions);
-    const posedNormals = normals === null ? null : Array.from(normals);
+    // Undefined, not null, for a primitive with no NORMAL attribute.
+    const givenNormals = normals ?? null;
+    const posedNormals = givenNormals === null ? null : Array.from(givenNormals);
     for (let v = 0; v * 3 < positions.length; v++) {
         skin.reset();
         for (let k = 0; k < 4; k++) {
@@ -830,8 +833,8 @@ async function build(
     // the model's triangles (section 3.8), and a group is culled only when the whole model is.
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
-        const { min, max } = animation.bounds;
-        radius = Math.max(radius, min.length(), max.length());
+        // From the moving vertices themselves: the corners of their box would be its diagonal.
+        radius = Math.max(radius, animation.radius);
     }
 
     disposeLeftovers(container, used);

@@ -64,8 +64,10 @@ export interface TemplateAnimation {
     readonly fps: number;
     /** What is worth saying: `W_MODEL_ANIMATION_REDUCED`, `W_MODEL_ANIMATION_PARTIAL`. */
     readonly notes: readonly CodedFact[];
-    /** Every part's corners over every frame, in the unit box: what the node is picked and culled by. */
+    /** Every moving part's reach over every frame, in the unit box: what the node is picked and culled by. */
     readonly bounds: { readonly min: Vector3; readonly max: Vector3 };
+    /** The furthest any moving vertex gets from the center over every frame. */
+    readonly radius: number;
     /**
      * Have a node's instances play a clip.
      * @param owner - The node.
@@ -189,11 +191,12 @@ interface Sampled {
  * @returns The clips.
  */
 function clipsOf(container: AssetContainer, fps: number): Sampled[] {
-    return container.animationGroups.map((group, i) => {
+    return container.animationGroups.map((group) => {
         const rate = group.targetedAnimations[0]?.animation.framePerSecond ?? 60;
         const seconds = Math.max(0, (group.to - group.from) / rate);
         return {
-            name: group.name === "" ? `clip ${String(i + 1)}` : group.name,
+            // The loader names an unnamed glTF clip `animation<index>`, as the model summary lists it.
+            name: group.name,
             group,
             from: group.from,
             rate,
@@ -241,6 +244,96 @@ function mapBones(parts: readonly AnimatedPart[]): BoneMap {
     return { offsets, count };
 }
 
+/** Directions spread evenly over the sphere: the vertices furthest along each stand for a bone's. */
+const DIRECTIONS: readonly Vector3[] = Array.from({ length: 64 }, (_, i) => {
+    // A Fibonacci sphere: no two neighbours more than about 15 degrees apart, so the furthest of
+    // these points is within 4% of the furthest vertex.
+    const y = 1 - ((i + 0.5) * 2) / 64;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * Math.PI * (3 - Math.sqrt(5));
+    return new Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+});
+
+/**
+ * For each bone of each movable part, the few vertices it moves that stand for all of them: the
+ * furthest along each of {@link DIRECTIONS}, in the part's own (bind) space. A skinned vertex is
+ * a weighted blend of where its bones put it, so it stays within what these points bound; a
+ * whole-mesh box moved by every bone does not (a foot bone carries the body's box with it).
+ * @param parts - The parts.
+ * @param bones - Their bones.
+ * @returns The points, per part, per bone.
+ */
+function extremesOf(parts: readonly AnimatedPart[], bones: BoneMap): Map<AnimatedPart, Vector3[][]> {
+    const out = new Map<AnimatedPart, Vector3[][]>();
+    for (const part of parts) {
+        const positions = part.local?.positions ?? null;
+        if (bones.offsets.has(part) && part.mesh !== undefined && part.local !== undefined && positions !== null) {
+            const moved = movedBy(part.local, part.mesh.skeleton);
+            out.set(
+                part,
+                moved.map((list) => furthestOf(positions, list)),
+            );
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The vertices each bone moves: all of them on one bone for a part with no skin.
+ * @param data - The part's own vertices, with its skin weights.
+ * @param skeleton - Its skeleton, or null.
+ * @returns The vertex indices, per bone.
+ */
+function movedBy(data: VertexData, skeleton: Skeleton | null): number[][] {
+    const count = (data.positions?.length ?? 0) / 3;
+    const skin = skeleton === null ? null : data.matricesIndices;
+    if (skin === null || skeleton === null) {
+        return [Array.from({ length: count }, (_, v) => v)];
+    }
+
+    const weights = data.matricesWeights;
+    const moved: number[][] = skeleton.bones.map(() => []);
+    for (let v = 0; v < count; v++) {
+        for (let k = 0; k < 4; k++) {
+            if ((weights?.[v * 4 + k] ?? 0) > 0) {
+                moved[Math.floor(skin[v * 4 + k])]?.push(v);
+            }
+        }
+    }
+
+    return moved;
+}
+
+/**
+ * The vertices furthest along each of {@link DIRECTIONS}, once each.
+ * @param positions - The positions.
+ * @param list - The vertices to choose from.
+ * @returns Their points.
+ */
+function furthestOf(positions: ArrayLike<number>, list: readonly number[]): Vector3[] {
+    const chosen = DIRECTIONS.map((dir) => {
+        let best = -Infinity;
+        let at = -1;
+        for (const v of list) {
+            const along = positions[v * 3] * dir.x + positions[v * 3 + 1] * dir.y + positions[v * 3 + 2] * dir.z;
+            if (along > best) {
+                best = along;
+                at = v;
+            }
+        }
+        return at;
+    });
+    return [...new Set(chosen.filter((v) => v >= 0))].map((v) => Vector3.FromArray(positions, v * 3));
+}
+
+/** The box and the radius about the center every frame's posed vertices reach. */
+interface Reach {
+    readonly min: Vector3;
+    readonly max: Vector3;
+    radius: number;
+}
+
 /**
  * Write every bone's matrix for the moment the nodes are posed at.
  * @param parts - The parts.
@@ -248,9 +341,8 @@ function mapBones(parts: readonly AnimatedPart[]): BoneMap {
  * @param place - The orientation and fit every matrix ends with.
  * @param into - The texture data.
  * @param row - The frame's first float.
- * @param bounds - The corners seen so far, grown.
- * @param bounds.min - The low corner.
- * @param bounds.max - The high corner.
+ * @param bounds - The box and radius seen so far, grown.
+ * @param extremes - The points standing for each bone's vertices ({@link extremesOf}).
  */
 function writeFrame(
     parts: readonly AnimatedPart[],
@@ -258,7 +350,8 @@ function writeFrame(
     place: Matrix,
     into: Float32Array,
     row: number,
-    bounds: { min: Vector3; max: Vector3 },
+    bounds: Reach,
+    extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
 ): void {
     Matrix.IdentityReadOnly.copyToArray(into, row);
     const corner = new Vector3();
@@ -281,13 +374,14 @@ function writeFrame(
             matrices.push(world);
         }
 
-        const box = part.mesh.getBoundingInfo().boundingBox;
+        const points = extremes.get(part) ?? [];
         for (const [b, matrix] of matrices.entries()) {
             matrix.copyToArray(into, row + (offset + b) * 16);
-            for (const point of box.vectors) {
+            for (const point of points[b] ?? []) {
                 Vector3.TransformCoordinatesToRef(point, matrix, corner);
                 bounds.min.minimizeInPlace(corner);
                 bounds.max.maximizeInPlace(corner);
+                bounds.radius = Math.max(bounds.radius, corner.length());
             }
         }
     }
@@ -375,10 +469,12 @@ export function bakeAnimation(
     const data = new Float32Array(floatsPerFrame * total);
     const nodes = inOrder(container);
     const rest = posesOf(nodes);
-    const bounds = {
+    const bounds: Reach = {
         min: new Vector3(Infinity, Infinity, Infinity),
         max: new Vector3(-Infinity, -Infinity, -Infinity),
+        radius: 0,
     };
+    const extremes = extremesOf(parts, bones);
     const ranges = new Map<string, { start: number; end: number }>();
     let frame = 0;
     let morph = false;
@@ -390,7 +486,7 @@ export function bakeAnimation(
             for (const node of nodes) {
                 node.computeWorldMatrix(true);
             }
-            writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds);
+            writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds, extremes);
         }
         frame += clip.frames;
     }
@@ -415,9 +511,7 @@ export function bakeAnimation(
  * @param baked.fps - Frames a second.
  * @param baked.ranges - Each clip's frames.
  * @param baked.notes - What is worth saying.
- * @param baked.bounds - Every corner over every frame.
- * @param baked.bounds.min - The low corner.
- * @param baked.bounds.max - The high corner.
+ * @param baked.bounds - The box and radius every frame reaches.
  * @returns The animation.
  */
 function animationFor(
@@ -430,7 +524,7 @@ function animationFor(
         fps: number;
         ranges: Map<string, { start: number; end: number }>;
         notes: CodedFact[];
-        bounds: { min: Vector3; max: Vector3 };
+        bounds: Reach;
     },
 ): TemplateAnimation {
     const texture = RawTexture.CreateRGBATexture(
@@ -464,7 +558,8 @@ function animationFor(
         clips: baked.ranges,
         fps: baked.fps,
         notes: baked.notes,
-        bounds: baked.bounds,
+        bounds: { min: baked.bounds.min, max: baked.bounds.max },
+        radius: baked.bounds.radius,
         play(owner, instances, clip, speed, offset) {
             const range = (clip === null ? undefined : baked.ranges.get(clip)) ?? first;
             const length = range.end - range.start + 1;

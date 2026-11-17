@@ -891,8 +891,9 @@ export type GraphtyWarningCode =
     /**
      * A glTF uses an extension that is drawn without: the transmission family
      * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
-     * `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
-     * extension.
+     * `_volume_scatter`). A transmissive part is drawn alpha blended, as see-through as its
+     * transmission factor says (at least 20% opaque); the rest of the family draws opaque.
+     * `params.extension` names it; one fact per extension.
      */
     | "W_MODEL_EXTENSION_IGNORED"
     /**

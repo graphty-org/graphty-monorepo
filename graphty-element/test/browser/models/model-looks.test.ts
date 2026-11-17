@@ -17,6 +17,8 @@ import { cleanups, countIn, drawModel, filesOf, type Frame, mount, readFrame, st
 /** Pixel tests by color. */
 const RED = (r: number, g: number, b: number): boolean => r > 120 && g < 60 && b < 60;
 const GREEN = (r: number, g: number, b: number): boolean => g > 100 && r < 70 && b < 70;
+/** Tinted green at all: a see-through green over the light canvas. */
+const GREENISH = (r: number, g: number, b: number): boolean => g > r + 12 && g > b + 12;
 const BLUE = (r: number, g: number, b: number): boolean => b > 100 && r < 70 && g < 70;
 /** The default Selected layer's halo, #0077BB (selectionStyle's default). */
 const MARK = (r: number, g: number, b: number): boolean => r < 50 && g > 90 && g < 150 && b > 160;
@@ -50,14 +52,18 @@ async function restyle(
 }
 
 describe("the ChronographWatch glTF-WEBP shape", () => {
-    it("loads from its files, says transmission was drawn without, and draws its WebP picture", async () => {
+    it("loads from its files, says transmission was drawn without, and draws its WebP picture see-through", async () => {
         const element = await mount();
         const { problems } = await drawModel(element, "gltf-transmission-required", [{ id: "a", x: 0 }]);
         assert.deepInclude(problems, {
             code: "W_MODEL_EXTENSION_IGNORED",
             params: { extension: "KHR_materials_transmission" },
         });
-        assert.isAbove(count(await readFrame(element), GREEN), 300, "the green WebP picture is drawn");
+        const frame = await readFrame(element);
+        // Fully transmissive glass is drawn faint over what is behind it, never as an opaque
+        // surface that would hide the watch's dial and hands.
+        assert.isAbove(count(frame, GREENISH), 300, "the green WebP picture is drawn");
+        assert.strictEqual(count(frame, GREEN), 0, "and drawn see-through, not opaque");
     });
 
     it("loads from an address, fetching its .bin and three WebP pictures beside it", async () => {

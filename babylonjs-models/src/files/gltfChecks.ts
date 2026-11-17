@@ -72,7 +72,8 @@ const READABLE_EXTENSIONS = new Set([
 
 /**
  * Required extensions that are drawn without: the transmission family. A part using one is drawn
- * opaque with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused.
+ * with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused: a transmissive part alpha
+ * blended by its transmission factor (see loadModel), the others opaque.
  */
 export const IGNORED_EXTENSIONS: ReadonlySet<string> = new Set([
     "KHR_materials_transmission",
@@ -1086,11 +1087,14 @@ function animationClips(
     accessors: readonly Record<string, unknown>[],
     nodes: number,
 ): { readonly name: string; readonly seconds: number }[] {
-    return animations.map((animation) => {
+    return animations.map((animation, at) => {
         const animSamplers = Array.isArray(animation.samplers) ? (animation.samplers as unknown[]) : [];
         const seconds = clipSeconds(animSamplers, accessors);
         checkChannels(animation, animSamplers.length, nodes);
-        return Object.freeze({ name: cut(typeof animation.name === "string" ? animation.name : ""), seconds });
+        // An unnamed clip is called what Babylon's glTF loader calls its animation group
+        // (`animation.name || "animation" + index`), so the name listed is the name that plays.
+        const named = typeof animation.name === "string" && animation.name !== "" ? animation.name : "";
+        return Object.freeze({ name: cut(named === "" ? `animation${String(at)}` : named), seconds });
     });
 }
 

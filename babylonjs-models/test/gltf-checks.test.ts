@@ -68,6 +68,25 @@ describe("the glTF checks", () => {
         assert.strictEqual(checked.summary.triangles, 12);
     });
 
+    it("list an unnamed clip by the name Babylon's loader gives it, so naming it plays it", async () => {
+        const checked = await checkModelFiles(
+            cubeWith((json) => {
+                const clip = (name?: string): Json => ({
+                    ...(name === undefined ? {} : { name }),
+                    samplers: [{ input: 0, output: 0 }],
+                    channels: [{ sampler: 0, target: { node: 0, path: "translation" } }],
+                });
+                json.animations = [clip(), clip("walk"), clip("")];
+            }),
+            {},
+            DEFAULT_MODEL_LIMITS,
+        );
+        assert.deepEqual(
+            checked.summary.animations.map((clip) => clip.name),
+            ["animation0", "walk", "animation2"],
+        );
+    });
+
     it("refuse JSON that does not parse and a GLB cut short", async () => {
         const broken = new Map([["cube.gltf", new TextEncoder().encode("{ not json")]]);
         assert.strictEqual((await refusalOf(broken)).code, "E_MODEL_STRUCTURE");

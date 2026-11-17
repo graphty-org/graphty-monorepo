@@ -7794,19 +7794,31 @@ export class Graph implements GraphContext {
         if (image !== null && typeof picture === "string") {
             textures?.hold(picture, 1);
         }
-        return chunk.prepareTemplate(
-            scene,
-            container,
-            `graphty-model-preview-${record.digest.slice(0, 8)}`,
-            {
-                ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
-                    unlit: style["node.unlit"] === true,
-                    wireframe: style["node.wireframe"] === true,
-                }),
-                image,
-            },
-            () => chunk.neutralEnvironment(scene),
-        );
+        return chunk
+            .prepareTemplate(
+                scene,
+                container,
+                `graphty-model-preview-${record.digest.slice(0, 8)}`,
+                {
+                    ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
+                    image,
+                },
+                () => chunk.neutralEnvironment(scene),
+            )
+            .catch((error: unknown) => {
+                // As a node reports it (ModelCache): a file that loads but cannot be built into a
+                // template is E_MODEL_PARSE, never a bare error that reads as "no WebGL".
+                throw new GraphtyError({
+                    code: "E_MODEL_PARSE",
+                    source: "data",
+                    message: `The model ${ref} could not be drawn.`,
+                    details: { format: record.format },
+                    cause: error,
+                });
+            });
     }
 
     /**

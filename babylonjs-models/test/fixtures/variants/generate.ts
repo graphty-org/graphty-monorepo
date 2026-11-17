@@ -1047,8 +1047,8 @@ async function main(): Promise<void> {
     gltfOne(
         "gltf-transmission-used",
         { transmissionUsed: true },
-        "blue",
-        "GLB using KHR_materials_transmission (drawn opaque)",
+        "any",
+        "GLB using KHR_materials_transmission (drawn see-through, its blue faint)",
         ["W_MODEL_EXTENSION_IGNORED"],
     );
     {
@@ -1087,8 +1087,8 @@ async function main(): Promise<void> {
                 id: "gltf-transmission-required",
                 format: "gltf",
                 compression: ["webp"],
-                color: "green",
-                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+                color: "any",
+                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn see-through, its green faint)",
                 warnings: ["W_MODEL_EXTENSION_IGNORED"],
             },
             {

@@ -120,6 +120,7 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
         if (stripped) {
             json.extensionsRequired = required.filter((name) => !IGNORED_EXTENSIONS.has(name));
             json.extensionsUsed = used.filter((name) => !IGNORED_EXTENSIONS.has(name));
+            seeThrough(json);
         }
 
         const plain = withoutClimbs(json, files, main, body, stripped);
@@ -140,6 +141,48 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
     }
 
     return { files: upgraded, extension: ".gltf", used: [], required: [] };
+}
+
+/** The least opacity a transmissive material drawn without transmission keeps, so it is still seen. */
+const TRANSMISSION_FLOOR = 0.2;
+
+/**
+ * Draw each transmissive material see-through: alpha blended, its opacity scaled by one minus its
+ * transmission factor (with {@link TRANSMISSION_FLOOR}). Drawn opaque, a watch's glass would hide
+ * its dial and hands.
+ * @param json - The glTF's JSON, changed in place.
+ */
+function seeThrough(json: Record<string, unknown>): void {
+    const materials = Array.isArray(json.materials) ? (json.materials as unknown[]) : [];
+    for (const material of materials) {
+        if (typeof material !== "object" || material === null) {
+            continue;
+        }
+
+        const entry = material as Record<string, unknown>;
+        const extensions = entry.extensions as Record<string, unknown> | undefined;
+        const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
+        const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
+        if (factor <= 0) {
+            continue;
+        }
+
+        const pbr = (
+            typeof entry.pbrMetallicRoughness === "object" && entry.pbrMetallicRoughness !== null
+                ? entry.pbrMetallicRoughness
+                : {}
+        ) as Record<string, unknown>;
+        const base = Array.isArray(pbr.baseColorFactor) ? (pbr.baseColorFactor as number[]) : [1, 1, 1, 1];
+        const alpha = typeof base[3] === "number" ? base[3] : 1;
+        pbr.baseColorFactor = [
+            base[0] ?? 1,
+            base[1] ?? 1,
+            base[2] ?? 1,
+            alpha * Math.max(TRANSMISSION_FLOOR, 1 - factor),
+        ];
+        entry.pbrMetallicRoughness = pbr;
+        entry.alphaMode = "BLEND";
+    }
 }
 
 /**

@@ -424,8 +424,6 @@ const config = defineConfig({
                         headless: true,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions
-                        fileParallelism: false,
                         commands: browserCommands,
                     },
                 },

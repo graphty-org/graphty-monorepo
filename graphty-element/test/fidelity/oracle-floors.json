@@ -42732,32 +42732,32 @@
             "edge.wiggle": 1
         },
         "gml-specimen-arrows~cytoscape-gml": {
-            "node.strokeWidth": 1,
             "edge.width": 1
         },
         "gml-specimen-arrows~cytoscape-gml@matched": {
-            "node.strokeWidth": 1,
             "edge.width": 1
         },
         "gml-specimen-arrows~gml2gv": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-arrows~gml2gv@matched": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-edge-labels~cytoscape-gml": {
-            "node.strokeWidth": 1,
             "edge.width": 1
         },
         "gml-specimen-edge-labels~cytoscape-gml@matched": {
-            "node.strokeWidth": 1,
             "edge.width": 1
         },
         "gml-specimen-edge-labels~gml2gv": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-edge-labels~gml2gv@matched": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-edges-lines-p3": {
             "node.present": 1,
@@ -42857,7 +42857,6 @@
             "edge.wiggle": 1
         },
         "gml-specimen-edges-lines~cytoscape-gml": {
-            "node.strokeWidth": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
@@ -42867,7 +42866,6 @@
             "edge.dash": 1
         },
         "gml-specimen-edges-lines~cytoscape-gml@matched": {
-            "node.strokeWidth": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
@@ -42877,19 +42875,21 @@
             "edge.dash": 1
         },
         "gml-specimen-edges-lines~gml2gv": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-edges-lines~gml2gv@matched": {
-            "node.shape": 1
-        },
-        "gml-specimen-images-charts~cytoscape-gml": {
+            "node.shape": 1,
             "node.strokeWidth": 1
         },
-        "gml-specimen-images-charts~cytoscape-gml@matched": {
+        "gml-specimen-images-charts~cytoscape-gml": {},
+        "gml-specimen-images-charts~cytoscape-gml@matched": {},
+        "gml-specimen-images-charts~gml2gv": {
             "node.strokeWidth": 1
         },
-        "gml-specimen-images-charts~gml2gv": {},
-        "gml-specimen-images-charts~gml2gv@matched": {},
+        "gml-specimen-images-charts~gml2gv@matched": {
+            "node.strokeWidth": 1
+        },
         "gml-specimen-labels-p4": {
             "node.present": 1,
             "node.extra": 1,
@@ -42966,19 +42966,17 @@
             "frame.zoom": 1,
             "background": 1
         },
-        "gml-specimen-labels~cytoscape-gml": {
-            "node.strokeWidth": 1
-        },
-        "gml-specimen-labels~cytoscape-gml@matched": {
-            "node.strokeWidth": 1
-        },
+        "gml-specimen-labels~cytoscape-gml": {},
+        "gml-specimen-labels~cytoscape-gml@matched": {},
         "gml-specimen-labels~gml2gv": {
             "node.shape": 1,
-            "label.text": 1
+            "label.text": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-labels~gml2gv@matched": {
             "node.shape": 1,
-            "label.text": 1
+            "label.text": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-fills-borders-p3": {
             "node.present": 1,
@@ -43057,13 +43055,11 @@
         "gml-specimen-node-fills-borders~cytoscape-gml": {
             "node.fill": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1
         },
         "gml-specimen-node-fills-borders~cytoscape-gml@matched": {
             "node.fill": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1
         },
         "gml-specimen-node-fills-borders~gml2gv": {
@@ -43071,14 +43067,16 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-fills-borders~gml2gv@matched": {
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-shapes-p4": {
             "node.present": 1,
@@ -43154,17 +43152,15 @@
             "frame.zoom": 1,
             "background": 1
         },
-        "gml-specimen-node-shapes~cytoscape-gml": {
-            "node.strokeWidth": 1
-        },
-        "gml-specimen-node-shapes~cytoscape-gml@matched": {
-            "node.strokeWidth": 1
-        },
+        "gml-specimen-node-shapes~cytoscape-gml": {},
+        "gml-specimen-node-shapes~cytoscape-gml@matched": {},
         "gml-specimen-node-shapes~gml2gv": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-shapes~gml2gv@matched": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-sizes-opacity-p3": {
             "node.present": 1,
@@ -43240,17 +43236,15 @@
             "frame.zoom": 1,
             "background": 1
         },
-        "gml-specimen-node-sizes-opacity~cytoscape-gml": {
-            "node.strokeWidth": 1
-        },
-        "gml-specimen-node-sizes-opacity~cytoscape-gml@matched": {
-            "node.strokeWidth": 1
-        },
+        "gml-specimen-node-sizes-opacity~cytoscape-gml": {},
+        "gml-specimen-node-sizes-opacity~cytoscape-gml@matched": {},
         "gml-specimen-node-sizes-opacity~gml2gv": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-sizes-opacity~gml2gv@matched": {
-            "node.shape": 1
+            "node.shape": 1,
+            "node.strokeWidth": 1
         },
         "graphology-specimen-arrows": {
             "node.present": 1,

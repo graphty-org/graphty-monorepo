@@ -269,7 +269,10 @@ let ownAnchor: (node: Node) => TransformNode;
  * point exports it.
  */
 export const nodeInternals = {} as {
-    /** The node's border, outer border, shadow, underlay and overlay meshes and the look it last drew. */
+    /**
+     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * decoration meshes and the look it last drew.
+     */
     drawn(node: Node): {
         border: Node["border"];
         outerBorder: Node["outerBorder"];
@@ -278,6 +281,8 @@ export const nodeInternals = {} as {
         shadow: Node["shadow"];
         underlay: Node["underlay"];
         overlay: Node["overlay"];
+        halo: Node["halo"];
+        decorations: Node["decorations"];
     };
 };
 
@@ -463,6 +468,8 @@ export class Node implements ModelUser {
             shadow: node.shadow,
             underlay: node.underlay,
             overlay: node.overlay,
+            halo: node.halo,
+            decorations: node.decorations,
         });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {

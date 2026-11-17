@@ -638,6 +638,20 @@ export function renderManagerOf(graph: Graph): RenderManager {
     return readRenderManager(graph);
 }
 
+/** Reads a graph's private graph context; the class sets it, like {@link readRenderManager}. */
+let readGraphContext: (graph: Graph) => DefaultGraphContext;
+
+/**
+ * A graph's context: what its managers read the graph's settings through, which its tests check
+ * agrees with the session, typed so a rename in `Graph` fails to compile (issue #6988). Not
+ * published, like {@link operationQueueOf}.
+ * @param graph - The graph.
+ * @returns Its graph context, the one in use now.
+ */
+export function graphContextOf(graph: Graph): DefaultGraphContext {
+    return readGraphContext(graph);
+}
+
 /** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
 const PENDING = new WeakMap<Graph, PendingWork>();
 
@@ -981,6 +995,7 @@ export class Graph implements GraphContext {
     private renderManager: RenderManager;
     static {
         readRenderManager = (graph) => graph.renderManager;
+        readGraphContext = (graph) => graph.graphContext;
     }
     /** Draws the map under a geographic layout. */
     private readonly basemapManager: BasemapManager;

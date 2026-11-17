@@ -48,19 +48,25 @@ its fix merges ("Inherited failures" in `.claude/skills/pipeline-round/shared.md
 pull request), whatever master's state, combine their families into one branch each, so each family costs one CI run
 (design/ci/issue-grouping.md section 4, "Combining finished branches"):
 
-- [ ] `node tools/issue-groups.mjs check --fix`, `git fetch origin`, `node tools/issue-groups.mjs combine-plan`. For
-      each `judge` pair, read both diffs; when a rubric test of step 3 holds, run it again with
-      `--link <a>:<b>:<T#>`.
-- [ ] One background subagent per `family` line (it holds a test slot like a fix job). In a new worktree
+- [ ] `node tools/issue-groups.mjs check --fix`, `git fetch origin`, `node tools/issue-groups.mjs combine-plan` (it
+      plans only branches the ledger tracks). For each `judge` pair, read both diffs; when a rubric test of step 3
+      holds, run it again with the `--link` that line prints (the two leads' issue numbers and the test). Leave a
+      breaking change out of a family of non-breaking ones (X5).
+- [ ] For each `family` line, first claim it, as step 5 marks a job:
+      `node tools/issue-queue.mjs taken <combine into> .worktrees/<name> <every issue of the family> --files <the
+    branches' changed files> --why "combines <branches>"`. Its old branches now read as running, so no other round
+      combines or opens them. Then one background subagent (it holds a test slot like a fix job): in a new worktree
       (`./tools/worktree-new.sh <combine into> origin/master <name> --issue <lead>`) it runs
-      `git merge --no-ff origin/<branch>` for each branch (one that conflicts beyond settling is left out and keeps
-      its own `ready`), lint and the tests the merged changes touch; then
-      `issue-queue.mjs taken <new branch> <worktree> <every issue> --files ... --why "combines <branches>"`, one
-      Proof listing every issue and each old `ready` marker, `pipeline-round: ready <new branch> <sha>` on every
-      issue and `pipeline-round: superseded <old branch> by <new branch>` on each old branch's issues. Old branches
-      are kept (owner standing rule 7). Then, master green, `tools/pr-open.sh`; red, it stops at `ready`.
-- [ ] Never a branch the plan refused (open pull request, red-master fix, running job, moved tip), never past the
-      family's class cap. The next `check --fix` folds the old groups into the new branch's group.
+      `git merge --no-ff origin/<branch>` for each branch, lint and the tests the merged changes touch. A branch it
+      leaves out (a conflict beyond settling), or every branch if it gives up, gets
+      `pipeline-round: ready <old branch> <its sha>` written again on its issues. Then one Proof listing every issue
+      and each old `ready` marker; on each merged branch's issues `pipeline-round: superseded <old branch> by <new
+    branch>`, then `pipeline-round: ready <new branch> <sha>` (last, so it is the newest marker). A superseded
+      branch is folded into its successor and kept, never deleted (design/owner-standing-rules.md). Then, master
+      green, `tools/pr-open.sh`; red, it stops at `ready`.
+- [ ] Never a branch the plan refused (open pull request, owner-only member, red-master fix, running job, moved tip),
+      never past the family's class cap. Once every issue of an old branch has the new branch's `ready` or `opened`
+      as its newest marker, `check --fix` folds its group into the new branch's group.
 
 **While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
 write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not
@@ -161,7 +167,8 @@ the waits of merged pull requests and makes their follow-up groups startable), t
 The ledger (`tmp/issue-round/groups.json`, design/ci/issue-grouping.md) records which issues are fixed together, the
 rubric test that put each one there, and where each group is: proposed, started, ready, frozen (its pull request is
 open), closed or dissolved. Lines `check` reports but cannot fix (a group over the cap, an issue in two groups) go in
-the round's last line.
+the round's last line. A ready branch over the cap (its diff can make it a riskier class than declared) is never
+combined or opened until a job moves the members past the cap to branches of their own and releases them.
 
 **Then take jobs from `node tools/issue-groups.mjs jobs`, and nowhere else.** It prints the jobs to start, one line
 each (`job #a #b ... <priority> <group> tests a:<test> b:<test> -- <why>; files <path> ...`), in the strict priority
@@ -294,8 +301,8 @@ of its risk classes; when unsure about a source change, do not group); `node too
 the current ledger, and an issue whose test holds against a group already started, ready or open goes in `blocked`
 with that group. Write only `tmp/issue-round/free-queue.json` in the main checkout, as `{ builtAt, jobs: [{ lead,
 issues: [<n>...], members: [{ n, test, with, class, why, points }], files: [<path>...], why }], blocked: [{ issue,
-prs: [<n>...], group, reason }] }`, listing each job's issues so that every member's `with` comes before it: `test`
-is the rubric test that holds, `with` the member it holds against, `class` docs, tests or source, and `why` that
+prs: [<n>...], group, reason }] }`, listing each job's issues lead first (its `test` is `lead`) and so that every
+member's `with` comes before it: `test` is the rubric test that holds, `with` the member it holds against, `class` docs, tests or source, and `why` that
 member's own reason (never the job's `why`; a member without one is not grouped). Every issue of the queue is in a
 job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine)." followed by the
 read-only rules paragraph from step 1. When the scan reports, run `node tools/issue-groups.mjs import-scan`: its jobs
@@ -382,7 +389,7 @@ nothing for hours. Such an issue joins that branch:
   and when done writes `pipeline-round: ready <branch> <full sha>` for the new head on every issue of the branch's
   group, its own issue included.
 - **Record the join**, only after every condition above holds, with `node tools/issue-groups.mjs route <n> --to
-<branch> --test <T#> --join --why "<reason>"`: it joins only within the cap and at most 2 joins over the branch's
+<branch> --test <T#> --with <member> --class <docs|tests|source> --join --why "<reason>"`: it joins only within the cap and at most 2 joins over the branch's
   life, and only when a rubric test holds; it prints `joins ready <group>` or says why not. Without `--join`, `route`
   only records a wait on the branch.
 - **The free-queue scan** writes such an issue as a job with `joins ready <branch>` in its `why`, not as blocked.
@@ -398,7 +405,8 @@ the shared file). It is a fix job for a red master: it takes a test slot before 
 ## 5. Mark and start
 
 Create the label if it is missing (see "Markers" in the shared file). Mark the job with
-`node tools/issue-queue.mjs taken <branch> .worktrees/<name> <n>... --files <path>... --why "<the rule that picked it and why each issue belongs>"`,
+`node tools/issue-queue.mjs taken <branch> .worktrees/<name> <n>... --files <path>... --why "<the rule that picked it and why each issue belongs>"`
+(for a job that fixes the red, the `--why` starts with `fixes the red`),
 every issue of the job in one call: it adds `in-progress` to each and writes the `taken` marker (with `group` for more
 than one issue), and refuses a job with no files, which step 4 needs. Then record it in the ledger:
 `node tools/issue-groups.mjs start <group> <branch> <n>...` (the group the `jobs` line named, and every issue of the

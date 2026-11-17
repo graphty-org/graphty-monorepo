@@ -84,6 +84,37 @@ function offsetPosition(place, dx, dy, w, h) {
     return x < 0 ? "left" : "right";
 }
 
+/** The border line types desktop draws as their own outline, not as a plain stroke under the node's fill. */
+const PATTERNED_BORDERS = new Set([
+    "DOT",
+    "ZIGZAG",
+    "SINEWAVE",
+    "PARALLEL_LINES",
+    "BACKWARD_SLASH",
+    "FORWARD_SLASH",
+    "VERTICAL_SLASH",
+    "SEPARATE_ARROW",
+    "CONTIGUOUS_ARROW",
+]);
+
+/**
+ * The width of a node's border as desktop shows it: it strokes a plain border along the outline inset by half the
+ * width and paints an opaque fill over the stroke's inner half, so half of it shows; a patterned border, one under a
+ * translucent fill, and an invisible one (which still insets the fill by all of it) are recorded whole (graph-io's cytoscape/lexicon.ts `borderUnderFill`).
+ * @param width - NODE_BORDER_WIDTH
+ * @param stroke - NODE_BORDER_STROKE
+ * @param transparency - the fill's 0..255 transparency
+ * @param borderTransparency - NODE_BORDER_TRANSPARENCY
+ * @returns the width showing
+ */
+export function visibleBorder(width, stroke, transparency, borderTransparency) {
+    const under =
+        !PATTERNED_BORDERS.has(String(stroke ?? "SOLID").toUpperCase()) &&
+        transparency >= 255 &&
+        borderTransparency > 0;
+    return under ? width / 2 : width;
+}
+
 /**
  * The scene of one Cytoscape network view as CyREST reports it.
  * Under "lock node width and height", Cytoscape draws a node at NODE_SIZE, except where the node
@@ -132,7 +163,12 @@ export function sceneFromCyrest(v) {
             fillOpacity: fill ? (r.NODE_TRANSPARENCY ?? 255) / 255 : 0,
             border: {
                 color: border && r.NODE_BORDER_WIDTH > 0 && (r.NODE_BORDER_TRANSPARENCY ?? 255) > 0 ? border.hex : null,
-                width: r.NODE_BORDER_WIDTH ?? 0,
+                width: visibleBorder(
+                    r.NODE_BORDER_WIDTH ?? 0,
+                    r.NODE_BORDER_STROKE,
+                    fill ? (r.NODE_TRANSPARENCY ?? 255) : 0,
+                    r.NODE_BORDER_TRANSPARENCY ?? 255,
+                ),
                 style: r.NODE_BORDER_STROKE ?? "SOLID",
             },
             label: text

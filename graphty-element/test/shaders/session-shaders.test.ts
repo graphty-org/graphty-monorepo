@@ -11,6 +11,7 @@
 
 import { createHash } from "node:crypto";
 
+import { sha256HexSync as sha256Hex } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegistry";
@@ -21,7 +22,6 @@ import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, shaderContentHash, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
 import { defineShader } from "../../src/simple/defineShader";
-import { sha256Hex } from "../../src/utils/sha256";
 
 /** A node look with one parameter. */
 const TINT = `/* graphty-shader 1

@@ -149,7 +149,7 @@ export {
     ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
-export { sha256Hex } from "./sources/sigv4.js";
+export { sha256Hex, sha256HexSync } from "./sources/sha256.js";
 export {
     type Recording,
     recordingFrom,

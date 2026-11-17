@@ -364,6 +364,9 @@ export interface AnimationResult {
 }
 
 // @public
+export type Antialias = boolean | "at-rest";
+
+// @public
 export type AssetStorage = "embed" | "url";
 
 // @public
@@ -2633,7 +2636,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FigureOptions {
@@ -2802,7 +2805,7 @@ export interface GlobeLook {
 // @public
 export class Graph implements GraphContext {
     constructor(element: Element | string, useMockInput?: boolean, options?: {
-        readonly antialias?: boolean;
+        readonly antialias?: Antialias;
         readonly preserveDrawingBuffer?: boolean;
     });
     readonly acceleration: AccelerationController;
@@ -2820,7 +2823,7 @@ export class Graph implements GraphContext {
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     aiTalk(down: boolean, options?: AiTalkOptions): void;
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    readonly antialias: boolean;
+    get antialias(): Antialias;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2852,6 +2855,8 @@ export class Graph implements GraphContext {
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
+    // @internal
+    drawnNodeSpots(): Generator<DrawnNodeSpot>;
     drawnShaders(): DrawnShaders;
     get edgeLabelCounts(): EdgeLabelCounts;
     // (undocumented)
@@ -3008,6 +3013,7 @@ export class Graph implements GraphContext {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview>;
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     // @deprecated
     needRays: boolean;
@@ -3072,6 +3078,7 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
+    setAntialias(value: Antialias): boolean;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
@@ -3382,8 +3389,8 @@ export class Graphty extends LitElement {
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    get antialias(): boolean;
-    set antialias(value: boolean);
+    get antialias(): Antialias;
+    set antialias(value: Antialias);
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3612,6 +3619,7 @@ export class Graphty extends LitElement {
     set minimap(value: boolean);
     get minimapLabel(): string;
     set minimapLabel(value: string);
+    modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview>;
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
@@ -3866,7 +3874,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -3912,7 +3920,6 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @experimental timeline
 * @beta
 */
 | "E_NO_TIME_FIELD"
@@ -5211,6 +5218,7 @@ export abstract class LayoutEngine {
     get nodePositions(): ReadonlyElementPositions;
     // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
+    get nodeScreenReference(): number | null;
     // @deprecated
     protected pairWeightKey(source: NodeIdType, target: NodeIdType): string;
     // @deprecated
@@ -5238,6 +5246,8 @@ export abstract class LayoutEngine {
         z: number;
     }): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
+    // @internal
+    protected releasePublishScratch(): void;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
@@ -5369,6 +5379,17 @@ export interface Limits {
     selectionCap: number;
 }
 
+// @public
+export function linkCameras(...views: LinkedCameraView[]): () => void;
+
+// @public
+export interface LinkedCameraView {
+    addEventListener(type: "overview-changed", listener: () => void): void;
+    getCameraState(): CameraState;
+    removeEventListener(type: "overview-changed", listener: () => void): void;
+    setCameraState(state: CameraState): Promise<void>;
+}
+
 export { listSources }
 
 export { LoadFromSourceOptions }
@@ -5442,6 +5463,20 @@ export interface MarkSuggestion {
     readonly as: "mark";
     readonly channels: readonly Channel[];
     readonly spec: MarkSpec;
+}
+
+// @public
+export interface ModelPreview {
+    readonly canvas: HTMLCanvasElement;
+    dispose(): void;
+    resetView(): void;
+    update(style: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void>;
+}
+
+// @public
+export interface ModelPreviewOptions {
+    readonly standInMissing?: boolean;
+    readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
@@ -5547,6 +5582,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScene(): Scene;
     // @internal
+    get drawnSelectionHalo(): boolean;
+    // @internal
     get drawnSourceMesh(): AbstractMesh;
     // @internal
     drawnWorldMatrix(force?: boolean): Matrix;
@@ -5649,6 +5686,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get sizeSpace(): NodeSizeSpace | undefined;
     // @internal
     spacingRadius(flat: boolean): number;
     // @internal
@@ -5872,6 +5911,16 @@ export const NodeShapes: z.ZodEnum<{
 }>;
 
 // @public
+export type NodeSizeSpace = z.infer<typeof NodeSizeSpaces>;
+
+// @public
+export const NodeSizeSpaces: z.ZodEnum<{
+    screen: "screen";
+    scene: "scene";
+    pivot: "pivot";
+}>;
+
+// @public
 export interface NodeSource {
     readonly canExpand: boolean;
     readonly expanded: boolean;
@@ -5888,6 +5937,11 @@ export const NodeStyle: z.ZodObject<{
             scale: "scale";
             uniform: "uniform";
             diameter: "diameter";
+        }>>;
+        sizeSpace: z.ZodOptional<z.ZodEnum<{
+            screen: "screen";
+            scene: "scene";
+            pivot: "pivot";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             full: "full";
@@ -7025,6 +7079,7 @@ export interface Note {
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTarget[];
     readonly text: string;
     readonly time: string;
@@ -7034,7 +7089,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done" | "tags")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -7061,6 +7116,7 @@ export interface NoteInput {
     }[];
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTargetInput[];
     readonly text: string;
 }
@@ -7071,6 +7127,7 @@ export interface NoteListOptions {
     readonly cites?: ResultId;
     readonly done?: boolean;
     readonly missing?: boolean;
+    readonly tag?: string;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
 }
@@ -7089,6 +7146,7 @@ export interface NotePatch {
     readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
+    readonly tags?: readonly string[] | null;
     readonly targets?: readonly NoteTargetInput[];
     readonly text?: string;
 }
@@ -7109,6 +7167,8 @@ export interface NotesApi {
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
     status(id: NoteId): NoteStatus;
+    // (undocumented)
+    tags(): readonly string[];
     toDocument(options?: {
         readonly name?: string;
         readonly description?: string;
@@ -7207,8 +7267,6 @@ export class OperationQueueManager implements Manager {
     disableBatching(): void;
     dispose(): void;
     enableBatching(): void;
-    enterBatchMode(): void;
-    exitBatchMode(): Promise<void>;
     getActiveOperations(): string[];
     getOperationController(operationId: string): AbortController | undefined;
     getOperationProgress(operationId: string): OperationProgress | undefined;
@@ -7221,10 +7279,7 @@ export class OperationQueueManager implements Manager {
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
-    isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
-    // (undocumented)
-    onOperationQueued?: (category: OperationCategory, description?: string) => void;
     pause(): void;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;
@@ -7585,6 +7640,8 @@ export class RenderManager implements Manager {
     // (undocumented)
     graphRoot: TransformNode;
     holdFrames(): () => void;
+    // @internal
+    holdSmooth(): () => void;
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
@@ -7605,6 +7662,7 @@ export class RenderManager implements Manager {
         drawn: number;
         rested: number;
         gpuBehind: number;
+        smooth: number;
     };
 }
 
@@ -8507,6 +8565,8 @@ export class UpdateManager implements Manager {
     // @internal
     endsByRadius(edge: Edge): void;
     // @internal
+    get finalFrameIsNext(): boolean;
+    // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
@@ -8520,9 +8580,10 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     // @internal
     limitsChanged(): void;
+    // @internal
+    markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
-    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -8550,6 +8611,8 @@ export class UpdateManager implements Manager {
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
     viewMoved(): void;
+    // @internal
+    viewSizedNodeDisposed(node: Node_2): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

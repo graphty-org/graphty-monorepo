@@ -226,6 +226,12 @@ export interface LayerProblem {
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
+    /**
+     * The selector that makes the layer acceptable, when the remedy is to scope it: for
+     * `E_UNSCOPED_RUN_ENCODING`, `{ match: "has", path }` on the run path the encoding reads.
+     * @since 3.40.0
+     */
+    readonly scope?: Selector;
 }
 
 /**
@@ -1110,6 +1116,7 @@ function checkBinding(
                 "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
                 `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
             path: "selector",
+            scope: { match: "has", path: binding.by },
         });
     }
 }

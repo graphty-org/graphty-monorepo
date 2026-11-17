@@ -15,7 +15,6 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -65,8 +64,8 @@ function toolbar(): HTMLElement {
 }
 
 describe("Keyboard stops and Escape (real element)", () => {
-    it("Tab out of Filter analyses lands after the Analyze tool, with the list closed", async () => {
-        const session = await openGraph();
+    it("Tab out of Filter analyses goes on to the active entry's Run, with the list open", async () => {
+        await openGraph();
         // Table puts focus in the grid and makes Table the toolbar's roving stop, so Analyze is
         // no Tab stop of its own when Shift+A opens the list.
         await userEvent.click(within(toolbar()).getByRole("button", { name: "Table" }));
@@ -80,32 +79,12 @@ describe("Keyboard stops and Escape (real element)", () => {
         });
         await userEvent.keyboard("deg");
         await userEvent.keyboard("{Tab}");
-        // The selection workspace's calm Analyze list keeps Run beside its filter (AnalyzePopover.tsx):
-        // Tab goes on to the active entry's Run, and the list stays open.
-        if (selectionWorkspaceOn(session)) {
-            await waitFor(() => {
-                assert.strictEqual(
-                    document.activeElement,
-                    screen.getByRole("button", { name: "Run Degree" }),
-                    focused(),
-                );
-            });
-            assert.isNotNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "the list closed");
-            return;
-        }
+        // The calm Analyze list keeps Run beside its filter (AnalyzePopover.tsx): Tab goes on to the
+        // active entry's Run, and the list stays open.
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "the list stayed open");
+            assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Run Degree" }), focused());
         });
-        const active = document.activeElement;
-        assert.isNotNull(active);
-        assert.notStrictEqual(active, document.body, "focus fell to the page");
-        assert.notStrictEqual(active?.getAttribute("aria-label"), "Main menu", focused());
-        assert.isFalse(toolbar().contains(active), focused());
-        assert.notStrictEqual(
-            toolbar().compareDocumentPosition(active as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
-            0,
-            `focus went back up the page: ${focused()}`,
-        );
+        assert.isNotNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "the list closed");
     });
 
     it("Escape on a selected node's inspector heading empties the selection", async () => {

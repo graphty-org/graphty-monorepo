@@ -7,8 +7,6 @@
  * the writer case records the 36 words as the `indirect-finalize` / `counts9` u32 noise fixture.
  */
 
-import { type TestContext } from "vitest";
-
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError, type WebGpuGraphError } from "../../src/errors.js";
 import { CommandBatch } from "../../src/kernel/batch.js";
@@ -26,7 +24,7 @@ import {
 } from "../helpers/indirect.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 const POISON = 0xdeadbeef;
 const FILL_COUNT = 4_000_000;
@@ -74,14 +72,7 @@ async function fillIndirect(ctx: GpuContext, slot: number): Promise<{ words: Uin
 }
 
 describe("indirect-finalize and Kernel.dispatchIndirect (spec 5.4; P4-T1)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "indirect" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "indirect" });
 
     it("writes (planIndirect.x, planIndirect.y, 1, count) into the slot of each of the nine counts, the largest u32 included; two runs bitwise equal", async (t) => {
         const ctx = await context(t);

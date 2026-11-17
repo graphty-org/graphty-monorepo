@@ -9,10 +9,9 @@ import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-eleme
 import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, Text, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { PICK_NODE_EVENT } from "../table/RecordTable";
-import { PICK_ON_CANVAS, referenceSections } from "./references";
+import { referenceSections } from "./references";
 import type { Host } from "./values";
 import { referenceWords } from "./words";
 
@@ -93,16 +92,11 @@ export function ReferencePicker({
     // Pick on canvas: armed, the next node clicked on the canvas is the reference; Escape disarms.
     const [arming, setArming] = useState(false);
     const field = useRef<HTMLButtonElement>(null);
-    // The full-screen workspace's pick (the `selection-workspace` experiment): the armed tooltip
-    // names Esc, and a pick on the canvas or a row leaves focus on the reference field, inside the
-    // editor. Off, both stay as before the experiment.
-    const modal = selectionWorkspaceOn(session);
+    // The armed tooltip names Esc, and a pick on the canvas or a row leaves focus on the reference
+    // field, inside the editor.
     const take = useRef<(next: StepReference) => void>(() => undefined);
     take.current = (next) => {
         onReference(next);
-        if (!modal) {
-            return;
-        }
         requestAnimationFrame(() => {
             if (field.current !== null) {
                 focusWithRing(field.current);
@@ -141,7 +135,7 @@ export function ReferencePicker({
         };
     }, [arming, session]);
     const typed = search.trim();
-    const sections = combobox.dropdownOpened ? referenceSections(session, host, firstStep, typed, modal) : [];
+    const sections = combobox.dropdownOpened ? referenceSections(session, host, firstStep, typed) : [];
     const chosen = referenceValue(reference);
     const token = reference === undefined ? "" : referenceWords(session, reference);
     return (
@@ -149,15 +143,11 @@ export function ReferencePicker({
             store={combobox}
             position="bottom-start"
             withinPortal
-            // In the workspace the list keeps its field's width, however long a node's name is.
-            {...(modal ? { width: "target" as const } : {})}
+            // The list keeps its field's width, however long a node's name is.
+            width="target"
             classNames={LISTBOX_CLASS_NAMES}
             onOptionSubmit={(value) => {
                 combobox.closeDropdown();
-                if (value === PICK_ON_CANVAS) {
-                    setArming(true);
-                    return;
-                }
                 onReference(referenceOfValue(value));
             }}
         >
@@ -186,7 +176,7 @@ export function ReferencePicker({
                         </span>
                     </InputBase>
                 </Combobox.Target>
-                <TargetTooltip label={arming && modal ? "Pick a node (Esc)" : "Pick on canvas"}>
+                <TargetTooltip label={arming ? "Pick a node (Esc)" : "Pick on canvas"}>
                     <ActionIcon
                         variant={arming ? "light" : "subtle"}
                         size="sm"
@@ -223,13 +213,9 @@ export function ReferencePicker({
                                     aria-disabled={each.disabled}
                                     active={each.value === chosen}
                                 >
-                                    {modal ? (
-                                        <span className="sel-field-text" title={each.label}>
-                                            {each.label}
-                                        </span>
-                                    ) : (
-                                        each.label
-                                    )}
+                                    <span className="sel-field-text" title={each.label}>
+                                        {each.label}
+                                    </span>
                                     {each.hint !== undefined && (
                                         <Text span size="sm" c="dimmed" ml={6}>
                                             {each.hint}

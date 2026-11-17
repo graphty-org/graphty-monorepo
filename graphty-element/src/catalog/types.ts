@@ -360,7 +360,7 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
  *
  * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
@@ -370,7 +370,7 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
  *
  * OPEN UNION: values may be added in a minor release.
  */
-export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
 export type MeasurementDeclaration =
@@ -500,7 +500,7 @@ export interface FieldDescriptor {
      * by. Experimental: may change or be removed in a minor release.
      * @beta
      */
-    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    missing?: "unreached" | "unmeasured" | (string & {}); // keeps the named codes in autocomplete while open to others
     /**
      * Present (true) when its values are names a re-run may spell differently (a community's
      * number), so a group is saved by a member it holds rather than by its number.
@@ -687,6 +687,7 @@ export type Channel =
     | "node.color"
     | "node.size"
     | "node.sizeMode"
+    | "node.sizeSpace"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
@@ -1347,8 +1348,9 @@ export type Selector =
     | { match: "rule"; where: RuleTree; edges?: EdgeReading }
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-     * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-     * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+     * edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
+     * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+     * a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
      * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
      * `selectorRule` reads this selector as with its `states` option.
@@ -1373,7 +1375,12 @@ export type Selector =
      */
     | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
 
-/** Who put a layer in the stack. Every layer names its source. */
+/**
+ * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
+ * what it is for: `"default"` the look every element is drawn from, `"selection"`, `"hover"` and
+ * `"notes"` what they paint, and `"time"` the two
+ * locked layers that hide what lies outside a time window.
+ */
 export type LayerSource =
     | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
     | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
@@ -2399,11 +2406,12 @@ export type RuleTree =
     | { readonly kind: "not"; readonly of: RuleTree };
 
 /**
- * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
- * window, or pinned in place.
+ * What a reader is doing to an element now: selected, under the pointer, drawn while a held filter
+ * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`), or pinned
+ * in place.
  * @since 3.36.0
  */
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";
 
 /**
  * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
@@ -2658,7 +2666,7 @@ export interface MeasureLeaf {
 export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
+export type SourceKey = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.

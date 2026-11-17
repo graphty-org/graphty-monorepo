@@ -11,6 +11,21 @@ import { RichTextStyle } from "./RichTextStyle";
  */
 export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
+/**
+ * How a node's drawn size follows the camera (`shape.sizeSpace`, the `node.sizeSpace` channel):
+ * - "scene" (the default): plain perspective, a nearer node looks bigger and zooming in grows it.
+ * - "pivot": drawn as if it stood at the depth of the point the camera turns about, so near and
+ *   far nodes compare as their sizes; zooming still scales it. Only a 3D perspective view with the
+ *   orbit camera; elsewhere it is drawn as "scene".
+ * - "screen": a node of size `s` covers `s / L` of the view's height at any depth and zoom, where
+ *   `L` is the running layout's `nodeScreenReference` (50 when the layout supplies none).
+ * An XR session draws every node at its scene size, whatever this says.
+ */
+export const NodeSizeSpaces = z.enum(["scene", "pivot", "screen"]);
+
+/** How a node's drawn size follows the camera: see {@link NodeSizeSpaces}. */
+export type NodeSizeSpace = z.infer<typeof NodeSizeSpaces>;
+
 /** The axis that points up in a model's file, or "detected" to read it from the format. */
 export const NodeModelUpAxes = z.enum(["detected", "y", "z", "-y", "-z", "x", "-x"]);
 
@@ -242,6 +257,9 @@ export const NodeStyle = z.strictObject({
             //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
             //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
+            // How the drawn size follows the camera: see `NodeSizeSpaces`. Unset, the graph-wide
+            // `layoutBehavior.node.sizeSpace`, and "scene" when that is unset too.
+            sizeSpace: NodeSizeSpaces.optional(),
             detail: NodeMeshDetails.or(z.number().int().min(1)).optional(),
             type: NodeShapes.optional(),
             // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps

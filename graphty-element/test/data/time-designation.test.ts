@@ -1,14 +1,13 @@
 /**
  * A file that declares time opens with a timeline: a dynamic GEXF graph and an XGMML graph with
- * `start` and `end` designate the time field as part of the load, with the timeline experiment on.
+ * `start` and `end` designate the time field as part of the load.
  * Off, the load is the load it always was.
  */
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import type { TimeField } from "../../src/session/time/TimeApi";
-
-const ON = ["timeline"];
+import { windowEdges, windowNodes } from "../helpers/time-window";
 
 /**
  * A GEXF document around a graph's nodes and edges.
@@ -99,25 +98,12 @@ const XGMML_START = xgmml('<att name="start" type="real" value="1"/>');
  * Loads a document into a new session.
  * @param type - the format.
  * @param data - the document.
- * @param features - the session's experiments.
  * @returns the session.
  */
-async function load(type: string, data: string, features: readonly string[] = ON): Promise<GraphSession> {
-    const session = createGraphSession({ features: [...features] });
+async function load(type: string, data: string): Promise<GraphSession> {
+    const session = createGraphSession();
     await session.data.import({ type, config: { data } });
     return session;
-}
-
-/**
- * The records a load leaves, by id, so two loads compare whatever ids the session issued.
- * @param session - the session.
- * @returns its node and edge records.
- */
-function records(session: GraphSession): { nodes: unknown[]; edges: unknown[] } {
-    return {
-        nodes: session.data.nodes().map((node) => ({ ...node })),
-        edges: session.data.edges().map(({ id: _id, ...edge }) => edge),
-    };
 }
 
 /**
@@ -126,7 +112,7 @@ function records(session: GraphSession): { nodes: unknown[]; edges: unknown[] } 
  * @returns the node ids whose row is visible.
  */
 function shownNodes(session: GraphSession): string[] {
-    const mask = session.visibility.nodeMask();
+    const mask = windowNodes(session.visibility);
     return session.data.nodes().flatMap((node, row) => (mask[row] === 1 ? [String(node.id)] : []));
 }
 
@@ -188,8 +174,8 @@ describe("a dynamic GEXF graph designates its time on load", () => {
         await session.time.window({ from: 7, to: 8 });
         // a and b list 7; c is at 3 only.
         assert.deepEqual(shownNodes(session), ["a", "b"]);
-        assert.equal(session.visibility.edgeMask()[0], 1, "the edge listing 7 is inside");
-        assert.equal(session.visibility.edgeMask()[1], 0, "the edge at 3 is not");
+        assert.equal(windowEdges(session.visibility)[0], 1, "the edge listing 7 is inside");
+        assert.equal(windowEdges(session.visibility)[1], 0, "the edge at 3 is not");
         session.dispose();
     });
 
@@ -202,7 +188,7 @@ describe("a dynamic GEXF graph designates its time on load", () => {
     });
 
     it("tells time:field listeners", async () => {
-        const session = createGraphSession({ features: ON });
+        const session = createGraphSession();
         const heard: (TimeField | null)[] = [];
         session.on("time:field", ({ field }) => heard.push(field));
         await session.data.import({ type: "gexf", config: { data: OPEN } });
@@ -240,7 +226,7 @@ describe("the designation is part of the load", () => {
     });
 
     it("designates from a prepared draft, and keeps its listed instants", async () => {
-        const session = createGraphSession({ features: ON });
+        const session = createGraphSession();
         const draft = await session.data.prepare({ type: "gexf", config: { data: TIMESTAMPS } });
         await draft.load();
         assert.equal(session.time.field?.nodes?.spells, "timestamps");
@@ -249,60 +235,10 @@ describe("the designation is part of the load", () => {
     });
 
     it("leaves a field already set as it is", async () => {
-        const session = createGraphSession({ features: ON });
+        const session = createGraphSession();
         await session.config.set({ data: { knownFields: { nodeTimePath: "born" } } });
         await session.data.import({ type: "gexf", config: { data: INTERVALS } });
         assert.deepEqual(session.time.field, { nodes: { start: "born" } });
-        session.dispose();
-    });
-});
-
-describe("records", () => {
-    it("with the timeline on, equal those with it off apart from timestamps", async () => {
-        for (const data of [INSTANTS, INTERVALS, SPELLS, SPELLS_ONLY, OPEN, TIMESTAMPS, STATIC]) {
-            const on = await load("gexf", data);
-            const off = await load("gexf", data, []);
-            const strip = (list: unknown[]): unknown[] =>
-                list.map((each) => {
-                    const { timestamps: _timestamps, ...rest } = each as Record<string, unknown>;
-                    return rest;
-                });
-            const read = { on: records(on), off: records(off) };
-            assert.deepEqual(strip(read.on.nodes), read.off.nodes);
-            assert.deepEqual(strip(read.on.edges), read.off.edges);
-            on.dispose();
-            off.dispose();
-        }
-    });
-
-    it("with the timeline off, carry no timestamps and designate nothing", async () => {
-        for (const [type, data] of [
-            ["gexf", TIMESTAMPS],
-            ["gexf", INTERVALS],
-            ["xgmml", XGMML_BOTH],
-        ] as const) {
-            const session = await load(type, data, []);
-            const { knownFields } = session.config.data;
-            assert.isNull(knownFields.nodeTimePath, type);
-            assert.isNull(knownFields.edgeTimePath, type);
-            assert.isFalse(
-                session.data.nodes().some((node) => "timestamps" in node),
-                type,
-            );
-            session.dispose();
-        }
-    });
-
-    it("with the timeline off, a prepared draft carries no timestamps and designates nothing", async () => {
-        const session = createGraphSession({ features: [] });
-        const draft = await session.data.prepare({ type: "gexf", config: { data: TIMESTAMPS } });
-        await draft.load();
-        const { knownFields } = session.config.data;
-        assert.isNull(knownFields.nodeTimePath);
-        assert.isNull(knownFields.edgeTimePath);
-        assert.isAbove(session.data.edges().length, 0);
-        assert.isFalse(session.data.nodes().some((node) => "timestamps" in node));
-        assert.isFalse(session.data.edges().some((edge) => "timestamps" in edge));
         session.dispose();
     });
 });

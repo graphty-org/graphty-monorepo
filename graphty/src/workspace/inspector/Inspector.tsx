@@ -6,14 +6,11 @@ import React, { useEffect, useState } from "react";
 import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
-import { TimeCard } from "../data-place/TimeCard";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -35,6 +32,7 @@ import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
 import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -43,7 +41,6 @@ import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
 import { AttributeValues, Overview } from "./GraphValues";
-import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
@@ -518,11 +515,11 @@ function HeaderMenu({
  */
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, INSPECTOR_EVENTS);
     // The reader's Number format respells every value the inspector draws.
     useNumberFormats();
     // A filter step turned on or off changes its editor's header.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
@@ -874,8 +871,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         case "rows":
             return { name: rowsHeading(session, resolved.rows) };
         case "filter-step":
-            // Only the time window's card opens here: a filter card is edited in the Filters section.
-            return { name: resolved.step === TIME_ROW ? "Time window" : "Filter" };
+            // A filter card is edited in the Filters section; nothing opens one here.
+            return { name: "Filter" };
         case "source":
             return sourceHeader(session, resolved.row);
         default:
@@ -969,8 +966,8 @@ function bodyOf(
             // Keyed by the rows, so another selection starts with no receipt of the last one's edit.
             return { only: <MultiRowPanel key={resolved.rows.join(" ")} ids={resolved.rows} /> };
         case "filter-step":
-            // The time window's card; a filter card is edited in place in the Filters section.
-            return { only: resolved.step === TIME_ROW ? <TimeCard /> : <Gone /> };
+            // A filter card is edited in place in the Filters section.
+            return { only: <Gone /> };
         case "source":
             return { only: <SourceValues row={resolved.row} /> };
         default:

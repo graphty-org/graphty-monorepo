@@ -1,11 +1,11 @@
 /**
  * The absolute performance targets of the T-table (plan section 10.4), read from benchmarks/results/targets.json and
  * judged against one benchmark row. Shared by scripts/bench-compare.js (the GPU lane's gate) and
- * scripts/bench-readme-tables.js (the README's Performance tables), so both say the same thing about a row.
+ * scripts/bench-readme-tables.js (the Performance tables of benchmarks/README.md), so both say the same thing about a row.
  *
  * targets.json is an object keyed by benchmark row, `group/name` exactly as bench-compare matches rows. Each entry:
  *   id                   the T-table id ("T-1" .. "T-14")
- *   what                 the README's description of the row
+ *   what                 the description of the row in benchmarks/README.md
  *   target               a threshold in milliseconds the median must not exceed, or "recorded" (no threshold)
  *   gatingRunnerClasses  the runner classes on which a miss fails bench:compare. The targets bind the reference
  *                        card, the Tesla T4 of the GPU lane (`gpu-linux-t4`); every other class reports and does not

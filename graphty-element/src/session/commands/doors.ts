@@ -755,6 +755,9 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+const PREVIEW = exempt(
+    "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
+);
 const TRANSPORT = exempt(
     "In-flight layout computation; where the layout comes to rest is recorded with the step that moved it.",
 );
@@ -1206,6 +1209,7 @@ const TIME_API: Readonly<Record<string, Door>> = {
     candidates: READ,
     notices: READ,
     parse: READ,
+    inside: READ,
     atStart: READ,
     atEnd: READ,
     settings: READ,
@@ -1581,6 +1585,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             exportFigure: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
+            modelPreview: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -1902,10 +1907,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openRowTable: RENDER,
             getNodeBatches: READ,
             getEdgeRowLines: READ,
+            drawnNodeSpots: READ,
             getNodeIdTarget: READ,
             getEdgeIdTarget: READ,
             renderPath: READ,
             antialias: READ,
+            setAntialias: MACHINE,
             preserveDrawingBuffer: READ,
             setRenderPath: MACHINE,
             limits: READ,
@@ -1967,6 +1974,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
+            modelPreview: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -2142,10 +2150,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdOffBatch: RENDER,
             drawnRayHit: READ,
             drawnScale: RENDER,
+            // How the node's drawn size follows the camera, as its style sets it (`node.sizeSpace`).
+            sizeSpace: READ,
             drawShrunk: RENDER,
             drawnBoundingRadius: RENDER,
             drawnScene: RENDER,
             isDrawn: READ,
+            drawnSelectionHalo: READ,
             drawnGeneration: READ,
             drawnRootScale: READ,
             makeDrawnPickable: RENDER,
@@ -2428,6 +2439,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Whether followView would lay the graph out again; it only reads.
             viewChanged: READ,
         },
+    },
+    {
+        name: "ModelPreview",
+        file: "src/meshes/ModelPreview.ts",
+        half: "renderer",
+        whole: PREVIEW,
     },
     {
         name: "SupportPoints",
@@ -3115,6 +3132,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             },
             attributes: READ,
+            roleCandidate: READ,
             readableValues: READ,
             structureValues: READ,
             structureValue: READ,
@@ -3662,6 +3680,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             get: READ,
             status: READ,
             authors: READ,
+            tags: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(
@@ -3832,6 +3851,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
+            timelineHiddenLook: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -3950,14 +3970,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
             restoreWindow: calls(
-                [{ attribute: "data.t", from: 0, to: 1 }, false],
+                [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
             ),
             restorePlayback: calls(
                 [{ mode: "cumulative" }],
                 [{ op: "visibility.playback", playback: { mode: "cumulative" } }],
             ),
-            holdsInstants: READ,
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,
@@ -3967,6 +3986,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openDrafts: READ,
             filterBytes: READ,
             passingBytes: READ,
+            outsideWindow: READ,
+            outsideWindowBytes: READ,
+            windowMasks: READ,
+            windowCounts: READ,
+            insideMasks: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
             ),
@@ -4052,6 +4076,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.
             publishedBounds: READ,
+            // The size a "screen"-sized node of size 1 is drawn against (`node.sizeSpace`).
+            nodeScreenReference: READ,
         },
     },
     {
@@ -4226,6 +4252,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            holdSmooth: RENDER,
             frameDrawn: RENDER,
             setPixelRatio: RENDER,
             resize: RENDER,

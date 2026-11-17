@@ -622,7 +622,7 @@ export type ShaderProblemCode =
     | "shader.revoked"
     // Open: a code may be added or retired in a minor release, and a build without shaders
     // reads a file that names one.
-    | (string & {}); // NOSONAR(S4335): the open-union idiom
+    | (string & {}); // the open-union idiom
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {
@@ -683,7 +683,7 @@ export interface ShaderRegistration {
  * shader is pasted, copied and saved in. Code, not words for a reader.
  * @since 3.36.0
  */
-export type ShaderText = string; // NOSONAR(S6564): a published, documented name for the pasted text form
+export type ShaderText = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a published, documented name for the pasted text form
 
 /** What `parseShaderText` answers. @since 3.36.0 */
 export type ShaderTextResult =

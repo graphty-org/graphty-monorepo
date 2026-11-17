@@ -332,10 +332,9 @@ export class CustomLineRenderer {
 
         const moduleShaderStore = Effect.ShadersStore;
 
-        // Vertex Shader: Screen-space width expansion
-        // This matches the formula we learned from GreasedLine and dot arrowhead work
-        // Updated to support instancing (required for BabylonJS mesh caching)
-        // FIXED: Uses segmentStart/segmentEnd for consistent perpendicular calculation
+        // Vertex Shader: Screen-space width expansion. Supports instancing (Babylon.js mesh caching
+        // needs it), and both vertices of a segment take their perpendicular from
+        // segmentStart/segmentEnd, so the two ends of the quad agree.
         const vertexShaderCode = `
 precision highp float;
 
@@ -371,8 +370,8 @@ void main() {
     // Transform vertex to clip space using finalWorld (supports instancing)
     vec4 vertexClip = viewProjection * finalWorld * vec4(position, 1.0);
 
-    // FIXED: Calculate screen-space direction using segment start/end
-    // This ensures both start and end vertices use the SAME perpendicular direction
+    // Screen-space direction from the segment's start and end, so both vertices of the segment
+    // use the same perpendicular
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
 
@@ -426,8 +425,8 @@ void main() {
     vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
-    // NOTE: Removed * vertexClip.w to enable perspective tapering
-    // GPU will apply perspective divide (/= w), making distant lines smaller
+    // The offset is not multiplied by vertexClip.w, so the GPU's perspective divide (/= w)
+    // makes distant lines thinner (perspective tapering)
     // Divide by resolution to convert from pixels to NDC (-1 to +1)
     offset /= resolution;
 
@@ -455,7 +454,7 @@ void main() {
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
 
         // Fragment Shader: Pattern rendering
-        // Updated to support 7 pattern types:
+        // Seven pattern types:
         // 0=solid, 1=dash, 2=dash-dot, 3=equal-dash, 4=sinewave, 5=zigzag, 6=dots
         const fragmentShaderCode = `
 precision highp float;

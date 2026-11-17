@@ -525,10 +525,11 @@ A minimum cut found by random contraction over many trials: the lightest set of 
 
 Returns `CutResult`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
 
-| Option       | Type     | Default | Meaning                                                          |
-| ------------ | -------- | ------- | ---------------------------------------------------------------- |
-| `randomSeed` | `number` | `42`    | Seed of the edge orders; one seed gives one result, bit for bit. |
-| `iterations` | `number` | `100`   | Independent contraction trials; the lightest cut found wins.     |
+| Option       | Type     | Default | Meaning                                                                                                     |
+| ------------ | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `seed`       | `number` | `42`    | Seed of the edge orders; an integer, one seed gives one result, bit for bit.                                |
+| `randomSeed` | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. |
+| `iterations` | `number` | `100`   | Independent contraction trials; the lightest cut found wins.                                                |
 
 ### `graphtyKatzCentrality`
 
@@ -560,10 +561,11 @@ Returns `Partition<{ iterations: number | undefined; converged: boolean | undefi
 
 `iterations` and `converged` are undefined only when the `...Async` twin ran on the GPU, which does not report them; this method always fills them in.
 
-| Option          | Type     | Default | Meaning                                                     |
-| --------------- | -------- | ------- | ----------------------------------------------------------- |
-| `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents). |
-| `randomSeed`    | `number` | `42`    | Seed of the visit order and of the tie draws.               |
+| Option          | Type     | Default | Meaning                                                                                                     |
+| --------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents).                                                 |
+| `seed`          | `number` | `42`    | Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer.                   |
+| `randomSeed`    | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. |
 
 ### `graphtyLabelPropagationSemiSupervised`
 
@@ -576,7 +578,8 @@ Cluster numbers are not seed labels: they follow node order, not the order of `s
 | Option          | Type                                 | Default  | Meaning                                                                                                                                                                                                                                                                                                                |
 | --------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `maxIterations` | `number`                             | `100`    | Work cap, in node visits per node (full-sweep equivalents).                                                                                                                                                                                                                                                            |
-| `randomSeed`    | `number`                             | `42`     | Seed of the visit order and of the tie draws.                                                                                                                                                                                                                                                                          |
+| `seed`          | `number`                             | `42`     | Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer.                                                                                                                                                                                                                              |
+| `randomSeed`    | `number`                             |          | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major.                                                                                                                                                                                                            |
 | `seeds`         | `string \| readonly NodeSelection[]` | required | Seed labels: the node data field holding them (nodes without it are free), or one selection per label. Free nodes start unlabeled and take a seed label when one reaches them, so every node connected to a seed ends in a seed's cluster. Each connected group of nodes no seed reaches becomes a cluster of its own. |
 
 ### `graphtyLabelPropagationSynchronous`
@@ -602,7 +605,8 @@ Returns `Partition<{ modularity: number; iterations: number; }>`. Reads edge wei
 | Option          | Type     | Default | Meaning                                                                                                                        |
 | --------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `resolution`    | `number` | `1`     | Resolution gamma: above 1 favors smaller communities.                                                                          |
-| `randomSeed`    | `number` | `42`    | Seed of the visit orders.                                                                                                      |
+| `seed`          | `number` | `42`    | Seed of the visit orders; an integer, one seed gives one result, bit for bit.                                                  |
+| `randomSeed`    | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major.                    |
 | `maxIterations` | `number` | `100`   | Cap on whole passes over the original graph, each running as many levels as it needs. The result's `iterations` counts levels. |
 | `threshold`     | `number` | `1e-7`  | Stop once a pass improves modularity by no more than this.                                                                     |
 
@@ -752,8 +756,8 @@ Every connected component, an isolated node included, takes a cluster of its own
 | `maxIterations` | `number`                                         | `100`          | Cap on k-means rounds.                                                                                                                                         |
 | `tolerance`     | `number`                                         | `1e-4`         | k-means stops when no centroid moves further than this.                                                                                                        |
 | `k`             | `number`                                         | required       | Number of clusters, a positive integer.                                                                                                                        |
-| `laplacianType` | `"normalized" \| "unnormalized" \| "randomWalk"` | `"normalized"` | `"unnormalized"` is `D - A`, `"normalized"` is `I - D^-1/2 A D^-1/2` with each row of the embedding scaled to unit length, and `"randomWalk"` is `I - D^-1 A`. |
 | `seed`          | `number`                                         | `42`           | Seed of the starting block and of the k-means seeding.                                                                                                         |
+| `laplacianType` | `"normalized" \| "unnormalized" \| "randomWalk"` | `"normalized"` | `"unnormalized"` is `D - A`, `"normalized"` is `I - D^-1/2 A D^-1/2` with each row of the embedding scaled to unit length, and `"randomWalk"` is `I - D^-1 A`. |
 
 ### `graphtyStoerWagner`
 

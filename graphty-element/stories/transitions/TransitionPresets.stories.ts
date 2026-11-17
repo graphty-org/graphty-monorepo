@@ -13,9 +13,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { registerTransition, type TransitionRegistration } from "../../extend";
-import { operationQueueOf } from "../../src/Graph";
 import type { Graphty } from "../../src/graphty-element";
-import { transitionsOf } from "../../src/transitions/LayoutTransitionRunner";
 import { ARC_MOVE } from "../../src/transitions/presets/arc-move";
 import { COLLAPSE_BLOOM } from "../../src/transitions/presets/collapse-bloom";
 import { FADE_THROUGH } from "../../src/transitions/presets/fade-through";
@@ -156,9 +154,8 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
     await assertGraphLoaded(await drawn(canvasElement, story), { nodes: NODES.length, edges: EDGES.length });
     element.layout = "circular";
     await element.updateComplete;
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForSettled();
     const scene = element.graph.getScene();
-    const runner = transitionsOf(element.graph.getLayoutManager());
     const frame = (): Promise<void> =>
         new Promise<void>((resolve) => {
             scene.onAfterRenderObservable.addOnce(() => {
@@ -170,7 +167,14 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         // a third draws the edges after them.
         await frame();
         await frame();
-        if (runner?.active !== true) {
+        // Held at its pose, the move draws nodes away from the ring's places.
+        const place = { x: 0, y: 0, z: 0 };
+        const offPlace = element.getNodes().filter((node) => {
+            element.session.positions.read(node.index, place);
+            const at = node.drawnPosition;
+            return Math.hypot(at.x - place.x, at.y - place.y, at.z - place.z) > 1e-6;
+        });
+        if (offPlace.length === 0) {
             throw new Error(`${story}: the transition did not start`);
         }
 
@@ -178,7 +182,7 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         // Every edge is drawn between its nodes where they are drawn, not where the layout has
         // them: the middle of its line lies on the segment between them (not at its midpoint,
         // since the arrowhead trims the target end).
-        for (const edge of element.graph.getDataManager().edges.values()) {
+        for (const edge of element.getEdges()) {
             const a = edge.srcNode.drawnPosition;
             const b = edge.dstNode.drawnPosition;
             const middle = edge.drawnCentre;
@@ -195,14 +199,11 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         return;
     }
 
-    while (runner?.active === true) {
-        await frame();
-    }
-
+    // A stable frame waits for the move to land.
     await waitForGraphSettled(canvasElement);
     // Landed exactly on the new layout's places.
     const at = { x: 0, y: 0, z: 0 };
-    for (const node of element.graph.getDataManager().nodes.values()) {
+    for (const node of element.getNodes()) {
         element.session.positions.read(node.index, at);
         const drawnAt = node.drawnPosition;
         if (Math.hypot(drawnAt.x - at.x, drawnAt.y - at.y, drawnAt.z - at.z) > 1e-6) {

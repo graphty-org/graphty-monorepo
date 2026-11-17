@@ -2000,7 +2000,8 @@ jobs:
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
-            # on the full path, where tools/test-quarantine.json stands.
+            # on the full path, where each group reads its quarantine from the store itself (RESULTS_STORE_QUARANTINE
+            # below), and tools/test-quarantine.json stands only when the store does not answer.
             - name: Download the results plan
               if: github.event_name == 'pull_request'
               continue-on-error: true
@@ -2019,6 +2020,8 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # the full path (no plan file): each group asks the store for its quarantine (#3454)
+                  RESULTS_STORE_QUARANTINE: ${{ github.event_name != 'pull_request' && '1' || '' }}
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}

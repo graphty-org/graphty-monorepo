@@ -14,6 +14,7 @@ import {
 } from "../../../src/session/project/Dispatcher";
 import type { RunEntry } from "../../../src/session/project/state";
 import type { CompiledLayer } from "../../../src/session/styles/Layer";
+import { type FakeClock, fakeClock } from "./fakes";
 
 /** A stand-in layer stack; nothing here looks inside one. */
 export function stack(name: string): readonly CompiledLayer[] {
@@ -362,12 +363,6 @@ export class FakeQueue implements Scheduler {
     }
 }
 
-/** A clock the tests move by hand. */
-export interface FakeClock {
-    now(): number;
-    advance(ms: number): void;
-}
-
 /** A dispatcher over the fake definitions, a hand-moved clock, and the changes it published. */
 export function setup(): {
     dispatcher: Dispatcher;
@@ -375,13 +370,7 @@ export function setup(): {
     clock: FakeClock;
     queue: FakeQueue;
 } {
-    let time = 0;
-    const clock: FakeClock = {
-        now: () => time,
-        advance: (ms) => {
-            time += ms;
-        },
-    };
+    const clock = fakeClock();
     const published: { slices: readonly string[]; cause: string }[] = [];
     const queue = new FakeQueue();
     gates.reset();

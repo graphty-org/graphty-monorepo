@@ -440,7 +440,8 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export type { PathParts } from "./src/session/results";
+export { pathParts, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
 
 /**
  * Write one English sentence saying what a result means: the sentence `result.reading()` returns,

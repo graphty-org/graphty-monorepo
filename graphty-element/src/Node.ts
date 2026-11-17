@@ -264,6 +264,24 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 let ownAnchor: (node: Node) => TransformNode;
 
 /**
+ * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
+ * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
+ * point exports it.
+ */
+export const nodeInternals = {} as {
+    /** The node's border, outer border, shadow, underlay and overlay meshes and the look it last drew. */
+    drawn(node: Node): {
+        border: Node["border"];
+        outerBorder: Node["outerBorder"];
+        drawnStyle: Node["drawnStyle"];
+        tableTexts: Node["tableTexts"];
+        shadow: Node["shadow"];
+        underlay: Node["underlay"];
+        overlay: Node["overlay"];
+    };
+};
+
+/**
  * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
  * a new one, rather than only write to the mesh it has. A repaint of many nodes asks first, so it
  * can hand every mesh about to go to the bulk teardown before any of them is disposed (#2749).
@@ -437,6 +455,15 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        nodeInternals.drawn = (node) => ({
+            border: node.border,
+            outerBorder: node.outerBorder,
+            drawnStyle: node.drawnStyle,
+            tableTexts: node.tableTexts,
+            shadow: node.shadow,
+            underlay: node.underlay,
+            overlay: node.overlay,
+        });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
                 return false;

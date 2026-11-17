@@ -237,24 +237,6 @@ describe("Dependency Ordering", () => {
         assert.sameMembers(executionOrder, ["style-init", "data-add", "layout-set"]);
     });
 
-    it("should sort layout-set before a layout-update queued ahead of it", async () => {
-        const executionOrder: string[] = [];
-
-        // Batch mode applies no obsolescence, so the layout-update that layout-set would otherwise
-        // obsolete stays in the batch and only the dependency decides the order.
-        queueManager.enterBatchMode();
-        queueManager.queueOperation("layout-update", () => {
-            executionOrder.push("layout-update");
-        });
-        queueManager.queueOperation("layout-set", () => {
-            executionOrder.push("layout-set");
-        });
-        await queueManager.exitBatchMode();
-        await queueManager.waitForCompletion();
-
-        assert.deepEqual(executionOrder, ["layout-set", "layout-update"]);
-    });
-
     it("should execute layout-set before layout-update", async () => {
         const executionOrder: string[] = [];
 

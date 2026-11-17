@@ -8,10 +8,10 @@ import { focusInspectorTitle } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
+import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
 import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
 export const FIND_BOX_ID = "ws-find";
@@ -1676,7 +1676,7 @@ export function FindBox(): React.JSX.Element {
     const shiftPicked = useRef(false);
     useClearAfterShiftPicks(listOpen, shiftPicked, setText, setActive, setPickedValues);
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, GRAPH_PLACE_EVENTS);
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // reads the change count so the memo runs again on each session change

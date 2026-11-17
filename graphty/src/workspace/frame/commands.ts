@@ -5,7 +5,7 @@ import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
 import { panelsInView } from "../time/timeActions";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
 

@@ -2537,7 +2537,7 @@ export interface NodeView {
 }
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "edge-set", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -3071,6 +3071,8 @@ export type ShorthandValue<S> = S extends number ? number : S extends boolean ? 
 } ? NodeId : S extends {
     readonly type: "node-set";
 } ? readonly NodeId[] : S extends {
+    readonly type: "edge-set";
+} ? readonly string[] : S extends {
     readonly type: "enum";
     readonly values: readonly {
         readonly value: infer V;

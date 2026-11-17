@@ -184,6 +184,7 @@ export const KNOWN_ALGORITHMS = [
     "hierarchical-clustering",
     "astar",
     "edge-betweenness",
+    "removal-impact",
 ] as const;
 
 /**
@@ -557,6 +558,8 @@ export const OPTION_TYPES = [
     "ordering",
     /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
     "color",
+    /** A list of edge ids. @since 3.40.0 */
+    "edge-set",
     "unknown",
 ] as const;
 

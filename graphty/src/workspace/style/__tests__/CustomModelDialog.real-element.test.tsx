@@ -421,6 +421,13 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.match(refused.textContent, /^broken\.glb: /);
         assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
         assert.include(store.get().announcement, "broken.glb: ");
+        // The line saying so sits over the model, which takes the body's width: no column beside
+        // the model is left blank under one line.
+        await previewOf(dialog, "quad");
+        const body = within(dialog).getByTestId("custom-model").getBoundingClientRect();
+        const box = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+        assert.isAtLeast(box.top, refused.getBoundingClientRect().bottom, "the model is under the line");
+        assert.isAbove(box.width, body.width * 0.8, "the model takes the body's width");
     });
 
     it("hands files that are not a model to the model waiting, and replaces it with a model", async () => {

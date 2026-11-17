@@ -1795,19 +1795,10 @@ export function CustomModelDialog({
         </Stack>
     );
 
-    // A model with nothing to show beside it -- one file, settings closed, no problem: the model,
-    // its Name and Details take the whole width under the file, so no blank column sits beside it.
-    const alone =
-        held !== null &&
-        !busy &&
-        !settingsOpen &&
-        !showFiles &&
-        addressProblem === null &&
-        fileProblem === null &&
-        refused.length === 0 &&
-        picture === null &&
-        draw.failure === undefined &&
-        !members.some((m) => m !== current && m.failure !== undefined);
+    // A model with nothing to show beside it -- settings closed and no Files list: the model, its
+    // Name and Details take the whole width under the file and any line about it (a model of the
+    // set refused, why one cannot be drawn), so no blank column sits beside the model.
+    const alone = held !== null && !busy && !settingsOpen && !showFiles;
 
     return (
         <Modal

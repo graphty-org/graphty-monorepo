@@ -21,8 +21,8 @@ numbers and "A1 has not started" are no longer current.
 ## After the migration (2026-11-16)
 
 The rest of `feat/graph-format-migration` reached master in pull request #607 (merge `f99d5957e9`,
-2026-09-29), and graphty-element 3.0.0, algorithms 3.x and layout 2.x were released from it. The
-statements below that master is still at algorithms 2.1.2, layout 1.10.5 and graphty-element 2.6.2,
+2026-09-29). graphty-element 3.0.0 and layout 2.0.0 were released the same day (tags at `97b466b459`),
+and every later release of the three packages includes the #607 merge. The statements below that master is still at algorithms 2.1.2, layout 1.10.5 and graphty-element 2.6.2,
 and that no release may be cut from master, no longer hold; each package's `package.json` has its
 current version.
 

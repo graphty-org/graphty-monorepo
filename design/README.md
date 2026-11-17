@@ -60,7 +60,7 @@ This directory contains design documents, implementation plans, research, and co
 | Review past code reviews         | `code-reviews/`                         |
 | Add data sources or formats      | `data/`                                 |
 | Work on layout algorithms        | `layout-pkg/`                           |
-| Update build/release process     | `monorepo/`                             |
+| Update build/release process     | `ci/`, `monorepo/`                      |
 | Change edge/node rendering       | `rendering/`                            |
 | Improve test infrastructure      | `testing/`                              |
 | Build React UI components        | `ui/`                                   |
@@ -78,7 +78,7 @@ This directory contains design documents, implementation plans, research, and co
 | @graphty/layout                  | `layout-pkg/`                                                                                           |
 | @graphty/graphty-element         | `graphty-element/`, `extensions/`, `element-api/`, `ai/`, `architecture/`, `data/`, `rendering/`, `xr/` |
 | @graphty/graphty (React app)     | `ui/`                                                                                                   |
-| Monorepo (root)                  | `monorepo/`, `testing/`                                                                                 |
+| Monorepo (root)                  | `ci/`, `monorepo/`, `testing/`                                                                          |
 
 ## Document Types
 
@@ -97,7 +97,7 @@ Documents generally follow these patterns:
 - [`ci/channels-pipeline.md`](ci/channels-pipeline.md) - How a change ships: pull requests, canary, nightly, production
 - [`graph-format/graph-format-design.md`](graph-format/graph-format-design.md) - The shared graph data format every package reads
 - [`extensions/README.md`](extensions/README.md) - graphty-element's extension contracts
-- [`monorepo/monorepo-design.md`](monorepo/monorepo-design.md) - Historical: the 2025 research that chose Nx for the monorepo
+- [`monorepo/monorepo-design.md`](monorepo/monorepo-design.md) - Historical: the research that chose Nx for the monorepo
 - [`monorepo/nx-configuration-guide.md`](monorepo/nx-configuration-guide.md) - Nx setup and configuration
 
 ### Architecture

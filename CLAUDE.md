@@ -256,8 +256,8 @@ pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to st
 
 - Strict mode in every package; never disable `@typescript-eslint/no-explicit-any`; use `import type`.
 - There are no cross-package TypeScript project references: Nx builds packages in their `package.json` dependency
-  order, graph-format -> graph-io and graph-samples -> algorithms and layout -> webgpu-graph-algorithms ->
-  graphty-element -> graphty. ES modules are the default.
+  order: graph-format first, then graph-io and graph-samples (each needs only graph-format), algorithms and
+  layout (they need graph-samples), webgpu-graph-algorithms, graphty-element, graphty. ES modules are the default.
 
 ### WebGPU
 

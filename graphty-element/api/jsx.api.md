@@ -79,7 +79,7 @@ import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
 import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';

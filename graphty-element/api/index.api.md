@@ -138,7 +138,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer.js';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
 import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
@@ -2804,7 +2804,7 @@ export interface GlobeLook {
 
 // @public
 export class Graph implements GraphContext {
-    constructor(element: Element | string, useMockInput?: boolean, options?: {
+    constructor(element: Element | string, options?: {
         readonly antialias?: Antialias;
         readonly preserveDrawingBuffer?: boolean;
     });
@@ -5060,7 +5060,6 @@ export class InputManager implements Manager {
     dispose(): void;
     exitPointerLock(): void;
     getActiveTouches(): TouchPoint[];
-    getMockInputSystem(): MockDeviceInputSystem;
     getPointerPosition(): Vector2;
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;

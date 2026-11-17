@@ -949,7 +949,6 @@ export const READ_ONLY: readonly string[] = [
     "InputManager.dispose",
     "InputManager.exitPointerLock",
     "InputManager.getActiveTouches",
-    "InputManager.getMockInputSystem",
     "InputManager.getPointerPosition",
     "InputManager.init",
     "InputManager.isPointerDown",

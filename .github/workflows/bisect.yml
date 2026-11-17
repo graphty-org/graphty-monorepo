@@ -6,8 +6,8 @@
 # One run is one round. The first confirms: only the failing test files, 5 runs on the red commit (2 for the LLM
 # lane), under the full run's own runner class. Each later round runs at most 8 points of the range's first-parent
 # merges at once, a matrix job each, then `judge` folds the results in and, while no answer is reached, dispatches
-# this workflow again with the new state. A lane workflow (gpu, hosts, macOS) is called for one point a round, with
-# a concurrency group per point; the T4 only after the local NVIDIA card (`after_local_card`) and never past 4 paid
+# this workflow again naming the run whose `bisect-next` artifact holds the new state. A lane workflow (gpu, hosts,
+# macOS) is called for one point a round, with a concurrency group per point; the T4 only after the local NVIDIA card (`after_local_card`) and never past 4 paid
 # hours a bisect. The answer -- the culprit merge, or why no merge is named -- is the last round's job summary and
 # its `bisect-answer` artifact; the pipeline round opens the revert.
 name: Bisect
@@ -46,8 +46,14 @@ on:
                 description: "gpu: the local NVIDIA card did not reproduce it, so bisect on the T4"
                 type: boolean
                 default: false
+            # The state goes by reference: a later round's state passed by value passed GitHub's 65 KB limit on
+            # a dispatch's inputs and stopped the bisect after its first round (#8733).
+            state_run:
+                description: "set only by this workflow: the run whose bisect-next artifact holds the next round's state"
+                type: string
+                default: ""
             state:
-                description: "set only by this workflow: the bisect's state for its next round"
+                description: "set only by a round from before state_run: the bisect's state for its next round"
                 type: string
                 default: ""
 permissions: { contents: read }
@@ -67,6 +73,7 @@ jobs:
         name: Plan the round
         runs-on: ubuntu-24.04
         timeout-minutes: 10
+        permissions: { contents: read, actions: read } # the last round's bisect-next artifact
         outputs:
             done: ${{ steps.plan.outputs.done }}
             points: ${{ steps.plan.outputs.points }}
@@ -75,6 +82,13 @@ jobs:
         steps:
             - uses: actions/checkout@v7
               with: { fetch-depth: 0 } # the range's first-parent merges and their parents
+            - uses: actions/download-artifact@v8
+              if: ${{ inputs.state_run != '' }}
+              with:
+                  name: bisect-next
+                  path: next
+                  run-id: ${{ inputs.state_run }}
+                  github-token: ${{ github.token }}
             - id: plan
               env:
                   LANE: ${{ inputs.lane }}
@@ -85,7 +99,7 @@ jobs:
                   AFTER_LOCAL_CARD: ${{ inputs.after_local_card }}
                   STATE: ${{ inputs.state }}
               run: |
-                  node tools/bisect-ci.mjs plan --out state.json
+                  node tools/bisect-ci.mjs plan $([ -f next/next.json ] && echo --state next/next.json) --out state.json
                   echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
             - uses: actions/upload-artifact@v7
               with: { name: bisect-state, path: state.json, retention-days: 14 }
@@ -319,6 +333,9 @@ jobs:
               id: judge
               if: ${{ needs.plan.outputs.done != 'true' }}
               run: mkdir -p results && node tools/bisect-ci.mjs judge --state state/state.json --results results --out next.json
+            - uses: actions/upload-artifact@v7
+              if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
+              with: { name: bisect-next, path: next.json, retention-days: 14 }
             - name: Dispatch the next round
               if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
               env:
@@ -329,7 +346,7 @@ jobs:
                   RUN_ID: ${{ inputs.run_id }}
               run: |
                   gh workflow run bisect.yml --ref "$GITHUB_REF_NAME" -f lane="$LANE" -f good="$GOOD" -f bad="$BAD" \
-                      -f run_id="$RUN_ID" -f state="$(cat next.json)"
+                      -f run_id="$RUN_ID" -f state_run="$GITHUB_RUN_ID"
             - name: Keep the answer
               if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
               run: cp "$([ -f next.json ] && echo next.json || echo state/state.json)" answer.json

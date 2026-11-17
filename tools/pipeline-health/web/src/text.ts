@@ -626,6 +626,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "Groups in the grouping ledger whose branch is finished but whose PR is not opened yet. Read from the local ledger once a day.",
         red: "No target: a fact. Finished branches waiting can still take related issues before they open.",
     },
+    "pull-requests.groups_combinable": {
+        name: "Finished branches that can open together",
+        short: "families of finished branches that can open together",
+        def: "Families of finished, unopened branches in the grouping ledger that can each open as one PR, with the branches they hold. Read from the local ledger once a day.",
+        red: "No target: a fact. Each family opened as one PR saves the CI runs of the others.",
+    },
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
@@ -1231,6 +1237,7 @@ const S: Record<string, (p: P) => string> = {
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
+    "note.combinable_branches": (p) => `${fmtN(num(p, "n"))} ${num(p, "n") === 1 ? "branch" : "branches"}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,
     "releases.workflows.note": (p) => `newest run failed: ${str(p, "workflow")}, ${fmtN(num(p, "runs"))} in a row`,
     "releases.held.note": (p) => `candidate held ${fmtN(num(p, "h"))} h`,

@@ -336,6 +336,22 @@
         {
             "state": "ok",
             "window": "now",
+            "sla": null,
+            "link": "/pull-requests",
+            "id": "pull-requests.groups_combinable",
+            "value": {
+                "n": 3
+            },
+            "note": {
+                "code": "note.combinable_branches",
+                "params": {
+                    "n": 7
+                }
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
             "sla": {
                 "target": {
                     "op": "==",

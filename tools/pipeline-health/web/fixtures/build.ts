@@ -336,6 +336,13 @@ const prMembers: Member[] = [
         link: "/pull-requests",
     }),
     member({ id: "pull-requests.groups_ready", state: "slow", value: num(16), link: "/pull-requests" }),
+    member({
+        id: "pull-requests.groups_combinable",
+        state: "slow",
+        value: num(3),
+        note: f("note.combinable_branches", { n: 7 }),
+        link: "/pull-requests",
+    }),
     member({ id: "pull-requests.automerge_green_stuck", value: num(0), sla: SLA.greenStuck, link: "/pull-requests" }),
     member({ id: "pull-requests.automerge_armed_long", value: num(1), sla: SLA.armedLong, link: "/pull-requests" }),
     member({

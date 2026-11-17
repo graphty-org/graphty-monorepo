@@ -147,7 +147,8 @@ export function mapWait(w) {
 
 /**
  * A daily issue-grouping metrics line as a grouping row: the share of grouped issues released as not part of their
- * branch, and the groups finished but not opened. The rest of the line (counts GitHub also has) is not posted.
+ * branch, the groups finished but not opened, and the families of those that can open together (with their branches).
+ * A field an older line lacks is left out, never sent as 0. The rest of the line (counts GitHub also has) is not posted.
  * @param m the metrics line
  * @returns the grouping row, or null
  */
@@ -157,6 +158,9 @@ export function mapGrouping(m) {
     const row = { id: `local.grouping.${m.at}`, at };
     if (typeof m.ledger.releasedNotPartShare === "number") row.releasedShare = m.ledger.releasedNotPartShare;
     if (typeof m.ledger.ready === "number") row.ready = m.ledger.ready;
+    // Since 2026-11-16 (#8509): families of ready branches that can each open as one pull request, and their branches.
+    if (typeof m.combinable === "number") row.combinable = m.combinable;
+    if (typeof m.combinableBranches === "number") row.combinableBranches = m.combinableBranches;
     return row;
 }
 

@@ -215,6 +215,7 @@ export const MEMBER_IDS = [
     "pull-requests.runner_minutes_per_issue",
     "pull-requests.group_released_share",
     "pull-requests.groups_ready",
+    "pull-requests.groups_combinable",
     "pull-requests.automerge_green_stuck",
     "pull-requests.automerge_armed_long",
     "pull-requests.screenshot_backlog",

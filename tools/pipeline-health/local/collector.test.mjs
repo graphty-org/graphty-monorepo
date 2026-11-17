@@ -75,13 +75,16 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
     assert.match(inv[0].failures[0].message, /bash tools\/push-queue\.sh git push/);
     assert.equal(inv[1].runUrl, "https://github.com/graphty-org/graphty-monorepo/actions/runs/40148074821");
     assert.equal(inv[1].reusedFrom, "local.1792890000000-1-graphty-element-default");
-    // A daily grouping-ledger line posts only its released share and ready groups; a null share is left out.
+    // A daily grouping-ledger line posts only its released share, ready groups and combinable families; a null share
+    // and the fields an older line lacks are left out, never sent as 0.
     assert.deepEqual(calls.find((c) => c.kind === "grouping").body.rows, [
         {
             id: "local.grouping.2026-11-16T19:41:04.377Z",
             at: Date.parse("2026-11-16T19:41:04.377Z"),
             releasedShare: 0.003,
             ready: 16,
+            combinable: 2,
+            combinableBranches: 5,
         },
         { id: "local.grouping.2026-11-17T08:00:00.000Z", at: Date.parse("2026-11-17T08:00:00.000Z"), ready: 0 },
     ]);

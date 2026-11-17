@@ -95,6 +95,7 @@ export const SPEC: Record<string, Spec> = {
         now: true,
     },
     "pr.groups_ready": { id: "pull-requests.groups_ready", link: "/pull-requests", now: true },
+    "pr.groups_combinable": { id: "pull-requests.groups_combinable", link: "/pull-requests", now: true },
     "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
     "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {
@@ -562,6 +563,9 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
     }
+    if (s.id === "pr.groups_combinable") {
+        return combinableNote(reads);
+    }
     if (s.id === "flaky.net_new") {
         const added = s.facts?.["flaky.net_added"];
         const resolved = s.facts?.["flaky.net_resolved"];
@@ -578,6 +582,20 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     }
     const list = (s.id === "pr.automerge_green_stuck" ? prs?.greenStuck : prs?.armedLong) ?? [];
     return list.length ? f("note.prs", { prs: list }) : undefined;
+}
+
+/**
+ * The branches the combinable families hold, from the ledger's newest daily reading in 7 days.
+ * @param reads - the store reads shared by this build
+ * @returns the note, or undefined when no reading carries the count
+ */
+async function combinableNote(reads: Reads): Promise<Fact | undefined> {
+    const today = floorTo(reads.now, "1d");
+    const days = await reads.series("issues.groups_combinable_branches", "1d", today - 6 * DAY, today);
+    const newest = [...days.values()]
+        .filter((b) => b.lastAt !== undefined)
+        .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))[0];
+    return newest?.last === undefined ? undefined : f("note.combinable_branches", { n: newest.last });
 }
 
 /**

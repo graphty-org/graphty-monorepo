@@ -1,2 +1,2 @@
-{"at":"2026-11-16T19:41:04.377Z","windowDays":7,"issuesPerMergedPr":0.88,"multiFixShare":0.023,"grouped":{"n":19,"merged":19},"ledger":{"proposed":130,"started":9,"ready":16,"frozen":88,"parked":0,"waiting":8,"waitsOver24h":0,"releasedNotPartShare":0.003},"guardrails":[],"breaches":[]}
+{"at":"2026-11-16T19:41:04.377Z","windowDays":7,"issuesPerMergedPr":0.88,"multiFixShare":0.023,"grouped":{"n":19,"merged":19},"ledger":{"proposed":130,"started":9,"ready":16,"frozen":88,"parked":0,"waiting":8,"waitsOver24h":0,"releasedNotPartShare":0.003},"guardrails":[],"breaches":[],"combinable":2,"combinableBranches":5}
 {"at":"2026-11-17T08:00:00.000Z","windowDays":7,"ledger":{"ready":0,"releasedNotPartShare":null}}

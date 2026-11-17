@@ -394,6 +394,18 @@
             "sources": ["grouping-ledger"]
         },
         {
+            "id": "pr.groups_combinable",
+            "category": "pull_requests",
+            "label": "Finished branches that can open together",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_combinable"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
             "id": "pr.automerge_green_stuck",
             "category": "pull_requests",
             "label": "Green but not merging",

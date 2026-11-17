@@ -8,6 +8,8 @@ import { putRaw, recordSource } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { evaluate } from "../../src/sla/engine.js";
+import { buildViews } from "../../src/views/index.js";
+import type { PageResponse } from "../../web/src/contract.js";
 import { HOUR, job, MIN, obs, pr, T0 } from "../model/helpers.js";
 
 const DAY = 24 * HOUR;
@@ -20,7 +22,12 @@ async function members(items: RawItem[], sources: string[]) {
         await recordSource(store, s, T0, { ok: true }, T0 - 7 * DAY);
     }
     const ev = await evaluate(store, T0);
-    return (id: string) => ev.members.find((m) => m.id === id)!;
+    const m = (id: string) => ev.members.find((x) => x.id === id)!;
+    const page = async () =>
+        (await buildViews(store, T0, ev))
+            .map((v) => v.body as PageResponse)
+            .find((p) => p.page === "pull-requests" && p.range === "1h")!;
+    return Object.assign(m, { page });
 }
 
 describe("issue-grouping members", () => {
@@ -49,10 +56,21 @@ describe("issue-grouping members", () => {
             obs("issues.groups_ready", 9, T0 - 2 * DAY),
             obs("issues.group_released_share", 0.003, T0 - DAY),
             obs("issues.groups_ready", 16, T0 - DAY),
+            obs("issues.groups_combinable", 2, T0 - DAY),
+            obs("issues.groups_combinable_branches", 5, T0 - DAY),
         ];
         const m = await members(reading, ["grouping-ledger"]);
         expect(m("pr.group_released_share")).toMatchObject({ value: 0.003, state: "OK" });
         expect(m("pr.groups_ready")).toMatchObject({ value: 16 });
+        expect(m("pr.groups_combinable")).toMatchObject({ value: 2 });
+        // One row: the families, with the branches they hold under it.
+        const row = (await m.page()).members.find((x) => x.id === "pull-requests.groups_combinable");
+        expect(row).toMatchObject({ value: { n: 2 }, note: { code: "note.combinable_branches", params: { n: 5 } } });
         expect((await members([], []))("pr.groups_ready").state).toBe("NOT SET UP");
+        // An older line without the combinable fields posts neither: no value, never 0.
+        const older = await members(reading.slice(0, 4), ["grouping-ledger"]);
+        expect(older("pr.groups_combinable").value).toBeUndefined();
+        const olderRow = (await older.page()).members.find((x) => x.id === "pull-requests.groups_combinable");
+        expect(olderRow?.note).toBeUndefined();
     });
 });

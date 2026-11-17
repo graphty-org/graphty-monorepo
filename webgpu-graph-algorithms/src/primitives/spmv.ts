@@ -1,18 +1,20 @@
 /**
- * The pull SpMV primitive of spec 6 row 9 / 8.2 (P7; M8b plan PD-1 / PD-2): the `spmv-pull` module over the rows of
+ * The pull SpMV primitive: the `spmv-pull` module over the rows of
  * a REVERSE adjacency, each row folding `weight * xNorm[nbr]` over its in-arcs (a two-level f32 sum) and writing
  * `rankOut[v] = beta * pv + alpha * (sum + danglingMass * pv)`, where `pv` is `personalization[v]` under
  * HAS_PERSONALIZATION and the uniform `P.uniformP` otherwise, and `danglingMass` is `partials[0].danglingMass`
  * under USE_DANGLING. PageRank sets alpha to the damping, beta to 1 - alpha and USE_DANGLING; HITS and eigenvector
  * set alpha 1, beta 0, uniformP 0; Katz sets alpha to the attenuation, beta to its constant and uniformP 1.
  *
- * It is its own registry entry rather than a `segmentedReduce` VALUE snippet (PD-1): the snippet vocabulary is
+ * It is its own registry entry rather than a `segmentedReduce` VALUE snippet: the snippet vocabulary is
  * `row, arc, nbr, weight, v` and cannot read `xNorm[nbr]`, and the design's binding table gives the kernel eight
  * storage bindings of its own. Without tiers it is ONE grid-stride dispatch (TIER 0, USE_PERM false: the perm slot
- * carries the rowPtr dummy of graphBindings); with the in-degree tiers of `reverseDegreeOrder()` (P4-T5, PD-6) it
+ * carries the rowPtr dummy of graphBindings); with the in-degree tiers of `reverseDegreeOrder()` it
  * is up to three dispatches over the permuted rows -- TIER 2 one workgroup per row over [0, hiEnd), TIER 1 32 lanes
  * per row over [hiEnd, midEnd), TIER 0 grid-stride over [midEnd, n) -- each compiled only when its range is
  * non-empty. The row and arc counts come from the core's binding sizes exactly as segmentedReduce derives them.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "8.2 SpMV family: PageRank first".
  */
 
 import { WebGpuGraphError } from "../errors.js";

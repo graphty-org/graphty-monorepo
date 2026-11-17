@@ -331,6 +331,15 @@
                     },
                     "additionalProperties": false
                 },
+                "leftOut": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The edge rows the load left out because they named no node (LoadedSource.leftOut)."
+                },
+                "foundNodes": {
+                    "type": "array",
+                    "items": { "type": ["string", "number"] },
+                    "description": "The ids of the nodes the load's rows named that the graph already held and no load supplied (a node addNodes made): removing the load leaves them."
+                },
                 "total": {
                     "type": "object",
                     "properties": {

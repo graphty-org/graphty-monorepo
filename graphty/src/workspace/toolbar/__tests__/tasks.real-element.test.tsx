@@ -85,8 +85,7 @@ async function finished(session: GraphSession, algorithm: string): Promise<RunId
     return found;
 }
 
-// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
-// (covered by its own tests): the experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("tier 1 tasks from the toolbar, on the real element", () => {
@@ -147,40 +146,63 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
         const update = await screen.findByRole("button", { name: "Update PageRank layer" });
         assert.strictEqual(update.getAttribute("aria-disabled"), "true");
-        await userEvent.keyboard("{Enter}");
+        // A real press on the dimmed button (force: it is aria-disabled, so it would wait for enabled).
+        await userEvent.click(update, { force: true });
         assert.strictEqual(session.history.steps.length, steps, "pressing it records nothing");
         assert.isNotNull(screen.getByText("PageRank is up to date with these settings."));
-        await userEvent.keyboard("{Escape}");
-        assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
+        assert.isNotNull(screen.getByRole("combobox", { name: "Filter analyses" }), "Analyze stays open");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
         });
     });
 
+    it("a run that made no layer (canceled) leaves Analyze offering Run, not Update <name> layer", async () => {
+        const session = await openKarate();
+        const run = session.runs.start("betweenness");
+        run.cancel();
+        await waitFor(() => {
+            assert.equal(session.runs.get(run.id)?.status, "canceled");
+        });
+        assert.lengthOf(session.runs.bindings(run.id), 0);
+
+        await userEvent.click(analyzeTool());
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Betweenness");
+        await userEvent.click(await screen.findByRole("option", { name: /^Betweenness/ }));
+        const action = await screen.findByRole("button", { name: /^(Run\b|(Update|Add) Betweenness layer)/ });
+        assert.match(action.textContent ?? "", /^Run\b/);
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise", async () => {
         const session = await openKarate();
 
-        // A single match: typing then Enter opens it, and Enter again runs it.
+        // A single match: typing then Enter chooses it, focus moves to its Run, and Enter runs it.
         await userEvent.click(analyzeTool());
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
-        assert.isNotNull(await screen.findByRole("form", { name: /^Betweenness/ }));
+        const run = await screen.findByRole("button", { name: "Run Betweenness" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, run);
+        });
         await userEvent.keyboard("{Enter}");
         await finished(session, "betweenness");
 
-        // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter opens it.
+        // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter chooses it.
         await userEvent.click(analyzeTool());
         const box = await screen.findByRole("combobox", { name: "Filter analyses" });
         assert.isNull(box.getAttribute("aria-activedescendant"));
         await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
         const options = screen.getAllByRole("option");
-        const activeId = box.getAttribute("aria-activedescendant");
-        assert.equal(activeId, options[1].id);
+        assert.equal(box.getAttribute("aria-activedescendant"), options[1].id);
         assert.equal(options[1].getAttribute("aria-selected"), "true");
         assert.equal(document.activeElement, box);
-        const name = within(options[1]).getAllByText(/./)[0].textContent ?? "";
+        const name = options[1].getAttribute("aria-label") ?? "";
         await userEvent.keyboard("{Enter}");
-        assert.isNotNull(await screen.findByRole("form", { name }));
+        await waitFor(() => {
+            assert.isTrue(screen.getAllByRole("option")[1].hasAttribute("data-chosen"), `${name} is chosen`);
+        });
+        assert.isNotNull(screen.getByRole("button", { name: new RegExp(`^(Run|Update|Add) ${name}`) }));
     });
 
     it("T8: after Betweenness, Analyze > Find groups > Louvain runs and paints", async () => {
@@ -221,8 +243,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(analyzeTool());
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        const form = await screen.findByRole("form", { name: "Louvain" });
-        await userEvent.click(within(form).getByRole("button", { name: "Add Louvain layers" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add Louvain layers" }));
         // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
         await session.runs.get(louvain)?.then(
             () => undefined,
@@ -615,8 +636,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", {
             name: "Filters",
         });
-        const cardWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use / }));
+        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use\b/ }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
@@ -624,7 +644,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`, "i") }));
+        assert.lengthOf(within(filters).getAllByRole("listitem"), 1, "the card stays listed");
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));
@@ -640,14 +660,15 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("opens Filters from the Graph place through Quick actions, its + list open", async () => {
+    it("opens Filters from the Graph place through Quick actions, with a new card open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
         await userEvent.keyboard("{Control>}k{/Control}");
         await userEvent.keyboard("filter");
         await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
-        await screen.findByRole("option", { name: "Largest component" });
+        // The new card opens in the selection workspace, its Value field ready.
+        await screen.findByRole("button", { name: "Value" });
     });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {

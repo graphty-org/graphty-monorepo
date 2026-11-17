@@ -2055,7 +2055,7 @@
         },
         "gexf-cns-wos/labelText": {
             "floor": 1,
-            "to": 0.8888888888888888,
+            "to": 0.9955555555555555,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8889, 2026-10-20)",
             "date": "2026-11-13"
         },
@@ -2063,24 +2063,6 @@
             "floor": 1,
             "to": 0.98193315266486,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9819, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "gexf-graphology-rio/labelText": {
-            "floor": 1,
-            "to": 0.644808743169399,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.6448, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "gexf-gsa-fpki-certs/labelText": {
-            "floor": 1,
-            "to": 0.85,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8500, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "gexf-miserables/labelText": {
-            "floor": 1,
-            "to": 0.935064935064935,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9351, 2026-10-20)",
             "date": "2026-11-13"
         },
         "gexf-qvge-mine-airing/edgeColor": {
@@ -2105,12 +2087,6 @@
             "floor": 1,
             "to": 0.924433249370277,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9244, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "gexf-sigma-ediaspora/labelText": {
-            "floor": 1,
-            "to": 0.5769230769230769,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.5769, 2026-10-20)",
             "date": "2026-11-13"
         },
         "gexf-synth-13-hierarchy/arrows": {
@@ -2183,12 +2159,6 @@
             "floor": 1,
             "to": 0.3125,
             "reason": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
-            "date": "2026-11-13"
-        },
-        "gexf-synth-nx-viz/labelText": {
-            "floor": 1,
-            "to": 0.96875,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9688, 2026-10-20)",
             "date": "2026-11-13"
         },
         "gexf-synth-nx-viz/shape": {

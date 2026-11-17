@@ -18,7 +18,7 @@ const TOOLS = dirname(fileURLToPath(import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), "push-base-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
-// A function SonarQube's cognitive complexity rule would refuse: the parent branch's change.
+// A function the cognitive complexity lint rule would refuse: the parent branch's change.
 const COMPLEX = `export function tangled(a, b, c) {
 ${Array.from({ length: 12 }, (_, i) => `    if (a > ${i}) { if (b) { for (const x of c) { if (x) return ${i}; } } }`).join("\n")}
     return -1;
@@ -128,27 +128,5 @@ describe("push-base", () => {
         r.git("update-ref", "refs/remotes/origin/master", r.parent);
         assert.equal(resolve(r).base, r.parent); // the merge base with master is now the parent's tip anyway
         assert.equal(pushBaseRef({ cwd: r.dir, env: r.env, log: () => {} }), "origin/master");
-    });
-
-    it("the SonarQube gate judges only the stacked commit's files", () => {
-        const gate = (r) =>
-            spawnSync(process.execPath, [join(TOOLS, "sonar-gate.mjs")], {
-                cwd: r.dir,
-                env: { ...r.env, SONAR_HOST_URL: "", SONAR_TOKEN: "" },
-                encoding: "utf8",
-            });
-        // Stacked on feat/parent, the push changes src/child.ts and README.md only; drop the .ts change
-        // so the stacked commit has no analyzable file at all, and the parent's src/parent.ts is not "this push".
-        const stacked = repo({ out: "feat/parent" });
-        stacked.git("checkout", "-q", "feat/parent", "--", "src/child.ts");
-        stacked.git("commit", "-q", "-m", "docs only", "--", "src/child.ts");
-        const s = gate(stacked);
-        assert.equal(s.status, 0, s.stdout + s.stderr);
-        assert.match(s.stdout, /No analyzable file changed/);
-        // Measured from master instead (no pull request), the parent's file is in the push.
-        const flat = repo();
-        flat.git("checkout", "-q", "feat/parent", "--", "src/child.ts");
-        flat.git("commit", "-q", "-m", "docs only", "--", "src/child.ts");
-        assert.doesNotMatch(gate(flat).stdout, /No analyzable file changed/);
     });
 });

@@ -48,8 +48,9 @@ import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import { builtinSources } from "./sources/builtins.js";
+import { defaultCatalog, type SourceCatalog } from "./sources/catalog.js";
 import { type SourceParamsMap } from "./sources/params.js";
-import { SourceRegistry } from "./sources/registry.js";
+import { type SourceBuilding, SourceRegistry } from "./sources/registry.js";
 import {
     type ExpandRequest,
     type GraphSource,
@@ -331,6 +332,21 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
     "styles",
 ]);
 
+/** How every registry's sources build and freeze a graph. */
+const SOURCE_BUILDING: SourceBuilding = {
+    newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
+    freeze: (format, builder, report, options) =>
+        result(
+            { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
+            builder,
+            report,
+            options as ImportGraphOptions,
+        ),
+};
+
+/** The source list the FormatRegistry being built takes instead of a new one: set only while the default registry is built. */
+let adoptedCatalog: SourceCatalog | undefined;
+
 /**
  * A registry of importers and exporters by format name. Registration order is the tie-break
  * order of sniffing; the default registry lists the built-in formats in the
@@ -342,16 +358,7 @@ export class FormatRegistry {
 
     private readonly exporterMap = new Map<string, GraphExporter>();
 
-    private readonly sources = new SourceRegistry(this, {
-        newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
-        freeze: (format, builder, report, options) =>
-            result(
-                { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
-                builder,
-                report,
-                options as ImportGraphOptions,
-            ),
-    });
+    private readonly sources = new SourceRegistry(this, SOURCE_BUILDING, adoptedCatalog);
 
     /**
      * Register a network source, or a lazy one whose code loads on first use. Source ids are their
@@ -1110,7 +1117,20 @@ export class FormatRegistry {
  * @category Formats and detection
  */
 export function createRegistry(): FormatRegistry {
-    const formats = new FormatRegistry()
+    const formats = withBuiltinFormats(new FormatRegistry());
+    for (const source of builtinSources()) {
+        formats.registerSource(source);
+    }
+    return formats;
+}
+
+/**
+ * Register every built-in importer and exporter, in the order of GRAPH_FORMATS.
+ * @param formats - the registry
+ * @returns the registry
+ */
+function withBuiltinFormats(formats: FormatRegistry): FormatRegistry {
+    return formats
         .registerImporter(jsonImporter)
         .registerExporter(jsonExporter)
         .registerImporter(graphmlImporter)
@@ -1137,17 +1157,27 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(oboExporter)
         .registerImporter(cysImporter)
         .registerExporter(cysExporter);
-    for (const source of builtinSources()) {
-        formats.registerSource(source);
+}
+
+/**
+ * The default registry: every built-in format, holding the default source list that
+ * `listSources()` and `registerSource()` read and write without building this registry.
+ * @returns the registry
+ */
+function createDefaultRegistry(): FormatRegistry {
+    adoptedCatalog = defaultCatalog;
+    try {
+        return withBuiltinFormats(new FormatRegistry());
+    } finally {
+        adoptedCatalog = undefined;
     }
-    return formats;
 }
 
 /**
  * The default registry: every built-in format.
  * @category Formats and detection
  */
-export const registry: FormatRegistry = /* @__PURE__ */ createRegistry();
+export const registry: FormatRegistry = /* @__PURE__ */ createDefaultRegistry();
 
 /**
  * Read a graph from a string, bytes or a stream. The format is the one you name in `format`, else
@@ -2307,23 +2337,5 @@ export function validateSource<P>(
     return registry.validateSource(source, params as Readonly<Record<string, unknown>>, seen, options);
 }
 
-/**
- * Register a network source in the default registry, so loadFromSource() and graphty-element
- * find it by id. Throws an ImportError with E_SOURCE_INVALID for a malformed source or an id
- * already taken. Experimental.
- * @param source - the source, or a lazy source that loads its code on first use
- * @category Network sources
- */
-export function registerSource<P>(source: GraphSource<P> | LazySource): void {
-    registry.registerSource(source);
-}
-
-/**
- * Every source in the default registry with its descriptor (what a form asks for), loading no
- * source code. Experimental.
- * @returns one entry per source: id, descriptor, whether its code is loaded
- * @category Network sources
- */
-export function listSources(): readonly SourceInfo[] {
-    return registry.listSources();
-}
+// The default source list lives apart from the default registry, so listing sources loads no importer.
+export { listSources, registerSource } from "./sources/catalog.js";

@@ -8,24 +8,10 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { fromEdgeArrays } from "../../src/populate/from-edge-arrays.js";
 import { type GraphSnapshot } from "../../src/snapshot/graph-snapshot.js";
 import { fromBytes } from "../../src/wire/bytes.js";
-
-/** Run fn and return the GraphFormatError it throws, asserting the code. */
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 /** A 3-node directed path 0 -> 1 -> 2. */
 function pathBuilder(): GraphBuilder {

@@ -19,8 +19,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The Calculated tab belongs to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * The workspace on the Data place, with its element's session.

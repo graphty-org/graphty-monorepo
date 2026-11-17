@@ -1238,11 +1238,33 @@ export function withoutGltfPictures(
             if (sourcesOf(textures[texture]).some((image) => gone(image))) {
                 Reflect.deleteProperty(holder, key);
                 dropped = true;
+                // The picture that was its color: the part has no look of its own left.
+                if (key === "baseColorTexture" || key === "diffuseTexture") {
+                    markWithoutPicture(material);
+                }
             }
         }
     }
 
     return dropped;
+}
+
+/** The glTF material `extras` key that says the material's color picture was taken away. */
+export const WITHOUT_PICTURE_EXTRA = "babylonjsModelsWithoutPicture";
+
+/**
+ * Say in a glTF material's `extras` that it lost a picture, so the loaded material says so too.
+ * @param material - The glTF material, changed in place.
+ */
+function markWithoutPicture(material: unknown): void {
+    if (!isObject(material)) {
+        return;
+    }
+
+    const { extras } = material;
+    if (extras === undefined || isObject(extras)) {
+        material.extras = { ...extras, [WITHOUT_PICTURE_EXTRA]: true };
+    }
 }
 
 /**

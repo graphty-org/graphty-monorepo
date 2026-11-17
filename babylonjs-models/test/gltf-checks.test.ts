@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
-import { withoutGltfPictures } from "../src/files/gltfChecks.js";
+import { WITHOUT_PICTURE_EXTRA, withoutGltfPictures } from "../src/files/gltfChecks.js";
 import { checkModelFiles, DEFAULT_MODEL_LIMITS, type ModelLimits } from "../src/files/index.js";
 import { ModelError } from "../src/files/references.js";
 
@@ -191,6 +191,9 @@ describe("withoutGltfPictures", () => {
         assert.isTrue(withoutGltfPictures(json, new Set(), new Set(["models/maps/wood grain.png"]), "models/a.gltf"));
         assert.isUndefined(colorOf(json, 0), "the skipped picture is drawn without");
         assert.isDefined(colorOf(json, 1), "the other picture stays");
+        const extras = (json.materials as Json[]).map((m) => m.extras as Json | undefined);
+        assert.isTrue(extras[0]?.[WITHOUT_PICTURE_EXTRA], "the material says it lost its color picture");
+        assert.isUndefined(extras[1], "the other material says nothing");
     });
 
     it("drops a picture by its summary name, and nothing when neither list names one", () => {

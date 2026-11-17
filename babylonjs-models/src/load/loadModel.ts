@@ -20,7 +20,7 @@ import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
 import { ModelReadError } from "../files/readers/geometry.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "../files/readers/gltf1.js";
 import { ModelError } from "../files/references.js";
-import { withSkips } from "../files/textFormats.js";
+import { mtlMaterialsWithout, withSkips } from "../files/textFormats.js";
 import type {
     ModelFact,
     ModelFileOptions,
@@ -31,6 +31,7 @@ import type {
 } from "../files/types.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
+import { markWithoutPictures } from "./withoutPicture.js";
 
 /** Which reader draws each built-in format: one of Babylon's loaders, or the element's own. */
 const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> = {
@@ -432,11 +433,13 @@ export async function loadModelFiles(
     }
 
     const skipped = options.skipped ?? [];
+    const hidden = options.withoutPictures ?? [];
+    // An OBJ's MTL lines naming a picture drawn without are dropped below: its materials by name.
+    const lostPicture = format === "obj" ? mtlMaterialsWithout(files, [...skipped, ...hidden]) : new Set<string>();
     if (skipped.length > 0) {
         files = withSkips(files, skipped, format === "obj");
     }
 
-    const hidden = options.withoutPictures ?? [];
     if (format === "obj" && hidden.length > 0) {
         // An OBJ's pictures are named by their paths: their MTL lines are dropped, as a skip's are.
         files = withSkips(files, hidden, true);
@@ -465,7 +468,9 @@ export async function loadModelFiles(
         const slash = main.lastIndexOf("/");
         const folder = root + main.slice(0, slash + 1);
         if (!reader.startsWith(".")) {
-            return await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+            const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+            markWithoutPictures(own, root, skipped, lostPicture);
+            return own;
         }
 
         const container = await loadBabylonModel(
@@ -476,6 +481,7 @@ export async function loadModelFiles(
             options,
         );
         clearReflections(container, clear);
+        markWithoutPictures(container, root, skipped, lostPicture);
         return container;
     } catch (error) {
         const fact = failureOf(error, format);

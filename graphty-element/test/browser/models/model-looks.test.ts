@@ -205,6 +205,38 @@ describe("model colors", () => {
         assert.strictEqual(count(frame, GREEN), 0, "nothing of the picture is left");
     });
 
+    // A part whose own color is blue and whose picture was left out: car.babylon's look. The part
+    // that lost its picture takes the node's color in every format, whatever its own color.
+    const BLUE_WITHOUT_PICTURE: readonly (readonly [string, (text: string) => string])[] = [
+        ["babylon-textured", (text) => text.replace('"diffuse":[1,1,1]', '"diffuse":[0,0,1]')],
+        ["obj-mtl-png", (text) => text.replace("Kd 1 1 1", "Kd 0 0 1")],
+        [
+            "gltf-textured",
+            (text) => {
+                const json = JSON.parse(text) as { materials: { pbrMetallicRoughness: Record<string, unknown> }[] };
+                json.materials[0].pbrMetallicRoughness.baseColorFactor = [0, 0, 1, 1];
+                return JSON.stringify(json);
+            },
+        ],
+    ];
+    it.each(BLUE_WITHOUT_PICTURE)(
+        "draws a blue %s part added without its picture in the node's color (#8614)",
+        async (variant, recolor) => {
+            const element = await mount();
+            const files = await filesOf(variant);
+            files.delete("cube.png");
+            const own = [...files.keys()].find((name) => /\.(babylon|mtl|gltf)$/.test(name)) as string;
+            const text = new TextDecoder().decode(files.get(own));
+            const blue = recolor(text);
+            assert.notStrictEqual(blue, text, "the fixture's color was changed");
+            files.set(own, new TextEncoder().encode(blue));
+            await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" }, ["cube.png"]);
+            const frame = await readFrame(element);
+            assert.isAbove(count(frame, RED), 500, "the part that lost its picture is drawn red");
+            assert.strictEqual(count(frame, BLUE), 0, "not in its own blue");
+        },
+    );
+
     it("keeps a picture under its own colors and 'untextured', darkens it on top, and paints over it under 'replace'", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "gltf-textured", [{ id: "a", x: 0 }], {

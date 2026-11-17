@@ -30,6 +30,8 @@ import "@babylonjs/loaders/glTF/2.0/glTFLoader.js";
 import "@babylonjs/loaders/OBJ/objFileLoader.js";
 // The glTF extensions a model may use for its look or its storage. Importing one registers it.
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform.js";
+// A material's glTF `extras` on its metadata: how a material says it lost its color picture.
+import "@babylonjs/loaders/glTF/2.0/Extensions/ExtrasAsMetadata.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.js";

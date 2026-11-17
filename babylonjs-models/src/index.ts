@@ -10,3 +10,4 @@ export { configureDecoders } from "./decoders/config.js";
 export * from "./files/index.js";
 export type { LoadedModel, LoadModelFilesOptions, LoadModelOptions } from "./load/loadModel.js";
 export { hasReader, loadModel, loadModelFiles } from "./load/loadModel.js";
+export { drawsWithoutPicture } from "./load/withoutPicture.js";

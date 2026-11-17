@@ -929,6 +929,48 @@ export const WHITE_PNG = Uint8Array.from(
 );
 
 /**
+ * Whether an MTL map statement names one of the pictures, by its path in the set or its base name.
+ * @param path - The MTL's path in the set.
+ * @param tokens - The statement's tokens.
+ * @param gone - The pictures, lowercased.
+ * @returns True when it does.
+ */
+function namesOneOf(path: string, tokens: readonly string[], gone: ReadonlySet<string>): boolean {
+    const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
+    const resolved = (setKeyOf(dirOf(path) + name) ?? name).toLowerCase();
+    return gone.has(resolved) || gone.has(baseName(name).toLowerCase());
+}
+
+/**
+ * The MTL materials whose color picture (`map_Kd`) is one of these pictures: drawn without it,
+ * they have no look of their own left.
+ * @param files - The set as given.
+ * @param pictures - The pictures drawn without, by their path in the set.
+ * @returns The materials' names.
+ */
+export function mtlMaterialsWithout(files: ReadonlyMap<string, Uint8Array>, pictures: readonly string[]): Set<string> {
+    const gone = new Set(pictures.map((name) => name.toLowerCase()));
+    const out = new Set<string>();
+    for (const [path, bytes] of files) {
+        if (gone.size === 0 || !/\.mtl$/i.test(path)) {
+            continue;
+        }
+
+        let current = "";
+        for (const raw of new TextDecoder().decode(bytes).split("\n")) {
+            const tokens = raw.trim().split(/\s+/);
+            if (tokens[0] === "newmtl") {
+                current = raw.trim().slice("newmtl".length).trim();
+            } else if (tokens[0]?.toLowerCase() === "map_kd" && namesOneOf(path, tokens, gone)) {
+                out.add(current);
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
  * A file set with its skipped parts filled in (design 12.4): a skipped picture is a 1 x 1 white
  * PNG, a skipped `.mtl` an empty one (the OBJ draws with the default material), and for drawing an
  * OBJ (`dropMaps`) every MTL line naming a skipped picture is removed. A skipped name the set
@@ -970,9 +1012,7 @@ export function withSkips(
                         return true;
                     }
 
-                    const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
-                    const resolved = (setKeyOf(dirOf(path) + name) ?? name).toLowerCase();
-                    return !gone.has(resolved) && !gone.has(baseName(name).toLowerCase());
+                    return !namesOneOf(path, tokens, gone);
                 });
             out.set(path, new TextEncoder().encode(kept.join("\n")));
         }

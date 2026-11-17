@@ -33,6 +33,7 @@ import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { drawsWithoutPicture } from "babylonjs-models";
 
 import { type AnimatedPart, bakeAnimation, type TemplateAnimation } from "./animateTemplate";
 import type { ModelTemplate, TemplateOptions } from "./ModelCache";
@@ -442,7 +443,8 @@ function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
 /**
  * The material a merged group draws with, and whether it takes the node's color whatever
  * `node.modelTint` says: a part the file gives no material (or one left at its defaults, see
- * `statesNoColor`), no picture and no vertex colors states no color of its own, and under "untextured" a part with no picture and no vertex colors
+ * `statesNoColor`) or one that lost the picture that was its color, no picture and no vertex
+ * colors states no color of its own, and under "untextured" a part with no picture and no vertex colors
  * gives its color up too. Under "replace" every part draws in the flat material.
  * @param first - The group's first part.
  * @param colored - Whether the group carries vertex colors.
@@ -473,6 +475,8 @@ function lookOf(
         material === null ||
         gray ||
         statesNoColor(material) ||
+        // Added or drawn without the picture that was its color: no look of its own is left (#8614).
+        drawsWithoutPicture(material) ||
         (options.untextured === true && !hasPicture(material))
     ) {
         return { material: flat(), follows: true };

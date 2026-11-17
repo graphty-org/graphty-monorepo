@@ -418,7 +418,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
                 assert.isTrue(key.endsWith(view === "2d" ? "|smooth|2d" : "|smooth"), key);
                 const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
                 assert.includeMembers(defines, ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"], key);
-                // In 3D the fringe outside the drawn width is dropped, so it writes no depth.
+                // In 3D the faint outer fringe is dropped, so it writes no depth.
                 assert.strictEqual(defines.includes("#define EDGE_LINE_AA_CUT"), view === "3d", key);
                 assert.strictEqual(
                     batch.mesh.subMeshes[0]?.verticesCount,

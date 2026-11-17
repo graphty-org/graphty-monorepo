@@ -1006,14 +1006,15 @@ void main() {
     // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
     float hwAA = vAcross.y / vAcross.z;
     float acrossAA = abs(vAcross.x / vAcross.z);
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
 #ifdef EDGE_LINE_AA_CUT
-    // In 3D the fringe outside the drawn width would write depth where the line barely shows, and
-    // a farther line drawn after it would fail the depth test there: drop it.
-    if (acrossAA > hwAA) {
+    // In 3D a fragment writes depth however faint it is, and a farther line drawn after it fails
+    // the depth test there: drop the outer half of the fringe (coverage under about 0.16) and any
+    // fragment fainter than four levels in 255, so a faint or thin line cuts no hole in a farther one.
+    if (acrossAA > hwAA + 0.25 || gl_FragColor.a < 4.0 / 255.0) {
         discard;
     }
 #endif
-    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
 #endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);

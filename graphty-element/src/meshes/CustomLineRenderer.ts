@@ -137,8 +137,9 @@ export interface JoinedLineOptions {
 /**
  * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
  * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
- * smoothed fringe outside its drawn width (`EDGE_LINE_AA_CUT`), so the fringe writes no depth and
- * cuts no hole in a farther line it crosses; the 2D view has no such hole and keeps the whole fringe.
+ * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
+ * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
+ * keeps the whole fringe.
  * @param options - The line's options.
  * @returns The defines.
  */

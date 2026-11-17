@@ -171,14 +171,14 @@ describe("tearing down around a style edit", () => {
             return repaintAll(stack, context);
         };
 
-        // Private, so reached through a cast: this is the pass the data-add trigger and the
-        // after-run repaint both queue.
-        const pass = (graph as unknown as { repaintFromSession: () => Promise<boolean> }).repaintFromSession();
+        // A new smallest mark size repaints the whole graph: the same pass a load and the end
+        // of a run queue.
+        const edit = graph.getSession().config.set({ minMarkSize: { node: 0.5, edge: 1 } });
         await inFlight;
         graph.clearData();
         release();
 
-        assert.isFalse(await pass, "the pass kept painting across the clear");
+        assert.strictEqual(await outcomeOf(edit), "resolved", "the edit failed when its repaint was stopped");
         assert.isTrue(signals[0]?.aborted, "the pass was never told the data it was painting is gone");
         assert.deepStrictEqual(errors, [], "clearing the data is not an error");
         assert.deepStrictEqual(unhandled, []);

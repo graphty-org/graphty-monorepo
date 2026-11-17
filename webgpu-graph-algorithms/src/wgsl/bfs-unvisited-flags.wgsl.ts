@@ -1,5 +1,5 @@
 /**
- * The `bfs-unvisited-flags` kernel body (design 8.4; P8-T8, the P8 plan's PD-18): the producer of the unvisited set
+ * The `bfs-unvisited-flags` kernel body: the producer of the unvisited set
  * Beamer's test is against, run ONCE per submit before the levels. It grid-strides over the vertices
  * (`planGridStride(n)`, `P.stride` the plan's stride) and, per lane, counts the vertices still at `INVALID_INDEX`
  * (`unvisitedCount`, word 5), sums their IN-degrees (`unvisitedDegreeSum`, word 6: the most arcs a bottom-up sweep
@@ -11,8 +11,8 @@
  * up to `MAX_LEVELS_PER_SUBMIT` levels stale by the time the sweep reads it: it holds vertices claimed since the
  * rebuild, which the sweep skips on the `depth == INVALID_INDEX` test it makes anyway, so staleness costs a few
  * wasted reads and never a wrong depth. Between rebuilds `frontier-finalize` maintains word 5 and `bfs-next-degree`
- * word 6 by subtraction (the selector's JSDoc states the rule). Uniformity (spec 3.5 rule 1): the loop holds no barrier, and the three
- * reductions run unconditionally after it. Body only (spec 3.5, D9); the text is normative: the sabotage rows of
+ * word 6 by subtraction (the selector's JSDoc states the rule). Uniformity: the loop holds no barrier, and the three
+ * reductions run unconditionally after it. Body only; the text is normative: the sabotage rows of
  * test/helpers/sabotage.ts are textual edits of it.
  */
 export const bfsUnvisitedFlagsWgsl = /* wgsl */ `

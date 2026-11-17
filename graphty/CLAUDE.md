@@ -20,29 +20,22 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 graphty/
 ├── src/
 │   ├── App.tsx               # Main application component (?demo gallery, else the workspace)
-│   ├── main.tsx              # Entry point
+│   ├── main.tsx              # Entry point: loads graphty-element (loadGraphtyElement)
+│   ├── elementLoader.ts      # Defines <graphty-element> and switches on its WebGPU peer
 │   ├── theme.ts              # Mantine theme configuration
-│   ├── components/
-│   │   ├── Graphty.tsx       # Main wrapper for graphty-element
-│   │   ├── ai/               # AI message bubble, provider settings modal
-│   │   ├── data-view/        # Data grid and accordion views
-│   │   ├── layout/           # LeftSidebar (style layer list, used by the shell)
-│   │   ├── layout-options/   # Layout configuration UI
-│   │   ├── sidebar/          # Style layer control panels
-│   │   │   └── panels/       # Sidebar panel components
-│   │   └── demo/             # Demo components (?demo gallery)
-│   ├── hooks/                # React hooks
-│   ├── lib/                  # Utilities (Sentry integration)
+│   ├── workspace/            # The app: Workspace.tsx, frame/, state/, commands/, keys/, settings/, ...
+│   ├── components/           # Error boundary, feedback modal, brand logo, demo/ (?demo gallery)
+│   ├── lib/                  # Sentry and eruda integration
 │   ├── types/                # TypeScript type definitions
-│   ├── constants/            # Color palettes, style defaults
-│   ├── utils/                # Helper functions
+│   ├── constants/            # Shared constants
+│   ├── data/                 # Sample dataset manifest
 │   └── stories/              # Storybook stories
 └── index.html
 ```
 
-`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
-`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
-`keys/`, and one directory per later package. Each package registers its commands in its own
+`src/workspace/` is the app's default surface: `Workspace.tsx`, `frame/` (the frame around the
+canvas and `ElementHost.tsx`, which holds `<graphty-element>`), `state/`, `commands/registry.ts`,
+`keys/`, `settings/`, and one directory per feature. Each feature registers its commands in its own
 `commands.ts`, which `registrations.ts` collects. `?next` also opens the workspace, for old links.
 
 ## Essential Commands
@@ -95,13 +88,18 @@ one into the app: a control the app needs that compact-mantine lacks, or gets wr
 
 ### graphty-element Integration
 
-The `Graphty.tsx` component wraps `<graphty-element>`:
+`workspace/frame/ElementHost.tsx` renders `<graphty-element>` and writes its attributes; the graph's
+state lives in the element and its session, the workspace keeps only UI state.
 
-- Passes configuration via attributes
-- Handles events from the Web Component
-- Manages React state for UI controls
-
-Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
+Acceleration: `elementLoader.ts` imports `@graphty/graphty-element/webgpu` after the element, and
+that is the whole GPU integration. The element probes, attaches and recovers; the app writes the
+reader's `acceleration` policy on the tag (`ElementHost.tsx`), remembers it under
+`graphty.acceleration.v1` (`workspace/settings/preferences.ts`, set in `SettingsDialog.tsx`), and
+shows `capabilities.acceleration` from the `graphty-capabilities-change` event
+(`workspace/frame/useAccelerationStatus.ts`, drawn by `WebGpuChip.tsx`). Nothing in this app may
+probe, construct or catch a GPU failure. The loader's `.catch` on the peer's import only logs a
+module that failed to download; the element still reports that peer as
+`E_NO_ACCELERATOR_REGISTERED`, so it is not a GPU failure being caught.
 
 ### Changing the graph, and undo
 

@@ -1,18 +1,13 @@
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
+import { windowCount, windowNodeIds } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -458,7 +453,7 @@ describe("session.time: the window", () => {
             await time.window({ from, to });
             assert.strictEqual(visibility.window?.attribute, "data.sent");
             assert.strictEqual(visibility.window?.nodes, "ends");
-            assert.deepStrictEqual([...visibility.nodes].map(String).sort(), bruteNodes(harness, from, to));
+            assert.deepStrictEqual(windowNodeIds(harness.session).sort(), bruteNodes(harness, from, to));
         }
 
         harness.session.dispose();
@@ -469,10 +464,11 @@ describe("session.time: the window", () => {
         const { time, visibility } = harness.session;
         await time.setField({ edges: { start: "sent" } });
         await time.window({ from: T0, to: T0 + 10 * DAY });
-        assert.strictEqual(visibility.summary.visibleEdges, 5);
+        assert.strictEqual(windowCount(visibility).edges, 5);
         await time.window({ from: T0, to: T0 + 10 * DAY, missing: "outside" });
-        assert.strictEqual(visibility.summary.visibleEdges, 4);
-        assert.isFalse(visibility.isVisible("f"));
+        assert.strictEqual(windowCount(visibility).edges, 4);
+        assert.notInclude(windowNodeIds(harness.session), "f");
+        assert.isTrue(visibility.isVisible("f"), "left out of the window, never out of the data");
         harness.session.dispose();
     });
 
@@ -481,8 +477,8 @@ describe("session.time: the window", () => {
         await harness.session.time.setField({ edges: { start: "sent" } });
         await harness.session.visibility.setWindow({ attribute: "data.sent", from: T0, to: T0 + DAY });
         // No "ends": every node stays, only edges outside the window go.
-        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 6);
-        assert.strictEqual(harness.session.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(harness.session.visibility).nodes, 6);
+        assert.strictEqual(windowCount(harness.session.visibility).edges, 2);
         harness.session.dispose();
     });
 

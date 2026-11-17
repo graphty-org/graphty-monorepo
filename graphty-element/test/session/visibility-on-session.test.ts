@@ -109,7 +109,7 @@ describe("session.visibility", () => {
         harness.session.dispose();
     });
 
-    it("composes a time window with the filter in force", async () => {
+    it("keeps a time window beside the filter, narrowing nothing", async () => {
         const harness = harnessOf();
         await harness.session.visibility.set(HOSTS);
 
@@ -120,8 +120,10 @@ describe("session.visibility", () => {
 
         await harness.session.visibility.set(null);
 
-        assert.deepStrictEqual([...harness.session.visibility.nodes].sort(), ["a", "b", "c"], "the window still holds");
-        assert.strictEqual(harness.session.status.counts.visibleNodes, 3);
+        // A window only changes how elements draw: it narrows nothing that is visible.
+        assert.deepStrictEqual(harness.session.visibility.window, EARLY, "the window still holds");
+        assert.deepStrictEqual([...harness.session.visibility.nodes].sort(), ["a", "b", "c", "d", "e"]);
+        assert.strictEqual(harness.session.status.counts.visibleNodes, 5);
         harness.session.dispose();
     });
 

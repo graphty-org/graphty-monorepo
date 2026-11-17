@@ -389,6 +389,17 @@ describe("the catalog leads a model to a diverging encoding", () => {
         });
     });
 
+    it("names the setting that changes directedness in the statistics a model reads first", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession());
+        await assistant.say("analyze it as undirected", [{ tool: "query", args: { action: "statistics" } }]);
+        const pointer = (assistant.lastResults()[0].data as { directednessSetting: { kind: string; name: string } })
+            .directednessSetting;
+        await assistant.say("describe it", [{ tool: "catalog", args: { action: "describe", ...pointer } }]);
+        const [described] = assistant.lastResults();
+        assert.strictEqual(described.code, "AI_OK");
+        assert.include(JSON.stringify(described.data), '"directed"');
+    });
+
     it("finds the data setting, which holds direction, when a model searches for undirected or directed", async () => {
         const assistant = new ScriptedAssistant(await assistantSession());
         await assistant.say(

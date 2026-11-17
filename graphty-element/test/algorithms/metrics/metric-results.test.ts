@@ -247,11 +247,11 @@ describe("metric results", () => {
         });
 
         it("katz at an alpha too large for the graph fails with E_NOT_CONVERGED instead of publishing", async () => {
-            // The default alpha of 0.1: the graph's largest eigenvalue is at least 10, so the
+            // An alpha of 0.1, the conventional value: the graph's largest eigenvalue is at least 10, so the
             // attenuated sums grow every pass and the run has no answer.
             let thrown: unknown;
             try {
-                await runMetric((g) => new KatzCentralityAlgorithm(g));
+                await runMetric((g) => new KatzCentralityAlgorithm(g, { alpha: 0.1 }));
             } catch (error) {
                 thrown = error;
             }

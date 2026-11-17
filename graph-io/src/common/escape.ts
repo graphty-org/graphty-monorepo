@@ -247,7 +247,7 @@ export function quoteCsvCell(text: string, delimiter = ",", quote = '"'): string
     return `${quote}${text.split(quote).join(quote + quote)}${quote}`;
 }
 
-const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+const PLAIN_NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
 /**
  * Keep a spreadsheet from reading a CSV cell as a formula (CWE-1236): a text starting with `=`,

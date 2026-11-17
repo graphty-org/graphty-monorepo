@@ -151,8 +151,13 @@ describe("spreadsheetSafeText", () => {
         ]) {
             expect(spreadsheetSafeText(text)).toBe(`'${text}`);
         }
-        for (const text of ["", "a=b", "-5", "+1.5e3", "-.5", "12", "#tag"]) {
+        for (const text of ["", "a=b", "-5", "-5.", "+1.5e3", "-5.25e-3", "-.5", "12", "#tag"]) {
             expect(spreadsheetSafeText(text)).toBe(text);
         }
+    });
+
+    it("prefixes a long signed run of digits that is not a number", () => {
+        const text = `-${"0".repeat(50_000)}x`;
+        expect(spreadsheetSafeText(text)).toBe(`'${text}`);
     });
 });

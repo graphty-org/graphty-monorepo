@@ -67,7 +67,7 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         assert.isAbove(count(frame, GREENISH), 300, "the green WebP picture is drawn");
         assert.strictEqual(count(frame, GREEN), 0, "and drawn see-through, not opaque");
         // Its reflections are see-through too: drawn over the alpha (Babylon's default), a glossy
-        // glass covered the real watch's dial and hands with an opaque disc of reflected sky (L06).
+        // glass covered the real watch's dial and hands with an opaque disc of reflected sky.
         const glass = element.graph.scene.materials.filter((m) => m instanceof PBRMaterial && m.alpha < 1);
         assert.isAbove(glass.length, 0, "the glass is drawn see-through");
         for (const material of glass as PBRMaterial[]) {
@@ -76,7 +76,7 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         }
     });
 
-    it("keeps a white, untextured glass see-through in the node's color, never the opaque flat look (L06)", async () => {
+    it("keeps a white, untextured glass see-through in the node's color, never the opaque flat look", async () => {
         const element = await mount();
         const glass = gltfPair(
             triangleGltf({
@@ -445,6 +445,9 @@ describe("marks on model nodes", () => {
         );
         const away = mark.filter((g, i) => g && fromModel[i] > 16).length;
         assert.strictEqual(away, 0, "no mark apart from the model: no second, misaligned copy");
+        // The selection's band is a thin line along the outline, so a small model is not lost in it.
+        const wide = mark.filter((g, i) => g && fromModel[i] > 4).length;
+        assert.strictEqual(wide, 0, "the band hugs the model, a few pixels wide");
         // The band straddles the silhouette's edge by up to its width; nothing reaches deeper.
         const over = mark.filter((g, i) => g && inside[i] > 12).length;
         assert.strictEqual(over, 0, "no mark over the model's inside");
@@ -475,8 +478,10 @@ describe("marks on model nodes", () => {
         assert.strictEqual(count(await readFrame(element), MARK), 0, "the mark goes with the selection");
     });
 
-    it("rings a part thinner than the band on both sides, with no copy beside it and nothing over it (L16)", async () => {
+    it("rings a part thinner than the band on both sides, with no copy beside it and nothing over it", async () => {
         const element = await mount(600, 300);
+        // A wide halo (a 9 pixel band) for a trunk thinner than it.
+        element.graph.setSelectionStyle({ scale: 2.5 });
         await drawModel(
             element,
             boxesObj([["trunk", "green", [0, 0, 0.04, 4, 0.04]]]),

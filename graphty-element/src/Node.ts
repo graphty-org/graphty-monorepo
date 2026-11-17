@@ -3635,8 +3635,10 @@ export class Node implements ModelUser {
 
     /**
      * The band a model node is marked with: its halo (selection or `node.halo*`), else its
-     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
-     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 6` (3 at the default
+     * 1.45, a line that hugs the model at any zoom: at 9 a small model drawn 20 pixels tall
+     * vanished into a disc of the mark), an outline's width x 4, a glow's strength x 8, each
+     * between 2 and 16.
      * @returns The look, or null for no mark.
      */
     private modelMarkLook(): ModelMarkLook | null {
@@ -3644,7 +3646,7 @@ export class Node implements ModelUser {
         const halo = this.haloLook();
         if (halo !== null && halo.opacity !== 0) {
             const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
-            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 6) };
         }
 
         const effect = this.drawnStyle?.effect;

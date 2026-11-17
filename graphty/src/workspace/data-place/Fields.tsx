@@ -8,9 +8,9 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { AddButton } from "../style/Section";
+import { AddButton, type AddOption } from "../style/Section";
 import { failWords } from "../table/columns";
-import { designate, timelineOn, unitOf } from "../time/timeActions";
+import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
@@ -226,8 +226,7 @@ function PickRow({
 }
 
 /**
- * One entry of the Fields list: its kind's glyph and name, its column, and a minus. An entry just
- * picked from "+" opens its control's list; closing it with no pick drops the entry. An entry the
+ * One entry of the Fields list: its kind's glyph and name, its column, and a minus. An entry the
  * element lists but does not read is dimmed, and says why in a tooltip and its description.
  * @param props - Component props
  * @param props.side - nodes or edges
@@ -235,11 +234,9 @@ function PickRow({
  * @param props.name - the control's accessible name
  * @param props.value - the control's value, or null while it has none
  * @param props.choices - what the control offers
- * @param props.opened - open the control's list when drawn (the entry was just added)
  * @param props.repick - whether picking the value shown again counts
  * @param props.note - why the element does not read it, when it does not
  * @param props.onPick - takes a pick
- * @param props.onDropped - the list closed with no pick on an entry just added
  * @param props.onRemove - the minus
  * @returns the entry
  */
@@ -249,11 +246,9 @@ function EntryRow({
     name,
     value,
     choices,
-    opened,
     repick = false,
     note,
     onPick,
-    onDropped,
     onRemove,
 }: Readonly<{
     side: FieldSide;
@@ -261,14 +256,11 @@ function EntryRow({
     name: string;
     value: string | null;
     choices: readonly Choice[];
-    opened: boolean;
     repick?: boolean;
     note?: string;
     onPick: (value: string) => void;
-    onDropped: () => void;
     onRemove: () => void;
 }>): React.JSX.Element {
-    const picked = useRef(false);
     const noun = `${SIDE_WORD[side].toLowerCase()} ${entry.name.toLowerCase()}`;
     return (
         <FieldRow
@@ -303,28 +295,71 @@ function EntryRow({
                 )}
                 renderOption={(input) => renderChoice(input, choices)}
                 value={value}
-                autoFocus={opened}
-                defaultDropdownOpened={opened}
                 onChange={(next) => {
-                    picked.current = true;
                     if (next !== null && next !== value) {
                         onPick(next);
                     }
                 }}
                 onOptionSubmit={(next) => {
-                    picked.current = true;
                     if (repick && next === value) {
                         onPick(next);
-                    }
-                }}
-                onDropdownClose={() => {
-                    if (opened && !picked.current) {
-                        onDropped();
                     }
                 }}
             />
         </FieldRow>
     );
+}
+
+/** The load entries whose values are kind names, not columns. */
+const NAMED_LOADS: ReadonlySet<string> = new Set(["kindName", "sourceKind", "targetKind"]);
+
+/**
+ * What "+" offers for an entry not listed yet: the entry itself, added with the column the element
+ * finds obvious for its role (`data.roleCandidate`) or the only kind name offered, or a submenu of
+ * its columns. Time is always a submenu, the obvious column first. Each key is the
+ * entry's id and the column, as `id=column`. An entry with no column to offer is left out.
+ * @param session - the element's session.
+ * @param kind - node or edge.
+ * @param entry - the entry.
+ * @param choices - its column's choices.
+ * @returns the option, or none.
+ */
+function addOption(
+    session: GraphSession,
+    kind: "node" | "edge",
+    entry: FieldEntry,
+    choices: readonly Choice[],
+): AddOption[] {
+    const items = choices.map((choice) => (typeof choice === "string" ? { value: choice, label: choice } : choice));
+    // A kind's name, not a column: when only one is offered (the file's name), it is the one.
+    const onlyName = entry.load !== undefined && NAMED_LOADS.has(entry.load) && items.length === 1;
+    let best: string | null = null;
+    if (onlyName) {
+        best = items[0].value;
+    } else if (entry.role !== undefined) {
+        best = session.data.roleCandidate(kind, entry.role);
+    }
+    if (best !== null && items.some((item) => item.value === best)) {
+        if (entry.id !== "time") {
+            return [{ key: `${entry.id}=${best}`, label: entry.name }];
+        }
+        // Time always asks, as it turns the timeline on: the element's best column leads the submenu.
+        items.sort((a, b) => Number(b.value === best) - Number(a.value === best));
+    }
+    if (items.length === 0) {
+        return [];
+    }
+    return [
+        {
+            key: entry.id,
+            label: entry.name,
+            choices: items.map((item) => ({
+                key: `${entry.id}=${item.value}`,
+                label: item.label,
+                ...("detail" in item && item.detail !== undefined ? { detail: item.detail } : {}),
+            })),
+        },
+    ];
 }
 
 /**
@@ -394,9 +429,10 @@ function designateTime(
  * One side's group: its chip with a "+" at the right end, its fixed structure rows, then its
  * entries -- only the kinds of field the element reports (a role a column has, a location it
  * reads), so a detected one is listed with no action from the reader and nothing detected leaves
- * the list empty. "+" offers the kinds not listed yet; picking one opens its column list, and
- * closing that with no pick drops it. The minus takes the role away through the element, focus
- * then going to "+".
+ * the list empty. "+" offers the kinds not listed yet: one with a column the element finds obvious
+ * for it (`data.roleCandidate`) is added with that column, and any other (and Time always, its
+ * obvious column first) opens a submenu of its columns, the entry added once one is picked. Either way focus goes to the new entry's column.
+ * The minus takes the role away through the element, focus then going to "+".
  * @param props - Component props
  * @param props.side - nodes or edges
  * @param props.count - the chip's count
@@ -425,7 +461,6 @@ function SideGroup({
     onFail: () => void;
 }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const [adding, setAdding] = useState<EntryId | null>(null);
     const [group, focusPlus] = useFocusPlus();
     const kind = KIND_OF[side];
     const roles = tableRoles(source, side);
@@ -448,19 +483,11 @@ function SideGroup({
         return entry.load !== undefined && reloadable ? loadValue(roles, entry.load) : null;
     };
     const present = (entry: FieldEntry): boolean => holderOf(entry) !== null;
-    const available = (entry: FieldEntry): boolean =>
-        (entry.load === undefined || reloadable) && (entry.id !== "time" || timelineOn(session));
+    const available = (entry: FieldEntry): boolean => entry.load === undefined || reloadable;
     const entries = FIELD_ENTRIES[side].filter(available);
     const presentNow = new Set(entries.filter(present).map((entry) => entry.id));
-    const settled = adding !== null && presentNow.has(adding);
-    // The entry "+" added is listed by the element now: it is no longer waiting.
-    useEffect(() => {
-        if (settled) {
-            setAdding(null);
-        }
-    }, [settled]);
-    // An entry asked for from elsewhere (the Overview's Set in Data) is brought into view and
-    // focused once it is listed.
+    // An entry asked for -- just added from "+", or from elsewhere (the Overview's Set in Data) --
+    // is brought into view and focused once it is listed.
     const wanted = useWorkspaceState((state) => state.fieldsEntry);
     const wantedHere = wanted?.startsWith(`${side}:`) === true ? wanted.slice(side.length + 1) : null;
     const ready = wantedHere !== null && presentNow.has(wantedHere as EntryId);
@@ -478,14 +505,46 @@ function SideGroup({
     if (session === null) {
         return null;
     }
-    const drop = (): void => {
-        setAdding(null);
-        focusPlus();
+    // What an entry's column offers, and what picking one does: the same from its row and from "+".
+    const choicesOf = (entry: FieldEntry, holder: string | null): Choice[] => {
+        const key = entry.load;
+        if (key === "kindName") {
+            return fileKindChoices(source, holder);
+        }
+        if (key === "sourceKind" || key === "targetKind") {
+            return kindChoices(roles, holder);
+        }
+        return columnOptions(session, attributes, side, entry.id, columnChoices(attributes, source, side, holder));
     };
-    const offered = entries.filter((entry) => !presentNow.has(entry.id) && entry.id !== adding);
+    const pickOf =
+        (entry: FieldEntry) =>
+        (picked: string): void => {
+            const key = entry.load;
+            if (key !== undefined) {
+                if (source !== undefined) {
+                    onReload({ mapping: remap(source, side, { [key]: picked }) });
+                }
+            } else if (entry.id === "time") {
+                designateTime(session, store, side, picked);
+            } else {
+                session.data.setRole({ kind, name: picked }, entry.role ?? "label").catch(onFail);
+            }
+        };
+    const offered = entries
+        .filter((entry) => !presentNow.has(entry.id))
+        .flatMap((entry) => addOption(session, kind, entry, choicesOf(entry, null)));
+    const add = (key: string): void => {
+        const at = key.indexOf("=");
+        const entry = entries.find((each) => each.id === key.slice(0, at));
+        if (at < 0 || entry === undefined) {
+            return;
+        }
+        // Focus goes to the entry's column once the element lists it.
+        store.set({ fieldsEntry: `${side}:${entry.id}` });
+        pickOf(entry)(key.slice(at + 1));
+    };
     const rowOf = (entry: FieldEntry): React.ReactNode => {
-        const opened = adding === entry.id && !presentNow.has(entry.id);
-        if (!presentNow.has(entry.id) && !opened) {
+        if (!presentNow.has(entry.id)) {
             return null;
         }
         let name = entry.load === undefined ? `${SIDE_WORD[side]} ${entry.name.toLowerCase()}` : entry.name;
@@ -493,38 +552,15 @@ function SideGroup({
             name = `${name} column`;
         }
         const holder = holderOf(entry);
-        const common = {
-            side,
-            entry,
-            name,
-            value: holder,
-            opened,
-            onDropped: drop,
-        };
+        const common = { side, entry, name, value: holder };
         if (entry.load !== undefined) {
             const key = entry.load;
-            const endKind = key === "sourceKind" || key === "targetKind";
-            const offered = endKind ? kindChoices(roles, holder) : null;
-            const named = key === "kindName" ? fileKindChoices(source, holder) : offered;
             return (
                 <EntryRow
                     key={entry.id}
                     {...common}
-                    choices={
-                        named ??
-                        columnOptions(
-                            session,
-                            attributes,
-                            side,
-                            entry.id,
-                            columnChoices(attributes, source, side, holder),
-                        )
-                    }
-                    onPick={(picked) => {
-                        if (source !== undefined) {
-                            onReload({ mapping: remap(source, side, { [key]: picked }) });
-                        }
-                    }}
+                    choices={choicesOf(entry, holder)}
+                    onPick={pickOf(entry)}
                     onRemove={() => {
                         focusPlus();
                         if (source !== undefined) {
@@ -534,7 +570,6 @@ function SideGroup({
                 />
             );
         }
-        const role = entry.role ?? "label";
         const numeric = entry.id === "weight";
         if (entry.id === "time") {
             return (
@@ -559,16 +594,8 @@ function SideGroup({
                     // A location the element found is only preselected: picking it designates it.
                     repick={isLocation && located?.from === "detected"}
                     note={unused === undefined ? undefined : unusedWords(unused)}
-                    choices={columnOptions(
-                        session,
-                        attributes,
-                        side,
-                        entry.id,
-                        columnChoices(attributes, source, side, holder),
-                    )}
-                    onPick={(picked) => {
-                        session.data.setRole({ kind, name: picked }, role).catch(onFail);
-                    }}
+                    choices={choicesOf(entry, holder)}
+                    onPick={pickOf(entry)}
                     onRemove={() => {
                         focusPlus();
                         if (holder !== null) {
@@ -600,18 +627,7 @@ function SideGroup({
     };
     return (
         <div ref={group} data-fields-side={side}>
-            <FieldRow
-                trailing={
-                    <AddButton
-                        kind={kind}
-                        title="Attributes"
-                        options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
-                        onAdd={(key) => {
-                            setAdding(key as EntryId);
-                        }}
-                    />
-                }
-            >
+            <FieldRow trailing={<AddButton kind={kind} title="Attributes" options={offered} onAdd={add} />}>
                 <Text size="xs" truncate>
                     {side === "nodes" ? "Nodes" : "Edges"}
                 </Text>
@@ -817,7 +833,8 @@ function SourceFields({
     const held = useWorkspaceState((state) => state.ends);
     const attributes = attributesOf(session, source);
     const fail = (): void => {
-        store.set({ notice: { message: "Field not changed" } });
+        // An entry asked for by "+" will not be listed now: nothing waits to focus it.
+        store.set({ notice: { message: "Field not changed" }, fieldsEntry: null });
     };
     const reload = (choices: Parameters<GraphSession["data"]["reloadSource"]>[1]): void => {
         if (source !== undefined) {
@@ -929,18 +946,14 @@ function SourceFields({
  * @param props - Component props
  * @param props.sources - `data.sources()`
  * @param props.selected - the selected load
- * @param props.filters - draw each load as a section of its own, holding its Filters (the
- * `selection-workspace` experiment's Sources tab)
  * @returns the section, or nothing before the element has come up
  */
 export function Fields({
     sources,
     selected,
-    filters = false,
 }: Readonly<{
     sources: readonly LoadedSource[];
     selected: LoadedSource | undefined;
-    filters?: boolean;
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
@@ -962,12 +975,12 @@ export function Fields({
     useEffect(() => {
         // Not on the first drawing: only a new pick scrolls the panel.
         if (drawn.current) {
-            // The picked load's group: first under Attributes, at its own place as a section.
-            const at = filters ? sourcesRef.current.findIndex((each) => each.key === selected?.key) : 0;
+            // The picked load's section, at its own place.
+            const at = sourcesRef.current.findIndex((each) => each.key === selected?.key);
             groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
         }
         drawn.current = true;
-    }, [selected?.key, filters]);
+    }, [selected?.key]);
     if (session === null) {
         return null;
     }
@@ -981,29 +994,22 @@ export function Fields({
             </ControlSection>
         );
     }
-    // As their own sections, the loads keep the Data sources list's order; as groups under
-    // Attributes, the selected one comes first.
-    const ordered =
-        filters || selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
-    const list = (
-        <div ref={groups} className={filters ? "dp-source-sections" : "dp-field-groups"}>
-            {ordered.map((source) => (
+    // Each load is a section of its own, holding its Filters, in the Data sources list's order.
+    return (
+        <div ref={groups} className="dp-source-sections">
+            {sources.map((source) => (
                 <ControlSection
                     key={source.key}
                     label={sourceName(source)}
-                    // With its filters, a load's group is a section of its own.
-                    headingLevel={filters ? undefined : 3}
-                    empty={!filters && empty(source)}
                     opened={opened[source.key] ?? source === selected}
                     onOpenChange={(open) => {
                         setOpened((was) => ({ ...was, [source.key]: open }));
                     }}
                 >
                     <SourceFields session={session} source={source} />
-                    {filters && <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />}
+                    <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />
                 </ControlSection>
             ))}
         </div>
     );
-    return filters ? list : <ControlSection label="Attributes">{list}</ControlSection>;
 }

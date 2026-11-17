@@ -2,7 +2,7 @@ import { ActionIcon, Button, Group, Progress, Text, TextInput } from "@mantine/c
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
-import { UiGlyph } from "../../icons";
+import { UiGlyph, type UiGlyphName } from "../../icons";
 import { pickFiles } from "./pickFiles";
 import { chosenFiles } from "./readDrop";
 import { useFileDrop } from "./useFileDrop";
@@ -90,7 +90,41 @@ export interface FileSourceProps {
      * the Mantine Modal or Popover around it opens (`data-autofocus`). @default false
      */
     autoFocus?: boolean;
+    /** The glyph on the row's choose-file button (`row`). @default "upload" */
+    chooseGlyph?: UiGlyphName;
+    /** The glyph on the folder button (with `folder`), as `chooseGlyph` is on the file button. @default "folder" */
+    folderGlyph?: UiGlyphName;
+    /** The URL field's accessible name, when the placeholder says more than the name. Defaults to `placeholder`. */
+    urlLabel?: string;
+    /**
+     * Whether files are being dragged over a larger target around it (the dialog it sits in), so
+     * the row draws its drop cue too (`row`). The row draws the cue for a drag over itself when
+     * `dropLabel` is given. @default false
+     */
+    dropping?: boolean;
+    /**
+     * What the row's drop cue says over its field while files are dragged over it (`row`). Without
+     * it or `dropping`, a drag over the row only outlines the field. Defaults to the `fileDrop` label
+     * ("Drop to load") when `dropping` is set.
+     */
+    dropLabel?: string;
+    /**
+     * What was loaded, drawn in place of the URL field and its buttons as one line: the name, a
+     * glyph for its kind and an x that calls `onClear` (`row`; `drop` and `button` ignore it). The row
+     * still takes a drop, which goes to `onFiles`. Not drawn while a load is under way (`progress`).
+     */
+    loaded?: { readonly name: string; readonly kind?: "file" | "folder" | "url" };
+    /** Called by the x on the loaded line (`loaded`). Focus then moves to the URL field (or the choose button). */
+    onClear?: () => void;
+    /** The x's accessible name and tooltip (`loaded`). Defaults to the `fileRemove` label and the name ("Remove model.glb"). */
+    clearLabel?: string;
 }
+
+/** The glyph the loaded line draws for each kind of source. */
+const LOADED_GLYPH: Record<"file" | "folder" | "url", UiGlyphName> = { file: "file", folder: "folder", url: "link" };
+
+/** The characters of a long loaded name kept whole at its end, so a cut name still shows its extension. */
+const LOADED_TAIL = 8;
 
 /**
  * The width of an element, kept current with a ResizeObserver.
@@ -177,6 +211,135 @@ function LoadBar({
 }
 
 /**
+ * The line naming what is loaded, with the x that clears it.
+ * @param loaded - what is loaded.
+ * @param disabled - whether the x is disabled.
+ * @param clearName - the x's accessible name.
+ * @param onClear - called when the x is pressed.
+ * @returns the loaded line.
+ */
+function loadedLine(
+    loaded: NonNullable<FileSourceProps["loaded"]>,
+    disabled: boolean,
+    clearName: string,
+    onClear: () => void,
+): React.JSX.Element {
+    const cut = loaded.name.length > LOADED_TAIL * 2 ? loaded.name.length - LOADED_TAIL : loaded.name.length;
+    return (
+        <div className="cm-file-loaded" title={loaded.name}>
+            <UiGlyph name={LOADED_GLYPH[loaded.kind ?? "file"]} size={16} />
+            <span className="cm-file-loaded-name">
+                <span className="cm-file-loaded-head">{loaded.name.slice(0, cut)}</span>
+                {loaded.name.slice(cut)}
+            </span>
+            <ActionIcon disabled={disabled} title={clearName} aria-label={clearName} onClick={onClear}>
+                <UiGlyph name="close" size={10} />
+            </ActionIcon>
+        </div>
+    );
+}
+
+/**
+ * The URL field's keys: Escape takes the typing back when the caller can discard it, Enter submits.
+ * @param event - the key event.
+ * @param address - the typed address.
+ * @param onDiscard - called when Escape takes the typing back.
+ * @param submit - submits the field.
+ * @param clear - empties the field.
+ */
+function urlKey(
+    event: React.KeyboardEvent<HTMLInputElement>,
+    address: string,
+    onDiscard: (() => void) | undefined,
+    submit: (field: HTMLInputElement) => void,
+    clear: () => void,
+): void {
+    if (event.key === "Escape" && onDiscard !== undefined && address !== "") {
+        // Takes the typing back; the page's own Escape (closing a dialog) waits for the next one.
+        event.preventDefault();
+        event.stopPropagation();
+        clear();
+        onDiscard();
+        return;
+    }
+    if (event.key !== "Enter") {
+        return;
+    }
+    event.preventDefault();
+    submit(event.currentTarget);
+}
+
+/**
+ * Whether a row shows the drop cue: while the caller says a drop is coming, or while a file is over
+ * it and there are words for the cue.
+ * @param dropping - the caller says a drop is coming.
+ * @param over - a file is over the row.
+ * @param dropLabel - the cue's words.
+ * @returns whether the cue shows.
+ */
+function showsDropCue(dropping: boolean, over: boolean, dropLabel: React.ReactNode): boolean {
+    return dropping || (over && dropLabel !== undefined);
+}
+
+/**
+ * The drop target: its large glyph above the buttons, the hint, and the URL field below.
+ * @param buttons - the choose buttons.
+ * @param hint - the hint under the buttons.
+ * @param urlField - the URL field, or false when there is none.
+ * @returns the drop variant's body.
+ */
+function dropBody(buttons: React.JSX.Element, hint: React.ReactNode, urlField: React.ReactNode): React.JSX.Element {
+    return (
+        <>
+            <div className="cm-file-drop-target">
+                <span className="cm-file-drop-glyph">
+                    <UiGlyph name="upload" size={24} />
+                </span>
+                {buttons}
+                {hint === undefined ? null : (
+                    <Text className="cm-file-hint" span>
+                        {hint}
+                    </Text>
+                )}
+            </div>
+            {urlField}
+        </>
+    );
+}
+
+interface RowIcon {
+    readonly text: string;
+    readonly glyph: UiGlyphName;
+    readonly onClick: () => void;
+}
+
+const rowIcon = (disabled: boolean, icon: RowIcon): React.JSX.Element => (
+    <ActionIcon disabled={disabled} title={icon.text} aria-label={icon.text} onClick={icon.onClick}>
+        <UiGlyph name={icon.glyph} size={16} />
+    </ActionIcon>
+);
+
+/**
+ * The row's icons: a row that also takes a folder carries its icon beside the file icon; a row that
+ * does not looks as before.
+ * @param disabled - whether the icons are disabled.
+ * @param choose - the file icon.
+ * @param folder - the folder icon, when the row takes a folder.
+ * @returns the icons.
+ */
+function rowIcons(disabled: boolean, choose: RowIcon, folder: RowIcon | undefined): React.JSX.Element {
+    if (folder === undefined) {
+        return rowIcon(disabled, choose);
+    }
+    return (
+        <Group gap={0} wrap="nowrap">
+            {rowIcon(disabled, choose)}
+            {rowIcon(disabled, folder)}
+        </Group>
+    );
+}
+
+/**
  * One way to get a file: a URL, a drop or the file picker, drawn to fit the space it has.
  *
  * Built from Mantine's TextInput, ActionIcon and Button at their compact sizes. The URL field is a
@@ -213,6 +376,14 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         onDiscard,
         fill = false,
         autoFocus = false,
+        chooseGlyph = "upload",
+        folderGlyph = "folder",
+        urlLabel,
+        dropping = false,
+        dropLabel,
+        loaded,
+        onClear,
+        clearLabel,
     } = props;
     const labels = useLabels();
     const root = useRef<HTMLDivElement>(null);
@@ -234,6 +405,20 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     const showUrl = url ?? onUrl !== undefined;
     const chooseText = label ?? labels.fileChoose;
     const urlName = placeholder ?? labels.fileUrl;
+    const showLoaded = loaded !== undefined && progress === undefined && drawn === "row";
+    const dropCue = drawn === "row" && showsDropCue(dropping, over, dropLabel);
+    // The x took the loaded line away: focus goes to what came back in its place. Only when it was
+    // the x's doing (nothing is loaded now): a line that a later load hides keeps the reader's focus.
+    const refocus = useRef(false);
+    useEffect(() => {
+        if (!refocus.current || showLoaded) {
+            return;
+        }
+        refocus.current = false;
+        if (loaded === undefined) {
+            root.current?.querySelector<HTMLElement>("input, button")?.focus();
+        }
+    }, [showLoaded, loaded]);
 
     const choose = (inFolder = false): void => {
         void pickFiles({ accept, multiple, folder: inFolder }).then((files) => {
@@ -266,7 +451,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                 value={address}
                 disabled={disabled}
                 placeholder={urlName}
-                aria-label={urlName}
+                aria-label={urlLabel ?? urlName}
                 error={error ?? invalid}
                 className="cm-file-url"
                 rightSection={rightSection}
@@ -276,20 +461,10 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                     setInvalid(false);
                 }}
                 onKeyDown={(event) => {
-                    if (event.key === "Escape" && onDiscard !== undefined && address !== "") {
-                        // Takes the typing back; the page's own Escape (closing a dialog) waits for the next one.
-                        event.preventDefault();
-                        event.stopPropagation();
+                    urlKey(event, address, onDiscard, submit, () => {
                         setAddress("");
                         setInvalid(false);
-                        onDiscard();
-                        return;
-                    }
-                    if (event.key !== "Enter") {
-                        return;
-                    }
-                    event.preventDefault();
-                    submit(event.currentTarget);
+                    });
                 }}
             />
         );
@@ -330,7 +505,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             <Button
                 variant="default"
                 disabled={disabled}
-                leftSection={withGlyph ? <UiGlyph name="folder" size={16} /> : undefined}
+                leftSection={withGlyph ? <UiGlyph name={folderGlyph} size={16} /> : undefined}
                 onClick={() => {
                     choose(true);
                 }}
@@ -348,60 +523,41 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             chooseButton(withGlyph)
         );
 
-    let body: React.ReactNode;
-    if (drawn === "button") {
-        body = buttons(true);
-    } else if (drawn === "row") {
-        const chooseIcon = (
-            <ActionIcon
-                disabled={disabled}
-                title={chooseText}
-                aria-label={chooseText}
-                onClick={() => {
-                    choose();
-                }}
-            >
-                {uploadGlyph}
-            </ActionIcon>
-        );
-        // A row that also takes a folder carries its icon beside the file icon; a row that does not looks as before.
-        const folderText = folderLabel ?? labels.fileChooseFolder;
-        const icons = folder ? (
-            <Group gap={0} wrap="nowrap">
-                {chooseIcon}
-                <ActionIcon
-                    disabled={disabled}
-                    title={folderText}
-                    aria-label={folderText}
-                    onClick={() => {
-                        choose(true);
-                    }}
-                >
-                    <UiGlyph name="folder" size={16} />
-                </ActionIcon>
-            </Group>
-        ) : (
-            chooseIcon
-        );
-        body = showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
-    } else {
-        body = (
-            <>
-                <div className="cm-file-drop-target">
-                    <span className="cm-file-drop-glyph">
-                        <UiGlyph name="upload" size={24} />
-                    </span>
-                    {buttons(false)}
-                    {hint === undefined ? null : (
-                        <Text className="cm-file-hint" span>
-                            {hint}
-                        </Text>
-                    )}
-                </div>
-                {showUrl && urlField()}
-            </>
-        );
-    }
+    // What the source draws for its variant: buttons, the loaded line, the row or the drop target.
+    const drawBody = (): React.ReactNode => {
+        if (drawn === "button") {
+            return buttons(true);
+        }
+        if (showLoaded) {
+            return loadedLine(loaded, disabled, clearLabel ?? `${labels.fileRemove} ${loaded.name}`, () => {
+                refocus.current = true;
+                onClear?.();
+            });
+        }
+        if (drawn === "row") {
+            const icons = rowIcons(
+                disabled,
+                {
+                    text: chooseText,
+                    glyph: chooseGlyph,
+                    onClick: () => {
+                        choose();
+                    },
+                },
+                folder
+                    ? {
+                          text: folderLabel ?? labels.fileChooseFolder,
+                          glyph: folderGlyph,
+                          onClick: () => {
+                              choose(true);
+                          },
+                      }
+                    : undefined,
+            );
+            return showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
+        }
+        return dropBody(buttons(false), hint, showUrl ? urlField() : false);
+    };
 
     return (
         <div
@@ -411,8 +567,15 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             data-over={over || undefined}
             data-disabled={disabled || undefined}
             data-fill={fill || undefined}
+            data-dropping={dropCue || undefined}
         >
-            {body}
+            {drawBody()}
+            {dropCue ? (
+                <div className="cm-file-drop-cue" aria-hidden="true">
+                    <UiGlyph name={chooseGlyph} size={12} />
+                    {dropLabel ?? labels.fileDrop}
+                </div>
+            ) : null}
             {progress === undefined ? null : (
                 <LoadBar
                     progress={progress}

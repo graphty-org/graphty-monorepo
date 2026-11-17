@@ -20,7 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /** The three layers every test starts from, by name. */
@@ -139,11 +139,8 @@ describe("folders, several rows and the draft on the real element", () => {
 
         const tab = await screen.findByTestId("style-tab");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
-        assert.include(
-            within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "",
-            "not styled",
-            "Ring is left out, so no layer styles edges",
-        );
+        // The kind tabs say no "not styled" note (StylePanel.tsx).
+        assert.notInclude(within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "", "not styled");
         const size = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found);

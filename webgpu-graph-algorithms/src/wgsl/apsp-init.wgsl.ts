@@ -1,11 +1,11 @@
 /**
- * The `apsp-init` kernel body (design 8.7): writes the arcs into the `n x n` distance matrix after `fill` has set
+ * The `apsp-init` kernel body: writes the arcs into the `n x n` distance matrix after `fill` has set
  * every entry to `+Infinity`. One lane per ROW `u`: it walks `u`'s arcs and keeps the cheapest weight per target
  * (`min`), so parallel arcs collapse to the cheapest one, then writes the diagonal zero LAST, so a self-loop never
  * displaces it. Every arc of row `u` lands in row `u` of the matrix and only this lane writes that row, so there is
  * no race and no atomic. Unweighted (`HAS_WEIGHTS` false) every arc costs 1. A directed snapshot writes its one
  * direction; an undirected one stores both arcs of every edge, so both halves are written. The driver refuses
- * negative and non-finite weights before any dispatch. Body only (spec 3.5, D9); the text is normative: the
+ * negative and non-finite weights before any dispatch. Body only; the text is normative: the
  * sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
 export const apspInitWgsl = /* wgsl */ `

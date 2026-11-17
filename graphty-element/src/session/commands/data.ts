@@ -42,8 +42,9 @@ import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import { isValueType, VALUE_TYPES } from "../columns";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
-import type { Draft } from "../project/draft";
+import { type Draft, frozenRecord } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
+import { isRowsView } from "../project/recordMap";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
 import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -883,9 +884,21 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
         return ids.map((id) => `graph/${mutation.target === "node" ? nodeKey(id) : edgeKey(String(id))}`);
     },
     lane: { kind: "queued", category: "data-add", categoryOf: (command) => categoryOf(command.mutation) },
-    // The records are the caller's own objects, kept as they are: `Node.data` has always been the
-    // record handed in. Freezing them is design/undo/undo-plan.md phase 18b.
+    // The records are not structured-cloned at dispatch: `kept` freezes them once, when the job
+    // runs, into the copy the graph slice keeps (ingest's `frozenRecord` keeps a frozen record as
+    // it is), so the step, the journal and the graph share one copy and the caller's objects are
+    // let go. A `rowsView` (the batched `importColumns`) is kept as it is, its records built when
+    // read.
     byReference: ["records"],
+    kept: (command) => {
+        const { mutation } = command;
+        if (!("records" in mutation) || isRowsView(mutation.records)) {
+            return command;
+        }
+
+        const records = Object.freeze(mutation.records.map((record) => frozenRecord(record)));
+        return Object.freeze({ ...command, mutation: Object.freeze({ ...mutation, records }) });
+    },
     execute: (command, ctx) => {
         serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
         refreshDerivedAfter(ctx);

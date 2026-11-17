@@ -106,10 +106,13 @@ describe("Notes, on the real element", () => {
             .map((button) => button.getAttribute("aria-label"));
         assert.deepEqual(names, [
             "Graph, in note: three",
+            "Mark done: three",
             "Delete note: three",
             "Graph, in note: two",
+            "Mark done: two",
             "Delete note: two",
             "Graph, in note: one",
+            "Mark done: one",
             "Delete note: one",
         ]);
         items[0].focus();

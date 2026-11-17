@@ -41,6 +41,7 @@ export {
 // ==================== context, adapter classifier, profiler (P0 / P1)
 export { GpuContext } from "./context.js";
 export { isSoftwareAdapter } from "./device/acquire.js";
+export type { GpuTrace } from "./kernel/batch.js";
 export type { PassTiming, Profiler } from "./kernel/profiler.js";
 
 // ==================== the device self-check: what this device computed when it was asked an answer we already

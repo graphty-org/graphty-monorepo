@@ -26,7 +26,7 @@ export interface SpectralOptions {
     readonly tolerance?: number | undefined;
     /** Seed of the starting block and of the k-means seeding; default 42. */
     readonly seed?: number | undefined;
-    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
+    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
 }
 
@@ -777,10 +777,7 @@ function tightestKMeans(pr: KMeansProblem, maxIterations: number, tolerance: num
  * The eigenpairs come from subspace iteration with Rayleigh-Ritz, so they are the true smallest
  * ones when `converged` is true; `converged` is false when the iteration stopped at its round cap
  * (a small spectral gap, such as a path of hundreds of nodes), and the eigenpairs are then only
- * approximate. The legacy function uses fixed placeholder eigenvalues for k <= 3 and plain power
- * iteration (which finds the LARGEST eigenvectors) above that, and draws its k-means seeds from
- * `Math.random` unless given a seed. The partitions therefore differ from the legacy function's;
- * one `seed` gives one result. Labels are dense in first-seen order, so `count` is below k when
+ * approximate. One `seed` gives one result. Labels are dense in first-seen order, so `count` is below k when
  * k-means leaves a cluster empty.
  * @param s - Any snapshot
  * @param options - k, the Laplacian, the k-means limits, the seed and the weight override

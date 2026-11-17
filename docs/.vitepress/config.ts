@@ -25,6 +25,7 @@ const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/gen
 const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
 const graphFormatTypedoc = loadTypedocSidebar("./docs/graph-format/api/generated/typedoc-sidebar.json");
 const graphSamplesTypedoc = loadTypedocSidebar("./docs/graph-samples/api/generated/typedoc-sidebar.json");
+const compactMantineTypedoc = loadTypedocSidebar("./docs/compact-mantine/api/generated/typedoc-sidebar.json");
 const remoteLoggerTypedoc = loadTypedocSidebar("./docs/remote-logger/api/generated/typedoc-sidebar.json");
 
 // One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
@@ -244,6 +245,7 @@ const config = defineConfig({
                     { text: "graph-io", link: "/graph-io/" },
                     { text: "graph-format", link: "/graph-format/" },
                     { text: "graph-samples", link: "/graph-samples/" },
+                    { text: "compact-mantine", link: "/compact-mantine/" },
                     { text: "remote-logger", link: "/remote-logger/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
@@ -262,6 +264,7 @@ const config = defineConfig({
                         { text: "graph-io", link: "/graph-io/" },
                         { text: "graph-format", link: "/graph-format/" },
                         { text: "graph-samples", link: "/graph-samples/" },
+                        { text: "compact-mantine", link: "/compact-mantine/" },
                         { text: "remote-logger", link: "/remote-logger/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
@@ -477,6 +480,41 @@ const config = defineConfig({
                     text: "Generated TypeDoc",
                     collapsed: true,
                     items: graphSamplesTypedoc,
+                },
+            ],
+            "/compact-mantine/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/compact-mantine/" },
+                        { text: "Getting Started", link: "/compact-mantine/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "The Compact Theme", link: "/compact-mantine/guide/theme" },
+                        { text: "The Panel Grid", link: "/compact-mantine/guide/panel-grid" },
+                        { text: "Panels and Rows", link: "/compact-mantine/guide/rows" },
+                        { text: "Colors and CompactColorInput", link: "/compact-mantine/guide/color" },
+                        { text: "Pop-outs", link: "/compact-mantine/guide/popouts" },
+                        { text: "The Components", link: "/compact-mantine/guide/components" },
+                        { text: "Which One Should I Use?", link: "/compact-mantine/guide/which-one" },
+                        { text: "Handling Events", link: "/compact-mantine/guide/events" },
+                        { text: "Internationalization", link: "/compact-mantine/guide/i18n" },
+                        { text: "Accessibility", link: "/compact-mantine/guide/accessibility" },
+                        { text: "Hooks, Helpers and Constants", link: "/compact-mantine/guide/helpers" },
+                        { text: "The Figma Release", link: "/compact-mantine/guide/figma-release" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/compact-mantine/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: compactMantineTypedoc,
                 },
             ],
             "/remote-logger/": [

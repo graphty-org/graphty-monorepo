@@ -889,3 +889,150 @@ describe("drill-down routes", () => {
 });
 
 // The collector handler's tests are in test/collector/handler.test.ts.
+
+describe("results service routes (#3607)", () => {
+    const master = (runId: string, workflow = "release.yml") => ({
+        ...CI_CLAIMS,
+        event_name: "schedule",
+        run_id: runId,
+        ref: "refs/heads/master",
+        job_workflow_ref: `graphty-org/graphty-monorepo/.github/workflows/${workflow}@refs/heads/master`,
+    });
+    const read = async (path: string, query: Record<string, string>) => {
+        const h = (await import("../src/handlers/results.ts")).handler;
+        const res = await h({ rawPath: path, rawQueryString: new URLSearchParams(query).toString() } as never);
+        return { status: res.statusCode, body: JSON.parse(String(res.body)) };
+    };
+    const VARIANT = "layout|flags=off";
+    const BASE = "b".repeat(40);
+    const fail = { file: "a.test.ts", name: "draws", message: "expected 1\n at x" };
+
+    it("answers a variant's per-file medians, its failed files and a pass on the same inputs", async () => {
+        const h = await ingest();
+        for (let i = 0; i < 11; i++) {
+            const run = invocation({
+                id: `500.1.layout.${i}`,
+                variant: VARIANT,
+                inputs: "k1",
+                outcome: i === 10 ? "failed" : "passed",
+                startedAt: NOW - (20 - i) * 60_000,
+                files: [["a.test.ts", 1, 0, 0, 100 * (i + 1)]],
+                failures: i === 10 ? [fail] : [],
+            });
+            expect((await h(event("/v1/invocations", run))).statusCode).toBe(200);
+        }
+        const keyed = await read("/v1/plan", { variants: VARIANT, inputs: "k1" });
+        expect(keyed.status).toBe(200);
+        // the newest 9 runs of the file: 300 ms to 1,100 ms
+        expect(keyed.body.variants[VARIANT]).toEqual({
+            passedWithInputs: "500.1.layout.9",
+            order: ["a.test.ts"],
+            fileMs: { "a.test.ts": 700 },
+        });
+        // the placeholder inputs key reuses nothing (#7269)
+        const placeholder = await read("/v1/plan", { variants: VARIANT, inputs: "-" });
+        expect(placeholder.body.variants[VARIANT].passedWithInputs).toBeNull();
+        const byFile = await read("/v1/plan", { files: "a.test.ts,b.test.ts" });
+        expect(byFile.body.order).toEqual(["a.test.ts"]);
+        expect(byFile.body.fileMs).toEqual({ "a.test.ts": 700 });
+        expect((await read("/v1/plan", { variants: VARIANT, inputs: "" })).status).toBe(400);
+    });
+
+    it("excuses master's failures on the base and in the newest full run, never a changed file", async () => {
+        const h = await ingest();
+        const failed = (id: string, sha: string, startedAt: number) =>
+            invocation({ id, sha, variant: VARIANT, inputs: "k", startedAt, failures: [fail] });
+        expect(
+            (await h(event("/v1/invocations", failed("600.1.a.1", BASE, NOW - 9000), { claims: master("600") })))
+                .statusCode,
+        ).toBe(200);
+        const newest = "c".repeat(40);
+        await h(event("/v1/invocations", failed("601.1.a.1", newest, NOW - 1000), { claims: master("601") }));
+        const plan = await read("/v1/plan", { base: BASE, variants: VARIANT, inputs: "-" });
+        expect(plan.body.failingOnBase.map((r: { sha: string }) => r.sha).sort()).toEqual([BASE, newest]);
+        expect(plan.body.failingOnBase[0]).toMatchObject({
+            variant: VARIANT,
+            file: "a.test.ts",
+            name: "draws",
+            issue: null,
+        });
+        const changed = await read("/v1/plan", { base: BASE, variants: VARIANT, inputs: "-", files: "a.test.ts" });
+        expect(changed.body.failingOnBase).toEqual([]);
+    });
+
+    it("quarantines a test two master runs disagree on, links its issue and lets it leave after 20 passes", async () => {
+        const h = await ingest();
+        const sha = "d".repeat(40);
+        const run = (id: string, failures: unknown[], startedAt = NOW - 5000) =>
+            invocation({
+                id,
+                sha,
+                variant: VARIANT,
+                inputs: "k",
+                startedAt,
+                outcome: failures.length ? "failed" : "passed",
+                failures,
+            });
+        await h(event("/v1/invocations", run("700.1.a.1", [fail]), { claims: master("700") }));
+        await h(event("/v1/invocations", run("701.1.a.1", []), { claims: master("701") }));
+        let plan = await read("/v1/plan", { variants: VARIANT, inputs: "-" });
+        expect(plan.body.quarantine).toEqual([
+            {
+                family: "layout",
+                file: "a.test.ts",
+                name: "draws",
+                issue: null,
+                expires: NOW + 14 * 86_400_000,
+                passes: 0,
+            },
+        ]);
+        const signature = "s1";
+        const issue = { signature, number: 42, kind: "flaky", family: "layout", file: "a.test.ts", name: "draws" };
+        expect((await h(event("/v1/issues", issue, { claims: master("702") }))).statusCode).toBe(200);
+        plan = await read("/v1/plan", { variants: VARIANT, inputs: "-" });
+        expect(plan.body.quarantine[0].issue).toBe(42);
+        for (let i = 0; i < 20; i++) {
+            const id = `${800 + i}.1.a.1`;
+            await h(
+                event(
+                    "/v1/invocations",
+                    { ...run(id, [], NOW + i), sha: "e".repeat(40) },
+                    { claims: master(String(800 + i)) },
+                ),
+            );
+        }
+        plan = await read("/v1/plan", { variants: VARIANT, inputs: "-" });
+        expect(plan.body.quarantine).toEqual([]);
+        // only master's runs file issues
+        expect((await h(event("/v1/issues", issue))).statusCode).toBe(403);
+    });
+
+    it("answers a nightly's record for promote.yml, a re-run's hashes replacing its run's", async () => {
+        const h = await ingest();
+        const sha = "f".repeat(40);
+        const move = { channel: "nightly", sha, siteSha256: "1".repeat(64), channelSha256: "2".repeat(64) };
+        expect((await read("/v1/site", { sha })).status).toBe(404);
+        expect(
+            (await h(event("/v1/channel-moves", move, { claims: master("900", "nightly-site.yml") }))).statusCode,
+        ).toBe(200);
+        const rerun = { ...move, channelSha256: "3".repeat(64) };
+        const again = await h(event("/v1/channel-moves", rerun, { claims: master("900", "nightly-site.yml") }));
+        expect(JSON.parse(String(again.body))).toEqual({ stored: true, replaced: true });
+        // a verdict the dashboard does not chart is still the record's
+        await h(event("/v1/verdicts", { sha, state: "approved" }, { claims: master("901") }));
+        const site = await read("/v1/site", { sha });
+        expect(site).toEqual({
+            status: 200,
+            body: {
+                sha,
+                versionCommit: null,
+                siteSha256: move.siteSha256,
+                channelSha256: rerun.channelSha256,
+                movedAt: NOW,
+                verdict: "approved",
+            },
+        });
+        expect((await h(event("/v1/channel-moves", move))).statusCode).toBe(403);
+        expect((await read("/v1/site", { sha: "abc" })).status).toBe(400);
+    });
+});

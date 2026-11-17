@@ -660,7 +660,7 @@ describe("yEd Live GraphML: BPMN and UML node styles, as yEd Live 8.5.16 draws t
         const { node } = await sheet("specimen-node-shapes-p5.graphml");
         expect(node("shape", "bpmn-data-object-background")).toBe("polygon");
         expect(typeof node("shapePoints", "bpmn-data-object-background")).toBe("string");
-        expect(node("shape", "bpmn-data-store-background")).toBe("other:database");
+        expect(node("shape", "bpmn-data-store-background")).toBe("database");
         expect(node("shape", "bpmn-annotation-background")).toBe("rectangle");
         expect(node("fill", "bpmn-annotation-background")).toBe("#ff0000");
         expect(node("borderWidth", "bpmn-annotation-background")).toBe(0);
@@ -966,8 +966,8 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-message-flow")).toBe("triangle-open");
         expect(edge("lineStyle", "bpmn-bpmn-edge-type-association")).toBe("dotted");
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-association")).toBe("none");
-        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("other:open-vee");
-        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("other:open-vee");
+        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("open-vee");
+        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("open-vee");
         // a conversation is a band 3 wide in its color with a line 1 wide in its innerColor (white unset) along it
         expect(edge("color", "bpmn-bpmn-edge-type-conversation")).toBe("#ffffff");
         expect(edge("outlineColor", "bpmn-bpmn-edge-type-conversation")).toBe("#505050");

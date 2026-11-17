@@ -16,6 +16,7 @@ import {
     type ImportIssue,
     type ImportReport,
 } from "../../src/types.js";
+import { codes, ids } from "./helpers.js";
 
 type Options = Neo4jImportOptions & CommonImportOptions;
 
@@ -46,18 +47,10 @@ async function fail(input: ImportInput, options?: Options): Promise<ImportError>
     return caught as ImportError;
 }
 
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
-
 function issue(report: ImportReport, code: string): ImportIssue {
     const found = report.issues.find((i) => i.code === code);
     expect(found, `${code} in ${JSON.stringify(codes(report))}`).toBeDefined();
     return found as ImportIssue;
-}
-
-function ids(s: GraphSnapshot): (string | number)[] {
-    return s.ids.toArray();
 }
 
 function value(s: GraphSnapshot, table: "nodes" | "edges", name: string, row: number): unknown {

@@ -6,13 +6,13 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { MEANING_WORDS } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
+import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton, type AddOption } from "../style/Section";
 import { failWords } from "../table/columns";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
-import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
 import { FiltersSection } from "./Filters";
 import { TypeGlyphIcon } from "./TypeGlyphIcon";
@@ -957,7 +957,7 @@ export function Fields({
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    useTimeFieldVersion(session);
+    useSessionEvents(session, TIME_FIELD_EVENTS);
     // The groups the reader opened or closed; a group they never touched is open only while its load
     // is selected. A new pick forgets the reader's choice for that group, so it opens.
     const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});

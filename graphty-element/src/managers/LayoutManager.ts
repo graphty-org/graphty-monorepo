@@ -520,6 +520,8 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
+    styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
 };
@@ -695,6 +697,7 @@ export class LayoutManager implements Manager {
 
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
+        layoutManagerInternals.styles = (manager) => manager.styles;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
@@ -2194,8 +2197,7 @@ export class LayoutManager implements Manager {
      * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
      */
     private async setLayout(type: string, opts: object = {}, scope?: ScopeInput): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the old spelling still means 2D
-        const twoD = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
+        const twoD = this.graphContext?.is2D() === true;
         // Built outside the `layout` slice, so no slice value describes it any more.
         this.#built = null;
         this.#building++;

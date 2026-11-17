@@ -176,10 +176,15 @@ export function readCorpusBytes(format: CorpusFormat, name: string): Uint8Array 
  * The malformed cases of a format: every file under test/corpus/malformed/<format>.
  * @param format - the format directory
  * @returns the file names, sorted
+ * @throws Error when the directory is missing
  */
 export function malformedFiles(format: CorpusFormat): readonly string[] {
     const dir = join(CORPUS_ROOT, "malformed", format);
-    return existsSync(dir) ? readdirSync(dir).sort() : [];
+    if (!existsSync(dir)) {
+        // a moved corpus must fail loudly, never run zero cases
+        throw new Error(`no malformed corpus at ${dir}`);
+    }
+    return readdirSync(dir).sort();
 }
 
 /**

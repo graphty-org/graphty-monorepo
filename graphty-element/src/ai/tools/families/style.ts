@@ -307,8 +307,7 @@ function validate(tx: TransactionScope, spec: LayerSpec): JsonObject {
     const verdict = tx.styles.validate(spec);
     if (!verdict.ok) {
         const problem = verdict.errors[0];
-        const code = problem.code === "E_BAD_SELECTOR" ? "AI_BAD_SELECTOR" : problem.code;
-        throw new ToolRefusal(code, {
+        throw new ToolRefusal(problem.code, {
             path: problem.path ?? "values",
             ...(problem.candidates === undefined ? {} : { didYouMean: [...problem.candidates].slice(0, 5) }),
             ...(spec.selector.match === "expression" ? { where: spec.selector.where } : {}),

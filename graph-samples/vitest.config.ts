@@ -5,8 +5,7 @@ import { defineConfig } from "vitest/config";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest, localVerbose } from "../vitest.base.mjs";
 
-// Standalone rather than vitest.shared.config.ts, like graph-format and graph-io: the shared factory
-// runs happy-dom, and this package is plain Node code with no DOM.
+// Node environment: this package is plain Node code with no DOM.
 const src = fileURLToPath(new URL("./src/", import.meta.url));
 
 const config = defineConfig({

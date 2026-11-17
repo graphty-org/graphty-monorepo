@@ -52,6 +52,7 @@ import {
 } from "./events";
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
+import { GraphtyLogger, type Logger } from "./logging";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
@@ -103,7 +104,11 @@ import type {
 import type { VisibilityChange } from "./session/visibility";
 import { LegendOverlay } from "./ui/Legend";
 import { Minimap } from "./ui/Minimap";
+import { asError } from "./utils/asError";
 import { downloadBlob } from "./utils/download";
+
+/** What the element reports about its attributes and properties, through `GraphtyLogger`. */
+const elementLogger: Logger = GraphtyLogger.getLogger(["graphty", "element"]);
 
 /**
  * How often a run's progress may reach a DOM listener, in milliseconds.
@@ -786,7 +791,7 @@ export class Graphty extends LitElement {
 
             // HTML attribute names are case-insensitive, so this also finds `nodedata`.
             if (this.getAttribute(name) === "[object Object]") {
-                console.error(
+                elementLogger.error(
                     `<graphty-element> received ${name} as the attribute ${name.toLowerCase()}="[object Object]", ` +
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
@@ -1872,7 +1877,7 @@ export class Graphty extends LitElement {
             .getSession()
             .config.set(values)
             .catch((error: unknown) => {
-                console.error(`<graphty-element>: ${name} was refused. Keeping the one already set.`, error);
+                elementLogger.error(`${name} was refused. Keeping the one already set.`, asError(error));
             });
         this.requestUpdate(name, oldValue);
     }
@@ -1966,8 +1971,8 @@ export class Graphty extends LitElement {
                 try {
                     parsed = JSON.parse(value);
                 } catch {
-                    console.error(
-                        `<graphty-element>: the node-data attribute must be a JSON array, not ` +
+                    elementLogger.error(
+                        `the node-data attribute must be a JSON array, not ` +
                             `"${value}". Keeping the nodes already set.`,
                     );
 
@@ -1975,9 +1980,8 @@ export class Graphty extends LitElement {
                 }
 
                 if (!Array.isArray(parsed)) {
-                    console.error(
-                        `<graphty-element>: the node-data attribute must be a JSON ARRAY of records. ` +
-                            `Keeping the nodes already set.`,
+                    elementLogger.error(
+                        `the node-data attribute must be a JSON ARRAY of records. ` + `Keeping the nodes already set.`,
                     );
 
                     return undefined;
@@ -2059,8 +2063,8 @@ export class Graphty extends LitElement {
                 try {
                     parsed = JSON.parse(value);
                 } catch {
-                    console.error(
-                        `<graphty-element>: the edge-data attribute must be a JSON array, not ` +
+                    elementLogger.error(
+                        `the edge-data attribute must be a JSON array, not ` +
                             `"${value}". Keeping the edges already set.`,
                     );
 
@@ -2068,9 +2072,8 @@ export class Graphty extends LitElement {
                 }
 
                 if (!Array.isArray(parsed)) {
-                    console.error(
-                        `<graphty-element>: the edge-data attribute must be a JSON ARRAY of records. ` +
-                            `Keeping the edges already set.`,
+                    elementLogger.error(
+                        `the edge-data attribute must be a JSON ARRAY of records. ` + `Keeping the edges already set.`,
                     );
 
                     return undefined;
@@ -2433,7 +2436,7 @@ export class Graphty extends LitElement {
             code: "E_FEATURE_OFF",
             params: { feature: "file-styles", key: "styles" },
         });
-        console.error("<graphty-element>: dataSourceConfig.styles was refused.", featureOff("file-styles", "styles"));
+        elementLogger.error("dataSourceConfig.styles was refused.", asError(featureOff("file-styles", "styles")));
         const { styles: _styles, styleOptions: _styleOptions, ...rest } = config;
         return rest;
     }
@@ -2710,8 +2713,8 @@ export class Graphty extends LitElement {
      */
     set repeatedEdges(value: DuplicatePolicy | undefined) {
         if (value !== undefined && value !== null && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
-            console.error(
-                `<graphty-element>: repeated-edges must be one of ` +
+            elementLogger.error(
+                `repeated-edges must be one of ` +
                     `${REPEATED_EDGE_POLICIES.join(", ")}, not "${value}". ` +
                     `Keeping "${this.repeatedEdges ?? "keep"}". ` +
                     "See https://graphty.app/docs/graphty-element/attributes#repeated-edges",
@@ -2880,7 +2883,7 @@ export class Graphty extends LitElement {
      */
     set edgeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
-            console.error(`<graphty-element>: edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
+            elementLogger.error(`edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
             return;
         }
@@ -2908,7 +2911,7 @@ export class Graphty extends LitElement {
      */
     set nodeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
-            console.error(`<graphty-element>: node-time-unit must be ms, s, year or ordinal, not "${value}".`);
+            elementLogger.error(`node-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
             return;
         }
@@ -2944,8 +2947,8 @@ export class Graphty extends LitElement {
      */
     set positionScale(value: number | undefined) {
         if (value !== undefined && value !== null && !(Number.isFinite(value) && value > 0)) {
-            console.error(
-                `<graphty-element>: position-scale must be a number greater than zero, not "${String(value)}". ` +
+            elementLogger.error(
+                `position-scale must be a number greater than zero, not "${String(value)}". ` +
                     `Keeping ${String(this.positionScale ?? 1)}. ` +
                     "See https://graphty.app/docs/graphty-element/attributes#position-scale",
             );
@@ -2996,8 +2999,8 @@ export class Graphty extends LitElement {
                     return false;
                 }
 
-                console.error(
-                    `<graphty-element>: the directed attribute must be "true", "false" or "auto", ` +
+                elementLogger.error(
+                    `the directed attribute must be "true", "false" or "auto", ` +
                         `not "${value}". Keeping the setting already in place.`,
                 );
 
@@ -3017,8 +3020,8 @@ export class Graphty extends LitElement {
         const oldValue = this.directed;
 
         if (value !== undefined && value !== null && value !== "auto" && typeof value !== "boolean") {
-            console.error(
-                `<graphty-element>: directed must be true, false or "auto", not "${String(value)}". ` +
+            elementLogger.error(
+                `directed must be true, false or "auto", not "${String(value)}". ` +
                     `Keeping "${String(oldValue ?? "auto")}". ` +
                     "See https://graphty.app/docs/graphty-element/attributes#directed",
             );
@@ -3178,8 +3181,8 @@ export class Graphty extends LitElement {
                 try {
                     return JSON.parse(value) as ScopeInput;
                 } catch {
-                    console.error(
-                        `<graphty-element>: the layout-scope attribute must be JSON, such as '"graph"' or ` +
+                    elementLogger.error(
+                        `the layout-scope attribute must be JSON, such as '"graph"' or ` +
                             `'{"set":"s1"}', not "${value}". Laying out the whole graph.`,
                     );
 
@@ -3201,7 +3204,7 @@ export class Graphty extends LitElement {
     set layoutScope(value: ScopeInput | undefined) {
         const oldValue = this.#graph.getLayoutScope();
         void this.#graph.setLayoutScope(value).catch((error: unknown) => {
-            console.error("<graphty-element>: the layout scope was refused. Keeping the one already set.", error);
+            elementLogger.error("the layout scope was refused. Keeping the one already set.", asError(error));
         });
         this.requestUpdate("layoutScope", oldValue);
     }
@@ -3319,10 +3322,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setLayoutBehavior(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the layout behaviour was refused. Keeping the one already set.",
-                    error,
-                );
+                elementLogger.error("the layout behaviour was refused. Keeping the one already set.", asError(error));
 
                 return;
             }
@@ -3550,7 +3550,7 @@ export class Graphty extends LitElement {
         try {
             this.#graph.setLayoutBehavior({ camera: { fitInsets: value } });
         } catch (error: unknown) {
-            console.error("<graphty-element>: the fit insets were refused. Keeping the ones already set.", error);
+            elementLogger.error("the fit insets were refused. Keeping the ones already set.", asError(error));
             return;
         }
 
@@ -3687,10 +3687,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setSelectionStyle(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the selection style was refused. Keeping the one already set.",
-                    error,
-                );
+                elementLogger.error("the selection style was refused. Keeping the one already set.", asError(error));
 
                 return;
             }
@@ -3822,8 +3819,8 @@ export class Graphty extends LitElement {
      * Sets 2D mode (deprecated). Converts boolean to viewMode internally.
      */
     set layout2d(value: boolean | undefined) {
-        console.warn(
-            "[graphty-element] layout2d is deprecated. Use viewMode instead. " +
+        elementLogger.warn(
+            "layout2d is deprecated. Use viewMode instead. " +
                 'layout2d: true → viewMode: "2d", layout2d: false → viewMode: "3d"',
         );
 
@@ -3874,8 +3871,8 @@ export class Graphty extends LitElement {
                 try {
                     return JSON.parse(value) as GraphBackgroundConfig;
                 } catch {
-                    console.error(
-                        `<graphty-element>: the background attribute must be a JSON object, not ` +
+                    elementLogger.error(
+                        `the background attribute must be a JSON object, not ` +
                             `"${value}". Keeping the background already set. ` +
                             "See https://graphty.app/docs/graphty-element/attributes#background",
                     );
@@ -3905,7 +3902,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setBackground(value);
             } catch (error: unknown) {
-                console.error("<graphty-element>: the background was refused. Keeping the one already set.", error);
+                elementLogger.error("the background was refused. Keeping the one already set.", asError(error));
 
                 return;
             }
@@ -4063,9 +4060,9 @@ export class Graphty extends LitElement {
             // A removed attribute arrives as null, and means "no distance": frame to fit again.
             this.#graph.setStartingCameraDistance(value ?? undefined);
         } catch (error: unknown) {
-            console.error(
-                "<graphty-element>: the starting camera distance was refused. Keeping the one already set.",
-                error,
+            elementLogger.error(
+                "the starting camera distance was refused. Keeping the one already set.",
+                asError(error),
             );
 
             return;
@@ -4217,7 +4214,7 @@ export class Graphty extends LitElement {
             // A removed attribute arrives as null, and means the default.
             this.#graph.setLighting(value ?? DEFAULT_LIGHTING);
         } catch (error: unknown) {
-            console.error("<graphty-element>: the lighting was refused. Keeping the one already set.", error);
+            elementLogger.error("the lighting was refused. Keeping the one already set.", asError(error));
 
             return;
         }
@@ -7075,8 +7072,8 @@ export class Graphty extends LitElement {
         const oldValue = this.#graph.acceleration.policy;
 
         if (!isAccelerationPolicy(value)) {
-            console.error(
-                `<graphty-element>: acceleration must be "auto", "off" or "required", not ` +
+            elementLogger.error(
+                `acceleration must be "auto", "off" or "required", not ` +
                     `"${String(value)}". Keeping "${oldValue}". ` +
                     "See https://graphty.app/docs/graphty-element/guide/acceleration",
             );
@@ -7160,9 +7157,7 @@ export class Graphty extends LitElement {
         try {
             this.#graph.setRenderer(value);
         } catch (error) {
-            console.error(
-                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
-            );
+            elementLogger.error(`${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`);
             return;
         }
 
@@ -7192,9 +7187,7 @@ export class Graphty extends LitElement {
         try {
             this.#graph.setRenderPath(value);
         } catch (error) {
-            console.error(
-                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
-            );
+            elementLogger.error(`${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`);
             return;
         }
 
@@ -7353,7 +7346,7 @@ export class Graphty extends LitElement {
         try {
             this.#graph.setLimits(value);
         } catch (error) {
-            console.error(`<graphty-element>: ${error instanceof Error ? error.message : String(error)}.`);
+            elementLogger.error(`${error instanceof Error ? error.message : String(error)}.`);
             return;
         }
 
@@ -7458,11 +7451,11 @@ export class Graphty extends LitElement {
                 ? (this.getAttribute("acceleration-min-nodes") ?? "NaN")
                 : String(value);
 
-            console.error(
-                `<graphty-element>: acceleration-min-nodes must be a whole number of 0 or more, ` +
+            elementLogger.error(
+                `acceleration-min-nodes must be a whole number of 0 or more, ` +
                     `not "${written}". Keeping ${String(oldValue)}. ` +
                     "See https://graphty.app/docs/graphty-element/guide/acceleration",
-                error,
+                asError(error),
             );
             return;
         }
@@ -7518,8 +7511,8 @@ const registered = customElements.get("graphty-element");
 if (registered === undefined) {
     customElements.define("graphty-element", Graphty);
 } else if (registered !== Graphty) {
-    console.warn(
-        "<graphty-element> is already defined by another class, so this copy of " +
+    elementLogger.warn(
+        "is already defined by another class, so this copy of " +
             "@graphty/graphty-element was not registered. Two copies of the package are loaded; " +
             "make every import resolve to one.",
     );

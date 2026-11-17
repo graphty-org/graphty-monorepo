@@ -22,7 +22,7 @@ import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { edgeSpaceOf } from "../scope/spaces";
 import { deepEquals, quotePath } from "../styles/predicate";
-import type { DerivedColumn, RowUpdate } from "../types";
+import type { DerivedColumn, RowUpdate, ScoreTerm } from "../types";
 import { serviceOf } from "./data";
 
 /** The graph value holding every computed column's definition, in the order they are worked out. */
@@ -86,7 +86,10 @@ export function derivedRows(
         const overlay = fresh[column.kind];
         let values: unknown[];
         try {
-            values = valuesWhere(column.expression, column.kind, overlay);
+            values =
+                column.score === undefined
+                    ? valuesWhere(column.expression, column.kind, overlay)
+                    : scoreValues(column.score, (path) => valuesWhere(quotePath(path), column.kind, overlay));
         } catch {
             // Checked when it was added; a project file anyone edited could still hold a bad one.
             continue;
@@ -114,6 +117,49 @@ export function derivedRows(
 }
 
 /**
+ * A score's values: each term's numbers rescaled to 0..1 by their smallest and largest, times the
+ * term's weight, summed. A column whose numbers are all the same counts 0; an element missing a
+ * number for any term scores null.
+ * @param terms - The score's terms.
+ * @param read - Reads one path for every element, by dense index.
+ * @returns The score per element.
+ */
+export function scoreValues(terms: readonly ScoreTerm[], read: (path: Path) => unknown[]): (number | null)[] {
+    let scores: (number | null)[] | null = null;
+    for (const term of terms) {
+        const raw = read(term.path);
+        let min = Infinity;
+        let max = -Infinity;
+        for (const value of raw) {
+            if (typeof value === "number" && Number.isFinite(value)) {
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+            }
+        }
+        const span = max - min;
+        const weight = term.weight ?? 1;
+        const base: (number | null)[] = scores ?? raw.map(() => 0);
+        scores = base.map((sum, at) => {
+            const value = raw[at];
+            if (sum === null || typeof value !== "number" || !Number.isFinite(value)) {
+                return null;
+            }
+            return sum + (span > 0 ? ((value - min) / span) * weight : 0);
+        });
+    }
+    return scores ?? [];
+}
+
+/**
+ * The expression a score is listed with: the weighted sum of its terms' raw values.
+ * @param terms - The score's terms.
+ * @returns The expression.
+ */
+export function scoreExpression(terms: readonly ScoreTerm[]): Query {
+    return terms.map((term) => `${quotePath(term.path)} * \`${JSON.stringify(term.weight ?? 1)}\``).join(" + ");
+}
+
+/**
  * Whether a value is a list of computed columns, as a command or a project file may hold one.
  * @param value - The value.
  * @returns True when every entry has a kind, a name and an expression.
@@ -122,7 +168,7 @@ function isColumns(value: unknown): value is readonly DerivedColumn[] {
     return (
         Array.isArray(value) &&
         value.every((each: unknown) => {
-            const { kind, name, expression } = (typeof each === "object" && each !== null ? each : {}) as Record<
+            const { kind, name, expression, score } = (typeof each === "object" && each !== null ? each : {}) as Record<
                 string,
                 unknown
             >;
@@ -130,7 +176,28 @@ function isColumns(value: unknown): value is readonly DerivedColumn[] {
                 (kind === "node" || kind === "edge") &&
                 typeof name === "string" &&
                 name !== "" &&
-                typeof expression === "string"
+                typeof expression === "string" &&
+                (score === undefined || isTerms(score))
+            );
+        })
+    );
+}
+
+/**
+ * Whether a value is a score's terms: at least one, each a path with a finite weight or none.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+export function isTerms(value: unknown): value is readonly ScoreTerm[] {
+    return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every((each: unknown) => {
+            const { path, weight } = (typeof each === "object" && each !== null ? each : {}) as Record<string, unknown>;
+            return (
+                typeof path === "string" &&
+                path !== "" &&
+                (weight === undefined || (typeof weight === "number" && Number.isFinite(weight)))
             );
         })
     );

@@ -2825,6 +2825,36 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             },
+            // The same op as derive: the score's definition and its values, as one step.
+            deriveScore: {
+                kind: "dispatches",
+                op: "data.derive",
+                call: {
+                    kind: "call",
+                    args: ["doorScore", [{ path: "data.doorInput", weight: 2 }]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-score", doorInput: 2 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.derive",
+                        columns: [
+                            {
+                                kind: "node",
+                                name: "doorScore",
+                                expression: "data.doorInput * `2`",
+                                score: [{ path: "data.doorInput", weight: 2 }],
+                            },
+                        ],
+                        nodes: [{ id: "door-score", values: { doorScore: 0 } }],
+                        edges: [],
+                        column: { kind: "node", name: "doorScore" },
+                    },
+                ],
+            },
             // The fix's rows and the issue state it settles, as one batch.
             fix: {
                 kind: "dispatches",
@@ -3660,7 +3690,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             { name: "door naming" },
                         );
                         sets.remove("set_door-kept");
-                        return Promise.resolve(() => Promise.resolve());
+                        return () => Promise.resolve();
                     },
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],

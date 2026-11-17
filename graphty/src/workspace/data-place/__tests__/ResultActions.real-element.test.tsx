@@ -156,3 +156,34 @@ describe("a result row's Run again with changes...", () => {
         });
     });
 });
+
+describe("a result row's Combine into a score...", () => {
+    it("opens Custom score on the result's metric, adds a second weighted metric, and creates the column", async () => {
+        const { session, id } = await withResult("pagerank");
+        const degree = session.runs.start("degree", {});
+        await degree;
+
+        await pick(id, "Combine into a score");
+        const dialog = await screen.findByRole("dialog", { name: "Custom score" });
+        const first = within(dialog).getByRole("combobox", { name: /^Metric 1/ });
+        assert.strictEqual((first as HTMLInputElement).value, "PageRank");
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add metric" }));
+        const weight = await within(dialog).findByRole("spinbutton", { name: /^Weight 2/ });
+        await userEvent.tripleClick(weight);
+        await userEvent.keyboard("2{Tab}");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+        await waitFor(() => {
+            const [column] = session.data.derivedColumns();
+            assert.strictEqual(column?.name, "Score");
+            assert.deepEqual(
+                column?.score?.map((term) => term.weight),
+                [1, 2],
+            );
+        });
+        const values = session.data.nodes().map((node) => node.Score as number);
+        assert.isTrue(values.every((value) => value >= 0 && value <= 3));
+        assert.strictEqual(Math.max(...values) > 0, true);
+    });
+});

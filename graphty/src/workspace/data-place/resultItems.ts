@@ -1,5 +1,5 @@
 /**
- * A result's Run again and Copy items, shared by its row's "..." in the Data place and the
+ * A result's Run again, Combine into a score and Copy items, shared by its row's "..." in the Data place and the
  * inspector's header "..." for it.
  */
 
@@ -27,6 +27,23 @@ function copyText(store: WorkspaceStore, what: string, text: string): void {
 }
 
 /**
+ * A result's own numeric column, as graphty-element lists it for a table: its primary field when
+ * that holds a number per node (or else per edge).
+ * @param session - the element's session.
+ * @param run - the result.
+ * @returns the column's kind and path, or null when the result has none.
+ */
+function numberColumnOf(session: GraphSession, run: Run): { kind: "node" | "edge"; path: string } | null {
+    for (const kind of ["node", "edge"] as const) {
+        const column = session.data.resultColumns(kind).find((each) => each.run === run.id);
+        if (column !== undefined && (column.type === "number" || column.type === "integer")) {
+            return { kind, path: column.path };
+        }
+    }
+    return null;
+}
+
+/**
  * A result's Run again and Copy items: Run again with changes... opens Analyze on its algorithm
  * with its settings, so running it adds a new result; each Copy item puts one form of the result
  * on the clipboard, every form written by graphty-element or read from its record. The result
@@ -40,6 +57,7 @@ export function resultItems(session: GraphSession, store: WorkspaceStore, run: R
     const { result } = run;
     const noResult = result === undefined ? "Not finished" : null;
     const command = run.journalId === null ? undefined : session.journal.get(run.journalId)?.command;
+    const metric = numberColumnOf(session, run);
     return [
         {
             id: "run-again",
@@ -48,6 +66,21 @@ export function resultItems(session: GraphSession, store: WorkspaceStore, run: R
             group: "edit",
             onRun: () => {
                 store.set({ dialog: "analyze", analyzeOn: run.algorithm, analyzeValues: run.params });
+            },
+        },
+        {
+            id: "combine-score",
+            label: "Combine into a score...",
+            icon: "measure",
+            group: "edit",
+            reason: metric === null ? "No number per node or edge" : null,
+            onRun: () => {
+                if (metric !== null) {
+                    store.set({
+                        dialog: "score",
+                        scoreOn: { kind: metric.kind, terms: [{ path: metric.path, weight: 1 }] },
+                    });
+                }
             },
         },
         {

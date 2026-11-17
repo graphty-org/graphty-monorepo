@@ -24,9 +24,6 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * The state is in the field's name, not in a gray or a slant Figma does not draw. A field that is
  * empty has no value, so a number field reads its words, not a 0 nobody set.
  *
- * A text box takes the same not-set look with `data-is-default="true"` while it shows its
- * placeholder.
- *
  * The chip form of the color (`variant="chip"`) is the swatch alone, 24 px square, for a row that
  * names its color beside it (an effect, a category of a varied value). Its name says the state and
  * the color; Mixed draws a dash, not a color.
@@ -119,7 +116,6 @@ function Row({ state }: Readonly<{ state: FieldState }>): React.JSX.Element {
                     w={120}
                     placeholder={mixed ? "Mixed" : "Valjean"}
                     defaultValue={set ? "Javert" : ""}
-                    data-is-default={set ? "false" : "true"}
                 />
                 <CompactColorInput
                     aria-label="Group 3"

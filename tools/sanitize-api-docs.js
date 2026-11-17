@@ -18,6 +18,7 @@ const API_DIRS =
               "./docs/graph-io/api/generated",
               "./docs/graph-format/api/generated",
               "./docs/graph-samples/api/generated",
+              "./docs/compact-mantine/api/generated",
               "./docs/remote-logger/api/generated",
           ];
 

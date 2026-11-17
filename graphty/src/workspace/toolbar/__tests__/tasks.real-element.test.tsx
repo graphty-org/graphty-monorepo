@@ -428,6 +428,78 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
+    it("saves the camera as a view, goes back to it, removes it, and turns Follow selection off", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        await element.waitForStableFrame();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Save view keeps the camera under the first free name, and Camera lists it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.isTrue(session.views.has("View 1"));
+        });
+        const saved = session.views.get("View 1");
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Top/ }));
+        await element.waitForStableFrame();
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 1", "View 2"]);
+        });
+
+        // Its row moves the camera back.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            const now = element.getCameraState();
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(
+                    now.position?.[axis] ?? Number.NaN,
+                    saved?.position?.[axis] ?? 0,
+                    1e-3,
+                    `position.${axis}`,
+                );
+            }
+        });
+
+        // Remove view forgets it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Remove view/ }));
+        const removeMenu = (await screen.findAllByRole("menu")).at(-1);
+        assert.isDefined(removeMenu);
+        if (removeMenu === undefined) {
+            return;
+        }
+        await userEvent.click(within(removeMenu).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 2"]);
+        });
+
+        // Follow selection is on, and turning it off leaves the camera where it is on a pick.
+        await userEvent.keyboard("{Escape}");
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(follow.getAttribute("aria-checked"), "true");
+        await userEvent.click(follow);
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);
+        });
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+        await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
+        await element.waitForStableFrame();
+        assert.deepEqual(element.getCameraState().target, before.target);
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(off.getAttribute("aria-checked"), "false");
+    });
+
     it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");

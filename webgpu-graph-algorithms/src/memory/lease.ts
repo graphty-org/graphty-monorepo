@@ -1,16 +1,18 @@
 /**
- * The Lease scope object of spec 4.4: every buffer an algorithm acquires through it goes back to the
+ * The Lease scope object: every buffer an algorithm acquires through it goes back to the
  * BufferPool in ONE `release()` call placed in the algorithm's `finally` block, so scratch never
  * outlives the call that took it (a `try / finally`, not `Symbol.dispose`, until the monorepo's
  * TypeScript target supports `using`). Persistent buffers (layout state) are owned by the simulation
  * object instead and freed by its `dispose()`.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "4.4 BufferPool, Lease and Readback".
  */
 
 import { BufferUsage } from "../device/webgpu-constants.js";
-import { hasErrorCode, WebGpuGraphError } from "../errors.js";
+import { WebGpuGraphError } from "../errors.js";
 import type { BufferPool } from "./buffer-pool.js";
 
-/** Scope object algorithms use: every buffer acquired through it is released by `release()` in a finally block (spec 4.4). */
+/** Scope object algorithms use: every buffer acquired through it is released by `release()` in a finally block. */
 export class Lease {
     private readonly pool: BufferPool;
     private readonly buffers = new Set<GPUBuffer>();
@@ -61,9 +63,8 @@ export class Lease {
     }
 
     /**
-     * Releases every buffer acquired through this lease; idempotent. A pool that `ctx.dispose()` already
-     * destroyed has nothing left to take back, so its E_DISPOSED is swallowed here: the lease sits in a
-     * `finally` block and must never mask the error that unwound the algorithm.
+     * Releases every buffer acquired through this lease; idempotent. After `ctx.dispose()` the pool's release is a
+     * no-op, so a lease in a `finally` block never masks the error that unwound the algorithm.
      */
     release(): void {
         if (this.released) {
@@ -73,13 +74,7 @@ export class Lease {
         const owned = [...this.buffers];
         this.buffers.clear();
         for (const buffer of owned) {
-            try {
-                this.pool.release(buffer);
-            } catch (error) {
-                if (!hasErrorCode(error, "E_DISPOSED")) {
-                    throw error;
-                }
-            }
+            this.pool.release(buffer);
         }
     }
 

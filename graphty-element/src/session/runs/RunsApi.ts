@@ -74,6 +74,7 @@ import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
 import { valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
+    isAbortLike,
     ManagedRun,
     type RunBody,
     type RunDefinition,
@@ -552,15 +553,6 @@ const NO_QUEUE_PROGRESS: RunProgressSink = Object.freeze({
         // The run publishes its own progress; there is no operation to report on.
     },
 });
-
-/**
- * Tell whether a thrown value is an abort rather than a failure.
- * @param error - The thrown value.
- * @returns True when it is an `AbortError` or a `TimeoutError`.
- */
-function isAbortLike(error: unknown): boolean {
-    return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
-}
 
 /**
  * What to call a scope in a run label.
@@ -1089,7 +1081,9 @@ class Runs implements SessionRunsApi {
         const label = options.label ?? "Batch";
         const identity: RunIdentity = {
             algorithm: "batch",
-            params: { label, specs: specs.map((spec) => ({ ...spec })) },
+            // What each member paints is no part of what it computes, as with a single run: left out,
+            // or a style holding a function (a group-name callback) would leave no id to derive.
+            params: { label, specs: specs.map(({ style: _style, ...spec }) => ({ ...spec })) },
             scope: this.defaultScope,
             seed: null,
             sample: null,

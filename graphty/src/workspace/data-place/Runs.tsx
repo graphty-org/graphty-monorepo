@@ -14,11 +14,11 @@ import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, Un
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { unitOf } from "../time/timeActions";
@@ -303,7 +303,7 @@ function ResultRow({
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const analyze = useCommand("analyze.open");
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,

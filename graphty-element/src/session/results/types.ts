@@ -77,6 +77,41 @@ export function resultPath(runId: RunId, field?: string): Path {
 }
 
 /**
+ * What a value path reads, split into its parts: a data column by its name, or a run's field by
+ * the run and the field. See {@link pathParts}.
+ * @since 3.40.0
+ */
+export type PathParts =
+    | { readonly from: "data"; readonly column: string }
+    | { readonly from: "run"; readonly runId: RunId; readonly field: string };
+
+/**
+ * Split a value path into what it reads, so a caller never parses the path's spelling itself.
+ *
+ * ```ts
+ * import { pathParts } from "@graphty/graphty-element/session";
+ *
+ * pathParts("data.minutes"); // { from: "data", column: "minutes" }
+ * pathParts("results.louvain.group"); // { from: "run", runId: "louvain", field: "group" }
+ * pathParts("id"); // undefined
+ * ```
+ * @param path - A path such as `data.<column>` or `results.<run>.<field>`, as
+ *   `data.readableValues()` lists it.
+ * @returns Its parts, or undefined for any other path (the node id, `source`, a whole run).
+ * @since 3.40.0
+ */
+export function pathParts(path: Path): PathParts | undefined {
+    const [root, ...rest] = path.split(".");
+    if (root === "data" && rest.length > 0 && rest.join(".") !== "") {
+        return { from: "data", column: rest.join(".") };
+    }
+    if (root === RESULT_ROOT && rest.length === 2 && rest[0] !== "" && rest[1] !== "") {
+        return { from: "run", runId: rest[0], field: rest[1] };
+    }
+    return undefined;
+}
+
+/**
  * The name a grouping result gives one of its groups, from its place in the size order.
  *
  * The summary and the legend both print this, so one group is called the same thing in the list
@@ -991,6 +1026,19 @@ export interface RunResult {
      * @beta
      */
     groupRanks(): ReadonlyMap<string, number> | undefined;
+    /**
+     * Every group of a partition into groups, largest first: its id, its size and its rank (1 for
+     * the largest), for every group and not only the ones a summary lists.
+     *
+     * ```ts
+     * for (const { group, size, rank } of result.groups() ?? []) {
+     *     console.log(rank, group, size); // 1 "4" 37
+     * }
+     * ```
+     * @returns The groups, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groups(): readonly SummaryGroup[] | undefined;
     /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *

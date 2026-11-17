@@ -203,9 +203,11 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
 runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
-The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`); only
-its share of grouped issues released as not part of their branch and its count of ready groups (finished branches not
-opened) are posted, as the source `grouping-ledger` (age limit 48 hours).
+The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
+these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
+(the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues
+itself), `ledger.releasedNotPartShare`, `ledger.ready`, `combinable` and `combinableBranches`. A field a line lacks is
+not posted. Runner-minutes per issue closed is Runner-minutes per merge divided by the newest `issuesPerMergedPr`.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -307,9 +309,6 @@ aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name gr
 ```
 
 Then invoke it without `restart` until it answers `"done": true`; passing `restart` again would start over each time.
-A restart also fills in the issues each stored pull request closes, which "Issues closed per merged PR" and
-"Runner-minutes per issue closed" count; until one runs, pull requests stored before that count was read are left out,
-so for the first 7 days runner-minutes per issue reads high.
 From a workstation the same is `pnpm run backfill -- --days 28 --restart`.
 
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;

@@ -596,23 +596,21 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.issues_per_merge": {
         name: "Issues closed per merged PR",
         short: "issues closed per merged PR",
-        def: "Issues closed by the PRs merged into master over 7 days (their Fixes, Closes or Resolves lines), per merged PR. Fixing related issues in one PR raises it; that is the point of issue grouping.",
+        def: "Issues closed by the PRs merged into master over 7 days, per merged PR: the closing links in each PR's description plus the Fixes, Closes or Resolves lines in its commits (merges of master left out). Fixing related issues in one PR raises it; that is the point of issue grouping. From the issue-grouping ledger, read once a day.",
         red: "Below 0.88, the level before grouping began: grouping is not adding issues to PRs. The target is 1.3 or more.",
-        nOf: "merged",
     },
     "pull-requests.multi_issue_share": {
         name: "Merged PRs closing 2+ issues",
         short: "merged PRs closing 2+ issues",
-        def: "Share of the PRs merged into master over 7 days that close two or more issues, in %.",
+        def: "Share of the PRs merged into master over 7 days that close two or more issues, in %, counted as in Issues closed per merged PR. From the issue-grouping ledger, read once a day.",
         red: "Below 2.3%, the level before grouping began. The target is 15% or more.",
-        nOf: "merged",
     },
     "pull-requests.runner_minutes_per_issue": {
         name: "Runner-minutes per issue closed",
         short: "runner-minutes per issue closed",
-        def: "Runner-minutes CI used, across every kind of run, per issue closed by a PR merged into master, over 7 days. What CI spends to close one issue; it falls as PRs fix more issues each.",
+        def: "Runner-minutes per merge (CI page) divided by Issues closed per merged PR, over 7 days: what CI spends to close one issue. It falls as PRs fix more issues each. Shows nothing while either is missing.",
         red: "No red line. Over 800 (yellow): closing an issue costs about what it did before grouping began.",
-        nOf: "issues",
+        nOf: "merged",
     },
     "pull-requests.group_released_share": {
         name: "Grouped issues released",

@@ -329,14 +329,13 @@
             "label": "Issues closed per merged PR",
             "window": "slow",
             "measure": {
-                "type": "rate",
-                "metric": "pr.issues_closed"
+                "type": "last",
+                "metric": "issues.per_merged_pr"
             },
             "ok": [">=", 1.3],
             "fail": ["<", 0.88],
-            "minN": 20,
             "slowWindow": "7d",
-            "sources": ["collector"]
+            "sources": ["grouping-ledger"]
         },
         {
             "id": "pr.multi_issue_share",
@@ -344,14 +343,13 @@
             "label": "Merged PRs closing 2+ issues",
             "window": "slow",
             "measure": {
-                "type": "rate",
-                "metric": "pr.multi_issue"
+                "type": "last",
+                "metric": "issues.multi_issue_share"
             },
             "ok": [">=", 0.15],
             "fail": ["<", 0.023],
-            "minN": 20,
             "slowWindow": "7d",
-            "sources": ["collector"]
+            "sources": ["grouping-ledger"]
         },
         {
             "id": "pr.runner_minutes_per_issue",
@@ -359,13 +357,14 @@
             "label": "Runner-minutes per issue closed",
             "window": "slow",
             "measure": {
-                "type": "rate",
-                "metric": "ci.runner_minutes_per_issue"
+                "type": "rate_per_last",
+                "metric": "ci.runner_minutes",
+                "per": "issues.per_merged_pr"
             },
             "ok": ["<=", 800],
-            "minN": 20,
+            "minN": 10,
             "slowWindow": "7d",
-            "sources": ["collector"]
+            "sources": ["collector", "grouping-ledger"]
         },
         {
             "id": "pr.group_released_share",

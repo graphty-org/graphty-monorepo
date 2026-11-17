@@ -146,7 +146,8 @@ export function mapWait(w) {
 }
 
 /**
- * A daily issue-grouping metrics line as a grouping row: the share of grouped issues released as not part of their
+ * A daily issue-grouping metrics line as a grouping row: issues per merged PR, the share of merged PRs closing 2+
+ * issues, the share of grouped issues released as not part of their
  * branch, the groups finished but not opened, and the families of those that can open together (with their branches).
  * A field an older line lacks is left out, never sent as 0. The rest of the line (counts GitHub also has) is not posted.
  * @param m the metrics line
@@ -156,6 +157,9 @@ export function mapGrouping(m) {
     const at = Date.parse(m.at);
     if (!Number.isFinite(at) || !m.ledger) return null;
     const row = { id: `local.grouping.${m.at}`, at };
+    // The ledger's counts of issues per merged pull request (body links and commit Fixes lines), over windowDays.
+    if (typeof m.issuesPerMergedPr === "number") row.issuesPerMergedPr = m.issuesPerMergedPr;
+    if (typeof m.multiFixShare === "number") row.multiFixShare = m.multiFixShare;
     if (typeof m.ledger.releasedNotPartShare === "number") row.releasedShare = m.ledger.releasedNotPartShare;
     if (typeof m.ledger.ready === "number") row.ready = m.ledger.ready;
     // Since 2026-11-16 (#8509): families of ready branches that can each open as one pull request, and their branches.

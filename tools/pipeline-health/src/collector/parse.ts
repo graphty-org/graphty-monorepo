@@ -573,8 +573,6 @@ export interface GqlPr {
     author?: { login: string } | null;
     labels: { nodes: { name: string }[] };
     readyEvents: { nodes: { __typename: string; createdAt?: string }[] };
-    /** The issues it closes when it merges (its Fixes, Closes or Resolves lines, and links made on GitHub). */
-    closingIssuesReferences?: { totalCount: number };
     /** Only on the open page (the recent page leaves checks out). */
     commits?: {
         nodes: {
@@ -652,7 +650,6 @@ export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
         ...opt("readyAt", readyAt(p)),
         ...opt("mergedAt", ms(p.mergedAt)),
         ...opt("closedAt", ms(p.closedAt)),
-        ...opt("closes", p.closingIssuesReferences?.totalCount),
         ...(ownerWait(p) ? { ownerWait: true } : {}),
     };
 }

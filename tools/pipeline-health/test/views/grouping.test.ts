@@ -1,6 +1,5 @@
-// Issue-grouping members on Pull requests (design/ci/issue-grouping.md section 9): issues closed per merged pull
-// request, the share closing 2+, runner-minutes per issue closed (from the collector), and the grouping ledger's
-// daily reading (from the local writer).
+// Issue-grouping members on Pull requests (design/ci/issue-grouping.md section 9): the grouping ledger's daily reading
+// (from the local writer), and runner-minutes per issue closed (the collector's runner-minutes per merge over it).
 import { describe, expect, it } from "vitest";
 
 import type { RawItem } from "../../src/model/items.js";
@@ -31,23 +30,23 @@ async function members(items: RawItem[], sources: string[]) {
 }
 
 describe("issue-grouping members", () => {
-    it("count the issues merged pull requests close, and the runner-minutes per issue", async () => {
-        const prs = Array.from({ length: 20 }, (_, i) =>
-            // 16 close one issue, 4 close three: 28 issues over 20 merges.
-            pr(i + 1, { mergedAt: T0 - 2 * HOUR - i * MIN, closes: i < 4 ? 3 : 1 }),
-        );
-        const m = await members(
-            [
-                ...prs,
-                pr(90, { mergedAt: T0 - 2 * HOUR }), // stored before `closes` was read: left out
-                pr(91, { mergedAt: T0 - 2 * HOUR, closes: 5, base: "feat/x" }), // not into master
-                job(1, { load: "pr", startedAt: T0 - 3 * HOUR - 280 * MIN, completedAt: T0 - 3 * HOUR }),
-            ],
-            ["collector"],
-        );
-        expect(m("pr.issues_per_merge")).toMatchObject({ value: 1.4, n: 20 });
-        expect(m("pr.multi_issue_share")).toMatchObject({ value: 0.2, n: 20 });
-        expect(m("pr.runner_minutes_per_issue")).toMatchObject({ value: 10, n: 28 });
+    it("read issues per merged PR from the ledger, and divide runner-minutes per merge by it", async () => {
+        // 12 merges spent 1,680 runner-minutes: 140 per merge; the ledger's newest reading says 1.4 issues per merge.
+        const merges = Array.from({ length: 12 }, (_, i) => pr(i + 1, { mergedAt: T0 - 2 * HOUR - i * MIN }));
+        const ledger = [
+            obs("issues.per_merged_pr", 0.9, T0 - 2 * DAY),
+            obs("issues.per_merged_pr", 1.4, T0 - DAY),
+            obs("issues.multi_issue_share", 0.155, T0 - DAY),
+        ];
+        const minutes = job(1, { load: "pr", startedAt: T0 - 3 * HOUR - 1680 * MIN, completedAt: T0 - 3 * HOUR });
+        const m = await members([...merges, minutes, ...ledger], ["collector", "grouping-ledger"]);
+        expect(m("pr.issues_per_merge")).toMatchObject({ value: 1.4 });
+        expect(m("pr.multi_issue_share")).toMatchObject({ value: 0.155, state: "OK" });
+        expect(m("pr.runner_minutes_per_issue").value).toBeCloseTo(100);
+        expect(m("pr.runner_minutes_per_issue").n).toBe(12);
+        // No ledger reading: no value per issue, never a division by nothing.
+        const alone = await members([...merges, minutes], ["collector", "grouping-ledger"]);
+        expect(alone("pr.runner_minutes_per_issue").value).toBeUndefined();
     });
 
     it("show the ledger's newest reading, and say not set up before its first", async () => {

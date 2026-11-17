@@ -136,20 +136,6 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
-    // Issue grouping (design/ci/issue-grouping.md section 9): the issues each pull request merged into master closes
-    // (GitHub's closing references), and the share closing two or more. One stored before `closes` was read is left out.
-    {
-        id: "pr.issues_closed",
-        from: [src("pr", "mergedAt", (p) => (p.closes !== undefined && isMaster(p.base) ? { sum: p.closes } : null))],
-    },
-    {
-        id: "pr.multi_issue",
-        from: [
-            src("pr", "mergedAt", (p) =>
-                p.closes !== undefined && isMaster(p.base) ? { sum: p.closes >= 2 ? 1 : 0 } : null,
-            ),
-        ],
-    },
     // Runs failed on a test their own change touched (#3951): the batching trigger, per pull request run.
     {
         id: "pr.caused_failures",
@@ -392,20 +378,6 @@ export const METRICS: MetricDef[] = [
                     : null;
             }),
             src("pr", "mergedAt", (p) => (p.mergedAt !== undefined && isMaster(p.base) ? { n: 1 } : null)),
-        ],
-    },
-    // Runner-minutes per issue closed: the same job minutes over the issues the merged pull requests closed, the
-    // throughput cost grouping should lower.
-    {
-        id: "ci.runner_minutes_per_issue",
-        from: [
-            src("job", "completedAt", (j) => {
-                const at = ranAt(j);
-                return j.load && at !== undefined && j.completedAt !== undefined
-                    ? { n: 0, sum: (j.completedAt - at) / MIN }
-                    : null;
-            }),
-            src("pr", "mergedAt", (p) => (p.closes !== undefined && isMaster(p.base) ? { n: p.closes } : null)),
         ],
     },
     // Section 7, unit costs: release train attempts that tested a candidate.

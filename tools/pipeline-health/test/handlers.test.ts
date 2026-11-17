@@ -218,6 +218,8 @@ describe("ingest: who may write", () => {
         const row = {
             id: "local.grouping.2026-11-16T19:41:04.377Z",
             at: NOW - 60_000,
+            issuesPerMergedPr: 1.09,
+            multiFixShare: 0.155,
             releasedShare: 0.003,
             ready: 16,
             combinable: 0,
@@ -228,6 +230,8 @@ describe("ingest: who may write", () => {
             [...mem.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.metric), i.value]),
         );
         expect(values).toEqual({
+            "issues.per_merged_pr": 1.09,
+            "issues.multi_issue_share": 0.155,
             "issues.group_released_share": 0.003,
             "issues.groups_ready": 16,
             "issues.groups_combinable": 0,

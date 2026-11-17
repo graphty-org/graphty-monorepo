@@ -730,10 +730,11 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
- * One daily reading of the issue-grouping ledger (tools/issue-groups.mjs metrics): the share of grouped members
+ * One daily reading of the issue-grouping ledger (tools/issue-groups.mjs metrics): issues closed per merged pull
+ * request and the share of merged pull requests closing two or more (the ledger's own count), the share of grouped members
  * released as not part of their branch, the groups whose branch is finished but not opened, and the families of those
  * that can each open as one pull request with the branches they hold.
- * @param r - the row: `{ id, at, releasedShare?, ready?, combinable?, combinableBranches? }`
+ * @param r - the row: `{ id, at, issuesPerMergedPr?, multiFixShare?, releasedShare?, ready?, combinable?, combinableBranches? }`
  * @returns its observations
  */
 function groupingItems(r: Record<string, unknown>): ObservationItem[] {
@@ -749,6 +750,8 @@ function groupingItems(r: Record<string, unknown>): ObservationItem[] {
         }
         out.push({ kind: "obs", id: `${id}.${metric}`, attempt: 1, metric, value: v as number, at: r.at as number });
     };
+    o("issues.per_merged_pr", r.issuesPerMergedPr);
+    o("issues.multi_issue_share", r.multiFixShare);
     o("issues.group_released_share", r.releasedShare);
     o("issues.groups_ready", r.ready);
     o("issues.groups_combinable", r.combinable);

@@ -133,7 +133,7 @@
             "lineStyle": 1,
             "arrows": 1,
             "edgeLabel": 0.9767441860465116,
-            "annotations": 0.07894736842105263,
+            "annotations": 0.17142857142857143,
             "background": 1
         },
         "xgmml-gcmodeller-demo": {
@@ -567,7 +567,7 @@
             "edgeWidth": 0.9487179487179487,
             "lineStyle": 1,
             "arrows": 1,
-            "edgePath": 0,
+            "edgePath": 1,
             "edgeLabel": 1
         },
         "gml-synthetic-coverage": {
@@ -606,7 +606,7 @@
             "labelText": 1,
             "labelColor": 1,
             "fontSize": 1,
-            "labelPosition": 0.944954128440367,
+            "labelPosition": 0.9908256880733946,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,

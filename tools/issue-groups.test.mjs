@@ -22,6 +22,7 @@ import {
     createGroup,
     drift,
     emptyLedger,
+    fetchFacts,
     freeze,
     groupClass,
     idleVerdict,
@@ -424,6 +425,54 @@ describe("route", () => {
         assert.equal(found[0].kind, "x9-landed");
         applyFix(l, found[0], NOW);
         assert.match(l.waits[0].ended, /landed/);
+    });
+
+    it("ends a wait on a pull request that merged or closed, by number or by branch, and leaves open ones", () => {
+        const l = fresh();
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        addWait(l, { n: 4, on: "fix/8657-x", why: "same file", now: NOW });
+        addWait(l, { n: 5, on: "#8700", why: "same file", now: NOW });
+        addWait(l, { n: 6, on: "owner-figma", why: "owner", now: NOW });
+        const prs = new Map([
+            [8667, { number: 8667, state: "MERGED" }],
+            [8700, { number: 8700, state: "OPEN" }],
+        ]);
+        const branchPrs = new Map([["fix/8657-x", { number: 8657, state: "CLOSED" }]]);
+        const found = drift(l, { issues: new Map(), prs, branchPrs }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.issue, d.kind, d.detail]),
+            [
+                [3, "wait-target-done", "#8667 merged"],
+                [4, "wait-target-done", "#8657 closed unmerged"],
+            ],
+        );
+        for (const d of found) applyFix(l, d, NOW);
+        assert.match(l.waits[0].ended, /#8667 merged$/);
+        assert.match(l.waits[1].ended, /#8657 closed unmerged$/);
+        assert.equal(l.waits[2].ended, null);
+        assert.equal(l.waits[3].ended, null);
+        assert.deepEqual(drift(l, { issues: new Map(), prs, branchPrs }, NOW), [], "a second check finds nothing");
+    });
+});
+
+describe("fetchFacts", () => {
+    it("reads each branch's newest pull request and skips a number that is an issue, in one query", () => {
+        const queries = [];
+        const run = (q) => {
+            queries.push(q);
+            return {
+                repository: {
+                    p1677: {},
+                    p8667: { number: 8667, state: "MERGED", commits: { nodes: [] } },
+                    h0: { nodes: [{ number: 8657, state: "CLOSED" }] },
+                    h1: { nodes: [] },
+                },
+            };
+        };
+        const f = fetchFacts([], [1677, 8667], run, false, ["fix/8657-x", "fix/9-y"]);
+        assert.equal(queries.length, 1);
+        assert.deepEqual([...f.prs.keys()], [8667]);
+        assert.deepEqual([...f.branchPrs], [["fix/8657-x", { number: 8657, state: "CLOSED" }]]);
     });
 });
 
@@ -1286,6 +1335,12 @@ describe("the command line", () => {
         assert.equal(main(["close", "g1"], deps).code, 2);
         assert.match(main(["check", "--fix"], deps).out, /fixed g1 closed/);
         assert.equal(readLedger(ledgerPath).groups[0].state, "closed");
+        assert.equal(main(["nonsense"], deps).code, 2);
+
+        assert.match(main(["wait", "5", "--on", "#8667", "--why", "same file"], deps).out, /waits on #8667/);
+        const fixed = main(["check", "--fix"], deps).out;
+        assert.match(fixed, /fixed wait of #5 on #8667 ended/);
+        assert.match(readLedger(ledgerPath).waits.at(-1).ended, /#8667 merged$/);
         assert.equal(main(["nonsense"], deps).code, 2);
         assert.equal(main(["--bogus"], deps).code, 2);
     });

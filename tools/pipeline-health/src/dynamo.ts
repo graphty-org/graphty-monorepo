@@ -209,25 +209,19 @@ export function dynamoStore(
                 last.set(id, op);
             }
             const items = [...last.values()].map((op) => {
-                if (!("put" in op)) {
-                    return { Delete: { TableName: tableName, Key: keyOf(op.delete) } };
-                }
                 const names: Record<string, string> = {};
                 const values: Record<string, unknown> = {};
                 const expr = conditionOf(op.condition, names, values);
-                return {
-                    Put: {
-                        TableName: tableName,
-                        Item: op.put,
-                        ...(expr
-                            ? {
-                                  ConditionExpression: expr,
-                                  ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
-                                  ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {}),
-                              }
-                            : {}),
-                    },
-                };
+                const checked = expr
+                    ? {
+                          ConditionExpression: expr,
+                          ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
+                          ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {}),
+                      }
+                    : {};
+                return "put" in op
+                    ? { Put: { TableName: tableName, Item: op.put, ...checked } }
+                    : { Delete: { TableName: tableName, Key: keyOf(op.delete), ...checked } };
             });
             // A concurrent write to one of the keys, or throttling, cancels the transaction: try again.
             for (let tries = 0; ; tries++) {

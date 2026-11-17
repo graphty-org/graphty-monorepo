@@ -709,7 +709,7 @@ describe("GraphStore removal runs", () => {
     async function visitsAndShifts(work: () => void): Promise<number> {
         let shifted = 0;
         const { splice } = Array.prototype;
-        Array.prototype.splice = function (this: unknown[], start: number, ...rest: unknown[]) {
+        Array.prototype.splice = function (this: unknown[], start: number, ...rest: unknown[]): unknown[] {
             shifted += Math.max(0, this.length - (start < 0 ? this.length + start : start));
             return splice.call(this, start, ...(rest as [number, ...unknown[]]));
         } as typeof splice;

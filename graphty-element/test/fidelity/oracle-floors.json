@@ -29806,10 +29806,10 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 0.999,
-            "edge.route": 0.996,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
-            "edge.width": 0.996,
+            "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
@@ -29848,10 +29848,10 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 0.999,
-            "edge.route": 0.996,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
-            "edge.width": 0.996,
+            "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
@@ -56409,22 +56409,6 @@
                 "to": 0.6,
                 "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
                 "date": "2026-11-07"
-            }
-        },
-        "json-cyjs-perf": {
-            "edge.width": {
-                "floor": 0.996,
-                "to": 0.994,
-                "reason": "comparator (#5196): with n570's own disc found, the haystack lines n464 -> n442 and n464 -> n570 end inside both overlapping nodes alike and are given each other's node (their widths, 1.6 and 5.7 px, say which is which; the reader does not use width)",
-                "date": "2026-11-01"
-            }
-        },
-        "json-cyjs-perf@matched": {
-            "edge.width": {
-                "floor": 0.996,
-                "to": 0.994,
-                "reason": "comparator (#5196): with n570's own disc found, the haystack lines n464 -> n442 and n464 -> n570 end inside both overlapping nodes alike and are given each other's node (their widths, 1.6 and 5.7 px, say which is which; the reader does not use width)",
-                "date": "2026-11-01"
             }
         },
         "json-graphology-synth": {

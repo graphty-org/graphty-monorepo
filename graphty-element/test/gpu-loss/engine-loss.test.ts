@@ -16,7 +16,7 @@ import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
 import { GraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 
 declare module "vitest/browser" {
@@ -66,7 +66,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
-    const graph = new Graph(container, false, { antialias });
+    const graph = new Graph(container, { antialias });
     mounted.push({ graph, container });
     graph.setRenderer("webgpu");
     await graph.init();
@@ -86,7 +86,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
  * @returns The counts, copied.
  */
 function ticksOf(graph: Graph): RenderManager["ticks"] {
-    return { ...(graph as unknown as { renderManager: RenderManager }).renderManager.ticks };
+    return { ...renderManagerOf(graph).ticks };
 }
 
 /** The browser's own requests, taken before any test spies on them. */

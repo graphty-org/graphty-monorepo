@@ -520,6 +520,8 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
+    styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
 };
@@ -695,6 +697,7 @@ export class LayoutManager implements Manager {
 
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
+        layoutManagerInternals.styles = (manager) => manager.styles;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
@@ -978,6 +981,13 @@ export class LayoutManager implements Manager {
     setPaused(paused: boolean): void {
         this._paused = paused;
         this.running = !paused;
+        // A static layout held back the re-run a removal asked for while paused; it lands now, in
+        // the array both render paths draw from (a batched row has no Node whose update would read
+        // it). After `running`, so a re-run that throws leaves the layout resumed.
+        const engine = this.layoutEngine;
+        if (!paused && engine instanceof StaticLayoutEngine && simpleLayoutInternals.resume(engine)) {
+            engine.publishPositions();
+        }
     }
 
     // GraphContext for error reporting
@@ -1686,6 +1696,8 @@ export class LayoutManager implements Manager {
             );
         }
 
+        simpleLayoutInternals.whilePaused(engine, () => this._paused);
+
         if (engine) {
             // What the engine reads the graph through: the working graph, never the store.
             layoutEngineInternals.setWorkingSource(engine, () => this.scopeSource?.input?.() ?? null);
@@ -2169,8 +2181,7 @@ export class LayoutManager implements Manager {
      * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
      */
     private async setLayout(type: string, opts: object = {}, scope?: ScopeInput): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the old spelling still means 2D
-        const twoD = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
+        const twoD = this.graphContext?.is2D() === true;
         // Built outside the `layout` slice, so no slice value describes it any more.
         this.#built = null;
         this.#building++;

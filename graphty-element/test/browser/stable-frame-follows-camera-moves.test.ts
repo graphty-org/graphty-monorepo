@@ -16,7 +16,7 @@ import type { Observer, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { RenderManager } from "../../src/managers/RenderManager.js";
+import { renderManagerOf } from "../../src/Graph.js";
 
 const COUNT = 30;
 const NODES = Array.from({ length: COUNT }, (_unused, index) => ({ id: `n${String(index)}` }));
@@ -43,8 +43,7 @@ describe("a stable frame after the element moves the camera", () => {
      * @returns The release.
      */
     function holdFrames(): () => void {
-        const graphAny = element.graph as unknown as Record<string, unknown>;
-        return (graphAny.renderManager as RenderManager).holdFrames();
+        return renderManagerOf(element.graph).holdFrames();
     }
 
     /**

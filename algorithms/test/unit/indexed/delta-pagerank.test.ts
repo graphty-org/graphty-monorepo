@@ -1,18 +1,15 @@
 import { type F64, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { DeltaPageRank, deltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
+import { DeltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
 import { pageRank } from "../../../src/indexed/pagerank.js";
 import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId, PageRankResult } from "../../helpers/legacy-types.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, gnm } from "./port-fixtures.js";
-
-/** Legacy pageRank switches to its delta engine when `useDelta !== false && n > 100`. */
-const DELTA_THRESHOLD = 100;
 
 function selfLoopsAndDangling(): Graph {
     const g = new Graph({ directed: true });
@@ -98,125 +95,6 @@ function firstThree(graph: Graph): Map<NodeId, number> {
     return out;
 }
 
-function portedPageRank(
-    graph: Graph,
-    options: {
-        weighted?: boolean;
-        personalize?: boolean;
-        initial?: boolean;
-        maxIterations?: number;
-        dampingFactor?: number;
-        tolerance?: number;
-    },
-): { ranks: Record<string, number>; iterations: number; converged: boolean } {
-    const s = snapshotOf(graph);
-    const n = s.nodeCount;
-    const r = deltaPageRank(s, {
-        dampingFactor: options.dampingFactor,
-        tolerance: options.tolerance,
-        maxIterations: options.maxIterations,
-        weighted: options.weighted,
-        weights: options.weighted === true ? exactArcWeights(s) : undefined,
-        personalization: options.personalize === true ? toVector(s, firstThree(graph), 0) : undefined,
-        initialRanks: options.initial === true ? toVector(s, firstThree(graph), 1 / n) : undefined,
-    });
-    const ranks: Record<string, number> = {};
-    for (let i = 0; i < n; i++) {
-        ranks[String(s.ids.idOf(i))] = r.scores[i];
-    }
-    return { ranks, iterations: r.iterations, converged: r.converged };
-}
-
-describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
-    it("covers fixtures on both sides of legacy's n > 100 delta rule", () => {
-        const sizes = fixtures().map((f) => f.graph.nodeCount);
-        expect(sizes.some((n) => n > DELTA_THRESHOLD)).toBe(true);
-        expect(sizes.some((n) => n <= DELTA_THRESHOLD)).toBe(true);
-    });
-
-    const cases = [
-        { name: "defaults", options: {} },
-        { name: "three iterations, not converged", options: { maxIterations: 3 } },
-        { name: "weighted", options: { weighted: true } },
-        { name: "personalized", options: { personalize: true } },
-        { name: "initial ranks", options: { initial: true } },
-        { name: "damping 0.6, tolerance 1e-10", options: { dampingFactor: 0.6, tolerance: 1e-10 } },
-    ] as const;
-
-    for (const { name, options } of cases) {
-        for (const useDelta of [undefined, true, false]) {
-            it(`${name}: scores, iterations and converged equal legacy pageRank (useDelta ${String(useDelta)})`, () => {
-                expectFacadeMatchesLegacy(fixtures(), (g) => portedPageRank(g, options), { tolerance: 1e-9 });
-            });
-        }
-    }
-
-    it("throws on an undirected snapshot and on a damping factor outside [0, 1]", () => {
-        const u = new Graph({ directed: false });
-        u.addEdge("a", "b");
-        expect(() => deltaPageRank(snapshotOf(u))).toThrow("PageRank requires a directed graph");
-        const d = new Graph({ directed: true });
-        d.addEdge("a", "b");
-        expect(() => deltaPageRank(snapshotOf(d), { dampingFactor: 1.5 })).toThrow(
-            "Damping factor must be between 0 and 1",
-        );
-    });
-
-    it("returns an empty, converged result for an empty graph", () => {
-        const s = new GraphBuilder({ directed: true }).freeze({ label: "empty" });
-        const r = deltaPageRank(s);
-        expect(r.scores.length).toBe(0);
-        expect(r.iterations).toBe(0);
-        expect(r.converged).toBe(true);
-    });
-
-    it("rejects a personalization or initial-ranks vector of the wrong length", () => {
-        const g = new Graph({ directed: true });
-        g.addEdge("a", "b");
-        const s = snapshotOf(g);
-        expect(() => deltaPageRank(s, { personalization: Float64Array.of(1) })).toThrow(RangeError);
-        expect(() => deltaPageRank(s, { initialRanks: Float64Array.of(1, 2, 3) })).toThrow(RangeError);
-    });
-
-    it("rejects a per-arc weights override whose length is not the arc count", () => {
-        const g = new Graph({ directed: true });
-        g.addEdge("a", "b");
-        g.addEdge("b", "c");
-        const s = snapshotOf(g);
-        const weights = Float64Array.of(1);
-        expect(() => deltaPageRank(s, { weighted: true, weights })).toThrow(RangeError);
-        expect(() => new DeltaPageRank(s, { weights })).toThrow(RangeError);
-        expect(() => new PriorityDeltaPageRank(s, { weights })).toThrow(RangeError);
-    });
-
-    it("counts every parallel arc: two a->b arcs weigh like one a->b edge of weight 2", () => {
-        // The legacy Graph cannot hold a parallel edge, so the reference is its weighted twin.
-        const b = new GraphBuilder({ directed: true });
-        for (const id of ["a", "b", "c"]) {
-            b.addNode(id);
-        }
-        b.addEdge("a", "b");
-        b.addEdge("a", "b");
-        b.addEdge("a", "c");
-        b.addEdge("b", "c");
-        b.addEdge("c", "a");
-        const s = b.freeze({ label: "multigraph", checksum: true });
-        expect(s.flags.multigraph).toBe(true);
-        const twin = new Graph({ directed: true });
-        twin.addEdge("a", "b", 2);
-        twin.addEdge("a", "c", 1);
-        twin.addEdge("b", "c", 1);
-        twin.addEdge("c", "a", 1);
-        const legacy = legacyResult() as PageRankResult;
-        const r = deltaPageRank(s);
-        for (let i = 0; i < 3; i++) {
-            expect(r.scores[i]).toBeCloseTo(legacy.ranks[String(s.ids.idOf(i))], 12);
-        }
-        expect(r.iterations).toBe(legacy.iterations);
-        s.validate({ checksum: true });
-    });
-});
-
 describe("indexed.DeltaPageRank", () => {
     const cases = [
         { name: "defaults", options: {} },
@@ -291,6 +169,16 @@ describe("indexed.DeltaPageRank", () => {
     it("returns no scores for an empty graph", () => {
         const s = new GraphBuilder({ directed: true }).freeze({ label: "empty" });
         expect(new DeltaPageRank(s).compute().length).toBe(0);
+    });
+
+    it("rejects a per-arc weights override whose length is not the arc count", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b");
+        g.addEdge("b", "c");
+        const s = snapshotOf(g);
+        const weights = Float64Array.of(1);
+        expect(() => new DeltaPageRank(s, { weights })).toThrow(RangeError);
+        expect(() => new PriorityDeltaPageRank(s, { weights })).toThrow(RangeError);
     });
 });
 

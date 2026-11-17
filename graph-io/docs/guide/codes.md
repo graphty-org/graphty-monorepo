@@ -158,6 +158,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_CSV_NODE_TABLE"></a>`W_CSV_NODE_TABLE`: Node attributes are written by a `table: "nodes"` export only. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NONFINITE"></a>`W_CSV_NONFINITE`: NaN / Infinity in a numeric column read back as text. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NO_DATA_ROWS"></a>`W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_NO_UNIQUE_ID"></a>`W_CSV_NO_UNIQUE_ID`: Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_PADDED_ID"></a>`W_CSV_PADDED_ID`: An id that is not quoted starts or ends in whitespace other than spaces and tabs (a no-break space); it is kept, so it is a different id from the trimmed text. Spaces and tabs around an id that is not quoted are trimmed. Reported once per import. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_POSSIBLE_HEADER"></a>`W_CSV_POSSIBLE_HEADER`: The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a header of names graph-io does not know. Pass `header: true` if it is one. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_RESERVED_NAME"></a>`W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
@@ -419,6 +420,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_STYLE_BLOCK_IGNORED"></a>`W_STYLE_BLOCK_IGNORED`: A `graphty.styles` block was ignored, with a reason code; the file is read like any other. See [Styles](./styles.md).
 - <a id="W_STYLE_BUDGET"></a>`W_STYLE_BUDGET`: The counted work budget ran out; the values not yet explained are copied per element. See [Styles](./styles.md).
 - <a id="W_STYLE_COLOR_LIST"></a>`W_STYLE_COLOR_LIST`: A list of colors where one color is expected; the tool draws it its own way and the first is not taken. See [Styles](./styles.md).
+- <a id="W_STYLE_DRAWN_NEAREST"></a>`W_STYLE_DRAWN_NEAREST`: A program's own value graphty has no exact counterpart for, settled to the nearest graphty value. See [Styles](./styles.md).
 - <a id="W_STYLE_EXTRA_LABELS"></a>`W_STYLE_EXTRA_LABELS`: An element carries more than one label; the first is kept. See [Styles](./styles.md).
 - <a id="W_STYLE_GRADIENT"></a>`W_STYLE_GRADIENT`: A gradient fill; its first color is kept. See [Styles](./styles.md).
 - <a id="W_STYLE_HTML_LABEL"></a>`W_STYLE_HTML_LABEL`: An HTML-like label: its text is kept and its markup dropped. See [Styles](./styles.md).

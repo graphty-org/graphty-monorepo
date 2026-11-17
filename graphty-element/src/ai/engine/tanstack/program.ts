@@ -32,6 +32,9 @@ export function openProgramContexts(): number {
 
 const IDENTIFIER = /^[A-Za-z_]\w*$/;
 
+/** The longest delay setTimeout keeps (about 24.8 days); a longer one fires at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 /**
  * Whether this runs in Node (a test harness, a server): there QuickJS reads its WebAssembly from
  * its own package's file, and a page URL such as a dev server's would not open.
@@ -199,7 +202,9 @@ export async function runProgram(
     driver ??= createQuickJSIsolateDriver(inNode() ? {} : { wasmLocation: WASM_LOCATION });
     const context: Context = await driver.createContext({
         bindings: driverBindings,
-        timeout: limits.timeoutMs,
+        // The driver waits with setTimeout, which fires at once past 2^31 - 1 ms: Infinity, or any
+        // value past that, would end the program on the first await instead of never.
+        timeout: Math.min(limits.timeoutMs, MAX_TIMER_MS),
         memoryLimit: limits.memoryMb,
     });
     open += 1;

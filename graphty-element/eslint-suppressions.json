@@ -1,0 +1,1031 @@
+{
+  "benchmarks/run.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "eslint-rules/ai-engine-boundary.mjs": {
+    "unicorn/prefer-string-raw": {
+      "count": 3
+    }
+  },
+  "eslint-rules/whole-graph-by-name.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "scripts/build-api-docs.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "scripts/build-gazetteer.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "scripts/dom-events.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "scripts/generate-ai-feature-matrix.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "scripts/make-sample-models.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 7
+    }
+  },
+  "scripts/oracle-report.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/Graph.ts": {
+    "sonarjs/no-async-constructor": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-modern-math-apis": {
+      "count": 3
+    }
+  },
+  "src/NodeBehavior.ts": {
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/ai/AiController.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/commands/AlgorithmCommands.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/ai/commands/QueryCommands.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/commands/SchemaCommands.ts": {
+    "sonarjs/pseudo-random": {
+      "count": 1
+    }
+  },
+  "src/ai/conversation/Conversation.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/engine/LlmProviderEngine.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/ai/engine/jsonSchema.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/engine/tanstack/google.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/ai/engine/tanstack/index.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/ai/input/VoiceInputAdapter.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 3
+    }
+  },
+  "src/ai/keys/ApiKeyManager.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "src/ai/plans/delegate.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/providers/WebLlmProvider.ts": {
+    "eslint-comments/require-description": {
+      "count": 4
+    }
+  },
+  "src/ai/runConversation.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/schema/utils.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/effects.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/families/layout.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/tools/families/query.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/families/style.ts": {
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/families/undo.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/ai/tools/fields.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/search.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/ai/tools/toolset.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/ai/voice/liveTurns.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/algorithms/Algorithm.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "sonarjs/public-static-readonly": {
+      "count": 6
+    }
+  },
+  "src/algorithms/BellmanFordAlgorithm.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/algorithms/GirvanNewmanAlgorithm.ts": {
+    "sonarjs/reduce-initial-value": {
+      "count": 1
+    }
+  },
+  "src/algorithms/MaxFlowAlgorithm.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/algorithms/input/ScopedInput.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/algorithms/input/derivedInputs.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/algorithms/input/maskBack.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/algorithms/offThreadWorker.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "src/algorithms/results/DeclaredAlgorithm.ts": {
+    "sonarjs/public-static-readonly": {
+      "count": 1
+    }
+  },
+  "src/algorithms/results/types.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/autosave/Autosaver.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "sonarjs/no-identical-functions": {
+      "count": 1
+    }
+  },
+  "src/camera/presets.ts": {
+    "unicorn/prefer-export-from": {
+      "count": 1
+    }
+  },
+  "src/catalog/layouts.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/catalog/sets/canonical.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 9
+    }
+  },
+  "src/catalog/sets/hash.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/catalog/sets/parse.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    },
+    "sonarjs/no-alphabetical-sort": {
+      "count": 3
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/catalog/shaderRegistry.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/catalog/shaderText.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/catalog/shapes.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/catalog/types.ts": {
+    "sonarjs/redundant-type-aliases": {
+      "count": 8
+    }
+  },
+  "src/config/GraphStyle.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/config/common.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/data/DataSource.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "sonarjs/public-static-readonly": {
+      "count": 3
+    }
+  },
+  "src/data/edgeIdentity.ts": {
+    "unicorn/prefer-native-coercion-functions": {
+      "count": 1
+    }
+  },
+  "src/data/export.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/data/graph-io-import.ts": {
+    "unicorn/prefer-array-find": {
+      "count": 1
+    }
+  },
+  "src/data/groups.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/graphty-element.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "sonarjs/public-static-readonly": {
+      "count": 1
+    },
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/layout/LayoutEngine.ts": {
+    "sonarjs/public-static-readonly": {
+      "count": 7
+    }
+  },
+  "src/layout/graphviz/fromJson.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/layout/graphviz/structure.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/layout/graphviz/worker.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "src/layout/locationMap/gazetteer.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/layout/locationMap/source.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    }
+  },
+  "src/logging/URLParamParser.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "src/managers/AlgorithmManager.ts": {
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/managers/DataManager.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 2
+    },
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/managers/EventManager.ts": {
+    "eslint-comments/require-description": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/managers/GraphContext.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/managers/InputManager.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 1
+    },
+    "unicorn/prefer-type-error": {
+      "count": 1
+    }
+  },
+  "src/managers/LayoutManager.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/managers/RenderManager.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/managers/SelectionManager.ts": {
+    "no-unreachable-loop": {
+      "count": 1
+    }
+  },
+  "src/managers/StatsManager.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/managers/StylePainter.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/managers/UpdateManager.ts": {
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    },
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/meshes/CustomLineRenderer.ts": {
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "src/meshes/EdgeMesh.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/meshes/MaterialHelper.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/meshes/NodeEffects.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/meshes/PatternedLineRenderer.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/meshes/RichTextLabel.ts": {
+    "sonarjs/pseudo-random": {
+      "count": 1
+    }
+  },
+  "src/meshes/Simple2DLineRenderer.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "src/meshes/nodeDecoration.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/meshes/shapeOutlines.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/models/ModelCache.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/screenshot/ScreenshotCapture.ts": {
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 3
+    }
+  },
+  "src/session/GraphSession.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 14
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 2
+    }
+  },
+  "src/session/assets/AssetsApi.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/session/assets/projectMember.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/browserProjects.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/commands/algo.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/commands/config.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/session/commands/data.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/commands/doors.ts": {
+    "unicorn/no-useless-promise-resolve-reject": {
+      "count": 1
+    }
+  },
+  "src/session/commands/layout.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    }
+  },
+  "src/session/commands/positions.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/session/commands/shaderCopies.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    }
+  },
+  "src/session/commands/style.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/session/cost/estimate.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/session/data.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/session/groups.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/issues.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/join.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/notes/countIndex.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/notes/document.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-type-error": {
+      "count": 1
+    }
+  },
+  "src/session/notes/types.ts": {
+    "sonarjs/redundant-type-aliases": {
+      "count": 1
+    }
+  },
+  "src/session/project/Dispatcher.ts": {
+    "sonarjs/redundant-type-aliases": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/project/digest.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 2
+    }
+  },
+  "src/session/project/graphOps.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/project/ingest.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/projectFile.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/query.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/recipe.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/results/statistics.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 7
+    }
+  },
+  "src/session/runs/Run.ts": {
+    "unicorn/no-thenable": {
+      "count": 1
+    }
+  },
+  "src/session/runs/RunsApi.ts": {
+    "sonarjs/no-try-promise": {
+      "count": 1
+    },
+    "sonarjs/pseudo-random": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/runs/caveatFacts.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/runs/groupNumbers.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/runs/runId.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/session/runs/suggestedName.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/session/scope/steps.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/session/selection/SelectionApi.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/session/selection/targets.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 1
+    }
+  },
+  "src/session/sets/SetsApi.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/sets/algebra.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/sets/dependencies.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "sonarjs/redundant-type-aliases": {
+      "count": 1
+    },
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/session/sets/offers.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/sets/path.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/sets/resolve.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/shaders.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/session/sources/expand.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/sources/load.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/session/sources/member.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/session/statistics.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    },
+    "unicorn/prefer-math-trunc": {
+      "count": 1
+    }
+  },
+  "src/session/styles/Layer.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/StylesApi.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "sonarjs/use-type-alias": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/session/styles/channels.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/encoding.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/session/styles/explain.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/fileStyles/apply.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/fileStyles/labelGrid.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/intern.ts": {
+    "unicorn/prefer-math-trunc": {
+      "count": 1
+    }
+  },
+  "src/session/styles/legend.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    },
+    "unicorn/numeric-separators-style": {
+      "count": 1
+    }
+  },
+  "src/session/styles/predicate.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/repaint.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/selector.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/styles/tree.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/time/TimeApi.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/session/time/parse.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/types.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/session/visibility/VisibilityApi.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/session/visibility/conditions.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/session/visibility/filter.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 4
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/session/visibility/union.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/simple/defineLayout.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/simple/defineLogDestination.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 1
+    }
+  },
+  "src/testing/faultAutosaveStore.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/utils/styleHelpers/accessibility/colorblindSimulation.ts": {
+    "unicorn/prefer-modern-math-apis": {
+      "count": 1
+    }
+  },
+  "src/utils/styleHelpers/color/interpolation.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/xr/XRSessionManager.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "stories/helpers.ts": {
+    "eslint-comments/require-description": {
+      "count": 2
+    }
+  },
+  "test/algorithms/options/algorithm-options.test.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "test/browser/input-manager.test.ts": {
+    "sonarjs/no-skipped-tests": {
+      "count": 1
+    }
+  },
+  "test/data/CSVDataSource.paired.test.ts": {
+    "eslint-comments/require-description": {
+      "count": 3
+    }
+  },
+  "test/data/DataSource.validation.test.ts": {
+    "eslint-comments/require-description": {
+      "count": 2
+    }
+  },
+  "test/managers/StatsManager.profiling.test.ts": {
+    "eslint-comments/require-description": {
+      "count": 7
+    }
+  },
+  "test/render-parity/stories.test.ts": {
+    "sonarjs/no-skipped-tests": {
+      "count": 1
+    }
+  },
+  "vite.config.ts": {
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  }
+}

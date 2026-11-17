@@ -1,5 +1,5 @@
 /**
- * The Data place's Calculated tab (the `selection-workspace` experiment, issue #5805): every result
+ * The Data place's Calculated tab: every result
  * the session holds, wherever it was started -- Analyze or a selection's card -- as graphty-element
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
@@ -13,13 +13,12 @@ import type { GraphSession, Run, RunReader } from "@graphty/graphty-element/sess
 import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
-import { staleWords } from "../inspector/words";
+import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { unitOf } from "../time/timeActions";
@@ -54,8 +53,8 @@ function SelectionChip({ name }: Readonly<{ name: string }>): React.JSX.Element 
 }
 
 /**
- * The quiet mark of a result in an unusual state: out of date, or run over something other than
- * what is showing. Nothing for a result run over what is showing and still current.
+ * The quiet mark of a result in an unusual state: failed, out of date, or run over something other
+ * than what is showing. Nothing for a result run over what is showing and still current.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.run - the result
@@ -64,7 +63,10 @@ function SelectionChip({ name }: Readonly<{ name: string }>): React.JSX.Element 
 function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
     let words: string;
     let Glyph = GLYPHS.outOfDate;
-    if (run.status === "succeeded" && run.stale !== null) {
+    if (run.status === "failed") {
+        words = runFailureWords(run.error?.code);
+        Glyph = GLYPHS.failed;
+    } else if (run.status === "succeeded" && run.stale !== null) {
         words = staleWords(run.stale, unitOf(session));
     } else if (run.scope.spec === "visible") {
         return null;
@@ -75,7 +77,7 @@ function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run 
     }
     return (
         <Tooltip label={words}>
-            <span // NOSONAR(S6819): an icon drawn by a component, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon drawn by a component, named as one image; there is no <img> to use
                 className="dp-run-mark"
                 role="img"
                 aria-label={words}
@@ -105,7 +107,7 @@ function UsesMark({
     const said = `${kind === "style" ? "Styles" : "Filters"}: ${namesOnce(names)}`;
     return (
         <Tooltip label={said} multiline maw={240}>
-            <span // NOSONAR(S6819): an icon and its count, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon and its count, named as one image; there is no <img> to use
                 className="dp-run-uses"
                 data-run-uses={kind}
                 role="img"
@@ -296,18 +298,17 @@ function ResultRow({
 }
 
 /**
- * The Calculated tab's body, drawn only while the `selection-workspace` experiment is on: the
- * results, or with none, Analyze and its key.
- * @returns the list, or nothing.
+ * The Calculated tab's body: the results, or with none, Analyze and its key.
+ * @returns the list, or nothing before the element has come up.
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const analyze = useCommand("analyze.open");
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,
     );
-    if (session === null || !selectionWorkspaceOn(session)) {
+    if (session === null) {
         return null;
     }
     const runs = session.runs.list().filter((run) => run.status !== "removed");

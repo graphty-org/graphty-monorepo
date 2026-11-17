@@ -16,7 +16,6 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -229,28 +228,5 @@ describe("the app's lists", () => {
             assert.lengthOf(within(list).getAllByRole("option"), 1);
         });
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
-    });
-});
-
-describe("a filter card's list", () => {
-    // The filter card's own text box; the selection workspace edits a filter card in its modal
-    // instead, as Filters.real-element.test.tsx pins.
-    withFeatures([]);
-
-    it("a filter card's text box lists every value that holds the typed text", async () => {
-        const names = [
-            ...Array.from({ length: 30 }, (_, i) => `Other ${String(i)}`),
-            ...Array.from({ length: 12 }, (_, i) => `Mme ${String.fromCharCode(65 + i)}`),
-        ];
-        await open({ place: "data" }, (session) =>
-            session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
-        );
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
-        const is = await screen.findByRole("combobox", { name: "name: text to match" });
-        await userEvent.type(is, "Mme");
-        await waitFor(() => {
-            assert.lengthOf(screen.getAllByRole("option", { name: /^Mme / }), 12);
-        });
     });
 });

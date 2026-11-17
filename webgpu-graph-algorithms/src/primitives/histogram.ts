@@ -1,10 +1,10 @@
 /**
- * The `histogram` and `countingSortByKey` primitive drivers (spec 6 row 5; P4-T3, PD-4). `histogram` zeroes `hist`
+ * The `histogram` and `countingSortByKey` primitive drivers. `histogram` zeroes `hist`
  * with a `fill` dispatch and then adds one per key in global memory: order-independent, so bitwise deterministic on
  * every adapter. `countingSortByKey` is the histogram, an exclusive scan of it into `outStart`, a zeroed per-bin
  * `cursor`, and the scatter `outIndex[outStart[k] + atomicAdd(&cursor[k], 1)] = i`: the SET of indices inside a bin
- * is fixed, their order follows the schedule (set-deterministic, design 6). Every zeroing is a dispatch inside the
- * caller's pass (PD-12), never an encoder clear.
+ * is fixed, their order follows the schedule (set-deterministic). Every zeroing is a dispatch inside the
+ * caller's pass, never an encoder clear.
  *
  * The drivers own no device objects: the caller supplies a ReduceScope (the same record `reduce` takes) and the
  * compute pass to record into. `src/primitives/**` never imports `src/context.ts`.
@@ -18,7 +18,7 @@ import { type Binding } from "../types/memory.js";
 import { type ReduceScope } from "./reduce.js";
 import { prepareScan, type ScanPlanner } from "./scan.js";
 
-/** A prepared histogram (spec 6 row 5): records the fill and the one counting dispatch into a pass. */
+/** A prepared histogram: records the fill and the one counting dispatch into a pass. */
 export interface HistogramPlanner {
     /**
      * Records the histogram of `count` u32 keys of `keys` over `bins` bins into `hist` (zeroed first by a `fill`
@@ -40,7 +40,7 @@ interface CountingSortScratch {
     readonly cursor: Binding;
 }
 
-/** A prepared counting sort by key (spec 6 row 5): records the histogram, the scan, the cursor fill and the scatter into a pass. */
+/** A prepared counting sort by key: records the histogram, the scan, the cursor fill and the scatter into a pass. */
 export interface CountingSortPlanner {
     /**
      * Records the counting sort of `count` keys of `keys` (every key < bins) into `outIndex` (the indices in key
@@ -193,7 +193,7 @@ class HistogramPlannerImpl implements HistogramPlanner {
     }
 
     /**
-     * Records a `fill` of `words` zeros into `dst` (PD-12: a dispatch inside the pass, never an encoder clear).
+     * Records a `fill` of `words` zeros into `dst` (a dispatch inside the pass, never an encoder clear).
      * @param pass - the compute pass
      * @param dst - the words to zero
      * @param words - how many (>= 1)

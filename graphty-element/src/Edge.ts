@@ -527,6 +527,28 @@ export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
 }
 
 /**
+ * What the tests that check an edge's drawing read of it, typed so a rename in `Edge` fails to
+ * compile rather than at run time (issue #6988). The class fills it in; no entry point exports it.
+ */
+export const edgeInternals = {} as {
+    /** The pieces the edge's line, outline and halo are drawn in, and the look it last drew. */
+    drawn(edge: Edge): {
+        lineBatch: Edge["lineBatch"];
+        pulled: Edge["pulled"];
+        lineSlots: Edge["lineSlots"];
+        outlineBatch: Edge["outlineBatch"];
+        outlineSlots: Edge["outlineSlots"];
+        haloBands: Edge["haloBands"];
+        lineIsCurve: Edge["lineIsCurve"];
+        drawnStyle: Edge["drawnStyle"];
+    };
+    /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
+    leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
+    /** How far a line from a node's centre runs before it leaves the node's box; see `Edge.boxReachOf`. */
+    boxReachOf(node: Node, direction: Vector3): number;
+};
+
+/**
  * How far a line through a node's centre runs before it leaves the node's bounding box, in the
  * node's own (graph-root) space: the exact surface of a box, and a tight bound for any other
  * built-in shape, all of which are built centred on their origin.
@@ -652,6 +674,18 @@ export class Edge {
         writeEdgeRow = (edge, row) => {
             edge.index = row;
         };
+        edgeInternals.drawn = (edge) => ({
+            lineBatch: edge.lineBatch,
+            pulled: edge.pulled,
+            lineSlots: edge.lineSlots,
+            outlineBatch: edge.outlineBatch,
+            outlineSlots: edge.outlineSlots,
+            haloBands: edge.haloBands,
+            lineIsCurve: edge.lineIsCurve,
+            drawnStyle: edge.drawnStyle,
+        });
+        edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
+        edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
             edge.shaderDataChanged();

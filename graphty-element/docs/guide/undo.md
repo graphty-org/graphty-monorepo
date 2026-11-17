@@ -386,6 +386,20 @@ at the window has two choices:
 <graphty-element history-keys="false"></graphty-element>
 ```
 
+To have the same keys, and Escape to clear the selection, answered anywhere on the page (or in any
+part of it) rather than only on the focused canvas, attach the element's keymap:
+
+```typescript
+import { attachKeymap } from "@graphty/graphty-element/session";
+
+const detach = attachKeymap(element.session, document);
+// later: detach();
+```
+
+It skips a press already handled, typed into a field, or that it has nothing to do with (Escape
+with nothing selected passes on to close your dialog). The keys it answers are listed in
+`KEYMAP_DESCRIPTORS` from `@graphty/graphty-element/catalog`, for a shortcuts list.
+
 ## Memory
 
 History keeps what undo needs, not copies of everything. An attribute edit keeps the old values; a

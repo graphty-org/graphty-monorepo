@@ -69,7 +69,7 @@ import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher } from "./dispatchers";
+import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
@@ -93,7 +93,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-export { dispatcherOf } from "./dispatchers";
+export { dispatcherOf, sessionRunsOf } from "./dispatchers";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -770,7 +770,7 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
-        SESSION_RUNS.set(this, this.sessionRuns);
+        registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
         this.runner = new LayoutRunner({
@@ -1489,28 +1489,6 @@ class Session implements ElementSession {
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
     }
-}
-
-/** Each session's runs API with the parts only the element reaches; see {@link sessionRunsOf}. */
-const SESSION_RUNS = new WeakMap<GraphSession, SessionRunsApi>();
-
-/**
- * The runs API behind a session, with `startVia`: how the renderer starts the on-load runs as
- * deferred members of the command that added the rows. Not published.
- * @param session - A session this module built.
- * @returns Its runs API.
- */
-export function sessionRunsOf(session: GraphSession): SessionRunsApi {
-    const runs = SESSION_RUNS.get(session);
-    if (runs === undefined) {
-        throw new GraphtyError({
-            code: "E_INTERNAL",
-            message: "This session was not built by createGraphSession, so it has no runs API of its own.",
-            source: "run",
-        });
-    }
-
-    return runs;
 }
 
 /** Each headless session's `graph` repaint hook, by dispatcher, to unregister. */

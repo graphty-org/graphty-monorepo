@@ -5333,6 +5333,22 @@ export function labelStyleFieldChannels(channel: Channel, value: unknown): reado
     return found;
 }
 
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
+
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(
     (channel): channel is ColorChannel => CHANNEL_DESCRIPTORS[channel].accepts === "color",

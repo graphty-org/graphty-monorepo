@@ -1,16 +1,16 @@
 /**
- * calibrateLayout (spec 2.2, 7.8, D26; contract 3.3): the layout-tier micro-benchmark a consumer runs ONCE, off the
+ * calibrateLayout: the layout-tier micro-benchmark a consumer runs ONCE, off the
  * critical path, to measure the exact / grid crossover on the actual device. For every probed size it builds a seeded
  * G(n, 10n) snapshot, runs ForceAtlas2 on the exact tier and on the grid tier -- one untimed `step(1)` after
  * `load()` (which warms every pipeline through `PipelineCache.warm` of the model's specs, so the first timed step
  * compiles nothing) and then TIMED_ITERATIONS timed `step(1)` calls whose `stats.msPerIteration` (the profiler's GPU
  * time when "timestamp-query" was granted, else the batch wall time) are averaged -- and releases the probe.
  *
- * PLAN DECISION PD-23 (P4-T14): `src/` cannot import `test/helpers` or `benchmarks/`, so the probe graphs are built
- * here from the package's own LCG (`Lcg`, seed.ts) with a fixed seed, and the spec 7.8 rule is re-implemented in
+ * `src/` cannot import `test/helpers` or `benchmarks/`, so the probe graphs are built
+ * here from the package's own LCG (`Lcg`, seed.ts) with a fixed seed, and the tier rule is re-implemented in
  * `suggestedExactMaxNodes` below; its twin is `exactMaxNodesFromLadder` in benchmarks/layout-exact.bench.ts (the
- * one copy the G3 / G4 records apply to the committed baselines), which test/layouts/calibrate.test.ts compares it
- * with. The function reads `caps` for nothing: never `caps.software` (spec 7.8, Q-6), so on a software adapter it
+ * one copy the benchmark records apply to the committed baselines), which test/layouts/calibrate.test.ts compares it
+ * with. The function reads `caps` for nothing: never `caps.software`, so on a software adapter it
  * returns honest numbers a caller can compare in shape, never in value.
  */
 
@@ -23,16 +23,16 @@ import { type CalibrateOptions, type GpuCalibration } from "../types/layout.js";
 import { createForceAtlas2 } from "./forceatlas2.js";
 import { Lcg } from "./seed.js";
 
-/** The default probe sizes (spec 2.2): the 8k-65k subset of the exact ladder of spec 7.8 / 10.4 T-4. */
+/** The default probe sizes: the 8k-65k subset of the exact tier's benchmark ladder. */
 export const CALIBRATE_SIZES: readonly number[] = [8_192, 16_384, 32_768, 65_536];
 
-/** The spec 7.8 per-iteration budget of the exact tier, milliseconds (the twin of EXACT_BUDGET_MS in benchmarks/layout-exact.bench.ts). */
+/** The per-iteration budget of the exact tier, milliseconds (the twin of EXACT_BUDGET_MS in benchmarks/layout-exact.bench.ts). */
 const BUDGET_MS = 4;
 
 /** Edges per node of every probe graph (E = 10n, the density of the exact ladder). */
 const EDGES_PER_NODE = 10;
 
-/** Timed iterations per size and tier (spec 2.2: "10 timed iterations"). */
+/** Timed iterations per size and tier. */
 const TIMED_ITERATIONS = 10;
 
 /** The seed of every probe graph and of the simulation's own LCG. */
@@ -58,7 +58,7 @@ function probeSnapshot(n: number): GraphSnapshot {
 /**
  * The mean ms per iteration of one tier at one size: one untimed step after load(), then TIMED_ITERATIONS timed
  * steps (reheat() before each so a settled simulation never short-circuits). With the profiler (a device that granted
- * "timestamp-query") the sample is the GPU time of the iteration's passes, the quantity the spec 7.8 rule reads; without
+ * "timestamp-query") the sample is the GPU time of the iteration's passes, the quantity the tier rule reads; without
  * it the sample is the step's wall time, which also carries the JS submit and the 12n-byte readback -- a fixed cost of
  * ~1-2 ms on a discrete card that is the same for either tier, so the wall ratio understates the grid tier's
  * advantage at every size and the crossover it suggests is, if anything, too high.
@@ -110,18 +110,18 @@ function floorPow2(n: number): number {
 }
 
 /**
- * The spec 7.8 rule over the probed sizes (the twin of exactMaxNodesFromLadder(rows, budget, gridRows) in
+ * The tier rule over the probed sizes (the twin of exactMaxNodesFromLadder(rows, budget, gridRows) in
  * benchmarks/layout-exact.bench.ts, which test/layouts/calibrate.test.ts compares it with): the largest probed n with
  * exactMs(n) <= BUDGET_MS and exactMs(n) <= gridMs(n), rounded down to a power of two.
  *
- * CONTRACT DECISION (the review of P4-T14; spec 2.2 is silent): when NO probed size satisfies the rule -- the grid
+ * When NO probed size satisfies the rule -- the grid
  * tier faster than the exact tier at every probe (the RTX 4070 SUPER with the default sizes: the grid beats the exact
  * tier from 4k up), or every probe over the budget -- the benchmark twin throws and hands the value to an owner
- * decision (spec 10.4), which a library call cannot do. The answer here is then the largest power of two STRICTLY
+ * decision, which a library call cannot do. The answer here is then the largest power of two STRICTLY
  * BELOW the smallest probe (1 when the smallest probe is 1): the exact tier runs at no probed size, the unprobed range
  * below keeps the exact tier (whose cost falls with n^2 and is the oracle), and the value is distinguishable from a
  * rule answer, which is never below floorPow2(min(sizes)). A caller that wants the crossover itself probes smaller
- * sizes (the T-4 ladder from 1k); one that wants the exact tier nowhere passes `repulsion: "grid"`.
+ * sizes (the benchmark ladder starts at 1k); one that wants the exact tier nowhere passes `repulsion: "grid"`.
  * @param sizes - the probed sizes (integers >= 1)
  * @param exactMs - ms per iteration of the exact tier per size
  * @param gridMs - ms per iteration of the grid tier per size
@@ -152,8 +152,8 @@ function isSizeList(value: unknown): value is readonly number[] {
 }
 
 /**
- * Spec 2.2 calibrateLayout, verbatim: measures ms per iteration of the exact and the grid repulsion tier at every
- * probed size on THIS device and suggests `exactMaxNodes` by the spec 7.8 rule (`suggestedExactMaxNodes` above, with
+ * Measures ms per iteration of the exact and the grid repulsion tier at every
+ * probed size on THIS device and suggests `exactMaxNodes` by the tier rule (`suggestedExactMaxNodes` above, with
  * its below-the-range answer when no probed size qualifies). Every probe graph is built here and released before the
  * call returns; `firstCallMs` is the wall time of the whole call (pipeline compilation included the first time). The
  * app passes `suggestedExactMaxNodes` through `createAccelerator(ctx, { layout: { exactMaxNodes } })`; the package

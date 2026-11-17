@@ -1002,7 +1002,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -1742,6 +1742,19 @@ export type ItemKey = {
 };
 
 // @public
+export const KEYMAP_DESCRIPTORS: readonly KeymapDescriptor[];
+
+// @public
+export type KeymapAction = "deselect" | "undo" | "redo";
+
+// @public
+export interface KeymapDescriptor {
+    readonly action: KeymapAction;
+    readonly keys: readonly string[];
+    readonly plainName: string;
+}
+
+// @public
 export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "all-paths", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness"];
 
 // @public
@@ -2358,6 +2371,18 @@ export type Path = string;
 
 // @public
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
+
+// @public
+export const PRIMARY_CHANNELS: Readonly<{
+    readonly node: Readonly<{
+        color: "node.color";
+        size: "node.size";
+    }>;
+    readonly edge: Readonly<{
+        color: "edge.color";
+        size: "edge.width";
+    }>;
+}>;
 
 // @public
 export type Query = string;

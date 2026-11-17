@@ -77,6 +77,11 @@
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
         },
+        "./sources": {
+            "types": "./dist/sources.d.ts",
+            "import": "./dist/sources.js",
+            "default": "./dist/sources.js"
+        },
         "./sources/ndex": {
             "types": "./dist/sources-ndex.d.ts",
             "import": "./dist/sources-ndex.js",

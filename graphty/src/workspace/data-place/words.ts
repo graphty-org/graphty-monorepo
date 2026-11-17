@@ -6,20 +6,21 @@
  */
 
 import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
-import type {
-    CodedFact,
-    ColumnRef,
-    ColumnRole,
-    Endpoint,
-    GraphSession,
-    JoinShape,
-    LeftOutEdge,
-    LoadedSource,
-    LocationKind,
-    LocationUnused,
-    LocationUsing,
-    TableMapping,
-    TableMappingRead,
+import {
+    type CodedFact,
+    type ColumnRef,
+    type ColumnRole,
+    type Endpoint,
+    type GraphSession,
+    type JoinShape,
+    type LeftOutEdge,
+    type LoadedSource,
+    type LocationKind,
+    type LocationUnused,
+    type LocationUsing,
+    pathParts,
+    type TableMapping,
+    type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
 import { count, formatNumber, valueText } from "../inspector/words";
@@ -366,8 +367,8 @@ function formatWord(source: LoadedSource): string {
  * @returns such as "Id" or "symbol".
  */
 function graphValueWord(graph: string): string {
-    const plain = graph.replace(/^data\./, "");
-    return plain === graph && graph !== "" ? `${graph.charAt(0).toUpperCase()}${graph.slice(1)}` : plain;
+    const parts = pathParts(graph);
+    return parts?.from === "data" ? parts.column : `${graph.charAt(0).toUpperCase()}${graph.slice(1)}`;
 }
 
 /** What a load's details say besides its own entry. */

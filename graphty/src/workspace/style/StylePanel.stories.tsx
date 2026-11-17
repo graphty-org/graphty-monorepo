@@ -10,6 +10,9 @@ import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { sampleTile } from "../../test/sample-tile";
 import { siteFeatures } from "../../test/siteFeatures";
+import { PATH_ALGORITHM } from "../analyze/PathForm";
+import { startAlgorithm } from "../analyze/run";
+import { wordsFor } from "../analyze/words";
 import { Workspace } from "../Workspace";
 import policeUrl from "./__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
@@ -22,7 +25,7 @@ type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 interface Scene {
     readonly element: GraphtyElement;
     readonly session: GraphSession;
-    /** The layer name of each run's first layer, by algorithm. */
+    /** The layer name of each run's first layer, by algorithm; for Louvain, its folder's name. */
     readonly runs: Readonly<Record<"degree" | "louvain" | "edge-betweenness" | "shortest-path", string>>;
 }
 
@@ -55,8 +58,8 @@ async function panelsPlaced(): Promise<void> {
  * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
  * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
  * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
- * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain with
- * community 3 given its own color; Edge betweenness; Degree.
+ * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain's folder of
+ * group layers; Edge betweenness; Degree. Each run starts as the app's Analyze starts it.
  * Each story then reaches its own state by real input.
  * @param canvasElement - the story's root.
  * @returns the scene.
@@ -99,9 +102,24 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     });
     await session.styles.moveRow(key.id, { parent: folder.id, index: 0 });
 
+    // Each run starts as the app starts it (analyze/run.ts): Analyze's Run for the measures and
+    // Louvain, whose groups become a folder of layers, and the Path form's start for the route.
     const run = async (algorithm: keyof Scene["runs"], params: Record<string, unknown> = {}): Promise<string> => {
-        const { runId } = await session.runs.start(algorithm, params);
+        const descriptor = session.catalog.algorithms().find((d) => d.key === algorithm);
+        if (descriptor === undefined) {
+            throw new Error(`graphty-element has no ${algorithm}`);
+        }
+        const { name } = wordsFor(descriptor);
+        const { runId } = await (algorithm === PATH_ALGORITHM
+            ? session.runs.start(algorithm, params, { style: { name } })
+            : startAlgorithm(session, descriptor, params));
         await session.styles.settled();
+        if (algorithm === "louvain") {
+            await within(page().getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+                name: new RegExp(`^${name}, folder, `),
+            });
+            return name;
+        }
         const layer = session.runs
             .bindings(runId)
             .map((id) => session.styles.get(id))
@@ -115,18 +133,6 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     const degree = await run("degree");
     const betweenness = await run("edge-betweenness");
     const louvain = await run("louvain");
-    const louvainLayer = session.styles.list().find((l) => l.name === louvain && l.encode?.["node.color"]);
-    const three =
-        louvainLayer && session.styles.categories(louvainLayer.id, "node.color").find((c) => String(c.value) === "3");
-    if (louvainLayer === undefined || three === undefined) {
-        throw new Error("Louvain drew no community 3");
-    }
-    await session.styles.setValueEntry(
-        louvainLayer.id,
-        "node.color",
-        three.value as string | number | boolean,
-        "#00AA00",
-    );
     const route = await run("shortest-path", { source: idOf("Myriel"), target: idOf("Marius") });
     await session.styles.settled();
     await element.waitForStableFrame();
@@ -435,20 +441,53 @@ export const DegreeRamp: Story = sceneStory(async ({ runs }) => {
     await openColorBinding(tab);
 });
 
-/** Louvain's category rows with community 3 recolored, and its menu open on "New layer for 3". */
-export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
-    const tab = await openStyle(runs.louvain);
+/**
+ * Builds a layer that colors every node by its Louvain community, the way a reader does: a blank
+ * layer on nodes whose Fill is bound to Louvain's result (the binding the element proposes, as the
+ * value picker writes it), with community 3 given its own color. Analyze's Run never makes this
+ * one layer of per-group values -- it makes the Louvain folder of group layers -- so the stories
+ * showing a binding's group rows build it.
+ * @param session - the element's session.
+ * @returns the layer's name.
+ */
+async function communitiesLayer(session: GraphSession): Promise<string> {
+    const louvain = session.runs.list().find((r) => r.algorithm === "louvain");
+    if (louvain === undefined) {
+        throw new Error("the scene has no Louvain run");
+    }
+    const proposal = session.styles.proposeEncoding({ run: louvain.id, channel: "node.color" });
+    if (!proposal.ok) {
+        throw new Error("graphty-element proposes no color binding for Louvain");
+    }
+    const layer = await session.styles.add({
+        name: "Communities",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.color": proposal.binding },
+    });
+    const three = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === "3");
+    if (three === undefined) {
+        throw new Error("Louvain drew no community 3");
+    }
+    await session.styles.setValueEntry(layer.id, "node.color", three.value as string | number | boolean, "#00AA00");
+    await session.styles.settled();
+    return layer.name;
+}
+
+/** A layer colored by Louvain's community: its category rows with community 3 recolored, and its menu open on "New layer for 3". */
+export const LouvainCategories: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     await userEvent.click(within(popover).getByRole("button", { name: /Group 3 actions$/ }));
     await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
 });
 
 /**
- * A Louvain group's detail, opened by a click on its row: Name, its color, and a shape set for it
+ * A Louvain group's detail on the layer colored by community, opened by a click on its row: Name, its color, and a shape set for it
  * alone through "+ Set another property" (any property per group, not only color).
  */
-export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
-    const tab = await openStyle(runs.louvain);
+export const LouvainGroupDetail: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     const name = popover.querySelector<HTMLElement>("[data-group-name]");
     if (name === null) {
@@ -468,11 +507,11 @@ export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
 });
 
 /**
- * Louvain's Shape row after one group was given a box: the one shape every other group keeps,
+ * The Shape row of the layer colored by Louvain's community after one group was given a box: the one shape every other group keeps,
  * and a second line naming the group that differs.
  */
-export const LouvainShapeForOneGroup: Story = sceneStory(async ({ runs, session }) => {
-    const tab = await openStyle(runs.louvain);
+export const LouvainShapeForOneGroup: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     const name = popover.querySelector<HTMLElement>("[data-group-name]");
     if (name === null) {
@@ -905,9 +944,9 @@ export const DegreeValues: Story = sceneStory(async ({ runs }) => {
     await page().findByTestId("values-spread", {});
 });
 
-/** Louvain's Values: its groups, largest first. */
-export const LouvainValues: Story = sceneStory(async ({ runs }) => {
-    await clickRow(runs.louvain);
+/** Values of the layer colored by Louvain's community: its groups, largest first. */
+export const LouvainValues: Story = sceneStory(async ({ session }) => {
+    await clickRow(await communitiesLayer(session));
     await clickTab("Values");
     await page().findByText("Groups, largest first", {});
 });

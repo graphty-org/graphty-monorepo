@@ -23,8 +23,8 @@ import {
     beneathOf,
     EVERYTHING_LAYER,
     everythingRow,
+    hiddenByOf,
     type NewLayer,
-    paintedOverOf,
     rowLayers,
     selectedLayerRow,
     sourceName,
@@ -453,7 +453,7 @@ export function RowStyle({
     // A selection's row not written yet paints the selection: read beneath over it.
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
-    const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
+    const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {
         const ctx: RowContext = {
@@ -463,7 +463,7 @@ export function RowStyle({
             layers: rowLayers(session, row, side),
             fresh,
             beneath,
-            paintedOver,
+            hiddenBy,
             documentColors: colors,
             ...many?.(side),
         };

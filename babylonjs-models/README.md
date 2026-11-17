@@ -63,6 +63,10 @@ Options: `main` (which file is the model, when a set holds several), `format`, `
 or `.mtl` files to load without), `limits`, `signal`, `pluginOptions` (Babylon's loader options by
 plugin, such as `{ gltf: { animationStartMode: 0 } }`) and `keepCamerasAndLights` (default true).
 
+A material that drew its color from a picture loaded without (`skipped` or `withoutPictures`) has
+no look of its own left; `drawsWithoutPicture(material)` says so, so you can draw that part in a
+color of your own.
+
 ## Check files without Babylon.js
 
 ```ts

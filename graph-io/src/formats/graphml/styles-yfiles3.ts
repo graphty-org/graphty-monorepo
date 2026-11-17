@@ -1089,7 +1089,7 @@ function readGroupPanel(
     const position = treeAttr(style.e, "tabPosition") ?? "TOP";
     // its corners rounded by `cornerRadius`, 4 unset, collapsed or not (yed-live-graphml-specimen-groups-p2.svg:
     // arcs of 4, of 12 for corner-radius-12, none for corner-radius-0)
-    putRounded(treeAttr(style.e, "cornerRadius"), GROUP_CORNER_RADIUS, put, at);
+    const radius = putRounded(treeAttr(style.e, "cornerRadius"), GROUP_CORNER_RADIUS, put, at);
     putGroupIcon(refs, style, size, collapsed, position, put, at);
     if (collapsed) {
         putPaint(tabFill, "fill", "fillOpacity", put, at);
@@ -1097,6 +1097,7 @@ function readGroupPanel(
     }
     putPaint(paintOf(refs, prop(style, "contentAreaFill") ?? "#FFFFFFFF", null), "fill", "fillOpacity", put, at);
     if (position === "NONE") {
+        putUntabbedPanel(size, radius, put);
         return;
     }
     putPaint(tabFill, "stripeColors", null, put, at);
@@ -1106,6 +1107,23 @@ function readGroupPanel(
         return Number((depth / (i % 2 === 0 ? size.height : size.width)).toFixed(6));
     });
     put("stripeFrame", insets.join(" "));
+}
+
+/**
+ * Draws an open GroupNodeStyle with no tab as yEd Live 8.5.16 does: its panel alone, `GROUP_FRAME` in from every side
+ * of its box (yed-live-graphml-specimen-groups `tab-position-none`, stored 150 x 80 and drawn 142 x 72), its corners
+ * rounded as a tabbed group's panel is: 2 inside a corner of 4, 8 inside one of 12 (`-p2` `corner-radius-12`).
+ * ponytail: the panel's radius is fitted to those two corners, max(r - 4, r / 2); measure another to refine it.
+ * @param size - the group's stored size
+ * @param radius - its outline's corner radius, or null where it is not a number
+ * @param put - receives the values
+ */
+function putUntabbedPanel(size: Size, radius: number | null, put: PutValue): void {
+    put("width", Math.max(size.width - 2 * GROUP_FRAME, 0));
+    put("height", Math.max(size.height - 2 * GROUP_FRAME, 0));
+    if (radius !== null && radius > 0) {
+        put("cornerRadius", Math.max(radius - GROUP_FRAME, radius / 2));
+    }
 }
 
 /**

@@ -1,12 +1,12 @@
 /**
- * The error class and the closed code set of @graphty/webgpu-graph-algorithms (spec 3.3, 5.7; contract 3.1).
+ * The error class and the closed code set of @graphty/webgpu-graph-algorithms.
  *
  * Every condition the package detects itself is thrown as a WebGpuGraphError carrying a stable `code` and a
  * frozen shallow copy of the `details` the thrower supplied. Errors raised by @graphty/graph-format accessors
- * the package calls on the caller's behalf pass through unchanged (D12); PASSTHROUGH_FORMAT_CODES lists the
+ * the package calls on the caller's behalf pass through unchanged; PASSTHROUGH_FORMAT_CODES lists the
  * codes a public call may let escape. Constructors never throw. Messages are plain ASCII.
  *
- * `details` keys per code (contract 3.1, so tests can assert them): E_NO_WEBGPU { reason, hint };
+ * `details` keys per code (stable, so callers and tests can rely on them): E_NO_WEBGPU { reason, hint };
  * E_NO_ADAPTER { reason }; E_NO_DEVICE { reason, adapter, limit?, requested?, available? } (reason "consumed" |
  * "requestDevice" | "limit" | "feature" | "maxComputeWorkgroupsPerDimension"); E_SOFTWARE_ONLY { adapter };
  * E_DEVICE_LOST { reason, message }; E_DEVICE_INCORRECT { check, where, expected, actual, poison, count, blocks,
@@ -17,7 +17,7 @@
  * E_RELEASED { serial }; E_NOT_LOADED { state }; E_ABORTED { batchId? }.
  */
 
-/** Every condition the package detects itself carries one of these codes (spec 3.3). */
+/** Every condition the package detects itself carries one of these codes. */
 export type WebGpuGraphErrorCode =
     | "E_NO_WEBGPU"
     | "E_NO_ADAPTER"
@@ -37,7 +37,7 @@ export type WebGpuGraphErrorCode =
     | "E_NOT_LOADED"
     | "E_ABORTED";
 
-/** The graph-format error codes a public call lets propagate unchanged (D12, spec 5.7): raised by accessors the package calls on the caller's behalf. */
+/** The graph-format error codes a public call lets propagate unchanged: raised by accessors the package calls on the caller's behalf. */
 export const PASSTHROUGH_FORMAT_CODES: readonly [
     "E_GPU_INELIGIBLE",
     "E_UNKNOWN_NODE",
@@ -47,7 +47,7 @@ export const PASSTHROUGH_FORMAT_CODES: readonly [
 
 const EMPTY_DETAILS: Readonly<Record<string, unknown>> = Object.freeze({});
 
-/** The one error class the package throws for conditions it detects itself: a stable `code` and frozen `details` (spec 3.3). */
+/** The one error class the package throws for conditions it detects itself: a stable `code` and frozen `details`. */
 export class WebGpuGraphError extends Error {
     /** The stable code. */
     readonly code: WebGpuGraphErrorCode;

@@ -313,7 +313,7 @@ describe("per-tool readers", () => {
 
     it("Gephi: reads circles, labels and flattened arcs from its SVG export", async () => {
         const { sceneFromGephi, svgPathPoints } = await load<{
-            sceneFromGephi: (svg: string, items: unknown) => SceneParts;
+            sceneFromGephi: (svg: string, items: unknown, positioned?: boolean) => SceneParts;
             svgPathPoints: (d: string) => Pt[];
         }>("gephi.mjs");
         const arc = svgPathPoints("M 0,0 A 10,10 0,0 1,20,0");
@@ -341,7 +341,12 @@ describe("per-tool readers", () => {
             width: 2,
             arrow: { target: "filled-triangle" },
         });
-        expect(s.gaps[0].property).toBe("labelText");
+        // node 2 has no text (overlap avoidance hid it): judged as no label where the file stores every position
+        expect(s.nodes[1].label).toBeNull();
+        expect(s.gaps).toEqual([]);
+        // elsewhere Gephi hid it at a place it chose itself
+        const unplaced = sceneFromGephi(svg, { edge: [{ _src: "1", _dst: "2", directed: "true" }] }, false);
+        expect(unplaced.gaps.map((g) => g.property)).toEqual(["labelText"]);
     });
 
     it("Gephi: leaves self-loops out and gives a node its id with spaces, as the items dump keeps it", async () => {
@@ -387,6 +392,19 @@ describe("per-tool readers", () => {
             [0, 0],
             [50, 40],
             [100, 0],
+        ]);
+    });
+
+    it("Cytoscape desktop: numbers parallel edges in SUID order, not the view's topology order", async () => {
+        const { cyrestIds } = await load<{
+            cyrestIds: (t: unknown) => { edges: Map<string, string> };
+        }>("cyrest.mjs");
+        const node = (suid: number, name: string) => ({ data: { SUID: suid, name } });
+        const edge = (suid: number) => ({ data: { SUID: suid, source: "1", target: "2" } });
+        const topology = { elements: { nodes: [node(1, "a"), node(2, "b")], edges: [edge(21), edge(20)] } };
+        expect([...cyrestIds(topology).edges]).toEqual([
+            ["20", "a->b"],
+            ["21", "a->b#1"],
         ]);
     });
 

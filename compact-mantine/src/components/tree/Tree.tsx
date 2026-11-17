@@ -235,7 +235,7 @@ function RowProgress({
     }
     const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
     return (
-        <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
+        <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a 2px bar inside the row, drawn the same when indeterminate
             className="cm-tree-progress"
             role="progressbar"
             aria-label={name}

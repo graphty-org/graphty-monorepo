@@ -132,7 +132,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
         });
     }
     return (
-        <div // NOSONAR(S6848): only catches the "/" key bubbling from the panel's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the "/" key bubbling from the panel's own controls
             onKeyDown={onKeyDown}
         >
             <section className="ws-style-group" data-group={ctx.side} data-style-parts="">

@@ -8,7 +8,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { Graphty } from "../../index.js";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 const GRAPH = JSON.stringify({
     nodes: [{ id: "1" }, { id: "2" }, { id: "3" }],
@@ -18,32 +18,11 @@ const GRAPH = JSON.stringify({
     ],
 });
 
-const mounted: HTMLElement[] = [];
-
-afterEach(() => {
-    for (const element of mounted.splice(0)) {
-        element.remove();
-    }
-});
-
-/**
- * A connected element, after its first update.
- * @returns the element
- */
-async function mount(): Promise<Graphty> {
-    const element = document.createElement("graphty-element");
-    element.style.display = "block";
-    element.style.width = "400px";
-    element.style.height = "300px";
-    document.body.appendChild(element);
-    mounted.push(element);
-    await element.updateComplete;
-    return element;
-}
+afterEach(unmountElements);
 
 describe("load draft on the element", () => {
     it("prepares and reports without loading, then loads the held rows", async () => {
-        const element = await mount();
+        const element = await mountElement();
         const { session } = element;
 
         const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
@@ -66,7 +45,7 @@ describe("load draft on the element", () => {
     });
 
     it("draws the nodes an edge table names when the load has no node rows", async () => {
-        const element = await mount();
+        const element = await mountElement();
         const { session } = element;
         const csv = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,1\n";
 

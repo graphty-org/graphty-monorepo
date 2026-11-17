@@ -2774,6 +2774,60 @@ export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
  */
 export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "to-drawn", "wcc-sample"]);
 
+/** Every table of mutation rows; test/sabotage/coverage.test.ts checks each row of each one. */
+export const SABOTAGE_TABLES: readonly Readonly<Partial<Record<KernelId, readonly Mutation[]>>>[] = Object.freeze([
+    SABOTAGE,
+    SABOTAGE_P3_ADDENDUM,
+    SABOTAGE_P5,
+    SABOTAGE_P4_TIERS,
+    SABOTAGE_P4_LAW,
+]);
+
+/**
+ * The ways the rows of the given tables are malformed, one message per problem (empty when every row is well
+ * formed): a `find` string that is absent from or not unique in the kernel's normative body, a `replace` equal to its
+ * `find`, a `minFactor` below 10, a `test` that is not a path under test/ ending in .test.ts, or a name used twice for
+ * one kernel across all the tables. Whether the named test file exists is the caller's check (it needs node:fs).
+ * @param tables - the tables to check together
+ * @returns the problems, each prefixed with `<kernel>/<row name>`
+ */
+export function validateSabotageTables(
+    tables: readonly Readonly<Partial<Record<KernelId, readonly Mutation[]>>>[],
+): string[] {
+    const problems: string[] = [];
+    const names = new Map<KernelId, Set<string>>();
+    for (const table of tables) {
+        for (const [id, rows] of Object.entries(table) as [KernelId, readonly Mutation[]][]) {
+            const { body } = KERNELS[id];
+            const taken = names.get(id) ?? new Set<string>();
+            names.set(id, taken);
+            for (const m of rows) {
+                const where = `${id}/${m.name}`;
+                if (taken.has(m.name)) {
+                    problems.push(`${where}: name used twice for this kernel`);
+                }
+                taken.add(m.name);
+                const first = body.indexOf(m.find);
+                if (first < 0) {
+                    problems.push(`${where}: find string absent from the body`);
+                } else if (body.includes(m.find, first + m.find.length)) {
+                    problems.push(`${where}: find string not unique`);
+                }
+                if (m.replace === m.find) {
+                    problems.push(`${where}: replace equals find`);
+                }
+                if (!(m.minFactor >= 10)) {
+                    problems.push(`${where}: minFactor ${m.minFactor} is below 10`);
+                }
+                if (!/^test\/.+\.test\.ts$/.test(m.test)) {
+                    problems.push(`${where}: test ${m.test} is not a test file under test/`);
+                }
+            }
+        }
+    }
+    return problems;
+}
+
 /**
  * The mutated body (throws when `find` is absent or not unique in the normative body).
  * @param id - the kernel

@@ -331,7 +331,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                         <AddButton
                             kind={ctx.side}
                             title={spec.title}
-                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
+                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap((d) => optionsFor(d))}
                             disabledReason={notAvailable(ctx, spec) ?? undefined}
                             onAdd={(key) => {
                                 if (key.startsWith(ITEM_KEY)) {
@@ -575,7 +575,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         store.set({ announcement: `${name} added` });
     };
     return (
-        <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"
@@ -711,16 +711,22 @@ function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): 
     );
 }
 
-/** One thing a section's "+" can add: its key and its name in the menu. */
+/**
+ * One thing a section's "+" can add: its key and its name in the menu, or, with `choices`, a
+ * submenu whose items are what is added.
+ */
 export interface AddOption {
     readonly key: string;
     readonly label: string;
+    readonly choices?: readonly AddOption[];
+    /** Words drawn at the item's end, such as how many values will not convert. */
+    readonly detail?: string;
 }
 
 /**
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
  * and edges never has two controls with one name: a menu of what it can still add, or, with one
- * thing left, a button that adds it. With nothing
+ * thing left, a button that adds it. An option with choices opens a submenu of them. With nothing
  * left it stays in place, disabled, saying so in its tooltip on hover, and is no Tab stop: a "+"
  * that adds nothing is a dead stop on a keyboard walk, and the lines it would add are already
  * there, each one a stop of its own.
@@ -774,7 +780,7 @@ export function AddButton({
         return <Tooltip label={reason}>{button}</Tooltip>;
     }
     const [only] = options;
-    if (options.length === 1) {
+    if (options.length === 1 && only.choices === undefined) {
         // A menu of one item is one more click for nothing: the "+" adds it. Its tooltip is its
         // name, so a reader who hovers it and one who hears it meet one name. One that opens a
         // gallery says it opens one, and whether it is open.
@@ -797,16 +803,29 @@ export function AddButton({
                 <TargetTooltip label={name}>{button}</TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
-                {options.map((option) => (
-                    <Menu.Item
-                        key={option.key}
-                        onClick={() => {
-                            onAdd(option.key);
-                        }}
-                    >
-                        {option.label}
-                    </Menu.Item>
-                ))}
+                {options.map((option) => {
+                    const item = (each: AddOption): React.JSX.Element => (
+                        <Menu.Item
+                            key={each.key}
+                            rightSection={each.detail}
+                            onClick={() => {
+                                onAdd(each.key);
+                            }}
+                        >
+                            {each.label}
+                        </Menu.Item>
+                    );
+                    return option.choices === undefined ? (
+                        item(option)
+                    ) : (
+                        <Menu.Sub key={option.key}>
+                            <Menu.Sub.Target>
+                                <Menu.Sub.Item>{option.label}</Menu.Sub.Item>
+                            </Menu.Sub.Target>
+                            <Menu.Sub.Dropdown>{option.choices.map((each) => item(each))}</Menu.Sub.Dropdown>
+                        </Menu.Sub>
+                    );
+                })}
             </Menu.Dropdown>
         </Menu>
     );

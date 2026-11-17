@@ -14,21 +14,9 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
 import { type ColumnHandle, type ExtensionHandle } from "../../src/types/index.js";
+import { thrownCode } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 describe("audit: dispose()", () => {
     it("is idempotent, keeps every snapshot usable and refuses every method afterwards", () => {
@@ -42,17 +30,17 @@ describe("audit: dispose()", () => {
         expect(s.nodes.value("x", 0)).toBe(1);
         expect(s.edgeCount).toBe(1);
         assertInvariants(s);
-        expect(code(() => b.freeze())).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.freeze({ release: true }))).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.freezeWithReport({ profile: true }))).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.addNode("a"))).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.removeNode("a"))).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.hasEdge(0))).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.byteLength())).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.clear())).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.freeze())).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.freeze({ release: true }))).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.freezeWithReport({ profile: true }))).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.addNode("a"))).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.removeNode("a"))).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.hasEdge(0))).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.byteLength())).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.clear())).toBe("E_BUILDER_DISPOSED");
         // a builder seeded from the disposed builder's snapshot is fully independent of it
         const seeded = GraphBuilder.from(s);
-        expect(code(() => seeded.addGraph(s, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
+        expect(thrownCode(() => seeded.addGraph(s, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
         expect(seeded.freeze().ids.toArray()).toEqual(["a", "b"]);
     });
 
@@ -64,12 +52,12 @@ describe("audit: dispose()", () => {
         b.dispose();
         // design 6.1: dispose() "makes every further call throw E_BUILDER_DISPOSED"; a getter that
         // returns 0 nodes and dirty === true describes a builder that no longer exists
-        expect(code(() => b.nodeCount)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.edgeCount)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.nodeBound)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.edgeBound)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.dirty)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.mutationCount)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.nodeCount)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.edgeCount)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.nodeBound)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.edgeBound)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.dirty)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.mutationCount)).toBe("E_BUILDER_DISPOSED");
     });
 });
 
@@ -104,12 +92,12 @@ describe("audit: freeze({ release: true })", () => {
         expect(b.options.weightDtype).toBe("f64");
         expect(b.nodeColumn("kind")).toBe(INVALID_INDEX);
         expect(b.edgeColumn("tag")).toBe(INVALID_INDEX);
-        expect(code(() => b.setNodeValue(kind, 0, "y"))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.addExtensionRow(t, [2]))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.setDirected(false))).toBe("E_DIRECTED");
+        expect(thrownCode(() => b.setNodeValue(kind, 0, "y"))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.addExtensionRow(t, [2]))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.setDirected(false))).toBe("E_DIRECTED");
         // the second freeze is a fresh, empty graph that still carries the graph-level state
         b.addNode("z");
-        expect(code(() => b.setNodeValue(kind, 0, "y"))).toBe("E_UNKNOWN_COLUMN");
+        expect(thrownCode(() => b.setNodeValue(kind, 0, "y"))).toBe("E_UNKNOWN_COLUMN");
         const next = b.freezeWithReport();
         assertInvariants(next.snapshot);
         expect(next.report.nodeRemap).toBeNull();
@@ -151,12 +139,12 @@ describe("audit: freeze options are validated, never silently substituted", () =
         b.addEdge("a", "b", 1);
         b.addEdge("a", "b", 2);
         // the constructor refuses the same value
-        expect(code(() => new GraphBuilder({ directed: true, duplicateEdges: "bogus" as never }))).toBe(
+        expect(thrownCode(() => new GraphBuilder({ directed: true, duplicateEdges: "bogus" as never }))).toBe(
             "E_UNSUPPORTED",
         );
         const before = b.freeze();
         expect(before.edgeCount).toBe(2);
-        expect(code(() => b.freeze({ duplicateEdges: "bogus" as never }))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => b.freeze({ duplicateEdges: "bogus" as never }))).toBe("E_UNSUPPORTED");
         // nothing merged, nothing rewritten
         expect(b.edgeCount).toBe(2);
         expect(b.freeze().edgeCount).toBe(2);
@@ -167,7 +155,7 @@ describe("audit: freeze options are validated, never silently substituted", () =
         b.addEdge("a", "b");
         b.addEdge("b", "c");
         b.removeNode("c");
-        expect(code(() => b.freeze({ prepare: ["nope" as never] }))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => b.freeze({ prepare: ["nope" as never] }))).toBe("E_UNSUPPORTED");
         expect(b.nodeBound).toBe(3);
         expect(b.edgeBound).toBe(2);
         expect(b.dirty).toBe(true);
@@ -211,7 +199,7 @@ describe("audit: merging freezes and the builder's declared options", () => {
         expect(b.options.weighted).toBe(false);
         // design 12.2 / STATUS: weighted: false means no arc weight array; the builder refuses any
         // weight other than 1, so it cannot also hold a weight of 2 for edge 0
-        expect(code(() => b.addEdge("a", "c", 2))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdge("a", "c", 2))).toBe("E_INVALID_WEIGHT");
         expect(b.edgeWeight(0)).toBe(1);
         expect(s.weights).toBeNull();
         expect(s.flags.weighted).toBe(false);
@@ -251,7 +239,7 @@ describe("audit: composition calls are atomic on failure (design 11.1)", () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("c");
         const mutations = b.mutationCount;
-        expect(code(() => b.addGraph(incoming, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
+        expect(thrownCode(() => b.addGraph(incoming, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
         expect(b.nodeCount).toBe(1);
         expect(b.nodeBound).toBe(1);
         expect(b.hasNode("a")).toBe(false);

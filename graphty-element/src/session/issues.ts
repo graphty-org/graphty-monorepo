@@ -26,7 +26,7 @@ import type { EdgeRecord, NodeRecord } from "./types";
  * (`"decimal-comma:edge:amount"`) or the kind of row (`"repeated-id:node"`).
  * @since 3.30.0
  */
-export type IssueId = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
+export type IssueId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a named public type in the API report; removing it breaks consumers
 
 /**
  * What kind of problem an issue is.
@@ -271,7 +271,7 @@ export function withLoadFacts(state: IssueState | undefined, key: SourceKey, fac
 function pairKey(source: NodeId, target: NodeId, directed: boolean): string {
     const ends = [String(source), String(target)];
     if (!directed) {
-        ends.sort(); // NOSONAR(S2871): code-unit order is the point: a locale-free key for the pair
+        ends.sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order is the point: a locale-free key for the pair
     }
     return JSON.stringify(ends);
 }

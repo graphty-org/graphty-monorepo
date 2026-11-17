@@ -312,6 +312,36 @@ const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async
 };
 
 /**
+ * Click the first element `selector` names with the real mouse and leave the file picker it opens
+ * open, as a reader still looking through the browser's dialog. Playwright's handle on the picker's
+ * input is let go at once, so nothing outside the page keeps that input alive.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the control that opens the picker, inside the test frame
+ */
+const openFileChooser: BrowserCommand<[selector: string]> = async (ctx, selector) => {
+    const frame = await ctx.frame();
+    const [chooser] = await Promise.all([
+        ctx.page.waitForEvent("filechooser"),
+        frame.locator(selector).first().click(),
+    ]);
+    await chooser.element().dispose();
+};
+
+/**
+ * Runs a full garbage collection in the page, as the browser would on its own at some later time:
+ * what nothing on the page holds is freed now.
+ * @param ctx - the browser command context
+ */
+const collectGarbage: BrowserCommand<[]> = async (ctx) => {
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    try {
+        await cdp.send("HeapProfiler.collectGarbage");
+    } finally {
+        await cdp.detach();
+    }
+};
+
+/**
  * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
  * browser projects load that setup file, so both register the same commands.
  */
@@ -330,6 +360,8 @@ const browserCommands = {
     accessibilityTree,
     dropFiles,
     chooseFiles,
+    collectGarbage,
+    openFileChooser,
 };
 
 // Bundled before a browser run starts, whatever Vite's deps cache holds. A cache an earlier run left

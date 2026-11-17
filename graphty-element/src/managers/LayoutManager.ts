@@ -950,6 +950,10 @@ export class LayoutManager implements Manager {
             this.onRest?.();
         }
 
+        if (this.layoutEngine) {
+            layoutEngineInternals.rest(this.layoutEngine, !next);
+        }
+
         // The bridge closes its work span once a stopped layout's batches have landed, so a status
         // chip does not read "active" while nothing is being submitted.
         if (this.layoutEngine instanceof SimulationLayoutEngine) {

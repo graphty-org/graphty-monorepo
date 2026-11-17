@@ -148,6 +148,31 @@ describe("layout engines and the element-owned position array", () => {
         assert.deepEqual(simpleLayoutInternals.publishHeld(layout), { scratch: 0, result: true });
     });
 
+    it("lets a simulation's publish scratch go while it rests, and makes it again on resume", () => {
+        // A simulation still moving: only the element's stop tells it nothing more is coming.
+        class Moving extends NGraphEngine {
+            override get isSettled(): boolean {
+                return false;
+            }
+        }
+        const layout = new Moving({ seed: 7 });
+        layoutEngineInternals.attachPositions(layout, new ElementPositions(0));
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1), node("c", 2)]);
+        layout.step();
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 12, "running: kept for the next frame");
+
+        layoutEngineInternals.rest(layout, true);
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 0, "stopped: let go");
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 0, "a publish while stopped keeps none");
+
+        layoutEngineInternals.rest(layout, false);
+        layout.step();
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 12, "resumed: made again");
+    });
+
     it("counts a column publish that moves nothing as no change, for the undo history", () => {
         const positions = new ElementPositions(0);
         const layout = new ScriptedLayout({});

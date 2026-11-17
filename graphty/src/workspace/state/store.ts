@@ -315,6 +315,8 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
+    /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
+    readonly analyzeValues: Readonly<Record<string, unknown>> | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -440,6 +442,7 @@ export const ON_RELOAD = {
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
+    analyzeValues: "fresh: set when a result's Run again with changes... opens Analyze",
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
@@ -550,6 +553,7 @@ const INITIAL: WorkspaceState = {
     exportSource: null,
     serverKind: null,
     analyzeOn: null,
+    analyzeValues: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,

@@ -1286,6 +1286,72 @@ class Result implements RunResult {
     }
 
     /**
+     * The result as tab-separated text at full stored precision.
+     * @returns The text.
+     */
+    toTsv(): string {
+        const cell = (value: unknown): string => {
+            if (value === undefined || value === null) {
+                return "";
+            }
+            const text =
+                typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                    ? String(value)
+                    : JSON.stringify(value);
+            return text.replaceAll(/[\t\r\n]/g, " ");
+        };
+        const perElement = (kind: "node" | "edge"): string[] =>
+            this.fields.filter((field) => field.kind === kind && field.type !== "table").map((field) => field.name);
+        const halves = (["node", "edge"] as const)
+            .map((kind) => ({ kind, names: perElement(kind) }))
+            .filter((half) => half.names.length > 0);
+        if (halves.length === 0) {
+            const names = this.fields
+                .filter((field) => field.kind === "graph" && field.type !== "table")
+                .map((field) => field.name);
+            return [names.join("\t"), names.map((name) => cell(this.graph[name])).join("\t")].join("\n");
+        }
+
+        const names = [...new Set(halves.flatMap((half) => half.names))];
+        const both = halves.length > 1;
+        const lines = [[...(both ? ["kind"] : []), "id", ...names].join("\t")];
+        for (const { kind } of halves) {
+            for (const id of this.elementIds(kind)) {
+                const record = recordOf(kind === "node" ? this.#nodes : this.#edges, id) ?? {};
+                lines.push([...(both ? [kind] : []), cell(id), ...names.map((name) => cell(record[name]))].join("\t"));
+            }
+        }
+
+        return lines.join("\n");
+    }
+
+    /**
+     * The ids of the elements the result picks out.
+     * @returns The ids.
+     */
+    memberIds(): readonly NodeId[] {
+        const flagged = (table: ElementTable, field: string): NodeId[] => {
+            const ids: NodeId[] = [];
+            for (let position = 0; position < table.length; position++) {
+                if (valueAt(table, field, position) === true) {
+                    ids.push(table.index.idOf(position));
+                }
+            }
+            return ids;
+        };
+        switch (this.shape) {
+            case "node-set":
+                return flagged(this.#nodes, "in");
+            case "edge-set":
+                return flagged(this.#edges, "in");
+            case "path":
+                return [...flagged(this.#nodes, "onPath"), ...flagged(this.#edges, "onPath")];
+            default:
+                return [...this.elementIds("node"), ...this.elementIds("edge")];
+        }
+    }
+
+    /**
      * The descriptor of one numeric per-element field, without complaining when there is none.
      *
      * A summary asks this rather than {@link Result.#descriptorFor} because a summary must not

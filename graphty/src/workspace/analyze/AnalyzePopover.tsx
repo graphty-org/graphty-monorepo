@@ -53,6 +53,8 @@ interface AnalyzePopoverProps {
     initialPick?: string;
     /** The filter text to open with, for a story. */
     initialFilter?: string;
+    /** The settings to open the picked algorithm with, such as a result's own. */
+    initialValues?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -69,6 +71,7 @@ interface AnalyzePopoverProps {
  * @param props.onStarted - Called with a run's name as it starts
  * @param props.initialPick - An algorithm to open on
  * @param props.initialFilter - The filter text to open with
+ * @param props.initialValues - The settings to open the picked algorithm with
  * @param props.onPathStarted - Called with a path search's run as it starts
  * @param props.path - Open straight on the Path form
  * @returns The popover's body
@@ -82,6 +85,7 @@ export function AnalyzePopover({
     path = false,
     initialPick,
     initialFilter = "",
+    initialValues,
 }: Readonly<AnalyzePopoverProps>): React.JSX.Element {
     const algorithms = session.catalog.algorithms();
     // The approved prototype: a calm list of names, the chosen row with its settings at its end, Run
@@ -93,7 +97,7 @@ export function AnalyzePopover({
     const [chosen, setChosen] = useState<AlgorithmDescriptor | undefined>(() =>
         algorithms.find((a) => a.key === initialPick && a.key !== PATH_ALGORITHM),
     );
-    const [values, setValues] = useState<Record<string, unknown>>({});
+    const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...initialValues }));
     // The entry ArrowUp/Down moved to; null follows the filter (its first match, or none).
     const [moved, setMoved] = useState<number | null>(null);
     const listId = useId();

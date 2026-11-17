@@ -39,13 +39,13 @@ import {
     usePopoutManager,
     usePopoutRegion,
 } from "../../../src";
-import { LabelSettingsPopout } from "../../../src/components/popout/examples/LabelSettingsPopout";
 import { PopoutAnchor } from "../../../src/components/popout/PopoutAnchor";
 import { PopoutPanel } from "../../../src/components/popout/PopoutPanel";
 import { PopoutTrigger } from "../../../src/components/popout/PopoutTrigger";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { waitForSettledLayout } from "../../helpers/settled";
+import { LabelSettingsPopout } from "./LabelSettingsPopout";
 
 // Components come from "../../../src", the package's published entry point, so a story stops
 // compiling if an export is dropped. The parts reached as `Popout.Panel`, `Popout.Trigger` and

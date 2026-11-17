@@ -452,3 +452,14 @@ describe("integer ids in the integer-id formats", () => {
         }
     });
 });
+
+describe("graphtyKatzCentrality with no alpha", () => {
+    it("converges on Les Miserables, where an alpha of 0.1 diverges", async () => {
+        const cy = core();
+        await cy.graphtyDataset("les-miserables");
+        expect(() => cy.elements().graphtyKatzCentrality({ alpha: 0.1 })).toThrow(/converge/i);
+        const katz = cy.elements().graphtyKatzCentrality();
+        // Valjean co-appears with the most characters, so he has the top score
+        expect(katz.score("#Valjean")).toBe(1);
+    });
+});

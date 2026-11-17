@@ -263,7 +263,7 @@ describe("touchesPackage and readWorkspace", () => {
         expect(touchesPackage(["graph-io/src/a.ts"], "graphty-element", WS)).toBe(false);
         expect(touchesPackage(["graph-format/src/a.ts"], "graphty-element", WS)).toBe(true);
         expect(touchesPackage(["design/x.md", "graphty-element/README.md"], "graphty-element", WS)).toBe(false);
-        expect(touchesPackage(["vitest.shared.config.ts"], "graph-io", WS)).toBe(true);
+        expect(touchesPackage(["vitest.base.mjs"], "graph-io", WS)).toBe(true);
         expect(touchesPackage(null, "graph-io", WS)).toBeNull();
         expect(touchesPackage(["a"], null, WS)).toBeNull();
     });

@@ -1,12 +1,12 @@
 import { Box, Button, Checkbox, Select, Slider, Stack, Text } from "@mantine/core";
 import { type JSX, type RefObject, useState } from "react";
 
-import { PanelLabelsProvider } from "../../../context/PanelLabelsContext";
-import { UiGlyph } from "../../../icons";
-import { PanelField } from "../../rows/PanelField";
-import { ToggleWithContent } from "../../ToggleWithContent";
-import { Popout } from "../Popout";
-import { PopoutButton } from "../PopoutButton";
+import { Popout } from "../../../src/components/popout/Popout";
+import { PopoutButton } from "../../../src/components/popout/PopoutButton";
+import { PanelField } from "../../../src/components/rows/PanelField";
+import { ToggleWithContent } from "../../../src/components/ToggleWithContent";
+import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
+import { UiGlyph } from "../../../src/icons";
 
 /**
  * Props for the LabelSettingsPopout component.

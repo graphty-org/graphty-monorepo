@@ -11,7 +11,7 @@ import {
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
 
-import { offeredSamples, START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { serverKinds } from "../server/commands";
 import { kindName } from "../server/words";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
@@ -238,14 +238,11 @@ export function setSampleCatalogForTests(catalog: SampleCatalog = ELEMENT_CATALO
 }
 
 /**
- * The tiles this site offers, in order: the app's own samples that offeredSamples() offers (the
- * timed ones only with the timeline experiment on), then the datasets and the generators.
- * @param timeline - Whether the timeline experiment is on.
+ * The tiles this site offers, in order: the app's own samples, then the datasets and the generators.
  * @returns The tiles.
  */
-export function offeredTiles(timeline: boolean): readonly LibraryTile[] {
-    const own = new Set(offeredSamples(timeline));
-    return sampleTiles.filter((tile) => tile.source.kind !== "sample" || own.has(tile.source.sample));
+export function offeredTiles(): readonly LibraryTile[] {
+    return sampleTiles;
 }
 
 /** The field of every network sample, for the field filter. */

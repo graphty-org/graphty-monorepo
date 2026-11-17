@@ -10,7 +10,8 @@
  * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and disposes both Dawn handles, as a consumer
  * would (the Dawn instances themselves live until the process exits: src/node/index.ts, issue #30).
  *
- * Environment (spec 12.2; process.env is read ONLY here, in vitest.config.ts and under scripts/):
+ * Environment (spec 12.2; process.env is read ONLY here, in test/setup/env.ts (the switches helpers share),
+ * test/setup/global.ts, vitest.config.ts and under scripts/):
  * GRAPHTY_GPU_REQUIRE (the policy, parsed by scripts/gpu-policy.js -- the one copy of the rule, D19),
  * GRAPHTY_GPU_ADAPTER (Dawn `adapter=` substring: `llvmpipe` mirrors CI), GRAPHTY_DAWN_FEATURES (comma-separated
  * Dawn toggles), GRAPHTY_GPU_NO_SUBGROUPS ("1" drops `subgroups` from the default optional features, D16),
@@ -38,13 +39,14 @@ import { installUncapturedErrorSink, PendingErrorSlot } from "../../src/device/l
 import type { WebGpuGraphError } from "../../src/errors.js";
 import { createNodeGpu, type NodeGpuHandle } from "../../src/node/index.js";
 import type { AdapterSummary, LimitPolicy } from "../../src/types/context.js";
+import { noSubgroupsPass } from "./env.js";
 
 /** The optional features acquireRaw() requests by default (the create() default of spec 2.2). */
 const DEFAULT_OPTIONAL_FEATURES: readonly GPUFeatureName[] = ["subgroups", "timestamp-query"];
 
 /** The default optional feature list, minus subgroups under GRAPHTY_GPU_NO_SUBGROUPS=1 (spec 11.2: the whole run). */
 function defaultOptionalFeatures(): readonly GPUFeatureName[] {
-    if (process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1") {
+    if (noSubgroupsPass()) {
         return DEFAULT_OPTIONAL_FEATURES.filter((name) => name !== "subgroups");
     }
     return DEFAULT_OPTIONAL_FEATURES;
@@ -219,7 +221,7 @@ async function rawDevice(gpu: GPU, options: RawOptions): Promise<RawDevice> {
 
 /** A context over `gpu` with the setup's sink, the inspect flag and the afterAll registration. */
 async function createContext(gpu: GPU, options: AcquireOptions, defaultLabel: string): Promise<GpuContext> {
-    const subgroups = options.subgroups ?? process.env.GRAPHTY_GPU_NO_SUBGROUPS !== "1";
+    const subgroups = options.subgroups ?? !noSubgroupsPass();
     const ctx = await GpuContext.create({
         gpu,
         runtime: "node",

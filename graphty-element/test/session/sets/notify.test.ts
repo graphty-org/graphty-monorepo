@@ -155,13 +155,13 @@ describe("change notification", () => {
             { id: "b", values: { weight: 10 } },
         ]);
 
-        // Told once for the batch, with the field. Which values the watch resolved against is not
-        // asserted: the graph primitives announce on the batch's first record, before the rest are
-        // written (issue #8504).
+        // Told once for the batch, with the field, after every record of it is written: the watch
+        // resolves against a, b, d and e (issue #8504).
         assert.deepStrictEqual(
             heavy.readies.map((ready) => ready.moved),
             [[{ kind: "attributes", element: "node", fields: ["weight"] }]],
         );
+        assert.strictEqual(heavy.readies[0]?.count, 4);
         assert.strictEqual(labelled.resolves, 0);
     });
 

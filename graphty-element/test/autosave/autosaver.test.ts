@@ -4,7 +4,7 @@
  * assertion counts writes or reads the store back; none measures time.
  */
 
-import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { Autosaver, type AutosaverOptions, lockName } from "../../src/autosave/Autosaver";
@@ -829,9 +829,6 @@ describe("status", () => {
 });
 
 describe("timeline playback", () => {
-    beforeAll(() => {
-        setDefaultFeatures(["timeline"]);
-    });
     afterAll(() => {
         setDefaultFeatures([]);
     });

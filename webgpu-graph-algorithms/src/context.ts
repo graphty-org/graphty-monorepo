@@ -22,6 +22,7 @@ import { assertPlanLimits, capsFromDevice, captureCaps, workgroupSizeFor } from 
 import { AllocationTracker } from "./device/error-scope.js";
 import { deviceLostError, installUncapturedErrorSink, PendingErrorSlot, watchDeviceLost } from "./device/lost.js";
 import { isWebGpuGraphError, WebGpuGraphError } from "./errors.js";
+import type { GpuTrace } from "./kernel/batch.js";
 import { PipelineCache } from "./kernel/pipeline-cache.js";
 import { Profiler } from "./kernel/profiler.js";
 import { BufferPool } from "./memory/buffer-pool.js";
@@ -133,6 +134,13 @@ export class GpuContext {
      * @internal
      */
     readonly scopesBatches: boolean;
+    /**
+     * Where this context reports the steps of its device work, or null (the default) for none: each algorithm that
+     * traces names its batches, submits and readbacks, and every batch reports a map, error scope or allocator
+     * check that waits longer than a second, as it starts waiting and when it ends. Set it to a logger to find
+     * out afterwards where a run that never finished stopped.
+     */
+    trace: GpuTrace | null = null;
 
     private currentState: "ready" | "lost" | "disposed" = "ready";
     private lostError: WebGpuGraphError | null = null;

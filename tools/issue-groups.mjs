@@ -1137,6 +1137,7 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
         }
         out.push(...memberDrift(g, facts.issues));
     }
+    out.push(...prWaitDrift(ledger, facts));
     for (const w of liveWaits(ledger).filter((w) => isX9(w))) {
         const sha = String(w.test).split(" ")[1];
         if (sha && isAncestor(sha)) {
@@ -1151,6 +1152,40 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
     }
     return out;
 }
+
+/**
+ * The pull request a wait names outside a frozen group (a frozen group's merge or close settles its own waits):
+ * `{ pr }` for `#<n>` anywhere in the target, else `{ branch }` for a branch name, else null (a group id).
+ * @param ledger the ledger
+ * @param w the wait
+ * @returns `{ pr }`, `{ branch }` or null
+ */
+export function waitPrRef(ledger, w) {
+    if (isX9(w) || resolveTarget(ledger, w.on)?.state === "frozen") return null;
+    const text = String(w.on);
+    const pr = /#(\d+)/.exec(text);
+    if (pr) return { pr: Number(pr[1]) };
+    const branch = text.split(" ")[0];
+    return /^[\w.-]+\/[\w./-]+$/.test(branch) ? { branch } : null;
+}
+
+// Waits on a pull request that merged or closed end: nothing is left to wait for.
+const prWaitDrift = (ledger, facts) =>
+    liveWaits(ledger).flatMap((w) => {
+        const ref = waitPrRef(ledger, w);
+        const pr = ref?.pr ? facts.prs.get(ref.pr) : ref?.branch && facts.branchPrs?.get(ref.branch);
+        if (pr?.state !== "MERGED" && pr?.state !== "CLOSED") return [];
+        const why = `#${pr.number ?? ref.pr} ${pr.state === "MERGED" ? "merged" : "closed unmerged"}`;
+        return [
+            {
+                group: null,
+                issue: w.issue,
+                kind: "wait-target-done",
+                detail: why,
+                fix: { op: "end-wait", wait: w, why },
+            },
+        ];
+    });
 
 // A ready branch's class is read from its diff too, so a group declared docs that changed source is over the source
 // cap, and the round splits it rather than open it.
@@ -1350,7 +1385,7 @@ const settleWait = (ledger, fix, now) => {
         (x) => x.issue === fix.wait.issue && x.on === fix.wait.on && x.since === fix.wait.since,
     );
     const ending = fix.op === "end-wait";
-    if (w && ending) w.ended = `${at} landed`;
+    if (w && ending) w.ended = `${at} ${fix.why ?? "landed"}`;
     if (w && !ending) w.expired = `${at} ${fix.reason}`;
     return `wait of #${fix.wait.issue} on ${fix.wait.on} ${ending ? "ended" : "expired"}`;
 };
@@ -1693,17 +1728,42 @@ function graphql(query) {
 const ACTOR = "{ __typename login }";
 const [OWNER, NAME] = REPO.split("/");
 
+// A pull request node's state, mergeability and head commit (an issue's number read as a pull request has no fields).
+const prFact = (v) => {
+    const head = v.commits?.nodes?.[0]?.commit;
+    return {
+        state: v.state,
+        mergeable: v.mergeable,
+        headAt: head?.committedDate ?? null,
+        checks: head?.statusCheckRollup?.state ?? null,
+    };
+};
+
+// One aliased node of fetchFacts' query into its map: `i` an issue, `p` a pull request, `h` a branch's newest one.
+const storeFact = (out, key, v, branchList) => {
+    if (key.startsWith("h")) {
+        if (v.nodes?.[0]) out.branchPrs.set(branchList[Number(key.slice(1))], v.nodes[0]);
+    } else if (key.startsWith("i")) {
+        out.issues.set(v.number, {
+            state: v.state,
+            labels: v.labels.nodes.map((l) => l.name),
+            comments: v.comments?.nodes ?? [],
+        });
+    } else if (v.number) out.prs.set(v.number, prFact(v));
+};
+
 /**
  * Issue and pull request facts in batches of 40 per GraphQL query (aliases), never one call per issue.
  * @param numbers issue numbers
  * @param prNumbers pull request numbers
  * @param run `(query) => data`
  * @param comments whether to read each issue's last 30 comments (for markers)
- * @returns `{ issues: Map, prs: Map }`
+ * @param branches branch names whose newest pull request (any state) to read
+ * @returns `{ issues: Map, prs: Map, branchPrs: Map branch -> { number, state } }`
  */
-export function fetchFacts(numbers, prNumbers, run = graphql, comments = false) {
-    const issues = new Map();
-    const prs = new Map();
+export function fetchFacts(numbers, prNumbers, run = graphql, comments = false, branches = []) {
+    const out = { issues: new Map(), prs: new Map(), branchPrs: new Map() };
+    const branchList = [...new Set(branches)].filter((b) => /^[\w./-]+$/.test(b));
     const commentPart = comments
         ? `comments(last: 30) { nodes { databaseId createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt } }`
         : "";
@@ -1713,33 +1773,20 @@ export function fetchFacts(numbers, prNumbers, run = graphql, comments = false) 
         ),
         ...[...new Set(prNumbers)].map(
             (n) =>
-                `p${n}: pullRequest(number: ${n}) { number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } }`,
+                `p${n}: issueOrPullRequest(number: ${n}) { ... on PullRequest { number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }`,
+        ),
+        ...branchList.map(
+            (b, i) =>
+                `h${i}: pullRequests(headRefName: "${b}", first: 1, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { number state } }`,
         ),
     ];
     for (let k = 0; k < items.length; k += 40) {
         const data = run(
             `query { repository(owner: "${OWNER}", name: "${NAME}") { ${items.slice(k, k + 40).join("\n")} } }`,
         );
-        for (const [key, v] of Object.entries(data?.repository ?? {})) {
-            if (!v) continue;
-            if (key.startsWith("i")) {
-                issues.set(v.number, {
-                    state: v.state,
-                    labels: v.labels.nodes.map((l) => l.name),
-                    comments: v.comments?.nodes ?? [],
-                });
-            } else {
-                const head = v.commits?.nodes?.[0]?.commit;
-                prs.set(v.number, {
-                    state: v.state,
-                    mergeable: v.mergeable,
-                    headAt: head?.committedDate ?? null,
-                    checks: head?.statusCheckRollup?.state ?? null,
-                });
-            }
-        }
+        for (const [key, v] of Object.entries(data?.repository ?? {})) if (v) storeFact(out, key, v, branchList);
     }
-    return { issues, prs };
+    return out;
 }
 
 const SEARCH_QUERY = (q, after) => {
@@ -2229,8 +2276,11 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
     const ledger = readLedger(ledgerPath);
     const live = ledger.groups.filter((g) => isLive(g));
     const numbers = live.filter((g) => g.state !== "frozen").flatMap((g) => g.members.map((m) => m.n));
+    const refs = liveWaits(ledger).map((w) => waitPrRef(ledger, w));
     const prs = live.filter((g) => g.state === "frozen" && g.pr).map((g) => g.pr);
-    const facts = fetchFacts(numbers, prs, ctx.run, true);
+    prs.push(...refs.filter((r) => r?.pr).map((r) => r.pr));
+    const branches = refs.filter((r) => r?.branch).map((r) => r.branch);
+    const facts = fetchFacts(numbers, prs, ctx.run, true, branches);
     const readyBranches = live.filter((g) => g.state === "ready" && g.branch).map((g) => g.branch);
     facts.diffs = new Map(readyBranches.map((b) => [b, ctx.git.diff(b)]));
     if (!o.fix) {

@@ -123,7 +123,7 @@ describe("XRInputHandler", () => {
         mockXRExperience = {
             input: {
                 onControllerAddedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: MockInputSource) => void) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
                         return handler;
                     }),
@@ -137,7 +137,7 @@ describe("XRInputHandler", () => {
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: MockInputSource) => void) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
                         return handler;
                     }),

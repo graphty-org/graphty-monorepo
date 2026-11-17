@@ -32,7 +32,7 @@ export interface Range {
 }
 
 export type BatchOp = { put: Item } | { delete: Key };
-export type TransactOp = { put: Item; condition?: Condition } | { delete: Key };
+export type TransactOp = { put: Item; condition?: Condition } | { delete: Key; condition?: Condition };
 
 export interface Store {
     get(key: Key): Promise<Item | undefined>;
@@ -47,7 +47,7 @@ export interface Store {
     update(key: Key, change: Change, condition?: Condition): Promise<Item | undefined>;
     /** Unconditional puts and deletes; the adapter chunks them into BatchWriteItem calls of 25. */
     batch(ops: BatchOp[]): Promise<void>;
-    /** All the ops or none (TransactWriteItems, at most 100): false, writing nothing, when a put's condition failed. */
+    /** All the ops or none (TransactWriteItems, at most 100): false, writing nothing, when a condition failed. */
     transact(ops: TransactOp[]): Promise<boolean>;
 }
 
@@ -197,15 +197,15 @@ export class MemoryStore implements Store {
     }
 
     /**
-     * Applies all the ops, or none when any put's condition fails.
+     * Applies all the ops, or none when any condition fails.
      * @param ops - conditional puts and deletes
      * @returns false, writing nothing, when a condition failed; true otherwise
      */
     async transact(ops: TransactOp[]): Promise<boolean> {
-        if (!ops.every((op) => !("put" in op) || holds(this.items.get(id(op.put)), op.condition))) {
+        if (!ops.every((op) => holds(this.items.get(id("put" in op ? op.put : op.delete)), op.condition))) {
             return false;
         }
-        await this.batch(ops.map((op) => ("put" in op ? { put: op.put } : op)));
+        await this.batch(ops.map((op) => ("put" in op ? { put: op.put } : { delete: op.delete })));
         return true;
     }
 }

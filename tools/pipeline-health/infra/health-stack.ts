@@ -25,7 +25,18 @@ export const CI_AUDIENCE = "graphty-health";
 /** The results service's audience (tools/results/client.mjs), so CI's RESULTS_URL can name this API (#3607). */
 export const RESULTS_AUDIENCE = "graphty-results";
 /** The results service's reads this API answers as the Worker does (src/handlers/results.ts). */
-export const RESULTS_READS = ["/v1/plan", "/v1/site"];
+export const RESULTS_READS = [
+    "/v1/plan",
+    "/v1/site",
+    "/v1/quarantine",
+    "/v1/candidate",
+    "/v1/release-state",
+    "/v1/failures",
+    "/v1/durations/medians",
+    "/v1/durations/tests/{name}",
+    "/v1/story-captures",
+    "/v1/story-reach",
+];
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 50;
@@ -46,6 +57,15 @@ export const CI_ROUTES = [
     "/v1/benchmarks",
     "/v1/issues",
     "/v1/channel-moves",
+    "/v1/hold",
+    "/v1/base-checks",
+    "/v1/story-captures",
+    "/v1/story-reach",
+];
+/** The results service's writes that are not a POST (src/handlers/ingest.ts). */
+export const CI_OTHER_WRITES: [apigw.HttpMethod, string][] = [
+    [apigw.HttpMethod.DELETE, "/v1/base-checks"],
+    [apigw.HttpMethod.PUT, "/v1/durations/tests/{name}"],
 ];
 export interface HealthStackProps extends StackProps {
     /**
@@ -197,6 +217,9 @@ export class HealthStack extends Stack {
             ...CI_ROUTES.flatMap((path) =>
                 api.addRoutes({ path, methods: [apigw.HttpMethod.POST], integration: ingestTarget, authorizer: jwt }),
             ),
+            ...CI_OTHER_WRITES.flatMap(([method, path]) =>
+                api.addRoutes({ path, methods: [method], integration: ingestTarget, authorizer: jwt }),
+            ),
             ...api.addRoutes({ path: "/v1/local/{kind}", methods: [apigw.HttpMethod.POST], integration: ingestTarget }),
         ];
         const stage = (api.defaultStage as apigw.HttpStage).node.defaultChild as apigw.CfnStage;
@@ -208,7 +231,10 @@ export class HealthStack extends Stack {
         // routeSettings is untyped JSON, so CloudFormation's own (PascalCase) keys go in as is.
         const write = { ThrottlingRateLimit: WRITE_THROTTLE.rate, ThrottlingBurstLimit: WRITE_THROTTLE.burst };
         stage.routeSettings = Object.fromEntries(
-            [...CI_ROUTES, "/v1/local/{kind}"].map((path) => [`POST ${path}`, write]),
+            [
+                ...[...CI_ROUTES, "/v1/local/{kind}"].map((path) => `POST ${path}`),
+                ...CI_OTHER_WRITES.map(([method, path]) => `${method} ${path}`),
+            ].map((key) => [key, write]),
         );
         for (const route of routes) {
             stage.node.addDependency(route);

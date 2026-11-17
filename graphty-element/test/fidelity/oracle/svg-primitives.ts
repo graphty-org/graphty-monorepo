@@ -772,6 +772,26 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
 }
 
 /**
+ * Whether a stroked outline's mask erases its middle along the same path, a narrower black stroke of the same path data
+ * over white: a double line (Cytoscape.js strokes a double border or outline whole, then erases its middle third; the
+ * web oracle records the erase as such a mask).
+ * @param el - the stroked outline
+ * @param root - the SVG
+ * @returns true for a double line
+ */
+function erasedMiddle(el: Element, root: SVGSVGElement): boolean {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("mask") ?? "");
+    const erase = ref === null ? null : root.querySelector(`mask[id="${ref[1]}"] > path[stroke]`);
+    const width = (e: Element): number => Number.parseFloat(e.getAttribute("stroke-width") ?? "1");
+    return (
+        erase !== null &&
+        erase.getAttribute("d") === el.getAttribute("d") &&
+        erase.getAttribute("stroke") === "black" &&
+        width(erase) < width(el)
+    );
+}
+
+/**
  * The box a filled shape's own clip keeps of it, where the clip is a box on the screen that cuts the shape: yEd paints
  * an entity relationship node twice, each time whole, and clips one to its header and the other to the rest. Any other
  * clip, a box the shape lies inside or one it lies outside, is null: the shape is read whole.
@@ -1807,6 +1827,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             if (band !== null && stroke !== null) {
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
+            }
+            // a ring with its middle erased (a centered one: a clipped band's erase only trims its edge)
+            if (band === null && stroke !== null && erasedMiddle(el, root)) {
+                stroke = { ...stroke, dash: null, dashClass: "double" };
             }
             const uncut = boxOfPoints(points);
             const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;

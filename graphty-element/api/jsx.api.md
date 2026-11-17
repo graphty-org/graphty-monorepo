@@ -45,7 +45,6 @@ import { JSON_LOSS } from '@graphty/graph-io';
 import { LitElement } from 'lit';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';

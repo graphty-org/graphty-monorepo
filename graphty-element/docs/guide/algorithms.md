@@ -114,9 +114,6 @@ for (const swatch of block?.swatches ?? []) {
 }
 ```
 
-`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
-group from `rank` in your own language instead.
-
 #### Hiding one group
 
 `styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint
@@ -431,6 +428,7 @@ for every built-in algorithm.
 | `scope.induced-subgraph`             | computed on the subgraph the scope's nodes induce: `{ nodes }`.                                                                                                                                 |
 | `scope.subgraph`                     | computed on the scope's nodes and edges: `{ nodes, edges }`.                                                                                                                                    |
 | `parallel-edges.merged`              | parallel edges were merged into one, every member of a group carrying the merged value: `{ count, policy }`, how many were merged and how their weights combined (`"sum"`, `"min"` or `"max"`). |
+| `direction.mixed`                    | the graph mixes directed and undirected edges, and the run read every edge alike, with the graph's default direction: `{ directed }`, true when it read them as directed.                       |
 | `input.empty`                        | the graph held nothing for the algorithm to measure.                                                                                                                                            |
 | `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
 | `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |

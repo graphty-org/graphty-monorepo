@@ -502,6 +502,11 @@ export interface ExplainSources {
      */
     readonly directed?: () => boolean;
     /**
+     * Whether the edge on a row is directed: its own direction in a graph that mixes both, the
+     * graph's otherwise. Absent reads every edge as {@link ExplainSources.directed} says.
+     */
+    readonly edgeDirected?: (edge: number) => boolean;
+    /**
      * Whether `edge.lift` draws now: only for a flat layout in the 3D view. Absent, the session
      * cannot say, and no lift is reported as drawing nothing.
      */
@@ -1101,7 +1106,7 @@ interface WinTally {
     /** The tally of the covering layers per channel. */
     readonly perChannel: Map<Channel, Map<LayerId, number>>;
     /** Told each element's walk, to count what the layer wins that draws nothing. */
-    readonly undrawn: (found: ElementWins, weight: number) => void;
+    readonly undrawn: (found: ElementWins, weight: number, index: number) => void;
 }
 
 /**
@@ -1279,7 +1284,7 @@ function countWins(
         }
     }
 
-    undrawn(found, weight);
+    undrawn(found, weight, at.index);
 }
 
 /** One shader fact being counted, by its key. */
@@ -1382,25 +1387,25 @@ const CAPTION_ARROW: Partial<Record<Channel, Channel>> = {
 
 /**
  * A tally of the end captions a layer wins on edges whose end draws no arrow.
- * @param directed - Whether the graph is directed, which gives an edge a head no layer chose.
+ * @param directed - Whether the edge on a row is directed, which gives it a head no layer chose.
  * @returns The tally, and a function to read it out as facts.
  */
-function captionTally(directed: boolean): {
-    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>, weight: number) => void;
+function captionTally(directed: (edge: number) => boolean): {
+    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>, weight: number, edge: number) => void;
     readonly facts: () => readonly CodedFact<UndrawnCode>[];
 } {
     const counts = new Map<Channel, number>();
 
     return {
-        add(channel, values, weight): void {
+        add(channel, values, weight, edge): void {
             const arrow = CAPTION_ARROW[channel];
             if (arrow === undefined) {
                 return;
             }
 
             // The same default the painter draws (StylePainter.edgePaintOf): a head no layer chose
-            // only on a directed graph, never a tail.
-            const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed ? "normal" : "none");
+            // only on a directed edge, never a tail.
+            const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed(edge) ? "normal" : "none");
             if (type === "none") {
                 counts.set(channel, (counts.get(channel) ?? 0) + weight);
             }
@@ -1413,6 +1418,16 @@ function captionTally(directed: boolean): {
                 })),
             ),
     };
+}
+
+/**
+ * Whether the edge on a row is directed, as the sources say: its own direction, else the graph's.
+ * @param sources - The sources.
+ * @returns A reader by edge row.
+ */
+function edgeDirectedOf(sources: ExplainSources): (edge: number) => boolean {
+    const graph = sources.directed ?? ((): boolean => true);
+    return sources.edgeDirected ?? ((): boolean => graph());
 }
 
 /** Work done by {@link styleCounts}, for a test that counts it rather than times it. */
@@ -1499,7 +1514,8 @@ export function styleCounts(
     let noValue = 0;
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
-    const captions = captionTally(sources.directed?.() ?? true);
+    const edgeDirected = edgeDirectedOf(sources);
+    const captions = captionTally(edgeDirected);
     const shaders = shaderTally(layer.target);
     // A lift the layer wins on an edge drawn flat; see `edge.lift-needs-flat-layout`.
     const liftFlat = layer.target === "edge" && sources.liftDrawn?.() === false;
@@ -1513,10 +1529,10 @@ export function styleCounts(
         painted,
         others,
         perChannel,
-        undrawn: (found, weight) => {
+        undrawn: (found, weight, index) => {
             for (const [channel, winner] of found.winners) {
                 if (winner === layerId) {
-                    captions.add(channel, found.values, weight);
+                    captions.add(channel, found.values, weight, index);
                 }
             }
 
@@ -1558,7 +1574,12 @@ export function styleCounts(
             continue;
         }
 
-        countInGroup(groups, appliesKey(stack, { target: layer.target, index }), index);
+        // An edge's own direction decides the head no layer chose, so edges of differing direction
+        // never stand for each other.
+        const key =
+            appliesKey(stack, { target: layer.target, index }) +
+            (layer.target === "edge" && edgeDirected(index) ? "d" : "");
+        countInGroup(groups, key, index);
     }
 
     for (const { index, weight } of groups?.values() ?? []) {

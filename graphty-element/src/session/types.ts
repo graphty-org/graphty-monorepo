@@ -4386,12 +4386,6 @@ export interface HistoryStep {
     /** Stable for the life of the step. */
     readonly id: HistoryStepId;
     /**
-     * What a history list shows, such as "Changed colour of Hubs".
-     * @deprecated English written by the element. Word {@link HistoryStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
-    /**
      * What the step did, as a code and its values, for the application to word. A step merged
      * from several (a drag, a transaction) carries the fact of the whole.
      */
@@ -4412,12 +4406,6 @@ export interface HistoryStep {
 export interface PendingStep {
     /** Pass it to `history.cancel`. */
     readonly id: PendingId;
-    /**
-     * The label the step will have.
-     * @deprecated English written by the element. Word {@link PendingStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
     /** The fact the step will have: see {@link HistoryStep.fact}. */
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */

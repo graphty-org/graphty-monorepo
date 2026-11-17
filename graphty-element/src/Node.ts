@@ -50,7 +50,7 @@ import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
-import { labelFitExtent } from "./meshes/labelFit";
+import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
@@ -126,7 +126,8 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
 /**
- * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), or takes the proportions of
+ * (`shape.imageAspect`), once its size is known.
  * @param o - The resolved style.
  * @param picture - A picture's own size, once read.
  * @returns Its size in pixels, or null when the node holds none or it is not known yet.
@@ -136,7 +137,18 @@ function heldPicture(
     picture: (src: string) => { width: number; height: number } | null,
 ): { width: number; height: number } | null {
     const src = o.image?.src ?? "";
-    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+    const held = (o.shape?.labelFitImage ?? 0) > 0 || o.shape?.imageAspect === true;
+    return held && src !== "" ? picture(src) : null;
+}
+
+/**
+ * Whether a node's size is fitted to what it holds: its label (`shape.labelFit`, a table) or its picture's proportions
+ * (`shape.imageAspect`).
+ * @param shape - The resolved shape block.
+ * @returns True when the node is fitted.
+ */
+function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
+    return shape?.labelFit !== undefined || shape?.labelTable !== undefined || shape?.imageAspect === true;
 }
 
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
@@ -2696,7 +2708,7 @@ export class Node implements ModelUser {
      * @returns True when the mesh has to be fitted again.
      */
     private fitIsStale(o: NodeStyleConfig): boolean {
-        if ((o.shape?.labelFit === undefined && o.shape?.labelTable === undefined) || this.drawnAsGroup) {
+        if (!fitsNode(o.shape) || this.drawnAsGroup) {
             return false;
         }
 
@@ -2717,7 +2729,7 @@ export class Node implements ModelUser {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
-        if ((shape?.labelFit === undefined && table === null) || this.drawnAsGroup) {
+        if ((shape?.labelFit === undefined && table === null && shape?.imageAspect !== true) || this.drawnAsGroup) {
             this.fittedFor = null;
             this.fittedExtent = null;
             return { meshKey, style: o };
@@ -2742,7 +2754,8 @@ export class Node implements ModelUser {
         const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
         const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
+        const held = heldPicture(o, picture);
+        const extent = labelFitExtent(shape, box, held) ?? imageAspectExtent(shape, held);
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));

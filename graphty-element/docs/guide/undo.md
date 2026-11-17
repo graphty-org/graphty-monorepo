@@ -172,8 +172,7 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `transaction`                                                                                                        | `label` (the label given to `transaction`, or null)        |
 
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
-before putting it into HTML. `step.label`, an English sentence, is deprecated and goes in the next
-major release.
+before putting it into HTML.
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
 dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
@@ -399,6 +398,23 @@ const detach = attachKeymap(element.session, document);
 It skips a press already handled, typed into a field, or that it has nothing to do with (Escape
 with nothing selected passes on to close your dialog). The keys it answers are listed in
 `KEYMAP_DESCRIPTORS` from `@graphty/graphty-element/catalog`, for a shortcuts list.
+
+A third argument sets your own rule for where the keys are yours (it replaces the field rule above)
+and tells you what was done, for a status line:
+
+```typescript
+attachKeymap(element.session, document, {
+    ignore: (event) => document.querySelector("[role=dialog]") !== null,
+    onAction: (report) => {
+        if (report.action === "deselect") {
+            status.textContent = `Cleared ${report.nodes} nodes and ${report.edges} edges`;
+        } else {
+            // Reported before the step runs, so session.history still names it.
+            void report.done.then((outcome) => (status.textContent = `${report.action}: ${outcome.kind}`));
+        }
+    },
+});
+```
 
 ## Memory
 

@@ -750,6 +750,7 @@ function channelPlans(
             ["imageSmoothing", [id("node.imageSmoothing")]],
             ["imageAutoSize", [id("node.imageAutoSize")]],
             ["imageOpacity", [id("node.imageOpacity")]],
+            ["imageAspect", [id("node.imageAspect")]],
             ["glyph", [id("node.glyph")]],
             ["glyphFont", [id("node.glyphFont")]],
             ["glyphSize", [length("node.glyphSize")]],

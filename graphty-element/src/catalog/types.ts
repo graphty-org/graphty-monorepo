@@ -787,6 +787,7 @@ export type Channel =
     | "node.labelFitQuantum"
     | "node.labelFitImage"
     | "node.labelFitImagePadding"
+    | "node.imageAspect"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"

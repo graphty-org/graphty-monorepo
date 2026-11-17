@@ -67,7 +67,6 @@ import { LitElement } from 'lit';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
@@ -261,6 +260,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
     // @internal
     static readonly loadedWeightByDefault: boolean;
+    // @internal
+    mixedDirection(): boolean | null;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
@@ -362,7 +363,7 @@ export interface AnimationResult {
 }
 
 // @public
-export type Antialias = boolean | "at-rest";
+export type Antialias = boolean | "at-rest" | "shader";
 
 // @public
 export type AssetStorage = "embed" | "url";
@@ -2622,8 +2623,6 @@ export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
     readonly losses: readonly ExportLoss[];
-    // @deprecated
-    readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
 
@@ -2978,7 +2977,7 @@ export class Graph implements GraphContext {
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
     // @internal
-    leansLines(): boolean;
+    leansLines(): LeanLines;
     get limits(): Readonly<LimitsOption>;
     listAiConversations(options?: {
         readonly allKeys?: boolean;
@@ -3240,7 +3239,7 @@ export interface GraphContext {
     is2D(): boolean;
     isRunning(): boolean;
     // @internal
-    leansLines?(): boolean;
+    leansLines?(): LeanLines;
     // @deprecated
     needsRayUpdate(): boolean;
     // @internal
@@ -6050,6 +6049,7 @@ export const NodeStyle: z.ZodObject<{
         labelFitQuantum: z.ZodOptional<z.ZodNumber>;
         labelFitImage: z.ZodOptional<z.ZodNumber>;
         labelFitImagePadding: z.ZodOptional<z.ZodNumber>;
+        imageAspect: z.ZodOptional<z.ZodBoolean>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";
@@ -7264,8 +7264,6 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
-    // @deprecated
-    reason: string;
     // (undocumented)
     type: "operation-cancelled";
 }

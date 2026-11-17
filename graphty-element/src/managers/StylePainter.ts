@@ -1048,6 +1048,9 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
     return style;
 }
 
+/** The rows an empty {@link PendingRows} has room for. */
+const INITIAL_PENDING = 64;
+
 /**
  * The rows waiting to be drawn, taken oldest first, each held once.
  *
@@ -1058,8 +1061,8 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
  * back. Exported for its test.
  */
 export class PendingRows {
-    private waiting = new Uint8Array(64);
-    private order = new Int32Array(64);
+    private waiting = new Uint8Array(INITIAL_PENDING);
+    private order = new Int32Array(INITIAL_PENDING);
     private head = 0;
     private tail = 0;
 
@@ -1106,8 +1109,15 @@ export class PendingRows {
     /** Drop every row. */
     clear(): void {
         this.waiting.fill(0);
-        this.head = 0;
-        this.tail = 0;
+        this.empty();
+    }
+
+    /**
+     * How many bytes the queue holds, waiting or not.
+     * @returns The bytes of its two arrays.
+     */
+    get bytes(): number {
+        return this.waiting.byteLength + this.order.byteLength;
     }
 
     /**
@@ -1130,11 +1140,25 @@ export class PendingRows {
         this.head = end;
 
         if (this.head === this.tail) {
-            this.head = 0;
-            this.tail = 0;
+            this.empty();
         }
 
         return taken;
+    }
+
+    /**
+     * Empty the queue, and let go of the ring a load grew to every row (8 MiB at 1M nodes and 1M
+     * edges): once drained it would otherwise be kept, unused, for the life of the graph. The flag
+     * per row is kept (a byte per row, all zero once drained): dropping it would make every later
+     * repaint of a high row allocate and zero a flag array as long as that row number.
+     */
+    private empty(): void {
+        if (this.order.length > INITIAL_PENDING) {
+            this.order = new Int32Array(INITIAL_PENDING);
+        }
+
+        this.head = 0;
+        this.tail = 0;
     }
 
     /** Slide the waiting rows to the front, and grow the ring when that frees too little. */

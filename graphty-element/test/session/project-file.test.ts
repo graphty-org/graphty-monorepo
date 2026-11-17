@@ -331,7 +331,7 @@ describe("the project file", () => {
         const report = await harness.session.styles.applyTemplate(harness.session.styles.toDocument());
         assert.deepStrictEqual(report.unbound, [], "results.links.value is answered by the run links");
         const [block] = harness.session.styles.legend().filter((entry) => entry.runId === "links");
-        assert.strictEqual(block.field?.plainName, "Connections", "the legend names the column in the run's words");
+        assert.strictEqual(block.field?.result?.algorithm, "degree", "the legend names the run field by its algorithm");
         harness.session.dispose();
     });
 

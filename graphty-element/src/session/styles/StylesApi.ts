@@ -124,7 +124,6 @@ import {
     type StyleEncodeCommand,
     type StylePatchCommand,
 } from "../commands/style";
-import { englishRunLabel } from "../english";
 import { Dispatcher } from "../project/Dispatcher";
 import type { ProjectState } from "../project/state";
 import { nearestNames } from "../results/ResultsApi";
@@ -3387,7 +3386,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layer.source.by === "template" &&
             layer.source.templateId === "graphty:starting-everything",
         encoding: encodingOf,
-        scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
@@ -4149,12 +4147,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         beneath = false,
         exclusive = true,
     ): EditPlan<readonly Layer[]> => {
-        const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
+        const runSource = requireRuns(exclusive ? "highlight" : "mark");
+        const run = requireRun(spec.run, runSource);
         const field = chosenField(run, spec, exclusive);
         const painting = runPainting(run, field, spec.set, highlightColor);
         const path = resultPath(run.id, field);
         const where = `${quotePath(path)} == \`true\``;
-        const called = spec.name ?? englishRunLabel(run);
+        const called = spec.name ?? runSource.defaultLayerName(run.id) ?? run.algorithm;
         const id = minter();
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();

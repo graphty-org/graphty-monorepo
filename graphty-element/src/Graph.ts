@@ -2491,6 +2491,9 @@ export class Graph implements GraphContext {
 
         try {
             await this.openWebGPU(requested);
+            // The render path opens before the held loads run: resumed first, a load under "batched"
+            // finds no batch yet and gives every row a `Node` (#8734).
+            this.#openRenderPath();
         } finally {
             if (holdQueue) {
                 queue.resume();
@@ -2999,8 +3002,7 @@ export class Graph implements GraphContext {
 
             this.watchRenderLoss();
             this.#watchViewForLog();
-            this.#renderPathOpen = true;
-            this.#applyRenderPath();
+            this.#openRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -5385,6 +5387,16 @@ export class Graph implements GraphContext {
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
+    }
+
+    /** Start applying the render path, once, unless the graph shut down while its renderer opened. */
+    #openRenderPath(): void {
+        if (this.#renderPathOpen || this.#teardown.signal.aborted) {
+            return;
+        }
+
+        this.#renderPathOpen = true;
+        this.#applyRenderPath();
     }
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */

@@ -1159,6 +1159,8 @@ export function CustomModelDialog({
             for (const r of refs) {
                 letGo(r);
             }
+            // Shown while its pictures downloaded, then refused outright (too large): not Add's to take.
+            setMembers((now) => now.filter((m) => !refs.includes(refOf(m.held))));
             setProblem(fact);
             say(refusalLine(fact));
             return;
@@ -1316,7 +1318,8 @@ export function CustomModelDialog({
     };
     const add = async (): Promise<void> => {
         // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
-        if (blocked !== null || taking.length === 0) {
+        // A second click while the first is still taking the models (a double click) adds nothing more.
+        if (blocked !== null || taking.length === 0 || adding.current) {
             return;
         }
         const ready = await acceptAll();

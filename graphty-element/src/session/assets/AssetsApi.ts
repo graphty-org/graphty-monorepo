@@ -24,7 +24,7 @@ import {
 import type { ModelProgress, ModelProgressListener, ModelSummary, RedirectGate } from "babylonjs-models/files";
 
 import type { ChannelValue, LayerId } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, type GraphtyErrorCode, isGraphtyErrorCode } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
@@ -452,7 +452,8 @@ export interface AssetsApi {
      * @returns The accepted record, with its digest id (the id it had while it waited still finds it).
      * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
      *     or `E_MODEL_PART_REQUIRED` when a missing part is its geometry (a glTF's `.bin`), with
-     *     `details.name` naming it; nothing is skipped then.
+     *     `details.name` naming it; nothing is skipped then. A model refused for anything else (too
+     *     large, unreadable) throws that problem's code, such as `E_MODEL_TOO_LARGE`, with its params.
      * @example
      * ```ts
      * const waiting = await graph.session.assets.add(input.files);
@@ -2387,6 +2388,19 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 current = await api.supply(ref, { name: part.name, skip: true });
             }
 
+            // Refused for something other than a missing part (too large, unreadable): never taken.
+            if (current.state !== "accepted") {
+                const problem = current.problems.find((p) => isGraphtyErrorCode(p.code));
+                const code: GraphtyErrorCode =
+                    problem !== undefined && isGraphtyErrorCode(problem.code) ? problem.code : "E_MODEL_PARSE";
+                throw new GraphtyError({
+                    code,
+                    source: "data",
+                    message: `The model ${current.id} was refused.`,
+                    details: { id: current.id, ...(problem?.params ?? {}) },
+                });
+            }
+
             return current;
         },
 
@@ -2416,6 +2430,14 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             const options = skipped.length === 0 ? {} : { skipped };
             const { held } = entry;
             if (held === undefined) {
+                // A model finished from parts is also named by the id it waited under, which is the
+                // id of the set without the part: that name goes to the model read again, or the
+                // read would hand back the finished model unchanged.
+                for (const [key, each] of entries) {
+                    if (each === entry && key !== entry.record.id) {
+                        entries.delete(key);
+                    }
+                }
                 // Not filled from the project's pictures: the part taken back would come straight back.
                 return intake(rest, options, main, false, undefined, undefined, false);
             }

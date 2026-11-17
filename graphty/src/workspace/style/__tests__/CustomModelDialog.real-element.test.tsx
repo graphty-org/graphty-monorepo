@@ -932,6 +932,18 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isTrue(dialog.isConnected, "the dialog stays");
     });
 
+    it("refuses Add for a model graphty-element will not hold once its missing picture is skipped", async () => {
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
+        await previewOf(dialog, "police");
+        session.assets.setLimits({ sessionBytes: 1 });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
+        assert.isNotNull(await within(dialog).findByTestId("model-refusal"));
+        assert.isTrue(dialog.isConnected, "the dialog stays");
+        assert.notInclude(models(session), "police.glb");
+    });
+
     it("loads a model dropped anywhere on the dialog", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
@@ -1071,6 +1083,34 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(files).queryByRole("button", { name: "Remove cube.mtl" }));
     });
 
+    it("takes back out a part that finished the model, with the x on its line", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl/cube.obj`]);
+        const row = await within(dialog).findByRole("group", { name: "cube.mtl" });
+        await choose(row, "Choose cube.mtl", [`${VARIANTS}/obj-mtl/cube.mtl`]);
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        await userEvent.click(await within(files).findByRole("button", { name: "Remove cube.mtl" }));
+        assert.isNotNull(await within(dialog).findByRole("group", { name: "cube.mtl" }), "asked for again");
+        assert.isNull(within(files).queryByRole("button", { name: "Remove cube.mtl" }));
+        const finished = session.assets.list().filter((r) => r.path === "cube.obj" && r.state === "accepted");
+        assert.lengthOf(finished, 0, "the model with cube.mtl is let go");
+    });
+
+    it("adds a model once for a double click on Add", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        const before = session.history.steps.length;
+        await userEvent.dblClick(within(dialog).getByRole("button", { name: "Add model" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
+            assert.isDefined(written(session, "node.model"));
+        });
+        assert.strictEqual(session.history.steps.length, before + 1, "one undo step");
+    });
+
     it("replaces a load still under way with a model dropped on the dialog", async () => {
         const url = "https://models.example.com/slow/first.glb";
         const slow = slowFetch(url, quadGlb());
@@ -1205,7 +1245,8 @@ describe("the Load custom model dialog, on the real element", () => {
     it("turns the live preview with a drag and Reset view, changing no setting", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        // A model with no clip, so only the drag and Reset view move the picture.
+        await choose(dialog, "Choose file", [`${VARIANTS}/glb-textured/cube.glb`]);
         const canvas = await previewOf(dialog, "cube");
         assert.equal(canvas.tabIndex, 0, "the preview takes focus, so the arrow keys turn it too");
         const start = previewPicture(dialog, "cube");

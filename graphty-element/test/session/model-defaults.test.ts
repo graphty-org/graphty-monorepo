@@ -159,6 +159,21 @@ describe("session.assets.accept without missing parts", () => {
         session.dispose();
     });
 
+    it("refuses a model the session will not hold for a reason other than a missing part", async () => {
+        const session = createGraphSession({ workingGraph: false });
+        const files = objSet();
+        files.delete("tex.png");
+        const waiting = await session.assets.add({ files });
+        assert.strictEqual(waiting.state, "rejected");
+        session.assets.setLimits({ sessionBytes: 1 });
+        assert.strictEqual(
+            await codeOf(session.assets.accept(waiting.id, { without: "missing" })),
+            "E_MODEL_TOO_LARGE",
+        );
+        assert.notStrictEqual(session.assets.find(waiting.id)?.state, "accepted");
+        session.dispose();
+    });
+
     it("refuses a model missing its geometry, skipping nothing, and an unknown model", async () => {
         const session = createGraphSession({ workingGraph: false });
         const files = gltfPair(
@@ -197,6 +212,26 @@ describe("session.assets.dropPart", () => {
         assert.strictEqual(await codeOf(session.assets.dropPart(whole.id, "quad.obj")), "E_BAD_COMMAND");
         assert.strictEqual(await codeOf(session.assets.dropPart(whole.id, "nothing.png")), "E_BAD_COMMAND");
         assert.strictEqual(await codeOf(session.assets.dropPart("asset:nothing", "tex.png")), "E_MODEL_UNKNOWN_ASSET");
+        session.dispose();
+    });
+
+    it("takes a part back out of a model that was finished by handing it over", async () => {
+        const session = createGraphSession({ workingGraph: false });
+        const files = objSet("newmtl painted\nKd 1 0 0\n");
+        const waiting = await session.assets.add({
+            files: new Map([["quad.obj", files.get("quad.obj") as Uint8Array]]),
+        });
+        assert.strictEqual(waiting.state, "rejected");
+        const done = await session.assets.supply(waiting.id, {
+            name: "quad.mtl",
+            file: files.get("quad.mtl") as Uint8Array,
+        });
+        assert.strictEqual(done.state, "accepted");
+        const again = await session.assets.dropPart(done.id, "quad.mtl");
+        assert.notStrictEqual(again.id, done.id, "a new record");
+        assert.strictEqual(again.state, "rejected");
+        assert.strictEqual(again.parts?.find((p) => p.name === "quad.mtl")?.state, "missing");
+        assert.strictEqual(session.assets.find(done.id)?.state, "accepted", "the model as it was stays");
         session.dispose();
     });
 

@@ -5333,18 +5333,18 @@ export class Edge {
         dstWorld.subtractToRef(srcWorld, this.ray.direction);
         const worldSpan = this.ray.direction.length();
 
-        const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+        const dstHit = this.dstNode.drawnRayHit(this.ray);
         // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
         // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
         // across its own arm; coming in from the destination, the first wall is where the line
         // finally leaves the outline, as it is for the destination.
         this.ray.origin.copyFrom(dstWorld);
         srcWorld.subtractToRef(dstWorld, this.ray.direction);
-        const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
+        const srcHit = this.srcNode.drawnRayHit(this.ray);
         // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
-        const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
+        const along = (met: Vector3 | null, node: Node, toward: Node): Vector3 | null => {
             // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
-            const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
+            const hit = node.surfaceIsBox ? null : met;
             if (hit) {
                 // signed, so a wall met behind the source's centre (one node inside the other) stays behind it
                 return Vector3.Lerp(
@@ -5363,8 +5363,8 @@ export class Edge {
             return [null, null];
         }
 
-        const srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
-        const dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
+        const srcPoint = along(srcHit, this.srcNode, this.dstNode);
+        const dstPoint = along(dstHit, this.dstNode, this.srcNode);
 
         // Two nodes that overlap meet the line in the wrong order: the source's wall lies past the target's, and a
         // line between them would run backwards across both (#7759). Like two round nodes, they have no line.

@@ -507,6 +507,7 @@ describe("a community result", () => {
         } catch (error) {
             assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_BAD_COMMAND");
         }
+        assert.isUndefined(metric.groups());
     });
 
     it("bounds the groups a summary carries", () => {
@@ -542,6 +543,16 @@ describe("a community result", () => {
             Array.from({ length: 100 }, (_unused, index) => index + 1),
         );
         for (const group of result.summary().groups ?? []) {
+            assert.strictEqual(ranks?.get(String(group.group)), group.rank);
+        }
+        // Every group listed, largest first, ranked as groupRanks ranks it.
+        const groups = result.groups() ?? [];
+        assert.strictEqual(groups.length, 100);
+        assert.strictEqual(
+            groups.reduce((sum, group) => sum + group.size, 0),
+            400,
+        );
+        for (const group of groups) {
             assert.strictEqual(ranks?.get(String(group.group)), group.rank);
         }
     });

@@ -45,6 +45,7 @@ import {
     type NodeSizeSpace,
     shaderPartOf,
 } from "./managers/StylePainter";
+import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
@@ -1821,7 +1822,14 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
+        const mesh = this.#mesh;
+        if (mesh === null) {
+            return null;
+        }
+
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, not by a triangle search
+        const convex = convexRayHit(mesh, ray);
+        return convex === undefined ? (ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null) : convex;
     }
 
     /**

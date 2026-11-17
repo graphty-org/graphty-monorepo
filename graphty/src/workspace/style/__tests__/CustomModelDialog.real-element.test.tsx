@@ -287,7 +287,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const details = within(dialog).getByTestId("model-details");
         const footer = dialog.querySelector(".ws-model-footer") as Element;
         assert.isAtMost(details.getBoundingClientRect().bottom, footer.getBoundingClientRect().top);
-        assert.isAtLeast(details.clientHeight, Math.min(details.scrollHeight, 150), "Details shows most of its rows");
+        // Under a set's preview the steps take a row, and Details gives up height before the
+        // column would scroll: four of its rows still show.
+        assert.isAtLeast(details.clientHeight, Math.min(details.scrollHeight, 120), "Details shows most of its rows");
         const nameField = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(nameField);
         await userEvent.type(nameField, "Wall panel");
@@ -665,16 +667,17 @@ describe("the Load custom model dialog, on the real element", () => {
     it("takes a picture for the model in Model settings, draws it, and writes it with the model", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose file", [quadFile()]);
-        await previewOf(dialog, "quad");
-        const before = previewPicture(dialog, "quad");
+        // A model with texture coordinates, so the picture shows (the test quad has none).
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
+        await previewOf(dialog, "police");
+        const before = previewPicture(dialog, "police");
         const rows = await openSettings(dialog);
         await userEvent.click(within(rows).getByLabelText("Model picture, Choose"));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
-        await choose(picture, "Choose picture", [await fixture(colormapUrl, "colormap.png")]);
-        assert.isNotNull(await within(rows).findByLabelText("Model picture, colormap"));
+        await choose(picture, "Choose picture", [new File([dotPng()], "dot.png", { type: "image/png" })]);
+        assert.isNotNull(await within(rows).findByLabelText("Model picture, dot"));
         await waitFor(() => {
-            assert.notEqual(previewPicture(dialog, "quad"), before, "the preview draws the picture");
+            assert.notEqual(previewPicture(dialog, "police"), before, "the preview draws the picture");
         });
         assert.isUndefined(written(session, "node.texture"), "a draft until Add");
         await addModel(dialog);

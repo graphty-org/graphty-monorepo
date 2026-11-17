@@ -658,10 +658,12 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its body: the shared two-column dialog (.ws-dialog-columns), here the file on the left and the
-   drop area (or the model while it loads) on the right in a 240 px column, the footer across both.
-   Once a model is loaded it is one column (data-alone, below). The whole body takes a drop, and
-   shows it while files are held over it. */
+/* Its body: the shared two-column dialog (.ws-dialog-columns) at every state. On the left the
+   loading: the file loader, its progress bar, the loaded file, lines about the load and Files,
+   scrolling as one. On the right, in a 240 px column, what was loaded: the model (blank until one
+   is), a set's arrows, Name with the Model settings gear, and Details, which takes the rest of the
+   column's height and scrolls on its own. The footer runs across both. The whole body takes a drop,
+   and shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
     grid-template-rows: minmax(0, 1fr) auto;
@@ -686,135 +688,18 @@
     padding-right: 18px;
 }
 
+/* In a window too short for all of it, the column scrolls rather than cut anything off. */
 .ws-model-side {
     min-height: 0;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden auto;
 }
 
 .ws-model-footer {
     grid-column: 1 / -1;
     margin-top: 0;
-}
-
-/* A loaded model: one column that scrolls as one, above the footer. The file, any line about it,
-   Model settings and Files on top, as tall as they are; the model under them takes the rest of the
-   height (150 px at least), its drawing square in the middle of its box, with Details, a set's
-   arrows and Name under it. Opening Model settings shows them whole, every Details row shows whole,
-   and the footer is never pushed out of the dialog: what does not fit scrolls (#8606, #8611). */
-.ws-dialog-columns.ws-model-body[data-alone] {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-    height: min(680px, calc(100dvh - 184px));
-}
-
-.ws-model-body[data-alone] .ws-model-main-inner {
-    display: flex;
-    flex-direction: column;
-    gap: var(--mantine-spacing-sm);
-    min-height: 100%;
-}
-
-.ws-model-body[data-alone] .ws-model-left {
-    flex: none;
-}
-
-/* The model, Details and Name end where the file and its settings above them do. */
-.ws-model-body[data-alone] .ws-model-side {
-    flex: 1 0 auto;
-    overflow: visible;
-}
-
-/* One right edge (#8606): every box and every field's control ends 24 px in from the column's
-   scroll gutter, and a field's last 24 px column (a setting's minus, Name's gear) hangs into that
-   space, so a field with nothing in it there still ends where the address, Files, the model and
-   Details do. */
-.ws-model-body[data-alone] :is(.ws-model-left, .ws-model-side) {
-    padding-right: 42px;
-}
-
-.ws-model-body[data-alone] .ws-field {
-    margin-right: -24px;
-}
-
-/* Every Details row shows whole, its value wrapped: the list is as tall as its rows. */
-.ws-model-body[data-alone] .ws-model-details-box,
-.ws-model-body[data-alone] .ws-model-details-box .ws-model-scroll {
-    flex: none;
-    max-height: none;
-}
-
-.ws-model-body[data-alone] .ws-model-preview {
-    width: 100%;
-    height: auto;
-    flex: 1 1 150px;
-    min-height: 150px;
-}
-
-.ws-model-body[data-alone] .ws-model-live {
-    inset: 0 auto;
-    left: 50%;
-    translate: -50% 0;
-    height: 100%;
-    aspect-ratio: 1;
-}
-
-.ws-model-body[data-alone] .ws-model-steps,
-.ws-model-body[data-alone] .ws-model-details-box {
-    width: 100%;
-}
-
-/* At the dialog's width, Details' rows sit in columns, so all of them show without scrolling. */
-.ws-model-body[data-alone] .ws-model-details {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    column-gap: 16px;
-}
-
-/* Model settings' rows in columns when there is room for two, each clear of the minus hung beside
-   the one before it. */
-.ws-model-body[data-alone] [data-testid="model-settings"] > .ws-model-settings {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-    column-gap: 40px;
-}
-
-/* Model settings open (#8606, #8610): the settings and Files on the left, and the model, all of
-   Details and Name beside them, held in view while the settings scroll, so the reader sees the
-   model while choosing an Animation, a Pose or Textures. */
-.ws-model-body[data-settings] .ws-model-main-inner {
-    display: grid;
-    /* The model's column wide enough for Details in two columns, so all of it fits beside them. */
-    grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
-    grid-template-rows: auto 1fr;
-    align-items: start;
-    column-gap: 16px;
-    row-gap: var(--mantine-spacing-sm);
-}
-
-.ws-model-body[data-settings] .ws-model-top {
-    grid-column: 1 / -1;
-}
-
-/* Away from the scroll gutter: only the minus's 24 px. */
-.ws-model-body[data-settings] .ws-model-rest {
-    padding-right: 24px;
-}
-
-.ws-model-body[data-settings] .ws-model-side {
-    position: sticky;
-    top: 0;
-    gap: 4px;
-}
-
-.ws-model-body[data-settings] .ws-model-details {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-}
-
-/* The model as large as leaves Details and Name in the column with it, 150 px at least: the
-   column is the window's height less about 230 px, and Details and Name take about 260. */
-.ws-model-body[data-settings] .ws-model-preview {
-    flex: none;
-    height: clamp(150px, 100dvh - 490px, 240px);
 }
 
 @media (max-width: 720px) {
@@ -826,24 +711,6 @@
     .ws-model-side {
         order: -1;
         align-items: center;
-    }
-
-    /* A loaded model keeps the file and its settings on top, as at any width. */
-    .ws-model-body[data-alone] .ws-model-side {
-        order: 0;
-    }
-
-    /* Too narrow for the model beside Model settings: one column, the model under them. */
-    .ws-model-body[data-settings] .ws-model-main-inner {
-        display: flex;
-    }
-
-    .ws-model-body[data-settings] .ws-model-side {
-        position: static;
-    }
-
-    .ws-model-body[data-settings] .ws-model-rest {
-        padding-right: 42px;
     }
 }
 
@@ -877,15 +744,6 @@
 .ws-model-preview-over {
     position: relative;
     pointer-events: none;
-}
-
-/* Empty, the box is the dialog's drop area: dashed, with what it takes. */
-.ws-model-preview[data-empty] {
-    border-style: dashed;
-}
-
-.ws-model-drop-hint {
-    max-width: 180px;
 }
 
 /* Reset view, over the live preview in the box's top-right corner. */
@@ -926,8 +784,8 @@
     width: 240px;
 }
 
-/* Name, under the preview and its Details (and the arrows of a set): a short label column, as the side column is
-   narrow, and Model settings. */
+/* Name, under the preview (and the arrows of a set): a short label column, as the side column is
+   narrow, and the Model settings gear. */
 .ws-model-name .ws-field {
     grid-template-columns: 48px minmax(0, 1fr) 24px;
 }
@@ -941,20 +799,20 @@
     border-radius: var(--mantine-radius-sm);
 }
 
-/* Details, directly under the preview in its column, as wide as it: it gives up height before the
-   column would scroll, so the preview (and its Reset view) never moves under the header. */
+/* Details, under Name, as wide as the model: it takes the column's height left under Name (48 px
+   at least) and scrolls past it, every row's whole value wrapped onto as many lines as it needs. */
 .ws-model-details-box {
-    width: 240px;
-    flex: 0 1 auto;
-    min-height: 0;
+    flex: 1 1 0;
+    min-height: 72px;
     display: flex;
     flex-direction: column;
+    gap: 4px;
 }
 
 .ws-model-details-box .ws-model-scroll {
-    max-height: 160px;
+    flex: 1 1 0;
     min-height: 48px;
-    flex: 0 1 auto;
+    max-height: none;
 }
 
 /* The model's pictures under its settings: a plain group, no frame of its own. */

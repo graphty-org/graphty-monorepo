@@ -170,7 +170,7 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     W_MODEL_NOT_EMBEDDED: () => ({ word: "Not saved", tip: "named by address only" }),
     W_MODEL_CHANGED: (p) => ({ word: "Changed", tip: said(p.url) }),
     W_MODEL_PART_SUBSTITUTED: (p) => ({ word: "Substituted", tip: `used ${said(p.used)} for ${said(p.name)}` }),
-    W_MODEL_PART_SKIPPED: (p) => ({ word: "Without 1", tip: said(p.name) }),
+    W_MODEL_PART_SKIPPED: (p) => ({ word: "Drawn without", tip: said(p.name) }),
     W_MODEL_PART_UNUSED: (p) => ({ word: "Not needed", tip: said(p.fileName) }),
     W_MODEL_NOT_KEPT_BY_URL: (p) => ({ word: "Saved files", tip: both(said(p.url), "parts from several places") }),
 };
@@ -188,8 +188,8 @@ export function modelChip(fact: CodedFact): ModelChipWords {
 }
 
 /**
- * Several facts of one kind as one chip: "2 missing" with every name, "Without 2".
- * @param facts - the facts, all one kind (parts, or skipped parts).
+ * Several missing parts as one chip: "2 missing" with every name.
+ * @param facts - the facts, all one kind.
  * @returns the chip, or undefined for none.
  */
 export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefined {
@@ -199,9 +199,6 @@ export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefin
     }
     const tip = facts.map((f) => modelChip(f).tip).join(", ");
     const n = String(facts.length);
-    if (first.code === "W_MODEL_PART_SKIPPED") {
-        return { word: `Without ${n}`, tip };
-    }
     // Several models in a zip: a choice, not a missing part.
     return facts.length === 1 && first.code === "E_MODEL_AMBIGUOUS" ? modelChip(first) : { word: `${n} missing`, tip };
 }

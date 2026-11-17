@@ -2037,8 +2037,6 @@ export const CUSTOM_MODEL = {
     addressOrDrop: "Model address, or drop a file",
     /** What the file row says over itself while files are dragged over the dialog. */
     dropToLoad: "Drop to load model",
-    /** The empty preview, drawn as a drop area before any model is loaded. */
-    dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     /** The folder icon's hover text: when to use it. */
@@ -2068,8 +2066,10 @@ export const CUSTOM_MODEL = {
         total === null || total <= 0
             ? megabytes(completed)
             : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
-    /** The button at the end of Name that shows the model's own settings. */
+    /** The button at the end of Name that opens the model's own settings, and their pop-over's title. */
     settings: "Model settings",
+    /** The x that closes the Model settings pop-over, back to the dialog. */
+    closeSettings: "Close model settings",
     textures: "Textures",
     allTextures: "All textures",
     /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */

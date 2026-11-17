@@ -1,4 +1,4 @@
-import { DataRow, FileSource, ModalFooter, UiGlyph, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, ModalFooter, useFileDrop } from "@graphty/compact-mantine";
 import {
     assetFileExtensions,
     detectModelFormat,
@@ -34,7 +34,7 @@ import {
     TextInput,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
@@ -459,15 +459,8 @@ function previewOver(held: Held | null, name: string, draw: ModelLive, busy: boo
         );
     }
     if (held === null) {
-        // Before a model is loaded the box says the dialog takes a dropped file, as a drop area does.
-        return (
-            <Stack gap={6} align="center" className="ws-model-drop-hint">
-                <UiGlyph name="fileUpload" size={24} />
-                <Text size="xs" ta="center">
-                    {CUSTOM_MODEL.dropHere}
-                </Text>
-            </Stack>
-        );
+        // Blank until a model is loaded: the loader row beside it takes files, and the whole dialog a drop.
+        return null;
     }
     if (draw.unavailable && !busy) {
         // The preview could not draw here (no WebGL context for it); the model itself may be fine.
@@ -906,9 +899,11 @@ function drawBlock(
  * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
  * own file (its parts are asked for after, in Files), its folder, a .zip or a drop of any files
  * anywhere on the dialog; while it loads, graphty-element's
- * progress with Cancel load; once loaded, two columns: the settings on the left (Color, Animation
- * for a model with clips, More options, Files for a set of files, and the Details table), and the
- * model drawn by graphty-element on the right with its name and its rotate buttons under it.
+ * progress with Cancel load; two columns at every state: the loading on the left (the file loader,
+ * its progress bar, the loaded file with its x, lines about the load, and Files), and what was loaded
+ * on the right (the model drawn by graphty-element, a set's arrows, Name with the Model settings gear,
+ * and Details, a box that scrolls). The gear opens Model settings in a modal pop-over over the
+ * dialog (rotation, Color, Animation and Pose, Textures and, for a layer, its own settings).
  * Settings are a draft until Add. A folder, a .zip or a drop of several models holds each, stepped
  * through under the box, each with its own name and Load this model; files that are not a model,
  * arriving while one waits, go to it; a new model replaces what is held, and the x beside the file
@@ -950,12 +945,8 @@ export function CustomModelDialog({
     // A model's own settings (Color, Animation and Pose, Up, Turn, Textures...) are each model's, kept
     // with it on Add. The layer's own (Light, Wireframe, Picture) are one draft for the layer.
     const [draft, setDraft] = useState<ModelDraft>({});
+    // Model settings open in a modal pop-over over the dialog, from the gear beside Name.
     const [settingsOpen, setSettingsOpen] = useState(false);
-    // Opened, Model settings scroll into view with the file and its lines above them, wherever the
-    // column was scrolled (to Name, where the button is), so pressing the button shows them.
-    const showSettings = useCallback((el: HTMLDivElement | null) => {
-        el?.closest(".ws-model-main-inner")?.firstElementChild?.scrollIntoView({ block: "start" });
-    }, []);
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
@@ -1637,10 +1628,10 @@ export function CustomModelDialog({
                                     variant={settingsOpen ? "light" : "subtle"}
                                     size="sm"
                                     aria-label={CUSTOM_MODEL.settings}
+                                    aria-haspopup="dialog"
                                     aria-expanded={settingsOpen}
-                                    aria-controls={settingsOpen ? `${uid}-settings` : undefined}
                                     onClick={() => {
-                                        setSettingsOpen(!settingsOpen);
+                                        setSettingsOpen(true);
                                     }}
                                 >
                                     <GLYPHS.settings size={14} aria-hidden />
@@ -1652,7 +1643,7 @@ export function CustomModelDialog({
             </div>
         );
 
-    // Files: under the file and its settings, as tall as the list it holds.
+    // Files: under the file, in the loading column, a list that scrolls past its height.
     const filesBox =
         held === null || !showFiles || busy ? null : (
             <Stack gap={4}>
@@ -1726,7 +1717,7 @@ export function CustomModelDialog({
 
     // The file and any line about it: across the column's whole width.
     const top = (
-        <Stack gap="sm" className="ws-model-left ws-model-top">
+        <Stack gap="sm" className="ws-model-top">
             {fileSource}
             {addressProblem === null || busy ? null : (
                 <AddressActions
@@ -1811,7 +1802,7 @@ export function CustomModelDialog({
 
     const settings =
         held === null || summary === undefined || !settingsOpen || busy ? null : (
-            <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings" ref={showSettings}>
+            <Stack gap={6} data-testid="model-settings">
                 <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
                 <SettingRows
                     channels={MODEL_DEFAULT_CHANNELS}
@@ -1857,17 +1848,10 @@ export function CustomModelDialog({
             </Stack>
         );
 
-    // Model settings and Files: under the file, beside the model while Model settings are open.
-    const rest =
-        settings === null && filesBox === null ? null : (
-            <Stack gap="sm" className="ws-model-left ws-model-rest">
-                {settings}
-                {filesBox}
-            </Stack>
-        );
-
+    // The right column, what was loaded: the model, a set's arrows and Load this model under it,
+    // Name with the Model settings gear, then Details, a box that scrolls on its own.
     const side = (
-        <Stack gap={8} className="ws-model-side">
+        <div className="ws-model-side">
             <Preview
                 held={held}
                 name={name}
@@ -1877,30 +1861,6 @@ export function CustomModelDialog({
                 busy={busy}
                 onHost={setPreviewHost}
             />
-            {/* Details directly under the model, then a set's arrows and the model's Name. */}
-            {summary === undefined || held === null || busy ? null : (
-                <Stack gap={4} className="ws-model-details-box">
-                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
-                        <Text size="sm" id={`${uid}-details`}>
-                            {CUSTOM_MODEL.details}
-                        </Text>
-                        {detailChips.map((chip) => (
-                            <ModelChip key={chip.word} chip={chip} tone="warning" />
-                        ))}
-                    </Group>
-                    <section
-                        data-testid="model-details"
-                        className="ws-model-details ws-model-scroll"
-                        aria-labelledby={`${uid}-details`}
-                    >
-                        {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
-                            (row) => (
-                                <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
-                            ),
-                        )}
-                    </section>
-                </Stack>
-            )}
             {many && current !== undefined && !busy ? (
                 <ModelSteps
                     at={index}
@@ -1915,20 +1875,41 @@ export function CustomModelDialog({
                 />
             ) : null}
             {nameRow}
-        </Stack>
+            {summary === undefined || held === null || busy ? null : (
+                <div className="ws-model-details-box">
+                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
+                        <Text size="sm" id={`${uid}-details`}>
+                            {CUSTOM_MODEL.details}
+                        </Text>
+                        {detailChips.map((chip) => (
+                            <ModelChip key={chip.word} chip={chip} tone="warning" />
+                        ))}
+                    </Group>
+                    <section
+                        data-testid="model-details"
+                        className="ws-model-details ws-model-scroll"
+                        aria-labelledby={`${uid}-details`}
+                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
+                        tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
+                    >
+                        {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
+                            (row) => (
+                                <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
+                            ),
+                        )}
+                    </section>
+                </div>
+            )}
+        </div>
     );
-
-    // A loaded model: one scrolling column, the file, its settings and Files on top, as tall as
-    // they are, and the model under them taking the rest of the height (150 px at least), with
-    // Details, a set's arrows and Name under it, so nothing leaves a blank beside the model.
-    const alone = held !== null && !busy;
 
     return (
         <Modal
             opened
             onClose={cancel}
-            // Mantine's modal sees Escape before anything inside it: the Picture pop-over closes alone.
-            closeOnEscape={!pictureOpen}
+            // Mantine's modal sees Escape before anything inside it: the Picture pop-over and Model
+            // settings close alone.
+            closeOnEscape={!pictureOpen && !settingsOpen}
             title={CUSTOM_MODEL.title}
             size="lg"
             // A loaded model is not lost to a stray click beside the dialog.
@@ -1939,24 +1920,25 @@ export function CustomModelDialog({
                 className="ws-dialog-columns ws-model-body"
                 data-testid="custom-model"
                 data-over={over || undefined}
-                data-alone={alone || undefined}
-                data-settings={(alone && settings !== null) || undefined}
             >
-                <ScrollArea
-                    className="ws-model-main"
-                    classNames={{ content: "ws-model-main-inner" }}
-                    type="hover"
-                    scrollbars="y"
-                    offsetScrollbars="y"
-                >
-                    {top}
-                    {rest}
-                    {/* A loaded model scrolls as one column with its file and settings, so opening
-                        Model settings shows them whole and the footer always stays in view. With
-                        them open, the model, Details and Name stay in view beside them. */}
-                    {alone ? side : null}
+                <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
+                    <Stack gap="sm" className="ws-model-left">
+                        {top}
+                        {filesBox}
+                    </Stack>
                 </ScrollArea>
-                {alone ? null : side}
+                {side}
+                <Modal
+                    opened={settings !== null}
+                    onClose={() => {
+                        setSettingsOpen(false);
+                    }}
+                    closeOnEscape={!pictureOpen}
+                    title={CUSTOM_MODEL.settings}
+                    closeButtonProps={{ "aria-label": CUSTOM_MODEL.closeSettings }}
+                >
+                    {settings}
+                </Modal>
                 <ModalFooter className="ws-model-footer">
                     <Button variant="default" onClick={cancel}>
                         {CUSTOM_MODEL.cancel}

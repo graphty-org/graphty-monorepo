@@ -520,7 +520,7 @@ interface ModelProblemsProps {
 /**
  * What the Shape field says about the model it names (design 13.9, 13.6), read from
  * graphty-element's model states: "N missing" while the model waits for parts, opening the Parts
- * pop-over; "Without N" for parts it is drawn without; a chip for any other refusal, with Use as
+ * pop-over; a chip for any other refusal, with Use as
  * picture when the model named is a picture.
  * @param props - Component props
  * @param props.modelRef - what the layer names
@@ -570,10 +570,9 @@ export function ModelProblems({
         return null;
     }
     const partsChip = countChip(parts);
-    const skipped = countChip(problems.filter((p) => p.code === "W_MODEL_PART_SKIPPED"));
     const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
     const notes = problems.filter((p) => FIELD_WARNINGS.has(p.code));
-    if (partsChip === undefined && skipped === undefined && refusal === undefined && notes.length === 0) {
+    if (partsChip === undefined && refusal === undefined && notes.length === 0) {
         return null;
     }
     return (
@@ -589,7 +588,6 @@ export function ModelProblems({
                     }}
                 />
             )}
-            {skipped === undefined ? null : <ModelChip chip={skipped} tone="warning" />}
             {refusal === undefined ? null : <FactChip fact={refusal} />}
             {refusal?.params.assetKind === "image" && onUseAsPicture !== undefined ? (
                 <Tooltip label={`Use ${name} as picture`}>

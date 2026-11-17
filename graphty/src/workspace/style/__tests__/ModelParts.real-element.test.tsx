@@ -243,12 +243,13 @@ describe("a model missing parts, on the real element", () => {
         await finished(session, tab);
     });
 
-    it("draws without the picture on Load without it, showing 'Without 1'", async () => {
+    it("draws without the picture on Load without it, with no 'Without N' chip in the Style panel", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
         await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART_NAME}` }));
         await finished(session, tab);
-        assert.isNotNull(await within(tab).findByText("Without 1"));
+        assert.isNull(within(tab).queryByText(/^Without \d/), "no chip says what the model is drawn without");
+        assert.isNull(tab.querySelector(".ws-model-chips"), "no chip line under the Shape field");
     });
 
     it("takes the picture's address on the same site, and asks first for another site", async () => {

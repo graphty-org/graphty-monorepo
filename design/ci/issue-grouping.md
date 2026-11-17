@@ -119,14 +119,18 @@ A regression from any member reverts the whole group, which is why the size is c
 | ------ | ------ | ------------- |
 | docs   | 10     | no cap        |
 | tests  | 8      | 12            |
-| source | 4      | 6             |
+| source | 5      | 8             |
 
 Points: `effort:low` 1, `medium` 2, `high` 3, unlabelled 2. A triage lead counts as one issue with its full points. A
-T1 fold counts 0 points but still counts as an issue. The source cap is the long-standing job limit: at the 75th
-percentile groups of 2 to 4 took 3.2 hours to merge against 1.5 hours for one issue, and six points is about what one
-subagent context and one review hold. The docs and tests caps are **provisional**: no measurement of how often a
-first CI run fails on its own change, per class, existed when they were set (2026-11-16); they are revised from that
-measurement and from the per-class guardrails (section 9). Never wait to fill a group: the median time from opening
+T1 fold counts 0 points but still counts as an issue. The caps come from a measurement of 1,140 agent pull requests
+(2026-11-02 to 11-16): the share whose first CI run failed on its own change was 3.6% for docs, 4.9% for tests and 15.9%
+for source. With p that rate, issues merged per CI run peak near n = -1/ln(1-p): about 6 for source (5 to 7 across
+its confidence interval; 5 gets 99% of the best), and 20 or more for docs and tests, where review and one subagent's
+context bind before CI does, so their caps are a judgment (10 and 8). Grouped pull requests failed less than the model
+predicts (19% at two issues against 25% predicted), and none of the 6 reverts in that window closed more than one
+issue. Eight points keeps the source point cap in proportion to five issues; points were not measured. The caps move
+on the per-class guardrails (section 9).
+Never wait to fill a group: the median time from opening
 to master is 26 minutes.
 
 ### Ties and doubt
@@ -337,7 +341,7 @@ then the collision check of the issue-round skill keeps lane branches apart.
 
 ## 6. Bounded growth
 
-- **Size:** the class caps of section 1 (source 4 issues and 6 points); trackers never count. A combined branch
+- **Size:** the class caps of section 1 (source 5 issues and 8 points); trackers never count. A combined branch
   stays within its family's class cap.
 - **Joins:** a ready branch takes at most 2 joins over its life.
 - **Follow-ups:** a frozen group has at most one follow-up group, which itself grows only to the cap; it gets its
@@ -416,7 +420,7 @@ The first three apply per class (`metrics` groups each pull request by its ledge
 counts as source), each once that class has 10 grouped pull requests in the window; below that the class is "not yet
 measured". `metrics` lists any breach, named with its class.
 **One breach:** issue-round files a `priority:high` issue naming it; its fix lowers that class's cap by about a quarter
-(source 4 issues and 6 points to 3 and 4). **Two breaches in a week:** that issue becomes `priority:critical` and the
+(source 5 issues and 8 points to 4 and 6). **Two breaches in a week:** that issue becomes `priority:critical` and the
 rounds group that class only by T1 folds until it closes. Reverts caused by a member's fix and members reopened within 7
 days are counted by hand at the day-7 and day-14 reviews, which compare against the baseline; changing a threshold is
 decided and recorded in the day-14 issue.

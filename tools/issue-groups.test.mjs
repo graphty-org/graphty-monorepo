@@ -28,6 +28,8 @@ import {
     jobLines,
     ledgerJobs,
     main,
+    MAX_ISSUES,
+    MAX_POINTS,
     metrics,
     mutate,
     newestMarker,
@@ -84,32 +86,17 @@ describe("create and the caps", () => {
         );
     });
 
-    it("refuses a fifth issue and a seventh point", () => {
+    it(`refuses issue ${MAX_ISSUES + 1} and point ${MAX_POINTS + 1}`, () => {
         const l = fresh();
-        assert.throws(
-            () =>
-                make(l, 1, [
-                    { n: 2, test: "T3" },
-                    { n: 3, test: "T3" },
-                    { n: 4, test: "T5" },
-                    { n: 5, test: "T5" },
-                ]),
-            /issues already|effort points/,
-        );
-        const heavy = factsOf({ 1: ["effort:high"], 2: ["effort:high"], 3: ["effort:low"] });
-        assert.throws(
-            () =>
-                make(
-                    fresh(),
-                    1,
-                    [
-                        { n: 2, test: "T3" },
-                        { n: 3, test: "T3" },
-                    ],
-                    heavy,
-                ),
-            /7|effort points/,
-        );
+        const extra = Array.from({ length: MAX_ISSUES }, (_, k) => ({ n: k + 2, test: k < 2 ? "T3" : "T5" }));
+        assert.throws(() => make(l, 1, extra), /issues already|effort points/);
+        // Issues of effort high (3 points each), and one of low or medium for the rest, to reach MAX_POINTS + 1.
+        const highs = Math.floor((MAX_POINTS + 1) / 3);
+        const rest = (MAX_POINTS + 1) % 3;
+        const spec = Object.fromEntries(Array.from({ length: highs }, (_, k) => [k + 1, ["effort:high"]]));
+        if (rest) spec[highs + 1] = [rest === 1 ? "effort:low" : "effort:medium"];
+        const members = Array.from({ length: highs + (rest ? 1 : 0) - 1 }, (_, k) => ({ n: k + 2, test: "T3" }));
+        assert.throws(() => make(fresh(), 1, members, factsOf(spec)), new RegExp(`${MAX_POINTS + 1}|effort points`));
     });
 
     it("counts a T1 fold as no points but as an issue, and never counts a tracker", () => {
@@ -168,7 +155,7 @@ describe("risk classes, any member and each member's reason", () => {
         assert.equal(classOf(["graphty/CLAUDE.md"]), "source");
     });
 
-    it("caps each class: docs 10 issues and no points, tests 8 and 12, source 4 and 6", () => {
+    it(`caps each class: docs 10 issues and no points, tests 8 and 12, source ${MAX_ISSUES} and ${MAX_POINTS}`, () => {
         const heavy = factsOf(Object.fromEntries(Array.from({ length: 12 }, (_, k) => [k + 1, ["effort:high"]])));
         const ten = Array.from({ length: 9 }, (_, k) => ({ n: k + 2, test: "T6" }));
         const g = docs(fresh(), 1, ten, heavy);
@@ -350,8 +337,20 @@ describe("route", () => {
 
     it("adds to a proposed group, joins a ready one, and starts its own when the target is full", () => {
         const l = fresh();
-        const f = factsOf({ 1: ["effort:high"], 2: ["effort:high"], 3: ["effort:low"] });
-        make(l, 1, [], f);
+        // #1 and #2 (high) and low fillers leave g1 one point short of the cap, so #4 (medium) overflows it.
+        const fillers = Array.from({ length: MAX_POINTS - 7 }, (_, k) => k + 10);
+        const f = factsOf({
+            1: ["effort:high"],
+            2: ["effort:high"],
+            3: ["effort:low"],
+            ...Object.fromEntries(fillers.map((n) => [n, ["effort:low"]])),
+        });
+        make(
+            l,
+            1,
+            fillers.map((n) => ({ n, test: "T3" })),
+            f,
+        );
         assert.match(route(l, { n: 2, to: "g1", test: "T3", now: NOW, facts: f }), /added to g1/);
         assert.match(route(l, { n: 4, to: "g1", test: "T3", now: NOW, facts: f }), /starts g4 \(g1 is full/);
         make(l, 5, [], f);
@@ -399,12 +398,14 @@ describe("route", () => {
 
     it("refuses a full follow-up group and an owner-only issue", () => {
         const l = fresh();
-        const f = factsOf({ 6: ["needs-decision"] });
+        const f = factsOf({ 30: ["needs-decision"] });
         make(l, 1);
         freeze(l, "g1", 900, NOW);
-        for (const n of [2, 3, 4]) route(l, { n, to: "g1", test: "T3", now: NOW, facts: f });
-        assert.throws(() => route(l, { n: 5, to: "g1", test: "T3", now: NOW, facts: f }), /follow-up full/);
-        assert.throws(() => route(l, { n: 6, now: NOW, facts: f }), /owner-only/);
+        // Issues of effort medium (2 points each) until the follow-up group is full.
+        const fit = Math.min(MAX_ISSUES, Math.floor(MAX_POINTS / 2));
+        for (let n = 2; n <= fit + 1; n++) route(l, { n, to: "g1", test: "T3", now: NOW, facts: f });
+        assert.throws(() => route(l, { n: fit + 2, to: "g1", test: "T3", now: NOW, facts: f }), /follow-up full/);
+        assert.throws(() => route(l, { n: 30, now: NOW, facts: f }), /owner-only/);
     });
 
     it("is a no-op for an issue already grouped", () => {
@@ -456,30 +457,33 @@ describe("archive, compact, import and validate", () => {
         make(l, 1);
         make(l, 2);
         start(l, "g2", "fix/2", NOW);
+        // A job one issue over the source cap (#3 on), then a last issue that holds against #4.
+        const over = Array.from({ length: MAX_ISSUES + 1 }, (_, k) => k + 3);
+        const last = over.at(-1) + 1;
         const scan = {
             builtAt: "2026-11-16T19:59:00Z",
             jobs: [
                 {
-                    issues: [2, 3, 4, 5, 6, 7],
+                    issues: [2, ...over],
                     why: "T3 same block",
                     files: ["a.ts"],
                     members: [
-                        ...[3, 4, 5, 6, 7].map((n) => ({ n, test: "T3", points: 1, why: `#${n} edits parse()` })),
-                        { n: 8, test: "T3", with: 4, points: 1, why: "#8 edits parse() too" },
+                        ...over.map((n) => ({ n, test: "T3", points: 1, why: `#${n} edits parse()` })),
+                        { n: last, test: "T3", with: 4, points: 1, why: `#${last} edits parse() too` },
                     ],
                 },
             ],
         };
-        scan.jobs[0].issues.push(8);
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: 6, unreasoned: 0 });
+        scan.jobs[0].issues.push(last);
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: over.length + 1, unreasoned: 0 });
         assert.deepEqual(
             l.groups.map((g) => [g.id, g.members.map((m) => m.n)]),
             [
                 ["g2", [2]],
-                ["g3", [3, 4, 5, 6]],
-                ["g7", [7, 8]],
+                ["g3", over.slice(0, MAX_ISSUES)],
+                [`g${over.at(-1)}`, [over.at(-1), last]],
             ],
-            "#8 holds against #4, cut into the first part, and still rides in the second",
+            "the last issue holds against #4, cut into the first part, and still rides in the second",
         );
         assert.equal(l.scannedAt, "2026-11-16T19:59:00Z");
         assert.equal(l.groups.at(-1).origin, "g3", "a cut part remembers the job it came from");
@@ -1087,7 +1091,9 @@ describe("combine-plan", () => {
         ready_(l, 3, [], "docs/3-c", ["visual-review/x.md"], low);
         ready_(l, 10, [{ n: 11, test: "T3" }], "fix/10-a", ["layout/src/a.ts"], low);
         ready_(l, 12, [{ n: 13, test: "T3" }], "fix/12-b", ["layout/src/a.ts"], low);
-        ready_(l, 14, [], "fix/14-c", ["layout/src/a.ts"], low);
+        // fix/14-c carries enough issues to put a family of all three source branches one over the cap.
+        const cExtra = Array.from({ length: MAX_ISSUES - 4 }, (_, k) => ({ n: k + 15, test: "T3" }));
+        ready_(l, 14, cExtra, "fix/14-c", ["layout/src/a.ts"], low);
         ready_(l, 20, [], "fix/20-d", ["algorithms/src/z.ts"], low);
         const diffs = Object.fromEntries(l.groups.map((g) => [g.branch, g.files]));
         diffs["docs/3-c"] = ["visual-review/x.md", "tools/pr-open.sh"];
@@ -1110,7 +1116,7 @@ describe("combine-plan", () => {
                 ["docs", ["docs/1-a", "docs/2-b"]],
                 ["source", ["fix/10-a", "fix/12-b"]],
             ],
-            "all guarded docs combine; fix/14-c would be a fifth issue in a source family (cap 4)",
+            `all guarded docs combine; fix/14-c would put a source family over its cap of ${MAX_ISSUES} issues`,
         );
         assert.deepEqual(
             plan.judge.map((j) => [j.a, j.b]),

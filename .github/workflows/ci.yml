@@ -938,7 +938,7 @@ jobs:
                       echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
                   fi
 
-            # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
+            # The eight Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
             # four 49 s together), and every Stories job waits for this job. Each build reads only
             # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
@@ -947,7 +947,7 @@ jobs:
               if: steps.reuse-build.outputs.artifacts-run == ''
               run: >-
                   pnpm exec nx run-many -t build-storybook --parallel=3
-                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
+                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,babylonjs-models,graph-io
 
             # The browser test shards restore Babylon.js's GLSL compilers from master's cache (the Test job's "Restore
             # the Babylon.js GLSL compilers"), and a pull request never saves a cache, while a master push runs no
@@ -1049,6 +1049,13 @@ jobs:
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
+
+            - name: Upload Storybook build (babylonjs-models)
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-storybook-babylonjs-models
+                  path: babylonjs-models/storybook-static/
                   retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (graph-io-fidelity)

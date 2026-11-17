@@ -59,6 +59,7 @@ export const STORYBOOKS = {
     "build-storybook-algorithms": "algorithms/storybook-static",
     "build-storybook-layout": "layout/storybook-static",
     "build-storybook-cytoscape-extensions": "cytoscape-extensions/storybook-static",
+    "build-storybook-babylonjs-models": "babylonjs-models/storybook-static",
     "build-storybook-graph-io-fidelity": "graph-io/fidelity-stories/storybook-static",
 };
 const BUILDS = ["build-packages", ...Object.keys(STORYBOOKS)];

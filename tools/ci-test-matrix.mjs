@@ -261,6 +261,15 @@ const OFF_SHARDS = [
             "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
         "needs-browser": true,
     },
+    // babylonjs-models' stories: every play function run as a test, the only browser tests of the package (its own
+    // unit tests run in Node). No coverage: graphty-element's browser tests measure the Babylon.js half.
+    {
+        shard: "babylonjs-models-storybook",
+        package: "babylonjs-models",
+        "test-command":
+            "cd babylonjs-models && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // algorithms - two shards (default and browser separated to avoid worker timeout)
     // Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
     {

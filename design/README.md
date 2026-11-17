@@ -50,29 +50,35 @@ This directory contains design documents, implementation plans, research, and co
 
 ### By Task
 
-| I want to...                    | Look in...        |
-| ------------------------------- | ----------------- |
-| Add AI/LLM features             | `ai/`             |
-| Work on graph algorithms        | `algorithms-pkg/` |
-| Understand async/state patterns | `architecture/`   |
-| Review past code reviews        | `code-reviews/`   |
-| Add data sources or formats     | `data/`           |
-| Work on layout algorithms       | `layout-pkg/`     |
-| Update build/release process    | `monorepo/`       |
-| Change edge/node rendering      | `rendering/`      |
-| Improve test infrastructure     | `testing/`        |
-| Build React UI components       | `ui/`             |
-| Add VR/AR support               | `xr/`             |
+| I want to...                     | Look in...                              |
+| -------------------------------- | --------------------------------------- |
+| Add AI/LLM features              | `ai/`                                   |
+| Write a graphty-element plugin   | `extensions/`                           |
+| Change a file format or importer | `graph-io/`, `documents/`, `positions/` |
+| Work on graph algorithms         | `algorithms-pkg/`                       |
+| Understand async/state patterns  | `architecture/`                         |
+| Review past code reviews         | `code-reviews/`                         |
+| Add data sources or formats      | `data/`                                 |
+| Work on layout algorithms        | `layout-pkg/`                           |
+| Update build/release process     | `monorepo/`                             |
+| Change edge/node rendering       | `rendering/`                            |
+| Improve test infrastructure      | `testing/`                              |
+| Build React UI components        | `ui/`                                   |
+| Add VR/AR support                | `xr/`                                   |
 
 ### By Package
 
-| Package                      | Primary Directories                                  |
-| ---------------------------- | ---------------------------------------------------- |
-| @graphty/algorithms          | `algorithms-pkg/`                                    |
-| @graphty/layout              | `layout-pkg/`                                        |
-| @graphty/graphty-element     | `ai/`, `architecture/`, `data/`, `rendering/`, `xr/` |
-| @graphty/graphty (React app) | `ui/`                                                |
-| Monorepo (root)              | `monorepo/`, `testing/`                              |
+| Package                          | Primary Directories                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| @graphty/algorithms              | `algorithms-pkg/`, `algorithms/`                                                                        |
+| @graphty/graph-format            | `graph-format/`                                                                                         |
+| @graphty/graph-io                | `graph-io/`, `positions/`                                                                               |
+| @graphty/graph-samples           | `graph-samples/`                                                                                        |
+| @graphty/webgpu-graph-algorithms | `webgpu/`                                                                                               |
+| @graphty/layout                  | `layout-pkg/`                                                                                           |
+| @graphty/graphty-element         | `graphty-element/`, `extensions/`, `element-api/`, `ai/`, `architecture/`, `data/`, `rendering/`, `xr/` |
+| @graphty/graphty (React app)     | `ui/`                                                                                                   |
+| Monorepo (root)                  | `monorepo/`, `testing/`                                                                                 |
 
 ## Document Types
 

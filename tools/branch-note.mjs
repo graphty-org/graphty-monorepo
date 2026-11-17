@@ -168,9 +168,16 @@ export function writeNote(run, n, branch, fields) {
     return body;
 }
 
-const git = (cwd, args) => {
-    const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-    return r.status === 0 ? r.stdout.trim() : "";
+// tools/pr-review.sh copies this file alone, so it cannot import tools/lib/git.mjs; these two match it.
+const gitRun = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8" });
+const gitOrNull = (args, { cwd }) => {
+    const r = gitRun(cwd, args);
+    return r.status === 0 ? r.stdout.trim() : null;
+};
+const git = (args, { cwd }) => {
+    const r = gitRun(cwd, args);
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${(r.stderr || r.error?.message || "").trim()}`);
+    return r.stdout.trim();
 };
 
 /**
@@ -182,7 +189,7 @@ const git = (cwd, args) => {
  */
 export function branchIssue(cwd, branch, given) {
     if (given) return Number(given);
-    const set = git(cwd, ["config", `branch.${branch}.issue`]);
+    const set = gitOrNull(["config", `branch.${branch}.issue`], { cwd });
     return set ? Number(set) : issueInName(branch);
 }
 
@@ -210,7 +217,7 @@ export function owner(given, env = process.env) {
     return `${userInfo().username}@${hostname()}`;
 }
 
-const latestCommit = (cwd) => git(cwd, ["log", "-1", "--format=%h %s (%cI)"]);
+const latestCommit = (cwd) => git(["log", "-1", "--format=%h %s (%cI)"], { cwd });
 
 /**
  * Opens an issue with a type, a priority and an effort label.
@@ -287,7 +294,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
     }
     if (command === "check-issue") return checkIssue(run, Number(o.issue));
     if (command === "issue-of") return issueOf(cwd, rest[0]);
-    const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
+    const branch = o.branch ?? gitOrNull(["symbolic-ref", "-q", "--short", "HEAD"], { cwd });
     if (!["start", "update", "commit"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);
     if (!n) {
@@ -295,7 +302,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         return command === "commit" ? 0 : 1;
     }
     if (command === "commit") {
-        const main = dirname(git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+        const main = dirname(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }));
         if (!commitDue(main, branch)) return 0;
         writeNote(run, n, branch, { "latest commit": latestCommit(cwd) });
         return 0;

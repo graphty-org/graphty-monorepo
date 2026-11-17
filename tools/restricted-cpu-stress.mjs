@@ -22,6 +22,8 @@ import { readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { githubRequest } from "./lib/github.mjs";
+
 // Only node built-ins and tools/ helpers: the report job installs no dependencies.
 import { workspaceDirs } from "./workspace-files.mjs";
 
@@ -263,17 +265,9 @@ async function perform(a, request, repo) {
 
 async function main() {
     const [dir] = process.argv.slice(2);
-    const { GITHUB_REPOSITORY: repo, GITHUB_TOKEN: token, DRY_RUN, GITHUB_STEP_SUMMARY } = process.env;
+    const { GITHUB_REPOSITORY: repo, DRY_RUN, GITHUB_STEP_SUMMARY } = process.env;
     const ctx = { restriction: process.env.RESTRICTION, runUrl: process.env.RUN_URL, sha: process.env.SHA };
-    const request = async (method, path, body) => {
-        const res = await fetch(`https://api.github.com${path}`, {
-            method,
-            headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
-            body: body && JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
-        return res.json();
-    };
+    const request = githubRequest;
     const failures = tally(readTests(dir));
     const issues = failures.length ? await listIssues(request, repo) : [];
     const actions = plan(failures, issues, ctx);

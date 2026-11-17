@@ -19,6 +19,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { repoApi } from "./lib/github.mjs";
 import { call, config } from "./results/client.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -477,21 +478,6 @@ export async function syncIssues(gh, verdicts, owner = "pipeline") {
 
 // ---------- the command line ----------
 
-function githubApi(repo = process.env.GITHUB_REPOSITORY, token = process.env.GITHUB_TOKEN) {
-    return async (path, init = {}) => {
-        const res = await fetch(`https://api.github.com/repos/${repo}${path}`, {
-            ...init,
-            headers: {
-                authorization: `Bearer ${token}`,
-                accept: "application/vnd.github+json",
-                "content-type": "application/json",
-            },
-        });
-        if (!res.ok) throw new Error(`${init.method ?? "GET"} ${path}: ${res.status}`);
-        return res.status === 204 ? null : res.json();
-    };
-}
-
 async function failOpen(what, fn) {
     try {
         return await fn();
@@ -617,7 +603,7 @@ const KIND_OF_EVENT = { pull_request: "pr", push: "master", workflow_dispatch: "
 
 async function report(v) {
     const file = loadBudgets();
-    const gh = githubApi();
+    const gh = repoApi();
     const run = await gh(`/actions/runs/${v.run}`);
     const jobs = [];
     for (let page = 1; ; page++) {
@@ -661,7 +647,7 @@ async function trendCommand(v) {
     for (const x of verdicts.filter((y) => y.alarm))
         console.log(`alarm: ${x.key} (${x.kind}) ${fmt(x.earlier)} -> ${fmt(x.recent)}`);
     if (v.apply)
-        for (const a of await syncIssues(githubApi(), verdicts, file.defaults?.owner))
+        for (const a of await syncIssues(repoApi(), verdicts, file.defaults?.owner))
             console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
     return 0;
 }

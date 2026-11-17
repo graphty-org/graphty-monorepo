@@ -24,6 +24,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+import { repoApi } from "./lib/github.mjs";
+
 export const RED_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
 export const DEPLOY_PREFIX = "canary deploy failed on ";
@@ -447,26 +449,8 @@ async function main() {
             return undefined;
         }
     };
-    const call = async (base, token, path, init = {}) => {
-        const res = await fetch(`${base}${path}`, {
-            ...init,
-            headers: {
-                authorization: `Bearer ${token}`,
-                accept: "application/vnd.github+json",
-                "content-type": "application/json",
-            },
-        });
-        if (!res.ok) {
-            throw new Error(`${init.method ?? "GET"} ${path}: ${res.status} ${await res.text()}`);
-        }
-        if (res.status === 204) {
-            return null;
-        }
-        // a job's log is text (fetch drops the authorization header on the redirect to the log's storage)
-        return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
-    };
-    const gh = (path, init, token = process.env.GITHUB_TOKEN) =>
-        call("https://api.github.com", token, `/repos/${repo}${path}`, init);
+    // a job's log comes back as text (fetch drops the authorization header on the redirect to the log's storage)
+    const gh = (path, init, token = process.env.GITHUB_TOKEN) => repoApi(repo, { token })(path, init);
     const labels = (effort) => ["bug", "priority:critical", `effort:${effort}`];
 
     const action = decide(run);

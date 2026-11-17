@@ -5738,7 +5738,8 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
             }
             writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
-            for (const f of ["publish-hold.mjs", "release-status.mjs"]) {
+            mkdirSync(join(dir, "tools", "lib"));
+            for (const f of ["publish-hold.mjs", "release-status.mjs", "lib/github.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             if (absent !== undefined) writeFileSync(join(dir, "absent.txt"), absent);

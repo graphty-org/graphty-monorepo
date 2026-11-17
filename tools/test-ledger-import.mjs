@@ -6,23 +6,16 @@
 //
 //   node tools/test-ledger-import.mjs     imports, then rebuilds the ledger's index
 
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
+import { git, gitOrNull } from "./lib/git.mjs";
 import { failureHashes, familyOf, ledgerDir, outcomeOf, rebuild, writeRecord } from "./test-ledger.mjs";
 
 const h16 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
-const git = (cwd, args) => {
-    try {
-        return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    } catch {
-        return "";
-    }
-};
 const list = (d) => (existsSync(d) ? readdirSync(d) : []);
 const readJsonText = (t) => {
     try {
@@ -101,7 +94,7 @@ export async function importHistory(main, env = process.env) {
     const treeOf = (sha) =>
         trees.has(sha)
             ? trees.get(sha)
-            : trees.set(sha, git(main, ["rev-parse", "-q", "--verify", `${sha}^{tree}`]) || null).get(sha);
+            : trees.set(sha, gitOrNull(["rev-parse", "-q", "--verify", `${sha}^{tree}`], { cwd: main })).get(sha);
     const add = (r) => {
         const s = shardOf.get(r.shard);
         if (!s || !r.commit) return;
@@ -226,7 +219,7 @@ function factLines(text) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    const main = dirname(git(process.cwd(), ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    const main = dirname(git(["rev-parse", "--path-format=absolute", "--git-common-dir"]));
     console.log(JSON.stringify(await importHistory(main)));
     console.log(`ledger: rebuilt as ${rebuild()}`);
 }

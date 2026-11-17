@@ -58,6 +58,7 @@ tools/health-owner-sweep.test.mjs
 tools/idle-servers.test.mjs
 tools/issue-queue.test.mjs
 tools/lfs-pre-push.test.mjs
+tools/lib/lib.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/llm-spend.test.mjs

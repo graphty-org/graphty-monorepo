@@ -34,6 +34,8 @@
 // since --since (the attempt's start).
 import { parseArgs } from "node:util";
 
+import { githubRequest } from "./lib/github.mjs";
+
 export const LABEL = "release-status";
 export const TITLE = "Release status";
 /**
@@ -362,21 +364,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
                 .concat([["restart", { type: "boolean" }]]),
         ),
     });
-    const request = async (method, path, data) => {
-        const res = await fetch(`https://api.github.com${path}`, {
-            method,
-            headers: {
-                authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                accept: "application/vnd.github+json",
-                "content-type": "application/json",
-            },
-            body: data && JSON.stringify(data),
-        });
-        if (!res.ok) {
-            throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
-        }
-        return res.json();
-    };
+    const request = githubRequest;
     const repo = process.env.GITHUB_REPOSITORY;
     if (positionals[0] === "started") {
         // phone only: the issue logs outcomes, not attempts

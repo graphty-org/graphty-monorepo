@@ -14,13 +14,15 @@
 //
 // TEST_LEDGER_DIR replaces the directory (the tests set it). Off switch for excusing: PREPUSH_EXONERATE=0.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
+
+import { git, gitOrNull, gitRun } from "./lib/git.mjs";
 
 // node:sqlite prints "ExperimentalWarning: SQLite is an experimental feature" on import; only that one is dropped.
 const emitWarning = process.emitWarning;
@@ -46,18 +48,6 @@ export const OWNED = [...EVIDENCE, ...["land-check", "verify", "bisect", "cut", 
 const LAND_SUBJECT = /^land: (\S+)$/;
 
 const h16 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
-const git = (cwd, args) => {
-    try {
-        return execFileSync("git", args, {
-            cwd,
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-            maxBuffer: 1 << 28,
-        }).trim();
-    } catch {
-        return "";
-    }
-};
 const list = (d) => (existsSync(d) ? readdirSync(d) : []);
 const inList = (n) => `(${Array.from({ length: n }, () => "?").join(",")})`;
 export const familyOf = (shard) => shard.replace(/-\d+$/, "");
@@ -78,7 +68,7 @@ const readJson = (p) => {
  */
 export function ledgerDir(env = process.env, cwd = process.cwd()) {
     if (env.TEST_LEDGER_DIR) return env.TEST_LEDGER_DIR;
-    return join(dirname(git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "tmp/test-ledger");
+    return join(dirname(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd })), "tmp/test-ledger");
 }
 
 // ---------------------------------------------------------------- parsing and hashing
@@ -234,17 +224,19 @@ export const newRunId = (shard) => `${Date.now()}-${process.pid}-${shard}`;
  * @returns `{ commit, tree, base, branch, dirty }`
  */
 export function headFacts(root, env = process.env) {
-    const subject = git(root, ["log", "-1", "--format=%s"]);
+    // a checkout that is not a git repository (a copied tree) has no facts: null, never ""
+    const at = (args) => gitOrNull(args, { cwd: root });
+    const subject = at(["log", "-1", "--format=%s"]) ?? "";
     return {
-        commit: git(root, ["rev-parse", "HEAD"]),
-        tree: git(root, ["rev-parse", "HEAD^{tree}"]),
-        base: git(root, ["rev-parse", "-q", "--verify", "HEAD^1"]) || null,
+        commit: at(["rev-parse", "HEAD"]),
+        tree: at(["rev-parse", "HEAD^{tree}"]),
+        base: at(["rev-parse", "-q", "--verify", "HEAD^1"]),
         branch:
             LAND_SUBJECT.exec(subject)?.[1] ||
             env.TEST_LEDGER_BRANCH ||
-            git(root, ["symbolic-ref", "--short", "-q", "HEAD"]) ||
+            at(["symbolic-ref", "--short", "-q", "HEAD"]) ||
             null,
-        dirty: git(root, ["status", "--porcelain"]) !== "",
+        dirty: (at(["status", "--porcelain"]) ?? "") !== "",
     };
 }
 
@@ -550,7 +542,7 @@ function pruneFiles(dir, cwd, cutoffDay) {
     [...temps, ...dbs.map((n) => join(dir, n))]
         .filter((p) => olderThan(p, 1))
         .forEach((p) => rmSync(p, { force: true }));
-    const junit = [...git(cwd, ["worktree", "list", "--porcelain"]).matchAll(/^worktree (.+)$/gm)]
+    const junit = [...git(["worktree", "list", "--porcelain"], { cwd }).matchAll(/^worktree (.+)$/gm)]
         .flatMap(([, wt]) =>
             list(join(wt, "test-results"))
                 .filter((n) => n.startsWith("junit-"))
@@ -584,9 +576,7 @@ export function checkQuarantine(entries) {
 // ---------------------------------------------------------------- decisions
 
 const chainOf = (cwd, tip, n = 200) =>
-    git(cwd, ["rev-list", "--first-parent", "-n", String(n), tip])
-        .split("\n")
-        .filter(Boolean);
+    (gitOrNull(["rev-list", "--first-parent", "-n", String(n), tip], { cwd }) ?? "").split("\n").filter(Boolean);
 
 /**
  * Golden's tip under a land check: the first commit below HEAD, on the first-parent line, that GitHub's golden
@@ -595,9 +585,11 @@ const chainOf = (cwd, tip, n = 200) =>
  * @returns the commit, or null
  */
 export function goldenTip(root) {
-    const golden = git(root, ["rev-parse", "-q", "--verify", "origin/golden"]);
-    const has = (sha) => spawnSync("git", ["merge-base", "--is-ancestor", sha, golden], { cwd: root }).status === 0;
-    for (const line of git(root, ["log", "--first-parent", "-n", "100", "--format=%H %s", "HEAD^1"]).split("\n")) {
+    const golden = gitOrNull(["rev-parse", "-q", "--verify", "origin/golden"], { cwd: root });
+    const has = (sha) => gitRun(["merge-base", "--is-ancestor", sha, golden], { cwd: root }).code === 0;
+    for (const line of (
+        gitOrNull(["log", "--first-parent", "-n", "100", "--format=%H %s", "HEAD^1"], { cwd: root }) ?? ""
+    ).split("\n")) {
         const [sha, subject] = [line.slice(0, 40), line.slice(41)];
         if (sha && (!LAND_SUBJECT.test(subject) || (golden && has(sha)))) return sha;
     }
@@ -623,7 +615,7 @@ export async function exonerate(rec, root, opts = {}) {
     const { env = process.env, rerun = null, gh = defaultGh } = opts;
     const base = goldenTip(root);
     if (!base || rec.outcome !== "failed" || !rec.failures.length) return [];
-    const changed = new Set(git(root, ["diff", "--name-only", base, "HEAD"]).split("\n"));
+    const changed = new Set(git(["diff", "--name-only", base, "HEAD"], { cwd: root }).split("\n"));
     const dups = new Map(rec.files.map(([f, , , , , d]) => [f, d]));
     if (rec.failures.some((f) => changed.has(f.file) || dups.get(f.file) > 0)) return [];
     const found = new Map();

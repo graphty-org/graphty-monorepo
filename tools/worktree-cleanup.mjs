@@ -56,6 +56,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { stopIdleServers } from "./idle-servers.mjs";
+import { gitRun } from "./lib/git.mjs";
 
 /** The reasons a finished worktree is kept, in the order they are checked. */
 export const KEEP = {
@@ -73,13 +74,7 @@ export const KEEP = {
 const BASES = ["origin/master", "origin/golden"];
 
 function git(cwd, args, env) {
-    const r = spawnSync("git", ["-c", "core.fsmonitor=false", ...args], {
-        cwd,
-        env: { ...env, GIT_TERMINAL_PROMPT: "0" },
-        encoding: "utf8",
-        maxBuffer: 1 << 28,
-    });
-    return { code: r.status ?? 1, out: r.stdout ?? "", err: (r.stderr || r.error?.message) ?? "" };
+    return gitRun(["-c", "core.fsmonitor=false", ...args], { cwd, env: { ...env, GIT_TERMINAL_PROMPT: "0" } });
 }
 
 function lines(cwd, args, env) {

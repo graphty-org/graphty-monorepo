@@ -21,6 +21,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
+import { githubRequest } from "./lib/github.mjs";
 import { announce, push, statusComment } from "./release-status.mjs";
 
 const MARKER = /<!-- publish-hold: (awaiting-registry|rejected)((?: \S+)*) -->/g;
@@ -138,21 +139,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         console.error("usage: publish-hold.mjs classify --log F --absent F | settle --issue N --run URL");
         process.exit(2);
     }
-    const request = async (method, path, data) => {
-        const res = await fetch(`https://api.github.com${path}`, {
-            method,
-            headers: {
-                authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                accept: "application/vnd.github+json",
-                "content-type": "application/json",
-            },
-            body: data && JSON.stringify(data),
-        });
-        if (!res.ok) {
-            throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
-        }
-        return res.json();
-    };
+    const request = githubRequest;
     const repo = process.env.GITHUB_REPOSITORY;
     const r = await settle({ request, repo, issue: values.issue, run: values.run, listed: npmLists });
     if (!r.closed) {

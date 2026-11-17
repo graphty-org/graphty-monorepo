@@ -41,6 +41,8 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { githubRequest } from "./lib/github.mjs";
+
 export const POLL_SECONDS = 60;
 // the longest wait for a turn, below the Run cap job's timeout-minutes in ci.yml (ci-run-cap.test.mjs checks it)
 export const MAX_WAIT_MINUTES = 110;
@@ -230,20 +232,12 @@ export async function waitTurn({
 }
 
 async function main() {
-    const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY } = process.env;
-    const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
-    const api = async (path, body) => {
-        const res = await fetch(body ? `${base}/graphql` : `${base}/repos/${GITHUB_REPOSITORY}/${path}`, {
-            method: body ? "POST" : "GET",
-            body: body && JSON.stringify(body),
-            headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" },
-            signal: AbortSignal.timeout(30_000),
-        });
-        if (!res.ok) throw new Error(`${body ? "POST" : "GET"} ${path}: HTTP ${res.status}`);
-        const left = Number(res.headers.get("x-ratelimit-remaining") ?? Infinity);
-        if (left < MIN_RATE_LEFT) throw new Error(`only ${left} API requests left this hour`);
-        return res.json();
-    };
+    const { GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY } = process.env;
+    const opts = { minRateLeft: MIN_RATE_LEFT };
+    const api = (path, body) =>
+        body
+            ? githubRequest("POST", "/graphql", body, opts)
+            : githubRequest("GET", `/repos/${GITHUB_REPOSITORY}/${path}`, undefined, opts);
     const cap = parseCap(process.env.CAP);
     const budget = parseBudget(process.env.BUDGET);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

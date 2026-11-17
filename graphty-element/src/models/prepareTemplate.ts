@@ -368,7 +368,9 @@ function statesNoColor(material: Material): boolean {
 
     const white = (c: Color3): boolean => c.r === 1 && c.g === 1 && c.b === 1;
     const dark = (c: Color3): boolean => c.r === 0 && c.g === 0 && c.b === 0;
-    if (material.getActiveTextures().length > 0) {
+    // A see-through white (a watch's glass) states its look: drawn in the opaque flat material, it
+    // covered the ChronographWatch's dial and hands with a disc of the node's color.
+    if (material.getActiveTextures().length > 0 || material.alpha < 1) {
         return false;
     }
 

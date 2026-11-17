@@ -13,6 +13,7 @@ import { assert, describe, it, vi } from "vitest";
 import manifest from "../../../../babylonjs-models/test/fixtures/variants/manifest.json";
 import { type AssetRecord, DEFAULT_MODEL_LIMITS } from "../../../src/session/assets/AssetsApi";
 import type { ProgressChange } from "../../../src/session/shared";
+import { gltfPair, triangleGltf } from "../../fixtures/models/fixtures";
 import { cleanups, countIn, drawModel, filesOf, type Frame, mount, readFrame, stubFetch } from "./helpers";
 
 /** Pixel tests by color. */
@@ -72,6 +73,31 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         for (const material of glass as PBRMaterial[]) {
             assert.isFalse(material.useRadianceOverAlpha, material.name);
             assert.isFalse(material.useSpecularOverAlpha, material.name);
+        }
+    });
+
+    it("keeps a white, untextured glass see-through in the node's color, never the opaque flat look (L06)", async () => {
+        const element = await mount();
+        const glass = gltfPair(
+            triangleGltf({
+                extensionsUsed: ["KHR_materials_transmission"],
+                materials: [
+                    {
+                        name: "glass",
+                        pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 0 },
+                        // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                        extensions: { KHR_materials_transmission: { transmissionFactor: 1 } },
+                    },
+                ],
+            }),
+        );
+        await drawModel(element, glass, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
+        const drawn = element.graph.scene.meshes
+            .filter((m) => (m.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined)
+            .map((m) => m.material);
+        assert.isNotEmpty(drawn);
+        for (const material of drawn) {
+            assert.isBelow(material?.alpha ?? 1, 1, "the glass keeps its own see-through look");
         }
     });
 

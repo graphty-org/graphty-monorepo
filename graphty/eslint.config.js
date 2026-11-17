@@ -129,6 +129,22 @@ export default tseslint.config(
     },
 
     // ============================================
+    // STRICT TYPE RULES (#7284)
+    // ============================================
+    // The root config switches the no-unsafe-* rules off and turns them back on package by package
+    // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
+    // its rules here. Add the rest as their findings are fixed.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // Stories are linted without type information (root eslint.config.js), and the rules need it.
+        ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    },
+
+    // ============================================
     // NO STYLE LAYER IS SPECIAL (issue #5905)
     // ============================================
     {

@@ -154,6 +154,20 @@ export default tseslint.config(
     },
 
     // ============================================
+    // STRICT TYPE RULES (#7284)
+    // ============================================
+    // The root config switches the no-unsafe-* rules off and turns them back on package by package
+    // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
+    // its rules here. Add the rest as their findings are fixed.
+    {
+        files: ["src/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    },
+
+    // ============================================
     // THE ELEMENT KEEPS WRITING ITS OWN DEPRECATED FIELDS
     // ============================================
     // Each type below carries a field the element deprecated for its consumers and still fills in

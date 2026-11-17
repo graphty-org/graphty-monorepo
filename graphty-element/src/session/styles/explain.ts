@@ -11,7 +11,7 @@
  * hand edit ON THE SAME REPAINT, so a control offered for a calculated channel would take a
  * value, write it, and be overwritten before the frame was drawn. That is a fact about the
  * element's merge, so the element is what should state it. {@link explainStyle} does, in
- * {@link ChannelExplanation.editable} and its `reason`.
+ * {@link ChannelExplanation.editable} and its `fact`.
  *
  * THE ANSWER IS COMPUTED THE WAY THE PICTURE WAS. The stack is walked bottom first, each layer's
  * selector is asked about this one element, and each of its prepared bindings is asked for this
@@ -49,7 +49,6 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import type { CodedFact } from "../shared";
 import {
@@ -101,12 +100,6 @@ export interface ChannelExplanation {
     readonly mode: "static" | "encoded";
     /** Whether a consumer may offer a control that writes this channel on that layer. */
     readonly editable: boolean;
-    /**
-     * Why not, when it is not. A sentence, written for the person who would have edited it.
-     * @deprecated English written by the element. Word {@link ChannelExplanation.fact} instead;
-     * removed in the next major release.
-     */
-    readonly reason?: string;
     /**
      * Why not, when it is not, as a code and its values for the application to word. Present
      * exactly when `editable` is false.
@@ -435,12 +428,6 @@ export interface UnboundLayer {
     /** The layer. */
     readonly layerId: LayerId;
     /**
-     * Why it paints nothing, in a sentence.
-     * @deprecated English written by the element. Word {@link UnboundLayer.fact} instead; removed
-     * in the next major release.
-     */
-    readonly reason: string;
-    /**
      * Why it paints nothing, as a code and its values for the application to word.
      * @since 3.17.0
      */
@@ -718,28 +705,19 @@ function paintOne(
  * send a person down a road that also ends in `E_PROTECTED`.
  * @param winner - The layer that won the channel and how.
  * @param channel - The channel.
- * @returns The sentence and its fact, or undefined when a control may be offered.
+ * @returns The fact, or undefined when a control may be offered.
  */
-function refusal(
-    winner: Winner,
-    channel: Channel,
-): { reason: string; fact: CodedFact<ChannelRefusalCode> } | undefined {
+function refusal(winner: Winner, channel: Channel): { fact: CodedFact<ChannelRefusalCode> } | undefined {
     const { layer, mode, path } = winner;
 
     if (layer.locked) {
         return {
-            reason:
-                `"${layer.name}" belongs to the element, so it cannot be edited. ` +
-                "Add a layer of your own above it instead.",
             fact: { code: "layer.locked", params: { layerId: layer.id, name: layer.name } },
         };
     }
 
     if (mode === "encoded") {
         return {
-            reason:
-                `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
-                "would be replaced the next time the layer paints. Resolve the rule to a fixed value first.",
             fact: {
                 code: "channel.encoded",
                 params: { layerId: layer.id, name: layer.name, channel, path: String(path) },
@@ -1869,7 +1847,6 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (detached !== undefined) {
             unbound.push({
                 layerId: layer.id,
-                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached.message}`,
                 fact: {
                     code: "layer.detached",
                     params: { layerId: layer.id, name: layer.name, error: detached.code },
@@ -1894,9 +1871,6 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (needs.length === wanted.size) {
             unbound.push({
                 layerId: layer.id,
-                reason:
-                    `"${layer.name}" reads ${quoteEach(needs, ", ")}, ` +
-                    "which nothing in this session answers, so it paints nothing.",
                 fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),
             });

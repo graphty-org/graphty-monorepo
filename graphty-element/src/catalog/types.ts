@@ -23,6 +23,8 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { EstimateRefusalCode } from "../session/cost/estimate";
+import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
@@ -148,9 +150,6 @@ export type Query = string;
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
- *
- * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
- * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -166,7 +165,6 @@ export const KNOWN_ALGORITHMS = [
     "components",
     "shortest-path",
     "all-pairs-distance",
-    "all-paths",
     "max-flow",
     "min-cut",
     "k-core",
@@ -186,25 +184,8 @@ export const KNOWN_ALGORITHMS = [
     "removal-impact",
 ] as const;
 
-/**
- * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
- * {@link DEPRECATED_ALGORITHMS}.
- */
+/** One of the built-in algorithms. */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
-
-/**
- * The built-in algorithm names the element reserves but does not run.
- *
- * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
- * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
- * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
- * until issue #330, now runs.
- */
-export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
-
-/** A built-in algorithm name the element reserves but does not run, and will remove. */
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 /**
  * An algorithm key. The built-in names keep autocomplete alive; the string arm accepts a
@@ -2122,15 +2103,18 @@ export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
  * already been run. Metrics that have never been run are listed too, which is what makes the
  * catalogue self-describing: a stranger can see everything the element could compute, with a
- * cost and an availability reason beside each entry, before computing anything.
+ * cost and why it is unavailable beside each entry, before computing anything.
  */
 export interface MetricAvailability {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
     available: boolean;
-    /** Why it is unavailable on this graph. Present only when `available` is false. */
-    reason?: string;
+    /**
+     * Why it is unavailable on this graph, as a code and the values it is about, as
+     * `CostEstimate.refusal` reports it. Present only when `available` is false.
+     */
+    refusal?: CodedFact<EstimateRefusalCode>;
     costClass: CostClass;
     estimateSeconds: number;
     hasRun: boolean;
@@ -3107,15 +3091,6 @@ export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
  */
 export function isOptionType(value: unknown): value is OptionType {
     return typeof value === "string" && (OPTION_TYPES as readonly string[]).includes(value);
-}
-
-/**
- * Tell whether an algorithm key names a built-in the element reserves but does not run.
- * @param key - The algorithm key.
- * @returns True when the key is a member of DEPRECATED_ALGORITHMS.
- */
-export function isDeprecatedAlgorithm(key: string): key is DeprecatedAlgorithm {
-    return (DEPRECATED_ALGORITHMS as readonly string[]).includes(key);
 }
 
 /**

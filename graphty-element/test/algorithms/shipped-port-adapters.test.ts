@@ -204,8 +204,8 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                     assert.strictEqual(values.value, coreness.get(id), `core number of ${String(id)}`);
                 }
                 assert.include(
-                    run.result?.summary().caveats.notes ?? [],
-                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
+                    (run.result?.summary().caveats.facts ?? []).map((fact) => fact.code),
+                    "k-core.loops-and-parallels",
                 );
                 if (name !== "data4") {
                     assert.strictEqual(published(graph, run).get("E")?.value, 1);

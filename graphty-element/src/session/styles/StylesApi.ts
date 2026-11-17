@@ -881,19 +881,24 @@ export interface StylesApi {
      * What the element draws for a channel when no layer writes it, on the graph as it is now:
      * the channel's catalog default (`ChannelDescriptor.default`), else its off value
      * (`ChannelDescriptor.off`: a label background with no color draws none, `"none"`), except
-     * where the graph decides it. An edge's head is the one such channel today: a directed graph
-     * draws the catalog's default head, an undirected graph draws none (`"none"`).
+     * where the graph decides it. An edge's head is the one such channel today: a directed edge
+     * draws the catalog's default head, an undirected edge draws none (`"none"`). Asked about one
+     * edge, it answers for that edge's own direction (a file can mix directed and undirected
+     * edges); asked with no edge, or about an edge the session does not hold, it answers `"none"`
+     * only when no edge of the graph is directed.
      *
      * A consumer that shows a reader what an unwritten field gives reads it here rather than from
      * the static catalog, which cannot know the graph.
      *
      * ```ts
      * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
+     * session.styles.defaultValue("edge.arrowHead", "e1"); // "none" when edge e1 is undirected
      * ```
      * @param channel - The channel.
+     * @param edge - An edge to answer for, where the edge's own direction decides the value.
      * @returns The value, or undefined for a channel with neither a default nor an off value.
      */
-    defaultValue(channel: Channel): ChannelValue | undefined;
+    defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined;
     /**
      * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
      * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
@@ -1560,8 +1565,13 @@ export interface StylesSources {
     readonly transient?: () => readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
-    /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
+    /**
+     * Whether any edge of the graph is directed now, which decides whether an edge draws a head
+     * when no layer sets one.
+     */
     readonly directed?: () => boolean;
+    /** See {@link ExplainSources.edgeDirected}. */
+    readonly edgeDirected?: (edge: number) => boolean;
     /** Whether `edge.lift` draws now: a flat layout in the 3D view. See {@link ExplainSources.liftDrawn}. */
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
@@ -3185,6 +3195,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
         ...(sources.directed === undefined ? {} : { directed: sources.directed }),
+        ...(sources.edgeDirected === undefined ? {} : { edgeDirected: sources.edgeDirected }),
         ...(sources.liftDrawn === undefined ? {} : { liftDrawn: sources.liftDrawn }),
     };
 
@@ -5626,10 +5637,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return halfOfStyle(undefined, target, highlightColor) ?? {};
         },
 
-        defaultValue(channel: Channel): ChannelValue | undefined {
-            // The painter draws a head no layer chose only on a directed graph (StylePainter).
-            if (channel === "edge.arrowHead" && sources.directed?.() === false) {
-                return "none";
+        defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined {
+            // The painter draws a head no layer chose only on a directed edge (StylePainter).
+            if (channel === "edge.arrowHead") {
+                const row = edge === undefined ? undefined : explainSources.edgeIndex(edge);
+                const drawn =
+                    row === undefined || sources.edgeDirected === undefined
+                        ? sources.directed?.()
+                        : sources.edgeDirected(row);
+                if (drawn === false) {
+                    return "none";
+                }
             }
             const descriptor = channelDescriptor(channel);
             // A channel with no default draws its off value, if it has one (an unset text background).

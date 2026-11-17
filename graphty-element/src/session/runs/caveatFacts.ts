@@ -44,6 +44,9 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `parallel-edges.merged` -- parallel edges were merged into one, every member of a group
  *   carrying the merged value: `{ count, policy }`, how many were merged and how their weights
  *   combined (`"sum"`, `"min"` or `"max"`).
+ * - `direction.mixed` -- the graph mixes directed and undirected edges, and the run read every
+ *   edge alike, with the graph's default direction: `{ directed }`, true when it read them as
+ *   directed.
  * - `input.empty` -- the graph held nothing for the algorithm to measure.
  * - `sampled.instead-of-exact` -- the run sampled rather than computed exactly: `{ method, name,
  *   sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the
@@ -154,6 +157,7 @@ export type CaveatCode =
     | "scope.induced-subgraph"
     | "scope.subgraph"
     | "parallel-edges.merged"
+    | "direction.mixed"
     | "input.empty"
     | "defined.nothing-measured"
     | "defined.long-task"

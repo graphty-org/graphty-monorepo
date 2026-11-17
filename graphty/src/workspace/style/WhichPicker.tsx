@@ -6,7 +6,6 @@ import {
     useNumberParser,
 } from "@graphty/compact-mantine";
 import {
-    fileStyleOf,
     type GraphSession,
     type Layer,
     type LayerPatch,
@@ -38,11 +37,12 @@ import { flushSync } from "react-dom";
 import { sourceName } from "../data-place/words";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
-import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
+import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -411,7 +411,7 @@ interface WhichPickerProps {
      * Given, the folded row reads the cards as this one line instead of a chip per card, unless it
      * has no words for them.
      */
-    readonly summary?: (session: GraphSession, cards: readonly Card[], rows: readonly string[], side: Side) => string;
+    readonly summary?: (session: GraphSession, cards: readonly Card[]) => string;
 }
 
 /**
@@ -448,13 +448,8 @@ export function WhichPicker({
     // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
-    // A layer read from a file selects by a mark the load left, which the selection editor can only
-    // spell out raw: with a summary to give, its row reads the rule line instead.
-    const fromFile = summary !== undefined && rows.length === 1 && fileStyleOf(rows[0].layer) !== null;
     const editable =
-        held === undefined && rows.length === 1 && !fromFile
-            ? layerSelection(session, rows[0].layer.selector, side)
-            : null;
+        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -539,8 +534,6 @@ export function WhichPicker({
                             : summary(
                                   session,
                                   shown.map((each) => each.card),
-                                  ids,
-                                  side,
                               ) || undefined
                     }
                     onOpen={(key) => {
@@ -875,7 +868,7 @@ function Cards({
     const sourceTwice = holder !== undefined && side === "edge";
     // The columns follow the data: one that arrives while the picker is open is listed, so they
     // are read on every change the element reports, never kept from the first render.
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const fields = cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source");
     const elsewhere = cardFields(session, side === "node" ? "edge" : "node");
     const bulk = rows.length > 1;

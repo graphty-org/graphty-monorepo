@@ -1027,6 +1027,19 @@ export interface RunResult {
      */
     groupRanks(): ReadonlyMap<string, number> | undefined;
     /**
+     * Every group of a partition into groups, largest first: its id, its size and its rank (1 for
+     * the largest), for every group and not only the ones a summary lists.
+     *
+     * ```ts
+     * for (const { group, size, rank } of result.groups() ?? []) {
+     *     console.log(rank, group, size); // 1 "4" 37
+     * }
+     * ```
+     * @returns The groups, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groups(): readonly SummaryGroup[] | undefined;
+    /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *
      * Every figure comes from the result's own statistics; nothing is asserted that the run did
@@ -1051,6 +1064,29 @@ export interface RunResult {
      * @returns The band, or undefined when the field has no interpretation or no finite value.
      */
     band(field: string): FieldBand | undefined;
+    /**
+     * The result as tab-separated text at full stored precision: a header of field names, then
+     * one row per element the run published values for (an `id` column first, and a `kind` column
+     * of `node` or `edge` when the result has fields of both). A result with no per-element field
+     * is one row of its graph-level fields. Numbers are written in the shortest form that reads
+     * back to the same value, never rounded for display; a tab or line break inside a text value
+     * becomes a space.
+     *
+     * ```ts
+     * await navigator.clipboard.writeText(result.toTsv());
+     * ```
+     * @returns The text, ending without a trailing line break.
+     * @since 3.56.0
+     */
+    toTsv(): string;
+    /**
+     * The ids of the elements the result picks out: the nodes or edges in a set, the nodes and
+     * edges on a path, and for any other shape every element it published values for (nodes
+     * first, then edges).
+     * @returns The ids, in the result's own order.
+     * @since 3.56.0
+     */
+    memberIds(): readonly NodeId[];
 }
 
 // ---------------------------------------------------------------------------------------------

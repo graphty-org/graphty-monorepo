@@ -21,6 +21,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editGmlNodeFill, replaceGmlBlock } from "../../styles/formats/gml.js";
 
@@ -53,7 +54,10 @@ async function load(doc: string | Uint8Array, toolDefaults = true) {
 }
 
 const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENERATED, name)));
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 const toolRules = (ex: ExtractedStyles): StyleRule[] => ex.styles.rules.filter((r) => r.origin === "tool");
 
 /** Every neutral node label position and yEd's GML anchor for it: the inside places, then the outside ones. */

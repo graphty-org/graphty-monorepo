@@ -1137,6 +1137,43 @@ describe("PageList: keyboard and pointer", () => {
         expect(onRename).toHaveBeenCalledWith("p2", "Two");
         expect(document.activeElement).toBe(screen.getAllByRole("gridcell")[1]);
     });
+
+    it("goes to the last page with End and back up with ArrowUp, past the divider", async () => {
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" />);
+        const cells = screen.getAllByRole("gridcell");
+        await tabIn();
+        await userEvent.keyboard("{End}");
+        expect(document.activeElement).toBe(cells[3]);
+        await userEvent.keyboard("{ArrowUp}");
+        expect(document.activeElement).toBe(cells[1]);
+    });
+
+    it("renames on double-click, and reports nothing for a name left as it was or emptied", async () => {
+        const onRename = vi.fn();
+        await renderThemed(<PageList items={PAGES} onRename={onRename} />);
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Enter}");
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+        expect(onRename).not.toHaveBeenCalled();
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}First{Enter}");
+        expect(onRename).toHaveBeenCalledExactlyOnceWith("p1", "First");
+    });
+
+    it("does not rename without onRename, by F2 or by double-click, and a divider neither switches nor renames", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" onCurrentChange={onCurrentChange} />);
+        await userEvent.dblClick(screen.getByText("Page 2"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(onCurrentChange).toHaveBeenLastCalledWith("p2", expect.anything());
+        await userEvent.keyboard("{F2}");
+        expect(screen.queryByRole("textbox")).toBeNull();
+        const calls = onCurrentChange.mock.calls.length;
+        await userEvent.dblClick(screen.getAllByRole("gridcell")[2]);
+        expect(onCurrentChange).toHaveBeenCalledTimes(calls);
+        expect(screen.getAllByRole("gridcell")[1]).toHaveAttribute("aria-current", "page");
+    });
 });
 
 describe("PageList: second line, value and row menu", () => {
@@ -1547,5 +1584,47 @@ describe("Tree: one Tab stop with row toggles, and a right-click that selects", 
         await screen.findByRole("menuitem", { name: "Rename" });
         expect(onSelect).not.toHaveBeenCalled();
         expect(row("Row 0")).toHaveAttribute("aria-selected", "true");
+    });
+});
+
+describe("Tree: keys and clicks that change nothing", () => {
+    it("leaves the selection alone on a right-click when there is no row menu", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} onSelect={onSelect} />);
+        await userEvent.click(row("Other"), { button: "right" });
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("does not rename on double-click without onRename", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.dblClick(row("Leaf"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("keeps focus on a closed top-level row on ArrowLeft", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} />);
+        await tabIn();
+        expect(focused()).toBe("leaf");
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(focused()).toBe("leaf");
+    });
+
+    it("extends from the focused row with Shift+ArrowDown once the anchor has been taken out of the selection", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.click(row("Frame"));
+        await userEvent.click(row("Frame"), { modifiers: ["Control"] });
+        expect(row("Frame")).toHaveAttribute("aria-selected", "false");
+        await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        expect(row("Frame")).toHaveAttribute("aria-selected", "true");
+        expect(row("Other")).toHaveAttribute("aria-selected", "true");
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("with revealSelected, opens nothing for a selection whose folders are already open", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} selected={["rect"]} revealSelected />);
+        expect(row("Rect")).toHaveAttribute("aria-selected", "true");
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Other")).toHaveAttribute("aria-expanded", "false");
     });
 });

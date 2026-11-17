@@ -9,7 +9,9 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
+import { encodeChunks, joinText } from "../../common/writer.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { nonEmpty } from "../../styles/columns.js";
 import {
@@ -36,7 +38,7 @@ import {
 } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -49,7 +51,7 @@ import type {
     StyleTarget,
     StyleWriteCapabilities,
 } from "../../styles/types.js";
-import type { LossNote } from "../../types.js";
+import type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "../../types.js";
 
 type Table = GraphSnapshot["nodes"];
 
@@ -399,7 +401,7 @@ interface CytoscapeStyledExport {
  * @param dialect - `"desktop"` for CX version 1, `"cx2"` for CX2
  * @returns the styled export, or null without styles
  */
-export function cytoscapeStyledExport(
+function cytoscapeStyledExport(
     snapshot: GraphSnapshot,
     input: ExporterStyleInput | undefined,
     dialect: CytoscapeDialect,
@@ -434,4 +436,78 @@ function withMappedColumns(snapshot: GraphSnapshot, styled: CytoscapeEmitted): G
         (target === "node" ? out.nodes : out.edges).set(name, col, { dtype });
     }
     return out;
+}
+
+/** What a CX or CX2 exporter supplies to cytoscapeExporter(): its tables, how it plans and how it writes. */
+interface CytoscapeExporterParts<P extends { readonly notes: readonly LossNote[] }> {
+    readonly format: string;
+    readonly capabilities: ExportCapabilities;
+    readonly styleCapabilities: StyleWriteCapabilities;
+    readonly dialect: CytoscapeDialect;
+    /** The export's notes and what it writes, worked out before writing. */
+    readonly plan: (snapshot: GraphSnapshot, common: ResolvedExportOptions) => P;
+    /** The document's text parts, from the plan and the emitted style. */
+    readonly write: (snapshot: GraphSnapshot, plan: P, styled: CytoscapeEmitted | null) => Generator<string>;
+}
+
+/**
+ * A CX or CX2 exporter plugin: check(), export() and exportToString() over the format's plan and writer, with the
+ * styles worked out by cytoscapeStyledExport() in the format's dialect.
+ * @param parts - the format's tables, plan and writer
+ * @returns the exporter
+ */
+export function cytoscapeExporter<P extends { readonly notes: readonly LossNote[] }>(
+    parts: CytoscapeExporterParts<P>,
+): GraphExporter<CommonExportOptions> {
+    const written = (
+        snapshot: GraphSnapshot,
+        options: (CommonExportOptions & ExporterStyleOptions) | undefined,
+    ): Generator<string> => {
+        const styled = cytoscapeStyledExport(snapshot, options?.styles, parts.dialect);
+        const target = styled?.snapshot ?? snapshot;
+        return parts.write(target, parts.plan(target, resolveExportOptions(options)), styled?.styled ?? null);
+    };
+    return Object.freeze({
+        format: parts.format,
+        options: Object.freeze([]),
+        capabilities: parts.capabilities,
+        styles: Object.freeze({ capabilities: parts.styleCapabilities }),
+
+        /**
+         * Pre-flight: what export() would lose, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - the common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: CommonExportOptions & ExporterStyleOptions): readonly LossNote[] {
+            const styled = cytoscapeStyledExport(snapshot, options?.styles, parts.dialect);
+            return Object.freeze([
+                ...parts.plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
+                ...(styled?.notes ?? []),
+            ]);
+        },
+
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - the common options
+         * @returns the chunks
+         */
+        export(
+            snapshot: GraphSnapshot,
+            options?: CommonExportOptions & ExporterStyleOptions,
+        ): AsyncIterable<Uint8Array> {
+            return encodeChunks(written(snapshot, options));
+        },
+
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - the common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: CommonExportOptions & ExporterStyleOptions): Promise<string> {
+            return joinText(written(snapshot, options));
+        },
+    });
 }

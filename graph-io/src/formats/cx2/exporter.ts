@@ -20,6 +20,8 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
+// Both CX formats import the same generic helper set from common/, so this list is a deliberate parallel of cx/exporter.ts.
+// jscpd:ignore-start
 import {
     aspectBlock,
     declaredType,
@@ -34,18 +36,17 @@ import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { isRecord, POSITION_COLUMN } from "../../common/json-elements.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { type ResolvedExportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
 import { neutralPositions } from "../../positions/convert.js";
 import { cytoscapeCx2Aspects, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
-import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { blockAspect, cytoscapeStyledExport, snapshotBlock } from "../cx/styles.js";
+import { blockAspect, cytoscapeExporter, snapshotBlock } from "../cx/styles.js";
 import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type } from "./importer.js";
 import { CX2_STYLE_CAPABILITIES } from "./styles.js";
+// jscpd:ignore-end
 
 /**
  * The options of the CX2 exporter: the common export options; it has none of its own.
@@ -950,58 +951,11 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
  * The CX2 exporter plugin.
  * @category Built-in formats
  */
-export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
+export const cx2Exporter: GraphExporter<Cx2ExportOptions> = cytoscapeExporter({
     format: CX2_FORMAT,
-    options: Object.freeze([]),
     capabilities: CX2_CAPABILITIES,
-    styles: Object.freeze({ capabilities: CX2_STYLE_CAPABILITIES }),
-
-    /**
-     * Pre-flight: what export() would lose, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): readonly LossNote[] {
-        const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
-        return Object.freeze([
-            ...plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
-            ...(styled?.notes ?? []),
-        ]);
-    },
-
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(written(snapshot, options));
-    },
-
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): Promise<string> {
-        return joinText(written(snapshot, options));
-    },
+    styleCapabilities: CX2_STYLE_CAPABILITIES,
+    dialect: "cx2",
+    plan,
+    write,
 });
-
-/**
- * The document's text, with the styles when they are given.
- * @param snapshot - the snapshot
- * @param options - the options
- * @returns the text parts
- */
-function written(
-    snapshot: GraphSnapshot,
-    options: (Cx2ExportOptions & ExporterStyleOptions) | undefined,
-): Generator<string, void, undefined> {
-    const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
-    const target = styled?.snapshot ?? snapshot;
-    return write(target, plan(target, resolveExportOptions(options)), styled?.styled ?? null);
-}

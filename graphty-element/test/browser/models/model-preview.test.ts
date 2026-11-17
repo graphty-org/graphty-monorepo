@@ -5,7 +5,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { server } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 
 import { isGraphtyError } from "../../../src/errors";
 import { sphereGlb } from "../../fixtures/models/fixtures";
@@ -241,6 +241,33 @@ describe("modelPreview", () => {
         await settled(preview.canvas);
         preview.resetView();
         assert.strictEqual(pixelsChanged(first, await shot(preview.canvas)), 0, "centered as at first");
+    });
+
+    // A press is not keyboard focus: dragging the model drew the browser's ring round the canvas, a
+    // frame in Chromium and two blue slivers at its edges in WebKit (#8609).
+    it("a press focuses the preview without a focus ring, and the keyboard brings the ring back", async () => {
+        const element = await mount();
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
+        const preview = await element.modelPreview(ball.id, previewBox());
+        cleanups.push(() => {
+            preview.dispose();
+        });
+        const { canvas } = preview;
+        // Keyboard input first, the case where a browser carries a ring over to script focus.
+        await userEvent.keyboard("{Shift}");
+        await userEvent.click(canvas);
+        assert.strictEqual(document.activeElement, canvas, "the press did not focus the preview");
+        assert.strictEqual(getComputedStyle(canvas).outlineStyle, "none", "a press drew a focus ring");
+        // Tab-like focus afterwards (the keyboard, then focus) shows the ring again.
+        const before = document.createElement("button");
+        document.body.prepend(before);
+        cleanups.push(() => {
+            before.remove();
+        });
+        before.focus();
+        await userEvent.keyboard("{Shift}");
+        canvas.focus();
+        assert.notStrictEqual(getComputedStyle(canvas).outlineStyle, "none", "keyboard focus drew no ring");
     });
 
     it("draws preview after preview without using up the browser's drawing contexts", async () => {

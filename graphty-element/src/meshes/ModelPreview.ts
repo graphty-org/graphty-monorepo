@@ -145,6 +145,22 @@ export class PreviewEngines {
             }
         }
         const canvas = document.createElement("canvas");
+        // No focus ring for a pointer, as on the graph's canvas (RenderManager.focusOnPointer):
+        // Babylon's camera input focuses the canvas by script on a press, and a browser drew its
+        // keyboard ring for that after a drag (a frame in Chromium, two blue slivers in WebKit).
+        // Focused here first, without scrolling, so Babylon's own focus call finds it focused.
+        // Tab or a key in the canvas brings the browser's ring back.
+        const fromPointer = (): void => {
+            canvas.style.outline = "none";
+            canvas.focus({ preventScroll: true });
+        };
+        const ring = (): void => {
+            canvas.style.outline = "";
+        };
+        canvas.addEventListener("pointerdown", fromPointer);
+        canvas.addEventListener("pointerup", fromPointer);
+        canvas.addEventListener("blur", ring);
+        canvas.addEventListener("keydown", ring);
         try {
             // The last frame is kept, so the page can read the picture (a screenshot, a test).
             const engine = new Engine(

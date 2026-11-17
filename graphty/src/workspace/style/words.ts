@@ -2145,7 +2145,7 @@ export const CUSTOM_MODEL = {
         summary: ModelSummary,
         fileBytes: number | undefined,
         ignored: readonly string[] = [],
-        waiting: { readonly count: number; readonly downloading: boolean } = { count: 0, downloading: false },
+        waiting?: { readonly count: number; readonly downloading: boolean },
     ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
         const rows: { name: string; value: string; tip?: string }[] = [
             { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
@@ -2168,7 +2168,7 @@ export const CUSTOM_MODEL = {
         add(
             summary.textures > 0,
             "Textures",
-            waiting.count > 0
+            waiting !== undefined && waiting.count > 0
                 ? `${formatCount(summary.textures)}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`
                 : `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`,
         );

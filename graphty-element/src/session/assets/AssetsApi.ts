@@ -2415,7 +2415,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     code,
                     source: "data",
                     message: `The model ${current.id} was refused.`,
-                    details: { id: current.id, ...(problem?.params ?? {}) },
+                    details: { id: current.id, ...problem?.params },
                 });
             }
 

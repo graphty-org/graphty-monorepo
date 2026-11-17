@@ -8,6 +8,7 @@ import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import type { Material } from "@babylonjs/core/Materials/material.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 
 import { WITHOUT_PICTURE_EXTRA } from "../files/gltfChecks.js";
 import { setKeyOf } from "../files/references.js";
@@ -65,30 +66,47 @@ export function markWithoutPictures(
         return;
     }
 
-    for (const texture of [...container.textures]) {
-        const url = (texture as { url?: string | null }).url ?? "";
-        if (!url.startsWith(root)) {
-            continue;
+    for (const texture of container.textures) {
+        const path = pathOf((texture as { url?: string | null }).url ?? "", root);
+        if (path !== undefined && gone.has(path)) {
+            takeOff(container, texture);
         }
+    }
+}
 
-        let path = url.slice(root.length);
-        try {
-            path = decodeURIComponent(path);
-        } catch {
-            // Kept as it is.
-        }
-        if (!gone.has((setKeyOf(path) ?? path).toLowerCase())) {
-            continue;
-        }
+/**
+ * A picture's path in the set, lowercased, from its URL under the load's root.
+ * @param url - The picture's URL.
+ * @param root - The load's guarded root.
+ * @returns The path, or undefined for a URL not under the root.
+ */
+function pathOf(url: string, root: string): string | undefined {
+    if (!url.startsWith(root)) {
+        return undefined;
+    }
 
-        for (const material of container.materials) {
-            if (material instanceof StandardMaterial && material.diffuseTexture === texture) {
-                material.diffuseTexture = null;
-                mark(material);
-            } else if (material instanceof PBRMaterial && material.albedoTexture === texture) {
-                material.albedoTexture = null;
-                mark(material);
-            }
+    let path = url.slice(root.length);
+    try {
+        path = decodeURIComponent(path);
+    } catch {
+        // Kept as it is.
+    }
+    return (setKeyOf(path) ?? path).toLowerCase();
+}
+
+/**
+ * Take a picture off every material that draws it as its color, and mark those materials.
+ * @param container - The loaded model.
+ * @param texture - The picture.
+ */
+function takeOff(container: AssetContainer, texture: BaseTexture): void {
+    for (const material of container.materials) {
+        if (material instanceof StandardMaterial && material.diffuseTexture === texture) {
+            material.diffuseTexture = null;
+            mark(material);
+        } else if (material instanceof PBRMaterial && material.albedoTexture === texture) {
+            material.albedoTexture = null;
+            mark(material);
         }
     }
 }

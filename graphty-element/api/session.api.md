@@ -140,6 +140,7 @@ export interface AddAssetOptions {
     readonly onWaiting?: (record: AssetRecord) => void;
     readonly signal?: AbortSignal;
     readonly skipped?: readonly string[];
+    readonly stopPictures?: AbortSignal;
 }
 
 // @public

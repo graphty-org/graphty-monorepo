@@ -1039,7 +1039,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNotNull(within(files).getByText("Downloading"), "the picture is said to be downloading");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "and can still be stopped");
         const details = within(dialog).getByRole("region", { name: "Details" });
-        const size = String(within(details).getByRole("group", { name: "File size" }).textContent);
+        const size = within(details).getByRole("group", { name: "File size" }).textContent;
         assert.notMatch(size, /(^|[^\d.,])0 KB/, "the size of what has arrived, not 0");
         assert.include(
             within(details).getByRole("group", { name: "Textures" }).textContent,
@@ -1087,7 +1087,7 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isTrue(stopped, "the picture's download stopped");
             assert.isNull(within(dialog).queryByRole("button", { name: "Cancel load" }), "nothing loads now");
         });
-        assert.match(String(store.get().announcement), /^Stopped loading/);
+        assert.match(store.get().announcement, /^Stopped loading/);
         await previewOf(dialog, "police");
         const files = within(dialog).getByRole("region", { name: "Files" });
         assert.isNull(within(files).queryByText("Downloading"), "the picture is no longer downloading");

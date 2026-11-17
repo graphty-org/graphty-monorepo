@@ -1,6 +1,6 @@
 ---
 name: issue-round
-description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of up to four related issues, by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, never merges, reverts or fixes red pull requests of other sessions, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of related issues (up to its risk class cap), by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, never merges, reverts or fixes red pull requests of other sessions, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
 ---
 
 # One round of issue work

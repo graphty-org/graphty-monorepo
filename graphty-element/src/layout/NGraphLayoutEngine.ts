@@ -18,7 +18,7 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import type { D3RowSource } from "./D3GraphLayoutEngine";
+import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
 import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { seedSchema } from "./seedOption";
@@ -382,7 +382,7 @@ export class NGraphEngine extends LayoutEngine {
             return 0;
         }
 
-        const count = this.nodeMapping.size;
+        const count = this.nodeMapping.size + this.rowNodes.size;
         const extent = this.gather(gap);
         const size = 2 * extent.largest;
         if (size <= 0) {
@@ -413,7 +413,7 @@ export class NGraphEngine extends LayoutEngine {
      * @returns The largest radius and how far the bodies spread on each axis.
      */
     private gather(gap: number): { largest: number; x: number; y: number; z: number } {
-        const count = this.nodeMapping.size;
+        const count = this.nodeMapping.size + this.rowNodes.size;
         if (this.radii.length < count) {
             this.radii = new Float64Array(count);
             this.reaches = new Float64Array(3 * count);
@@ -426,21 +426,20 @@ export class NGraphEngine extends LayoutEngine {
         let largest = 0;
         const min = [Infinity, Infinity, Infinity];
         const max = [-Infinity, -Infinity, -Infinity];
-        for (const [node, ngraphNode] of this.nodeMapping) {
+        const add = (ngraphNode: NGraphNode, size: RowExtent, follower: boolean): void => {
             const i = bodies.length;
             const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
             bodies.push(b);
-            radii[i] = node.layoutRadius + gap / 2;
+            radii[i] = size.radius + gap / 2;
             // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
             // apart by its bounding box, which one radius over- or under-states (#2668).
-            round[i] = node.roundRadius === null ? 0 : 1;
-            const half = round[i] === 1 ? null : node.drawnHalfExtents;
-            reaches[3 * i] = (half?.x ?? node.layoutRadius) + gap / 2;
-            reaches[3 * i + 1] = (half?.y ?? node.layoutRadius) + gap / 2;
-            reaches[3 * i + 2] = (half?.z ?? node.layoutRadius) + gap / 2;
+            round[i] = size.half === null ? 1 : 0;
+            reaches[3 * i] = (size.half?.x ?? size.radius) + gap / 2;
+            reaches[3 * i + 1] = (size.half?.y ?? size.radius) + gap / 2;
+            reaches[3 * i + 2] = (size.half?.z ?? size.radius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
             // A group following its members encloses them: it is not kept apart from them.
-            if (this.isFollower(node.index)) {
+            if (follower) {
                 radii[i] = 0;
                 reaches.fill(0, 3 * i, 3 * i + 3);
             }
@@ -451,6 +450,20 @@ export class NGraphEngine extends LayoutEngine {
                 min[axis] = Math.min(min[axis], at[axis]);
                 max[axis] = Math.max(max[axis], at[axis]);
             }
+        };
+
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            const half = node.roundRadius === null ? node.drawnHalfExtents : null;
+            add(ngraphNode, { radius: node.layoutRadius, half }, this.isFollower(node.index));
+        }
+
+        // A row drawn with no `Node` (renderPath "batched") is sized from the row table, as its `Node` would be.
+        const source = this.rowSource;
+        const snapshot = this.rowNodes.size > 0 && source ? wholeGraph(source) : undefined;
+        for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            const size = row === INVALID_INDEX ? null : (source?.extentOf?.(row) ?? null);
+            add(ngraphNode, size ?? { radius: 0, half: null }, row !== INVALID_INDEX && this.isFollower(row));
         }
 
         return { largest, x: max[0] - min[0], y: max[1] - min[1], z: max[2] - min[2] };
@@ -741,7 +754,7 @@ export class NGraphEngine extends LayoutEngine {
 
     /**
      * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
-     * Such a row is unsized (no `nodeGap` push), in no `clusterBy` community and never pinned,
+     * Such a row is sized for `nodeGap` from the row table, and is in no `clusterBy` community and never pinned,
      * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
      * engine is handed `Node`s only.
      * @param ids - The rows' node ids.

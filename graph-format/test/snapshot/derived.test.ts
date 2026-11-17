@@ -2,26 +2,13 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { buildCore, renumberPartition } from "../../src/snapshot/derived.js";
 import { equalsTopology, hasChecksums, peekView } from "../../src/snapshot/graph-snapshot.js";
 import { type DerivedGraph, type GraphSnapshot, type U32 } from "../../src/types/index.js";
 import { makeMask, maskSet } from "../../src/util/mask.js";
+import { expectError } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
 import { type EdgeSpec, type GraphSpec, KARATE_EDGES, makeSnapshot } from "../helpers/parts.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
 
 /** The logical edges of a snapshot as [source, target, weight] in index order. */
 function edgesOf(s: GraphSnapshot): [number, number, number][] {

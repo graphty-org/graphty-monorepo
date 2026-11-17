@@ -7,23 +7,11 @@
 import { describe, expect, it } from "vitest";
 
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { fromEdgeArrays } from "../../src/populate/from-edge-arrays.js";
 import { fromElements } from "../../src/populate/from-elements.js";
 import { makeMask, maskSet, maskToIndices } from "../../src/util/mask.js";
 import { resolveNode, resolveNodeMask, resolveNodeSet } from "../../src/util/node-set.js";
-
-function code(fn: () => unknown): string {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    throw new Error("expected a GraphFormatError");
-}
+import { thrownCode } from "../helpers/errors.js";
 
 const src = new Uint32Array([0, 1, 2]);
 const dst = new Uint32Array([1, 2, 0]);
@@ -43,12 +31,12 @@ describe("fromEdgeArrays: edgeIds", () => {
     });
 
     it("rejects an edgeIds array of the wrong length and a repeated edge id", () => {
-        expect(code(() => fromEdgeArrays({ directed: true, nodeCount: 3, src, dst, edgeIds: ["x"] }))).toBe(
+        expect(thrownCode(() => fromEdgeArrays({ directed: true, nodeCount: 3, src, dst, edgeIds: ["x"] }))).toBe(
             "E_COLUMN_LENGTH",
         );
-        expect(code(() => fromEdgeArrays({ directed: true, nodeCount: 3, src, dst, edgeIds: ["x", "y", "x"] }))).toBe(
-            "E_DUPLICATE_EDGE_ID",
-        );
+        expect(
+            thrownCode(() => fromEdgeArrays({ directed: true, nodeCount: 3, src, dst, edgeIds: ["x", "y", "x"] })),
+        ).toBe("E_DUPLICATE_EDGE_ID");
     });
 });
 
@@ -107,7 +95,7 @@ describe("fromElements", () => {
 
     it("rejects an edge whose endpoint is not a node", () => {
         expect(
-            code(() =>
+            thrownCode(() =>
                 fromElements(nodes, [{ name: "x", from: "a", to: "nope" }], {
                     directed: true,
                     id: (n) => n.key,
@@ -125,7 +113,7 @@ describe("NodeRef and NodeSet resolvers", () => {
     it("resolves a node index or a node id", () => {
         expect(resolveNode(s, 2)).toBe(2);
         expect(resolveNode(s, { id: "d" })).toBe(3);
-        expect(code(() => resolveNode(s, { id: "nope" }))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => resolveNode(s, { id: "nope" }))).toBe("E_UNKNOWN_NODE");
     });
 
     it("leaves a bare node index unchecked so each caller keeps its own range error", () => {
@@ -134,7 +122,7 @@ describe("NodeRef and NodeSet resolvers", () => {
 
     it("refuses a node id on a graph that has no id map", () => {
         const view = { nodeCount: 4 };
-        expect(code(() => resolveNode(view, { id: "a" }))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => resolveNode(view, { id: "a" }))).toBe("E_UNKNOWN_NODE");
     });
 
     it("resolves an index array, a mask and ids to node indices", () => {
@@ -145,7 +133,7 @@ describe("NodeRef and NodeSet resolvers", () => {
         maskSet(mask, 2, true);
         expect(Array.from(resolveNodeSet(s, { mask }))).toEqual([0, 2]);
         expect(Array.from(resolveNodeSet(s, { ids: ["c", "a"] }))).toEqual([2, 0]);
-        expect(code(() => resolveNodeSet(s, { ids: ["zz"] }))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => resolveNodeSet(s, { ids: ["zz"] }))).toBe("E_UNKNOWN_NODE");
     });
 
     it("resolves any node set to a mask", () => {
@@ -153,6 +141,6 @@ describe("NodeRef and NodeSet resolvers", () => {
         expect(Array.from(maskToIndices(resolveNodeMask(s, { ids: new Set(["b"]) }), 4))).toEqual([1]);
         const mask = makeMask(4, true);
         expect(resolveNodeMask(s, { mask })).toBe(mask);
-        expect(code(() => resolveNodeMask(s, [4]))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => resolveNodeMask(s, [4]))).toBe("E_INDEX_RANGE");
     });
 });

@@ -308,6 +308,11 @@ export interface WorkspaceState {
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
     /**
+     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
+     */
+    readonly followSelection: boolean;
+    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
      * showing whenever the dock is open (tier 4, R14).
@@ -436,6 +441,7 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
@@ -546,6 +552,7 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    followSelection: true,
     exportOn: "image",
     exportSource: null,
     serverKind: null,

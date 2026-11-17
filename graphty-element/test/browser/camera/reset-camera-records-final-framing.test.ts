@@ -9,8 +9,7 @@
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import type { Graph } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { type Graph, renderManagerOf } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 describe("resetCamera after the first settlement", () => {
@@ -20,7 +19,7 @@ describe("resetCamera after the first settlement", () => {
     beforeEach(async () => {
         graph = await createTestGraph();
         // Frames are pumped by hand below, so the live loop must not run passes in between.
-        releaseFrames = ((graph as unknown as Record<string, unknown>).renderManager as RenderManager).holdFrames();
+        releaseFrames = renderManagerOf(graph).holdFrames();
 
         await graph.addNodes([
             { id: "1", position: { x: -50, y: 0, z: 0 } },

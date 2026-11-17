@@ -105,42 +105,6 @@ function openRow(session: GraphSession, store: WorkspaceStore, opens: Resolved, 
 }
 
 /**
- * A link that opens the style tree row holding a layer, on its Style tab, named as Why this look
- * names it ("Louvain / Group 3"); plain text for a layer no row opens.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.layer - the layer
- * @param props.name - the name drawn, when not the row's own
- * @returns The link
- */
-export function LayerLink({
-    session,
-    layer,
-    name,
-}: Readonly<{ session: GraphSession; layer: string; name?: string }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const row = rowOf(session, layer, session.styles.get(layer)?.name ?? layer);
-    const shown = name ?? row.name;
-    if (row.opens === null) {
-        return <>{shown}</>;
-    }
-    const { opens } = row;
-    return (
-        <Anchor
-            component="button"
-            size="xs"
-            style={{ verticalAlign: "baseline" }}
-            aria-label={`Open ${opens.kind === "folder-row" ? "folder" : "layer"} ${row.name}`}
-            onClick={() => {
-                openRow(session, store, opens);
-            }}
-        >
-            {shown}
-        </Anchor>
-    );
-}
-
-/**
  * Why one node or edge looks as it does (tier1-design.md section 2.7, "Why this look"): one line
  * per row that wins at least one property on it, highest first, read whole from graphty-element's
  * `styles.explain()`.

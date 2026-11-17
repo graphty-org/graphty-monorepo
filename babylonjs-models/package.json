@@ -92,7 +92,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-models#readme",
+    "homepage": "https://graphty.app/docs/babylonjs-models/",
     "dependencies": {
         "@babylonjs/ktx2decoder": "8.56.2",
         "fflate": "^0.8.3",

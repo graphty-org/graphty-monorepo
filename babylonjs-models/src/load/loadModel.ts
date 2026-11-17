@@ -79,6 +79,8 @@ interface GltfPrepared {
     readonly extension: ModelExtension;
     readonly used: readonly string[];
     readonly required: readonly string[];
+    /** The names of the materials drawn see-through in place of transmission ({@link seeThrough}). */
+    readonly seeThrough?: ReadonlySet<string>;
 }
 
 /**
@@ -123,10 +125,10 @@ function prepareGltf(
         // the loader draws those parts opaque rather than refusing the file or building the
         // scene-wide render target transmission needs.
         const stripped = [...used, ...required].some((name) => IGNORED_EXTENSIONS.has(name));
+        const clear = stripped ? seeThrough(json) : new Set<string>();
         if (stripped) {
             json.extensionsRequired = required.filter((name) => !IGNORED_EXTENSIONS.has(name));
             json.extensionsUsed = used.filter((name) => !IGNORED_EXTENSIONS.has(name));
-            seeThrough(json);
         }
 
         const plain = withoutClimbs(json, files, main, body, withoutGltfPictures(json, hidden) || stripped);
@@ -135,6 +137,7 @@ function prepareGltf(
             extension: plain.extension ?? (READERS[format] as ModelExtension),
             used,
             required,
+            seeThrough: clear,
         };
     }
 
@@ -157,37 +160,63 @@ const TRANSMISSION_FLOOR = 0.2;
  * transmission factor (with {@link TRANSMISSION_FLOOR}). Drawn opaque, a watch's glass would hide
  * its dial and hands.
  * @param json - The glTF's JSON, changed in place.
+ * @returns The names of the materials made see-through.
  */
-function seeThrough(json: Record<string, unknown>): void {
+function seeThrough(json: Record<string, unknown>): Set<string> {
+    const names = new Set<string>();
     const materials = Array.isArray(json.materials) ? (json.materials as unknown[]) : [];
     for (const material of materials) {
-        if (typeof material !== "object" || material === null) {
-            continue;
+        if (
+            typeof material === "object" &&
+            material !== null &&
+            blendTransmissive(material as Record<string, unknown>)
+        ) {
+            const { name } = material as { name?: unknown };
+            names.add(typeof name === "string" ? name : "");
         }
+    }
 
-        const entry = material as Record<string, unknown>;
-        const extensions = entry.extensions as Record<string, unknown> | undefined;
-        const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
-        const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
-        if (factor <= 0) {
-            continue;
+    return names;
+}
+
+/**
+ * Make one transmissive material see-through ({@link seeThrough}).
+ * @param entry - The glTF material, changed in place.
+ * @returns Whether it was transmissive.
+ */
+function blendTransmissive(entry: Record<string, unknown>): boolean {
+    const extensions = entry.extensions as Record<string, unknown> | undefined;
+    const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
+    const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
+    if (factor <= 0) {
+        return false;
+    }
+
+    const pbr = (
+        typeof entry.pbrMetallicRoughness === "object" && entry.pbrMetallicRoughness !== null
+            ? entry.pbrMetallicRoughness
+            : {}
+    ) as Record<string, unknown>;
+    const base = Array.isArray(pbr.baseColorFactor) ? (pbr.baseColorFactor as number[]) : [1, 1, 1, 1];
+    const alpha = typeof base[3] === "number" ? base[3] : 1;
+    pbr.baseColorFactor = [base[0] ?? 1, base[1] ?? 1, base[2] ?? 1, alpha * Math.max(TRANSMISSION_FLOOR, 1 - factor)];
+    entry.pbrMetallicRoughness = pbr;
+    entry.alphaMode = "BLEND";
+    return true;
+}
+
+/**
+ * Keep a see-through material's reflections see-through too. Babylon draws a PBR material's
+ * specular and environment reflections over its alpha by default, so a glossy glass at 20%
+ * opacity still covered a watch's dial and hands with an opaque disc of reflected sky.
+ * @param container - The loaded model.
+ * @param names - The see-through materials' names.
+ */
+function clearReflections(container: AssetContainer, names: ReadonlySet<string>): void {
+    for (const material of container.materials) {
+        if (names.has(material.name) && material.alpha < 1 && "useRadianceOverAlpha" in material) {
+            Object.assign(material, { useRadianceOverAlpha: false, useSpecularOverAlpha: false });
         }
-
-        const pbr = (
-            typeof entry.pbrMetallicRoughness === "object" && entry.pbrMetallicRoughness !== null
-                ? entry.pbrMetallicRoughness
-                : {}
-        ) as Record<string, unknown>;
-        const base = Array.isArray(pbr.baseColorFactor) ? (pbr.baseColorFactor as number[]) : [1, 1, 1, 1];
-        const alpha = typeof base[3] === "number" ? base[3] : 1;
-        pbr.baseColorFactor = [
-            base[0] ?? 1,
-            base[1] ?? 1,
-            base[2] ?? 1,
-            alpha * Math.max(TRANSMISSION_FLOOR, 1 - factor),
-        ];
-        entry.pbrMetallicRoughness = pbr;
-        entry.alphaMode = "BLEND";
     }
 }
 
@@ -406,9 +435,11 @@ export async function loadModelFiles(
 
     let reader = READERS[format];
     let draco: DracoModule | undefined;
+    let clear: ReadonlySet<string> = new Set();
     if (format === "glb" || format === "gltf") {
         const prepared = prepareGltf(files, main, format, new Set(hidden));
         ({ files } = prepared);
+        clear = prepared.seeThrough ?? clear;
         reader = prepared.extension;
         draco = await loadDecoders(prepared.used, prepared.required);
     }
@@ -424,9 +455,19 @@ export async function loadModelFiles(
     try {
         const slash = main.lastIndexOf("/");
         const folder = root + main.slice(0, slash + 1);
-        return reader.startsWith(".")
-            ? await loadBabylonModel(scene, folder, main.slice(slash + 1), reader as ModelExtension, options)
-            : await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+        if (!reader.startsWith(".")) {
+            return await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+        }
+
+        const container = await loadBabylonModel(
+            scene,
+            folder,
+            main.slice(slash + 1),
+            reader as ModelExtension,
+            options,
+        );
+        clearReflections(container, clear);
+        return container;
     } catch (error) {
         const fact = failureOf(error, format);
         // Only a decoder that failed to load is dropped: a damaged file ("decode") or a KTX2

@@ -267,6 +267,58 @@ describe("fetching a model by URL", () => {
         assert.sameMembers([...(error.held?.given.keys() ?? [])], ["cube.gltf", "cube.bin"]);
     });
 
+    it("holds a model once only its pictures are left to fetch, and stops fetching them on a signal (#8614)", async () => {
+        const answers: Record<string, Uint8Array> = {
+            [`${BASE}cube.gltf`]: fixture("gltf-textured", "cube.gltf"),
+            [`${BASE}cube.bin`]: fixture("gltf-textured", "cube.bin"),
+        };
+        const asked: string[] = [];
+        const stop = new AbortController();
+        // The picture never arrives: the reader stops it while it downloads.
+        vi.stubGlobal("fetch", (url: string, init: { signal: AbortSignal }) => {
+            asked.push(url);
+            const bytes = answers[url];
+            if (bytes === undefined) {
+                queueMicrotask(() => {
+                    stop.abort();
+                });
+                return new Promise((_, reject) => {
+                    init.signal.addEventListener("abort", () => {
+                        reject(new Error("stopped"));
+                    });
+                });
+            }
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                redirected: false,
+                url,
+                headers: { get: (name: string) => (name === "content-length" ? String(bytes.length) : null) },
+                body: null,
+                arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
+            });
+        });
+        const waiting: { names: string[]; facts: string[] }[] = [];
+        const result = refusal(
+            fetchModelSet(new URL(`${BASE}cube.gltf`), DEFAULT_MODEL_LIMITS, undefined, undefined, undefined, {
+                signal: stop.signal,
+                onWaiting: (held, facts) => {
+                    waiting.push({ names: [...held.given.keys()], facts: facts.map((f) => String(f.params.name)) });
+                },
+            }),
+        );
+        const error = await result;
+        assert.deepStrictEqual(waiting, [{ names: ["cube.gltf", "cube.bin"], facts: ["cube.png"] }]);
+        assert.strictEqual(error.code, "E_MODEL_MISSING_FILE");
+        assert.strictEqual(error.fact.params.name, "cube.png");
+        assert.sameMembers([...(error.held?.given.keys() ?? [])], ["cube.gltf", "cube.bin"]);
+        assert.strictEqual(
+            asked.filter((url) => url.endsWith("cube.png")).length,
+            1,
+            "no other address is tried after the stop",
+        );
+    });
+
     it("says a web page is not a model, and names the raw file behind a GitHub page without fetching", async () => {
         serve({ [`${BASE}cube.glb`]: { bytes: new TextEncoder().encode("\n  <!DOCTYPE html><html></html>") } });
         assert.strictEqual(

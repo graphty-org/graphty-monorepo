@@ -33,7 +33,12 @@ import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import { LOSS } from '@graphty/graph-io';
+import { ModelCompression } from 'babylonjs-models/files';
+import { ModelEncoding } from 'babylonjs-models/files';
 import { ModelFormat } from 'babylonjs-models/detect';
+import { ModelGeometry } from 'babylonjs-models/files';
+import { ModelPicture } from 'babylonjs-models/files';
+import { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { PAJEK_LOSS } from '@graphty/graph-io';
@@ -134,6 +139,7 @@ export interface AddAssetOptions {
     readonly main?: string;
     readonly name?: AssetId;
     readonly onProgress?: (change: ProgressChange) => void;
+    readonly onWaiting?: (record: AssetRecord) => void;
     readonly signal?: AbortSignal;
     readonly skipped?: readonly string[];
 }
@@ -196,6 +202,7 @@ export interface AssetsApi {
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
     addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     allowHosts(hosts: readonly string[]): void;
+    dropPart(ref: string, name: string): Promise<AssetRecord>;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
     find(ref: string): AssetRecord | undefined;
     get(id: AssetId): AssetRecord | undefined;
@@ -3923,8 +3930,7 @@ export interface ModelChange {
     readonly state: ModelState;
 }
 
-// @public
-export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
+export { ModelCompression }
 
 // @public
 export type ModelDefaultChannel = "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.modelDoubleSided";
@@ -3941,13 +3947,11 @@ export interface ModelDefaultsPatch {
     readonly style?: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue | null | undefined>>>;
 }
 
-// @public
-export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+export { ModelEncoding }
 
 export { ModelFormat }
 
-// @public
-export type ModelGeometry = "mesh" | "points" | "splats";
+export { ModelGeometry }
 
 // @public
 export interface ModelLimits {
@@ -3979,51 +3983,12 @@ export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "ot
 // @public
 export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
 
-// @public
-export interface ModelPicture {
-    readonly materials: readonly string[];
-    readonly name: string;
-}
+export { ModelPicture }
 
 // @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
-// @public
-export interface ModelSummary {
-    readonly animations: readonly {
-        readonly name: string;
-        readonly seconds: number;
-    }[];
-    readonly bounds?: {
-        readonly min: readonly [number, number, number];
-        readonly max: readonly [number, number, number];
-    };
-    readonly compression?: readonly ModelCompression[];
-    readonly encoding?: ModelEncoding;
-    readonly extensionsRequired: readonly string[];
-    readonly extensionsUsed?: readonly string[];
-    // (undocumented)
-    readonly format: ModelFormat;
-    readonly geometry?: ModelGeometry;
-    readonly gltfVersion?: "1.0" | "2.0";
-    readonly materials: readonly string[];
-    // (undocumented)
-    readonly meshes: number;
-    // (undocumented)
-    readonly morphTargets: number;
-    readonly pictures: readonly ModelPicture[];
-    readonly points?: number;
-    // (undocumented)
-    readonly skinned: boolean;
-    readonly textureBytes: number;
-    // (undocumented)
-    readonly textures: number;
-    // (undocumented)
-    readonly transparent: boolean;
-    readonly triangles: number;
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
-    readonly vertexColors?: boolean;
-}
+export { ModelSummary }
 
 // @public
 export type MultipleTestingCorrection = "benjamini-hochberg";

@@ -1,6 +1,6 @@
 /**
  * @file The silhouette mark of a model node: its halo, outline or glow drawn as a band around the
- * model's real outline on screen, by Babylon's selection outline layer.
+ * model's real outline on screen, by Babylon's selection outline layer with a band pass of its own.
  *
  * A built-in shape marks itself with a copy of its own mesh, scaled out, or a ring that faces the
  * camera. Neither works for a model: a model node is one instance per merged part, a copy of one
@@ -32,10 +32,77 @@ import "@babylonjs/core/ShadersWGSL/selectionOutline.fragment.js";
 import "@babylonjs/core/ShadersWGSL/depth.vertex.js";
 import "@babylonjs/core/ShadersWGSL/depth.fragment.js";
 
+import { ShaderStore } from "@babylonjs/core/Engines/shaderStore.js";
 import { SelectionOutlineLayer } from "@babylonjs/core/Layers/selectionOutlineLayer.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { VertexBuffer } from "@babylonjs/core/Meshes/buffer.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+
+/** The band's fragment shader, by name (Babylon appends "PixelShader"). */
+const BAND = "graphtyModelBand";
+
+/** Directions sampled per ring, and the most rings (the widest band, in pixels). */
+const BAND_DIRECTIONS = 12;
+const BAND_MAX = 16;
+
+// A pixel is in the band when it is outside every marked model and a marked model lies within the
+// band's width of it. Babylon's own selection outline compares a pixel with ONE neighbor the
+// band's width away, which draws a thin part (a tree's trunk) as a copy shifted sideways by that
+// width instead of a band around it. The depth sampler is read only so both bindings stay used.
+ShaderStore.ShadersStore[`${BAND}PixelShader`] =
+    `uniform sampler2D maskSampler;uniform sampler2D depthSampler;varying vec2 vUV;uniform vec2 screenSize;uniform vec3 outlineColor;uniform float outlineThickness;uniform float occlusionStrength;uniform float occlusionThreshold;
+void main(void) {
+vec2 texel=1.0/screenSize;float hit=0.0;
+for(int r=1;r<=${String(BAND_MAX)};r++){if(float(r)>outlineThickness){break;}
+for(int k=0;k<${String(BAND_DIRECTIONS)};k++){float a=float(k)*${String((2 * Math.PI) / BAND_DIRECTIONS)};
+if(texture2D(maskSampler,vUV+vec2(cos(a),sin(a))*float(r)*texel).r>0.0){hit=1.0;}}}
+if(texture2D(maskSampler,vUV).r>0.0){hit=0.0;}
+hit*=step(-1.0,texture2D(depthSampler,vUV).r);
+gl_FragColor=vec4(outlineColor,hit);
+}`;
+ShaderStore.ShadersStoreWGSL[`${BAND}PixelShader`] =
+    `var maskSamplerSampler: sampler;var maskSampler: texture_2d<f32>;var depthSamplerSampler: sampler;var depthSampler: texture_2d<f32>;varying vUV: vec2f;uniform screenSize: vec2f;uniform outlineColor: vec3f;uniform outlineThickness: f32;uniform occlusionStrength: f32;uniform occlusionThreshold: f32;
+@fragment
+fn main(input: FragmentInputs)->FragmentOutputs {
+let texel: vec2f=1.0/uniforms.screenSize;var hit: f32=0.0;
+for(var r: i32=1;r<=${String(BAND_MAX)};r++){if(f32(r)>uniforms.outlineThickness){break;}
+for(var k: i32=0;k<${String(BAND_DIRECTIONS)};k++){let a: f32=f32(k)*${String((2 * Math.PI) / BAND_DIRECTIONS)};
+if(textureSampleLevel(maskSampler,maskSamplerSampler,fragmentInputs.vUV+vec2f(cos(a),sin(a))*f32(r)*texel,0.0).r>0.0){hit=1.0;}}}
+if(textureSampleLevel(maskSampler,maskSamplerSampler,fragmentInputs.vUV,0.0).r>0.0){hit=0.0;}
+hit*=step(-1.0,textureSampleLevel(depthSampler,depthSamplerSampler,fragmentInputs.vUV,0.0).r);
+fragmentOutputs.color=vec4f(uniforms.outlineColor,hit);
+}`;
+
+/** Babylon's selection outline layer, its edge pass swapped for {@link BAND}'s. */
+class ModelBandLayer extends SelectionOutlineLayer {
+    constructor(name: string, scene: Scene) {
+        super(name, scene, { mainTextureRatio: 1 });
+        const engine = scene.getEngine();
+        const shaderLanguage = this._shaderLanguage;
+        this._thinEffectLayer._createMergeEffect = () =>
+            engine.createEffect(
+                { vertex: "glowMapMerge", fragment: BAND },
+                {
+                    attributes: [VertexBuffer.PositionKind],
+                    uniformsNames: [
+                        "screenSize",
+                        "outlineColor",
+                        "outlineThickness",
+                        "occlusionStrength",
+                        "occlusionThreshold",
+                    ],
+                    samplers: ["maskSampler", "depthSampler"],
+                    defines: "",
+                    fallbacks: null,
+                    onCompiled: null,
+                    onError: null,
+                    shaderLanguage,
+                },
+                engine,
+            );
+    }
+}
 
 /** How a mark is drawn. */
 export interface ModelMarkLook {
@@ -191,7 +258,7 @@ export function markModelNode(
 
     let marked = marks.layers.get(layerKey);
     if (marked === undefined) {
-        const layer = new SelectionOutlineLayer(`graphty-model-mark-${key}`, scene, { mainTextureRatio: 1 });
+        const layer = new ModelBandLayer(`graphty-model-mark-${key}`, scene);
         layer.outlineColor = Color3.FromHexString(look.color.slice(0, 7));
         layer.outlineThickness = look.thickness;
         marked = { layer, look, owners: new Map() };

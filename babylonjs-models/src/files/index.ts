@@ -6,7 +6,7 @@
  */
 
 export * from "../detect/index.js";
-export type { CheckedModel, ModelInSet, RedirectGate } from "./intake.js";
+export type { CheckedModel, ModelInSet, PictureFetch, RedirectGate } from "./intake.js";
 export {
     checkModelFiles,
     fetchModel,

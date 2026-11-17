@@ -127,6 +127,7 @@ export interface ModelSummary {
      * Gaussian splats, which store Y pointing down).
      */
     readonly upAxis: "y" | "z" | "-y" | "unknown";
+    /** Each clip; an unnamed glTF clip is `animation<index>`, as Babylon's glTF loader names it. */
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
     /**
      * glTF and OBJ: every picture the materials draw, embedded or external, and the materials that

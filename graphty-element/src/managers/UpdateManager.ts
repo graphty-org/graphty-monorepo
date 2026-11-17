@@ -2728,6 +2728,12 @@ export class UpdateManager implements Manager {
      * @returns True when every part of the mesh is ready to be drawn into the layer.
      */
     private static layerIsReadyFor(layer: EffectLayer, mesh: AbstractMesh, instanced: boolean): boolean {
+        // A mesh with no geometry draws nothing and has no subMeshes at all (a batched node's
+        // anchor): asking for them threw in the render loop on every frame.
+        if (mesh.getTotalVertices() === 0) {
+            return true;
+        }
+
         const engine = mesh.getEngine();
         const pass = engine.currentRenderPassId;
 

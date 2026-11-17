@@ -43,4 +43,16 @@ describe("checkModel", () => {
         const error = await element.checkModel("asset:nothing-here", { signal: stop.signal }).catch((e: unknown) => e);
         assert.strictEqual((error as Error).message, "stopped");
     });
+
+    it("checks the same files anew after a check that failed because the model was removed mid-check", async () => {
+        const element = await mount();
+        const files = await filesOf("gltf-skinned-animated");
+        const first = await element.session.assets.add({ files });
+        const pending = element.checkModel(first.id);
+        element.session.assets.remove(first.id);
+        await pending;
+
+        const again = await element.session.assets.add({ files });
+        assert.deepEqual(await element.checkModel(again.id), { drawable: true });
+    });
 });

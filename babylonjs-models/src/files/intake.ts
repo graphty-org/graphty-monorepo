@@ -669,7 +669,7 @@ function triesFor(fact: ModelFact, main: URL): (readonly [string, URL])[] {
 interface PartFetch {
     readonly url: URL;
     readonly limits: ModelLimits;
-    readonly signal: AbortSignal | undefined;
+    signal: AbortSignal | undefined;
     readonly gate: RedirectGate | undefined;
     readonly given: Map<string, Uint8Array>;
     /** The bytes fetched so far, misses included. */
@@ -861,6 +861,9 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * @param signal - The caller's signal.
  * @param gate - What to ask when an answer comes from another host.
  * @param onProgress - Hears the bytes received so far, the main file's and then its parts'.
+ * @param pictures - Pictures may arrive last: `onWaiting` hears the set once only pictures are
+ *     still to fetch (a copy, with the facts naming them), and `signal` stops fetching pictures:
+ *     those not fetched are then reported missing, as if they had not been found.
  * @returns The file set and its main file (none for a zip, whose main file is inside it).
  */
 export async function fetchModelSet(
@@ -869,6 +872,7 @@ export async function fetchModelSet(
     signal?: AbortSignal,
     gate?: RedirectGate,
     onProgress?: ModelProgressListener,
+    pictures?: PictureFetch,
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     if (isKnownWebPage(url)) {
         refuse("E_MODEL_WEB_PAGE", webPageParams(url));
@@ -903,9 +907,77 @@ export async function fetchModelSet(
             throw finalRefusal(facts, tried, parts, { given, main });
         }
 
-        for (const fact of fresh) {
-            await fetchPart(fact, fetching, tried);
+        const others = notPictures(fresh, pictures);
+        if (others.length > 0) {
+            for (const fact of others) {
+                await fetchPart(fact, fetching, tried);
+            }
+
+            continue;
         }
+
+        pictures?.onWaiting?.({ given: new Map(given), main }, facts);
+        await fetchPictures(fresh, fetching, tried, pictures?.signal);
+    }
+}
+
+/**
+ * The missing parts to fetch before the pictures: with `pictures`, everything but them, so the
+ * model can be held without them; without, every part.
+ * @param fresh - The parts not tried yet.
+ * @param pictures - How pictures are fetched, if they may arrive last.
+ * @returns The parts to fetch now; none when only pictures are left.
+ */
+function notPictures(fresh: readonly ModelFact[], pictures: PictureFetch | undefined): readonly ModelFact[] {
+    return pictures === undefined ? fresh : fresh.filter((f) => roleOfName(String(f.params.name)) !== "texture");
+}
+
+/** How {@link fetchModelSet} fetches a model's pictures, which a reader may go without. */
+export interface PictureFetch {
+    /** Stops fetching pictures; the rest of the set is kept. */
+    readonly signal?: AbortSignal;
+    /** Hears the set once only pictures are left to fetch, and the facts naming them. */
+    readonly onWaiting?: (
+        held: { readonly given: Map<string, Uint8Array>; readonly main: string },
+        facts: readonly ModelFact[],
+    ) => void;
+}
+
+/**
+ * Fetch a model's missing pictures until `stop` aborts: one in flight then stops, and the rest are
+ * marked tried, so they are reported missing.
+ * @param facts - The missing pictures.
+ * @param fetching - The shared state.
+ * @param tried - The addresses tried, by part name.
+ * @param stop - Stops fetching pictures.
+ */
+async function fetchPictures(
+    facts: readonly ModelFact[],
+    fetching: PartFetch,
+    tried: Map<string, string[]>,
+    stop: AbortSignal | undefined,
+): Promise<void> {
+    const outer = fetching.signal;
+    // Read afresh after each await: a reader may stop the pictures while one downloads.
+    const stopped = (): boolean => stop?.aborted === true;
+    fetching.signal = stop === undefined || outer === undefined ? (stop ?? outer) : AbortSignal.any([outer, stop]);
+    try {
+        for (const fact of facts) {
+            if (stopped()) {
+                tried.set(String(fact.params.name), tried.get(String(fact.params.name)) ?? []);
+                continue;
+            }
+
+            try {
+                await fetchPart(fact, fetching, tried);
+            } catch (error) {
+                if (!stopped() || outer?.aborted === true) {
+                    throw error;
+                }
+            }
+        }
+    } finally {
+        fetching.signal = outer;
     }
 }
 

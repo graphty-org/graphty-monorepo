@@ -2,7 +2,7 @@
  * The skinned and animated sample files readers bring (Fox, CesiumMan, BrainStem) draw on nodes
  * and in pictures, and play: a skinned file with no normals or indices builds (Fox.glb, issue
  * #8607), an unnamed clip is listed by the
- * name that plays it (issue #8609), and a playing skinned model is framed at its own size.
+ * name that plays it (issue #8609), and a playing skinned model is framed and boxed at its own size.
  */
 
 import { assert, describe, it } from "vitest";
@@ -83,6 +83,18 @@ describe("skinned sample files", () => {
             );
             assert.isAbove(posed, still * 0.6, `${clip} is drawn about as large as the still fox`);
         }
+    });
+
+    it("boxes a node drawing a playing Fox at the model's fitted size, not the file's units (#8607)", async () => {
+        const element = await mount();
+        await drawModel(element, await fox(), [{ id: "a", x: 0 }], { "node.modelAnimation": "Walk" });
+        const node = element.graph.scene.getMeshByName("node-model-a");
+        assert.isNotNull(node);
+        node.computeWorldMatrix(true);
+        const { minimumWorld, maximumWorld } = node.getBoundingInfo().boundingBox;
+        const extent = maximumWorld.subtract(minimumWorld);
+        // A size-1 built-in shape spans 1.5; the playing fox reaches a little past its still box.
+        assert.isBelow(Math.max(extent.x, extent.y, extent.z), 3, JSON.stringify(extent.asArray()));
     });
 
     it("lists an unnamed clip by the name that plays it, and plays it on a node", async () => {

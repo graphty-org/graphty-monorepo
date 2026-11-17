@@ -97,6 +97,7 @@ describe("the glTF checks", () => {
                         uri: `data:image/png;base64,${Buffer.from(fixture("gltf-textured", "cube.png")).toString("base64")}`,
                     },
                 );
+                // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
                 (json.textures as Json[]).push({ source: 1 }, { extensions: { EXT_texture_webp: { source: 2 } } });
                 (json.materials as Json[]).push({ normalTexture: { index: 1 }, emissiveTexture: { index: 2 } });
             }),

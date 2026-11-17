@@ -48,6 +48,7 @@ import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';

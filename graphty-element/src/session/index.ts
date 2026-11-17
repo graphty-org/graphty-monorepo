@@ -11,31 +11,8 @@
  */
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
-export type {
-    AddAssetOptions,
-    AssetId,
-    AssetOffer,
-    AssetRecord,
-    AssetsApi,
-    AssetSource,
-    AssetState,
-    BuiltInModelFormat,
-    ModelCompression,
-    ModelDefaultChannel,
-    ModelDefaults,
-    ModelDefaultsPatch,
-    ModelEncoding,
-    ModelFormat,
-    ModelGeometry,
-    ModelLimits,
-    ModelPart,
-    ModelPartRole,
-    ModelPartState,
-    ModelPicture,
-    ModelSummary,
-    NamedBlob,
-    PartAnswer,
-} from "./assets/AssetsApi";
+// Every model type, named one by one where it is published (session.ts).
+export type * from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./assets/AssetsApi";
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";

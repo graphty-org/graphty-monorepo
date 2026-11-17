@@ -1606,16 +1606,35 @@ export class StylePainter {
             return null;
         }
 
+        const { make } = this.nodePaintMaker(paint, index);
+        return make();
+    }
+
+    /**
+     * The resolved style of one node row, with its model's defaults under it, and how to build its
+     * paint: shared by {@link StylePainter.nodePaint} and {@link StylePainter.rowPaint}.
+     * @param paint - The bound paint source.
+     * @param index - The row's dense index.
+     * @returns The resolved style, its mesh key, the model-defaults tag and the paint builder.
+     */
+    private nodePaintMaker(
+        paint: ElementPaint,
+        index: number,
+    ): { resolved: ResolvedStyle; meshKey: number; tag: string; make: () => NodePaint } {
         const floor = this.floorOf("node");
         const { resolved, tag } = this.withModelDefaults(
             floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
         );
-        const made = keyedByFloor(
-            nodePaintOf(resolved, paint.meshKeyOf("node", index), (channel) => paint.plainText("node", index, channel)),
-            resolved,
-            floor,
-        );
-        return tag === "" ? made : { ...made, meshKey: made.meshKey + tag };
+        const meshKey = paint.meshKeyOf("node", index);
+        const make = (): NodePaint => {
+            const made = keyedByFloor(
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
+                resolved,
+                floor,
+            );
+            return tag === "" ? made : { ...made, meshKey: made.meshKey + tag };
+        };
+        return { resolved, meshKey, tag, make };
     }
 
     /**
@@ -1635,19 +1654,7 @@ export class StylePainter {
             return null;
         }
 
-        const floor = this.floorOf("node");
-        const { resolved, tag } = this.withModelDefaults(
-            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
-        );
-        const meshKey = paint.meshKeyOf("node", index);
-        const make = (): NodePaint => {
-            const made = keyedByFloor(
-                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
-                resolved,
-                floor,
-            );
-            return tag === "" ? made : { ...made, meshKey: made.meshKey + tag };
-        };
+        const { resolved, meshKey, tag, make } = this.nodePaintMaker(paint, index);
         const bare = nodeIdentity(resolved, meshKey);
         const identity = bare === null ? null : bare + tag;
         if (identity === null) {

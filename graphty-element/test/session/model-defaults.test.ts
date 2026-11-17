@@ -184,3 +184,19 @@ describe("session.assets.accept without missing parts", () => {
         session.dispose();
     });
 });
+
+describe("session.assets.dropPart", () => {
+    it("reads a model again without one part handed over, which it then waits for", async () => {
+        const session = createGraphSession({ workingGraph: false });
+        const whole = await session.assets.add({ files: objSet() });
+        assert.strictEqual(whole.state, "accepted");
+        const again = await session.assets.dropPart(whole.id, "tex.png");
+        assert.strictEqual(again.state, "rejected");
+        assert.strictEqual(again.parts?.find((p) => p.name === "tex.png")?.state, "missing");
+        assert.strictEqual(session.assets.find(whole.id)?.state, "accepted", "the model as it was stays");
+        assert.strictEqual(await codeOf(session.assets.dropPart(whole.id, "quad.obj")), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(session.assets.dropPart(whole.id, "nothing.png")), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(session.assets.dropPart("asset:nothing", "tex.png")), "E_MODEL_UNKNOWN_ASSET");
+        session.dispose();
+    });
+});

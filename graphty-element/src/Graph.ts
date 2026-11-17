@@ -7734,7 +7734,11 @@ export class Graph implements GraphContext {
             });
         }
 
-        const record = await assets.ready(ref);
+        // A model held while its pictures still download is drawn now, with them stood in for.
+        const record =
+            standInMissing && held?.state === "rejected" && (assets as AssetsApiInternal).standIn(held.id) !== undefined
+                ? held
+                : await assets.ready(ref);
         const problem =
             record.kind === "image"
                 ? {
@@ -7891,7 +7895,8 @@ export class Graph implements GraphContext {
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
             standIn === undefined ? "model" : "model-stand-in",
-            record.digest,
+            record.digest === "" ? record.id : record.digest,
+            standIn?.skipped ?? [],
             hidden,
             options.size,
             style["node.color"],
@@ -7966,7 +7971,12 @@ export class Graph implements GraphContext {
         }
 
         const { record, standIn } = found;
-        const key = JSON.stringify([record.digest, standIn === undefined ? "model" : "model-stand-in"]);
+        // A model waiting by address has no digest yet: its provisional id names it.
+        const key = JSON.stringify([
+            record.digest === "" ? record.id : record.digest,
+            standIn === undefined ? "model" : "model-stand-in",
+            standIn?.skipped ?? [],
+        ]);
         let check = this.#modelChecks.get(key);
         if (check === undefined) {
             check = this.#thumbnailQueue.then(async () => {
@@ -7979,9 +7989,21 @@ export class Graph implements GraphContext {
             });
             this.#thumbnailQueue = check.catch(() => undefined);
             this.#modelChecks.set(key, check);
-            check.catch(() => {
-                this.#modelChecks.delete(key);
-            });
+            // Only a success belongs to the digest: a failure can come from the record leaving the
+            // assets mid-check (E_MODEL_UNKNOWN_ASSET), and the same files added again must be checked anew.
+            const settled = check;
+            settled.then(
+                (result) => {
+                    if (result.drawable !== true && this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+                () => {
+                    if (this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+            );
         }
 
         const result = await check;

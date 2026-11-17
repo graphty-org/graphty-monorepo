@@ -1,0 +1,1 @@
+No counted-work test yet: its cost grows with the models held, not with the graph.

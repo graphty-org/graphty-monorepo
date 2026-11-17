@@ -20,7 +20,7 @@ import {
     normalizePath,
     roleOfName,
 } from "babylonjs-models/detect";
-import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
+import type { ModelProgress, ModelProgressListener, ModelSummary, RedirectGate } from "babylonjs-models/files";
 
 import type { ChannelValue, LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -46,6 +46,13 @@ const loadSamples = (): Promise<typeof import("./samples")> => import("./samples
 
 export { type AssetId, isAssetId } from "./assetId";
 export type { BuiltInModelFormat, ModelFormat } from "babylonjs-models/detect";
+export type {
+    ModelCompression,
+    ModelEncoding,
+    ModelGeometry,
+    ModelPicture,
+    ModelSummary,
+} from "babylonjs-models/files";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
@@ -104,6 +111,14 @@ export interface AddAssetOptions {
      * problem's code otherwise, `"cancelled"` when the signal stopped it).
      */
     readonly onProgress?: (change: ProgressChange) => void;
+    /**
+     * A URL only: hears the model once everything but its pictures has arrived, while the pictures
+     * still download. The record waits for them (`state: "rejected"`, each picture an
+     * `E_MODEL_MISSING_FILE` with `downloading: true`); `modelPreview` and `checkModel` with
+     * `standInMissing` draw it at once, and `accept(ref, { without: "missing" })` stops the
+     * downloads and takes it without them. The download otherwise goes on and `add` settles as usual.
+     */
+    readonly onWaiting?: (record: AssetRecord) => void;
 }
 
 /**
@@ -248,82 +263,6 @@ export interface ModelDefaultsPatch {
     readonly hiddenTextures?: readonly string[];
 }
 
-/** One picture a model's materials draw ({@link ModelSummary.pictures}). */
-export interface ModelPicture {
-    /** A glTF image's name, else its `uri`, else `image<index>`; an OBJ picture's path in the set. */
-    readonly name: string;
-    /** The materials that draw it, by name ("" for an unnamed one). */
-    readonly materials: readonly string[];
-}
-
-/** What a model holds, read from its files without drawing it. */
-export interface ModelSummary {
-    readonly format: ModelFormat;
-    /** Counted per use: a mesh used by three scene nodes counts three times. */
-    readonly triangles: number;
-    readonly meshes: number;
-    /** Material names, each cut to 256 characters ("" for an unnamed one). */
-    readonly materials: readonly string[];
-    readonly textures: number;
-    /** Decoded, as width x height x 4 x 4/3 (RGBA with mipmaps). */
-    readonly textureBytes: number;
-    /** As authored, from the vertex positions, before any node transform. */
-    readonly bounds?: {
-        readonly min: readonly [number, number, number];
-        readonly max: readonly [number, number, number];
-    };
-    /**
-     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
-     * Gaussian splats, which store Y pointing down). `node.modelSourceUp: "detected"` draws it up.
-     */
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
-    /**
-     * Each clip, named as `node.modelAnimation` plays it: an unnamed glTF clip is
-     * `animation<index>`, as the glTF loader names it.
-     */
-    readonly animations: readonly { readonly name: string; readonly seconds: number }[];
-    /**
-     * glTF and OBJ: every picture the materials draw, embedded or external, with the materials that
-     * draw it; empty for the other formats. `ModelDefaults.hiddenTextures` names these.
-     */
-    readonly pictures: readonly ModelPicture[];
-    readonly skinned: boolean;
-    readonly morphTargets: number;
-    readonly transparent: boolean;
-    /** glTF only. */
-    readonly extensionsRequired: readonly string[];
-    /**
-     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
-     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
-     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
-     */
-    readonly geometry?: ModelGeometry;
-    /** Points or splats in the file, before thinning. Points and splats only. */
-    readonly points?: number;
-    /** STL and PLY: how the file is stored. */
-    readonly encoding?: ModelEncoding;
-    /** The file carries per-vertex or per-face colors, and they are drawn. */
-    readonly vertexColors?: boolean;
-    /** glTF only: the compression its data uses, from `extensionsUsed`. */
-    readonly compression?: readonly ModelCompression[];
-    /** glTF only: `"1.0"` for a glTF 1.0 file, upgraded to 2.0 on reading. */
-    readonly gltfVersion?: "1.0" | "2.0";
-    /** glTF only: every extension the file uses, beside `extensionsRequired`. */
-    readonly extensionsUsed?: readonly string[];
-}
-
-/** What a model file draws: see {@link ModelSummary.geometry}. */
-export type ModelGeometry = "mesh" | "points" | "splats";
-
-/** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
-export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
-
-/**
- * A compression a glTF's data uses: Draco or meshopt geometry, KTX2 / Basis Universal, WebP or
- * AVIF pictures. See {@link ModelSummary.compression}.
- */
-export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
-
 /** The limits that protect the tab. Only the page's code sets them; a document never does. */
 export interface ModelLimits {
     /** Per model file or unzipped set. Default 32 MB. */
@@ -434,10 +373,11 @@ export interface AssetsApi {
      */
     list(): readonly AssetRecord[];
     /**
-     * What an accepted model holds, read from its files without drawing it.
+     * What an accepted model holds, read from its files without drawing it; for a model waiting
+     * for pictures or materials, what it holds drawn without them (as `standInMissing` draws it).
      * @param id - The id.
      * @returns The summary.
-     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for an id with no accepted model.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for an id with no model to read.
      */
     inspect(id: AssetId): ModelSummary;
     /**
@@ -519,6 +459,23 @@ export interface AssetsApi {
      * ```
      */
     accept(ref: string, options: { readonly without: "missing" }): Promise<AssetRecord>;
+    /**
+     * Take one file back out of a model, for a part handed over by mistake: the model is read
+     * again from its other files, as `add` reads a set, so that part is missing again (and asked
+     * for, or drawn without, as any missing part). Pictures, `.mtl` files and buffers only; the
+     * model's own file is cleared with `remove`. The model as it was stays held until the caller
+     * removes it.
+     * @param ref - What a layer named, or the record's id.
+     * @param name - The part's name, as `record.parts` lists it.
+     * @returns The model read without it: a new record, waiting for that part.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
+     *     or `E_BAD_COMMAND` for a name that is not one of its parts or is its own file.
+     * @example
+     * ```ts
+     * const again = await graph.session.assets.dropPart(model.id, "textures/wrong.png");
+     * ```
+     */
+    dropPart(ref: string, name: string): Promise<AssetRecord>;
     /**
      * Hand files to the session first, before treating them as new assets: every file that exactly
      * one waiting model is missing (by its folder path, then by its base name, in any case) is
@@ -631,6 +588,12 @@ interface UrlFetch {
     callers: number;
     /** A caller waits with no signal, so nothing stops the download. */
     pinned: boolean;
+    /** Stops downloading the pictures; the rest of the set is kept (`accept`). */
+    readonly pictures: AbortController;
+    /** The model held while its pictures download, once everything else has arrived. */
+    waiting?: AssetRecord;
+    /** Who hears {@link UrlFetch.waiting} (`onWaiting`). */
+    readonly waiters: Set<(record: AssetRecord) => void>;
 }
 
 /**
@@ -1286,6 +1249,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         sample = false,
         url?: string,
         into?: Entry,
+        fill = true,
     ): Promise<AssetRecord> => {
         const skipped = [...(options.skipped ?? [])];
         const files = await asEntries(given);
@@ -1330,7 +1294,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         }
 
         (sample ? samples : entries).set(id, entry);
-        return entry.held === undefined ? settled : fillFromProject(entry);
+        if (entry.held === undefined) {
+            return settled;
+        }
+
+        await summarizeHeld(entry);
+        return fill ? fillFromProject(entry) : settled;
     };
 
     /**
@@ -1428,6 +1397,35 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             listeners: new Set(),
             callers: 0,
             pinned: false,
+            pictures: new AbortController(),
+            waiters: new Set(),
+        };
+        // The download has ended: a waiting record built after it is stale.
+        let arrived = false;
+        // Everything but the pictures has arrived: held now, drawn with them stood in for.
+        const onWaiting = (held: NonNullable<ModelError["held"]>, facts: readonly CodedFact[]): void => {
+            const downloading = facts.map((fact) =>
+                fact.code === "E_MODEL_MISSING_FILE"
+                    ? { code: fact.code, params: { ...fact.params, downloading: true } }
+                    : fact,
+            );
+            void heldRecord(early(downloading, provisional), held, named).then(async (waiting) => {
+                if (arrived || entry.fetch !== fetch) {
+                    return;
+                }
+
+                entry.held = { ...held, skipped: [], options: shared, url: named };
+                entry.record = waiting;
+                await summarizeHeld(entry);
+                if (arrived) {
+                    return;
+                }
+
+                fetch.waiting = waiting;
+                for (const waiter of fetch.waiters) {
+                    waiter(waiting);
+                }
+            });
         };
         entry.fetch = fetch;
         entry.settled = (async () => {
@@ -1436,11 +1434,24 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 const kind = roleOfName(url.pathname) === "texture" ? "texture" : "model";
                 const fetched = await (
                     await loadIntake()
-                ).fetchModelSet(url, limits, fetch.controller.signal, redirectGate(kind, "file"), (progress) => {
-                    for (const listener of fetch.listeners) {
-                        listener(progress);
-                    }
-                });
+                )
+                    .fetchModelSet(
+                        url,
+                        limits,
+                        fetch.controller.signal,
+                        redirectGate(kind, "file"),
+                        (progress) => {
+                            for (const listener of fetch.listeners) {
+                                listener(progress);
+                            }
+                        },
+                        { signal: fetch.pictures.signal, onWaiting },
+                    )
+                    .finally(() => {
+                        arrived = true;
+                    });
+                // Held while the pictures downloaded; whole now.
+                delete entry.held;
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
@@ -1472,6 +1483,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
                     settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
+                    await summarizeHeld(entry);
                     settled = await fillFromProject(entry);
                 }
             }
@@ -1505,7 +1517,14 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return () => undefined;
         }
 
-        const { onProgress, signal } = options;
+        const { onProgress, signal, onWaiting } = options;
+        if (onWaiting !== undefined) {
+            fetch.waiters.add(onWaiting);
+            if (fetch.waiting !== undefined) {
+                onWaiting(fetch.waiting);
+            }
+        }
+
         const listener: ModelProgressListener | undefined =
             onProgress === undefined
                 ? undefined
@@ -1537,6 +1556,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         return () => {
             if (listener !== undefined) {
                 fetch.listeners.delete(listener);
+            }
+
+            if (onWaiting !== undefined) {
+                fetch.waiters.delete(onWaiting);
             }
 
             signal?.removeEventListener("abort", onAbort);
@@ -1910,6 +1933,26 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @param url - The address it was added by.
      * @returns The record.
      */
+    /**
+     * What a model waiting for pictures or materials holds, read as it is drawn meanwhile (with
+     * them stood in for), so `inspect` answers for it too: its clips, pictures and size.
+     * @param entry - The waiting model.
+     */
+    const summarizeHeld = async (entry: Entry): Promise<void> => {
+        const standIn = api.standIn(entry.record.id);
+        if (standIn === undefined) {
+            return;
+        }
+
+        try {
+            const intakeModule = await loadIntake();
+            const { files, main, format, skipped } = standIn;
+            entry.summary = (await intakeModule.checkModelFiles(files, { main, format, skipped }, limits)).summary;
+        } catch {
+            // Not readable without them: `inspect` keeps refusing, as before.
+        }
+    };
+
     const heldRecord = async (
         settled: AssetRecord,
         held: NonNullable<ModelError["held"]>,
@@ -2007,6 +2050,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             entries.set(settled.id, entry);
         } else {
             entry.held = { ...held, given, ...(main === undefined ? {} : { main }), skipped };
+            await summarizeHeld(entry);
         }
 
         return settled;
@@ -2261,7 +2305,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         inspect(id) {
-            return lookup(id)?.summary ?? unknownAsset(id);
+            return (lookup(id) ?? findEntry(id))?.summary ?? unknownAsset(id);
         },
 
         remove(id) {
@@ -2317,7 +2361,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         async accept(ref) {
-            if (findEntry(ref) === undefined) {
+            const entry = findEntry(ref);
+            // Pictures still downloading are gone without: the download stops, the rest is kept.
+            entry?.fetch?.pictures.abort();
+            if (entry === undefined) {
                 throw new GraphtyError({
                     code: "E_MODEL_UNKNOWN_ASSET",
                     source: "data",
@@ -2338,6 +2385,31 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             return current;
+        },
+
+        async dropPart(ref, name) {
+            const entry = findEntry(ref);
+            const given = entry?.held?.given ?? entry?.given;
+            if (entry === undefined || given === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            const main = entry.held?.main ?? entry.record.path;
+            const part = entry.record.parts?.find((p) => p.name === name);
+            const file = part?.file ?? name;
+            if (part === undefined || name === main || part.role === "model" || !given.has(file)) {
+                throw supplyError("E_BAD_COMMAND", { id: entry.record.id, name: cutParam(name) });
+            }
+
+            const rest = new Map([...given].filter(([path]) => path !== file));
+            const skipped = (entry.held?.skipped ?? entry.record.skipped ?? []).filter((n) => n !== name);
+            // Not filled from the project's pictures: the part taken back would come straight back.
+            return intake(rest, skipped.length === 0 ? {} : { skipped }, main, false, undefined, undefined, false);
         },
 
         async offer(files, options = {}) {
@@ -2479,13 +2551,16 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         standIn(id) {
-            const entry = lookup(id);
+            // A model loaded by address waits under its provisional id, among the URLs.
+            const entry = lookup(id) ?? findEntry(id);
             const main = entry?.record.path;
             if (entry?.held === undefined || entry.record.state !== "rejected" || main === undefined) {
                 return undefined;
             }
 
-            const { problems } = entry.record;
+            // Only what keeps it waiting counts: a warning beside the missing parts (a glTF's
+            // transmission drawn without, the ChronographWatch) left a waiting glTF undrawn.
+            const problems = entry.record.problems.filter((fact) => !fact.code.startsWith("W_"));
             const stoodIn = problems.every(
                 (fact) =>
                     fact.code === "E_MODEL_MISSING_FILE" &&

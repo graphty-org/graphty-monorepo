@@ -155,8 +155,10 @@ GitHub budget or nothing. Each round also writes `tmp/issue-round/last-round` (o
 
 **Refill per job.** Start each job as its own background subagent (one Agent call per job), never as a Workflow
 batch: a batch reports only when its slowest job ends, which held finished jobs for about 30 job-hours on
-2026-11-12/13. When any subagent reports (pull request opened, `ready`, or released), run steps 1 to 5 again at once.
-Reuse `tmp/issue-round/pr-files.json` (step 4) while it is under 15 minutes old, to spare the GitHub budget. The
+2026-11-12/13. EVERY subagent report runs steps 1 to 5 again before the turn ends, whatever the subagent did: a fix
+job, opening finished branches, settling a conflict, a red pull request fix, a scan, a measurement, a workflow.
+Pipeline work runs beside fix jobs, never instead of them. Every reply of this session ends with the line from
+`node tools/issue-groups.mjs idle` (exit 1 means start jobs now). Reuse `tmp/issue-round/pr-files.json` (step 4) while it is under 15 minutes old, to spare the GitHub budget. The
 `/loop` interval is only the fallback.
 
 ## 2. Pick the job
@@ -497,6 +499,10 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **An issue held for the next major.** Since the owner's rule of 2026-11-10 (CLAUDE.md "Public API and breaking
   changes") nothing is held for a major: remove its `hold` or `blocked` label with a
   `pipeline-round: unheld -- breaking changes land as ordinary feat/fix commits since 2026-11-10` comment, and take it.
+- **The session sits idle while jobs are startable.** On 2026-11-16 it spent an hour opening branches, settling
+  conflicts and fixing red pull requests and started almost no jobs while ten were startable and test slots were
+  free. Signal: ccgraph token use near zero; the idle line reads `running 0` with jobs startable. Action: start jobs
+  at once (steps 1 to 5), and run pipeline work beside them.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
   status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
   (pipeline-round's alarms; the tool drops them). An issue waiting on owner-only code carries `hold` or `blocked`

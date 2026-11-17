@@ -17,10 +17,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import { withoutFeatures } from "../../../test/features";
 import { dragAcross, dragTo } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import damagedPlyUrl from "../__fixtures__/variants/damaged.ply?url";

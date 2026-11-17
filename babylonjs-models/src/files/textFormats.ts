@@ -902,7 +902,7 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
         const image = resolveReference(name, path, files);
         textureBytes += textureBytesOf(image.bytes, image.path);
         // Named by its path in the set, or an embedded one by its place, as `withoutPictures` takes it.
-        const using = (uses.get(name) ?? []).map(cut);
+        const using = (uses.get(name) ?? []).map((each) => cut(each));
         const named = image.path === "" ? embeddedPictureName(name, names) : image.path;
         pictures.push(Object.freeze({ name: named ?? image.path, materials: Object.freeze(using) }));
     }

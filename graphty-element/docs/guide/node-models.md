@@ -290,7 +290,9 @@ accepted: `accept` throws that problem's code, such as `E_MODEL_TOO_LARGE`, with
 
 A part that drew in the model's own color picture and was left out takes the node's color
 (`node.color`) instead, in every format, so a model added without its textures can be colored by a
-style layer.
+style layer. Once every picture that colored the model is gone, the whole model takes the node's
+color, its parts colored only by a plain material color included; see-through parts (a watch's
+glass) keep their look, and a layer that sets `node.modelTint: false` keeps every plain color.
 
 ### Taking a part back out
 
@@ -487,8 +489,10 @@ element.session.assets.find(robot.id)?.defaults; // { style: { ... }, hiddenText
 ```
 
 `hiddenTextures` draws the model without some of its pictures, by the names
-`assets.inspect(id).pictures` lists (each with the materials that draw it): those parts draw in
-their material's plain color, which takes the node's color when it is plain white.
+`assets.inspect(id).pictures` lists (each with the materials that draw it): those parts take the
+node's color. Hiding every picture draws the whole model in the node's color, as adding it without
+them does. glTF, OBJ, `.babylon` and PLY models list their pictures: a picture in a file of its own
+by its path in the set, an embedded one (glTF, `.babylon`) by its image name or `image<index>`.
 `modelThumbnail` and `modelPreview` draw with the model's settings under the `style` they are
 given, and take `hiddenTextures` of their own for a picker that tries some out before keeping them.
 Inside `session.transaction`, call `tx.assets.setDefaults` so the change joins the transaction's

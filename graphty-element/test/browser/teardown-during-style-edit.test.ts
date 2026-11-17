@@ -162,13 +162,18 @@ describe("tearing down around a style edit", () => {
             started = resolve;
         });
         const signals: AbortSignal[] = [];
+        // How each real pass ended, once it has: a pass that stopped rejects, one that painted
+        // the cleared data to the end resolves.
+        const outcomes: Promise<string>[] = [];
 
         (paint as { repaintAll: typeof paint.repaintAll }).repaintAll = async (stack, context) => {
             signals.push(context.signal);
             started();
             await gate;
+            const pass = repaintAll(stack, context);
+            outcomes.push(outcomeOf(pass));
 
-            return repaintAll(stack, context);
+            return pass;
         };
 
         // A new smallest mark size repaints the whole graph: the same pass a load and the end
@@ -180,6 +185,8 @@ describe("tearing down around a style edit", () => {
 
         assert.strictEqual(await outcomeOf(edit), "resolved", "the edit failed when its repaint was stopped");
         assert.isTrue(signals[0]?.aborted, "the pass was never told the data it was painting is gone");
+        assert.isNotEmpty(outcomes, "the pass never reached the painter");
+        assert.notStrictEqual(await outcomes[0], "resolved", "the pass kept painting across the clear");
         assert.deepStrictEqual(errors, [], "clearing the data is not an error");
         assert.deepStrictEqual(unhandled, []);
     });

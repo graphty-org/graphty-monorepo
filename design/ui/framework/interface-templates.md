@@ -168,21 +168,23 @@ A1, A2 and A10. Each card's States field says whether it draws data paint.
 - **Figma source:** 46 Layer row in the Layers slot (`left-sidebar/README.md` 3, 4); the fill list
   (`right-sidebar-selection/README.md` 391) for a row's paint.
 - **Departures:** `figma-crosswalk.md` 4.2, "A style row names a reusable style"; "Local styles never overlap"; "Hovering a style in Selection colors marks what uses it"; "Overrides are listed
-  per instance"; "A frame's default look is its own fill". Blocked (`interface-specification.md` 7.4): the Overrides and Base
-  style rows (the Overrides row), the painted count and Select painted (the painted row).
+  per instance"; "A frame's default look is its own fill". Blocked (`interface-specification.md` 7.4): the painted
+  count and Select painted (the painted row).
 - **Regions and rows:** section header with "+" and a `Menu` holding Export style...
   (`output-homes.md` 3), and no search field of its own: Find's style-layer hits narrow this list in
   stack order (section 2a); hidden elements are never here (their home is the not-drawn line,
-  `output-homes.md` 1). **Overrides** kept first once used; the stack in precedence order, top wins,
+  `output-homes.md` 1). The stack in precedence order, top wins,
   cut at rest by count with an "N more" row that expands in place in the section's own scroll area;
   a run of layers that paint nothing collapses in place into one "N layers paint nothing" row, so
-  nothing reorders (`interaction-pattern-entries.md` 6.8); **Base style** pinned last and always
-  visible, because the floor of the stack is never hidden. Rows at rest and how the section shares
+  nothing reorders (`interaction-pattern-entries.md` 6.8). Every row is ordinary: the default layers a
+  new project is written with (Everything, Pinned, Selected, Hovered) can be moved, hidden, edited
+  or deleted like any other, and an element that no shown layer paints is not drawn (`CLAUDE.md`,
+  "There are no special layers"). Rows at rest and how the section shares
   height with Sets and paths are `state-matrix.md` 7 and 8. Each `Tree` row, as
   `visual-language.md` A7 orders it: the layer's chip in the icon slot (the drawing of
   `canvas-drawing.md` 3; no style-layer glyph), name, its origin word from `LayerSource.by` in
-  secondary text (the words are `content-design.md` 3's; `element` layers are the Base style row, or
-  marks that are not listed), and the eye (`ToggleIconButton`); the channels it writes, the count it
+  secondary text (the words are `content-design.md` 3's; a default layer's origin word is the one its
+  source records, never a separate kind), and the eye (`ToggleIconButton`); the channels it writes, the count it
   paints and **Select painted** sit in the hover and focus `TrailingSlot`. Never sections or bands by
   source; a **Source** facet in the header menu narrows the list to what one recipe or run brought.
   The row's menu holds Move up and Move down. A drop resolves to a flat stack index: `Tree`'s "into"
@@ -215,7 +217,6 @@ One template, many editors.
 | Editor | Body, in order | Form mode |
 |---|---|---|
 | Style layer | header: eye, Move up, Move down; selector (its inline rule, or the kept set it references); channel groups, including the tooltip channels; each bound channel's pill, whose scale opens in the encoding popover (below); legend; the count painted (blocked); the No value count on a bound channel; Notes (the notes about this layer); Used by | sparse |
-| Base style (blocked) | channel groups, no selector | sparse |
 | Result | header: Run or Cancel; the state line; Scope (with a search's Filtered graph or Full graph); arguments; Direction and Weight; Parameters; **Appearance**: its automatic layer with its eye, the suppression state line ("<channel> set by <layer>", Apply anyway), then the encoding verbs `options-and-encodings.md` 4 lists for the result's shape, each adding a style layer bound to this result; then its readings: headline readings; for a partition, top and bottom items (opening the item tab); for a metric, **Top nodes**, its top N with values, whose "N more" opens the Nodes tab sorted by this result's column (`element-needs.md`, "A ranking read for a metric result"); Notes (the notes about this result); Used by | dense |
 | Layout | header: Run or Stop, and the Run line's state word ("waits for Run" or "applies as you edit", `interaction-patterns.md` 3.3); layout; its method (force layouts); scope, read from the layout settings, with the count of hidden nodes it reads; the layout's options; encoded axes | dense |
 | Encoding (the nested picker of a bound row) | header: the attribute and channel, then Fix at <value> when opened from a layer editor, or the layer it will write when opened by a verb (Size by, Color by); scale; domain with its histogram; palette; bins or steps; midpoint; overflow (Other); No value; Range, with its unit (required until the element has a default range per channel) | dense |

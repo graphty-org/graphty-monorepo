@@ -1,5 +1,10 @@
 # babylonjs-map
 
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![npm version](https://img.shields.io/npm/v/babylonjs-map.svg)](https://www.npmjs.com/package/babylonjs-map)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: a flat map or a globe drawn
 from a bundled world picture or from web map tiles, sharper tiles loaded as the camera comes closer,
 and parsers for the common ways of writing a location.

@@ -37,6 +37,7 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import {
     ALGO_DEFINITIONS,
     type AlgoMoveCommand,
@@ -261,8 +262,6 @@ export interface RunsApiOptions {
      * @returns The accepted window key, or undefined.
      */
     readonly acceptedWindow?: (id: RunId) => string | undefined;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -1441,6 +1440,7 @@ class Runs implements SessionRunsApi {
         const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
+        algorithmLog.info("run requested", { algorithm, id, params: params ?? null, existing: existing !== undefined });
 
         if (hold === undefined) {
             this.holds.delete(id);
@@ -1653,7 +1653,6 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
-            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1842,7 +1841,7 @@ class Runs implements SessionRunsApi {
      */
     private windowMoved(run: ManagedRun): boolean {
         const ran = run.scopeWindow;
-        if (ran === undefined || this.options.windowNow === undefined || this.options.timeline?.() === false) {
+        if (ran === undefined || this.options.windowNow === undefined) {
             return false;
         }
 

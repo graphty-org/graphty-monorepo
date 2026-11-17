@@ -6,7 +6,6 @@
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -39,15 +38,7 @@ function tile(dialog: HTMLElement, name: string): HTMLElement {
 }
 
 describe("the Samples dialog", () => {
-    it("lists no timed sample with the timeline off", async () => {
-        await siteFeatures([]);
-        const off = await openSamples();
-        assert.throws(() => tile(off, "Paper citations"));
-        assert.isDefined(tile(off, "Les Miserables"));
-    });
-
-    it("lists the timed samples with the timeline on", async () => {
-        await siteFeatures(["timeline"]);
+    it("lists the timed samples", async () => {
         assert.isDefined(tile(await openSamples(), "Paper citations"));
     });
 

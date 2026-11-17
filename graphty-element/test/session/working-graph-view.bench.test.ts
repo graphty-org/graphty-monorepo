@@ -13,9 +13,8 @@
  */
 
 import { mulberry32 } from "@graphty/algorithms";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { workingGraphOfSession } from "../../src/session/GraphSession";
 import type { RuleTree } from "../../src/session/visibility";
 import { workingViewCounters } from "../../src/session/working/view";
@@ -99,11 +98,6 @@ function report(measure: string, timing: { median: number; slowest: number }, sh
 }
 
 describe("the working graph's view at 50,000 nodes", () => {
-    beforeAll(() => {
-        // The timeline is an experiment: this file's sessions switch it on.
-        setDefaultFeatures(["timeline"]);
-    });
-
     it("rebuilds once per filter change", async () => {
         const harness = graphOf();
         const working = workingGraphOfSession(harness.session);

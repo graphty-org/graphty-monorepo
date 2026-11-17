@@ -306,14 +306,15 @@ wait for the owner. A red one is classified like an agent pull request.
 
 ### 9. Finished branches with no pull request
 
-A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
-no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
-was red): open it, oldest first, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`:
-`ci.saturated` ok and `ci.runner_wait` not red), checked again after each one. `CI_PR_RUN_CAP` already limits how many
-pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
-`pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
-`tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
-tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
+A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and no
+open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master was
+red): first combine the families of such branches into one branch each (issue-round step 1, "Combine finished branches", when
+issue-round has not this round), then open what is left, oldest first, as many as CI's runners allow (the
+`pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red), checked again after each one.
+`CI_PR_RUN_CAP` already limits how many pull requests CI runs at once. Only while master is green (see "While master is
+red" in the shared file); `pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the
+branch), `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and
+the tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
 
 ```bash
 git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refname:short) %(committerdate:unix)' \

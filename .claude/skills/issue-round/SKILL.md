@@ -44,6 +44,24 @@ new issue: a red pull request keeps its files blocked for every other issue (ste
 request red only on a break master already has gets no job: link the master-break issue and update the branch when
 its fix merges ("Inherited failures" in `.claude/skills/pipeline-round/shared.md`).
 
+**Combine finished branches before starting new ones.** Whenever branches sit finished and unopened (`ready`, no
+pull request), whatever master's state, combine their families into one branch each, so each family costs one CI run
+(design/ci/issue-grouping.md section 4, "Combining finished branches"):
+
+- [ ] `node tools/issue-groups.mjs check --fix`, `git fetch origin`, `node tools/issue-groups.mjs combine-plan`. For
+      each `judge` pair, read both diffs; when a rubric test of step 3 holds, run it again with
+      `--link <a>:<b>:<T#>`.
+- [ ] One background subagent per `family` line (it holds a test slot like a fix job). In a new worktree
+      (`./tools/worktree-new.sh <combine into> origin/master <name> --issue <lead>`) it runs
+      `git merge --no-ff origin/<branch>` for each branch (one that conflicts beyond settling is left out and keeps
+      its own `ready`), lint and the tests the merged changes touch; then
+      `issue-queue.mjs taken <new branch> <worktree> <every issue> --files ... --why "combines <branches>"`, one
+      Proof listing every issue and each old `ready` marker, `pipeline-round: ready <new branch> <sha>` on every
+      issue and `pipeline-round: superseded <old branch> by <new branch>` on each old branch's issues. Old branches
+      are kept (owner standing rule 7). Then, master green, `tools/pr-open.sh`; red, it stops at `ready`.
+- [ ] Never a branch the plan refused (open pull request, red-master fix, running job, moved tip), never past the
+      family's class cap. The next `check --fix` folds the old groups into the new branch's group.
+
 **While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
 write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not
 checked for them, since they open nothing.
@@ -232,17 +250,22 @@ earlier attempts' evidence in the prompt (a failing job is never a question for 
 ## 3. Group related issues
 
 Grouping follows the rubric in design/ci/issue-grouping.md section 1, never a judgment of topic. In short: an issue
-joins a group when one test holds against its lead -- **T1** the same diff fixes both (a fold), **T2** one named
+joins a group when one test holds against **any** member -- **T1** the same diff fixes both (a fold), **T2** one named
 defect already on master explains both, **T3** both change the same function or block (not in a hub or registry
 file), **T4** both must change the same test cases or record rows, **T5** both change only documentation in the same
-file or `design/` folder -- and no exclusion holds (owner-only, tracker, red-master fix, critical except through T1
-or T2, owner-guarded paths, breaking with non-breaking, staged behind something else, an open pull request, a cause
-not yet on master). The same topic, package, label, oracle program or record file is never enough. At most 4 issues
-and 6 effort points (`effort:low` 1, `medium` 2, `high` 3, none 2; a fold 0). When unsure, do not group.
+file or `design/` folder, **T6** both are docs or tests changes to the same package, `design/` subfolder or `tools/`
+subfolder -- and no exclusion holds (owner-only, tracker, red-master fix, critical except through T1 or T2,
+owner-guarded paths, breaking with non-breaking, staged behind something else, an open pull request, a cause not yet
+on master). For source changes the same topic, package, label, oracle program or record file is never enough. Each
+member records its own test, the member it holds against and its own reason, never the group's summary. Caps by the
+group's riskiest member: **docs** (only Markdown, `design/`, READMEs, doc and code comments) 10 issues; **tests**
+(only test files, fixtures, test helpers) 8 issues and 12 points; **source** 4 issues and 6 points (`effort:low` 1,
+`medium` 2, `high` 3, none 2; a fold 0). When unsure about a source change, do not group.
 
 **Routing a single issue** (an `unscanned` job, or the top issue while `jobs` exits 3): read it and the code it points
 at (only with `show <n>`), find the ledger group it fits by the rubric (`node tools/issue-groups.mjs show --json`
-lists them), and run `node tools/issue-groups.mjs route <n> --to <group> --test <T#> --why "<reason>"`, or
+lists them), and run `node tools/issue-groups.mjs route <n> --to <group> --test <T#> --with <member> --class
+<docs|tests|source> --why "<reason>"`, or
 `route <n> --why "<reason>"` when none fits. The tool does what the group's state allows and prints where the issue
 went: added to a proposed group (start that group's job instead), waiting on a started or ready branch (start
 nothing for it now; a ready branch takes it only through the join rule of step 4, with `route --join`), or in the
@@ -266,13 +289,15 @@ Its prompt: "Group the free issues of graphty-org/graphty-monorepo into jobs. Re
 the source files its fix changes and the test, record and fixture files that fix must update (known-failure lists,
 floors, oracles, snapshots), never a directory. Compare them with the open pull requests and running jobs by step 4 of
 `.claude/skills/issue-round/SKILL.md`. Group free issues only by the rubric in section 1 of
-`design/ci/issue-grouping.md` (tests T1 to T5, exclusions X1 to X9, at most 4 issues and 6 effort points; when
-unsure, do not group); `node tools/issue-groups.mjs show --json` is the current ledger, and an issue whose test holds
-against a group already started, ready or open goes in `blocked` with that group. Write only
-`tmp/issue-round/free-queue.json` in the main checkout, as `{ builtAt, jobs: [{ lead, issues: [<n>...], members:
-[{ n, test, points }], files: [<path>...], why }], blocked: [{ issue, prs: [<n>...], group, reason }] }`, `test`
-being the rubric test that holds against the lead (`lead` for the lead), where every issue of the queue is in a job
-or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine)." followed by the
+`design/ci/issue-grouping.md` (tests T1 to T6 against any member already in the job, exclusions X1 to X9, the caps
+of its risk classes; when unsure about a source change, do not group); `node tools/issue-groups.mjs show --json` is
+the current ledger, and an issue whose test holds against a group already started, ready or open goes in `blocked`
+with that group. Write only `tmp/issue-round/free-queue.json` in the main checkout, as `{ builtAt, jobs: [{ lead,
+issues: [<n>...], members: [{ n, test, with, class, why, points }], files: [<path>...], why }], blocked: [{ issue,
+prs: [<n>...], group, reason }] }`, listing each job's issues so that every member's `with` comes before it: `test`
+is the rubric test that holds, `with` the member it holds against, `class` docs, tests or source, and `why` that
+member's own reason (never the job's `why`; a member without one is not grouped). Every issue of the queue is in a
+job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine)." followed by the
 read-only rules paragraph from step 1. When the scan reports, run `node tools/issue-groups.mjs import-scan`: its jobs
 replace the ledger's proposed groups (a job over the cap is cut into consecutive groups).
 
@@ -342,7 +367,7 @@ nothing for hours. Such an issue joins that branch:
 
 - **Only when** master is red; the branch has no open pull request; its own issue's (the number in its name) newest
   marker is `ready <branch> <sha>` with `<sha>` equal to `origin/<branch>`'s tip (a `taken` marker after it means
-  another job has joined it: wait for its `ready`); and the branch would hold at most four issues in all, the ones
+  another job has joined it: wait for its `ready`); and the branch stays within its class cap (step 3), the issues
   already on it included. One joining job per branch at a time, across all sessions. While master is green, never
   join: the branch is about to open, or it failed to open and is pipeline-round's.
 - **Never** for a branch where any issue of its group is owner-only, `needs-decision`, `hold`, `blocked` or
@@ -365,8 +390,9 @@ nothing for hours. Such an issue joins that branch:
 **A job that fixes the red is marked so.** A cause of master's red is an issue the red-master or full-run alarm links
 by number, an open master-break issue under "Inherited failures" in the shared file, or a `Flaky test:` issue whose
 test is among the failures of master's newest red build or full run -- never an issue that merely mentions a check.
-Such a job holds only issues that are causes of the red (no riders) and never joins a `ready` branch, and the first
-line of its prompt is exactly `This job fixes the red: open it while master is red.` (see "While master is red" in
+Such a job holds only issues that are causes of the red (no riders), never joins a `ready` branch and is never
+combined (its `taken` marker's `--why` says `fixes the red`, which `combine-plan` reads), and the first line of its
+prompt is exactly `This job fixes the red: open it while master is red.` (see "While master is red" in
 the shared file). It is a fix job for a red master: it takes a test slot before any other issue job.
 
 ## 5. Mark and start
@@ -421,9 +447,10 @@ Each: signal, meaning, action. Add to this list (see the next section).
 --fix` takes it out of the group; it is never routed back to that group. The share released is the rubric's
   precision (`metrics`).
 - **Grouping metrics.** The first round after 00:00 Pacific runs `node tools/issue-groups.mjs metrics --append`. A
-  breach it lists (a guardrail of design/ci/issue-grouping.md section 9) gets an issue labelled `priority:high` naming
-  it, whose fix lowers the cap to 3 issues and 4 points; two breaches in a week make it `priority:critical`, and
-  until it closes, route only T1 folds.
+  breach it lists (a guardrail of design/ci/issue-grouping.md section 9, named with its risk class) gets an issue
+  labelled `priority:high` naming it, whose fix lowers that class's cap by about a quarter (source to 3 issues and 4
+  points); two breaches in a week make it `priority:critical`, and until it closes, group that class only by T1
+  folds.
 - **A `ready` marker with no pull request** (the subagent's `pr-open.sh` failed): pipeline-round opens it (its step 9).
 - **A subagent released every issue of its group** (none reproduced, or all unrelated). The job is over: it holds no
   test slot and is not counted in step 1.

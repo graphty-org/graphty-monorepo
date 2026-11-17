@@ -168,6 +168,8 @@ right; it reads only trusted authors and orders markers by comment id.
 
 - `pipeline-round: ready <branch> <sha>` (the work is finished; written just before `pr-open.sh`)
 - `pipeline-round: opened <branch> <pull request url>` (after `pr-open.sh` printed the URL)
+- `pipeline-round: superseded <old branch> by <new branch>` (on each issue of a finished branch combined into a new
+  one; the old branch is kept, and its commits reach master through the new one)
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a red pull request)
 - `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` (on the red pull request and its issue;
   see "Inherited failures")

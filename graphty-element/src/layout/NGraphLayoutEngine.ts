@@ -668,9 +668,8 @@ export class NGraphEngine extends LayoutEngine {
         const read = readBodyCommunities(
             this.clusterBy as string,
             this.nodeMapping.keys(),
-            [...this.rowNodes.keys()].map((id) => [id, this.storeRowOf?.(id) ?? INVALID_INDEX] as const),
-            this.rowRecord,
-            this.clusterColumn,
+            this.rowNodes.keys(),
+            this,
             (row) => this.isFollower(row),
         );
         const same = sameCommunities(read, this.communities);

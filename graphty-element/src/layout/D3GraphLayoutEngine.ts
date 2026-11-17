@@ -448,9 +448,8 @@ export class D3GraphEngine extends LayoutEngine {
         const read = readBodyCommunities(
             this.clusterBy as string,
             this.nodeMapping.keys(),
-            [...this.rowBodies.keys()].map((id) => [id, this.storeRowOf?.(id) ?? INVALID_INDEX] as const),
-            this.rowRecord,
-            this.clusterColumn,
+            this.rowBodies.keys(),
+            this,
             (row) => this.isFollower(row),
         );
         const built = new Map([...this.nodeMapping].map(([node, body]) => [node.id, body]));

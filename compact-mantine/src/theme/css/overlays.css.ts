@@ -493,6 +493,14 @@ const css = `
 /* Keyboard focus on the scroller: a 1px ring inside, and the thumb shows. */
 .cm-scroll-viewport:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .cm-scroll-root:has(> .cm-scroll-viewport:focus-visible) > .cm-scroll-scrollbar[data-state="hidden"] { display: flex; }
+/* scrollCue (opt-in): the content fades out over 16px at an edge with more of it beyond. */
+.cm-scroll-root[data-scroll-cue] > .cm-scroll-viewport {
+    --cm-cue-top: 0px;
+    --cm-cue-bottom: 0px;
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--cm-cue-top), #000 calc(100% - var(--cm-cue-bottom)), transparent);
+}
+.cm-scroll-root[data-cue-top] > .cm-scroll-viewport { --cm-cue-top: 16px; }
+.cm-scroll-root[data-cue-bottom] > .cm-scroll-viewport { --cm-cue-bottom: 16px; }
 
 /* ---------------------------------------------------------------- 8.8 feedback */
 

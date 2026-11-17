@@ -1,8 +1,7 @@
 /**
  * Every `*.test.ts` file under `test/` must be picked up by at least one vitest project.
  *
- * `vitest.config.ts` splits the suite into projects (default, mesh, contract, bench, browser, xr,
- * interactions, llm-regression), each with its own include and exclude globs. A file that none of
+ * `vitest.config.ts` splits the suite into projects, each with its own include and exclude globs. A file that none of
  * them includes is never run by anything -- not the pre-push gate, not CI, not a bare `vitest run`
  * -- and nothing says so. The mesh tests sat in that state for months, and
  * test/browser/dash-spacing-measurement.test.ts sat in it for most of a year while pointing at a

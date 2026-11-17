@@ -978,6 +978,13 @@ export class LayoutManager implements Manager {
     setPaused(paused: boolean): void {
         this._paused = paused;
         this.running = !paused;
+        // A static layout held back the re-run a removal asked for while paused; it lands now, in
+        // the array both render paths draw from (a batched row has no Node whose update would read
+        // it). After `running`, so a re-run that throws leaves the layout resumed.
+        const engine = this.layoutEngine;
+        if (!paused && engine instanceof StaticLayoutEngine && simpleLayoutInternals.resume(engine)) {
+            engine.publishPositions();
+        }
     }
 
     // GraphContext for error reporting
@@ -1685,6 +1692,8 @@ export class LayoutManager implements Manager {
                 () => this.graphContext,
             );
         }
+
+        simpleLayoutInternals.whilePaused(engine, () => this._paused);
 
         if (engine) {
             // What the engine reads the graph through: the working graph, never the store.

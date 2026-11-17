@@ -132,7 +132,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
         const { value, precision } = await run((dispatch, s) =>
             synchronous
                 ? dispatch.labelPropagationSynchronous(s, { maxIterations })
-                : dispatch.labelPropagation(s, { maxIterations, randomSeed }),
+                : dispatch.labelPropagation(s, { maxIterations, seed: randomSeed }),
         );
         const converged = "converged" in value && typeof value.converged === "boolean" ? value.converged : undefined;
         const iterations = "iterations" in value && typeof value.iterations === "number" ? value.iterations : undefined;

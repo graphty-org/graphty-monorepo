@@ -75,6 +75,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.unlit",
                         "node.flat",
                         "node.sizeMode",
+                        "node.sizeSpace",
                     ],
                 },
                 {

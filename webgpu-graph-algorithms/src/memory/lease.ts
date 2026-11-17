@@ -1,16 +1,18 @@
 /**
- * The Lease scope object of spec 4.4: every buffer an algorithm acquires through it goes back to the
+ * The Lease scope object: every buffer an algorithm acquires through it goes back to the
  * BufferPool in ONE `release()` call placed in the algorithm's `finally` block, so scratch never
  * outlives the call that took it (a `try / finally`, not `Symbol.dispose`, until the monorepo's
  * TypeScript target supports `using`). Persistent buffers (layout state) are owned by the simulation
  * object instead and freed by its `dispose()`.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "4.4 BufferPool, Lease and Readback".
  */
 
 import { BufferUsage } from "../device/webgpu-constants.js";
 import { hasErrorCode, WebGpuGraphError } from "../errors.js";
 import type { BufferPool } from "./buffer-pool.js";
 
-/** Scope object algorithms use: every buffer acquired through it is released by `release()` in a finally block (spec 4.4). */
+/** Scope object algorithms use: every buffer acquired through it is released by `release()` in a finally block. */
 export class Lease {
     private readonly pool: BufferPool;
     private readonly buffers = new Set<GPUBuffer>();

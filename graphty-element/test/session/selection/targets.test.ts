@@ -1,7 +1,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { EdgeId, FieldDescriptor, NodeId, Query } from "../../../src/catalog/types";
-import { isGraphtyError } from "../../../src/errors";
 import { createResultsApi, type ResultsRegistry, type ResultsRunEntry } from "../../../src/session/results/ResultsApi";
 import { createRunResult } from "../../../src/session/results/RunResult";
 import type { ResultsApi, RunResult } from "../../../src/session/results/types";
@@ -23,7 +22,7 @@ import {
     type TargetContext,
     type TargetMembers,
 } from "../../../src/session/selection/index";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 const CAVEATS: Caveats = {
     exact: true,
@@ -126,17 +125,6 @@ function selectionOf(harness: Harness, extra: Omit<SelectionSources, "snapshot">
     return createSelectionApi({ snapshot: () => harness.store.getSnapshot(), ...extra });
 }
 
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
-}
-
 describe("elements named outright", () => {
     it("takes the nodes and the edges a caller already holds", () => {
         const harness = line();
@@ -178,7 +166,7 @@ describe("elements named outright", () => {
 
         for (const bad of [{}, null, "everything", { edgesBetween: false }, { invert: false }]) {
             assert.strictEqual(
-                codeOf(() => selection.applyNow(bad as unknown as SelectionTarget)),
+                rejectionCode(() => selection.applyNow(bad as unknown as SelectionTarget)),
                 "E_BAD_COMMAND",
                 JSON.stringify(bad),
             );
@@ -238,7 +226,7 @@ describe("a pasted list of ids", () => {
         const target = { ids: ["a", { id: "b" }] } as unknown as SelectionTarget;
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow(target)),
+            rejectionCode(() => selection.applyNow(target)),
             "E_OPTION_RANGE",
         );
         harness.session.dispose();
@@ -311,11 +299,11 @@ describe("a predicate and a text search", () => {
         const selection = selectionOf(harness);
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ where: "anything" })),
+            rejectionCode(() => selection.applyNow({ where: "anything" })),
             "E_UNSUPPORTED",
         );
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ text: "a" })),
+            rejectionCode(() => selection.applyNow({ text: "a" })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();
@@ -344,7 +332,7 @@ describe("a scope", () => {
         const selection = selectionOf(harness);
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ scope: "graph" })),
+            rejectionCode(() => selection.applyNow({ scope: "graph" })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();
@@ -455,11 +443,11 @@ describe("a neighbourhood", () => {
         const window = { path: "data.date", from: "not a date", to: "2025-01-01" };
 
         assert.strictEqual(
-            codeOf(() => datedSelection(harness).applyNow({ neighborsOf: ["b"], window })),
+            rejectionCode(() => datedSelection(harness).applyNow({ neighborsOf: ["b"], window })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => selectionOf(harness).applyNow({ neighborsOf: ["b"], window: { ...window, from: 0 } })),
+            rejectionCode(() => selectionOf(harness).applyNow({ neighborsOf: ["b"], window: { ...window, from: 0 } })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();
@@ -497,7 +485,7 @@ describe("a neighbourhood", () => {
 
         for (const depth of [0, -1, 1.5]) {
             assert.strictEqual(
-                codeOf(() => selection.applyNow({ neighborsOf: ["a"], depth })),
+                rejectionCode(() => selection.applyNow({ neighborsOf: ["a"], depth })),
                 "E_OPTION_RANGE",
             );
         }
@@ -600,7 +588,7 @@ describe("a finished run's ranking", () => {
 
         for (const range of [{ min: Number.NaN }, { max: Number.POSITIVE_INFINITY }, { min: 3, max: 2 }]) {
             assert.strictEqual(
-                codeOf(() => selection.applyNow({ range: { run: "degree", ...range } })),
+                rejectionCode(() => selection.applyNow({ range: { run: "degree", ...range } })),
                 "E_OPTION_RANGE",
                 JSON.stringify(range),
             );
@@ -637,7 +625,7 @@ describe("a finished run's ranking", () => {
         const selection = selectionOf(harness, { results: RESULTS });
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ top: { run: "degree", field: "measured", n: 1 } })),
+            rejectionCode(() => selection.applyNow({ top: { run: "degree", field: "measured", n: 1 } })),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -648,11 +636,13 @@ describe("a finished run's ranking", () => {
         const selection = selectionOf(harness, { results: RESULTS });
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ top: { run: "degree", field: "value", n: 1.5 } })),
+            rejectionCode(() => selection.applyNow({ top: { run: "degree", field: "value", n: 1.5 } })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ above: { run: "degree", field: "value", threshold: Number.NaN } })),
+            rejectionCode(() =>
+                selection.applyNow({ above: { run: "degree", field: "value", threshold: Number.NaN } }),
+            ),
             "E_OPTION_RANGE",
         );
         harness.session.dispose();
@@ -663,7 +653,7 @@ describe("a finished run's ranking", () => {
         const selection = selectionOf(harness);
 
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ top: { run: "degree", field: "value", n: 1 } })),
+            rejectionCode(() => selection.applyNow({ top: { run: "degree", field: "value", n: 1 } })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();

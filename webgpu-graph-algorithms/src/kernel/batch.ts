@@ -1,12 +1,12 @@
 /**
- * The CommandBatch of spec 5.8: one GPUCommandEncoder, one compute pass per "phase" (a pass may hold
+ * The CommandBatch: one GPUCommandEncoder, one compute pass per "phase" (a pass may hold
  * many dispatches; dispatches inside a pass are ordered), the staging copies of every readback
  * request at the end, and ONE queue.submit. The batch borrows one slot of the Readback ring for its
- * lifetime (spec 4.4) and returns it when its readback settles -- resolved, discarded or rejected --
+ * lifetime and returns it when its readback settles -- resolved, discarded or rejected --
  * so the ring never grows because of a slot left pending. mapAsync on that slot is the completion
  * signal; a batch never calls onSubmittedWorkDone.
  *
- * Errors (spec 5.7): under Dawn-node an uncapturederror is delivered SYNCHRONOUSLY inside the API
+ * Errors: under Dawn-node an uncapturederror is delivered SYNCHRONOUSLY inside the API
  * call that fails, so an error pending in the context's slot when submit() runs belongs to this batch
  * and rejects ITS OWN readback (an invalid command buffer is a no-op submit; the staging bytes would be
  * stale). In browsers delivery is asynchronous: the batch takes the slot again after its map completes,
@@ -61,6 +61,48 @@ function messageOf(error: unknown): string {
     return `non-error thrown (${typeof error})`;
 }
 
+/**
+ * Receives one named step of device work and its facts (see `GpuContext.trace`): a host that logs them can tell
+ * afterwards which submit, map or error scope a run that never finished was waiting on.
+ */
+export type GpuTrace = (event: string, facts: Readonly<Record<string, unknown>>) => void;
+
+/** How long a traced wait runs before it is reported as waiting, in milliseconds. */
+const SLOW_WAIT_MS = 1000;
+
+/**
+ * Awaits `pending`, telling `trace` when the wait passes {@link SLOW_WAIT_MS} and again when it ends; silent for a
+ * wait shorter than that, so a per-frame batch costs no lines.
+ * @param pending - the promise waited on
+ * @param trace - the sink, or null for no tracing
+ * @param event - names the wait ("map", "error scope", ...)
+ * @param facts - what identifies it
+ * @returns what `pending` resolved with
+ */
+export async function traced<T>(
+    pending: Promise<T>,
+    trace: GpuTrace | null | undefined,
+    event: string,
+    facts: Readonly<Record<string, unknown>>,
+): Promise<T> {
+    if (trace === null || trace === undefined) {
+        return pending;
+    }
+    const started = performance.now();
+    const timer = setTimeout(() => {
+        trace(`${event} waiting`, { ...facts, ms: SLOW_WAIT_MS });
+    }, SLOW_WAIT_MS);
+    try {
+        return await pending;
+    } finally {
+        clearTimeout(timer);
+        const ms = Math.round(performance.now() - started);
+        if (ms >= SLOW_WAIT_MS) {
+            trace(`${event} ended`, { ...facts, ms });
+        }
+    }
+}
+
 /** What a CommandBatch needs of its owner (GpuContext satisfies it structurally; kernel/ never imports context.ts). */
 export interface BatchHost {
     readonly device: GPUDevice;
@@ -69,10 +111,12 @@ export interface BatchHost {
     readonly allocator: AllocationTracker;
     /** True when no uncaptured-error sink feeds takePendingError, so submit() scopes its own commands. */
     readonly scopesBatches?: boolean;
+    /** Where slow waits are reported (GpuContext.trace); absent or null traces nothing. */
+    readonly trace?: GpuTrace | null;
     assertReady(): void;
     takePendingError(): WebGpuGraphError | null;
     nextBatchId(): number;
-    /** Registers a device-loss listener and returns the unregister function (GpuContext.onLost, contract 3.5): the batch races its map against loss. PLAN DECISION 1: an amendment to contract 3.9, which declares the seven members above. */
+    /** Registers a device-loss listener and returns the unregister function (GpuContext.onLost): the batch races its map against loss. */
     onLost(listener: (info: GPUDeviceLostInfo) => void): () => void;
 }
 
@@ -84,12 +128,12 @@ export interface ReadbackRequest {
     readonly offset: number;
 }
 
-/** What submit() returns (spec 5.8). `readback` resolves with the mapped bytes COPIED out (one ArrayBuffer holding every request at its offset) after allocator.check(); it rejects with E_VALIDATION { batchId } when the pending-error slot held an error right after submit and with E_DEVICE_LOST after loss; a discarded batch resolves an empty ArrayBuffer (see discard()). */
+/** What submit() returns. `readback` resolves with the mapped bytes COPIED out (one ArrayBuffer holding every request at its offset) after allocator.check(); it rejects with E_VALIDATION { batchId } when the pending-error slot held an error right after submit and with E_DEVICE_LOST after loss; a discarded batch resolves an empty ArrayBuffer (see discard()). */
 export interface SubmittedBatch {
     readonly id: number;
     readonly generation: number;
     readonly readback: Promise<ArrayBuffer>;
-    /** Marks the batch stale: its readback still awaits mapAsync (so the slot is returned) but resolves with an empty ArrayBuffer and the caller ignores it (spec 7.19 item 6). */
+    /** Marks the batch stale: its readback still awaits mapAsync (so the slot is returned) but resolves with an empty ArrayBuffer and the caller ignores it. */
     discard(): void;
 }
 
@@ -98,7 +142,7 @@ interface DiscardState {
     discarded: boolean;
 }
 
-/** Records dispatches / copies into one encoder and submits once (spec 5.8). */
+/** Records dispatches / copies into one encoder and submits once. */
 export class CommandBatch {
     readonly id: number;
     readonly generation: number;
@@ -230,7 +274,7 @@ export class CommandBatch {
     }
 
     /**
-     * Ends passes, records the staging copies, submits, checks the pending-error slot (spec 5.7), returns the handle.
+     * Ends passes, records the staging copies, submits, checks the pending-error slot, returns the handle.
      * A batch can be submitted once; submit() after device loss throws E_DEVICE_LOST.
      * @returns the submitted-batch handle
      */
@@ -295,7 +339,11 @@ export class CommandBatch {
         scope: Promise<GPUError | null>,
         readback: Promise<ArrayBuffer>,
     ): Promise<ArrayBuffer> {
-        const [error] = await Promise.all([scope.catch(() => null), readback.catch(() => undefined)]);
+        const facts = { batch: this.label, id: this.id };
+        const [error] = await Promise.all([
+            traced(scope, this.host.trace, "error scope", facts).catch(() => null),
+            readback.catch(() => undefined),
+        ]);
         if (error !== null) {
             const { message } = error;
             throw this.attribute(
@@ -311,8 +359,9 @@ export class CommandBatch {
     }
 
     private async awaitReadback(slot: StagingSlot | null, state: DiscardState): Promise<ArrayBuffer> {
+        const facts = { batch: this.label, id: this.id };
         if (slot === null) {
-            await this.host.allocator.check();
+            await traced(this.host.allocator.check(), this.host.trace, "allocator check", facts);
             return new ArrayBuffer(0);
         }
         const total = this.stagingBytes;
@@ -327,7 +376,7 @@ export class CommandBatch {
         void mapped.catch(() => undefined);
         let bytes: ArrayBuffer;
         try {
-            await Promise.race([mapped, lost]);
+            await traced(Promise.race([mapped, lost]), this.host.trace, "map", facts);
             this.host.assertReady();
             bytes = state.discarded ? new ArrayBuffer(0) : slot.buffer.getMappedRange(0, total).slice(0);
         } catch (error) {
@@ -339,7 +388,7 @@ export class CommandBatch {
             unregister();
         }
         this.releaseSlot();
-        await this.host.allocator.check();
+        await traced(this.host.allocator.check(), this.host.trace, "allocator check", facts);
         return bytes;
     }
 

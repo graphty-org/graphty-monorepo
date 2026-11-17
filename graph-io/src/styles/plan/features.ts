@@ -112,7 +112,7 @@ export function styleFingerprint(snapshot: GraphSnapshot): StyleFingerprint {
         let a = 0x811c9dc5;
         let b = 0x01000193 ^ 0x5bd1e995;
         for (let c = 0; c < text.length; c++) {
-            const code = text.charCodeAt(c); // NOSONAR(S7758): hashes UTF-16 code units; code points would change every fingerprint
+            const code = text.charCodeAt(c); // eslint-disable-line unicorn/prefer-code-point -- hashes UTF-16 code units; code points would change every fingerprint
             a = Math.imul(a ^ code, 0x01000193);
             b = Math.imul(b ^ code, 0x01000193) ^ (b >>> 13);
         }

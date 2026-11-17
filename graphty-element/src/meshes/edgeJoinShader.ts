@@ -57,7 +57,7 @@
  * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
  * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
  * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
- * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * between two such looks (a time window's ghost look) writes four floats in place rather than moving
  * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
  * the uniforms.
  *

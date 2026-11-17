@@ -74,6 +74,7 @@ import {
     NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
+    NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import {
@@ -274,6 +275,12 @@ type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["size
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/** How a node's drawn size follows the camera: with the scene, at the orbit pivot's depth, or held on screen. */
+type NodeSizeSpaceValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeSpace"]>;
+
+/** Every node size space, in schema order. */
+const NODE_SIZE_SPACE_VALUES: readonly NodeSizeSpaceValue[] = NodeSizeSpaces.options;
+
 /**
  * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
  * @since 3.36.0
@@ -349,6 +356,7 @@ export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
     "node.sizeMode": NodeSizeModeValue;
+    "node.sizeSpace": NodeSizeSpaceValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -962,7 +970,7 @@ export interface ChannelDescriptor {
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = never; // NOSONAR(S6564): published; kept so imports still compile
+export type ChannelCaveatCode = never; // eslint-disable-line sonarjs/redundant-type-aliases -- published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -2367,6 +2375,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "enum",
         values: NODE_SIZE_MODE_VALUES,
         stylePath: "shape.sizeMode",
+        renderable: true,
+    },
+    "node.sizeSpace": {
+        channel: "node.sizeSpace",
+        target: "node",
+        plainName: "Node Size Space",
+        shortName: "Size space",
+        group: "shape",
+        default: "scene",
+        accepts: "enum",
+        values: NODE_SIZE_SPACE_VALUES,
+        stylePath: "shape.sizeSpace",
         renderable: true,
     },
     "node.shape": {
@@ -4186,7 +4206,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
             'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
             'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
-            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
             '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
     },
     "node.modelAnimation": {

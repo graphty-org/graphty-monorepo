@@ -110,6 +110,11 @@ function guardTest(test) {
  */
 export function withTestGuards(config) {
     const test = guardTest(config.test ?? {});
+    // A run with a failed test still writes its coverage. tools/test-quarantine.mjs retries only the
+    // failed files, so when the retry passes, the first run is the shard's only full coverage; vitest's
+    // default drops it, and the full run's coverage check then finds the package missing (#8474).
+    // Root only: vitest reads coverage from the root config, never from an inline project.
+    test.coverage = { ...test.coverage, reportOnFailure: true };
     if (Array.isArray(test.projects)) {
         test.projects = test.projects.map((p) =>
             p && typeof p === "object" && !Array.isArray(p) ? { ...p, test: guardTest(p.test ?? {}) } : p,

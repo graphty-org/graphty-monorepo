@@ -199,7 +199,10 @@ function SupplyPart({
                 url
                 autoFocus={first && unused.length === 0}
                 label={`Choose ${label}`}
-                placeholder={CUSTOM_MODEL.partAddress(label)}
+                chooseGlyph="fileUpload"
+                placeholder={CUSTOM_MODEL.partAddressOrDrop(label)}
+                urlLabel={CUSTOM_MODEL.partAddress(label)}
+                dropLabel={CUSTOM_MODEL.dropPart(label)}
                 defaultValue={url}
                 onDiscard={onDiscard}
                 onFiles={([file]) => {
@@ -315,7 +318,7 @@ export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonl
     const controls: PartControlsProps = { part, name, label, first, url, answer, onDiscard, unused };
 
     return (
-        <div // NOSONAR(S6819): an ARIA group naming one part's controls; a fieldset would draw its own border and legend
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming one part's controls; a fieldset would draw its own border and legend
             className="ws-part-row"
             role="group"
             aria-label={label}

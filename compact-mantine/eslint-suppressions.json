@@ -1,0 +1,349 @@
+{
+  "src/components/ControlGroup.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/ControlSection.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 3
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/DataTable/DataTable.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 4
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/components/GradientEditor.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "src/components/ToggleWithContent.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/buttons/SplitButton.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/chrome/ResizeHandle.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/components/color/ColorPickerPanel.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "new-cap": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-global-this": {
+      "count": 2
+    }
+  },
+  "src/components/color/typed-color.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/components/inputs/DiscardNote.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/components/inputs/FileSource.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/components/inputs/SearchInput.tsx": {
+    "unicorn/prefer-global-this": {
+      "count": 3
+    }
+  },
+  "src/components/inputs/VariablePill.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/inputs/listbox.tsx": {
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "src/components/overlays/ContextMenu.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/overlays/MenuCheckItem.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/overlays/ModalFooter.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/overlays/Toast.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/overlays/TooltipShortcut.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/Popout.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutAnchor.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutContent.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutContext.tsx": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutHeader.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutManager.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutPanel.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-global-this": {
+      "count": 1
+    }
+  },
+  "src/components/popout/PopoutRegion.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/rows/ActionRow.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/rows/ChartRow.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 4
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 3
+    }
+  },
+  "src/components/rows/CompoundRow.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "react/no-array-index-key": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/rows/DataRow.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 3
+    }
+  },
+  "src/components/rows/HistogramBrush.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/components/rows/ProseBlock.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/rows/RampRow.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/rows/ToggleRow.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 2
+    }
+  },
+  "src/components/rows/TrailingSlot.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/selection/AlignmentMatrix.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/HelpButton.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/NavRail.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/QuickActions.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/SecondaryToolbar.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/ShortcutSheet.tsx": {
+    "react/no-array-index-key": {
+      "count": 3
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/ToolGroup.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/shell/Toolbar.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/tree/InlineRename.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/components/tree/PageList.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/components/tree/Tree.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/components/tree/treeModel.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/context/PanelLabelsContext.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/i18n/LabelsProvider.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 1
+    }
+  },
+  "src/icons/index.tsx": {
+    "sonarjs/prefer-read-only-props": {
+      "count": 2
+    }
+  },
+  "src/theme/components/index.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/theme/global-styles.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/utils/color-utils.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "vitest.config.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  }
+}

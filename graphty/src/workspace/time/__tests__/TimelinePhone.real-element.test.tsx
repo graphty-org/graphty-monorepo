@@ -8,11 +8,10 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { onTouchScreen, pinchOver, swipeAcross, tap } from "../../../test/real-pointer";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -113,9 +112,6 @@ function smallTargets(surface: HTMLElement): string[] {
 }
 
 describe("the timeline dock on a phone", () => {
-    beforeAll(async () => {
-        await siteFeatures(["timeline"]);
-    });
     beforeEach(async () => {
         await page.viewport(390, 844);
     });

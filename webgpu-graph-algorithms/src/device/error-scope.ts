@@ -36,7 +36,7 @@ export async function withValidationScope<T>(device: GPUDevice, label: string, f
 /**
  * Formats GPUCompilationInfo messages with line numbers relative to the kernel BODY: `preludeLines` (the
  * lines the composer emitted before the body) is subtracted, a message located inside those lines is
- * reported as `prelude:<line>`, and a message without a location (lineNum 0) carries no position (spec 5.1).
+ * reported as `prelude:<line>`, and a message without a location (lineNum 0) carries no position.
  * @param info - the compilation info of the shader module
  * @param preludeLines - the number of emitted lines before the body's first line
  * @returns one string per message: `<type> <line>:<column> <message>`
@@ -56,7 +56,7 @@ export function formatCompilationInfo(info: GPUCompilationInfo, preludeLines: nu
 
 /**
  * Creates buffers, wrapping sizes >= OOM_SCOPE_THRESHOLD_BYTES in an "out-of-memory" scope whose pop is
- * collected; `check()` surfaces the first OOM (spec 4.4, 5.7). Owned by the context, shared by the
+ * collected; `check()` surfaces the first OOM. Owned by the context, shared by the
  * residency and the pool.
  */
 export class AllocationTracker {

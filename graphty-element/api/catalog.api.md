@@ -2360,6 +2360,18 @@ export type Path = string;
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 // @public
+export const PRIMARY_CHANNELS: Readonly<{
+    readonly node: Readonly<{
+        color: "node.color";
+        size: "node.size";
+    }>;
+    readonly edge: Readonly<{
+        color: "edge.color";
+        size: "edge.width";
+    }>;
+}>;
+
+// @public
 export type Query = string;
 
 // @public

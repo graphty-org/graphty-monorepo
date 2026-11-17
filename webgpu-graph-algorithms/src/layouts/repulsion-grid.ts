@@ -121,6 +121,50 @@ export function writeParams(
     return { binding: { buffer, offset: 0, size: block.byteLength, window: null }, offset: 0 };
 }
 
+/** What a params writer returns: the whole-buffer binding and a zero dynamic offset. */
+type WrittenParams = { readonly binding: Binding; readonly offset: number };
+
+/** The `scratch` and `params` of a ReduceScope over a stage's lease. */
+interface LeasedOnce {
+    readonly scratch: (byteLength: number, label: string) => GPUBuffer;
+    readonly params: (block: UniformBlock, values: UniformValues) => WrittenParams;
+}
+
+/**
+ * The `scratch` and `params` of a ReduceScope whose planners ask for them on EVERY record() (the radix sort, the scan
+ * and the histogram do) while the stage's lease lives until dispose(): each distinct request is taken from the lease
+ * once and handed back on every later one. Dispatches in a batch run in order, so iterations share them. Taking a
+ * fresh buffer per request grew the pool by about 130 KB an iteration on the grid tier, held until the simulation
+ * was disposed (issue #8545). Records of one bind() repeat the same requests, so the set stays one iteration's.
+ * @param device - the device
+ * @param box - the stage's lease
+ * @returns the scope's scratch and params
+ */
+export function leasedOnce(device: GPUDevice, box: LeaseBox): LeasedOnce {
+    const written = new Map<string, WrittenParams>();
+    const taken = new Map<string, GPUBuffer>();
+    return {
+        scratch: (byteLength, label) => {
+            const id = `${label}:${byteLength}`;
+            let buffer = taken.get(id);
+            if (buffer === undefined) {
+                buffer = leaseOf(box).storage(byteLength, label);
+                taken.set(id, buffer);
+            }
+            return buffer;
+        },
+        params: (block, values) => {
+            const id = `${block.name}:${JSON.stringify(values)}`;
+            let params = written.get(id);
+            if (params === undefined) {
+                params = writeParams(device, leaseOf(box), block, values);
+                written.set(id, params);
+            }
+            return params;
+        },
+    };
+}
+
 /**
  * The G6 spec of an override set (the law alone).
  * @param overrides - the override set of the stage
@@ -288,12 +332,7 @@ export class RepulsionGrid {
             pipelines: scope.pipelines,
             pool: scope.pool,
             workgroupSize,
-            scratch: (byteLength: number, label: string): GPUBuffer => leaseOf(box).storage(byteLength, label),
-            params: (
-                block: UniformBlock,
-                values: UniformValues,
-            ): { readonly binding: Binding; readonly offset: number } =>
-                writeParams(scope.device, leaseOf(box), block, values),
+            ...leasedOnce(scope.device, box),
         };
         try {
             const build = await prepareGridBuild(reduceScope, spec);

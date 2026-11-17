@@ -67,6 +67,35 @@ describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
         counter.restore();
     });
 
+    it("a long run holds the buffers of its first step and no more (issue #8545: the sort's params grew per iteration)", async (t) => {
+        requireGpu(t);
+        const { device } = await acquireRaw();
+        const counter = LeakCounter.wrap(device);
+        const own = GpuContext.from(device);
+        const s = paritySnapshot("rmat14", gpuScale(), false);
+        try {
+            const sim = createSim(own, BASE_OPTIONS, GRID);
+            sim.load(s, startPositions(s, BASE_OPTIONS, false));
+            await sim.step(1);
+            expect(sim.tier).toBe("grid");
+            const bytes = own.pool.liveBytes;
+            const buffers = counter.live;
+            for (let i = 0; i < 20; i++) {
+                await sim.step(5);
+            }
+            expect(sim.iterationsDone).toBe(101);
+            expect(own.pool.liveBytes, "pool bytes after 100 more iterations").toBe(bytes);
+            expect(counter.live, "live buffers after 100 more iterations").toBe(buffers);
+            sim.dispose();
+            expect(own.pool.liveBytes, "dispose() released the lease").toBe(0);
+            own.release(s);
+        } finally {
+            own.dispose();
+        }
+        expect(counter.live, "live buffers after release + dispose").toBe(0);
+        counter.restore();
+    });
+
     it("release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "grid-lifecycle/release" });

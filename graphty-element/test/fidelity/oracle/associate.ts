@@ -2244,6 +2244,22 @@ function strokedHeads(
             (p) => !forked.includes(p) && p.points.length === 2 && capsAcross(p.points, e, end, BAR_REACH),
         );
         const heads = bars.map((p) => ({ e, end, outline: outlined(p, [...p.points, p.points[0]]), parts: [p] }));
+        // one stroke bent once, its bend nearer the end than either arm's end, is the two arms of an open head drawn
+        // as one (yEd Live's BPMN association: M 4,0 L 8,3 L 4,6), outlined as two arms from a fork are
+        const tip = endOf(e, end);
+        const reach = (q: Pt): number => Math.hypot(q[0] - tip[0], q[1] - tip[1]);
+        const bent = parts
+            .filter(
+                (p) =>
+                    !forked.includes(p) &&
+                    p.points.length === 3 &&
+                    reach(p.points[1]) < Math.min(reach(p.points[0]), reach(p.points[2])),
+            )
+            .map((p) => {
+                const [a, bend, b] = p.points;
+                return { e, end, parts: [p], outline: outlined(p, [bend, a, a, bend, bend, b, b, bend]) };
+            });
+        heads.push(...bent);
         if (fork === null) {
             return heads;
         }
@@ -4022,9 +4038,14 @@ export function associate(
             continue;
         }
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
-        // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
+        // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead. A pointed cap is a head however
+        // narrow: yEd Live draws its 8 x 6 triangle unscaled on past the end of an 8 px line
+        // (yed-live-graphml-specimen-edges-lines width-8).
         const lineEnd = best.end === "source" ? best.e.points[0] : best.e.points[best.e.points.length - 1];
-        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) && !lineEndPiece(p, best.e, lineEnd)) {
+        if (
+            (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) || pointedAxis(p.points, lineEnd) !== null) &&
+            !lineEndPiece(p, best.e, lineEnd)
+        ) {
             const arrow = arrowFrom(p, best.e.points, best.end, canvas);
             // Cytoscape.js erases the canvas under a translucent edge's arrowhead before it paints it (cytoscape.js
             // 3.34.3 `drawArrowhead`: the same shape filled white under `destination-out`, which the SVG replay records

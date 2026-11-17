@@ -5,12 +5,12 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema, parseOptions } from "../config";
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
-import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
+    caveat,
     DeclaredAlgorithm,
     declaredCaveats,
     forEachChunked,

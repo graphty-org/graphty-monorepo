@@ -1,3 +1,4 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
 import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
@@ -24,10 +25,11 @@ import { refuseEndpoints } from "./utils/graphUtils";
  */
 const katzCentralityOptionsSchema = defineOptions({
     alpha: {
-        schema: z.number().min(0.01).max(0.5).default(0.1),
+        schema: z.number().min(0.01).max(0.5).nullable().default(null),
         meta: {
             label: "Alpha (Attenuation)",
-            description: "Attenuation factor - must be less than 1/λmax",
+            description:
+                "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
             step: 0.01,
         },
     },
@@ -65,8 +67,8 @@ const katzCentralityOptionsSchema = defineOptions({
  * Options for the Katz Centrality algorithm
  */
 interface KatzCentralityOptions extends Record<string, unknown> {
-    /** Attenuation factor - must be less than 1/λmax */
-    alpha: number;
+    /** Attenuation factor - must be less than 1/lambda_max; null derives one that converges on the graph */
+    alpha: number | null;
     /** Base centrality added to each node */
     beta: number;
     /** Maximum iterations */
@@ -87,6 +89,35 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
     technicalName: "Katz score",
 });
 
+/** The conventional Katz alpha, kept as the default wherever it is certain to converge quickly. */
+const CONVENTIONAL_ALPHA = 0.1;
+
+/**
+ * The alpha a run without one uses: 0.1, the conventional value, unless the graph's spectral
+ * radius could pass 1 / (2 * 0.1), and then 1 / (2 * that radius's upper bound). Either way alpha
+ * times the radius stays at or below 1/2, so the series converges, and in a few dozen iterations,
+ * on every graph.
+ *
+ * The radius of the in-arc adjacency is at most the largest `sqrt(r_u * r_v)` over its arcs u -> v,
+ * where `r` is a node's in-arc count (scale the matrix by `diag(sqrt(r))`; each row sum is then at
+ * most that, by Cauchy-Schwarz) -- the bound the accelerator dispatcher checks alpha against.
+ * @param snapshot - The snapshot the run iterates over.
+ * @returns The alpha to run with.
+ */
+function defaultAlpha(snapshot: Pick<GraphSnapshot, "reverse">): number {
+    const { rowPtr, colIdx } = snapshot.reverse();
+    let largest = 0;
+    for (let v = 0; v + 1 < rowPtr.length; v++) {
+        const inArcs = rowPtr[v + 1] - rowPtr[v];
+        for (let a = rowPtr[v]; a < rowPtr[v + 1]; a++) {
+            const u = colIdx[a];
+            largest = Math.max(largest, inArcs * (rowPtr[u + 1] - rowPtr[u]));
+        }
+    }
+    const radiusBound = Math.sqrt(largest);
+    return radiusBound * CONVENTIONAL_ALPHA <= 0.5 ? CONVENTIONAL_ALPHA : 0.5 / radiusBound;
+}
+
 /**
  * Katz centrality: every path that reaches a node, with a longer path counting for less.
  *
@@ -104,12 +135,14 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
     static readonly optionsSchema: OptionsSchema = {
         alpha: {
             type: "number",
-            default: 0.1,
+            default: null,
             label: "Alpha (Attenuation)",
-            description: "Attenuation factor - must be less than 1/λmax",
+            description:
+                "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
             min: 0.01,
             max: 0.5,
             step: 0.01,
+            required: false,
         },
         beta: {
             type: "number",
@@ -162,7 +195,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
      * @returns One score per node, scaled as the options asked for.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        const { alpha: chosenAlpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         refuseEndpoints("Katz centrality", endpoints);
 
         /* `"total"`, the default: every neighbour counts as an influence, whichever way the record
@@ -175,6 +208,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         // Built here, per run and uncached, so it is released here: an accelerator that uploaded it
         // would otherwise hold it until its device is torn down.
         const transposed = mode === "out" && direction === "directed" ? snapshot.transpose().snapshot : null;
+        const alpha = chosenAlpha ?? defaultAlpha(transposed ?? snapshot);
 
         context.report({ phase: "iterating", completed: 0, total: nodeIds.length, params: { maxIterations } });
         let outcome;
@@ -184,7 +218,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                 {
                     algorithm: `${KatzCentralityAlgorithm.namespace}:${KatzCentralityAlgorithm.type}`,
                     name: "Katz centrality",
-                    advice: "Lower alpha below 1 / lambda_max of the graph, raise maxIterations, or loosen tolerance, and run it again.",
+                    advice: "Leave alpha empty to derive one that converges, or lower it below 1 / lambda_max of the graph; or raise maxIterations or loosen tolerance. Then run it again.",
                     maxIterations,
                     tolerance,
                 },

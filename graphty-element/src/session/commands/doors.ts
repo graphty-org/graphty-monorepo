@@ -3761,6 +3761,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     "accept",
                     "add",
                     "addEach",
+                    "dropPart",
                     "allowHosts",
                     "files",
                     "offer",

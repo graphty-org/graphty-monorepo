@@ -1,6 +1,6 @@
 import { type CommandContext, defineRegistration, type PaletteRow } from "../commands/registry";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { openers, togglePopover } from "../toolbar/popover";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { runsAsPicked, startAlgorithm, unavailable } from "./run";
 import { HEADINGS, wordsFor } from "./words";
 

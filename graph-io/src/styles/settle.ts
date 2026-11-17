@@ -1011,6 +1011,25 @@ function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: 
 }
 
 /**
+ * The program's triangle width over its length at an edge's end: its fixed `aspect`, or its `width` rule over its
+ * length where its width grows with the line's (Tk's).
+ * @param geometry - how the program sizes its arrowheads
+ * @param end - the end
+ * @param width - the line's width
+ * @param i - the edge
+ * @returns the aspect
+ */
+function triangleAspect(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
+    if (geometry.width === undefined) {
+        return geometry.aspect;
+    }
+    const size = end.size(i);
+    const source = end.sources[i];
+    const length = geometry.length(size, width, typeof source === "string" ? (source as StyleArrowShape) : undefined);
+    return length > 0 ? geometry.width(size, width) / length : geometry.aspect;
+}
+
+/**
  * How long and how wide an arrow is drawn at an edge's end, in the program's units.
  * @param geometry - how the program sizes its arrowheads
  * @param end - the end
@@ -1037,7 +1056,8 @@ function arrowSizeOf(
     const lead = ARROW_RUNS.get(shape)?.lead;
     const extent =
         headLengthOf(geometry, end, width, i) * (lead === undefined ? (own?.length ?? 1) : lead / YED_HEAD_LENGTH);
-    const aspect = own?.aspect ?? (TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
+    const aspect =
+        own?.aspect ?? (TRIANGLE_PROPORTIONS.has(shape) ? triangleAspect(geometry, end, width, i) : undefined);
     const breadth =
         aspect === undefined || OWN_PROPORTIONS.has(shape)
             ? null

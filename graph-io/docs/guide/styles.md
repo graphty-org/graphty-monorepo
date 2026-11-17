@@ -608,6 +608,17 @@ none.
 | Graph     | none                                                                                                                                                                                                                |
 | Rules     | directed edges get a `triangle` arrow at their target                                                                                                                                                               |
 
+### `tk`
+
+|           |        |
+| --------- | ------ |
+| Read from | Tk 8.6 |
+| Lengths   | pixels |
+| Nodes     | none   |
+| Edges     | none   |
+| Graph     | none   |
+| Rules     | none   |
+
 <!-- generated:end -->
 
 The table is exported as `TOOL_DEFAULTS` from `@graphty/graph-io/styles`, with the source of every

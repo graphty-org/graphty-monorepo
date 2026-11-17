@@ -33,6 +33,7 @@ const NON_FORMAT_ENTRIES: Readonly<Record<string, string>> = {
     ".": "src/index.ts",
     "./styles": "src/styles/index.ts",
     "./positions": "src/positions/index.ts",
+    "./sources": "src/sources/index.ts",
 };
 
 /** The source barrel of every package entry (`graph-io`, one per format subpath, `styles`, `positions`), from package.json's exports. */

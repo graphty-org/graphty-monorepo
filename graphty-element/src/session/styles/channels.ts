@@ -4206,7 +4206,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
             'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
             'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
-            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
             '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
     },
     "node.modelAnimation": {
@@ -5331,6 +5332,22 @@ export function labelStyleFieldChannels(channel: Channel, value: unknown): reado
 
     return found;
 }
+
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

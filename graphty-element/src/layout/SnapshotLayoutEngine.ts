@@ -309,6 +309,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         super.refresh();
+        // Published, and the base class's column keeps the answer in scene units: the answer as
+        // computed is read only by the next refresh, so a layout that has finished holds one copy
+        // of its coordinates. (A third party's `SimpleLayoutEngine` keeps `result`, which its
+        // documented contract lets it read.)
+        this.result = null;
     }
 
     /**

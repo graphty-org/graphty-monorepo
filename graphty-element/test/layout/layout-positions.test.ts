@@ -31,7 +31,12 @@ import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
-import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import {
+    LayoutEngine,
+    layoutEngineInternals,
+    SimpleLayoutEngine,
+    simpleLayoutInternals,
+} from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -125,6 +130,22 @@ describe("layout engines and the element-owned position array", () => {
         assert.deepEqual([...positions.view(3).subarray(6, 9)], [0.1 * 3, 0.2 * 3, 0.3 * 3].map(Math.fround));
         assert.isFalse(positions.isPlaced(1), "no answer leaves the row unplaced");
         assert.strictEqual(positions.count, 3, "a row with nothing to store is not grown to");
+    });
+
+    it("keeps a SimpleLayoutEngine subclass's result after a publish, and lets go of the scratch", () => {
+        // Its documented contract lets a subclass read `result` outside doLayout().
+        class ResultLayout extends SimpleLayoutEngine {
+            static override type = "test-result";
+            doLayout(): void {
+                this.stale = false;
+                this.result = { positions: new Float32Array([1, 2, 3, 4]), dim: 2, n: 2 };
+            }
+        }
+        const layout = new ResultLayout({});
+        layoutEngineInternals.attachPositions(layout, new ElementPositions(0));
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1)]);
+        layout.publishPositions();
+        assert.deepEqual(simpleLayoutInternals.publishHeld(layout), { scratch: 0, result: true });
     });
 
     it("counts a column publish that moves nothing as no change, for the undo history", () => {

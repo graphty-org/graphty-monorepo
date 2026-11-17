@@ -8,26 +8,12 @@
 import { expect } from "vitest";
 
 import { ALIGNMENT, WIRE_MAJOR, WIRE_MINOR } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { equalsTopology, type GraphSnapshot } from "../../src/snapshot/graph-snapshot.js";
 import { type AttributeTable, type Column } from "../../src/types/index.js";
 import { CONTAINER_HEADER_BYTES } from "../../src/wire/bytes.js";
 
+export { expectError } from "../helpers/errors.js";
 export { idsSnapshot, richSnapshot } from "./fixture-graph.js";
-
-/** Run fn and return the GraphFormatError it throws, asserting the code. */
-export function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
 
 function sameNumbers(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
     if (a.length !== b.length) {

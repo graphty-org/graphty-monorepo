@@ -4,7 +4,7 @@
  */
 
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { BatchResult, GraphSession, Run, RunStyle } from "@graphty/graphty-element/session";
 
 import { groupPalettes } from "../style/row";
 import { PATH_ALGORITHM } from "./PathForm";
@@ -140,24 +140,98 @@ export function runsAsPicked(descriptor: AlgorithmDescriptor): boolean {
  * @param session - the element's session.
  * @param descriptor - the algorithm.
  * @param values - the values the reader set.
+ * @returns the run, as `session.runs.start` returned it.
  */
 export function startAlgorithm(
     session: GraphSession,
     descriptor: AlgorithmDescriptor,
     values: Readonly<Record<string, unknown>>,
-): void {
+): ReturnType<GraphSession["runs"]["start"]> {
     const runParams = paramsFor(session, descriptor, values);
     const run = session.runs.start(descriptor.key, runParams, {
-        style: {
-            name: wordsFor(descriptor).name,
-            groups: "layers",
-            groupName: groupLayerName,
-            groupPalettes: groupPalettes(session).map((palette) => palette.id),
-        },
+        style: runStyle(session, descriptor),
         ...planOptions(session, descriptor.key, wordsFor(descriptor).name, runParams),
     });
     // A failed run is reported in the notice, on its row and in the inspector, from the run itself.
     run.then(undefined, () => undefined);
+    return run;
+}
+
+/**
+ * What a run Analyze starts paints: layers named for the algorithm, a grouping run's groups as a
+ * folder of layers (see {@link startAlgorithm}).
+ * @param session - the element's session.
+ * @param descriptor - the algorithm.
+ * @returns the style.
+ */
+function runStyle(session: GraphSession, descriptor: AlgorithmDescriptor): RunStyle {
+    return {
+        name: wordsFor(descriptor).name,
+        groups: "layers",
+        groupName: groupLayerName,
+        groupPalettes: groupPalettes(session).map((palette) => palette.id),
+    };
+}
+
+/** The batch Run all started for each heading, per session, so Analyze can offer to cancel it. */
+const BATCHES = new WeakMap<GraphSession, Map<string, Run<BatchResult>>>();
+
+/**
+ * The methods Run all starts for a heading: those that can run now with their defaults, never the
+ * Path form, which needs its ends picked.
+ * @param session - the element's session.
+ * @param descriptors - the heading's algorithms.
+ * @returns the ones Run all runs.
+ */
+export function runAllMethods(
+    session: GraphSession,
+    descriptors: readonly AlgorithmDescriptor[],
+): AlgorithmDescriptor[] {
+    return descriptors.filter((d) => d.key !== PATH_ALGORITHM && unavailable(session, d) === null);
+}
+
+/**
+ * The heading's Run all batch while it is still queued or running.
+ * @param session - the element's session.
+ * @param heading - the heading's id.
+ * @returns the batch, or undefined.
+ */
+export function runningBatch(session: GraphSession, heading: string): Run<BatchResult> | undefined {
+    const run = BATCHES.get(session)?.get(heading);
+    return run?.status === "queued" || run?.status === "running" ? run : undefined;
+}
+
+/**
+ * Run all: every method of a heading as one graphty-element batch (`runs.batch`), one cancel for
+ * all of them, each method its own run and row.
+ * @param session - the element's session.
+ * @param heading - the heading's id.
+ * @param label - the batch's name, as the history shows it.
+ * @param descriptors - the methods, from {@link runAllMethods}.
+ * @returns the batch.
+ */
+export function startAll(
+    session: GraphSession,
+    heading: string,
+    label: string,
+    descriptors: readonly AlgorithmDescriptor[],
+): Run<BatchResult> {
+    const run = session.runs.batch(
+        descriptors.map((d) => ({
+            algorithm: d.key,
+            params: paramsFor(session, d, {}),
+            style: runStyle(session, d),
+        })),
+        { label },
+    );
+    run.then(undefined, () => undefined);
+    let started = BATCHES.get(session);
+    if (started === undefined) {
+        started = new Map();
+        BATCHES.set(session, started);
+    }
+    started.set(heading, run);
+    return run;
 }
 
 /**

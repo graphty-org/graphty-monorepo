@@ -13,16 +13,10 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { LayerSpec, Path } from "../../../src/catalog/types";
+import type { LayerSpec } from "../../../src/catalog/types";
 import { EdgeStyle, NodeStyle } from "../../../src/config";
-import { StylePainter } from "../../../src/managers/StylePainter";
 import { labelFieldOf } from "../../../src/session/styles/channels";
-import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
-import type { SelectorSource } from "../../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
-
-/** One element's columns, keyed by the path a selector or a binding names. */
-type Row = Readonly<Record<Path, unknown>>;
+import { type PainterHarness, painterHarness, type Row } from "../helpers";
 
 const NODES: readonly Row[] = [
     { "data.id": "a", "data.fs": 12, "data.kind": "x", "data.look": { sizePx: 99 } },
@@ -31,68 +25,13 @@ const NODES: readonly Row[] = [
 ];
 const EDGES: readonly Row[] = [{ "data.id": "a->b", "data.kind": "y" }];
 
-interface Harness {
-    readonly styles: SessionStylesApi;
-    readonly engine: RepaintEngine;
-    readonly painter: StylePainter;
-    paintAll(): Promise<void>;
-}
-
-/** A context that never cancels and reports to nobody. */
-function quietContext(): RepaintContext {
-    return { signal: new AbortController().signal, report: () => undefined };
-}
-
-/**
- * Three nodes and one edge, with the repaint, the stack and the painter wired as a session wires them.
- * @returns The harness.
- */
-function harness(): Harness {
-    const elements: SelectorSource = {
-        nodeValue: (index, path) => NODES[index]?.[path],
-        edgeValue: (index, path) => EDGES[index]?.[path],
-        nodeIdOf: (index) => String(NODES[index]?.["data.id"]),
-        edgeIdOf: (index) => String(EDGES[index]?.["data.id"]),
-    };
-    const engine = createLayerRepaint({
-        nodeCount: () => NODES.length,
-        edgeCount: () => EDGES.length,
-        elements,
-        measured: () => undefined,
-    });
-    const styles = createStylesApi({
-        elements,
-        base: [],
-        repaint: engine.repaint,
-        encoding: engine.encoding,
-        nodeIndex: (id) => {
-            const index = NODES.findIndex((row) => row["data.id"] === id);
-
-            return index < 0 ? undefined : index;
-        },
-        edgeIndex: (id) => (id === "a->b" ? 0 : undefined),
-    });
-    const painter = new StylePainter();
-    painter.bind(engine);
-
-    return {
-        styles,
-        engine,
-        painter,
-        paintAll: async (): Promise<void> => {
-            await engine.repaintAll(styles.compiled(), quietContext());
-            painter.markPainted();
-        },
-    };
-}
-
 /**
  * The label block the renderer is built from for one node.
  * @param held - The harness.
  * @param index - The node.
  * @returns The parsed label block.
  */
-function drawnLabel(held: Harness, index: number): Record<string, unknown> {
+function drawnLabel(held: PainterHarness, index: number): Record<string, unknown> {
     const paint = held.painter.nodePaint(index);
     assert.isNotNull(paint, "the painter painted no node");
 
@@ -105,13 +44,13 @@ function drawnLabel(held: Harness, index: number): Record<string, unknown> {
  * @param name - The layer's name.
  * @param rest - What it paints.
  */
-async function everyNode(held: Harness, name: string, rest: Pick<LayerSpec, "set" | "encode">): Promise<void> {
+async function everyNode(held: PainterHarness, name: string, rest: Pick<LayerSpec, "set" | "encode">): Promise<void> {
     await held.styles.add({ name, target: "node", selector: { match: "everything" }, ...rest });
 }
 
 describe("explain() merges label styles field by field", () => {
     it("reports the merged label style the repaint resolved, not the top layer's alone", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "size", {
             set: { "node.label": "hi", "node.labelStyle": { sizePx: 24, font: "Arial" } },
         });
@@ -124,7 +63,7 @@ describe("explain() merges label styles field by field", () => {
     });
 
     it("merges a label field channel into the label style, in layer order", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "style", {
             set: { "node.label": "hi", "node.labelStyle": { sizePx: 24, weight: "bold" } },
         });
@@ -158,7 +97,7 @@ describe("a rule bound to a whole label style", () => {
     };
 
     it("gets a coded warning from validate(), and validate() stays ok", () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         const result = held.styles.validate(bound);
 
         assert.isTrue(result.ok);
@@ -214,7 +153,7 @@ describe("a rule bound to a whole label style", () => {
     });
 
     it("gives a fixed label style no warning", () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         const result = held.styles.validate({
             name: "fixed",
             target: "node",
@@ -227,7 +166,7 @@ describe("a rule bound to a whole label style", () => {
     });
 
     it("is still added, and paints what it painted before: nothing", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "base", { set: { "node.label": "hi", "node.labelStyle": { sizePx: 20 } } });
         const layer = await held.styles.add(bound);
         await held.paintAll();
@@ -244,7 +183,7 @@ describe("a rule bound to a whole label style", () => {
 
 describe("label field channels take a rule", () => {
     it("draws one label size per node from a column", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "label", { set: { "node.label": "hi" } });
         await everyNode(held, "size", { encode: { "node.labelSize": { by: "data.fs", scale: "passthrough" } } });
         await held.paintAll();
@@ -259,7 +198,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("maps a category to a label color, weight and font, on nodes and on edges", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "by kind", {
             set: { "node.label": "hi" },
             encode: {
@@ -306,7 +245,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("lines up a label's lines as labelTextAlign says, beside the other fields", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "style", {
             set: { "node.label": "one\ntwo", "node.labelStyle": { sizePx: 24 }, "node.labelTextAlign": "left" },
         });
@@ -320,7 +259,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("gives each node its own label place from a column through labelLocation, however many places", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "style", {
             set: { "node.label": "hi", "node.labelStyle": { sizePx: 24 } },
             encode: {
@@ -345,7 +284,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("draws an end caption in its own face, color, weight and opacity", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await held.styles.add({
             name: "captions",
             target: "edge",
@@ -369,7 +308,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("draws a line round the label's box as labelBorder and labelBorderWidth say", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "style", {
             set: {
                 "node.label": "hi",
@@ -387,7 +326,7 @@ describe("label field channels take a rule", () => {
     });
 
     it("draws the words and their box translucent, and moves the label, as the new label fields say", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES, { ids: true });
         await everyNode(held, "style", {
             set: {
                 "node.label": "hi",

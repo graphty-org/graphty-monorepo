@@ -283,6 +283,21 @@ columns.find((a) => a.roles?.includes("weight")); // edge weights were read from
 
 The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
 from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
+To offer a role before the reader picks a column for it, ask which column the element would read
+it from. `session.data.roleCandidate(kind, role)` names it when one is obvious, and is null
+otherwise:
+
+```typescript
+const column = session.data.roleCandidate("edge", "time"); // "released": its values read as time
+if (column !== null) {
+    await session.data.setRole({ kind: "edge", name: column }, "time");
+}
+```
+
+It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
+`weight` a number column named `confidence`, `score` or `strength`, else the only number column.
+Every other role, and a node's weight, answers null.
+
 `usedBy` says what reads a column now: each style layer whose selector or bindings read it
 (`{ kind: "layer", id }`), then each finished run that weighed its edges by it
 (`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in

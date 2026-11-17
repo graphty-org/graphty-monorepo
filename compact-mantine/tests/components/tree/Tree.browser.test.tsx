@@ -1330,7 +1330,7 @@ describe("Tree: row parts and row keys", () => {
 
     it("draws the swatch between the glyph and the name, and the count before the toggles", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const pr = row("PageRank");
+        const pr = row("PageRank 77");
         const kind = within(pr).getByTestId("kind").getBoundingClientRect();
         const ramp = within(pr).getByTestId("tree-swatch").getBoundingClientRect();
         const name = pr.querySelector(".cm-tree-name")!.getBoundingClientRect();
@@ -1346,15 +1346,21 @@ describe("Tree: row parts and row keys", () => {
         expect(getComputedStyle(count).opacity).toBe("1");
     });
 
-    it("describes the row by its count and its state, and keeps the name alone as its name", async () => {
+    it("names the row by its name and count, and describes it by its state", async () => {
+        // The name holds the text the row shows (WCAG 2.5.3, axe label-content-name-mismatch).
         await renderThemed(<Tree items={PARTS} />);
-        expect(row("PageRank")).toHaveAccessibleDescription("77 Running");
+        expect(row("PageRank 77")).toHaveAccessibleDescription("Running");
         expect(row("Degree")).toHaveAccessibleDescription("Failed: no edges");
+    });
+
+    it("keeps a given label as the whole name, and describes the row by its count", async () => {
+        await renderThemed(<Tree items={[{ id: "pr", name: "PageRank", label: "PageRank, 77 nodes", count: "77" }]} />);
+        expect(row("PageRank, 77 nodes")).toHaveAccessibleDescription("77");
     });
 
     it("draws a progress line, determinate or not", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const determinate = within(row("PageRank")).getByRole("progressbar", { name: "PageRank" });
+        const determinate = within(row("PageRank 77")).getByRole("progressbar", { name: "PageRank" });
         expect(determinate).toHaveAttribute("aria-valuenow", "25");
         const box = determinate.getBoundingClientRect();
         expect(box.height).toBeCloseTo(2, 1);

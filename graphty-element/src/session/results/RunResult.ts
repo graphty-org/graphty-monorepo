@@ -41,7 +41,6 @@ import {
 import {
     bindResultPath,
     compareGroupKeys,
-    groupName,
     type Histogram,
     type HistogramOptions,
     type Normalization,
@@ -925,7 +924,7 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
- * @param named - Whether each group gets its rank and display name, which a partition into
+ * @param named - Whether each group gets its rank, which a partition into
  *   groups does and a table of levels or of named categories does not.
  * @returns The groups, bounded, and how many the whole table holds, or undefined when the value is
  *   not a table this can read.
@@ -954,7 +953,7 @@ function toSummaryGroups(
             groupCount++;
             if (groups.length < limit) {
                 const rank = groupCount;
-                groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
+                groups.push(Object.freeze(named ? { group, size, rank } : { group, size }));
             }
         }
     }

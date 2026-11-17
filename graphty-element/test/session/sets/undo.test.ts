@@ -92,9 +92,9 @@ describe("kept sets under undo", () => {
             [first, second],
             "undoing a removal lists the set where it was",
         );
-        assert.strictEqual(
-            session.history.steps[session.history.position]?.label,
-            'Removed the set "First"',
+        assert.deepEqual(
+            session.history.steps[session.history.position]?.fact,
+            { code: "set.remove", params: { set: "First" } },
             "the removal is the step to redo",
         );
         session.dispose();
@@ -107,7 +107,6 @@ describe("kept sets under undo", () => {
         await session.execute({ op: "set.restore", id });
 
         const step = session.history.steps[session.history.position - 1];
-        assert.strictEqual(step?.label, 'Restored the set "Core"');
         assert.deepEqual(step?.fact, { code: "set.restore", params: { set: "Core" } });
         session.dispose();
     });

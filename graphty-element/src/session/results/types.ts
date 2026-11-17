@@ -112,19 +112,6 @@ export function pathParts(path: Path): PathParts | undefined {
 }
 
 /**
- * The name a grouping result gives one of its groups, from its place in the size order.
- *
- * The summary and the legend both print this, so one group is called the same thing in the list
- * of groups and in the key to the colours -- rather than "Group 1" in one and its raw id "0" in the
- * other.
- * @param rank - The group's 1-based place, largest group first.
- * @returns The name, such as "Group 1".
- */
-export function groupName(rank: number): string {
-    return `Group ${String(rank)}`;
-}
-
-/**
  * Order two keys of equally large groups, so they come back in the same order every time.
  *
  * Keys that are both numbers, or the canonical spelling of one, compare as numbers, so group 2
@@ -872,12 +859,6 @@ export interface SummaryGroup {
      * a group the same way: word it from the rank ("Group 3").
      */
     readonly rank?: number;
-    /**
-     * What to call it, such as "Group 1", for a result that partitions into groups.
-     * @deprecated English words; word the group from {@link SummaryGroup.rank} instead. Removed in
-     *   the next major.
-     */
-    readonly name?: string;
 }
 
 /**
@@ -1106,12 +1087,6 @@ export type RunRef = Run | RunResult | RunId;
 export interface ResultRoot {
     /** The run id, which is the path segment under `results`. */
     readonly runId: RunId;
-    /**
-     * What to call the run in a completion list.
-     * @deprecated Word the run from its algorithm, {@link ResultRoot.distinguishedBy} and
-     *   {@link ResultRoot.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
     /**
      * The option the run's name was suggested by, once it left its default. See
      * {@link Run.distinguishedBy}.

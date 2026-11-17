@@ -932,7 +932,6 @@ export class OperationQueueManager implements Manager {
                     type: "operation-cancelled",
                     id,
                     code: "queue-cleared",
-                    reason: "Queue cleared",
                 } satisfies OperationCancelledEvent);
             }
         });
@@ -1031,7 +1030,6 @@ export class OperationQueueManager implements Manager {
                 type: "operation-cancelled",
                 id: operationId,
                 code: "cancelled",
-                reason: "Manual cancellation",
             } satisfies OperationCancelledEvent);
 
             return true;

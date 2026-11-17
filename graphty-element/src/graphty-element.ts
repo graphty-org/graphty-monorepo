@@ -491,13 +491,13 @@ export class Graphty extends LitElement {
      * the export's UTF-8 chunks, never as one string.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, as `exportGraph` takes them, and the file's name.
-     * @returns The export, whose `lossNotes` list everything the format could not hold.
+     * @returns The export, whose `losses` list everything the format could not hold.
      * @throws A `GraphtyError` (as a rejection), as `exportGraph` rejects.
      * @since 3.0.0
      * @example
      * ```typescript
-     * const { lossNotes } = await element.downloadGraph("graphml");
-     * for (const note of lossNotes) console.warn(note.message);
+     * const { losses } = await element.downloadGraph("graphml");
+     * for (const loss of losses) console.warn(loss.code, loss.params);
      * ```
      */
     async downloadGraph(

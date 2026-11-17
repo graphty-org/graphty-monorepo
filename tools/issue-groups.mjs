@@ -70,6 +70,7 @@ const SCAN_STALE_MS = 2 * HOUR;
 const WAIT_LIMIT_MS = 24 * HOUR;
 const RED_PR_IDLE_MS = 6 * HOUR;
 const HISTORY_KEEP = 30;
+const CLASS_GUARD_MIN = 10;
 const POINTS = { low: 1, medium: 2, high: 3 };
 const TESTS = ["T1", "T1-fold", "T2", "T3", "T4", "T5", "T6"];
 const LIVE = new Set(["proposed", "started", "ready", "frozen"]);
@@ -197,10 +198,19 @@ export function size(group) {
     };
 }
 
-// Docs: only Markdown, design/ and READMEs. Tests: only those plus test files, fixtures and test helpers. A change to
-// doc or code comments inside a source file reads as source from its path; the scan declares it with `class`.
+// Docs: Markdown, READMEs and non-code files under design/. Tests: test files, fixtures and test helpers. Always
+// source: the rounds' own instructions (.claude/, CLAUDE.md) and code under design/. A change to doc or code comments
+// inside a source file reads as source from its path; the scan declares it with `class`.
+const SOURCE_FILE = /^\.claude\/|(^|\/)CLAUDE(\.local)?\.md$|^design\/.*\.([cm]?[jt]sx?|sh|py)$/i;
 const DOC_FILE = /\.md$|^design\/|(^|\/)README[^/]*$/i;
-const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test|tests|__tests__|fixtures?)\/|test-?helpers?/i;
+const TEST_FILE =
+    /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test|tests|__tests__|fixtures?)\/|(^|\/)test-?helpers?([./-]|$)/i;
+
+const fileClass = (f) => {
+    if (TEST_FILE.test(f)) return "tests";
+    if (SOURCE_FILE.test(f)) return "source";
+    return DOC_FILE.test(f) ? "docs" : "source";
+};
 
 /**
  * The risk class of a change from the files it touches: docs, tests or source (no files reads as source).
@@ -208,13 +218,12 @@ const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test|tests|__tests__|fixt
  * @returns the class
  */
 export function classOf(files) {
-    if (!files?.length) return "source";
-    if (files.every((f) => DOC_FILE.test(f))) return "docs";
-    if (files.every((f) => DOC_FILE.test(f) || TEST_FILE.test(f))) return "tests";
-    return "source";
+    return files?.length ? riskiest(files.map((f) => fileClass(f))) : "source";
 }
 
-const riskiest = (classes) => CLASSES[Math.max(0, ...classes.map((c) => CLASSES.indexOf(c ?? "source")))];
+// An unknown class reads as source, the strictest.
+const riskiest = (classes) =>
+    CLASSES[Math.max(0, ...classes.map((c) => (CLASSES.includes(c) ? CLASSES.indexOf(c) : CLASSES.length - 1)))];
 
 /**
  * A group's risk class: its riskiest member's (a member with no class of its own reads its group's files).
@@ -325,14 +334,14 @@ const checkClass = (cls) => {
  * @param n the issue
  * @param test its rubric test, or "lead"
  * @param facts `{ labels }`
- * @param own `{ with, cls, why }`
+ * @param own `{ with, cls, why }`; with no `cls`, the member takes its group's class from the group's files
  * @returns the member
  */
 const memberOf = (n, test, facts, own = {}) => ({
     n,
     test,
     with: test === "lead" ? null : (own.with ?? null),
-    cls: own.cls ?? "source",
+    cls: own.cls ?? null, // none given: the group's files decide (groupClass)
     why: test === "lead" ? null : own.why?.trim() || null,
     points: pointsOf(facts.labels),
     triage: false,
@@ -679,7 +688,15 @@ export function freeze(ledger, id, pr, now, facts = new Map()) {
     group.pr = pr;
     group.frozen = at;
     event(group, at, "freeze", { pr });
-    for (const w of liveWaits(ledger).filter((x) => resolveTarget(ledger, x.on) === group && !isX9(x))) {
+    const waits = liveWaits(ledger).filter((x) => resolveTarget(ledger, x.on) === group && !isX9(x));
+    toFollowUp(ledger, group, waits, now, facts);
+    return group;
+}
+
+// Waits on a group that just froze move to its follow-up group (a wait that cannot go there expires).
+const toFollowUp = (ledger, group, waits, now, facts = new Map()) => {
+    const at = new Date(now).toISOString();
+    for (const w of waits) {
         w.ended = `${at} moved to the follow-up group`;
         try {
             route(ledger, { n: w.issue, to: group.id, test: w.test, why: w.why, now, facts: withFallback(facts) });
@@ -689,8 +706,7 @@ export function freeze(ledger, id, pr, now, facts = new Map()) {
             w.expired = `${at} ${error.message}`;
         }
     }
-    return group;
-}
+};
 
 const withFallback = (facts) => ({ get: (n) => facts.get(n) ?? { labels: [] } });
 
@@ -834,39 +850,57 @@ export function importScan(ledger, scan, now) {
 }
 
 // One scan job into consecutive proposed groups: a member rides in the group being filled only with a reason of its
-// own, a test against a member already in it, and room under the cap.
+// own, a test against a member already placed in this chain of groups (the group being filled, or one cut from the
+// same job at the cap, which shares its origin), and room under the cap.
 const importJob = (ledger, job, taken, now, counts) => {
     const given = new Map((job.members ?? []).map((m) => [m.n, m]));
     const summary = (job.why ?? "").trim();
     let current = null;
+    let chain = new Set();
     for (const n of [...new Set(job.issues ?? [])].filter((x) => !taken.has(x))) {
-        const m = given.get(n) ?? {};
-        const member = {
-            n,
-            test: m.test ?? "scan",
-            with: m.with ?? current?.lead ?? null,
-            cls: CLASSES.includes(m.class) ? m.class : classOf(job.files ?? []),
-            why: m.why?.trim() || null,
-            points: m.points ?? 2,
-            triage: false,
-            unreadable: false,
-        };
-        const reasoned = Boolean(member.why) && member.why !== summary;
-        if (current && !reasoned) counts.unreasoned += 1;
-        const holds = reasoned && current?.members.some((x) => x.n === member.with);
+        const member = scanMember(n, given.get(n) ?? {}, job, current);
+        const holds = ridesAlong(member, summary, current, chain, counts);
         if (holds && !fitsWith(current, member)) {
             current.members.push(member);
         } else {
-            const shell = createShell(ledger, n, job, new Date(now).toISOString());
-            shell.origin = holds ? (current.origin ?? current.id) : null;
-            current = { ...shell, members: [{ ...member, test: "lead", with: null, why: null }] };
-            ledger.groups.push(current);
+            chain = holds ? chain : new Set();
+            current = startPart(ledger, job, member, holds ? current : null, now);
             counts.groups += 1;
         }
+        chain.add(n);
         taken.add(n);
         counts.issues += 1;
     }
 };
+
+// Whether a scan member rides in the group being filled: a reason of its own (counted when missing) and a `with`
+// already placed in this chain of groups.
+const ridesAlong = (member, summary, current, chain, counts) => {
+    if (!current) return false;
+    const reasoned = Boolean(member.why) && member.why !== summary;
+    if (!reasoned) counts.unreasoned += 1;
+    return reasoned && chain.has(member.with);
+};
+
+// A new proposed group led by this member: the next part of a job cut at the cap (`from`), or a group of its own.
+const startPart = (ledger, job, member, from, now) => {
+    const shell = createShell(ledger, member.n, job, new Date(now).toISOString());
+    shell.origin = from ? (from.origin ?? from.id) : null;
+    const part = { ...shell, members: [{ ...member, test: "lead", with: null, why: null }] };
+    ledger.groups.push(part);
+    return part;
+};
+
+const scanMember = (n, m, job, current) => ({
+    n,
+    test: m.test ?? "scan",
+    with: m.with ?? current?.lead ?? null,
+    cls: CLASSES.includes(m.class) ? m.class : classOf(job.files ?? []),
+    why: m.why?.trim() || null,
+    points: m.points ?? 2,
+    triage: false,
+    unreadable: false,
+});
 
 const createShell = (ledger, lead, job, at) => ({
     id: freshId(ledger, lead),
@@ -1077,7 +1111,8 @@ export function newestMarker(comments, skip = null) {
 /**
  * What differs between the ledger and GitHub, each with the fix `check --fix` applies (or none, to report only).
  * @param ledger the ledger
- * @param facts `{ issues: Map n -> { state, labels, comments }, prs: Map pr -> { state, mergeable, headAt, checks } }`
+ * @param facts `{ issues: Map n -> { state, labels, comments }, prs: Map pr -> { state, mergeable, headAt, checks },
+ *   diffs?: Map branch -> [path] }` (diffs of ready branches against master)
  * @param now ms
  * @param isAncestor `(sha) => boolean`: whether a commit is on origin/master
  * @returns `[{ group, issue?, kind, detail, fix? }]`, fix one of the transition descriptors applied by applyFix()
@@ -1091,15 +1126,7 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
                 out.push({ group: g.id, issue: m.n, kind: "two-groups", detail: `also in ${seen.get(m.n)}` });
             seen.set(m.n, g.id);
         }
-        const { issues, points } = size(g);
-        const cap = CAPS[groupClass(g)];
-        if (issues > cap.issues || points > cap.points) {
-            out.push({
-                group: g.id,
-                kind: "over-cap",
-                detail: `${issues} issues, ${points} points (${groupClass(g)})`,
-            });
-        }
+        out.push(...overCap(g, facts.diffs));
         if (g.state === "frozen") {
             out.push(...frozenDrift(ledger, g, facts.prs.get(g.pr), now));
             continue;
@@ -1120,6 +1147,17 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
     }
     return out;
 }
+
+// A ready branch's class is read from its diff too, so a group declared docs that changed source is over the source
+// cap, and the round splits it rather than open it.
+const overCap = (g, diffs) => {
+    const diff = g.branch ? diffs?.get(g.branch) : null;
+    const cls = diff?.length ? riskiest([groupClass(g), classOf(diff)]) : groupClass(g);
+    const { issues, points } = size(g);
+    if (issues <= CAPS[cls].issues && points <= CAPS[cls].points) return [];
+    const read = cls === groupClass(g) ? "" : `, read from the diff of ${g.branch}`;
+    return [{ group: g.id, kind: "over-cap", detail: `${issues} issues, ${points} points (${cls}${read})` }];
+};
 
 const frozenDrift = (ledger, g, pr, now) => {
     if (!pr) return [{ group: g.id, kind: "unreadable", detail: `pull request #${g.pr} could not be read` }];
@@ -1165,15 +1203,19 @@ const memberFinding = (g, m, f) => {
     return { finding, marker: newestMarker(f.comments, "released") };
 };
 
-// The state change the group's newest marker asks for. A newer marker naming another branch for a started or ready
-// group means its issues went on to that branch (a combined branch, or a job continued on a new branch): fold.
-const markerFinding = (g, newest) => {
+// The state change the group's newest marker asks for. A started or ready group folds into another branch's group
+// only when every member's newest marker is that branch's `ready` or `opened` (a combined branch finished, or a job
+// continued on a new branch): a `taken` alone may still be abandoned, and one member re-taken elsewhere is not the
+// group moving. Anything short of that is reported only (`branch`).
+const markerFinding = (g, newest, unanimous) => {
     const detail = `newest marker: ${newest.kind} ${newest.text}`;
     const { branch } = newest;
-    if (["started", "ready"].includes(g.state) && branch && g.branch && branch !== g.branch) {
+    const moved = ["started", "ready"].includes(g.state) && branch && g.branch && branch !== g.branch;
+    if (moved && unanimous && ["ready", "opened"].includes(newest.kind)) {
         const fix = { op: "fold", branch, marker: newest.kind, sha: newest.sha, pr: newest.pr };
         return { group: g.id, kind: "combined", detail: `${detail}; ${g.branch} goes into ${branch}`, fix };
     }
+    if (moved) return { group: g.id, kind: "branch", detail: `ledger says ${g.branch}; ${detail}` };
     if (newest.kind === "opened" && newest.pr) {
         return { group: g.id, kind: "opened", detail, fix: { op: "freeze", pr: newest.pr, branch } };
     }
@@ -1182,9 +1224,6 @@ const markerFinding = (g, newest) => {
     }
     if (newest.kind !== "ready" && g.state === "proposed" && branch) {
         return { group: g.id, kind: "started", detail, fix: { op: "start", branch } };
-    }
-    if (branch && g.branch && branch !== g.branch) {
-        return { group: g.id, kind: "branch", detail: `ledger says ${g.branch}; ${detail}` };
     }
     return null;
 };
@@ -1204,12 +1243,16 @@ const markerIssues = (g, newest, issues) =>
 const memberDrift = (g, issues) => {
     const out = [];
     let newest = null;
+    const staying = [];
     for (const m of g.members.filter((x) => counted(x))) {
         const { finding, marker } = memberFinding(g, m, issues.get(m.n));
         if (finding) out.push(finding);
+        if (!finding || finding.kind !== "released") staying.push(marker);
         if (marker && (!newest || marker.id > newest.id)) newest = marker;
     }
-    const last = newest && markerFinding(g, newest);
+    const finished = (x) => x?.branch === newest.branch && ["ready", "opened"].includes(x.kind);
+    const unanimous = Boolean(newest) && staying.every((x) => finished(x));
+    const last = newest && markerFinding(g, newest, unanimous);
     if (last?.fix) last.fix.issues = g.state === "proposed" ? markerIssues(g, newest, issues) : null;
     if (last) out.push(last);
     return out;
@@ -1282,7 +1325,16 @@ const fold = (ledger, group, fix, now) => {
     event(group, at, "superseded", { by: host.id, branch: fix.branch });
     host.aliases = [...new Set([...host.aliases, group.branch, ...(group.aliases ?? [])])];
     host.files = [...new Set([...host.files, ...(group.files ?? [])])];
-    for (const w of liveWaits(ledger)) if (w.on === group.id || w.on === group.branch) w.on = host.id;
+    const moved = liveWaits(ledger).filter((w) => w.on === group.id || w.on === group.branch);
+    for (const w of moved) w.on = host.id;
+    // A later old group of a branch that already opened: its waits go to the follow-up group, as freeze moved the rest.
+    if (host.state === "frozen")
+        toFollowUp(
+            ledger,
+            host,
+            moved.filter((w) => !isX9(w)),
+            now,
+        );
     if (fix.marker === "ready" && host.state === "started") ready(ledger, host.id, fix.sha, now);
     if (fix.marker === "opened" && fix.pr && host.state !== "frozen") freeze(ledger, host.id, fix.pr, now);
     return `${line}; ${host.id} ${host.state}`;
@@ -1312,6 +1364,27 @@ const areaOf = (file) => {
     return parts.length > 1 ? parts[0] : ".";
 };
 
+// Whether a trusted `taken` marker for exactly this branch says the job fixes the red.
+const isRedFix = (comments, branch) =>
+    comments.some((c) => {
+        const line = trustedText(c) ? (c.body ?? "").split("\n")[0] : "";
+        const taken = line.startsWith("pipeline-round: taken") && /branch ([^,\s]+)/.exec(line)?.[1] === branch;
+        return taken && /fixes the red/i.test(line);
+    });
+
+// One member of a branch to combine: `{ reason }` when it keeps the branch out, else `{ sha }` of its ready marker.
+const memberRefusal = (n, f, branch) => {
+    const out = f && excluded(f);
+    if (out) return { reason: `#${n}: ${out}` };
+    const comments = f?.comments ?? [];
+    if (isRedFix(comments, branch)) return { reason: "a red-master fix (it opens on its own)" };
+    const newest = newestMarker(comments);
+    if (!newest || newest.kind === "released") return {};
+    if (newest.kind !== "ready") return { reason: `running (newest marker on #${n} is ${newest.kind})` };
+    if (newest.branch !== branch) return { reason: `#${n} is ready on ${newest.branch}, not ${branch}` };
+    return { sha: newest.sha };
+};
+
 // Why a ready group's branch may not be combined now, or null.
 const combineRefusal = (g, facts) => {
     if (!g.branch) return "no branch";
@@ -1320,21 +1393,9 @@ const combineRefusal = (g, facts) => {
     if (pr) return `open pull request #${pr}`;
     let readySha = null;
     for (const m of g.members.filter((x) => counted(x))) {
-        const comments = facts.issues.get(m.n)?.comments ?? [];
-        const redFix = comments.some((c) => {
-            const line = trustedText(c) ? (c.body ?? "").split("\n")[0] : "";
-            return (
-                line.startsWith("pipeline-round: taken") &&
-                line.includes(`branch ${g.branch}`) &&
-                /fixes the red/i.test(line)
-            );
-        });
-        if (redFix) return "a red-master fix (it opens on its own)";
-        const newest = newestMarker(comments);
-        if (!newest || newest.kind === "released") continue;
-        if (newest.kind !== "ready") return `running (newest marker on #${m.n} is ${newest.kind})`;
-        if (newest.branch !== g.branch) return `#${m.n} is ready on ${newest.branch}, not ${g.branch}`;
-        readySha = newest.sha;
+        const r = memberRefusal(m.n, facts.issues.get(m.n), g.branch);
+        if (r.reason) return r.reason;
+        readySha = r.sha ?? readySha;
     }
     const tip = facts.tips.get(g.branch);
     if (!tip) return "not on origin";
@@ -1433,13 +1494,19 @@ const growFamily = (seed, rest, links) => {
         }
     }
     if (family.length < 2) return null;
+    // Named after the seed's lead, never the name of a branch already in the family (an earlier combined branch).
+    const used = new Set(family.flatMap((x) => [x.g.branch, ...(x.g.aliases ?? [])]));
+    const base = `${seed.g.branch.split("/")[0]}/${seed.g.lead}-batch`;
+    let branch = base;
+    let k = 1;
+    while (used.has(branch)) branch = `${base}-${++k}`;
     return {
         class: familyClass(family),
         groups: family.map((x) => x.g.id),
         branches: family.map((x) => x.g.branch),
         issues: family.flatMap((x) => x.g.members.filter((m) => counted(m)).map((m) => m.n)),
         links: edges,
-        branch: `${seed.g.branch.split("/")[0]}/${seed.g.lead}-batch`,
+        branch,
     };
 };
 
@@ -1542,10 +1609,11 @@ export function metrics(ledger, prs, now) {
         waitsOver24h: oldWaits,
         releasedNotPartShare: share(releases.length, releases.length + memberCount),
     };
-    // Each class's guardrails apply once that class has 20 grouped pull requests; a breach lowers that class's cap.
+    // Each class's guardrails apply once that class has 10 grouped pull requests in the window (fewer is "not yet
+    // measured"; docs and tests rarely reach 20 in a week); a breach lowers that class's cap.
     const perClass = CLASSES.flatMap((cls) => {
         const s = byClass[cls];
-        const applies = s.n >= 20;
+        const applies = s.n >= CLASS_GUARD_MIN;
         const guard = (name, value, ok) => ({
             name: `${name}, grouped, ${cls}`,
             class: cls,
@@ -1841,8 +1909,10 @@ const metricsCommand = (ctx) => {
     if (ctx.o.json) return ok(JSON.stringify(record, null, 2));
     const g = record.grouped;
     const breaches = record.breaches.join(", ") || "none";
+    const unmeasured = CLASSES.filter((cls) => record.byClass[cls].n < CLASS_GUARD_MIN);
+    const notYet = unmeasured.length ? `; not yet measured: ${unmeasured.join(", ")}` : "";
     return ok(
-        `issues per merged PR ${record.issuesPerMergedPr}; PRs closing 2+ issues ${record.multiFixShare}; grouped ${g.n} (closed unmerged ${g.closedUnmergedRate}, p75 ${g.p75MergeHours} h, commit after opening ${g.commitAfterOpenShare}); breaches: ${breaches}`,
+        `issues per merged PR ${record.issuesPerMergedPr}; PRs closing 2+ issues ${record.multiFixShare}; grouped ${g.n} (closed unmerged ${g.closedUnmergedRate}, p75 ${g.p75MergeHours} h, commit after opening ${g.commitAfterOpenShare}); breaches: ${breaches}${notYet}`,
     );
 };
 
@@ -1942,7 +2012,7 @@ const COMMANDS = {
             const dropped = `dropped ${r.dropped.length} stale proposals, ${r.waits} settled waits`;
             return ok(`archived ${r.archived.length} groups, ${dropped}`);
         }),
-    check: (c) => check(c.ledgerPath, c.o, c.run, c.now, c.isAncestor),
+    check: (c) => check(c.ledgerPath, c.o, c, c.now, c.isAncestor),
     jobs: (c) => {
         const ledger = readLedger(c.ledgerPath);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
@@ -2031,17 +2101,19 @@ const findingLine = (d) => {
  * The `check` command: reads the facts once, then applies the fixes under the lock against the ledger as it is then.
  * @param ledgerPath the ledger file
  * @param o the options
- * @param run GraphQL runner
+ * @param ctx `{ run, git }`: the GraphQL runner and the git readers
  * @param now ms
  * @param isAncestor git ancestry test
  * @returns `{ code, out }`, code 1 when drift was found and not fixed
  */
-function check(ledgerPath, o, run, now, isAncestor) {
+function check(ledgerPath, o, ctx, now, isAncestor) {
     const ledger = readLedger(ledgerPath);
     const live = ledger.groups.filter((g) => isLive(g));
     const numbers = live.filter((g) => g.state !== "frozen").flatMap((g) => g.members.map((m) => m.n));
     const prs = live.filter((g) => g.state === "frozen" && g.pr).map((g) => g.pr);
-    const facts = fetchFacts(numbers, prs, run, true);
+    const facts = fetchFacts(numbers, prs, ctx.run, true);
+    const readyBranches = live.filter((g) => g.state === "ready" && g.branch).map((g) => g.branch);
+    facts.diffs = new Map(readyBranches.map((b) => [b, ctx.git.diff(b)]));
     if (!o.fix) {
         const found = drift(ledger, facts, now, isAncestor);
         if (o.json) return { code: found.length ? 1 : 0, out: JSON.stringify(found, null, 2) };

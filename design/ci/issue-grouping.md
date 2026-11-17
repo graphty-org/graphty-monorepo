@@ -61,14 +61,17 @@ What a change touches sets its class:
 - **source:** anything else.
 
 `issue-groups.mjs` reads the class from file paths (a path under `test/`, `tests/` or `fixtures/`, a `*.test.*` or
-`*.spec.*` file, a test helper); a change to comments inside a source file looks like source from its path, so the
-scan declares it (`class` on the member). A group's class is its riskiest member's class.
+`*.spec.*` file, a `test-helper` file or folder); code under `design/`, the rounds' own instructions (`.claude/`) and
+every `CLAUDE.md` count as source. A change to comments inside a source file looks like source from its path, so the
+scan declares it (`class` on the member). A group's class is its riskiest member's class; a member added with no
+class takes the class of its group's files.
 
 ### Inclusion: an issue joins a group when one test holds against any member
 
 Tests are tried in order; the first that holds is written in the ledger with the member it holds against (`with`;
 the lead when none is named). Each member records its own reason -- its test, that member and its own words -- never
-the group's summary: a scan member without a reason of its own starts a group of its own.
+the group's summary: a scan member without a reason of its own starts a group of its own. A scan job cut at the cap
+keeps going in its next group: a member may hold against a member of an earlier part of the same job.
 
 - **T1 Subset.** One issue's failures are contained in the other's, and the same diff fixes both. If the smaller
   issue needs code of its own, it is not T1. A T1 member is a **fold**.
@@ -218,7 +221,7 @@ a new issue is routed one at a time:
    `wait <n> --on <branch or #pr> [--x9 <sha>]` and no group.
 2. **Find the best candidate** by the rubric's tests against any member and the tie order, skipping a group the
    issue was released from or whose wait on it expired; `--with` names the member the test holds against.
-3. **The candidate's state decides** (`route <n> --to <group> --test <T#>`):
+3. **The candidate's state decides** (`route <n> --to <group> --test <T#> --with <member> --class <c>`):
     - **proposed:** the issue joins it, within the cap.
     - **ready:** the issue waits, like a started one. It joins the branch only through `route --join`, which the
       round runs only after checking the join rule of the issue-round skill (master red, no pull request on the
@@ -273,35 +276,41 @@ of several. It is a standing step of both rounds, run whenever such branches exi
 master is red they wait anyway, and combined they open as one pull request when it turns green:
 
 1. `node tools/issue-groups.mjs check --fix`, `git fetch origin`, then `node tools/issue-groups.mjs combine-plan`. It
-   lists **families**: ready branches linked because they came from one ledger group, because T6 holds (both docs or
-   tests, same package or folder, read from each branch's diff against master), or by a test the round judged and
-   passed back with `--link <a>:<b>:<T#>` (its `judge` lines name source branches that change the same file). A
-   family stays within its class's cap and never mixes a branch touching `GUARD_PATHS` of `tools/pr-open.sh` with
-   one that does not. It refuses a branch with an open pull request, a red-master fix (its `taken` marker says it
-   fixes the red), a branch whose job is still running (an issue's newest marker is not its `ready`) and a branch
-   whose tip moved past its `ready` commit.
-2. For each family: `./tools/worktree-new.sh <type>/<lead>-batch origin/master <name> --issue <lead>`, then
-   `git merge --no-ff origin/<branch>` for each branch; settle a conflict as the job that wrote it would, or leave
-   that branch out. Run lint and the tests the merged changes touch.
-3. Mark it: `issue-queue.mjs taken <new branch> <worktree> <every issue> --files ... --why "combines <branches>"`,
-   one Proof listing every issue with each old branch's `ready` marker and the new runs, then
-   `pipeline-round: ready <new branch> <sha>` on every issue, and on each old branch's issues
-   `pipeline-round: superseded <old branch> by <new branch>`. Old branches are kept, never deleted (owner standing
-   rule 7); their commits reach master through the merge.
-4. Open it like any ready branch (pipeline-round step 9). The next `check --fix` **folds**: a group whose issues'
-   newest marker names another branch moves its members to that branch's group (made on the first fold), whose
-   aliases keep the old branch names and which takes over waits on them; the old groups are dissolved with
-   `supersededBy` and their history kept.
+   plans only branches the ledger tracks, and lists **families**: ready branches linked because they came from one
+   ledger group, because T6 holds (both docs or tests, same package or folder, read from each branch's diff against
+   master), or by a test the round judged and passed back with `--link <a>:<b>:<T#>` (the two leads' issue numbers,
+   which each `judge` line prints; it names source branches that change the same file). A family stays within its
+   class's cap and never mixes a branch touching `GUARD_PATHS` of `tools/pr-open.sh` with one that does not. It
+   refuses a branch with an open pull request, an owner-only member (X3), a red-master fix (its `taken` marker says
+   `fixes the red`), a branch whose job is still running (an issue's newest marker is not its `ready`) and a branch
+   whose tip moved past its `ready` commit. The round leaves a breaking change out of a non-breaking family (X5).
+2. **Claim the family first:** `issue-queue.mjs taken <type>/<lead>-batch <worktree> <every issue> --files ... --why
+"combines <branches>"`. Every old branch now reads as running, so no other round combines or opens it.
+3. A subagent runs `./tools/worktree-new.sh <type>/<lead>-batch origin/master <name> --issue <lead>`, then
+   `git merge --no-ff origin/<branch>` for each branch; it settles a conflict as the job that wrote it would, or
+   leaves that branch out and writes `pipeline-round: ready <old branch> <its sha>` on its issues again (so does a
+   combine that gives up). It runs lint and the tests the merged changes touch.
+4. It writes one Proof listing every issue with each old branch's `ready` marker and the new runs; on each merged
+   branch's issues `pipeline-round: superseded <old branch> by <new branch>`, then `pipeline-round: ready <new
+branch> <sha>` (last, so it is the newest marker). A superseded branch is folded into its successor and kept,
+   never deleted (owner's standing rule, design/owner-standing-rules.md); its commits reach master through the merge.
+5. It opens like any ready branch (pipeline-round step 9). Once every issue of an old group has the new branch's
+   `ready` or `opened` as its newest marker, `check --fix` **folds** that group: its members move to the new
+   branch's group (made on the first fold), whose aliases keep the old branch names and which takes over waits on
+   them (to its follow-up group once it has opened); the old group is dissolved with `supersededBy` and its history
+   kept. A `taken` alone never folds: the combine may still be abandoned.
 
 **Following the markers.** `check` compares the ledger with GitHub and lists each difference; `check --fix` applies the
 ones it can: a `taken` marker starts a proposed group, `ready` readies it, `opened` freezes it, a merged or closed pull
-request closes or dissolves it, a `released` member leaves, a newer marker naming another branch folds a started or
-ready group into that branch's group (combining, above), a closed issue leaves a proposed group, an X9 commit that
+request closes or dissolves it, a `released` member leaves, every member's newest marker being another branch's
+`ready` or `opened` folds a started or ready group into that branch's group (combining, above), a closed issue leaves a proposed group, an X9 commit that
 landed ends its wait, and an idle red or long-held pull request expires its follow-up waits. A proposed member's markers
 count only while it is labelled `in-progress`, so an old job's markers are history. In a proposed group only the members
 whose own marker names the job's branch move (a `taken` marker is written on every issue of its job); the others stay
-proposed, so a join by one member never drags the rest of its group along. A group over the cap, an issue in two groups,
-an unreadable issue and a branch that differs from the ledger are reported only.
+proposed, so a join by one member never drags the rest of its group along. A group over the cap (a ready branch's class
+is also read from its diff, so a group declared docs that changed source is held to the source cap), an issue in two
+groups, an unreadable issue and a branch that differs from the ledger are reported only; a ready branch over the cap
+is neither combined nor opened until its members past the cap move to branches of their own.
 
 ## 5. Lanes for record files
 
@@ -393,7 +402,7 @@ after 00:00 Pacific appends `metrics --append` to `tmp/issue-round/grouping-metr
 | Pull requests closing 2 or more issues  | 1.9%            | 15% or more                          |
 | Collision pairs on the fidelity records | 106 per 14 days | fewer than 15 (once lanes are built) |
 
-**Guardrails** (each applies once its window holds at least 20 grouped pull requests):
+**Guardrails** (each applies once its window holds at least 20 grouped pull requests; per class, see below):
 
 | Guardrail                               | Limit                                               |
 | --------------------------------------- | --------------------------------------------------- |
@@ -404,7 +413,8 @@ after 00:00 Pacific appends `metrics --append` to `tmp/issue-round/grouping-metr
 | Waits older than 24 hours (X9 excluded) | 0                                                   |
 
 The first three apply per class (`metrics` groups each pull request by its ledger group's class; one outside the ledger
-counts as source), each once that class has 20 grouped pull requests. `metrics` lists any breach, named with its class.
+counts as source), each once that class has 10 grouped pull requests in the window; below that the class is "not yet
+measured". `metrics` lists any breach, named with its class.
 **One breach:** issue-round files a `priority:high` issue naming it; its fix lowers that class's cap by about a quarter
 (source 4 issues and 6 points to 3 and 4). **Two breaches in a week:** that issue becomes `priority:critical` and the
 rounds group that class only by T1 folds until it closes. Reverts caused by a member's fix and members reopened within 7

@@ -158,6 +158,14 @@ describe("risk classes, any member and each member's reason", () => {
         assert.equal(classOf(["graphty/test/a.test.ts", "x/fixtures/b.json", "c.md"]), "tests");
         assert.equal(classOf(["graphty/src/a.ts", "c.md"]), "source");
         assert.equal(classOf([]), "source", "unknown files read as the riskiest class");
+        assert.equal(classOf(["design/ui/studio/tool/run.mjs"]), "source", "code under design/ is source");
+        assert.equal(classOf(["design/ui/studio/tool/run.test.mjs", "design/a.md"]), "tests");
+        assert.equal(classOf(["design/data/rows.json", "design/a.yaml"]), "docs");
+        assert.equal(classOf(["graphty/src/latest-helpers.ts"]), "source", "only a test-helper path is a test helper");
+        assert.equal(classOf(["tools/test-helpers/wait.mjs", "x/test-helper.ts"]), "tests");
+        assert.equal(classOf([".claude/skills/issue-round/SKILL.md"]), "source", "the rounds' instructions are source");
+        assert.equal(classOf(["CLAUDE.md"]), "source");
+        assert.equal(classOf(["graphty/CLAUDE.md"]), "source");
     });
 
     it("caps each class: docs 10 issues and no points, tests 8 and 12, source 4 and 6", () => {
@@ -184,11 +192,13 @@ describe("risk classes, any member and each member's reason", () => {
             [2, 3, 4].map((n) => ({ n, test: "T6" })),
         );
         assert.throws(
-            () => addMember(l, g.id, { n: 5, test: "T3", now: NOW, facts: f }),
+            () => addMember(l, g.id, { n: 5, test: "T3", cls: "source", now: NOW, facts: f }),
             /T6 holds only between docs or tests/,
         );
+        addMember(l, g.id, { n: 5, test: "T6", now: NOW, facts: f });
+        assert.equal(groupClass(g), "docs", "a member with no class of its own takes the group's files' class");
         const h = docs(l, 6);
-        addMember(l, h.id, { n: 7, test: "T3", now: NOW, facts: f });
+        addMember(l, h.id, { n: 7, test: "T3", cls: "source", now: NOW, facts: f });
         assert.equal(groupClass(h), "source", "a source member makes the whole group source");
         assert.throws(() => addMember(l, h.id, { n: 8, test: "T6", cls: "docs", now: NOW, facts: f }), /T6/);
         assert.throws(() => addMember(l, h.id, { n: 8, test: "T3", cls: "prose", now: NOW, facts: f }), /class must/);
@@ -453,18 +463,23 @@ describe("archive, compact, import and validate", () => {
                     issues: [2, 3, 4, 5, 6, 7],
                     why: "T3 same block",
                     files: ["a.ts"],
-                    members: [3, 4, 5, 6, 7].map((n) => ({ n, test: "T3", points: 1, why: `#${n} edits parse()` })),
+                    members: [
+                        ...[3, 4, 5, 6, 7].map((n) => ({ n, test: "T3", points: 1, why: `#${n} edits parse()` })),
+                        { n: 8, test: "T3", with: 4, points: 1, why: "#8 edits parse() too" },
+                    ],
                 },
             ],
         };
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: 5, unreasoned: 0 });
+        scan.jobs[0].issues.push(8);
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: 6, unreasoned: 0 });
         assert.deepEqual(
             l.groups.map((g) => [g.id, g.members.map((m) => m.n)]),
             [
                 ["g2", [2]],
                 ["g3", [3, 4, 5, 6]],
-                ["g7", [7]],
+                ["g7", [7, 8]],
             ],
+            "#8 holds against #4, cut into the first part, and still rides in the second",
         );
         assert.equal(l.scannedAt, "2026-11-16T19:59:00Z");
         assert.equal(l.groups.at(-1).origin, "g3", "a cut part remembers the job it came from");
@@ -645,7 +660,7 @@ describe("markers and drift", () => {
         make(l, 2, [{ n: 3, test: "T3", why: "same block" }]);
         start(l, "g2", "fix/2-b", NOW);
         ready(l, "g2", "s2", NOW);
-        addWait(l, { n: 9, on: "g2", why: "staged on it", now: NOW });
+        addWait(l, { n: 9, on: "fix/2-b", why: "staged on it", now: NOW });
         const marks = (n) =>
             issueFacts(
                 "OPEN",
@@ -692,6 +707,105 @@ describe("markers and drift", () => {
         }
         for (const d of drift(l, { issues, prs: new Map() }, NOW)) applyFix(l, d, NOW);
         assert.deepEqual([host.state, host.pr], ["frozen", 77]);
+    });
+
+    it("never folds on a member re-taken elsewhere, or on a combine that is only taken", () => {
+        const l = fresh();
+        make(l, 1, [{ n: 2, test: "T3" }]);
+        start(l, "g1", "fix/1-a", NOW);
+        const taken = (id, branch) =>
+            comment(id, `pipeline-round: taken by session s, branch ${branch}, worktree w -- x`);
+        const issues = new Map([
+            [1, issueFacts("OPEN", ["in-progress"], [taken(1, "fix/1-a")])],
+            [2, issueFacts("OPEN", ["in-progress"], [taken(2, "fix/1-a"), taken(5, "fix/2-x")])],
+        ]);
+        assert.deepEqual(
+            drift(l, { issues, prs: new Map() }, NOW).map((d) => [d.kind, Boolean(d.fix)]),
+            [["branch", false]],
+            "#1 still runs on fix/1-a: report, never move it",
+        );
+        issues.get(2).comments.push(comment(6, "pipeline-round: ready fix/2-x s"));
+        assert.deepEqual(
+            drift(l, { issues, prs: new Map() }, NOW).map((d) => [d.kind, Boolean(d.fix)]),
+            [["branch", false]],
+            "one member finished elsewhere is still not the group moving",
+        );
+        const m = fresh();
+        make(m, 3);
+        start(m, "g3", "fix/3-a", NOW);
+        ready(m, "g3", "s3", NOW);
+        const combining = new Map([
+            [
+                3,
+                issueFacts(
+                    "OPEN",
+                    ["in-progress"],
+                    [comment(1, "pipeline-round: ready fix/3-a s3"), taken(2, "fix/3-batch")],
+                ),
+            ],
+        ]);
+        assert.deepEqual(
+            drift(m, { issues: combining, prs: new Map() }, NOW).map((d) => [d.kind, Boolean(d.fix)]),
+            [["branch", false]],
+            "a combine that may still be abandoned leaves the old group alone",
+        );
+    });
+
+    it("sends waits of a later folded group to the follow-up group when the combined branch already opened", () => {
+        const l = fresh();
+        for (const n of [1, 2]) {
+            make(l, n);
+            start(l, `g${n}`, `fix/${n}-a`, NOW);
+            ready(l, `g${n}`, `s${n}`, NOW);
+        }
+        addWait(l, { n: 8, on: "g1", why: "staged", now: NOW });
+        l.waits.push({ issue: 9, on: "g2", test: "T3", since: new Date(NOW).toISOString(), why: "same block" });
+        const opened = (n) =>
+            issueFacts(
+                "OPEN",
+                ["in-progress"],
+                [comment(n, "pipeline-round: opened fix/1-batch https://github.com/o/r/pull/7")],
+            );
+        const issues = new Map([1, 2].map((n) => [n, opened(n)]));
+        for (const d of drift(l, { issues, prs: new Map() }, NOW)) applyFix(l, d, NOW);
+        const host = l.groups.find((g) => g.branch === "fix/1-batch");
+        assert.equal(host.state, "frozen");
+        const follow = l.groups.find((g) => g.id === host.followUp);
+        assert.deepEqual(
+            follow?.members.map((m) => m.n),
+            [9],
+            "the T3 wait from the second old group reached it",
+        );
+    });
+
+    it("reads a ready branch's class from its diff for the cap", () => {
+        const l = fresh();
+        const f = factsOf();
+        const g = createGroup(l, {
+            lead: 1,
+            members: [2, 3, 4, 5].map((n) => ({ n, test: "T6" })),
+            why: "docs",
+            files: ["design/ui/a.md"],
+            now: NOW,
+            facts: f,
+        });
+        start(l, g.id, "docs/1-a", NOW);
+        ready(l, g.id, "s", NOW);
+        const issues = new Map(
+            [1, 2, 3, 4, 5].map((n) => [
+                n,
+                issueFacts("OPEN", ["in-progress"], [comment(n, "pipeline-round: ready docs/1-a s")]),
+            ]),
+        );
+        assert.deepEqual(
+            drift(l, { issues, prs: new Map(), diffs: new Map([["docs/1-a", ["design/ui/a.md"]]]) }, NOW),
+            [],
+        );
+        const found = drift(l, { issues, prs: new Map(), diffs: new Map([["docs/1-a", ["layout/src/a.ts"]]]) }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.kind, d.detail]),
+            [["over-cap", "5 issues, 10 points (source, read from the diff of docs/1-a)"]],
+        );
     });
 
     it("start takes only the job's issues; the rest stay proposed under the group's id", () => {
@@ -1015,6 +1129,28 @@ describe("combine-plan", () => {
             "docs/1-a",
             "docs/2-b",
         ]);
+    });
+
+    it("refuses owner-only members, matches a red fix's branch exactly, and never names a family after a member", () => {
+        const l = fresh();
+        ready_(l, 1, [], "docs/1-batch", ["design/ui/a.md"]);
+        ready_(l, 4, [], "docs/4-d", ["design/ui/d.md"]);
+        ready_(l, 5, [], "docs/5-e", ["design/ui/e.md"]);
+        ready_(l, 6, [], "docs/6-f", ["design/ui/f.md"]);
+        const diffs = Object.fromEntries(l.groups.map((g) => [g.branch, g.files]));
+        const facts = factsFor(l, diffs, {});
+        const redFix = "pipeline-round: taken by session s, branch docs/4-d2, worktree w -- fixes the red: x";
+        facts.issues.get(4).comments.unshift(comment(0, redFix));
+        facts.issues.get(5).labels.push("needs-decision");
+        const plan = combinePlan(l, facts, {});
+        assert.deepEqual(
+            plan.refused.map((r) => [r.branch, r.reason]),
+            [["docs/5-e", "#5: X3 owner-only (label needs-decision)"]],
+        );
+        assert.deepEqual(
+            plan.families.map((f) => [f.branches, f.branch]),
+            [[["docs/1-batch", "docs/4-d", "docs/6-f"], "docs/1-batch-2"]],
+        );
     });
 
     it("links branches cut from one ledger group without a judged test", () => {

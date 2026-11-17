@@ -325,6 +325,18 @@ function gradientOf(
     return { kind, stops, angle };
 }
 
+/**
+ * Whether a `url(#id)` paint names a pattern that holds a picture.
+ * @param paint - the computed fill
+ * @param doc - the root
+ * @returns true for a pattern of a picture
+ */
+function patternOfPicture(paint: string, doc: Element): boolean {
+    const id = /url\(["']?#([^"')]+)["']?\)/.exec(paint)?.[1];
+    const p = id === undefined ? null : doc.querySelector(`[id="${CSS.escape(id)}"]`);
+    return p?.localName === "pattern" && p.querySelector("image") !== null;
+}
+
 function fillOf(
     el: SVGGraphicsElement,
     cs: CSSStyleDeclaration,
@@ -757,6 +769,26 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
     // the outline's own path data ends the clip's; svgcanvas writes its first move as a line from the box's last point
     const tail = own.replace(/^[Mm]\s*/, "");
     return evenodd && d.length > tail.length && d.endsWith(tail) ? "outside" : null;
+}
+
+/**
+ * Whether a stroked outline's mask erases its middle along the same path, a narrower black stroke of the same path data
+ * over white: a double line (Cytoscape.js strokes a double border or outline whole, then erases its middle third; the
+ * web oracle records the erase as such a mask).
+ * @param el - the stroked outline
+ * @param root - the SVG
+ * @returns true for a double line
+ */
+function erasedMiddle(el: Element, root: SVGSVGElement): boolean {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("mask") ?? "");
+    const erase = ref === null ? null : root.querySelector(`mask[id="${ref[1]}"] > path[stroke]`);
+    const width = (e: Element): number => Number.parseFloat(e.getAttribute("stroke-width") ?? "1");
+    return (
+        erase !== null &&
+        erase.getAttribute("d") === el.getAttribute("d") &&
+        erase.getAttribute("stroke") === "black" &&
+        width(erase) < width(el)
+    );
 }
 
 /**
@@ -1717,6 +1749,34 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 });
                 continue;
             }
+            // a shape filled with a pattern of a picture is that picture over the shape (Cytoscape.js's repeated
+            // background image: a canvas pattern, which svgcanvas writes as a <pattern> holding an <image>)
+            // ponytail: read only where the shape draws nothing else; the border Cytoscape.js strokes after it fills
+            // the pattern again and is read as its stroke alone
+            if (cs.stroke === "none" && patternOfPicture(cs.fill, root)) {
+                const b = el.getBBox();
+                prims.push({
+                    index: i,
+                    tag: "image",
+                    kind: "image",
+                    box: boxThrough(m, b),
+                    quad: [
+                        at(m, b.x, b.y),
+                        at(m, b.x + b.width, b.y),
+                        at(m, b.x + b.width, b.y + b.height),
+                        at(m, b.x, b.y + b.height),
+                    ],
+                    points: [],
+                    closed: true,
+                    corners: 4,
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                    markers: { start: false, end: false },
+                    hint: hintOf(el),
+                });
+                continue;
+            }
             let fill = fillOf(el, cs, opacity, root, m);
             let stroke = strokeOf(el, cs, opacity, scale, root, m);
             if ((fill === null && stroke === null) || unrendered(el, tag)) {
@@ -1767,6 +1827,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             if (band !== null && stroke !== null) {
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
+            }
+            // a ring with its middle erased (a centered one: a clipped band's erase only trims its edge)
+            if (band === null && stroke !== null && erasedMiddle(el, root)) {
+                stroke = { ...stroke, dash: null, dashClass: "double" };
             }
             const uncut = boxOfPoints(points);
             const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;

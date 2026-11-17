@@ -101,8 +101,8 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 /**
  * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
  * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
- * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader takes as
- * `sigmaSettings`.
+ * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader hands graph-io
+ * as `importOptions: { sigmaSettings }`.
  * @param meta - the oracle's metadata
  * @param format - graph-io's format name of the sample
  * @returns the options, empty for none
@@ -118,7 +118,7 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
         typeof meta.settings === "object" &&
         meta.settings !== null
     ) {
-        return { sigmaSettings: meta.settings };
+        return { importOptions: { sigmaSettings: meta.settings } };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
 }
@@ -201,6 +201,8 @@ async function associateOracle(
                 : prims;
         return associate(named, size.width, size.height, graphty, {
             ownLayout,
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders)
+            fillOverStroke: meta.program === "Cytoscape desktop",
             ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
         });
     }

@@ -1,5 +1,5 @@
 /**
- * The `pr-scale` kernel body (spec 8.2 dispatch (a)): one invocation per node writes `xNorm[u]` and contributes a
+ * The `pr-scale` kernel body (PageRank's first dispatch): one invocation per node writes `xNorm[u]` and contributes a
  * per-workgroup partial of the dangling mass, the L1 delta `|rankIn - rankPrev|` and, for the spectral modes, the
  * norm term. NORM_MODE selects the divisor: 0 PageRank (`rankIn[u] / outWeightSum[u]`, 0 and a dangling
  * contribution when the sum is not positive); 1 and 2 are NORM PASSES that write no xNorm and only accumulate
@@ -7,7 +7,7 @@
  * identity (Katz). Every mode also folds `abs(x)` into the partial's `pad0`: the L1 size of the iterate that the
  * power iterations' relative stop reads. The body is normative: a sabotage mutation is a textual edit of it, so it is not restyled.
  *
- * The guard is named `inRange`, never `active`: `active` is a WGSL reserved word (spec 16.2) and the composer
+ * The guard is named `inRange`, never `active`: `active` is a WGSL reserved word and the composer
  * rejects it before a device is touched.
  */
 

@@ -27,7 +27,7 @@ import {
     type StyleNote,
     toCytoscapeStylesheet,
 } from "@graphty/graph-io/styles";
-import type { Collection, Core, ElementDefinition } from "cytoscape";
+import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
 import { elementsToSnapshot, exportedEdges, flipY, snapshotToElements } from "./elements.js";
 
@@ -130,9 +130,40 @@ export interface ImportedElements {
     readonly stylesheet?: CytoscapeStylesheetRule[];
     /**
      * With `styles`, per element (in the order of `elements`) the style overrides that make it draw exactly as the
-     * file says where the stylesheet alone does not, or null; give them as each definition's `style`.
+     * file says where the stylesheet alone does not, or null. Set them after the add with
+     * `applyBypass(cy.add(elements), elements, bypass)`, never as each definition's `style`: Cytoscape 3.31 applies a
+     * creation-time bypass before an edge has its endpoints, and a `curve-style` there throws.
      */
     readonly bypass?: (Readonly<Record<string, string | number>> | null)[];
+}
+
+/**
+ * Sets each added element's style bypass from importElements' `bypass`:
+ * `applyBypass(cy.add(r.elements), r.elements, r.bypass)`. Call it after the add: a bypass given as a definition's
+ * `style` is applied before an edge has its endpoints, and a `curve-style` there throws in Cytoscape 3.31. A
+ * definition Cytoscape skipped (its id was taken) gets no bypass.
+ * @param added - what cy.add returned, in definition order
+ * @param defs - the definitions, whose `data.id` cy.add filled in
+ * @param bypass - one bypass or null per definition
+ */
+export function applyBypass(
+    added: CollectionReturnValue,
+    defs: ElementDefinition[],
+    bypass: readonly (Readonly<Record<string, string | number>> | null)[],
+): void {
+    let j = 0;
+    defs.forEach((def, i) => {
+        // cy.add skips a definition it refuses, so `added` can be shorter than `defs`
+        if (j >= added.length || added[j].id() !== def.data.id) {
+            return;
+        }
+        const ele = added[j];
+        j++;
+        const b = bypass[i];
+        if (b !== null) {
+            ele.style(b as never);
+        }
+    });
 }
 
 /** How many imports have read styles: the default import ids. */
@@ -158,7 +189,7 @@ function styleIssue(n: StyleNote): ImportIssue {
  * Reads a graph file into Cytoscape element definitions.
  * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields
  * (`data.color` as four numbers from 0 to 1, `data.size`, `data.shape`, `data.thickness`); these fields are
- * deprecated and are removed in the next major release: import with `styles: true`, whose stylesheet draws them.
+ * deprecated and may be removed in a later release: import with `styles: true`, whose stylesheet draws them.
  * With `styles: true` they are left out of data.
  * @param input - the file as text, bytes, a stream or chunks
  * @param format - the format, or "auto" to sniff it

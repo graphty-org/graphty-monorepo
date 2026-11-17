@@ -519,8 +519,8 @@
                     "plainName": "Alpha (Attenuation)",
                     "technicalName": "alpha",
                     "type": "number",
-                    "description": "Attenuation factor - must be less than 1/λmax",
-                    "default": 0.1,
+                    "description": "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
+                    "default": null,
                     "min": 0.01,
                     "max": 0.5,
                     "step": 0.01
@@ -973,6 +973,37 @@
             ],
             "scopeInput": "subgraph",
             "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "removal-impact": {
+            "options": [
+                {
+                    "name": "nodes",
+                    "plainName": "Nodes to remove",
+                    "technicalName": "nodes",
+                    "type": "unknown",
+                    "description": "The nodes to imagine removed, with their edges",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                },
+                {
+                    "name": "edges",
+                    "plainName": "Edges to remove",
+                    "technicalName": "edges",
+                    "type": "unknown",
+                    "description": "The edges to imagine removed",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
             "loadedWeightByDefault": true
         },
         "spectral-clustering": {

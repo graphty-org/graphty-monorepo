@@ -588,13 +588,6 @@ export interface OperationCancelledEvent {
      * this one operation was cancelled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
-    /**
-     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was cancelled.
-     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
-     * in the next major release.
-     */
-    reason: string;
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */

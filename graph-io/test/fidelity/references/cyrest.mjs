@@ -9,7 +9,8 @@
 // A session (.cys) is opened with `session open`; anything else with `network load file`, never
 // `network import`, which drops the file's style. A .gz sample is loaded decompressed (regenerate.sh)
 // and hashed as stored. Ids are the node `name` column (the file's own names); edge ids are
-// "<source name>-><target name>", with "#k" for the k-th parallel edge.
+// "<source name>-><target name>", with "#k" for the k-th parallel edge in SUID order (the order the
+// file lists them, which is how graphty numbers them; the view's topology lists them in another order).
 // Cytoscape's canvas is y down and node locations are centers.
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -22,7 +23,8 @@ const POSITION = { "C,C": "inside", "S,N": "below", "N,S": "above", "E,W": "righ
 
 /**
  * The scene ids of a Cytoscape view's elements: each node's `name` (with "#k" for the k-th repeat of
- * a name), and "<source>-><target>" for each edge (with "#k" for the k-th parallel edge), keyed by SUID.
+ * a name), and "<source>-><target>" for each edge (with "#k" for the k-th parallel edge in SUID order, the order the
+ * file lists them), keyed by SUID.
  * @param topology - the view's Cytoscape.js JSON
  * @returns the node and edge ids by SUID, and whether a name repeats
  */
@@ -37,7 +39,7 @@ export function cyrestIds(topology) {
     }
     const ordinal = new Map();
     const edges = new Map();
-    for (const e of topology.elements.edges) {
+    for (const e of [...topology.elements.edges].sort((a, b) => Number(a.data.SUID) - Number(b.data.SUID))) {
         const key = `${nodes.get(String(e.data.source))}->${nodes.get(String(e.data.target))}`;
         const k = ordinal.get(key) ?? 0;
         ordinal.set(key, k + 1);
@@ -80,6 +82,37 @@ function offsetPosition(place, dx, dy, w, h) {
         return y < 0 ? "above" : "below";
     }
     return x < 0 ? "left" : "right";
+}
+
+/** The border line types desktop draws as their own outline, not as a plain stroke under the node's fill. */
+const PATTERNED_BORDERS = new Set([
+    "DOT",
+    "ZIGZAG",
+    "SINEWAVE",
+    "PARALLEL_LINES",
+    "BACKWARD_SLASH",
+    "FORWARD_SLASH",
+    "VERTICAL_SLASH",
+    "SEPARATE_ARROW",
+    "CONTIGUOUS_ARROW",
+]);
+
+/**
+ * The width of a node's border as desktop shows it: it strokes a plain border along the outline inset by half the
+ * width and paints an opaque fill over the stroke's inner half, so half of it shows; a patterned border, one under a
+ * translucent fill, and an invisible one (which still insets the fill by all of it) are recorded whole (graph-io's cytoscape/lexicon.ts `borderUnderFill`).
+ * @param width - NODE_BORDER_WIDTH
+ * @param stroke - NODE_BORDER_STROKE
+ * @param transparency - the fill's 0..255 transparency
+ * @param borderTransparency - NODE_BORDER_TRANSPARENCY
+ * @returns the width showing
+ */
+export function visibleBorder(width, stroke, transparency, borderTransparency) {
+    const under =
+        !PATTERNED_BORDERS.has(String(stroke ?? "SOLID").toUpperCase()) &&
+        transparency >= 255 &&
+        borderTransparency > 0;
+    return under ? width / 2 : width;
 }
 
 /**
@@ -130,7 +163,12 @@ export function sceneFromCyrest(v) {
             fillOpacity: fill ? (r.NODE_TRANSPARENCY ?? 255) / 255 : 0,
             border: {
                 color: border && r.NODE_BORDER_WIDTH > 0 && (r.NODE_BORDER_TRANSPARENCY ?? 255) > 0 ? border.hex : null,
-                width: r.NODE_BORDER_WIDTH ?? 0,
+                width: visibleBorder(
+                    r.NODE_BORDER_WIDTH ?? 0,
+                    r.NODE_BORDER_STROKE,
+                    fill ? (r.NODE_TRANSPARENCY ?? 255) : 0,
+                    r.NODE_BORDER_TRANSPARENCY ?? 255,
+                ),
                 style: r.NODE_BORDER_STROKE ?? "SOLID",
             },
             label: text

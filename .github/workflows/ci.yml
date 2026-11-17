@@ -115,6 +115,12 @@ env:
     # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
     # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
     SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+    # git has no low-speed limit by default, so an HTTPS transfer that stops delivering bytes waits forever:
+    # actions/checkout's fetch of every branch, 24 s in a sibling shard, sat silent until its Test job's
+    # 30-minute limit cancelled it, and the cancelled job turned the full run's CI lane red (run 43924294024,
+    # #8526). Under 1 KB/s for two minutes now fails the fetch, and actions/checkout retries it.
+    GIT_HTTP_LOW_SPEED_LIMIT: "1000"
+    GIT_HTTP_LOW_SPEED_TIME: "120"
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
@@ -1994,7 +2000,8 @@ jobs:
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
-            # on the full path, where tools/test-quarantine.json stands.
+            # on the full path, where each group reads its quarantine from the store itself (RESULTS_STORE_QUARANTINE
+            # below), and tools/test-quarantine.json stands only when the store does not answer.
             - name: Download the results plan
               if: github.event_name == 'pull_request'
               continue-on-error: true
@@ -2013,11 +2020,15 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # the full path (no plan file): each group asks the store for its quarantine (#3454)
+                  RESULTS_STORE_QUARANTINE: ${{ github.event_name != 'pull_request' && '1' || '' }}
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
+                  # this job, which a touched test's base check re-runs when master fails the same test (#8363)
+                  RESULTS_JOB_ID: ${{ job.check_run_id }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -2280,8 +2291,10 @@ jobs:
     # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
     # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
     # timeout-minutes, all inside the job's 50.
-    performance:
-        name: Performance Benchmarks
+    # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
+    # benchmarks about 30, and run one after the other they outgrew the one job's 44 minutes (issue #8148).
+    algorithms-benchmarks:
+        name: Algorithms Benchmarks
         needs: packages
         if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
@@ -2343,16 +2356,65 @@ jobs:
             # this run's numbers.
             - name: Post the algorithms benchmark results to the health dashboard
               if: steps.algorithms-bench.outcome == 'success'
+              timeout-minutes: 2
               env:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
+
+    # graphty-element's browser and timing benchmarks and the graphty app's load time.
+    performance:
+        name: Performance Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 50
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: graphty-element imports the other packages through their dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
 
             # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
             # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
             # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
             # cache key, all three browsers' system packages), before either benchmark runs.
-            # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
-            # came before them.
             # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
@@ -2658,7 +2720,7 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate;
+    # packed into bins of about 6 minutes of capture (LIGHT_STORY_BIN_LIMIT_MS, at each project's measured capture rate;
     # longer, up to STORY_BIN_MAX_MS, when that would make more than STORY_JOB_BUDGET jobs),
     # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
@@ -4126,6 +4188,7 @@ jobs:
                 docs,
                 test,
                 links,
+                algorithms-benchmarks,
                 performance,
                 cost-accuracy,
                 story-tests-merge,

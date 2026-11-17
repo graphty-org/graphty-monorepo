@@ -217,6 +217,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelFitQuantum": "mesh",
     "node.labelFitImage": "mesh",
     "node.labelFitImagePadding": "mesh",
+    "node.imageAspect": "mesh",
     // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
@@ -377,6 +378,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelItalic": "content",
     "node.labelWrapWidth": "content",
     "node.labelWrapTrailingSpace": "content",
+    "node.labelWrapSkipEndSpace": "content",
     "node.labelWrapEllipsis": "content",
     "node.labelWrapAnywhere": "content",
     "node.labelWrapSpaceCount": "content",
@@ -417,6 +419,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelLocation": "content",
     "edge.labelWrapWidth": "content",
     "edge.labelWrapTrailingSpace": "content",
+    "edge.labelWrapSkipEndSpace": "content",
     "edge.labelWrapEllipsis": "content",
     "edge.labelWrapAnywhere": "content",
     "edge.labelWrapSpaceCount": "content",

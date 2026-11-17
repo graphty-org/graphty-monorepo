@@ -65,8 +65,9 @@ export type SourceRuntimeReason =
 export type CredentialKind = "bearer" | "basic" | "api-key" | "aws-sigv4" | "custom" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
- * A credential made by one of the `credentials` factories. The secret is held where no code can
- * read it back: `JSON.stringify` and `util.inspect` show only `{ kind, origins }`. Experimental.
+ * A credential made by one of the `credentials` factories. The secret is hidden from enumeration,
+ * JSON and inspection: `JSON.stringify` and `util.inspect` show only `{ kind, origins }`. It is not
+ * unreachable: `storableCredential()` returns it so an app can persist it. Experimental.
  * @category Network sources
  */
 export interface Credential {

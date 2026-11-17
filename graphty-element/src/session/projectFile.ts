@@ -25,8 +25,10 @@ import {
     type NodeId,
     PROJECT_FILE,
     type ResultShape,
+    type RuleTree,
     type RunId,
     type Scope,
+    type Selector,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -34,6 +36,7 @@ import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { ANNOTATIONS_VALUE, drawnAnnotationsOf } from "./annotations";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
     assetChoices,
@@ -67,13 +70,6 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
-import {
-    asFileStyleStore,
-    FILE_STYLES_VALUE,
-    type FileStyleLoadValues,
-    fileStyleValuesOf,
-} from "./styles/fileStyles/store";
-import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
     GraphSession,
@@ -85,7 +81,7 @@ import type {
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
-import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import { assertVisibility, type TimeWindow } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
 import { wholeGraph } from "./working/graphs";
 
@@ -801,7 +797,7 @@ export function dataMember(
             links: edges.map(({ id: _id, ...edge }) => edge),
         },
         ...(source === null ? {} : { source: withoutSecrets(source) }),
-        ...(sources.length === 0 ? {} : { sources: sources.map(withoutSecrets) }),
+        ...(sources.length === 0 ? {} : { sources: sources.map((each) => withoutSecrets(each)) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
     };
 }
@@ -870,27 +866,11 @@ function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, key
  * was declared, what each declared column measures (a field with its own version, so a file
  * without it still opens).
  * @param sources - The session and its dispatcher.
- * @param ids - The graph's ids, or a function that reads them (called only when a file-style load
- * holds an edge column).
  * @returns The member.
  */
-export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+export function sessionMember(sources: ProjectSources): Record<string, unknown> {
     const { session, dispatcher } = sources;
-    // The file-style values, an edge named by its position in the data as a run's edges are. The
-    // edge ids are read only when a load holds an edge column, as for the view state.
-    let edgeAt: Map<EdgeId, number> | undefined;
-    const indexOf = (edge: EdgeId): number => {
-        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
-        return edgeAt.get(edge) ?? -1;
-    };
-    const fileStyles = fileStyleValuesOf(asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE))).map(
-        (load) => ({
-            ...load,
-            columns: load.columns.map((column) =>
-                column.kind === "node" ? column : { ...column, ids: column.ids.map((id) => indexOf(id as EdgeId)) },
-            ),
-        }),
-    );
+    const annotations = drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
     const { layout, visibility } = session;
     const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
     const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
@@ -907,11 +887,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         visibility: {
             filter: visibility.filter,
             window: visibility.window,
-            // Written only for a window whose bounds are values, not instants: one set with the
-            // timeline off. A reader that ignores it reads them as instants.
-            ...(visibility.window === null || (visibility as SessionVisibilityApi).holdsInstants(visibility.window)
-                ? {}
-                : { windowRaw: true }),
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before. The
             // steps are the keep and exclude conditions, so an older reader hides the same.
@@ -924,6 +899,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
                 : { playback: dispatcher.state.visibility.playback }),
+            // What lies outside the time window draws only as its style layers say, so an open
+            // never brings these layers "up to date" again (`outsideWindowLayers`). A file without
+            // it was saved before.
+            outsideByLayers: true,
             // Written only when a node is hidden from the drawing, so a project without saves as before.
             ...((dispatcher.state.visibility.hidden ?? []).length === 0
                 ? {}
@@ -941,8 +920,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                   })),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
-        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
-        ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // Additive: a project with no annotations writes nothing here.
+        ...(annotations === null
+            ? {}
+            : { [ANNOTATIONS_VALUE]: { scale: annotations.scale, annotations: annotations.annotations } }),
         // The hidden columns, the types columns were given and the renames, when any was made.
         ...(columnSettings === undefined
             ? {}
@@ -1176,7 +1157,7 @@ function write(
     const file = sourcesFileOf(session);
     const members = [
         dataMember(session, file),
-        sessionMember(sources, ids),
+        sessionMember(sources),
         arrangementMember(session, ids),
         resultsMember(
             session,
@@ -1435,7 +1416,6 @@ function readDocument(text: string): ReadDocument {
             positions.set(member, index);
         }
     });
-
     return {
         ...(typeof document.name === "string" ? { name: document.name } : {}),
         extensions: isObject(document.extensions) ? document.extensions : {},
@@ -1548,14 +1528,6 @@ const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", param
 async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
-    }
-
-    // With the timeline off a Ghost row is in no tree, and it must not outlive its project either.
-    const ghosts = tx.styles
-        .list()
-        .filter(({ source }) => source.by === "template" && source.templateId === GHOST_ROW_ID);
-    for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
-        await tx.styles.deleteRow(row);
     }
 }
 
@@ -1739,7 +1711,10 @@ function withHeldChoices(listed: unknown, held: unknown): unknown {
             return each;
         }
 
-        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name) => [name, saved[name]]);
+        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name): [string, unknown] => [
+            name,
+            saved[name],
+        ]);
         return { ...(each as Record<string, unknown>), ...Object.fromEntries(kept) };
     });
 }
@@ -1798,27 +1773,6 @@ interface Opening {
     readonly restoreDerived: (id: RunId) => void;
     /** How many elements a run over a scope (absent: the default run scope) would hold now. */
     readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
-}
-
-/**
- * What a project's session member holds that is kept as saved but does nothing with the timeline
- * off: playback settings and the options a saved window takes. A time role is not one: projects
- * had it before the timeline, and it stays and applies.
- * @param state - The `graphty-session` member.
- * @returns One `E_FEATURE_OFF` per part.
- */
-function timelineLeftOff(state: Record<string, unknown> | undefined): ProjectProblem[] {
-    const { visibility } = (state ?? {}) as {
-        visibility?: { playback?: unknown; window?: TimeWindow | null };
-    };
-    const window = visibility?.window ?? null;
-    const held: Record<string, unknown> = {
-        "visibility.playback": visibility?.playback,
-        "visibility.window": windowNeedsTimeline(window) ? window : null,
-    };
-    return Object.keys(held)
-        .filter((key) => held[key] !== undefined && held[key] !== null)
-        .map((key) => ({ code: "E_FEATURE_OFF", params: { feature: "timeline", key } }));
 }
 
 /**
@@ -2044,7 +1998,8 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
     await attempt(opening, "config", () =>
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
     );
-    // The settings just read write the default rows when they turn `startingRows` on. A file that
+    // The settings just read write the default rows when they turn `startingRows` on (Timeline Hidden
+    // among them while the timeline is on). A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {
@@ -2085,19 +2040,11 @@ async function readProject(
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
-    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
-    if (Array.isArray(state.fileStyles)) {
-        const loads = state.fileStyles as unknown[];
-        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
-        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
-        opening.services.restoringFileStyles = true;
-        try {
-            await attempt(opening, "graph", () =>
-                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-            );
-        } finally {
-            opening.services.restoringFileStyles = false;
-        }
+    const annotations = drawnAnnotationsOf(state[ANNOTATIONS_VALUE]);
+    if (annotations !== null && annotations.annotations.length > 0) {
+        await attempt(opening, "graph", () =>
+            tx.execute({ op: "annotations.set", annotations: annotations.annotations, scale: annotations.scale }),
+        );
     }
 
     const layout = state.layout as
@@ -2191,6 +2138,9 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+    await attempt(opening, "styles", () =>
+        outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
+    );
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2227,10 +2177,7 @@ async function restoreVisibilityOf(
         }
 
         if (visibility.window !== null && visibility.window !== undefined) {
-            await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                visibility.window as TimeWindow,
-                visibility.windowRaw === true,
-            );
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(visibility.window as TimeWindow);
         }
 
         await readFilterConditions(opening, visibility, remap);
@@ -2238,7 +2185,12 @@ async function restoreVisibilityOf(
     // Read on their own, so a filter that cannot be read never loses them.
     await attempt(opening, "visibility", async () => {
         if (typeof visibility.playback === "object" && visibility.playback !== null) {
-            await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+            // How what lies outside the window draws lives in the style layers now
+            // (`outsideWindowLayers`).
+            const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(
+                Object.keys(playback).length === 0 ? null : playback,
+            );
         }
 
         // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
@@ -2249,6 +2201,124 @@ async function restoreVisibilityOf(
             await tx.execute({ op: "visibility.context", show });
         }
     });
+}
+
+/**
+ * A rule tree with every `"ghosted"` state leaf reading `"outsideWindow"`, however deep.
+ * @param rule - The rule.
+ * @returns The rule rewritten, or the same object when it reads no `"ghosted"` leaf.
+ */
+function ghostedLeavesOutside(rule: RuleTree): RuleTree {
+    switch (rule.kind) {
+        case "state":
+            return rule.state === "ghosted" ? { ...rule, state: "outsideWindow" } : rule;
+        case "all":
+        case "any": {
+            const of = rule.of.map((each) => ghostedLeavesOutside(each));
+            return of.every((each, at) => each === rule.of[at]) ? rule : { ...rule, of };
+        }
+        case "not": {
+            const of = ghostedLeavesOutside(rule.of);
+            return of === rule.of ? rule : { ...rule, of };
+        }
+        case "union": {
+            let moved = false;
+            const branches = rule.branches.map((branch) => ({
+                ...branch,
+                steps: branch.steps.map((step) => {
+                    const next = ghostedLeavesOutside(step.rule);
+                    moved ||= next !== step.rule;
+                    return next === step.rule ? step : { ...step, rule: next };
+                }),
+            }));
+            return moved ? { ...rule, branches } : rule;
+        }
+        default:
+            return rule;
+    }
+}
+
+/**
+ * A layer's selector with what it read as `"ghosted"` reading `"outsideWindow"`.
+ * @param selector - The selector.
+ * @returns It rewritten, or the same object when it reads no `"ghosted"`.
+ */
+function outsideSelector(selector: Selector): Selector {
+    if (selector.match === "state" && selector.state === "ghosted") {
+        return { match: "state", state: "outsideWindow" };
+    }
+
+    if (selector.match === "rule") {
+        const where = ghostedLeavesOutside(selector.where);
+        return where === selector.where ? selector : { ...selector, where };
+    }
+
+    return selector;
+}
+
+/**
+ * Bring a timed project saved before what lies outside the time window had a state of its own up
+ * to date: called only for a file without the session member's `outsideByLayers` mark, which every
+ * save writes, and with a playback or a window saved, so a layer a reader points at `"ghosted"` today is never
+ * rewritten. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant
+ * what lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
+ * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
+ * layers the way `time.setSettings` writes it, as the window hid them then.
+ * @param tx - The transaction.
+ * @param visibility - The session member's `visibility`.
+ */
+async function outsideWindowLayers(
+    tx: TransactionScope,
+    visibility: Readonly<Record<string, unknown>> | undefined,
+): Promise<void> {
+    const playback = visibility?.playback;
+    // Saved since, or never played: its layers stay as saved. A file saved with the timeline off
+    // holds no playback and no window of instants (`windowRaw` marked one of values), and its
+    // "ghosted" meant a held filter condition, never the window.
+    const played =
+        (playback !== undefined && playback !== null) ||
+        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
+    if (visibility?.outsideByLayers === true || !played || tx.time.field === null) {
+        return;
+    }
+
+    await ghostedLayersOutside(tx);
+    ghostedSetsOutside(tx);
+
+    // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
+    // playback said "ghost": the layers selecting it are written to draw it that way.
+    const saved =
+        typeof playback === "object" && playback !== null && "outside" in playback ? playback.outside : undefined;
+    await tx.time.setSettings({ outside: saved === "ghost" ? "ghost" : "hide" });
+}
+
+/**
+ * Rewrite every layer reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ */
+async function ghostedLayersOutside(tx: TransactionScope): Promise<void> {
+    for (const layer of tx.styles.list()) {
+        const selector = layer.source.by === "element" ? layer.selector : outsideSelector(layer.selector);
+        if (selector !== layer.selector) {
+            await tx.styles.update(layer.id, { selector });
+        }
+    }
+}
+
+/**
+ * Rewrite every rule set reading `"ghosted"` to read `"outsideWindow"`.
+ * @param tx - The transaction.
+ */
+function ghostedSetsOutside(tx: TransactionScope): void {
+    for (const set of tx.sets.list()) {
+        const { definition } = set;
+        if (definition.kind === "rule" && typeof definition.where === "object") {
+            const where = ghostedLeavesOutside(definition.where);
+            if (where !== definition.where) {
+                tx.sets.redefine(set.id, { ...definition, where });
+            }
+        }
+    }
 }
 
 /**
@@ -2450,66 +2520,6 @@ async function readColumnSettings(opening: Opening, columns: unknown): Promise<v
             settings: { hidden, types, renamed } as unknown as ColumnSettings,
         }),
     );
-}
-
-/**
- * A project file's file-style values, rewritten onto this session's elements: a node by its id,
- * kept when the data holds it; an edge by its position in the data, given the id this session
- * gave it. Anything malformed is left for the command to refuse.
- * @param loads - The saved loads.
- * @param nodeIds - The nodes the session holds.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The loads, over this session's ids.
- */
-function fileStylesInto(
-    loads: readonly unknown[],
-    nodeIds: ReadonlySet<NodeId>,
-    edgeIds: readonly (EdgeId | undefined)[],
-): FileStyleLoadValues[] {
-    return loads.map((load) => {
-        if (!isObject(load) || !Array.isArray(load.columns)) {
-            return load as FileStyleLoadValues;
-        }
-
-        const columns = (load.columns as unknown[]).map((column) => {
-            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
-                return column;
-            }
-
-            const ids: (NodeId | EdgeId)[] = [];
-            const values: unknown[] = [];
-            const saved = column.values as unknown[];
-            (column.ids as unknown[]).forEach((id, at) => {
-                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
-                if (mapped !== undefined) {
-                    ids.push(mapped);
-                    values.push(saved[at]);
-                }
-            });
-            return { ...column, ids, values };
-        });
-        return { ...load, columns } as unknown as FileStyleLoadValues;
-    });
-}
-
-/**
- * The node a saved file-style id names, when the session holds it.
- * @param id - The saved id.
- * @param nodeIds - The nodes the session holds.
- * @returns The node id, or undefined.
- */
-function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
-    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
-}
-
-/**
- * The edge a saved file-style position names.
- * @param at - The saved position in the data.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The edge id, or undefined.
- */
-function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
-    return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
 /** What reading one saved run needs to know about the data it opens over. */
@@ -2906,9 +2916,6 @@ export function projectOf(
             now: new Date().toISOString(),
         });
         problems.push(...loads.problems);
-        if (dispatcher.services.timeline?.() === false) {
-            problems.push(...timelineLeftOff(state));
-        }
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.

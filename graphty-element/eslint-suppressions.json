@@ -417,9 +417,6 @@
     }
   },
   "src/managers/EventManager.ts": {
-    "eslint-comments/require-description": {
-      "count": 2
-    },
     "unicorn/no-array-callback-reference": {
       "count": 1
     },
@@ -495,9 +492,6 @@
   },
   "src/meshes/EdgeMesh.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
-    "unicorn/prefer-modern-math-apis": {
       "count": 1
     }
   },

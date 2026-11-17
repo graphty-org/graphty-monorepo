@@ -44,6 +44,7 @@ const DECLARED = [
     "node.labelItalic",
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
+    "node.labelWrapSkipEndSpace",
     "node.labelWrapEllipsis",
     "node.labelWrapAnywhere",
     "node.labelWrapSpaceCount",
@@ -210,6 +211,7 @@ const DECLARED = [
     "node.labelFitQuantum",
     "node.labelFitImage",
     "node.labelFitImagePadding",
+    "node.imageAspect",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -368,6 +370,7 @@ const DECLARED = [
     "edge.labelItalic",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
+    "edge.labelWrapSkipEndSpace",
     "edge.labelWrapEllipsis",
     "edge.labelWrapAnywhere",
     "edge.labelWrapSpaceCount",
@@ -434,9 +437,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and ten node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 210);
-        assert.strictEqual(channelsFor("edge").length, 169);
+    it("splits into two hundred and twelve node channels and one hundred and seventy edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 212);
+        assert.strictEqual(channelsFor("edge").length, 170);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -839,6 +842,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
+        "node.labelWrapSkipEndSpace",
         "node.labelWrapEllipsis",
         "node.labelWrapAnywhere",
         "node.labelWrapSpaceCount",
@@ -872,6 +876,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelLocation",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
+        "edge.labelWrapSkipEndSpace",
         "edge.labelWrapEllipsis",
         "edge.labelWrapAnywhere",
         "edge.labelWrapSpaceCount",

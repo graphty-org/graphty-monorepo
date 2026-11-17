@@ -9,19 +9,17 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { siteFeatures } from "../../../test/siteFeatures";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
 
-// The Data place without the Sources tab: its Fields section is one "Attributes" group, so the
-// `selection-workspace` experiment stays off here (DataPlaceSources and DataPlaceTabs test it on).
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -62,13 +60,21 @@ function drop(...files: File[]): void {
  * section beside the table.
  * @returns the queries.
  */
-const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
+const place = (): Within => within(screen.getByRole("region", { name: "Data place" }));
 
 /**
- * The Data place's Fields section.
- * @returns the section.
+ * The Data place's Fields: each load's section, on the Sources tab.
+ * @returns the sections.
  */
-const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Attributes" });
+const fieldsGroup = (): HTMLElement => {
+    const sections = screen
+        .getByRole("region", { name: "Data place" })
+        .querySelector<HTMLElement>(".dp-source-sections");
+    if (sections === null) {
+        throw new Error("no load sections in the Data place");
+    }
+    return sections;
+};
 
 /**
  * Picks an option of a Fields dropdown by clicking it open and clicking the option.
@@ -89,7 +95,7 @@ const shown = (label: string): string =>
     within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
 
 /**
- * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the submenu that
  * opens.
  * @param side - node or edge.
  * @param kind - the kind of field, as "+" lists it.
@@ -97,8 +103,9 @@ const shown = (label: string): string =>
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
     await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    // No obvious column for these: the kind opens a submenu of its columns.
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
 }
 
 /**
@@ -223,9 +230,6 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
-        // Time is the timeline experiment's role: the list holds it only with the experiment on.
-        await siteFeatures(["timeline"]);
-        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
@@ -256,10 +260,13 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        // Two number columns: neither is obvious, so Weight opens a submenu, those first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("menuitem", { name: "bytes" });
+        const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 
@@ -338,15 +345,24 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers the Data source condition only once two sources are loaded", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        // The Filters section's "+": the fields, and no Data source with one load.
+        // The Filters section's "+" opens a card in the selection workspace; its Value field lists
+        // the fields, and no Data source with one load.
         await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Data source" }));
+        // Escape on a new card with no step leaves no card, and closes the workspace.
         await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
-        await userEvent.click(place().getByRole("button", { name: "Add filter" }));
+        // With two loads, the first "+" is the one under Data sources, for the filters of every load.
+        const [plus] = place().getAllByRole("button", { name: "Add filter" });
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
@@ -355,7 +371,8 @@ describe("the Data place's sidebar on the real element", () => {
                 name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
             }),
         );
-        // A card is a selection (tier 5): All, then a Keep step on the source.
+        // A card is a selection (tier 5): All, then a Keep step on the source, written on Done.
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.strictEqual(rule?.kind, "union");
@@ -425,7 +442,7 @@ describe("the Data place's sidebar on the real element", () => {
         await screen.findByRole("tooltip", { name });
     });
 
-    it("draws a group in Fields for each source, the selected one open and first, kept across places", async () => {
+    it("draws a section in Fields for each source, the selected one open, kept across places", async () => {
         const session = await openDataPlace();
         await loadLog(session);
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
@@ -434,7 +451,6 @@ describe("the Data place's sidebar on the real element", () => {
         await waitFor(() => {
             group("hosts.csv");
             group("auth-log.csv");
-            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("hosts.csv"));
         });
         assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node attributes" }));
         assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
@@ -442,7 +458,6 @@ describe("the Data place's sidebar on the real element", () => {
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
         await userEvent.click(within(log).getByRole("button", { pressed: false }));
         await waitFor(() => {
-            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
             assert.equal(
                 within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
                 "user",
@@ -453,7 +468,10 @@ describe("the Data place's sidebar on the real element", () => {
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
         assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
-        assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
+        assert.equal(
+            within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
+            "user",
+        );
     });
 
     it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {
@@ -505,7 +523,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
-        const main = row.querySelector(".dp-source-main") as HTMLElement | null;
+        const main = row.querySelector<HTMLElement>(".dp-source-main");
         assert.isNotNull(main);
         await userEvent.dblClick(main);
         const input = await screen.findByRole("textbox", { name: "Source name" });
@@ -517,9 +535,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        (place().getByRole("listitem", { name: "auth-log.csv" }) as HTMLElement)
-            .querySelector<HTMLElement>(".dp-source-main")
-            ?.focus();
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
         await userEvent.keyboard("{F2}");
         const again = await screen.findByRole("textbox", { name: "Source name" });
         await userEvent.clear(again);

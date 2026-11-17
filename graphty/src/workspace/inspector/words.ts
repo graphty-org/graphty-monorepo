@@ -55,7 +55,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
@@ -94,6 +94,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label",
     "node.labelLetterSize": "Label",
     "node.labelWrapTrailingSpace": "Label",
+    "node.labelWrapSkipEndSpace": "Label",
     "node.labelMinScreenSize": "Label",
     "node.labelOnTop": "Label",
     "node.labelDeclutter": "Label",
@@ -196,6 +197,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
     "edge.labelWrapTrailingSpace": "Label",
+    "edge.labelWrapSkipEndSpace": "Label",
     "edge.labelMinScreenSize": "Label",
     "edge.labelOnTop": "Label",
     "edge.labelRotation": "Label",
@@ -275,6 +277,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",

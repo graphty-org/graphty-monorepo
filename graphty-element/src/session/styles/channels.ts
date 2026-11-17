@@ -370,6 +370,7 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapSkipEndSpace": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
@@ -473,6 +474,7 @@ export interface ChannelValues {
     "node.labelFitQuantum": number;
     "node.labelFitImage": number;
     "node.labelFitImagePadding": number;
+    "node.imageAspect": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -696,6 +698,7 @@ export interface ChannelValues {
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapSkipEndSpace": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
@@ -1544,7 +1547,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1556,6 +1559,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
@@ -1736,6 +1740,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -1894,6 +1899,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
@@ -1979,7 +1985,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -4046,6 +4052,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
             "Without `node.labelFitImage` it changes nothing.",
     },
+    "node.imageAspect": {
+        channel: "node.imageAspect",
+        target: "node",
+        plainName: "Node Image Aspect",
+        shortName: "Image aspect",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.imageAspect",
+        renderable: true,
+        caveat:
+            "The node takes its picture's (`node.image`) proportions: its box grows the longer way until the " +
+            "picture, at its own proportions, covers the node's width and height, as vis-network sizes an image " +
+            "node to its picture. The node is fitted again once the picture is read; until then, and for a " +
+            "picture that cannot be read, it keeps its own box. A node that grows to hold its label " +
+            "(`node.labelFit`) is sized by that instead.",
+    },
     "node.gradientColor": {
         channel: "node.gradientColor",
         target: "node",
@@ -4206,7 +4229,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
             'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
             'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
-            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
             '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
     },
     "node.modelAnimation": {
@@ -5331,6 +5355,22 @@ export function labelStyleFieldChannels(channel: Channel, value: unknown): reado
 
     return found;
 }
+
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

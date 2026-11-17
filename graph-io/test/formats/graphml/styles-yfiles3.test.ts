@@ -660,7 +660,7 @@ describe("yEd Live GraphML: BPMN and UML node styles, as yEd Live 8.5.16 draws t
         const { node } = await sheet("specimen-node-shapes-p5.graphml");
         expect(node("shape", "bpmn-data-object-background")).toBe("polygon");
         expect(typeof node("shapePoints", "bpmn-data-object-background")).toBe("string");
-        expect(node("shape", "bpmn-data-store-background")).toBe("other:database");
+        expect(node("shape", "bpmn-data-store-background")).toBe("database");
         expect(node("shape", "bpmn-annotation-background")).toBe("rectangle");
         expect(node("fill", "bpmn-annotation-background")).toBe("#ff0000");
         expect(node("borderWidth", "bpmn-annotation-background")).toBe(0);
@@ -702,6 +702,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("stripeFrame", "tab-position-right")).toBe("0.05 0.146667 0.05 0.026667");
         expect(node("stripeColors", "tab-position-none")).toBeNull();
         expect(node("stripeFrame", "tab-position-none")).toBeNull();
+    });
+
+    it("draws an untabbed open group's panel alone, 4 in from its box, its corners rounded 2", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none`, stored 150 x 80, is drawn 142 x 72 with arcs of 2
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("width", "tab-position-none")).toBe(142);
+        expect(node("height", "tab-position-none")).toBe(72);
+        expect(node("cornerRadius", "tab-position-none")).toBe(2);
     });
 
     it("reads tabHeight, and contentAreaFill with its alpha", async () => {
@@ -763,6 +771,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         // yed-live-graphml-specimen-groups.svg: `default` (GroupNodeStyle with nothing set) has no outline
         const { node } = await sheet("specimen-groups.graphml");
         expect(node("borderWidth", "default")).toBe(0);
+    });
+
+    it("draws no line round an open GroupNodeStyle with no tab, whatever its stroke", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none` (tabPosition="NONE", a #505050 stroke) is its
+        // white panel alone, with no yfiles-group-node-stroke path; the tabbed groups beside it keep their outline
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("borderWidth", "tab-position-none")).toBe(0);
+        expect(node("borderWidth", "tab-position-top")).toBe(1);
     });
 
     it("rounds a group's corners by its cornerRadius, 4 unset", async () => {
@@ -958,8 +974,8 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-message-flow")).toBe("triangle-open");
         expect(edge("lineStyle", "bpmn-bpmn-edge-type-association")).toBe("dotted");
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-association")).toBe("none");
-        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("other:open-vee");
-        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("other:open-vee");
+        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("open-vee");
+        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("open-vee");
         // a conversation is a band 3 wide in its color with a line 1 wide in its innerColor (white unset) along it
         expect(edge("color", "bpmn-bpmn-edge-type-conversation")).toBe("#ffffff");
         expect(edge("outlineColor", "bpmn-bpmn-edge-type-conversation")).toBe("#505050");

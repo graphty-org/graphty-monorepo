@@ -1,10 +1,10 @@
 /**
- * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (spec 7.2 "Initial
- * positions", 9.3 seedPositions, 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the
+ * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (seedPositions, the
+ * `pos` option and a topology change): a seed gives the same start on the CPU and the
  * GPU because both write the same f32 values in index order. The package carries its own copy of the LCG for its
- * whole life (D27: it cannot import @graphty/layout at runtime). The CANONICAL copy is
+ * whole life (it cannot import @graphty/layout at runtime). The CANONICAL copy is
  * layout/src/simulation/seed.ts; this one is cross-tested against it, bit for bit, by
- * test/layouts/seed-cross.test.ts (W1b, Task M5b-T3).
+ * test/layouts/seed-cross.test.ts.
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
@@ -233,8 +233,8 @@ function rowUnseeded(positions: F32, i: number, dim: 2 | 3): boolean {
 }
 
 /**
- * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (spec 9.3 seedPositions, 7.14 `pos`,
- * 7.19 topology change): a row is unseeded when any of its `dim` components is not finite; every such component
+ * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (seedPositions, the `pos`
+ * option, a topology change): a row is unseeded when any of its `dim` components is not finite; every such component
  * draws one LCG value; when NO row is fully finite the draw is uniform in [-1, 1) layout units per axis (`range:
  * "fa2"`; `"fr"` is [0, 1)), otherwise uniform inside the [min, max] box of the finite components per axis,
  * converted to layout units (an axis with no finite value falls back to the range box); the value is written as
@@ -243,9 +243,9 @@ function rowUnseeded(positions: F32, i: number, dim: 2 | 3): boolean {
  * finite row, or every finite row sharing that coordinate) is padded to the range box's width centered on it, so
  * the drawn rows never all land on one point or one line. Finite components are never changed and a
  * fully finite row is never touched. No random number is drawn when nothing needs seeding.
- * PLAN DECISION 12 (P3-T1): the box is taken over every finite COMPONENT (the port's rule), not over the fully
+ * The box is taken over every finite COMPONENT (the port's rule), not over the fully
  * finite ROWS only; the two differ only when a partially finite row's finite axis lies outside the fully finite
- * rows' box (pinned by test/layouts/seed.test.ts). PLAN DECISION 13: a 2D row whose x and y are finite is seeded
+ * rows' box (pinned by test/layouts/seed.test.ts). A 2D row whose x and y are finite is seeded
  * whatever its z holds.
  * @param s - the snapshot (nodeCount rows)
  * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place

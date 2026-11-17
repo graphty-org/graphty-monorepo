@@ -18,12 +18,9 @@ import { XgmmlParser } from "../../src/formats/xgmml/document.js";
 import { importAllGraphs, listGraphs } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
 import { makeZip, type ZipInput } from "../helpers/zip.js";
+import { codes } from "./helpers.js";
 
 type Options = CysImportOptions & CommonImportOptions;
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
 
 function cell(snapshot: GraphSnapshot, table: "nodes" | "edges", column: string, row: number | string): unknown {
     const c = snapshot[table].get(column);

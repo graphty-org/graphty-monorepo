@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { EdgeId } from "../../src/catalog/types";
+import type { EdgeId, Path } from "../../src/catalog/types";
 import { DataConfig } from "../../src/config/DataConfig";
 import { GraphStore } from "../../src/data/GraphStore";
+import { isGraphtyError } from "../../src/errors";
+import { StylePainter } from "../../src/managers/StylePainter";
 import {
     type GraphSession,
     type SessionAttributes,
@@ -12,6 +14,9 @@ import {
 } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
+import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../src/session/styles/index";
+import type { SelectorSource } from "../../src/session/styles/predicate";
+import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
 import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
@@ -218,4 +223,127 @@ export function withConsumerStrictState<T>(work: () => T): T {
     }
     restore();
     return result;
+}
+
+/**
+ * The code a call was refused with, or null when it returned. Anything thrown that is not a
+ * GraphtyError is thrown again, so a crash never reads as a refusal.
+ * @param call - The call.
+ * @returns The refusal's code, or null.
+ */
+export function rejectionCode(call: () => unknown): string | null {
+    try {
+        call();
+    } catch (error) {
+        if (isGraphtyError(error)) {
+            return error.code;
+        }
+
+        throw error;
+    }
+
+    return null;
+}
+
+/**
+ * The code a promise was rejected with, or null when it resolved; as {@link rejectionCode}, a
+ * rejection that is not a GraphtyError is thrown again.
+ * @param work - The promise.
+ * @returns The rejection's code, or null.
+ */
+export async function rejectionCodeOf(work: PromiseLike<unknown>): Promise<string | null> {
+    try {
+        await work;
+    } catch (error) {
+        if (isGraphtyError(error)) {
+            return error.code;
+        }
+
+        throw error;
+    }
+
+    return null;
+}
+
+/**
+ * A repaint context that never cancels and reports to nobody.
+ * @returns The context.
+ */
+export function quietContext(): RepaintContext {
+    return { signal: new AbortController().signal, report: () => undefined };
+}
+
+/** One element's columns, keyed by the path a selector or a binding names. */
+export type Row = Readonly<Record<Path, unknown>>;
+
+/** A style stack, the repaint engine behind it and a painter over both, with no renderer. */
+export interface PainterHarness {
+    /** The stack to edit. */
+    readonly styles: SessionStylesApi;
+    /** The engine the painter reads. */
+    readonly engine: RepaintEngine;
+    /** The painter under test. */
+    readonly painter: StylePainter;
+    /** Paint every element from the whole stack, as a first draw does. */
+    paintAll(): Promise<void>;
+}
+
+/**
+ * Wire a stack, a repaint engine and a painter over fixed rows, as a session wires them.
+ * @param nodes - The node rows.
+ * @param edges - The edge rows.
+ * @param options - `ids`: name each element by its `data.id` column, so a layer can address
+ *   elements by id and a binding can encode a column.
+ * @param options.ids - Whether elements are named by `data.id`.
+ * @returns The harness.
+ */
+export function painterHarness(
+    nodes: readonly Row[],
+    edges: readonly Row[],
+    options: { ids?: boolean } = {},
+): PainterHarness {
+    const indexOf = (rows: readonly Row[], id: unknown): number | undefined => {
+        const index = rows.findIndex((row) => row["data.id"] === id);
+        return index < 0 ? undefined : index;
+    };
+    const elements: SelectorSource = {
+        nodeValue: (index, path) => nodes[index]?.[path],
+        edgeValue: (index, path) => edges[index]?.[path],
+        ...(options.ids === true
+            ? {
+                  nodeIdOf: (index: number) => String(nodes[index]?.["data.id"]),
+                  edgeIdOf: (index: number) => String(edges[index]?.["data.id"]),
+              }
+            : {}),
+    };
+    const engine = createLayerRepaint({
+        nodeCount: () => nodes.length,
+        edgeCount: () => edges.length,
+        elements,
+        measured: () => undefined,
+    });
+    const styles = createStylesApi({
+        elements,
+        base: [],
+        repaint: engine.repaint,
+        ...(options.ids === true
+            ? {
+                  encoding: engine.encoding,
+                  nodeIndex: (id: unknown) => indexOf(nodes, id),
+                  edgeIndex: (id: unknown) => indexOf(edges, id),
+              }
+            : {}),
+    });
+    const painter = new StylePainter();
+    painter.bind(engine);
+
+    return {
+        styles,
+        engine,
+        painter,
+        paintAll: async (): Promise<void> => {
+            await engine.repaintAll(styles.compiled(), quietContext());
+            painter.markPainted();
+        },
+    };
 }

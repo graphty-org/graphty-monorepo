@@ -41,7 +41,7 @@ profile keyed by element id would be a second, weaker project format. Adding one
 to the one format, so it is not a one-way door.
 
 **A recipe** drops what only its data can mean: fixed sets, notes on elements, positions, pins,
-Overrides, the camera, and every binding's data-bound state (a pinned domain, a category map with
+layers whose selector names elements by id, the camera, and every binding's data-bound state (a pinned domain, a category map with
 no declared vocabulary). **Applying** binds its **slots** (attribute, catalog entry, set, argument,
 requirement, source, join) to the recipient's data, always confirms a weight slot, keeps anything
 unbound off and listed, and never contacts a source before the analyst confirms the host (door 34,

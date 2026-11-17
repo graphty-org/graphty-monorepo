@@ -14,6 +14,7 @@ import {
 } from "../../../src/session/project/Dispatcher";
 import type { RunEntry } from "../../../src/session/project/state";
 import type { CompiledLayer } from "../../../src/session/styles/Layer";
+import { type FakeClock, fakeClock } from "./fakes";
 
 /** A stand-in layer stack; nothing here looks inside one. */
 export function stack(name: string): readonly CompiledLayer[] {
@@ -57,7 +58,7 @@ const setStyles: UndoableDefinition<SetStyles> = {
     op: "fake.styles",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Styled ${c.name}` } }),
         label: (c) => `Styled ${c.name}`,
     },
     moves: false,
@@ -73,7 +74,7 @@ const setConfig: UndoableDefinition<SetConfig> = {
     op: "fake.config",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Set ${c.key}` } }),
         label: (c) => `Set ${c.key}`,
         coalesce: (c) => `config:${c.key}`,
     },
@@ -89,7 +90,7 @@ const failAfterWrite: UndoableDefinition<FailAfterWrite> = {
     op: "fake.fail-after-write",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: () => ({ code: "transaction", params: { label: "Fails late" } }),
         label: () => "Fails late",
     },
     moves: false,
@@ -105,7 +106,7 @@ const failBeforeWrite: UndoableDefinition<FailBeforeWrite> = {
     op: "fake.fail-before-write",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: () => ({ code: "transaction", params: { label: "Fails early" } }),
         label: () => "Fails early",
     },
     moves: false,
@@ -203,7 +204,7 @@ const run: UndoableDefinition<Run> = {
     op: "fake.run",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Ran ${c.id}` } }),
         label: (c) => `Ran ${c.id}`,
     },
     moves: false,
@@ -225,7 +226,7 @@ const load: UndoableDefinition<Import> = {
     op: "fake.import",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Loaded ${c.name}` } }),
         label: (c) => `Loaded ${c.name}`,
     },
     moves: false,
@@ -244,7 +245,7 @@ const addNode: UndoableDefinition<AddNode> = {
     op: "fake.add-node",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Added ${c.id}` } }),
         label: (c) => `Added ${c.id}`,
     },
     moves: false,
@@ -260,7 +261,7 @@ const pin: UndoableDefinition<Pin> = {
     op: "fake.pin",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Pinned ${c.id}` } }),
         label: (c) => `Pinned ${c.id}`,
     },
     moves: false,
@@ -276,7 +277,7 @@ const addEdge: UndoableDefinition<AddEdge> = {
     op: "fake.add-edge",
     undo: {
         kind: "undoable",
-        fact: () => ({ code: "transaction", params: { label: null } }),
+        fact: (c) => ({ code: "transaction", params: { label: `Added ${c.source}-${c.target}` } }),
         label: (c) => `Added ${c.source}-${c.target}`,
     },
     moves: false,
@@ -362,12 +363,6 @@ export class FakeQueue implements Scheduler {
     }
 }
 
-/** A clock the tests move by hand. */
-export interface FakeClock {
-    now(): number;
-    advance(ms: number): void;
-}
-
 /** A dispatcher over the fake definitions, a hand-moved clock, and the changes it published. */
 export function setup(): {
     dispatcher: Dispatcher;
@@ -375,13 +370,7 @@ export function setup(): {
     clock: FakeClock;
     queue: FakeQueue;
 } {
-    let time = 0;
-    const clock: FakeClock = {
-        now: () => time,
-        advance: (ms) => {
-            time += ms;
-        },
-    };
+    const clock = fakeClock();
     const published: { slices: readonly string[]; cause: string }[] = [];
     const queue = new FakeQueue();
     gates.reset();

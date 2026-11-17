@@ -1240,6 +1240,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @param sample - True for one of the element's samples, which is kept apart from the session's assets.
      * @param url - The URL it was fetched from, as named, when it was.
      * @param into - A held entry `supply` checks again: it is updated in place, keeping its id while rejected.
+     * @param fill - Fill missing pictures from the session's own (false for `dropPart`).
      * @returns The settled record.
      */
     const intake = async (

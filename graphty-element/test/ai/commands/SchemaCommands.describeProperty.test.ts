@@ -8,15 +8,15 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { describeProperty } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("describeProperty command", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({ nodes: 25, edges: 40 });
+        graph = createMockTestGraph({ nodes: 25, edges: 40 });
         context = createMockContext(graph);
     });
 
@@ -52,9 +52,9 @@ describe("describeProperty command", () => {
 
         it("respects limit parameter for unique values", async () => {
             // Create a graph with many unique string values
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 50,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     category: `category-${index}`,
                 }),
             });
@@ -106,9 +106,9 @@ describe("describeProperty command", () => {
         });
 
         it("handles integer and float numbers", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 20,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     intValue: index,
                     floatValue: index + 0.5,
                 }),
@@ -138,9 +138,9 @@ describe("describeProperty command", () => {
 
     describe("boolean properties", () => {
         it("returns true/false counts for boolean properties", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 20,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     isActive: index % 2 === 0,
                 }),
             });
@@ -163,9 +163,9 @@ describe("describeProperty command", () => {
         });
 
         it("includes percentages for boolean values", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 20,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     isActive: index % 4 === 0, // 25% true, 75% false
                 }),
             });
@@ -194,9 +194,9 @@ describe("describeProperty command", () => {
 
     describe("array properties", () => {
         it("returns unique values for array items", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 10,
-                nodeDataGenerator: () => ({
+                nodeData: () => ({
                     tags: ["tag1", "tag2", "tag3"],
                 }),
             });
@@ -214,9 +214,9 @@ describe("describeProperty command", () => {
         });
 
         it("includes array length statistics", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 10,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     tags: Array.from({ length: (index % 5) + 1 }, (_, i) => `tag${i}`),
                 }),
             });
@@ -261,9 +261,9 @@ describe("describeProperty command", () => {
         });
 
         it("handles mixed type properties", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 10,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     mixedValue: index % 2 === 0 ? "string" : 123,
                 }),
             });
@@ -279,9 +279,9 @@ describe("describeProperty command", () => {
         });
 
         it("handles null values in property analysis", async () => {
-            const customGraph = createMockGraphWithCustomData({
+            const customGraph = createMockGraphContext({
                 nodeCount: 10,
-                nodeDataGenerator: (index) => ({
+                nodeData: (index) => ({
                     nullableValue: index % 3 === 0 ? null : `value-${index}`,
                 }),
             });

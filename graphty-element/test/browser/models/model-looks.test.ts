@@ -93,6 +93,9 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         for (const name of variant.files) {
             assert.include(requested, base + name);
         }
+        // One picture taken back out, by the address the model came from.
+        const again = await element.session.assets.dropPart(`${base}cube.gltf`, "base.webp");
+        assert.strictEqual(again.parts?.find((p) => p.name === "base.webp")?.state, "missing");
     });
 });
 

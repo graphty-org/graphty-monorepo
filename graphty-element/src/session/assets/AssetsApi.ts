@@ -2388,7 +2388,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         async dropPart(ref, name) {
-            const entry = findEntry(ref);
+            const named = findEntry(ref);
+            // A model by address is held, once accepted, under its digest id with its files.
+            const entry = (named === undefined ? undefined : lookup(named.record.id)) ?? named;
             const given = entry?.held?.given ?? entry?.given;
             if (entry === undefined || given === undefined) {
                 throw new GraphtyError({

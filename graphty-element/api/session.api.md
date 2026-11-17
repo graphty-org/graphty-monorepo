@@ -3891,10 +3891,18 @@ export { ModelGeometry }
 // @public
 export interface ModelLimits {
     readonly fetchTimeoutMs: number;
+    readonly maxAnimations: number;
     readonly maxBytes: number;
     readonly maxDecodedBytes: number;
+    readonly maxFiles: number;
+    readonly maxJoints: number;
+    readonly maxMaterials: number;
+    readonly maxMeshes: number;
+    readonly maxMorphTargets: number;
+    readonly maxNodes: number;
     readonly maxTextBytes: number;
     readonly maxTextureBytes: number;
+    readonly maxTextures: number;
     readonly maxTextureSize: number;
     readonly maxTriangles: number;
     readonly sceneTextureBytes: number;

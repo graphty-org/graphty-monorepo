@@ -163,18 +163,37 @@ export interface ModelSummary {
     readonly extensionsUsed?: readonly string[];
 }
 
-/** The limits that keep a page responsive while it reads a model it did not make. */
+/**
+ * The limits that keep a page responsive while it reads a model it did not make. The defaults
+ * refuse only what a browser tab cannot hold or draw; lower any of them to be stricter.
+ */
 export interface ModelLimits {
-    /** Per model file or unzipped set. Default 32 MB. */
+    /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
     /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
     readonly maxTextBytes: number;
-    /** Per model, counted per use. Default 1,000,000. */
+    /** Per model, counted per use. Default 20,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 1 GB. */
     readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 256 MB. */
+    /** What every glTF accessor decodes to, together. Default 1 GB. */
     readonly maxDecodedBytes: number;
+    /** Files a model fetched by URL may load beside its main file. Default 10,000. */
+    readonly maxFiles: number;
+    /** glTF nodes. Default 10,000. */
+    readonly maxNodes: number;
+    /** glTF meshes. Default 1,000. */
+    readonly maxMeshes: number;
+    /** glTF materials. Default 10,000. */
+    readonly maxMaterials: number;
+    /** glTF textures. Default 10,000. */
+    readonly maxTextures: number;
+    /** glTF animations. Default 10,000. */
+    readonly maxAnimations: number;
+    /** Morph targets on one glTF primitive. Default 64. */
+    readonly maxMorphTargets: number;
+    /** Joints in one glTF skin. Default 256. */
+    readonly maxJoints: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;
     /**

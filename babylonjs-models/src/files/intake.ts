@@ -580,9 +580,6 @@ export async function fetchModel(
     }
 }
 
-/** The most files a model fetched by URL may load beside its main file. */
-const MAX_COMPANION_FILES = 64;
-
 /** The most requests the automatic tries make for one part beyond its first (design 12.2). */
 const MAX_EXTRA_REQUESTS = 16;
 
@@ -841,8 +838,13 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
     tried.set(name, shown);
     const budget = { requests: 0 };
     for (const [path, address] of triesFor(fact, fetching.url)) {
-        if (fetching.given.size > MAX_COMPANION_FILES) {
-            refuse("E_MODEL_TOO_LARGE", { what: "count", found: fetching.given.size, limit: MAX_COMPANION_FILES });
+        if (fetching.given.size > fetching.limits.maxFiles) {
+            refuse("E_MODEL_TOO_LARGE", {
+                what: "count",
+                item: "files",
+                found: fetching.given.size,
+                limit: fetching.limits.maxFiles,
+            });
         }
 
         if (shown.length < MAX_TRIED_SHOWN) {
@@ -868,7 +870,7 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
  * file's origin: in its folder or below, or at the address a reference outside the folder names
  * (design 3.3); the set's total, misses included, is held to `maxBytes`, at most
- * {@link MAX_COMPANION_FILES} files are added and at most {@link MAX_EXTRA_REQUESTS} requests
+ * `maxFiles` files are added and at most {@link MAX_EXTRA_REQUESTS} requests
  * beyond the first are made for one part. A reference to another origin is never fetched here: it
  * stays a missing part carrying its `url`, for the reader to supply. Every part still missing
  * after its tries is reported at once, with the addresses tried.

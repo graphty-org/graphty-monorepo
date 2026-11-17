@@ -32,17 +32,8 @@ import {
 } from "./references.js";
 import type { ModelCompression, ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
-/** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
-const GLTF_CAPS = Object.freeze({
-    nodes: 10_000,
-    meshes: 1_000,
-    materials: 64,
-    textures: 64,
-    animations: 64,
-    morphTargets: 64,
-    joints: 256,
-    depth: 64,
-});
+/** How deep a glTF's JSON and node tree may nest, so reading it cannot exhaust the stack. */
+const MAX_DEPTH = 64;
 
 /**
  * Required extensions the bundled loader reads (src/load/loaders.ts registers each, and
@@ -177,7 +168,7 @@ function checkKey(text: string, start: number, end: number, top: JsonFrame | und
 function stepStructure(c: string, stack: JsonFrame[]): void {
     if (c === "{" || c === "[") {
         stack.push({ keys: c === "{" ? new Set() : undefined, expectKey: c === "{" });
-        if (stack.length > GLTF_CAPS.depth) {
+        if (stack.length > MAX_DEPTH) {
             refuse("E_MODEL_STRUCTURE", { rule: "depth" });
         }
     } else if (c === "}" || c === "]") {
@@ -440,7 +431,7 @@ function checkDepth(nodes: readonly Record<string, unknown>[], parent: Int32Arra
 
     while (stack.length > 0) {
         const n = stack.pop() as number;
-        if (depth[n] > GLTF_CAPS.depth) {
+        if (depth[n] > MAX_DEPTH) {
             refuse("E_MODEL_STRUCTURE", { rule: "depth" });
         }
 
@@ -720,6 +711,8 @@ interface MeshTally {
     /** Triangles per mesh, for one use of it. */
     readonly triangles: Float64Array;
     morphTargets: number;
+    /** The most morph targets one primitive has. */
+    mostTargets: number;
     bounds: Bounds | undefined;
 }
 
@@ -795,12 +788,11 @@ function mergeBounds(bounds: Bounds | undefined, accessor: Record<string, unknow
 }
 
 /**
- * Check a primitive's morph targets: within the cap, every accessor index in range.
+ * Check a primitive's morph targets: every accessor index in range.
  * @param targets - The targets.
  * @param accessors - How many accessors the glTF has.
  */
 function checkTargets(targets: readonly unknown[], accessors: number): void {
-    cap("morphTargets", targets.length, GLTF_CAPS.morphTargets);
     for (const target of targets) {
         for (const a of Object.values(isObject(target) ? target : {})) {
             index(a, accessors, "primitive.targets");
@@ -840,6 +832,7 @@ function tallyPrimitive(
     const targets = Array.isArray(primitive.targets) ? primitive.targets : [];
     checkTargets(targets, accessors.length);
     tally.morphTargets += targets.length;
+    tally.mostTargets = Math.max(tally.mostTargets, targets.length);
 
     const counted = indices ?? position;
     const count = counted === undefined ? 0 : (accessors[counted].count as number);
@@ -885,7 +878,12 @@ function tallyMeshes(
     materials: number,
     views: number,
 ): MeshTally {
-    const tally: MeshTally = { triangles: new Float64Array(meshes.length), morphTargets: 0, bounds: undefined };
+    const tally: MeshTally = {
+        triangles: new Float64Array(meshes.length),
+        morphTargets: 0,
+        mostTargets: 0,
+        bounds: undefined,
+    };
     meshes.forEach((mesh, m) => {
         const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
         for (const primitive of primitives) {
@@ -928,7 +926,7 @@ function drawnTriangles(
 }
 
 /**
- * Check every skin: joints within the cap, every index in range.
+ * Check every skin: every index in range.
  * @param skins - The glTF's skins.
  * @param nodes - How many nodes it has.
  * @param accessors - How many accessors.
@@ -936,7 +934,6 @@ function drawnTriangles(
 function checkSkins(skins: readonly Record<string, unknown>[], nodes: number, accessors: number): void {
     for (const skin of skins) {
         const joints = Array.isArray(skin.joints) ? skin.joints : [];
-        cap("joints", joints.length, GLTF_CAPS.joints);
         joints.forEach((j) => index(j, nodes, "skin.joints"));
         index(skin.inverseBindMatrices, accessors, "skin.inverseBindMatrices");
         index(skin.skeleton, nodes, "skin.skeleton");
@@ -1301,14 +1298,22 @@ export function checkGltf(input: GltfInput): GltfChecked {
 
     // Every index the loader follows.
     checkNodes(nodes, meshes.length, skins.length, cameras.length, accessors);
-    const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length, views.length);
+    const { triangles, morphTargets, mostTargets, bounds } = tallyMeshes(
+        meshes,
+        accessors,
+        materials.length,
+        views.length,
+    );
     const drawn = drawnTriangles(reached, nodes, triangles, limits, accessors);
 
-    cap("nodes", nodes.length, GLTF_CAPS.nodes);
-    cap("meshes", meshes.length, GLTF_CAPS.meshes);
-    cap("materials", materials.length, GLTF_CAPS.materials);
-    cap("textures", textures.length, GLTF_CAPS.textures);
-    cap("animations", animations.length, GLTF_CAPS.animations);
+    cap("nodes", nodes.length, limits.maxNodes);
+    cap("meshes", meshes.length, limits.maxMeshes);
+    cap("materials", materials.length, limits.maxMaterials);
+    cap("textures", textures.length, limits.maxTextures);
+    cap("animations", animations.length, limits.maxAnimations);
+    cap("morphTargets", mostTargets, limits.maxMorphTargets);
+    const mostJoints = skins.reduce((most, s) => Math.max(most, Array.isArray(s.joints) ? s.joints.length : 0), 0);
+    cap("joints", mostJoints, limits.maxJoints);
 
     checkSkins(skins, nodes.length, accessors.length);
     checkTextureIndices(textures, materials, images.length, samplers.length);

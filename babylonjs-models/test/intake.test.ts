@@ -254,6 +254,34 @@ describe("fetching a model by URL", () => {
         assert.sameMembers(asked, [`${BASE}cube.gltf`, `${BASE}cube.bin`, `${BASE}cube.png`]);
     });
 
+    it("fetches a glTF whose parts are many and large together, as FlightHelmet's and Sponza's are", async () => {
+        const json = JSON.parse(new TextDecoder().decode(fixture("gltf-textured", "cube.gltf"))) as Record<
+            string,
+            unknown
+        >;
+        // Sponza names 69 pictures beside its .gltf; FlightHelmet's parts come to 46 MB.
+        json.images = Array.from({ length: 70 }, (_, i) => ({ uri: `p${String(i)}.png` }));
+        json.textures = Array.from({ length: 70 }, (_, i) => ({ source: i }));
+        const png = fixture("gltf-textured", "cube.png");
+        const large = new Uint8Array(40 * 1024 * 1024);
+        large.set(png);
+        serve({
+            [`${BASE}scene.gltf`]: { bytes: new TextEncoder().encode(JSON.stringify(json)) },
+            [`${BASE}cube.bin`]: { bytes: fixture("gltf-textured", "cube.bin") },
+            ...Object.fromEntries(
+                Array.from({ length: 70 }, (_, i) => [`${BASE}p${String(i)}.png`, { bytes: i === 0 ? large : png }]),
+            ),
+        });
+        const fetched = await fetchModelSet(new URL(`${BASE}scene.gltf`), DEFAULT_MODEL_LIMITS);
+        assert.strictEqual(fetched.given.size, 72);
+        const checked = await checkModelFiles(fetched.given, { main: fetched.main }, DEFAULT_MODEL_LIMITS);
+        assert.strictEqual(checked.summary.textures, 70);
+        const fewer = await refusal(
+            fetchModelSet(new URL(`${BASE}scene.gltf`), { ...DEFAULT_MODEL_LIMITS, maxFiles: 64 }),
+        );
+        assert.deepInclude(fewer.fact.params, { what: "count", item: "files", limit: 64 });
+    });
+
     it("tries a missing picture in the usual folders, then reports it with the set fetched so far", async () => {
         const asked = serve({
             [`${BASE}cube.gltf`]: { bytes: fixture("gltf-textured", "cube.gltf") },

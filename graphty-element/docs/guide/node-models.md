@@ -732,12 +732,17 @@ code, such as `E_MODEL_DIGEST_MISMATCH` for a file whose bytes were changed.
 
 ## Limits
 
-To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits: 32 MB per
-model, 1,000,000 triangles, 128 MB of decoded pictures (a KTX2 picture counts a quarter of a PNG or JPEG of the same size), and 256 MB held by the session in all,
-among others. Only your page's code can change them; a project file never can:
+To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits. The per-model
+defaults refuse only what a browser tab cannot hold or draw: 1 GB per model (a model fetched by URL
+counts its `.bin` and pictures too), 20,000,000 triangles, 1 GB of decoded pictures (a KTX2 picture
+counts a quarter of a PNG or JPEG of the same size), 10,000 files beside a model fetched by URL, and
+10,000 glTF nodes, materials, textures and animations. The session holds 256 MB in all.
+`params.what` names the limit; for a count it is `"count"`, with `params.item` saying what was
+counted (`"materials"`, `"textures"`, `"nodes"`, ...). Only your page's code can change the limits,
+lower or higher; a project file never can, and `assets.limits()` reads them:
 
 ```ts
-element.session.assets.setLimits({ maxTriangles: 2_000_000 });
+element.session.assets.setLimits({ maxBytes: 64 * 1024 * 1024, maxTriangles: 2_000_000, maxMaterials: 64 });
 ```
 
 ## Problems and their codes

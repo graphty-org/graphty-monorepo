@@ -271,18 +271,37 @@ export interface ModelDefaultsPatch {
     readonly hiddenTextures?: readonly string[];
 }
 
-/** The limits that protect the tab. Only the page's code sets them; a document never does. */
+/**
+ * The limits that protect the tab. Only the page's code sets them; a document never does. The
+ * per-model defaults refuse only what a browser tab cannot hold or draw; lower any to be stricter.
+ */
 export interface ModelLimits {
-    /** Per model file or unzipped set. Default 32 MB. */
+    /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
     /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
     readonly maxTextBytes: number;
-    /** Per model, counted per use. Default 1,000,000. */
+    /** Per model, counted per use. Default 20,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 1 GB. */
     readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 256 MB. */
+    /** What every glTF accessor decodes to, together. Default 1 GB. */
     readonly maxDecodedBytes: number;
+    /** Files a model fetched by URL may load beside its main file. Default 10,000. */
+    readonly maxFiles: number;
+    /** glTF nodes. Default 10,000. */
+    readonly maxNodes: number;
+    /** glTF meshes. Default 1,000. */
+    readonly maxMeshes: number;
+    /** glTF materials. Default 10,000. */
+    readonly maxMaterials: number;
+    /** glTF textures. Default 10,000. */
+    readonly maxTextures: number;
+    /** glTF animations. Default 10,000. */
+    readonly maxAnimations: number;
+    /** Morph targets on one glTF primitive. Default 64. */
+    readonly maxMorphTargets: number;
+    /** Joints in one glTF skin. Default 256. */
+    readonly maxJoints: number;
     /** Pixels per texture side; larger textures are drawn smaller. Default 2048. */
     readonly maxTextureSize: number;
     /** Decoded texture bytes of all models in a scene. Default 256 MB. */
@@ -299,11 +318,19 @@ const MB = 1024 * 1024;
 
 /** The limits a session starts with. */
 export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
-    maxBytes: 32 * MB,
+    maxBytes: 1024 * MB,
     maxTextBytes: 8 * MB,
-    maxTriangles: 1_000_000,
-    maxTextureBytes: 128 * MB,
-    maxDecodedBytes: 256 * MB,
+    maxTriangles: 20_000_000,
+    maxTextureBytes: 1024 * MB,
+    maxDecodedBytes: 1024 * MB,
+    maxFiles: 10_000,
+    maxNodes: 10_000,
+    maxMeshes: 1_000,
+    maxMaterials: 10_000,
+    maxTextures: 10_000,
+    maxAnimations: 10_000,
+    maxMorphTargets: 64,
+    maxJoints: 256,
     maxTextureSize: 2048,
     sceneTextureBytes: 256 * MB,
     sessionBytes: 256 * MB,

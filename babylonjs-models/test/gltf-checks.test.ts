@@ -179,6 +179,27 @@ describe("the glTF checks", () => {
         const textures = await refusalOf(plain, { ...DEFAULT_MODEL_LIMITS, maxTextureBytes: 10 });
         assert.strictEqual(textures.params.what, "textureBytes");
     });
+    it("accept a model with many materials and textures, and refuse it once a page lowers those limits", async () => {
+        // Buggy.glb from the glTF samples has 148 materials; Sponza has 69 textures.
+        const many = cubeWith((json) => {
+            json.materials = Array.from({ length: 148 }, () => ({}));
+            json.textures = Array.from({ length: 70 }, () => ({ source: 0 }));
+        });
+        const checked = await checkModelFiles(many, {}, DEFAULT_MODEL_LIMITS);
+        assert.strictEqual(checked.summary.materials?.length, 148);
+        assert.deepInclude((await refusalOf(many, { ...DEFAULT_MODEL_LIMITS, maxMaterials: 64 })).params, {
+            what: "count",
+            item: "materials",
+            found: 148,
+            limit: 64,
+        });
+        assert.strictEqual(
+            (await refusalOf(many, { ...DEFAULT_MODEL_LIMITS, maxTextures: 64 })).params.item,
+            "textures",
+        );
+        // A Beautiful Game from the glTF samples draws 1,500,224 triangles.
+        assert.isAbove(DEFAULT_MODEL_LIMITS.maxTriangles, 1_500_224);
+    });
 });
 
 describe("withoutGltfPictures", () => {

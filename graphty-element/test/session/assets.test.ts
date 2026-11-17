@@ -268,6 +268,19 @@ describe("session.assets: ids and records", () => {
         assertRejected(await assets.add(binaryStl(2)), "E_MODEL_TOO_LARGE", { what: "bytes" });
     });
 
+    it("draws a model with many materials by default, and refuses it under a page's lower count limit", async () => {
+        const materials = gltfPair(triangleGltf({ materials: Array.from({ length: 148 }, () => ({})) }));
+        assert.strictEqual((await add({ files: materials })).state, "accepted");
+        const assets = createAssetsApi();
+        assets.setLimits({ maxMaterials: 64 });
+        assertRejected(await assets.add({ files: materials }), "E_MODEL_TOO_LARGE", {
+            what: "count",
+            item: "materials",
+            found: 148,
+            limit: 64,
+        });
+    });
+
     it("refuses a bad name with E_BAD_COMMAND", async () => {
         try {
             await add(binaryStl(1), { name: "rack" as `asset:${string}` });
@@ -331,7 +344,7 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
     });
 
-    it("refuses an accessor of 2e8 elements with no buffer view", async () => {
+    it("refuses an accessor of 3e8 elements with no buffer view", async () => {
         assertRejected(await add({ files: accessorBomb() }), "E_MODEL_TOO_LARGE", { what: "decodedBytes" });
     });
 
@@ -346,7 +359,9 @@ describe("session.assets: hostile files, each refused with its code", () => {
     });
 
     it("counts the triangles of a mesh per use, refusing one mesh used by 100,000 nodes", async () => {
-        assertRejected(await add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
+        const strict = createAssetsApi();
+        strict.setLimits({ maxTriangles: 1_000_000, maxNodes: 100_000 });
+        assertRejected(await strict.add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
             what: "triangles",
             limit: 1_000_000,
         });

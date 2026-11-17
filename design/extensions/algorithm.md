@@ -1,6 +1,7 @@
 # Algorithm extension point
 
-Status: draft specification against graphty-element 2.6.1. Shared rules are in `README.md`.
+Status: specification, first written against graphty-element 2.6.1. `defineAlgorithm` shipped in
+graphty-element 3.0.1. Shared rules, and how to read "removed in 4.0", are in `README.md`.
 
 Normative files: `algorithm.d.ts`, `descriptors.schema.json#/$defs/AlgorithmDescriptor`, and this
 document.
@@ -315,7 +316,7 @@ Rules:
    public way to turn an edge row into the element's `Edge.id`: the mapping is internal. The
    deprecated `algorithmGraph()` does not help: it is built over the SIMPLIFIED subgraph with
    `graph.addEdge(source, target, weight)` and never receives an `Edge.id`
-   (`graphty-element/src/algorithms/utils/snapshotGraph.ts`), and the legacy graph holds one edge
+   (`graphty-element/src/algorithms/utils/legacyGraph.ts`), and the legacy graph holds one edge
    per pair, so parallel edges are already merged. The only route that works is the guide's
    `edgeIdsByPair` helper, which reads `this.graph.getSession()` -- forbidden by rule 1 -- and
    which cannot name one of two parallel edges. The parity suite's edge tests use that route too.
@@ -366,9 +367,10 @@ Rules:
 
 `Algorithm.algorithmGraph(mode)` returns a legacy `Graph` object from `@graphty/algorithms`, and
 `./extend` exports its type as `AlgorithmGraphView`. The owner decided on 2026-09-28 to deprecate
-both in a 3.x minor and remove them in graphty-element 4.0, together with `@graphty/algorithms`
-3.0. A new algorithm MUST NOT use them. They cannot supply edge ids either (section 3.1 item 4).
-Until 4.0 they keep working, and a class that uses them is still conforming.
+both in a 3.x minor and remove them later. There are no major releases, so the removal lands in
+an ordinary release that announces it (issue #851). A new algorithm MUST NOT use them. They cannot
+supply edge ids either (section 3.1 item 4). Until that release they keep working, and a class that
+uses them is still conforming.
 
 **Inconsistency to fix:** the published guide's main example
 (`graphty-element/docs/guide/extending/custom-algorithms.md`) still reads its input through
@@ -596,7 +598,7 @@ is not assignable to one from another. Therefore:
    requested sample size and the scope specification -- not from the parameters or the seed -- so re-running with new parameters keeps every saved
    selector working, and renaming a key breaks every saved style that selects on a derived id. A
    style or recipe meant to be reused across runs and networks SHOULD bind to an `as` name.
-5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in 4.0 (section 3.2).
+5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in a later ordinary release (section 3.2).
 
 ## 9. Security
 

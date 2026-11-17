@@ -123,9 +123,8 @@ describe("ToggleWithContent", () => {
             await user.click(screen.getByRole("checkbox"));
 
             // The event is second and optional, so a change made in code is
-            // still expressible as onChange(next). The previous revision called
-            // this handler with the value alone, which left a consumer unable to
-            // read a modifier key or call preventDefault.
+            // still expressible as onChange(next), and a consumer can read a
+            // modifier key or call preventDefault.
             expect(onChange).toHaveBeenCalledTimes(1);
             const [next, event] = onChange.mock.calls[0];
             expect(next).toBe(true);

@@ -190,18 +190,17 @@ describe("the view", () => {
         assert.strictEqual(working.view(), filtered, "a window step leaves the working graph alone");
         assert.strictEqual(working.filtered(), filtered);
         assert.strictEqual(workingViewCounters.builds, 1);
-        // Naming "visible" reads what is visible now, the window included.
-        assert.deepStrictEqual(idsOf(working.view("visible").snapshot), ["a", "b"]);
-        assert.strictEqual(workingViewCounters.builds, 2);
+        // Naming "visible" reads what is visible now, which a window never narrows.
+        assert.deepStrictEqual(idsOf(working.view("visible").snapshot), ["a", "b", "c"]);
 
         harness.add([{ id: "f", type: "host", seen: 2 }], [{ src: "a", dst: "f", strength: 5 }]);
         assert.deepStrictEqual(idsOf(working.view().snapshot), ["a", "b", "c", "f"]);
-        assert.strictEqual(workingViewCounters.builds, 3);
+        assert.strictEqual(workingViewCounters.builds, 2);
 
         await harness.session.visibility.setWindow(null);
         await harness.session.visibility.set(null);
         assert.isTrue(working.view().whole);
-        assert.strictEqual(workingViewCounters.builds, 3);
+        assert.strictEqual(workingViewCounters.builds, 2);
         harness.session.dispose();
     });
 

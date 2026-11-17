@@ -476,22 +476,33 @@ export async function getMedians(query, _who, db, now) {
     const workflows = list(query.get("workflows"));
     if (!workflows.length || workflows.length > 20) refuse(400, "workflows names 1 to 20 workflow files");
     const n = Math.min(Math.max(Number(query.get("n")) || 10, 1), 50);
-    const rows = await all(
+    // Each key's newest n samples, sought through duration_key from the key list duration_last keeps (#5597): a
+    // window over the kind's whole history scanned every master ci.yml row ever stored on each timings job, held the
+    // single-threaded D1 database for seconds, and the reads queued behind it answered HTTP 500. Ties on the start
+    // may seek a few extra rows, which the sort below drops.
+    const found = await all(
         db,
-        `SELECT workflow, job, step, task, ms FROM (SELECT d.*, row_number() OVER
-           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
-           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
-             AND coalesce(conclusion, '') != 'cancelled')
-         WHERE n <= ?`,
+        NEWEST_N,
         query.get("kind") || "full",
-        ...workflows,
+        JSON.stringify(workflows),
         now - 30 * DAY,
-        n,
+        n - 1,
+    );
+    const rows = [...Map.groupBy(found, (r) => JSON.stringify([r.workflow, r.job, r.step, r.task]))].flatMap(([, rs]) =>
+        rs.sort((a, b) => b.started_at - a.started_at).slice(0, n),
     );
     return Object.fromEntries(
         [...Map.groupBy(rows, keyOf)].map(([key, rs]) => [key, median(rs.map((r) => r.ms / 1000))]),
     );
 }
+
+const NEWEST_N = `WITH k AS (SELECT workflow, job, step, task FROM duration_last
+      WHERE kind = ?1 AND workflow IN (SELECT value FROM json_each(?2)) AND started_at >= ?3)
+    SELECT e.workflow, e.job, e.step, e.task, e.ms, e.started_at FROM k CROSS JOIN duration e INDEXED BY duration_key
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.job = k.job AND e.step = k.step AND e.task = k.task
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_key
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.job = k.job AND x.step = k.step AND x.task = k.task
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET ?4), ?3)`;
 
 /**
  * The trend alarms for the keys of one posted run (budgets 1.6): per key within the run's kind, `recent` =

@@ -463,6 +463,36 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         ctx.release(s);
     });
 
+    it("ctx.trace names every batch, submit and resolved readback with its batch index and first level, and a null trace is silent", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(gridEdges(12, 12));
+        const events: { event: string; facts: Readonly<Record<string, unknown>> }[] = [];
+        ctx.trace = (event, facts): void => {
+            events.push({ event, facts });
+        };
+        try {
+            await betweennessWithTuning(ctx, s, undefined, { limits: limitsForK(s.nodeCount, 40) });
+        } finally {
+            ctx.trace = null;
+        }
+        const names = events.map((e) => e.event);
+        expect(names[0]).toBe("betweennessCentrality start");
+        expect(names).toContain("betweennessCentrality kernels compiled");
+        const starts = events.filter((e) => e.event === "betweennessCentrality batch start");
+        expect(starts.map((e) => e.facts.batch)).toEqual([0, 1, 2, 3]);
+        const submits = events.filter((e) => e.event === "betweennessCentrality submit");
+        const resolved = events.filter((e) => e.event === "betweennessCentrality readback resolved");
+        expect(resolved.map((e) => e.facts.id)).toEqual(submits.map((e) => e.facts.id));
+        expect(submits.at(-1)?.facts.stage).toBe("betweennessCentrality/result");
+        expect(submits.some((e) => e.facts.stage === "betweennessCentrality/forward" && e.facts.level === 0)).toBe(
+            true,
+        );
+        const count = events.length;
+        await betweennessCentrality(ctx, s);
+        expect(events.length).toBe(count);
+        ctx.release(s);
+    });
+
     it("the edge cases: the empty graph, one vertex, no sources, dest, onProgress and the signal", async (t) => {
         const ctx = await context(t);
         const empty = await betweennessCentrality(ctx, snapshotOf([], { nodeCount: 0 }));

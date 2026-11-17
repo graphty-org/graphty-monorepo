@@ -54,8 +54,6 @@ interface GraphHome {
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
     readonly session: boolean;
-    /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
-    readonly countsRewrites?: () => boolean;
     /**
      * Whether the rows are drawn on the `"batched"` render path: a forward add then marks its
      * edges dirty as one range key, not one key per edge. Absent reads `false`.
@@ -622,19 +620,9 @@ export class GraphOps {
         return `${String(this.rewritten)}:${String(this.store?.renumberCount ?? 0)}`;
     }
 
-    /**
-     * Whether anything reads {@link GraphOps.rewrites}.
-     * @returns True with the timeline on.
-     */
-    get countsRewrites(): boolean {
-        return this.home.countsRewrites?.() === true;
-    }
-
     /** Count a change that is more than rows added at the end. */
     noteRewrite(): void {
-        if (this.countsRewrites) {
-            this.rewritten++;
-        }
+        this.rewritten++;
     }
 
     /**
@@ -1906,7 +1894,7 @@ class Writer implements GraphWriter {
         }
 
         // A record holding only the id, as a node an edge made is given, puts nothing in the row.
-        if (this.graph.countsRewrites && (prior !== undefined || (merged && Object.keys(record).length > 1))) {
+        if (prior !== undefined || (merged && Object.keys(record).length > 1)) {
             this.graph.noteRewrite();
         }
 

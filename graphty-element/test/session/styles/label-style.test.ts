@@ -17,62 +17,13 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { LabelStyle, Path } from "../../../src/catalog/types";
+import type { LabelStyle } from "../../../src/catalog/types";
 import { NodeStyle } from "../../../src/config";
-import { StylePainter } from "../../../src/managers/StylePainter";
-import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
-import type { SelectorSource } from "../../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
-
-/** One element's columns, keyed by the path a selector or a binding names. */
-type Row = Readonly<Record<Path, unknown>>;
+import { painterHarness, type Row } from "../helpers";
 
 /** Two nodes and one edge: enough for a layer to paint and for a paint to be read back. */
 const NODES: readonly Row[] = [{ "data.id": "alpha" }, { "data.id": "beta" }];
 const EDGES: readonly Row[] = [{ "data.id": "alpha->beta" }];
-
-/** A context that never cancels and reports to nobody. */
-function quietContext(): RepaintContext {
-    return { signal: new AbortController().signal, report: () => undefined };
-}
-
-/** What a test drives: the stack, the engine behind it and the painter over both. */
-interface Harness {
-    readonly styles: SessionStylesApi;
-    readonly engine: RepaintEngine;
-    readonly painter: StylePainter;
-    paintAll(): Promise<void>;
-}
-
-/**
- * A session of two nodes and one edge with a painter bound to it.
- * @returns The harness.
- */
-function harness(): Harness {
-    const elements: SelectorSource = {
-        nodeValue: (index, path) => NODES[index]?.[path],
-        edgeValue: (index, path) => EDGES[index]?.[path],
-    };
-    const engine = createLayerRepaint({
-        nodeCount: () => NODES.length,
-        edgeCount: () => EDGES.length,
-        elements,
-        measured: () => undefined,
-    });
-    const styles = createStylesApi({ elements, base: [], repaint: engine.repaint });
-    const painter = new StylePainter();
-    painter.bind(engine);
-
-    return {
-        styles,
-        engine,
-        painter,
-        paintAll: async (): Promise<void> => {
-            await engine.repaintAll(styles.compiled(), quietContext());
-            painter.markPainted();
-        },
-    };
-}
 
 /**
  * Paint every node with one label style and read the label block back.
@@ -81,7 +32,7 @@ function harness(): Harness {
  * @returns The rich-text block the renderer would be built from.
  */
 async function labelBlock(style: LabelStyle, text = "Label"): Promise<Record<string, unknown>> {
-    const held = harness();
+    const held = painterHarness(NODES, EDGES);
     await held.styles.add({
         name: "label",
         target: "node",
@@ -259,7 +210,7 @@ describe("a layer can switch a label off without taking its words away", () => {
         // The two channels land in one object, and which of them the painter's loop reaches
         // first is the order the resolved columns happen to be in. A label that can only be
         // switched off when the keys arrive in one particular order is switched off by luck.
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
         await held.styles.add({
             name: "words",
             target: "node",
@@ -519,7 +470,7 @@ describe("a badge brings its own appearance", () => {
 
 describe("stacked label styles merge field by field", () => {
     it("keeps the lower layer's size under an upper layer that sets only a colour", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
         await held.styles.add({
             name: "base",
             target: "node",
@@ -561,7 +512,7 @@ describe("stacked label styles merge field by field", () => {
         ["edge", "edge.arrowTailTextStyle"],
     ] as const) {
         it(`merges ${channel} and unmerges it when the upper layer goes`, async () => {
-            const held = harness();
+            const held = painterHarness(NODES, EDGES);
 
             await held.styles.add({
                 name: "base",
@@ -585,7 +536,7 @@ describe("stacked label styles merge field by field", () => {
     }
 
     it("does not let a field set to undefined wipe the lower layer's value", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         await held.styles.add({
             name: "base",

@@ -2861,6 +2861,56 @@ describe("base-check.yml", () => {
         assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
         rmSync(dir, { recursive: true, force: true });
     });
+
+    it("#8363: re-runs only the asking job, only when master failed the same test, only on the newest head", () => {
+        const job = parseYaml(workflow("base-check.yml")).jobs.check;
+        assert.equal(job.permissions.actions, "write");
+        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's job"));
+        assert.match(step.if, /steps\.file\.outcome == 'failure'/);
+        assert.match(step.if, /inputs\.job != ''/);
+        const file = job.steps.find((s) => s.name === "Run the file");
+        assert.equal(file.id, "file");
+        assert.equal(file.env.RESULTS_FAILED_OUT, step.env.MASTER_FAILED, "the step reads what the run wrote");
+        const dir = mkdtempSync(join(tmpdir(), "base-check-rerun-"));
+        const failed = join(dir, "master-failed.jsonl");
+        // gh: the job's head and the pull request's head, then the re-run, which it logs
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/sh\ncase "$*" in\n  *actions/jobs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const sh = (env) =>
+            execFileSync("bash", ["-euo", "pipefail", "-c", step.run], {
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    MASTER_FAILED: failed,
+                    JOB: "55",
+                    PR: "7",
+                    FAILED: JSON.stringify(["d > x"]),
+                    RUN_HEAD: "aaa",
+                    PR_HEAD: "aaa",
+                    ...env,
+                },
+                encoding: "utf8",
+            });
+        const calls = () => (existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "");
+        // no failure recorded (a build error, or exit 2: no shard runs the file), or another test's failure
+        sh({});
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > other" })}\n`);
+        sh({});
+        assert.equal(calls(), "", "master did not fail the same test: nothing re-run");
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > x" })}\n`);
+        sh({ RUN_HEAD: "bbb" });
+        assert.equal(calls(), "", "an older head is not re-run");
+        sh({ JOB: "55; x" });
+        sh({ FAILED: "not json" });
+        assert.equal(calls(), "", "a malformed job id or test list is not used");
+        sh({});
+        assert.equal(calls(), "run rerun --job 55 --repo o/r\n", "only the one job, never --failed");
+        rmSync(dir, { recursive: true, force: true });
+    });
 });
 
 describe("pr-title.yml", () => {
@@ -3355,6 +3405,15 @@ describe("actions/cache in the workflows", () => {
             checked++;
         }
         assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
+    });
+
+    it("fails a stalled git transfer in ci.yml so actions/checkout retries it (#8526)", () => {
+        // git waits forever on an HTTPS transfer that stops delivering bytes; a Test job's checkout sat silent
+        // for its whole 30 minutes and the cancelled job turned the full run's CI lane red (run 43924294024).
+        const env = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).env;
+        assert.ok(Number(env.GIT_HTTP_LOW_SPEED_LIMIT) > 0, "env GIT_HTTP_LOW_SPEED_LIMIT is set");
+        const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
+        assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
     });
 });
 

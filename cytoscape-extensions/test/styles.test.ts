@@ -8,7 +8,7 @@ import cytoscape from "cytoscape";
 import { describe, expect, it, vi } from "vitest";
 
 import graphtyCytoscape from "../src/index";
-import type { ExportFormat } from "../src/io";
+import { applyBypass, type ExportFormat, importElements } from "../src/io";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -228,5 +228,22 @@ describe("graphtyExport with styles", () => {
         expect(quiet).not.toContain("W_STYLES_NOT_EXPORTED");
         cy.destroy();
         plain.destroy();
+    });
+});
+
+describe("applyBypass", () => {
+    it("sets the bypasses importElements returns on the elements cy.add added", async () => {
+        const cy = core({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "ab", source: "a", target: "b" } }],
+        });
+        const text = await cy.graphtyExport("json", { styles: true });
+        const r = await importElements(text, "json", { styles: true });
+        const edge = r.elements.findIndex((d) => d.data.id === "ab");
+        expect(r.bypass?.[edge]).toMatchObject({ "text-valign": "center" });
+        const back = core();
+        applyBypass(back.add(r.elements), r.elements, r.bypass ?? []);
+        expect(back.$id("ab").style("text-valign")).toBe("center");
+        cy.destroy();
+        back.destroy();
     });
 });

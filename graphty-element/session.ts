@@ -211,7 +211,9 @@ export type {
     ValueType,
 } from "./src/session";
 export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
+export type { KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
+export { attachKeymap } from "./src/session";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the

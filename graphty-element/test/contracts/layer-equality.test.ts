@@ -55,7 +55,7 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
 
 /** A new project with a small graph, before anything turns its layers on. */
 async function newProject(): Promise<GraphSession> {
-    const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+    const session = createGraphSession({ runs: { execute: communities } });
     await session.data.addNodes(NODE_IDS.map((id) => ({ id, step: id, ...(id === 1 ? { only: true } : {}) })));
     await session.data.addEdges([
         { source: 1, target: 2, step: 1, only: true },
@@ -115,7 +115,7 @@ const SCENARIOS: readonly { readonly name: string; readonly build: () => Promise
         name: "a saved project opened again",
         build: async () => {
             const { text } = await (await startingRowsOn()).project.save();
-            const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+            const session = createGraphSession({ runs: { execute: communities } });
             await session.project.open(text);
             return session;
         },

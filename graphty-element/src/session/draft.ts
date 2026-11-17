@@ -10,13 +10,12 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection, setReaderSignal, TIMELINE_READERS } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, setReaderSignal } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
 import { readSource as sourceBytes } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
-import { featureOff } from "../features/resolve";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
@@ -64,8 +63,6 @@ type DraftSend = (command: DataImportCommand | BatchCommand) => Promise<unknown>
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
-    /** Whether the timeline experiment is on. */
-    timeline(): boolean;
     /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
     graph(): NonNullable<DataImportCommand["measure"]>;
     /**
@@ -405,7 +402,6 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * @param signal - Abandons the read.
  * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
  *     the share of its text read.
- * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
@@ -413,7 +409,6 @@ export async function readSource(
     source: ImportSource,
     signal?: AbortSignal,
     progress: (rows: number, fraction?: number) => void = () => undefined,
-    timeline = false,
 ): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
@@ -422,9 +417,6 @@ export async function readSource(
         throw unknownFormat(type);
     }
 
-    if (timeline) {
-        TIMELINE_READERS.add(reader);
-    }
     if (signal !== undefined) {
         setReaderSignal(reader, signal);
     }
@@ -640,26 +632,30 @@ function repeatingEnds(
 
 /**
  * The numeric column an edge table's weight is most likely read from, when no header names one:
- * a confidence, score or strength, else the one numeric column it has. With the timeline on, a
- * column that looks like time is no weight: the draft reports it instead.
+ * a confidence, score or strength, else the one numeric column it has. A column that looks like
+ * time is no weight: the draft reports it instead.
  * @param held - The table.
  * @param ends - The source and target columns, which are never the weight.
  * @param config - The data configuration.
- * @param timeline - Whether the timeline is on.
  * @returns The column, or null.
  */
-function guessedWeight(
-    held: HeldTable,
-    ends: readonly string[] | undefined,
-    config: SessionDataConfig,
-    timeline: boolean,
-): string | null {
+function guessedWeight(held: HeldTable, ends: readonly string[] | undefined, config: SessionDataConfig): string | null {
     const numeric = held.table.columns
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
-        .filter((column) => !timeline || timeSpan(held, column, config, "edges") === undefined)
+        .filter((column) => timeSpan(held, column, config, "edges") === undefined)
         .map((column) => column.name);
-    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
-    return named ?? (numeric.length === 1 ? numeric[0] : null);
+    return weightAmong(numeric);
+}
+
+/**
+ * Which of an edge table's number columns is its weight: one named for a strength, else the only
+ * one; null when there are several. The one rule a load and `data.roleCandidate` both read.
+ * @param numbers - The number columns that play no other part.
+ * @returns The column, or null.
+ */
+export function weightAmong(numbers: readonly string[]): string | null {
+    const named = numbers.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
+    return named ?? (numbers.length === 1 ? numbers[0] : null);
 }
 
 /**
@@ -683,7 +679,6 @@ function nearlyUniqueKey(held: HeldTable, values: ReadonlyMap<string, ReadonlySe
  * @param source - The source's options, for the deprecated CSV column aliases.
  * @param config - The data configuration.
  * @param guess - `"values"` also reads the values when no header names the roles.
- * @param timeline - Whether the timeline is on.
  * @returns The table's roles.
  */
 function guessTable(
@@ -692,7 +687,6 @@ function guessTable(
     source: Readonly<Record<string, unknown>>,
     config: SessionDataConfig,
     guess: DraftGuess = "names",
-    timeline = false,
 ): TableMappingRead {
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
     const present = (name: string | null): string | null => (has(name) ? name : null);
@@ -713,7 +707,7 @@ function guessTable(
         return guessNodeRoles(held, idColumn, config, guess, { has, present });
     }
 
-    return guessEdgeRoles(held, pair, config, guess, present, timeline);
+    return guessEdgeRoles(held, pair, config, guess, present);
 }
 
 /** A table's column tests, shared by {@link guessTable}'s helpers. */
@@ -813,7 +807,6 @@ function guessNodeRoles(
  * @param config - The data configuration.
  * @param guess - `"values"` also guesses a weight column.
  * @param present - The name when it is one of the table's columns, else null.
- * @param timeline - Whether the timeline is on.
  * @returns The table's roles.
  */
 function guessEdgeRoles(
@@ -822,13 +815,12 @@ function guessEdgeRoles(
     config: SessionDataConfig,
     guess: DraftGuess,
     present: (name: string | null) => string | null,
-    timeline: boolean,
 ): TableMappingRead {
     const { knownFields } = config;
     const weight =
         present(knownFields.edgeWeightPath) ??
         present("value") ??
-        (guess === "values" ? guessedWeight(held, pair, config, timeline) : null);
+        (guess === "values" ? guessedWeight(held, pair, config) : null);
     return {
         rowsAre: "edges",
         ...(pair === undefined ? {} : { source: { column: pair[0] }, target: { column: pair[1] } }),
@@ -922,12 +914,11 @@ export class Draft implements LoadDraft {
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};
-        const timeline = host.timeline();
-        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess, timeline));
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess));
         if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
             // Both files of a pair read as the same kind: the order they were handed over in decides.
             guesses = read.tables.map((held) =>
-                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess, timeline),
+                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess),
             );
         }
 
@@ -938,7 +929,7 @@ export class Draft implements LoadDraft {
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
                 const own = this.mapping.tables[held.table.id];
-                const found = timeline ? timeFindings(held, roles, config, own.rowsAre) : [];
+                const found = timeFindings(held, roles, config, own.rowsAre);
                 findings.push(...found);
                 const weightCandidate = weightCandidateOf(
                     held,
@@ -1258,7 +1249,7 @@ export class Draft implements LoadDraft {
         const tables: Record<string, TableMappingRead> = { ...this.mapping.tables };
         for (const [id, choice] of Object.entries(given)) {
             const held = this.table(read, id);
-            if (held.table.fixed && !(this.host.timeline() && namesOnlyTime(choice))) {
+            if (held.table.fixed && !namesOnlyTime(choice)) {
                 throw badCommand(`The format sets the roles of table ${JSON.stringify(id)}.`, { table: id });
             }
 
@@ -1266,18 +1257,8 @@ export class Draft implements LoadDraft {
             const base =
                 choice.rowsAre === undefined || choice.rowsAre === guessed.rowsAre
                     ? guessed
-                    : guessTable(
-                          held,
-                          choice.rowsAre,
-                          read.source.config ?? {},
-                          this.host.config(),
-                          this.guess,
-                          this.host.timeline(),
-                      );
+                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config(), this.guess);
             tables[id] = withChoice(held, base, choice);
-            if (!this.host.timeline()) {
-                refuseNewTime(tables[id], base, choice, this.host.config().knownFields);
-            }
         }
 
         return { tables };
@@ -1648,31 +1629,6 @@ function timeFindings(
  */
 function namesOnlyTime(choice: TableMapping): boolean {
     return Object.keys(choice).every((role) => role === "time" || role === "timeUnit");
-}
-
-/**
- * Refuse a time role or unit a choice newly names while the timeline is off. One the configuration
- * already holds passes: a reload's kept mapping repeats it, and a project keeps its time role.
- * @param roles - The table's roles with the choice applied.
- * @param base - Its roles before the choice.
- * @param choice - The reader's choice.
- * @param knownFields - The configuration's fields.
- * @throws `E_FEATURE_OFF` for a new time or time unit.
- */
-function refuseNewTime(
-    roles: TableMappingRead,
-    base: TableMappingRead,
-    choice: TableMapping,
-    knownFields: SessionDataConfig["knownFields"],
-): void {
-    const unit = roles.rowsAre === "nodes" ? knownFields.nodeTimeUnit : knownFields.edgeTimeUnit;
-    if (typeof choice.time === "string" && choice.time !== base.time) {
-        throw featureOff("timeline", "mapping.time");
-    }
-
-    if (typeof choice.timeUnit === "string" && choice.timeUnit !== unit) {
-        throw featureOff("timeline", "mapping.timeUnit");
-    }
 }
 
 /**

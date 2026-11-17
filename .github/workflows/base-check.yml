@@ -10,6 +10,10 @@ name: Base check
 #   quarantine the test, and this run files its priority:critical issue. When all 5 pass, the flake is rare but still a
 #   bug: this run files (or comments on) the priority:critical flaky issue of each test in `tests`, without
 #   quarantining it (#8317).
+# - `[FAIL]` or `[NEW-FLAKY]` of a test whose imports the pull request changed but not the test file itself; repeat 1
+#   or 5. When master fails one of the same tests (`failed`) here, this run re-runs the one job of the pull request's
+#   run that failed it (`job`), whose re-run reads this run's records as master's and passes the failure as `[KNOWN]`
+#   or quarantined (#8363). Such a check carries no `tests`: a touched test's flake is likely the pull request's own.
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
 
 on:
@@ -33,6 +37,15 @@ on:
             tests:
                 description: The flaky tests' names, as a JSON array (optional); a 5-repeat pass files their issues
                 required: false
+            run:
+                description: The pull request's run that asked (optional, a touched test's check only)
+                required: false
+            job:
+                description: The pull request's job that failed the tests in `failed` (optional); re-run when master fails one too
+                required: false
+            failed:
+                description: The touched tests the pull request's job failed, as a JSON array (optional)
+                required: false
 
 permissions:
     contents: read
@@ -54,6 +67,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 40
         permissions:
+            actions: write
             contents: read
             id-token: write
             issues: write
@@ -137,10 +151,13 @@ jobs:
                   } >> "$GITHUB_ENV"
 
             - name: Run the file
+              id: file
               env:
                   FILE: ${{ inputs.file }}
                   VARIANT: ${{ inputs.variant }}
                   REPEAT: ${{ inputs.repeat }}
+                  # the tests master fails, which the re-run step below compares with the pull request's
+                  RESULTS_FAILED_OUT: ${{ runner.temp }}/master-failed.jsonl
               run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"
 
             - name: Tell the pull request that master passes it
@@ -162,3 +179,27 @@ jobs:
                   TESTS: ${{ inputs.tests }}
                   PR: ${{ inputs.pr }}
               run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" file-flaky --variant "$VARIANT" --file "$FILE" --base "$BASE" --tests "$TESTS" --pr "$PR"
+
+            # Master fails one of the very tests the pull request's job failed: the failure is master's, so that one job
+            # runs again and reads this run's records (run-group.mjs refreshPlan) as [KNOWN] or quarantined. Never the
+            # run's other failed jobs (a retry hoping for a pass), and never on a build error, a file no shard runs
+            # (exit 2) or another test's failure. Only while the job is still the pull request's newest head; a job
+            # not yet finished, or refused, is a warning only.
+            - name: Re-run the pull request's job that failed the same test, which now reads master's failure
+              if: ${{ always() && steps.file.outcome == 'failure' && inputs.job != '' && inputs.failed != '' && inputs.pr != '' }}
+              env:
+                  JOB: ${{ inputs.job }}
+                  PR: ${{ inputs.pr }}
+                  FAILED: ${{ inputs.failed }}
+                  MASTER_FAILED: ${{ runner.temp }}/master-failed.jsonl
+              run: |
+                  [[ "$JOB" =~ ^[0-9]+$ && "$PR" =~ ^[0-9]+$ ]] || exit 0
+                  skip() { echo "master did not fail the tests job $JOB failed: not re-run"; exit 0; }
+                  [ -s "$MASTER_FAILED" ] || skip
+                  same="$(jq -rs --argjson asked "$FAILED" 'map(.name) as $m | [$asked[] | . as $a | select(any($m[]; . == $a))] | length' "$MASTER_FAILED")" || skip
+                  [ "$same" -gt 0 ] || skip
+                  ran="$(gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB" --jq .head_sha)" || exit 0
+                  head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha)" || exit 0
+                  [ "$ran" = "$head" ] || { echo "job $JOB is not pull request #$PR's newest head: not re-run"; exit 0; }
+                  gh run rerun --job "$JOB" --repo "$GITHUB_REPOSITORY" \
+                      || echo "::warning::could not re-run job $JOB (not finished, or refused)"

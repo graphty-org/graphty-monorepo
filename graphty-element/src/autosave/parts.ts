@@ -17,7 +17,7 @@
 
 import type { RunId } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
-import { dispatcherOf, sessionRunsOf } from "../session/GraphSession";
+import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
     arrangementMember,
     dataMember,

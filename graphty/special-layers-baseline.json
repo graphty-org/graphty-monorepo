@@ -354,22 +354,6 @@
             "count": 1,
             "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "template-id",
-            "detail": "templateId",
-            "count": 1,
-            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
-            "issue": "#5905"
         }
     ],
     "api": [

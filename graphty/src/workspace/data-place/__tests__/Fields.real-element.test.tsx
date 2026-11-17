@@ -14,16 +14,10 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// The timeline is an experiment: this file's workspaces switch it on.
-beforeAll(async () => {
-    await siteFeatures(["timeline"]);
-});
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
@@ -123,6 +117,17 @@ function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): s
 }
 
 /**
+ * Opens "+"'s item for a kind of entry and picks a column from its submenu, as a reader does: the
+ * pointer rests on the item, which opens the submenu, then clicks the column.
+ * @param kind - the "+" menu's item.
+ * @param column - the column, a menu item of the submenu.
+ */
+async function pickFromSubmenu(kind: string, column: string | RegExp): Promise<void> {
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
+}
+
+/**
  * The value a Fields dropdown shows.
  * @param section - the Fields section.
  * @param name - the dropdown's name.
@@ -147,10 +152,13 @@ function drop(file: File): void {
 /**
  * Opens a project on the Data place and drops a CSV onto it.
  * @param csv - the file's text.
+ * @param store - the chrome store, when the test reads it.
  * @returns the session.
  */
-async function dropCsv(csv: string): Promise<GraphSession> {
-    const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+async function dropCsv(
+    csv: string,
+    store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" }),
+): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await openElement();
     const session = await openBy(store, async () => {
@@ -212,7 +220,12 @@ describe("Data > Fields as a + list on the real element", () => {
         await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
         const section = await fields();
         await userEvent.click(await section.findByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        // A load reads no node weight, so none is obvious: Weight asks for its column.
+        await pickFromSubmenu("Weight", /^count/);
+        await waitFor(() => {
+            assert.equal(shown(section, "Node weight"), "count");
+        });
+        await userEvent.click(section.getByRole("combobox", { name: "Node weight" }));
         await screen.findByRole("option", { name: /^count/ });
         const options = screen.getAllByRole("option");
         assert.deepEqual(
@@ -224,6 +237,89 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.lengthOf(each.querySelectorAll("svg"), 2, `${each.textContent ?? ""} has a glyph`);
         }
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("adds Time on edges from a submenu led by the column read as time, one undo step, and undo takes it away", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const element = await loadSample(store, "Marvel films");
+        const { session } = element;
+        const section = await fields();
+        await waitFor(() => {
+            section.getByRole("button", { name: "Add to edge attributes" });
+        });
+        assert.notInclude(entries(section, "edges"), "time");
+        assert.isNull(session.time.field);
+        const steps = session.history.steps.length;
+
+        const plus = section.getByRole("button", { name: "Add to edge attributes" });
+        await userEvent.click(plus);
+        // Time asks for its column, as Weight does, the one the element reads as time first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        const released = await screen.findByRole("menuitem", { name: /^released/ });
+        const submenu = released.closest<HTMLElement>('[role="menu"]');
+        assert.isNotNull(submenu);
+        assert.strictEqual(within(submenu).getAllByRole("menuitem")[0], released, "best column first");
+        assert.isNull(session.time.field, "nothing while the submenu is open");
+        // Leaving the menu adds nothing.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
+        assert.isNull(session.time.field, "nothing left behind");
+        assert.equal(session.history.steps.length, steps, "no undo step");
+
+        await userEvent.click(plus);
+        await pickFromSubmenu("Time", /^released/);
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+            assert.equal(shown(section, "Edge time"), "released");
+            // Focus is in the new entry's column, its list closed.
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Edge time" }));
+        });
+        assert.isNull(screen.queryByRole("listbox"), "no list left open");
+        assert.equal(session.history.steps.length, steps + 1, "one undo step");
+
+        // Undo, from the keyboard in the new entry's column, takes the entry away again.
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.isNull(session.time.field);
+            assert.notInclude(entries(section, "edges"), "time");
+        });
+    });
+
+    it("offers a submenu for a kind with no obvious column: leaving it adds nothing, a pick adds the entry", async () => {
+        const session = await dropCsv("code,colour\nA,red\nB,blue\nC,green\n");
+        const section = await fields();
+        const plus = await section.findByRole("button", { name: "Add to node attributes" });
+        await waitFor(() => {
+            assert.deepEqual(entries(section, "nodes"), []);
+        });
+
+        await userEvent.click(plus);
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Label" }));
+        await screen.findByRole("menuitem", { name: "colour" });
+        assert.deepEqual(entries(section, "nodes"), [], "no entry while the submenu is open");
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+            assert.strictEqual(document.activeElement, plus);
+        });
+        assert.deepEqual(entries(section, "nodes"), [], "nothing left behind");
+
+        await userEvent.click(plus);
+        await pickFromSubmenu("Label", "colour");
+        await waitFor(() => {
+            assert.deepEqual(entries(section, "nodes"), ["label"]);
+            assert.equal(shown(section, "Node label"), "colour");
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Node label" }));
+        });
+        assert.include(
+            session.data.attributes().find((a) => a.kind === "node" && a.name === "colour")?.roles ?? [],
+            "label",
+        );
     });
 
     it("checks a found location as the column's role in its header's Role menu, as Fields lists it", async () => {
@@ -261,13 +357,12 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.notInclude(entries(section, "nodes"), "time");
 
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        // Picking the kind opens its column list.
-        await userEvent.click(await screen.findByRole("option", { name: "year" }));
+        await pickFromSubmenu("Time", /^year/);
         await waitFor(() => {
             assert.equal(element.session.time.field?.nodes?.start, "year");
             assert.equal(shown(section, "Node time"), "year");
         });
+        assert.isNull(screen.queryByRole("listbox"), "no list left open");
 
         await userEvent.click(section.getByRole("button", { name: "Remove node time" }));
         await waitFor(() => {
@@ -298,6 +393,19 @@ describe("Data > Fields as a + list on the real element", () => {
         second.unmount();
     });
 
+    it("drops the wait to focus an entry the element refuses, so the row never grabs focus later", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        await dropCsv("code,colour\nA,red\nB,blue\nC,green\n", store);
+        const section = await fields();
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
+        await pickFromSubmenu("Time", /^colour/);
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "colour has no times");
+        });
+        assert.isNull(store.get().fieldsEntry);
+        assert.notInclude(entries(section, "nodes"), "time");
+    });
+
     it("makes a text column of dates a date column when it is set as the time", async () => {
         const session = await dropCsv("id,opened\nA,2015-03-02\nB,2017-06-14\nC,2016-09-01\n");
         const typeOf = (): string | undefined =>
@@ -305,8 +413,7 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(typeOf(), "string", "the days load as text");
         const section = await fields();
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^opened/ }));
+        await pickFromSubmenu("Time", /^opened/);
         await waitFor(() => {
             assert.equal(session.time.field?.nodes?.start, "opened");
             // The column's kind and the timeline say the same thing: dates.
@@ -358,20 +465,20 @@ describe("Data > Fields as a + list on the real element", () => {
         );
         assert.notInclude(items, "Location");
 
-        // Picking City opens its column list with focus in it; picking the column designates it.
-        await userEvent.click(screen.getByRole("menuitem", { name: "City" }));
-        await userEvent.click(await screen.findByRole("option", { name: "place" }));
+        // No column is an obvious city: City opens a submenu of the columns, and picking one adds
+        // the entry with it, focus in its column.
+        await pickFromSubmenu("City", "place");
         await waitFor(() => {
             assert.equal(session.config.data.knownFields.nodeCityPath, "place");
             assert.deepInclude(session.layout.locationColumns(), { from: "designated", using: "city", role: "city" });
             assert.equal(shown(section, "Node city column"), "place");
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Node city column" }));
         });
 
         // A Country listed beside it narrows the city: no "Within" control.
         await userEvent.click(plus);
         assert.isNull(screen.queryByRole("menuitem", { name: "City" }), "a kind listed is not offered again");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Country" }));
-        await userEvent.click(await screen.findByRole("option", { name: "land" }));
+        await pickFromSubmenu("Country", "land");
         await waitFor(() => {
             assert.deepInclude(session.layout.locationColumns(), {
                 kinds: { city: "place", country: "land" },
@@ -382,20 +489,21 @@ describe("Data > Fields as a + list on the real element", () => {
         });
         assert.isNull(section.queryByRole("combobox", { name: /read as|place type|within/i }));
 
-        // Closing a new entry's list with no pick drops it and puts focus back on "+".
+        // Leaving a submenu with no pick adds nothing, and focus goes back to "+".
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Region" }));
-        await screen.findByRole("option", { name: "north" });
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Region" }));
+        await screen.findByRole("menuitem", { name: "north" });
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.notInclude(entries(section, "nodes"), "region");
+            assert.isNull(screen.queryByRole("menu"));
+            assert.deepEqual(entries(section, "nodes"), ["country", "city"]);
             assert.strictEqual(document.activeElement, plus);
         });
 
         // Half a pair is listed, but the city is what is read: the latitude says so, not only by dimming.
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Latitude" }));
-        await userEvent.click(await screen.findByRole("option", { name: "north" }));
+        await pickFromSubmenu("Latitude", "north");
         await waitFor(() => {
             const latitude = section.getByRole("combobox", { name: "Node latitude column" });
             assert.equal((latitude as HTMLInputElement).value, "north");

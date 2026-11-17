@@ -102,3 +102,30 @@ it("a replacing import and its undo leave no torn-down edge in a static layout",
     await queue.waitForCompletion();
     assertHeld(graph, 0, "its redo");
 });
+
+it("a static layout lets go of its publish scratch and its computed answer once it has published", async () => {
+    for (const path of ["objects", "batched"] as const) {
+        graph = await createTestGraph();
+        graph.setRenderPath(path);
+        const session = graph.getSession();
+        await session.data.addNodes(
+            Array.from({ length: NODES }, (_, at) => ({ id: at, position: { x: at, y: at % 7, z: 0 } })),
+        );
+        await graph.setLayout("fixed", { dim: 2 });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert(engine instanceof StaticLayoutEngine, "the fixed layout is a static layout");
+        assert.strictEqual(graph.getNodeCount(), NODES);
+        // Published: the scratch (a double per row and three per coordinate) and the answer as
+        // computed would otherwise stay for the life of the graph.
+        assert.deepEqual(simpleLayoutInternals.publishHeld(engine), { scratch: 0, result: false }, path);
+        // And the published positions are still what the layout gave.
+        const node = graph.getNodes().find((each) => each.id === 5);
+        assert.isDefined(node, path);
+        const { x, y } = node.getPosition();
+        assert.deepEqual([x / 5, y / 5], [1, 1], `node 5 sits where the layout put it, scaled alike: ${path}`);
+        cleanupTestGraph(graph);
+        graph = null;
+    }
+});

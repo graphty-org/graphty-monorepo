@@ -14,7 +14,7 @@ import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
@@ -60,7 +60,7 @@ function drop(...files: File[]): void {
  * section beside the table.
  * @returns the queries.
  */
-const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
+const place = (): Within => within(screen.getByRole("region", { name: "Data place" }));
 
 /**
  * The Data place's Fields: each load's section, on the Sources tab.
@@ -523,7 +523,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
-        const main = row.querySelector(".dp-source-main") as HTMLElement | null;
+        const main = row.querySelector<HTMLElement>(".dp-source-main");
         assert.isNotNull(main);
         await userEvent.dblClick(main);
         const input = await screen.findByRole("textbox", { name: "Source name" });
@@ -535,9 +535,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        (place().getByRole("listitem", { name: "auth-log.csv" }) as HTMLElement)
-            .querySelector<HTMLElement>(".dp-source-main")
-            ?.focus();
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
         await userEvent.keyboard("{F2}");
         const again = await screen.findByRole("textbox", { name: "Source name" });
         await userEvent.clear(again);

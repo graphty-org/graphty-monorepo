@@ -349,8 +349,9 @@ export class AlgorithmManager implements Manager {
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (options && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(options);
+            const legacy = alg as typeof alg & { configure?: (options: object) => void };
+            if (options && typeof legacy.configure === "function") {
+                legacy.configure(options);
             }
 
             await alg.run(facade);

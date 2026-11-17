@@ -14,7 +14,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -77,7 +77,7 @@ async function open(
  * The Data place.
  * @returns queries inside it.
  */
-function dataPlace(): ReturnType<typeof within> {
+function dataPlace(): Within {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 
@@ -108,7 +108,7 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
  * Opens the timeline's settings from the dock's settings button, opening the dock first.
  * @returns queries inside the settings.
  */
-async function timeCard(): Promise<ReturnType<typeof within>> {
+async function timeCard(): Promise<Within> {
     if (screen.queryByTestId("time-card") === null) {
         const dock = await openDock();
         await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));

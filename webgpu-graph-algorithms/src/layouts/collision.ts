@@ -1,7 +1,7 @@
 /**
  * The collision force (issue #3256; `LayoutSimulation.setCollision`): the stage every force model runs after its
  * integrate. One sweep hashes the nodes into cells one largest diameter wide (`collide-cell-key`), sorts them by that
- * bucket with the stable radix sort and counts the buckets, as the grid tier does (spec 7.7 G2-G3), then every free
+ * bucket with the stable radix sort and counts the buckets, as the grid tier does (G2-G3), then every free
  * node sums its pushes (`collide-gather`) and takes them (`collide-apply`). Its own buffers, so it never touches the
  * grid tier's, and the sort is always the stable one, so two runs are bitwise equal whatever `deterministic` says.
  *

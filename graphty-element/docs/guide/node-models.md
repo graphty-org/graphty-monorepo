@@ -297,7 +297,8 @@ style layer.
 A file handed over by mistake (the wrong picture, an `.mtl` the reader does not want) comes back
 out with `assets.dropPart(ref, name)`: the model is read again from its other files, so that part
 is missing again, and asked for or drawn without as any missing part. A model still waiting keeps
-its id; an accepted one gives a new record, and the model as it was stays until you `remove` it.
+its id; an accepted one gives a new record, and the model as it was stays until you `remove` it
+(by its id or by the address it was loaded from: either lets go of it under every name).
 The model's own file cannot be dropped (`E_BAD_COMMAND`):
 
 ```ts

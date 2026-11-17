@@ -661,6 +661,29 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
         }
     });
 
+    it("lets go of a model by its address, with the digest id it was held under once accepted", async () => {
+        const base = "https://models.example.com/drop/";
+        stubSite({
+            [`${base}quad.obj`]: { body: utf8(quad) },
+            [`${base}quad.mtl`]: { body: utf8("newmtl m\nmap_Kd wood.png\n") },
+            [`${base}wood.png`]: { body: PNG_1X1 },
+        });
+        try {
+            const api = createAssetsApi();
+            const record = await api.ready(`${base}quad.obj`);
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            api.remove(`${base}quad.obj`);
+            assert.isUndefined(api.find(record.id), "not held under its id");
+            assert.isUndefined(api.find(`${base}quad.obj`), "nor under its address");
+            assert.notInclude(
+                api.list().map((r) => r.id),
+                record.id,
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("reports two files that match, and guesses neither", async () => {
         const record = await add({
             files: objNaming("Wood.png", { "a/wood.png": PNG_1X1, "b/wood.png": PNG_1X1 }),

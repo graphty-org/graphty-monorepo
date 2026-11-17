@@ -390,6 +390,7 @@ export interface AssetsApi {
     inspect(id: AssetId): ModelSummary;
     /**
      * Remove an asset, or let go of a model held for `supply`. Nothing happens for an unknown ref.
+     * A model named by its URL goes under every name it is held by, its id among them.
      * @param id - The id, or the URL a layer named.
      */
     remove(id: string): void;
@@ -2333,9 +2334,11 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         remove(id) {
             // Also a URL or a provisional id, so a model held for supply can be let go.
             const entry = findEntry(id);
+            // A model by address, once accepted, is also held under its digest id: that goes too.
+            const ids = new Set([id, entry?.record.id]);
             for (const map of [entries, urls]) {
                 for (const [key, each] of map) {
-                    if (each === entry || each.record.id === id) {
+                    if (each === entry || ids.has(each.record.id)) {
                         map.delete(key);
                     }
                 }

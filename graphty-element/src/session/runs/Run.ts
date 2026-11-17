@@ -26,6 +26,7 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import { englishPartialReason } from "../english";
 import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
@@ -283,11 +284,6 @@ export interface RunSurroundings {
      */
     queuePosition(): number | null;
     /**
-     * Whether the timeline experiment is on; absent reads on.
-     * @returns True when it is on.
-     */
-    timeline?(): boolean;
-    /**
      * Why this run's numbers no longer describe what is on screen.
      * @returns The note, or null when they still do.
      */
@@ -430,7 +426,7 @@ function nowMs(): number {
  * @param error - The thrown value.
  * @returns True when it is an `AbortError` or a `TimeoutError`.
  */
-function isAbortLike(error: unknown): error is Error {
+export function isAbortLike(error: unknown): error is Error {
     return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
@@ -779,7 +775,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The caveats.
      */
     get caveats(): Caveats {
-        return this.windowForReaders(this.savedCaveats);
+        return this.savedCaveats;
     }
 
     /**
@@ -788,21 +784,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     private get savedCaveats(): Caveats {
         return this.heldRecord()?.caveats ?? this.caveatsValue;
-    }
-
-    /**
-     * Caveats as a reader gets them: a saved run keeps its window with the timeline off, which
-     * then has no unit to read it in, so only the project file holds it.
-     * @param caveats - The caveats.
-     * @returns The caveats, without the window while the timeline is off.
-     */
-    private windowForReaders(caveats: Caveats): Caveats {
-        if (caveats.window === undefined || this.surroundings.timeline?.() !== false) {
-            return caveats;
-        }
-
-        const { window: _kept, ...rest } = caveats;
-        return rest;
     }
 
     /**
@@ -875,9 +856,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The record.
      */
     get record(): RunRecord {
-        const record = this.savedRecord;
-        const caveats = this.windowForReaders(record.caveats);
-        return caveats === record.caveats ? record : Object.freeze({ ...record, caveats });
+        return this.savedRecord;
     }
 
     /**
@@ -1140,6 +1119,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
+        algorithmLog.info("run started", { algorithm: this.algorithm, id: this.id });
         this.surroundings.notify?.("start");
         this.report({ phase: "running", completed: 0 });
 
@@ -1520,6 +1500,13 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param action - Resolve or reject.
      */
     private settle(action: () => void): void {
+        algorithmLog.info(`run ${this.statusValue}`, {
+            algorithm: this.algorithm,
+            id: this.id,
+            ms: this.durationValue,
+            partial: this.partialValue,
+            ...(this.errorValue === undefined ? {} : { code: this.errorValue.code, message: this.errorValue.message }),
+        });
         this.settledFlag = true;
         this.clearTimeBox();
         this.detachSignal?.();

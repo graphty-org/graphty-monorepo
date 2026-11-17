@@ -291,7 +291,7 @@ describe("GradientEditor", () => {
         });
     });
 
-    // Contract 1.3: a drag reports a start and an end as well as its steps, so
+    // A drag reports a start and an end as well as its steps, so
     // a consumer can open one undo transaction around the whole gesture
     // instead of getting one entry per step.
     describe("drag boundaries", () => {

@@ -55,7 +55,7 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
 
 /** A new project with a small graph, before anything turns its layers on. */
 async function newProject(): Promise<GraphSession> {
-    const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+    const session = createGraphSession({ runs: { execute: communities } });
     await session.data.addNodes(NODE_IDS.map((id) => ({ id, step: id, ...(id === 1 ? { only: true } : {}) })));
     await session.data.addEdges([
         { source: 1, target: 2, step: 1, only: true },
@@ -115,7 +115,7 @@ const SCENARIOS: readonly { readonly name: string; readonly build: () => Promise
         name: "a saved project opened again",
         build: async () => {
             const { text } = await (await startingRowsOn()).project.save();
-            const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+            const session = createGraphSession({ runs: { execute: communities } });
             await session.project.open(text);
             return session;
         },
@@ -311,6 +311,22 @@ async function attempt(
     operation: Operation,
 ): Promise<{ operation: string; why: string } | undefined> {
     const session = await withCallerLayers(build);
+    try {
+        return await tryAndUndo(session, at, operation);
+    } finally {
+        session.dispose();
+    }
+}
+
+/**
+ * Runs one operation on one layer, then undoes it.
+ * @returns What went wrong, or nothing.
+ */
+async function tryAndUndo(
+    session: GraphSession,
+    at: number,
+    operation: Operation,
+): Promise<{ operation: string; why: string } | undefined> {
     const layer = session.styles.list()[at];
     const before = snapshot(session);
     const steps = session.history.position;
@@ -357,7 +373,9 @@ describe("every layer takes every operation", () => {
         const failures = new Map<string, string>();
         const visited = new Set<string>();
         for (const scenario of SCENARIOS) {
-            const layers = (await withCallerLayers(scenario.build)).styles.list();
+            const listing = await withCallerLayers(scenario.build);
+            const layers = listing.styles.list();
+            listing.dispose();
             for (const [at, layer] of layers.entries()) {
                 visited.add(keyOf(layer));
                 for (const operation of OPERATIONS) {

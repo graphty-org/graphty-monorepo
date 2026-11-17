@@ -152,7 +152,7 @@ export class NodeBillboardBatch {
             noteBloomMesh(scene, this.mesh);
         }
 
-        this.ready = this.compiled(); // NOSONAR(S7059): compiling starts with the batch, read at once
+        this.ready = this.compiled(); // eslint-disable-line sonarjs/no-async-constructor -- compiling starts with the batch, read at once
 
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();

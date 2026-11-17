@@ -24,7 +24,13 @@ export * as indexed from "./indexed/index.js";
 export { mulberry32 } from "./utils/math-utilities.js";
 
 // Errors the algorithms throw.
-export { type AlgorithmErrorCode, ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
+export {
+    type AlgorithmErrorCode,
+    ConvergenceError,
+    PathCountOverflowError,
+    PathWalkError,
+    type SeedOptions,
+} from "./errors.js";
 
 // General-purpose data structures.
 export * from "./data-structures/index.js";

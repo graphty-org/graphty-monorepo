@@ -30,12 +30,16 @@ const GITHUB_REFUSED = /Request failed with status code (403|429)|rate limit exc
 export const NOT_CHECKED = 3;
 
 /**
- * nx's error line: the last non-blank line of a failed run's output, skipping nx's "--verbose" hint.
+ * nx's error line: the last non-blank line of a failed run's output, colors removed, skipping nx's
+ * "--verbose" hint and the dry-run NOTE nx prints after the error.
  * @param output - the run's stdout and stderr
  * @returns the line, or ""
  */
 function errorLine(output) {
-    const lines = output.split("\n").filter((l) => l.trim() && !/--verbose/.test(l));
+    const lines = output
+        .replaceAll(new RegExp(String.raw`${String.fromCodePoint(27)}\[[0-9;]*m`, "g"), "")
+        .split("\n")
+        .filter((l) => l.trim() && !/--verbose|"dryRun" flag means no changes/.test(l));
     return lines.at(-1) ?? "";
 }
 

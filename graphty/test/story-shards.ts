@@ -80,9 +80,10 @@ export const FILE_SECONDS = 15;
 export const TEST_SECONDS = 3.2;
 
 /**
- * Each real-element file's measured seconds on a CI runner, loading included: the median of four full runs'
- * graphty-N logs (release.yml runs 42921328419, 42942000609, 42966344736 and 42996342490), written by
- * real-element-seconds.mjs. The test count below missed by up to 130 s a file (Timeline 26 tests, 98 s counted,
+ * Each real-element file's measured seconds on a CI runner, loading included: the median of the graphty-N logs of
+ * full runs 43878423145 (all ten parts) and 43861444283 (parts 2, 4 and 6), written by real-element-seconds.mjs
+ * (2026-11-16). The table it replaced, from the six-part runs of 2026-11-10 and 11, planned 661 s a part while the
+ * parts ran 401 to 954 s, and lacked ModelFormats (64 tests from one it.each, counted as one: 212 s run) (#6620). The test count below missed by up to 130 s a file (Timeline 26 tests, 98 s counted,
  * 225 s run) and gave one part 1,440 s while another had 1,010 s (issue #6620).
  * ponytail: refreshed by hand; when a graphty-N part drifts more than about 100 s from the others, run
  * real-element-seconds.mjs on the newest full runs' graphty-N logs.

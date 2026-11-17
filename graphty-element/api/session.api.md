@@ -240,6 +240,9 @@ export type AssetState = "pending" | "accepted" | "rejected";
 export type AssetStorage = "embed" | "url";
 
 // @public
+export function attachKeymap(session: KeymapSession, root: KeymapRoot): () => void;
+
+// @public
 export interface AttributeDescriptor {
     completeness: number;
     hidden?: boolean;
@@ -3364,6 +3367,12 @@ export interface JournalEntry {
 
 // @public
 export type JournalId = string;
+
+// @public
+export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventListener">;
+
+// @public
+export type KeymapSession = Pick<GraphSession, "selection" | "canUndo" | "canRedo" | "undo" | "redo">;
 
 // @public
 export interface Layer {

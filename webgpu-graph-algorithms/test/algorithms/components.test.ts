@@ -5,10 +5,7 @@
  * bitwise repeatability, and the run options as `degree` honours them.
  */
 
-import { type TestContext } from "vitest";
-
 import { connectedComponents } from "../../src/algorithms/components.js";
-import { type GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
 import { GraphResidency } from "../../src/memory/residency.js";
 import { type GpuLabelResult } from "../../src/types/algorithms.js";
@@ -17,7 +14,7 @@ import { withResidency } from "../helpers/degree-check.js";
 import { type EdgeSpec, fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { componentsOracle, partitionEquals } from "../oracle/components.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 /** Awaits a rejection and asserts its code; returns the error for detail assertions. */
 async function expectRejection(promise: Promise<unknown>, code: string): Promise<WebGpuGraphError> {
@@ -75,14 +72,7 @@ describe("componentsOracle / partitionEquals (pure)", () => {
 });
 
 describe("connectedComponents (GPU, spec 8.3 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "components" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "components" });
 
     for (const name of FIXTURE_NAMES) {
         it(`labels are identical to the oracle's on ${name}`, async (t) => {

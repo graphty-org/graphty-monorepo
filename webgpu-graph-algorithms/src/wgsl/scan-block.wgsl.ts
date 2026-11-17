@@ -1,8 +1,8 @@
 /**
- * The `scan-block` kernel body (spec 6 row 2; P4-T2): an exclusive prefix sum of one WG-wide block of `src` in
+ * The `scan-block` kernel body: an exclusive prefix sum of one WG-wide block of `src` in
  * workgroup memory (Hillis-Steele, log2(WG) rounds of two barriers each, every lane in uniform control flow) into
  * `out`, and the block's inclusive total into `blockSums[group]`. u32 addition is exact in any order, so the
- * output is bitwise the same on every adapter (PD-3). Body only (spec 3.5, D9); normative text.
+ * output is bitwise the same on every adapter. Body only; normative text.
  */
 export const scanBlockWgsl = /* wgsl */ `
 var<workgroup> sh: array<u32, WG>;

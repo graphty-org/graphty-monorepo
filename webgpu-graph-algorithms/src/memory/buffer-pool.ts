@@ -1,11 +1,13 @@
 /**
- * Size-class pool of GPUBuffers by usage (spec 4.4): a request rounds up to a class (powers of two from 4 KiB to
+ * Size-class pool of GPUBuffers by usage: a request rounds up to a class (powers of two from 4 KiB to
  * 64 MiB, then 16 MiB steps), an idle buffer of that (class, usage) is reused, otherwise one is created through the
- * context's AllocationTracker (so the OOM scope of spec 5.7 and the resident accounting are shared with the
+ * context's AllocationTracker (so the out-of-memory scope and the resident accounting are shared with the
  * residency); `release` keeps at most maxIdlePerClass idle buffers per (class, usage); `trim` destroys the idle
- * ones (ctx.release and layouts on dispose); `destroyAll` everything (ctx.dispose). The Lease scope object arrives
- * with P2-T1 (`lease()`, PLAN DECISION 1). Classes above maxBufferSize are never created: a request that fits the
- * device but whose class overshoots gets the capped class (PLAN DECISION 14).
+ * ones (ctx.release and layouts on dispose); `destroyAll` everything (ctx.dispose); `lease()` hands out the Lease
+ * scope object. Classes above maxBufferSize are never created: a request that fits the device but whose class
+ * overshoots gets the capped class.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "4.4 BufferPool, Lease and Readback".
  */
 
 import {
@@ -35,7 +37,7 @@ function classKey(sizeClass: number, usage: number): string {
     return `${sizeClass}:${usage}`;
 }
 
-/** Size-class pool of GPUBuffers by usage (spec 4.4). */
+/** Size-class pool of GPUBuffers by usage. */
 export class BufferPool {
     /**
      * Test seam (issue #95): when true, a RECYCLED buffer whose usage includes COPY_DST is filled with 0xFF bytes
@@ -197,7 +199,7 @@ export class BufferPool {
     }
 
     /**
-     * A scope object that releases everything acquired through it (spec 4.4, P2).
+     * A scope object that releases everything acquired through it.
      * @returns a fresh lease over this pool
      */
     lease(): Lease {

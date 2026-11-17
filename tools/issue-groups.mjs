@@ -9,11 +9,12 @@
 //
 //   seed <file> [--force]                  load a ledger file (the first ledger, or a rebuilt one)
 //   show [<group>|<issue>] [--json]        one group, the group holding an issue, or the summary line
-//   create <lead> [<n>:<test>...] --why <reason> [--files <path>...]
-//                                          a proposed group; tests are T1, T1-fold, T2, T3, T4, T5
-//   add <group> <n> --test <T#> [--why <reason>]
+//   create <lead> [<n>:<test>[:<with>]...] --why <reason> [--files <path>...] [--class docs|tests|source]
+//                                          a proposed group; tests are T1, T1-fold, T2, T3, T4, T5, T6; <with> is
+//                                          the member the test holds against (the lead when left out)
+//   add <group> <n> --test <T#> [--with <n>] [--class <c>] [--why <reason>]
 //                                          a member for a proposed group, or a join to a ready branch (2 at most)
-//   route <n> [--to <group> --test <T#>] [--why <reason>]
+//   route <n> [--to <group> --test <T#> [--with <n>]] [--class <c>] [--why <reason>]
 //                                          puts an issue where the target's state says: in it, waiting on it, in
 //                                          its follow-up group, or in a new group of its own
 //   import-scan [<free-queue.json>]        replaces the proposed groups with the free-queue scan's jobs
@@ -24,6 +25,9 @@
 //   compact                                archive, plus drops stale proposals, settled waits and old history
 //   check [--fix] [--json]                 drift against GitHub: markers, labels, pull request states
 //   jobs [--json]                          the jobs to start, from the ledger (issue-queue.mjs jobs while empty)
+//   combine-plan [--link <a>:<b>:<T#>...] [--json]
+//                                          families of ready, unopened branches that may be merged into one new
+//                                          branch from master and opened as one pull request
 //   metrics [--append] [--json]            throughput and guardrails over the last 7 days
 //
 // Exit codes: 0 done, 1 refused (the reason is printed), 2 usage, 3 the ledger is busy (run it again).
@@ -47,8 +51,17 @@ import { fetchOpen, queue, trustedText } from "./issue-queue.mjs";
 const REPO = "graphty-org/graphty-monorepo";
 const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
 
+// The cap of a source group; docs and tests groups carry more (CAPS). Provisional: no measurement of first-run
+// failure rates per class existed when they were set (design/ci/issue-grouping.md section 1, "Size cap").
 export const MAX_ISSUES = 4;
 export const MAX_POINTS = 6;
+/** Risk classes, least risky first. A group's class is its riskiest member's. */
+export const CLASSES = ["docs", "tests", "source"];
+export const CAPS = {
+    docs: { issues: 10, points: Infinity },
+    tests: { issues: 8, points: 12 },
+    source: { issues: MAX_ISSUES, points: MAX_POINTS },
+};
 export const MAX_JOINS = 2;
 const HOUR = 3_600_000;
 const ARCHIVE_AFTER_MS = 7 * 24 * HOUR;
@@ -57,8 +70,9 @@ const SCAN_STALE_MS = 2 * HOUR;
 const WAIT_LIMIT_MS = 24 * HOUR;
 const RED_PR_IDLE_MS = 6 * HOUR;
 const HISTORY_KEEP = 30;
+const CLASS_GUARD_MIN = 10;
 const POINTS = { low: 1, medium: 2, high: 3 };
-const TESTS = ["T1", "T1-fold", "T2", "T3", "T4", "T5"];
+const TESTS = ["T1", "T1-fold", "T2", "T3", "T4", "T5", "T6"];
 const LIVE = new Set(["proposed", "started", "ready", "frozen"]);
 // Labels that keep an issue out of every group (rubric X3 owner-only, X7 tracker).
 const OWNER_LABELS = ["needs-decision", "hold", "blocked", "ux-owner"];
@@ -184,11 +198,53 @@ export function size(group) {
     };
 }
 
+// Docs: Markdown, READMEs and non-code files under design/. Tests: test files, fixtures and test helpers. Always
+// source: the rounds' own instructions (.claude/, CLAUDE.md) and code under design/. A change to doc or code comments
+// inside a source file reads as source from its path; the scan declares it with `class`.
+const SOURCE_FILE = /^\.claude\/|(^|\/)CLAUDE(\.local)?\.md$|^design\/.*\.([cm]?[jt]sx?|sh|py)$/i;
+const DOC_FILE = /\.md$|^design\/|(^|\/)README[^/]*$/i;
+const TEST_FILE =
+    /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test|tests|__tests__|fixtures?)\/|(^|\/)test-?helpers?([./-]|$)/i;
+
+const fileClass = (f) => {
+    if (TEST_FILE.test(f)) return "tests";
+    if (SOURCE_FILE.test(f)) return "source";
+    return DOC_FILE.test(f) ? "docs" : "source";
+};
+
+/**
+ * The risk class of a change from the files it touches: docs, tests or source (no files reads as source).
+ * @param files paths
+ * @returns the class
+ */
+export function classOf(files) {
+    return files?.length ? riskiest(files.map((f) => fileClass(f))) : "source";
+}
+
+// An unknown class reads as source, the strictest.
+const riskiest = (classes) =>
+    CLASSES[Math.max(0, ...classes.map((c) => (CLASSES.includes(c) ? CLASSES.indexOf(c) : CLASSES.length - 1)))];
+
+/**
+ * A group's risk class: its riskiest member's (a member with no class of its own reads its group's files).
+ * @param group a group
+ * @returns docs, tests or source
+ */
+export function groupClass(group) {
+    const members = group.members.filter((m) => counted(m));
+    return members.length ? riskiest(members.map((m) => m.cls ?? classOf(group.files))) : "source";
+}
+
 const fitsWith = (group, member) => {
     const { issues, points } = size(group);
     const extra = member.test === "T1-fold" ? 0 : member.points;
-    if (issues + 1 > MAX_ISSUES) return `full: ${issues} issues already (cap ${MAX_ISSUES})`;
-    if (points + extra > MAX_POINTS) return `full: ${points} + ${extra} effort points (cap ${MAX_POINTS})`;
+    const cls = riskiest([groupClass(group), member.cls ?? classOf(group.files)]);
+    if (cls === "source" && [...group.members, member].some((m) => m.test === "T6")) {
+        return `not docs or tests: T6 holds only between docs or tests changes, and the group would be source`;
+    }
+    const cap = CAPS[cls];
+    if (issues + 1 > cap.issues) return `full: ${issues} issues already (${cls} cap ${cap.issues})`;
+    if (points + extra > cap.points) return `full: ${points} + ${extra} effort points (${cls} cap ${cap.points})`;
     return null;
 };
 
@@ -268,34 +324,45 @@ const checkTest = (test) => {
     if (!TESTS.includes(test)) throw new Refused(`test must be one of ${TESTS.join(", ")} (got ${test ?? "none"})`);
 };
 
+const checkClass = (cls) => {
+    if (cls != null && !CLASSES.includes(cls)) throw new Refused(`class must be one of ${CLASSES.join(", ")}`);
+};
+
 /**
- * A member record from GitHub facts.
+ * A member record from GitHub facts. Each member keeps its own reason: its test, the member it holds against
+ * (`with`) and its own words (`why`), never the group's summary.
  * @param n the issue
  * @param test its rubric test, or "lead"
  * @param facts `{ labels }`
+ * @param own `{ with, cls, why }`; with no `cls`, the member takes its group's class from the group's files
  * @returns the member
  */
-const memberOf = (n, test, facts) => ({ n, test, points: pointsOf(facts.labels), triage: false, unreadable: false });
+const memberOf = (n, test, facts, own = {}) => ({
+    n,
+    test,
+    with: test === "lead" ? null : (own.with ?? null),
+    cls: own.cls ?? null, // none given: the group's files decide (groupClass)
+    why: test === "lead" ? null : own.why?.trim() || null,
+    points: pointsOf(facts.labels),
+    triage: false,
+    unreadable: false,
+});
 
 /**
  * Creates a proposed group.
  * @param ledger the ledger
- * @param spec `{ lead, members: [{ n, test }], why, files, now, facts }`, facts a Map of issue -> `{ labels }`
+ * @param spec `{ lead, members: [{ n, test, with?, why? }], why, files, cls?, now, facts }`, facts a Map of issue ->
+ *   `{ labels }`; `with` is an earlier member (the lead when left out), `cls` the class of every member (default
+ *   from the files)
  * @returns the new group
  */
 export function createGroup(ledger, spec) {
     const { lead, members = [], why, files = [], now, facts } = spec;
     if (!why?.trim()) throw new Refused("--why is required: the rubric test and the reason the issues belong together");
-    const all = [{ n: lead, test: "lead" }, ...members];
-    for (const m of all) {
-        const other = groupOf(ledger, m.n);
-        if (other) throw new Refused(`#${m.n} is already in ${other.id} (${other.state})`);
-        const f = facts.get(m.n);
-        if (!f) throw new Refused(`#${m.n} could not be read`);
-        const reason = excluded(f);
-        if (reason) throw new Refused(`#${m.n}: ${reason}`);
-        if (m.test !== "lead") checkTest(m.test);
-    }
+    checkClass(spec.cls);
+    const cls = spec.cls ?? classOf(files);
+    const all = [{ n: lead, test: "lead" }, ...members.map((m) => ({ ...m, with: m.with ?? lead }))];
+    for (const [k, m] of all.entries()) checkNewMember(ledger, m, all.slice(0, k), facts);
     const group = {
         id: freshId(ledger, lead),
         branch: null,
@@ -323,7 +390,7 @@ export function createGroup(ledger, spec) {
         history: [],
     };
     for (const m of all) {
-        const member = memberOf(m.n, m.test, facts.get(m.n));
+        const member = memberOf(m.n, m.test, facts.get(m.n), { with: m.with, cls, why: m.why });
         checkCritical(member, group, facts);
         const full = group.members.length ? fitsWith(group, member) : null;
         if (full) throw new Refused(`#${m.n}: ${full}`);
@@ -334,12 +401,28 @@ export function createGroup(ledger, spec) {
     return group;
 }
 
+// A member of a group being created: an earlier member to hold against, in no other group, readable, not excluded.
+const checkNewMember = (ledger, m, earlier, facts) => {
+    if (earlier.length && !earlier.some((x) => x.n === m.with)) {
+        throw new Refused(`#${m.n}: holds against #${m.with}, which is not an earlier member`);
+    }
+    const other = groupOf(ledger, m.n);
+    if (other) throw new Refused(`#${m.n} is already in ${other.id} (${other.state})`);
+    const f = facts.get(m.n);
+    if (!f) throw new Refused(`#${m.n} could not be read`);
+    const reason = excluded(f);
+    if (reason) throw new Refused(`#${m.n}: ${reason}`);
+    if (m.test !== "lead") checkTest(m.test);
+};
+
 // Rubric X2: a critical issue joins, or takes members, only through T1 or T2.
 const checkCritical = (member, group, facts) => {
     if (member.test === "lead" || !group.members.length) return;
-    const leadCritical = critical(facts.get(group.lead) ?? { labels: [] });
-    const memberCritical = critical(facts.get(member.n) ?? { labels: [] });
-    if ((leadCritical || memberCritical) && !["T1", "T1-fold", "T2"].includes(member.test)) {
+    const isCritical = (n) => n != null && critical(facts.get(n) ?? { labels: [] });
+    if (
+        [group.lead, member.n, member.with].some((n) => isCritical(n)) &&
+        !["T1", "T1-fold", "T2"].includes(member.test)
+    ) {
         throw new Refused(`#${member.n}: a critical issue groups only through T1 or T2 (rubric X2)`);
     }
 };
@@ -347,15 +430,22 @@ const checkCritical = (member, group, facts) => {
 /**
  * Adds a member: to a proposed group, or as a join to a ready branch (at most MAX_JOINS over its life, which makes
  * it started again until its joiner writes `ready`). Started, frozen, closed and dissolved groups never take members.
+ * The test may hold against any current member (`with`, the lead when left out); in a follow-up group it names a
+ * member of the open pull request's group.
  * @param ledger the ledger
  * @param id the group
- * @param spec `{ n, test, why, now, facts }`
+ * @param spec `{ n, test, with, cls, why, now, facts }`
  * @returns `{ group, joined }`
  */
 export function addMember(ledger, id, spec) {
     const { n, test, why, now, facts } = spec;
     checkTest(test);
+    checkClass(spec.cls);
     const group = groupById(ledger, id);
+    const w = spec.with ?? group.lead;
+    if (!group.after && !group.members.some((m) => m.n === w && counted(m))) {
+        throw new Refused(`#${n} holds against #${w}, which is not a member of ${group.id}`);
+    }
     const other = groupOf(ledger, n);
     if (other) throw new Refused(`#${n} is already in ${other.id} (${other.state})`);
     if (wasReleased(group, n)) throw new Refused(`#${n} was released from ${group.id}; it is never routed back there`);
@@ -364,7 +454,7 @@ export function addMember(ledger, id, spec) {
     const reason = excluded(f);
     if (reason) throw new Refused(`#${n}: ${reason}`);
     if (group.held) throw new Refused(`${group.id} is held (${group.held})`);
-    const member = memberOf(n, test, f);
+    const member = memberOf(n, test, f, { with: w, cls: spec.cls, why });
     checkCritical(member, group, facts);
     const full = fitsWith(group, member);
     if (full) throw new Refused(`${group.id} is ${full}`);
@@ -372,7 +462,7 @@ export function addMember(ledger, id, spec) {
     if (group.state === "proposed") {
         group.members.push(member);
         group.refreshed = at;
-        event(group, at, "add", { issue: n, test, why });
+        event(group, at, "add", { issue: n, test, with: w, why });
         return { group, joined: false };
     }
     if (group.state === "ready") {
@@ -380,7 +470,7 @@ export function addMember(ledger, id, spec) {
         group.members.push(member);
         group.joins += 1;
         group.state = "started";
-        event(group, at, "join", { issue: n, test, why });
+        event(group, at, "join", { issue: n, test, with: w, why });
         return { group, joined: true };
     }
     throw new Refused(`${group.id} is ${group.state}: it takes no members (route the issue instead)`);
@@ -417,32 +507,34 @@ const liveWaits = (ledger) => ledger.waits.filter((w) => !w.ended && !w.expired)
  */
 export function route(ledger, spec) {
     const { n, to, test, why, now, facts, join = false } = spec;
+    const own = { with: spec.with, cls: spec.cls };
     const at = new Date(now).toISOString();
     const already = groupOf(ledger, n);
     if (already) return `#${n} is already in ${already.id} (${already.state})`;
     refuseExcluded(n, facts, "; not routed");
-    const own = (note) => {
-        const g = createGroup(ledger, { lead: n, why: why || note, now, facts });
+    const alone = (note) => {
+        const g = createGroup(ledger, { lead: n, why: why || note, cls: spec.cls, now, facts });
         return `#${n} starts ${g.id} (${note})`;
     };
-    if (!to) return own("no group fits");
+    if (!to) return alone("no group fits");
     checkTest(test);
     const target = resolveTarget(ledger, to);
-    if (!target || !isLive(target)) return own(`${to} is ${target?.state ?? "unknown"}`);
+    if (!target || !isLive(target)) return alone(`${to} is ${target?.state ?? "unknown"}`);
     const before = barred(ledger, target, n);
-    if (before) return own(before);
-    const spec2 = { n, test, why, now, facts, at, own };
+    if (before) return alone(before);
+    const spec2 = { n, test, why, now, facts, at, own: alone, ...own };
     if (target.state === "frozen") return routeToFrozen(ledger, target, spec2);
     const waiting = liveWaits(ledger).filter((w) => w.issue === n && resolveTarget(ledger, w.on) === target);
     if (target.state === "started" || (target.state === "ready" && !join))
         return waitOn(ledger, target, spec2, waiting);
     try {
-        const { joined } = addMember(ledger, target.id, { n, test, why, now, facts });
+        const { joined } = addMember(ledger, target.id, { n, test, why, now, facts, ...own });
         for (const w of waiting) w.ended = `${at} joined`;
-        return `#${n} ${joined ? "joins ready" : "added to"} ${target.id} (${test})`;
+        const against = spec.with ? ` with #${spec.with}` : "";
+        return `#${n} ${joined ? "joins ready" : "added to"} ${target.id} (${test}${against})`;
     } catch (error) {
         if (!(error instanceof Refused)) throw error;
-        return own(error.message);
+        return alone(error.message);
     }
 }
 
@@ -450,7 +542,17 @@ export function route(ledger, spec) {
 const waitOn = (ledger, target, spec, waiting) => {
     const { n, test, why, at } = spec;
     if (!waiting.length) {
-        ledger.waits.push({ issue: n, on: target.id, test, since: at, why: why ?? "", ended: null, expired: null });
+        const w = spec.with ?? null;
+        ledger.waits.push({
+            issue: n,
+            on: target.id,
+            test,
+            with: w,
+            since: at,
+            why: why ?? "",
+            ended: null,
+            expired: null,
+        });
     }
     const until = target.state === "started" ? "is ready" : "merges, or a join (route --join) takes it";
     return `#${n} waits on ${target.id} (${test}): it goes on once ${target.branch} ${until}`;
@@ -463,13 +565,14 @@ const routeToFrozen = (ledger, target, spec) => {
     if (follow) {
         if (follow.state !== "proposed") return own(`follow-up ${follow.id} of ${target.id} already ${follow.state}`);
         try {
-            addMember(ledger, follow.id, { n, test, why, now, facts });
+            addMember(ledger, follow.id, { n, test, why, now, facts, with: spec.with, cls: spec.cls });
         } catch (error) {
             if (!(error instanceof Refused)) throw error;
             throw new Refused(`#${n}: follow-up full (${follow.id} of ${target.id}: ${error.message})`);
         }
     } else {
-        follow = createGroup(ledger, { lead: n, why: why || `follow-up of ${target.id} (${test})`, now, facts });
+        const note = `follow-up of ${target.id} (${test})`;
+        follow = createGroup(ledger, { lead: n, why: why || note, cls: spec.cls, now, facts });
         follow.after = target.id;
         target.followUp = follow.id;
     }
@@ -585,7 +688,15 @@ export function freeze(ledger, id, pr, now, facts = new Map()) {
     group.pr = pr;
     group.frozen = at;
     event(group, at, "freeze", { pr });
-    for (const w of liveWaits(ledger).filter((x) => resolveTarget(ledger, x.on) === group && !isX9(x))) {
+    const waits = liveWaits(ledger).filter((x) => resolveTarget(ledger, x.on) === group && !isX9(x));
+    toFollowUp(ledger, group, waits, now, facts);
+    return group;
+}
+
+// Waits on a group that just froze move to its follow-up group (a wait that cannot go there expires).
+const toFollowUp = (ledger, group, waits, now, facts = new Map()) => {
+    const at = new Date(now).toISOString();
+    for (const w of waits) {
         w.ended = `${at} moved to the follow-up group`;
         try {
             route(ledger, { n: w.issue, to: group.id, test: w.test, why: w.why, now, facts: withFallback(facts) });
@@ -595,8 +706,7 @@ export function freeze(ledger, id, pr, now, facts = new Map()) {
             w.expired = `${at} ${error.message}`;
         }
     }
-    return group;
-}
+};
 
 const withFallback = (facts) => ({ get: (n) => facts.get(n) ?? { labels: [] } });
 
@@ -717,11 +827,14 @@ export function compact(ledger, now) {
 
 /**
  * Replaces every proposed group with the free-queue scan's jobs. Members already in a started, ready or frozen group
- * are left out; a job over the cap is cut into consecutive groups.
+ * are left out; a job over its class's cap is cut into consecutive groups. A member joins only with a reason of its
+ * own (its `why`, never the job's) and a test against a member already in the group (`with`, the lead when left
+ * out); one without starts a group of its own.
  * @param ledger the ledger
- * @param scan the parsed free-queue.json: `{ builtAt, jobs: [{ issues, files, why, members?: [{ n, test, points }] }] }`
+ * @param scan the parsed free-queue.json: `{ builtAt, jobs: [{ issues, files, why, members?: [{ n, test, with,
+ *   class, why, points }] }] }`
  * @param now ms
- * @returns `{ groups, issues }` counts
+ * @returns `{ groups, issues, unreasoned }` counts
  */
 export function importScan(ledger, scan, now) {
     if (!Array.isArray(scan?.jobs)) throw new Refused("the scan has no jobs list");
@@ -729,37 +842,69 @@ export function importScan(ledger, scan, now) {
     const taken = new Set(keep.filter((g) => isLive(g)).flatMap((g) => g.members.map((m) => m.n)));
     for (const w of liveWaits(ledger)) taken.add(w.issue);
     ledger.groups = keep;
-    let groups = 0;
-    let issues = 0;
-    for (const job of scan.jobs) {
-        const given = new Map((job.members ?? []).map((m) => [m.n, m]));
-        const numbers = [...new Set(job.issues ?? [])].filter((n) => !taken.has(n));
-        let current = null;
-        for (const n of numbers) {
-            const m = given.get(n) ?? {};
-            const member = { n, test: m.test ?? "scan", points: m.points ?? 2, triage: false, unreadable: false };
-            if (!current || fitsWith(current, member)) {
-                const at = new Date(now).toISOString();
-                current = {
-                    ...createShell(ledger, n, job, at),
-                    members: [{ ...member, test: "lead" }],
-                };
-                ledger.groups.push(current);
-                groups += 1;
-            } else {
-                current.members.push(member);
-            }
-            taken.add(n);
-            issues += 1;
-        }
-    }
+    const counts = { groups: 0, issues: 0, unreasoned: 0 };
+    for (const job of scan.jobs) importJob(ledger, job, taken, now, counts);
     ledger.blocked = Array.isArray(scan.blocked) ? scan.blocked : [];
     ledger.scannedAt = scan.builtAt ?? new Date(now).toISOString();
-    return { groups, issues };
+    return counts;
 }
+
+// One scan job into consecutive proposed groups: a member rides in the group being filled only with a reason of its
+// own, a test against a member already placed in this chain of groups (the group being filled, or one cut from the
+// same job at the cap, which shares its origin), and room under the cap.
+const importJob = (ledger, job, taken, now, counts) => {
+    const given = new Map((job.members ?? []).map((m) => [m.n, m]));
+    const summary = (job.why ?? "").trim();
+    let current = null;
+    let chain = new Set();
+    for (const n of [...new Set(job.issues ?? [])].filter((x) => !taken.has(x))) {
+        const member = scanMember(n, given.get(n) ?? {}, job, current);
+        const holds = ridesAlong(member, summary, current, chain, counts);
+        if (holds && !fitsWith(current, member)) {
+            current.members.push(member);
+        } else {
+            chain = holds ? chain : new Set();
+            current = startPart(ledger, job, member, holds ? current : null, now);
+            counts.groups += 1;
+        }
+        chain.add(n);
+        taken.add(n);
+        counts.issues += 1;
+    }
+};
+
+// Whether a scan member rides in the group being filled: a reason of its own (counted when missing) and a `with`
+// already placed in this chain of groups.
+const ridesAlong = (member, summary, current, chain, counts) => {
+    if (!current) return false;
+    const reasoned = Boolean(member.why) && member.why !== summary;
+    if (!reasoned) counts.unreasoned += 1;
+    return reasoned && chain.has(member.with);
+};
+
+// A new proposed group led by this member: the next part of a job cut at the cap (`from`), or a group of its own.
+const startPart = (ledger, job, member, from, now) => {
+    const shell = createShell(ledger, member.n, job, new Date(now).toISOString());
+    shell.origin = from ? (from.origin ?? from.id) : null;
+    const part = { ...shell, members: [{ ...member, test: "lead", with: null, why: null }] };
+    ledger.groups.push(part);
+    return part;
+};
+
+const scanMember = (n, m, job, current) => ({
+    n,
+    test: m.test ?? "scan",
+    with: m.with ?? current?.lead ?? null,
+    cls: CLASSES.includes(m.class) ? m.class : classOf(job.files ?? []),
+    why: m.why?.trim() || null,
+    points: m.points ?? 2,
+    triage: false,
+    unreadable: false,
+});
 
 const createShell = (ledger, lead, job, at) => ({
     id: freshId(ledger, lead),
+    origin: null,
     branch: null,
     aliases: [],
     lead,
@@ -869,7 +1014,8 @@ export function ledgerJobs(ledger, q, now, options = {}) {
                 lead,
                 priority: byNumber.get(lead).priority,
                 issues: part.map((m) => m.n),
-                tests: part.map((m) => m.test),
+                tests: part.map((m) => (m.with && m.with !== g.lead ? `${m.test}@${m.with}` : m.test)),
+                class: groupClass(g),
                 files: g.files ?? [],
                 why:
                     part.length < members.length
@@ -965,7 +1111,8 @@ export function newestMarker(comments, skip = null) {
 /**
  * What differs between the ledger and GitHub, each with the fix `check --fix` applies (or none, to report only).
  * @param ledger the ledger
- * @param facts `{ issues: Map n -> { state, labels, comments }, prs: Map pr -> { state, mergeable, headAt, checks } }`
+ * @param facts `{ issues: Map n -> { state, labels, comments }, prs: Map pr -> { state, mergeable, headAt, checks },
+ *   diffs?: Map branch -> [path] }` (diffs of ready branches against master)
  * @param now ms
  * @param isAncestor `(sha) => boolean`: whether a commit is on origin/master
  * @returns `[{ group, issue?, kind, detail, fix? }]`, fix one of the transition descriptors applied by applyFix()
@@ -979,10 +1126,7 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
                 out.push({ group: g.id, issue: m.n, kind: "two-groups", detail: `also in ${seen.get(m.n)}` });
             seen.set(m.n, g.id);
         }
-        const { issues, points } = size(g);
-        if (issues > MAX_ISSUES || points > MAX_POINTS) {
-            out.push({ group: g.id, kind: "over-cap", detail: `${issues} issues, ${points} points` });
-        }
+        out.push(...overCap(g, facts.diffs));
         if (g.state === "frozen") {
             out.push(...frozenDrift(ledger, g, facts.prs.get(g.pr), now));
             continue;
@@ -1003,6 +1147,17 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
     }
     return out;
 }
+
+// A ready branch's class is read from its diff too, so a group declared docs that changed source is over the source
+// cap, and the round splits it rather than open it.
+const overCap = (g, diffs) => {
+    const diff = g.branch ? diffs?.get(g.branch) : null;
+    const cls = diff?.length ? riskiest([groupClass(g), classOf(diff)]) : groupClass(g);
+    const { issues, points } = size(g);
+    if (issues <= CAPS[cls].issues && points <= CAPS[cls].points) return [];
+    const read = cls === groupClass(g) ? "" : `, read from the diff of ${g.branch}`;
+    return [{ group: g.id, kind: "over-cap", detail: `${issues} issues, ${points} points (${cls}${read})` }];
+};
 
 const frozenDrift = (ledger, g, pr, now) => {
     if (!pr) return [{ group: g.id, kind: "unreadable", detail: `pull request #${g.pr} could not be read` }];
@@ -1048,10 +1203,19 @@ const memberFinding = (g, m, f) => {
     return { finding, marker: newestMarker(f.comments, "released") };
 };
 
-// The state change the group's newest marker asks for, or a report when its branch differs.
-const markerFinding = (g, newest) => {
+// The state change the group's newest marker asks for. A started or ready group folds into another branch's group
+// only when every member's newest marker is that branch's `ready` or `opened` (a combined branch finished, or a job
+// continued on a new branch): a `taken` alone may still be abandoned, and one member re-taken elsewhere is not the
+// group moving. Anything short of that is reported only (`branch`).
+const markerFinding = (g, newest, unanimous) => {
     const detail = `newest marker: ${newest.kind} ${newest.text}`;
     const { branch } = newest;
+    const moved = ["started", "ready"].includes(g.state) && branch && g.branch && branch !== g.branch;
+    if (moved && unanimous && ["ready", "opened"].includes(newest.kind)) {
+        const fix = { op: "fold", branch, marker: newest.kind, sha: newest.sha, pr: newest.pr };
+        return { group: g.id, kind: "combined", detail: `${detail}; ${g.branch} goes into ${branch}`, fix };
+    }
+    if (moved) return { group: g.id, kind: "branch", detail: `ledger says ${g.branch}; ${detail}` };
     if (newest.kind === "opened" && newest.pr) {
         return { group: g.id, kind: "opened", detail, fix: { op: "freeze", pr: newest.pr, branch } };
     }
@@ -1060,9 +1224,6 @@ const markerFinding = (g, newest) => {
     }
     if (newest.kind !== "ready" && g.state === "proposed" && branch) {
         return { group: g.id, kind: "started", detail, fix: { op: "start", branch } };
-    }
-    if (branch && g.branch && branch !== g.branch) {
-        return { group: g.id, kind: "branch", detail: `ledger says ${g.branch}; ${detail}` };
     }
     return null;
 };
@@ -1082,12 +1243,16 @@ const markerIssues = (g, newest, issues) =>
 const memberDrift = (g, issues) => {
     const out = [];
     let newest = null;
+    const staying = [];
     for (const m of g.members.filter((x) => counted(x))) {
         const { finding, marker } = memberFinding(g, m, issues.get(m.n));
         if (finding) out.push(finding);
+        if (!finding || finding.kind !== "released") staying.push(marker);
         if (marker && (!newest || marker.id > newest.id)) newest = marker;
     }
-    const last = newest && markerFinding(g, newest);
+    const finished = (x) => x?.branch === newest.branch && ["ready", "opened"].includes(x.kind);
+    const unanimous = Boolean(newest) && staying.every((x) => finished(x));
+    const last = newest && markerFinding(g, newest, unanimous);
     if (last?.fix) last.fix.issues = g.state === "proposed" ? markerIssues(g, newest, issues) : null;
     if (last) out.push(last);
     return out;
@@ -1107,6 +1272,7 @@ export function applyFix(ledger, finding, now) {
         return `${release(ledger, finding.group, fix.issue, fix.why, now).id} released #${fix.issue}`;
     if (fix.op === "end-wait" || fix.op === "expire-wait") return settleWait(ledger, fix, now);
     const group = groupById(ledger, finding.group);
+    if (fix.op === "fold") return fold(ledger, group, fix, now);
     const host = ledger.groups.find(
         (g) => g !== group && isLive(g) && ((fix.branch && g.branch === fix.branch) || (fix.pr && g.pr === fix.pr)),
     );
@@ -1127,17 +1293,51 @@ export function applyFix(ledger, finding, now) {
 // One job took issues of several ledger groups on one branch (its taken marker is on each of them), or an issue
 // joined a ready branch: the branch's group takes in only the issues the job took (every member when `issues` is
 // null), as it is, cap or not (check reports a group over the cap). The rest of a proposed group stays proposed.
-const absorb = (ledger, host, group, now, issues) => {
+const absorb = (ledger, host, group, now, issues, how = "same branch") => {
     const at = new Date(now).toISOString();
     const part = issues?.length && group.state === "proposed" ? splitOff(ledger, group, issues, at) : group;
     const taken = part.members.map((m) => m.n);
     host.members.push(...part.members.map((m) => ({ ...m, test: m.test === "lead" ? "legacy" : m.test })));
-    event(host, at, "absorb", { why: `${part.id} was taken on the same branch`, issues: taken });
+    event(host, at, "absorb", { why: `${part.id} was taken on the ${how}`, issues: taken });
     part.state = "dissolved";
     part.closed = at;
-    event(part, at, "dissolve", { why: `absorbed into ${host.id} (same branch)` });
+    event(part, at, "dissolve", { why: `absorbed into ${host.id} (${how})` });
     const rest = part === group ? "" : `; ${group.id} keeps ${hashes(group.members.map((m) => m.n))}`;
-    return `${part.id} (${hashes(taken)}) absorbed into ${host.id} (same branch)${rest}`;
+    return `${part.id} (${hashes(taken)}) absorbed into ${host.id} (${how})${rest}`;
+};
+
+// Issues of a started or ready group went on to another branch (combined from several finished branches, or a job
+// continued on a new one): they move to that branch's group, made on the first fold, which keeps the old branches
+// as aliases and takes over their waits. The old group is dissolved with its history and `supersededBy`; the
+// marker's state (taken, ready, opened) then applies to the new group.
+const fold = (ledger, group, fix, now) => {
+    const at = new Date(now).toISOString();
+    let host = ledger.groups.find((g) => g !== group && isLive(g) && g.branch === fix.branch);
+    if (!host) {
+        const lead = Number(/\/(\d+)-/.exec(fix.branch)?.[1]) || group.lead;
+        host = { ...createShell(ledger, lead, { why: `combined branch ${fix.branch}` }, at), members: [] };
+        Object.assign(host, { state: "started", branch: fix.branch, started: at });
+        host.history = [{ at, event: "combine", by: process.env.CLAUDE_CODE_SESSION_ID ?? "cli", branch: fix.branch }];
+        ledger.groups.push(host);
+    }
+    const line = absorb(ledger, host, group, now, null, `combined branch ${fix.branch}`);
+    group.supersededBy = host.id;
+    event(group, at, "superseded", { by: host.id, branch: fix.branch });
+    host.aliases = [...new Set([...host.aliases, group.branch, ...(group.aliases ?? [])])];
+    host.files = [...new Set([...host.files, ...(group.files ?? [])])];
+    const moved = liveWaits(ledger).filter((w) => w.on === group.id || w.on === group.branch);
+    for (const w of moved) w.on = host.id;
+    // A later old group of a branch that already opened: its waits go to the follow-up group, as freeze moved the rest.
+    if (host.state === "frozen")
+        toFollowUp(
+            ledger,
+            host,
+            moved.filter((w) => !isX9(w)),
+            now,
+        );
+    if (fix.marker === "ready" && host.state === "started") ready(ledger, host.id, fix.sha, now);
+    if (fix.marker === "opened" && fix.pr && host.state !== "frozen") freeze(ledger, host.id, fix.pr, now);
+    return `${line}; ${host.id} ${host.state}`;
 };
 
 const settleWait = (ledger, fix, now) => {
@@ -1150,6 +1350,202 @@ const settleWait = (ledger, fix, now) => {
     if (w && !ending) w.expired = `${at} ${fix.reason}`;
     return `wait of #${fix.wait.issue} on ${fix.wait.on} ${ending ? "ended" : "expired"}`;
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Combining finished branches.
+
+const originOf = (g) => g.origin ?? g.history.find((h) => h.event === "split" && h.from)?.from ?? g.id;
+
+// The area a docs or tests change belongs to, for T6: its design/ or tools/ subfolder, else its package (top-level
+// folder), else the repository root.
+const areaOf = (file) => {
+    const parts = file.split("/");
+    if (parts.length > 2 && ["design", "tools"].includes(parts[0])) return `${parts[0]}/${parts[1]}`;
+    return parts.length > 1 ? parts[0] : ".";
+};
+
+// Whether a trusted `taken` marker for exactly this branch says the job fixes the red.
+const isRedFix = (comments, branch) =>
+    comments.some((c) => {
+        const line = trustedText(c) ? (c.body ?? "").split("\n")[0] : "";
+        const taken = line.startsWith("pipeline-round: taken") && /branch ([^,\s]+)/.exec(line)?.[1] === branch;
+        return taken && /fixes the red/i.test(line);
+    });
+
+// One member of a branch to combine: `{ reason }` when it keeps the branch out, else `{ sha }` of its ready marker.
+const memberRefusal = (n, f, branch) => {
+    const out = f && excluded(f);
+    if (out) return { reason: `#${n}: ${out}` };
+    const comments = f?.comments ?? [];
+    if (isRedFix(comments, branch)) return { reason: "a red-master fix (it opens on its own)" };
+    const newest = newestMarker(comments);
+    if (!newest || newest.kind === "released") return {};
+    if (newest.kind !== "ready") return { reason: `running (newest marker on #${n} is ${newest.kind})` };
+    if (newest.branch !== branch) return { reason: `#${n} is ready on ${newest.branch}, not ${branch}` };
+    return { sha: newest.sha };
+};
+
+// Why a ready group's branch may not be combined now, or null.
+const combineRefusal = (g, facts) => {
+    if (!g.branch) return "no branch";
+    if (g.held || g.parked) return `held (${g.held ?? g.parked})`;
+    const pr = facts.openPrs.get(g.branch);
+    if (pr) return `open pull request #${pr}`;
+    let readySha = null;
+    for (const m of g.members.filter((x) => counted(x))) {
+        const r = memberRefusal(m.n, facts.issues.get(m.n), g.branch);
+        if (r.reason) return r.reason;
+        readySha = r.sha ?? readySha;
+    }
+    const tip = facts.tips.get(g.branch);
+    if (!tip) return "not on origin";
+    if (!readySha || !(tip.startsWith(readySha) || readySha.startsWith(tip))) {
+        return "its tip is not its ready marker's commit (a job may be running)";
+    }
+    return null;
+};
+
+/**
+ * Families of finished, unopened branches that may be merged into one new branch from master and opened as one
+ * pull request (design/ci/issue-grouping.md section 4, "Combining finished branches"). Branches are linked when they
+ * came from one ledger group, when T6 holds (both docs or tests, in one package, design/ or tools/ subfolder), or by
+ * a rubric test the round judged (`links`). A family stays within its class's cap and never mixes a branch that
+ * touches the owner-guarded files with one that does not. Branches with an open pull request, a red-master fix, a
+ * running job or a moved tip are refused.
+ * @param ledger the ledger (after check --fix)
+ * @param facts `{ issues: Map n -> { labels, comments }, openPrs: Map branch -> pr|null, tips: Map branch -> sha,
+ *   diffs: Map branch -> [path] }`
+ * @param options `{ links: [{ a, b, test }] (issue numbers), guard: RegExp of GUARD_PATHS }`
+ * @returns `{ families, refused, judge }`
+ */
+export function combinePlan(ledger, facts, options = {}) {
+    const { links = [], guard = null } = options;
+    const refused = [];
+    const pool = [];
+    for (const g of ledger.groups.filter((x) => x.state === "ready")) {
+        const reason = combineRefusal(g, facts);
+        if (reason) refused.push({ group: g.id, branch: g.branch, reason });
+        else pool.push(candidate(g, facts, guard));
+    }
+    pool.sort((x, y) => String(x.g.readySince).localeCompare(String(y.g.readySince)));
+    const families = [];
+    const rest = [...pool];
+    while (rest.length) {
+        const family = growFamily(rest.shift(), rest, links);
+        if (family) families.push(family);
+    }
+    return { families, refused, judge: judgePairs(pool, families) };
+}
+
+const candidate = (g, facts, guard) => {
+    const diff = facts.diffs.get(g.branch) ?? [];
+    return {
+        g,
+        diff,
+        cls: riskiest([groupClass(g), classOf(diff)]),
+        guarded: Boolean(guard && diff.some((f) => guard.test(f))),
+        critical: g.members.some((m) => critical(facts.issues.get(m.n) ?? { labels: [] })),
+        areas: new Set(diff.map((f) => areaOf(f))),
+    };
+};
+
+const holds = (x, n) => x.g.members.some((m) => m.n === n);
+
+// Why two ready branches belong together: one ledger group, a test the round judged, or T6. A critical branch links
+// only by its group or by T1 or T2 (rubric X2).
+const linkBetween = (a, b, links) => {
+    if (originOf(a.g) === originOf(b.g)) return { test: "same group", why: `both from ${originOf(a.g)}` };
+    const given = links.find((l) => (holds(a, l.a) && holds(b, l.b)) || (holds(a, l.b) && holds(b, l.a)));
+    const critical = a.critical || b.critical;
+    if (given && (!critical || ["T1", "T1-fold", "T2"].includes(given.test))) {
+        return { test: given.test, why: `#${given.a} and #${given.b}` };
+    }
+    const shared = [...a.areas].filter((x) => b.areas.has(x));
+    if (a.cls !== "source" && b.cls !== "source" && !critical && shared.length) {
+        return { test: "T6", why: shared.join(" ") };
+    }
+    return null;
+};
+
+// The family's class when it fits that class's cap, else null.
+const familyClass = (family) => {
+    const cls = riskiest(family.map((x) => x.cls));
+    const issues = family.reduce((t, x) => t + size(x.g).issues, 0);
+    const points = family.reduce((t, x) => t + size(x.g).points, 0);
+    return issues <= CAPS[cls].issues && points <= CAPS[cls].points ? cls : null;
+};
+
+// A family grown from its oldest branch: each branch added links to one already in, shares its guarded-ness, and
+// keeps the family within the cap; a T6 link holds only while the family stays docs or tests. Null for a lone branch.
+const growFamily = (seed, rest, links) => {
+    const family = [seed];
+    const edges = [];
+    for (let grew = true; grew;) {
+        grew = false;
+        for (const x of [...rest]) {
+            const cls = x.guarded === seed.guarded && familyClass([...family, x]);
+            const from = cls && family.find((f) => linkBetween(f, x, links));
+            const edge = from && { from: from.g.branch, to: x.g.branch, ...linkBetween(from, x, links) };
+            if (!edge || (cls === "source" && [...edges, edge].some((e) => e.test === "T6"))) continue;
+            edges.push(edge);
+            family.push(x);
+            rest.splice(rest.indexOf(x), 1);
+            grew = true;
+        }
+    }
+    if (family.length < 2) return null;
+    // Named after the seed's lead, never the name of a branch already in the family (an earlier combined branch).
+    const used = new Set(family.flatMap((x) => [x.g.branch, ...(x.g.aliases ?? [])]));
+    const base = `${seed.g.branch.split("/")[0]}/${seed.g.lead}-batch`;
+    let branch = base;
+    let k = 1;
+    while (used.has(branch)) branch = `${base}-${++k}`;
+    return {
+        class: familyClass(family),
+        groups: family.map((x) => x.g.id),
+        branches: family.map((x) => x.g.branch),
+        issues: family.flatMap((x) => x.g.members.filter((m) => counted(m)).map((m) => m.n)),
+        links: edges,
+        branch,
+    };
+};
+
+// Pairs of ready branches in different families that change the same file: the round judges whether a rubric test
+// holds and passes it back with --link.
+const judgePairs = (pool, families) => {
+    const together = new Map(families.flatMap((f) => f.branches.map((b) => [b, f])));
+    const out = [];
+    for (const [k, a] of pool.entries()) {
+        for (const b of pool.slice(k + 1)) {
+            const same = together.has(a.g.branch) && together.get(a.g.branch) === together.get(b.g.branch);
+            const files = a.diff.filter((f) => b.diff.includes(f));
+            if (!same && files.length) out.push({ a: a.g.branch, b: b.g.branch, files, leads: [a.g.lead, b.g.lead] });
+        }
+    }
+    return out;
+};
+
+/**
+ * The `combine-plan` lines.
+ * @param plan from combinePlan()
+ * @returns lines
+ */
+export function combineLines(plan) {
+    const lines = plan.families.map((f) => {
+        const links = f.links.map((l) => `${l.from}~${l.to} ${l.test} (${l.why})`).join("; ");
+        return `family ${f.class} ${hashes(f.issues)} -- branches ${f.branches.join(" ")}; links ${links}; combine into ${f.branch}`;
+    });
+    for (const r of plan.refused) lines.push(`refused ${r.branch ?? r.group}: ${r.reason}`);
+    for (const j of plan.judge) {
+        lines.push(
+            `judge ${j.a} ${j.b}: both change ${j.files.join(" ")} (when a rubric test holds, run again with --link ${j.leads[0]}:${j.leads[1]}:<T#>)`,
+        );
+    }
+    lines.push(
+        `${plan.families.length} families, ${plan.families.reduce((t, f) => t + f.branches.length, 0)} branches`,
+    );
+    return ascii(lines.join("\n")).split("\n");
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Metrics.
@@ -1187,6 +1583,14 @@ export function metrics(ledger, prs, now) {
     };
     const grouped = stats(prs.filter((p) => isGrouped(p)));
     const single = stats(prs.filter((p) => !isGrouped(p)));
+    // A grouped pull request outside the ledger counts as source, the strictest class.
+    const prClass = new Map(ledger.groups.filter((g) => g.pr).map((g) => [g.pr, groupClass(g)]));
+    const byClass = Object.fromEntries(
+        CLASSES.map((cls) => [
+            cls,
+            stats(prs.filter((p) => isGrouped(p) && (prClass.get(p.number) ?? "source") === cls)),
+        ]),
+    );
     const merged = prs.filter((p) => p.mergedAt);
     const count = (state) => ledger.groups.filter((g) => g.state === state).length;
     const waits = liveWaits(ledger);
@@ -1205,21 +1609,31 @@ export function metrics(ledger, prs, now) {
         waitsOver24h: oldWaits,
         releasedNotPartShare: share(releases.length, releases.length + memberCount),
     };
-    const applies = grouped.n >= 20;
-    const guard = (name, value, ok) => ({
-        name,
-        value,
-        applies: applies && value !== null,
-        breach: applies && value !== null && !ok,
+    // Each class's guardrails apply once that class has 10 grouped pull requests in the window (fewer is "not yet
+    // measured"; docs and tests rarely reach 20 in a week); a breach lowers that class's cap.
+    const perClass = CLASSES.flatMap((cls) => {
+        const s = byClass[cls];
+        const applies = s.n >= CLASS_GUARD_MIN;
+        const guard = (name, value, ok) => ({
+            name: `${name}, grouped, ${cls}`,
+            class: cls,
+            value,
+            applies: applies && value !== null,
+            breach: applies && value !== null && !ok,
+        });
+        return [
+            guard(
+                "closed-unmerged rate",
+                s.closedUnmergedRate,
+                s.closedUnmergedRate <= Math.min(0.03, 2 * (single.closedUnmergedRate ?? 1)),
+            ),
+            guard("commit after opening", s.commitAfterOpenShare, s.commitAfterOpenShare <= 0.3),
+            guard("75th percentile hours to merge", s.p75MergeHours, s.p75MergeHours <= 4),
+        ];
     });
+    const guard = (name, value, ok) => ({ name, value, applies: value !== null, breach: value !== null && !ok });
     const guardrails = [
-        guard(
-            "closed-unmerged rate, grouped",
-            grouped.closedUnmergedRate,
-            grouped.closedUnmergedRate <= Math.min(0.03, 2 * (single.closedUnmergedRate ?? 1)),
-        ),
-        guard("commit after opening, grouped", grouped.commitAfterOpenShare, grouped.commitAfterOpenShare <= 0.3),
-        guard("75th percentile hours to merge, grouped", grouped.p75MergeHours, grouped.p75MergeHours <= 4),
+        ...perClass,
         {
             ...guard(
                 "members released as not part",
@@ -1239,6 +1653,7 @@ export function metrics(ledger, prs, now) {
             : null,
         multiFixShare: share(merged.filter((p) => p.closes >= 2).length, merged.length),
         grouped,
+        byClass,
         single,
         ledger: ledgerStats,
         guardrails,
@@ -1361,6 +1776,49 @@ export function fetchClosedPrs(now, run = graphql) {
     return out;
 }
 
+/**
+ * The open pull request of each branch, batched 40 per GraphQL query.
+ * @param branches branch names
+ * @param run `(query) => data`
+ * @returns Map branch -> pull request number, or null
+ */
+export function fetchOpenPrs(branches, run = graphql) {
+    const out = new Map();
+    const safe = [...new Set(branches)].filter((b) => /^[\w./-]+$/.test(b));
+    for (let k = 0; k < safe.length; k += 40) {
+        const part = safe.slice(k, k + 40);
+        const items = part.map(
+            (b, i) =>
+                `b${i}: ref(qualifiedName: "refs/heads/${b}") { associatedPullRequests(states: OPEN, first: 1) { nodes { number } } }`,
+        );
+        const data = run(`query { repository(owner: "${OWNER}", name: "${NAME}") { ${items.join("\n")} } }`);
+        for (const [i, b] of part.entries()) {
+            out.set(b, data?.repository?.[`b${i}`]?.associatedPullRequests?.nodes?.[0]?.number ?? null);
+        }
+    }
+    return out;
+}
+
+const gitOut = (args) => {
+    try {
+        return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch {
+        return null;
+    }
+};
+const GIT = {
+    tip: (b) => gitOut(["rev-parse", "--verify", "--quiet", `origin/${b}`]),
+    diff: (b) => (gitOut(["diff", "--name-only", `origin/master...origin/${b}`]) ?? "").split("\n").filter(Boolean),
+};
+
+// GUARD_PATHS of tools/pr-open.sh, read from the script so the two never drift apart.
+const readGuard = () => {
+    const text = readFileSync(fileURLToPath(new URL("./pr-open.sh", import.meta.url)), "utf8");
+    const m = /^GUARD_PATHS='([^']+)'/m.exec(text);
+    if (!m) throw new Error("GUARD_PATHS not found in tools/pr-open.sh");
+    return new RegExp(m[1]);
+};
+
 const gitAncestor = (sha) => {
     try {
         execFileSync("git", ["merge-base", "--is-ancestor", sha, "origin/master"], { stdio: "ignore" });
@@ -1399,10 +1857,13 @@ const OPTIONS = {
     fix: { type: "boolean" },
     append: { type: "boolean" },
     join: { type: "boolean" },
+    with: { type: "string" },
+    class: { type: "string" },
+    link: { type: "string", multiple: true },
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>...] --why <r> [--files <p>...] | add <group> <n> --test <T#> | route <n> [--to <group> --test <T#> [--join]] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | metrics [--append] [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -1448,8 +1909,10 @@ const metricsCommand = (ctx) => {
     if (ctx.o.json) return ok(JSON.stringify(record, null, 2));
     const g = record.grouped;
     const breaches = record.breaches.join(", ") || "none";
+    const unmeasured = CLASSES.filter((cls) => record.byClass[cls].n < CLASS_GUARD_MIN);
+    const notYet = unmeasured.length ? `; not yet measured: ${unmeasured.join(", ")}` : "";
     return ok(
-        `issues per merged PR ${record.issuesPerMergedPr}; PRs closing 2+ issues ${record.multiFixShare}; grouped ${g.n} (closed unmerged ${g.closedUnmergedRate}, p75 ${g.p75MergeHours} h, commit after opening ${g.commitAfterOpenShare}); breaches: ${breaches}`,
+        `issues per merged PR ${record.issuesPerMergedPr}; PRs closing 2+ issues ${record.multiFixShare}; grouped ${g.n} (closed unmerged ${g.closedUnmergedRate}, p75 ${g.p75MergeHours} h, commit after opening ${g.commitAfterOpenShare}); breaches: ${breaches}${notYet}`,
     );
 };
 
@@ -1465,37 +1928,42 @@ const COMMANDS = {
     create: (c) => {
         const lead = num(c.pos[0]);
         const members = c.pos.slice(1).map((arg) => {
-            const [n, test] = arg.split(":");
-            return { n: num(n), test };
+            const [n, test, w] = arg.split(":");
+            return { n: num(n), test, with: w ? num(w) : undefined };
         });
         const facts = c.facts([lead, ...members.map((m) => m.n)]);
         return c.change((ledger) => {
-            const g = createGroup(ledger, { lead, members, why: c.o.why, files: c.o.files ?? [], now: c.now, facts });
+            const spec = { lead, members, why: c.o.why, files: c.o.files ?? [], cls: c.o.class, now: c.now, facts };
+            const g = createGroup(ledger, spec);
             return ok(`created ${g.id}: ${hashes(g.members.map((m) => m.n))}`);
         });
     },
     add: (c) => {
         const n = num(c.pos[1]);
+        const w = c.o.with ? num(c.o.with) : undefined;
         const lead = readLedger(c.ledgerPath).groups.find((g) => g.id === c.pos[0])?.lead;
-        const facts = c.facts(lead ? [n, lead] : [n]);
+        const facts = c.facts([n, lead, w].filter(Boolean));
         return c.change((ledger) => {
-            const spec = { n, test: c.o.test, why: c.o.why, now: c.now, facts };
+            const spec = { n, test: c.o.test, why: c.o.why, with: w, cls: c.o.class, now: c.now, facts };
             const { group, joined } = addMember(ledger, c.pos[0], spec);
             return ok(`#${n} ${joined ? "joins ready" : "added to"} ${group.id}`);
         });
     },
     route: (c) => {
         const n = num(c.pos[0]);
+        const w = c.o.with ? num(c.o.with) : undefined;
         const target = c.o.to ? resolveTarget(readLedger(c.ledgerPath), c.o.to) : null;
-        const facts = c.facts(target ? [n, target.lead] : [n]);
+        const facts = c.facts([n, target?.lead, w].filter(Boolean));
         const spec = { n, to: c.o.to, test: c.o.test, why: c.o.why, now: c.now, facts, join: Boolean(c.o.join) };
+        Object.assign(spec, { with: w, cls: c.o.class });
         return c.change((ledger) => ok(route(ledger, spec)));
     },
     "import-scan": (c) => {
         const scan = JSON.parse(c.readFile(c.pos[0] ?? FREE_QUEUE));
         return c.change((ledger) => {
             const r = importScan(ledger, scan, c.now);
-            return ok(`imported ${r.groups} proposed groups, ${r.issues} issues\n${summary(ledger)}`);
+            const alone = r.unreasoned ? `; ${r.unreasoned} members with no reason of their own started alone` : "";
+            return ok(`imported ${r.groups} proposed groups, ${r.issues} issues${alone}\n${summary(ledger)}`);
         });
     },
     start: (c) => {
@@ -1544,12 +2012,35 @@ const COMMANDS = {
             const dropped = `dropped ${r.dropped.length} stale proposals, ${r.waits} settled waits`;
             return ok(`archived ${r.archived.length} groups, ${dropped}`);
         }),
-    check: (c) => check(c.ledgerPath, c.o, c.run, c.now, c.isAncestor),
+    check: (c) => check(c.ledgerPath, c.o, c, c.now, c.isAncestor),
     jobs: (c) => {
         const ledger = readLedger(c.ledgerPath);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
         const result = ledgerJobs(ledger, c.fetchQueue(), c.now);
         return ok(c.o.json ? JSON.stringify(result, null, 2) : jobLines(result).join("\n"));
+    },
+    "combine-plan": (c) => {
+        const ledger = readLedger(c.ledgerPath);
+        const ready = ledger.groups.filter((g) => g.state === "ready" && g.branch);
+        const branches = ready.map((g) => g.branch);
+        const links = (c.o.link ?? []).map((arg) => {
+            const [a, b, test] = arg.split(":");
+            checkTest(test);
+            return { a: num(a), b: num(b), test };
+        });
+        const facts = {
+            issues: fetchFacts(
+                ready.flatMap((g) => g.members.map((m) => m.n)),
+                [],
+                c.run,
+                true,
+            ).issues,
+            openPrs: fetchOpenPrs(branches, c.run),
+            tips: new Map(branches.map((b) => [b, c.git.tip(b)])),
+            diffs: new Map(branches.map((b) => [b, c.git.diff(b)])),
+        };
+        const plan = combinePlan(ledger, facts, { links, guard: c.guard() });
+        return ok(c.o.json ? JSON.stringify(plan, null, 2) : combineLines(plan).join("\n"));
     },
     metrics: (c) => metricsCommand(c),
 };
@@ -1559,7 +2050,7 @@ const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", i
 /**
  * The command line.
  * @param argv arguments after the script
- * @param deps `{ ledgerPath, run, now, fetchQueue, readFile, isAncestor, fallback, metricsLog }`
+ * @param deps `{ ledgerPath, run, now, fetchQueue, readFile, isAncestor, fallback, metricsLog, git, guard }`
  * @returns `{ code, out }`
  */
 export function main(argv, deps = {}) {
@@ -1586,6 +2077,8 @@ export function main(argv, deps = {}) {
         fetchQueue: deps.fetchQueue ?? (() => queue(fetchOpen(), now).queue),
         isAncestor: deps.isAncestor ?? gitAncestor,
         fallback: deps.fallback ?? fallbackJobs,
+        git: deps.git ?? GIT,
+        guard: deps.guard ?? readGuard,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
     };
@@ -1608,17 +2101,19 @@ const findingLine = (d) => {
  * The `check` command: reads the facts once, then applies the fixes under the lock against the ledger as it is then.
  * @param ledgerPath the ledger file
  * @param o the options
- * @param run GraphQL runner
+ * @param ctx `{ run, git }`: the GraphQL runner and the git readers
  * @param now ms
  * @param isAncestor git ancestry test
  * @returns `{ code, out }`, code 1 when drift was found and not fixed
  */
-function check(ledgerPath, o, run, now, isAncestor) {
+function check(ledgerPath, o, ctx, now, isAncestor) {
     const ledger = readLedger(ledgerPath);
     const live = ledger.groups.filter((g) => isLive(g));
     const numbers = live.filter((g) => g.state !== "frozen").flatMap((g) => g.members.map((m) => m.n));
     const prs = live.filter((g) => g.state === "frozen" && g.pr).map((g) => g.pr);
-    const facts = fetchFacts(numbers, prs, run, true);
+    const facts = fetchFacts(numbers, prs, ctx.run, true);
+    const readyBranches = live.filter((g) => g.state === "ready" && g.branch).map((g) => g.branch);
+    facts.diffs = new Map(readyBranches.map((b) => [b, ctx.git.diff(b)]));
     if (!o.fix) {
         const found = drift(ledger, facts, now, isAncestor);
         if (o.json) return { code: found.length ? 1 : 0, out: JSON.stringify(found, null, 2) };

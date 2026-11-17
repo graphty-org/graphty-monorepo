@@ -469,7 +469,7 @@ export async function loadModelFiles(
         const slash = main.lastIndexOf("/");
         const folder = root + main.slice(0, slash + 1);
         if (!reader.startsWith(".")) {
-            const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+            const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder, new Set(hidden));
             // Their pictures are named by their paths in the set: taken off once loaded, as a skip's are.
             markWithoutPictures(own, root, [...skipped, ...hidden], lostPicture);
             return own;

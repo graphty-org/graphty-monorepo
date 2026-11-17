@@ -160,6 +160,17 @@ export function babylonTextureNames(json: Json): string[] {
 }
 
 /**
+ * The name an embedded (`data:`) picture of a `.babylon` file goes by in its summary:
+ * `image<index>`, its place among {@link babylonTextureNames}, as a glTF's unnamed image is named.
+ * @param texture - The picture as a material names it.
+ * @param names - The file's picture names, from {@link babylonTextureNames}.
+ * @returns The name, or undefined for a picture in a file of its own (named by its path).
+ */
+export function embeddedPictureName(texture: string, names: readonly string[]): string | undefined {
+    return /^data:/i.test(texture) ? `image${String(names.indexOf(texture))}` : undefined;
+}
+
+/**
  * The pictures a `.babylon` file's materials draw as their color, each with the names of the
  * materials that draw it ("" for an unnamed one).
  * @param json - The parsed file.

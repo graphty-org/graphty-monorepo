@@ -19,6 +19,7 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Geometry } from "../files/readers/geometry.js";
+import { markWithoutPicture } from "../load/withoutPicture.js";
 
 /** A part's look. */
 export interface PartMaterial {
@@ -26,6 +27,8 @@ export interface PartMaterial {
     /** A picture, as a URL under the load's guarded root. */
     readonly texture?: string;
     readonly alpha?: number;
+    /** Its color picture was left out (`withoutPictures`): it has no look of its own left. */
+    readonly withoutPicture?: boolean;
 }
 
 /** One part to build. */
@@ -84,6 +87,9 @@ export function buildContainer(
             material.diffuseTexture = texture;
             material.diffuseColor = Color3.White();
             container.textures.push(texture);
+        }
+        if (look.withoutPicture === true) {
+            markWithoutPicture(material);
         }
         container.materials.push(material);
         return material;

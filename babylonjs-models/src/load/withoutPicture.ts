@@ -36,7 +36,7 @@ export function drawsWithoutPicture(material: Material): boolean {
  * Mark a material as having lost its color picture.
  * @param material - The material.
  */
-function mark(material: Material): void {
+export function markWithoutPicture(material: Material): void {
     const metadata = (material.metadata ?? {}) as Record<string, unknown>;
     material.metadata = { ...metadata, babylonjsModels: { withoutPicture: true } };
 }
@@ -57,7 +57,7 @@ export function markWithoutPictures(
 ): void {
     for (const material of container.materials) {
         if (named.has(material.name)) {
-            mark(material);
+            markWithoutPicture(material);
         }
     }
 
@@ -103,10 +103,10 @@ function takeOff(container: AssetContainer, texture: BaseTexture): void {
     for (const material of container.materials) {
         if (material instanceof StandardMaterial && material.diffuseTexture === texture) {
             material.diffuseTexture = null;
-            mark(material);
+            markWithoutPicture(material);
         } else if (material instanceof PBRMaterial && material.albedoTexture === texture) {
             material.albedoTexture = null;
-            mark(material);
+            markWithoutPicture(material);
         }
     }
 }

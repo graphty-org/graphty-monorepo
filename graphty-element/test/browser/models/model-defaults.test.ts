@@ -163,6 +163,29 @@ describe("a model's own settings", () => {
         });
     }
 
+    it("draw a .babylon's embedded picture, list it by its place, and draw its part without it in the node's color (#8613)", async () => {
+        const files = await filesOf("babylon-textured");
+        let binary = "";
+        for (const byte of files.get("cube.png") as Uint8Array) {
+            binary += String.fromCodePoint(byte);
+        }
+        const json = JSON.parse(new TextDecoder().decode(files.get("cube.babylon"))) as {
+            materials: { diffuseTexture: { name: string } }[];
+        };
+        json.materials[0].diffuseTexture.name = `data:image/png;base64,${btoa(binary)}`;
+        const element = await mount();
+        const record = await element.session.assets.add({
+            files: new Map([["cube.babylon", new TextEncoder().encode(JSON.stringify(json))]]),
+        });
+        assert.deepEqual(element.session.assets.inspect(record.id).pictures, [{ name: "image0", materials: ["cube"] }]);
+        const red = { "node.color": "#ff0000" };
+        const own = await element.modelThumbnail(record.id, { size: 64, style: red });
+        assert.isAtLeast(await colorShare(own, "green"), 0.05, "its embedded green picture is drawn");
+        const hidden = await element.modelThumbnail(record.id, { size: 64, style: red, hiddenTextures: ["image0"] });
+        assert.isBelow(await colorShare(hidden, "green"), 0.01, "the picture is gone");
+        assert.isAtLeast(await colorShare(hidden, "red"), 0.05, "and the part takes the node's color");
+    });
+
     it("draw the whole model in the node's color once every picture is gone, and only a picture's part for one (#8613, #8614)", async () => {
         const element = await mount();
         const files = await threeCubes();

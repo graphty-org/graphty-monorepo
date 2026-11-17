@@ -19,7 +19,7 @@
 import { gunzipSync } from "fflate";
 
 import { parseGltfJson } from "./gltfChecks.js";
-import { babylonPictureUses, babylonTextureNames, readBabylon } from "./readers/babylon.js";
+import { babylonPictureUses, babylonTextureNames, embeddedPictureName, readBabylon } from "./readers/babylon.js";
 import { ModelReadError, pointsDrawn, SPLAT_ROW_BYTES, TRIANGLES_PER_POINT } from "./readers/geometry.js";
 import { plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
 import { stlFacts } from "./readers/stl.js";
@@ -901,11 +901,10 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
     for (const name of names) {
         const image = resolveReference(name, path, files);
         textureBytes += textureBytesOf(image.bytes, image.path);
-        // Named by its path in the set, as `withoutPictures` takes it.
-        if (image.path !== "") {
-            const using = (uses.get(name) ?? []).map(cut);
-            pictures.push(Object.freeze({ name: image.path, materials: Object.freeze(using) }));
-        }
+        // Named by its path in the set, or an embedded one by its place, as `withoutPictures` takes it.
+        const using = (uses.get(name) ?? []).map(cut);
+        const named = image.path === "" ? embeddedPictureName(name, names) : image.path;
+        pictures.push(Object.freeze({ name: named ?? image.path, materials: Object.freeze(using) }));
     }
 
     if (textureBytes > limits.maxTextureBytes) {

@@ -78,7 +78,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
 import { SolidParser } from "@babylonjs/loaders/OBJ/solidParser.js";
 
-import { readBabylon } from "../files/readers/babylon.js";
+import { babylonTextureNames, embeddedPictureName, readBabylon } from "../files/readers/babylon.js";
 import { type Geometry, ModelReadError } from "../files/readers/geometry.js";
 import { readPly } from "../files/readers/ply.js";
 import { readStl } from "../files/readers/stl.js";
@@ -299,6 +299,7 @@ export type OwnFormat = "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
  * @param main - The main file's path.
  * @param format - Its format.
  * @param rootUrl - The guarded root the main file's folder is named under.
+ * @param hidden - Embedded pictures to leave out, by their summary names.
  * @returns The parts and their materials.
  * @throws {ModelReadError} For a damaged file.
  */
@@ -308,6 +309,7 @@ async function readOwn(
     main: string,
     format: OwnFormat,
     rootUrl: string,
+    hidden: ReadonlySet<string>,
 ): Promise<{ parts: Part[]; materials: PartMaterial[] }> {
     const bytes = files.get(main) as Uint8Array;
     // A part the file gives no look has no material, as an OBJ without an .mtl.
@@ -332,11 +334,21 @@ async function readOwn(
             }
 
             const babylon = readBabylon(json as Record<string, unknown>);
+            const names = babylonTextureNames(json as Record<string, unknown>);
             return {
                 parts: babylon.meshes,
-                materials: babylon.materials.map((m) =>
-                    m.texture === undefined ? m : { ...m, texture: rootUrl + m.texture },
-                ),
+                materials: babylon.materials.map((m) => {
+                    if (m.texture === undefined) {
+                        return m;
+                    }
+                    // An embedded picture is its own URL; one left out is dropped here, as nothing
+                    // under the load's root names it to take off afterwards.
+                    const embedded = embeddedPictureName(m.texture, names);
+                    if (embedded !== undefined && hidden.has(embedded)) {
+                        return { ...m, texture: undefined, withoutPicture: true };
+                    }
+                    return { ...m, texture: embedded === undefined ? rootUrl + m.texture : m.texture };
+                }),
             };
         }
         default: {
@@ -354,6 +366,8 @@ async function readOwn(
  * @param main - The main file's path.
  * @param format - Its format.
  * @param rootUrl - The guarded root the main file's folder is named under.
+ * @param hidden - Embedded pictures to leave out, by their summary names (`image<index>`); a
+ *   picture in a file of its own is taken off once loaded (`markWithoutPictures`).
  * @returns The container.
  * @throws {ModelReadError} For a damaged file.
  */
@@ -363,10 +377,11 @@ export async function loadOwnModel(
     main: string,
     format: OwnFormat,
     rootUrl: string,
+    hidden: ReadonlySet<string> = new Set(),
 ): Promise<AssetContainer> {
     const end = startLoad();
     try {
-        const read = await readOwn(scene, files, main, format, rootUrl);
+        const read = await readOwn(scene, files, main, format, rootUrl, hidden);
         return await settle(scene, buildContainer(scene, read.parts, read.materials), false);
     } finally {
         end();

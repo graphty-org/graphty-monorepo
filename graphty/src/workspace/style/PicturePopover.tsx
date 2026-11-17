@@ -320,6 +320,8 @@ export function PicturePopover({
                             </>
                         )}
                         <FileSource
+                            submitOnBlur
+                            barUnderField
                             variant="drop"
                             url
                             accept={ACCEPT}

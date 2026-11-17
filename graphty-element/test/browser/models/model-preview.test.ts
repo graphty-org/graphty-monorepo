@@ -104,6 +104,8 @@ describe("modelPreview", () => {
             const { canvas } = preview;
             assert.strictEqual(canvas.parentElement, box, "the preview's canvas fills the box");
             assert.strictEqual(canvas.getBoundingClientRect().width, 160);
+            // A drag across the page around it never selects the canvas (#8612).
+            assert.strictEqual(getComputedStyle(canvas).userSelect, "none");
             cleanups.push(() => {
                 preview.dispose();
             });

@@ -37,6 +37,12 @@ export interface FileSourceProps {
     /** Called with the address typed into the URL field when Enter is pressed and it is a valid URL. */
     onUrl?: (url: string) => void;
     /**
+     * Whether the URL field also submits when it loses focus (Tab, a click elsewhere), as Enter does.
+     * An empty field, one still holding the address last submitted (or `defaultValue`), or focus
+     * moving to the Open button (`openLabel`, which submits itself) submits nothing. @default false
+     */
+    submitOnBlur?: boolean;
+    /**
      * The text of the button that opens the picker, and the name of the row's upload button.
      * Defaults to the `fileChoose` label ("Choose file").
      */
@@ -72,6 +78,11 @@ export interface FileSourceProps {
      * ("Downloading") and, at the end of the line, how far it has come ("3.2 of 12.4 MB").
      */
     status?: { readonly label: string; readonly detail?: string };
+    /**
+     * Whether the bar (with `progress`) is drawn directly under the URL field, with the status line
+     * below it, instead of under everything (`row` and `drop` with a URL field). @default false
+     */
+    barUnderField?: boolean;
     /** Called by a Cancel button drawn beside the status line while a load is under way (with `progress`). */
     onCancel?: () => void;
     /** The Cancel button's text. Defaults to the `fileCancel` label ("Cancel"). */
@@ -152,15 +163,33 @@ function useWidth(ref: React.RefObject<HTMLElement | null>, on: boolean): number
 }
 
 /**
- * A load's bar, with its status line and Cancel when given. A load whose size is not known draws a
- * full moving bar announced with no value (ARIA's indeterminate progress bar), never as 100%.
+ * A load's bar alone. A load whose size is not known draws a full moving bar announced with no value
+ * (ARIA's indeterminate progress bar), never as 100%.
+ * @param progress - a fraction from 0 to 1, or null when the size is not known
+ * @param label - the bar's accessible name
+ * @param size - the bar's Mantine size
+ * @returns The bar
+ */
+function progressBar(progress: number | null, label: string, size: "xs" | "sm"): React.JSX.Element {
+    return progress === null ? (
+        <Progress.Root size={size} role="progressbar" aria-label={label}>
+            <Progress.Section value={100} animated striped withAria={false} />
+        </Progress.Root>
+    ) : (
+        <Progress size={size} value={Math.round(Math.min(1, Math.max(0, progress)) * 100)} aria-label={label} />
+    );
+}
+
+/**
+ * A load's bar, with its status line and Cancel when given.
  * @param props - Component props
  * @param props.progress - a fraction from 0 to 1, or null when the size is not known
  * @param props.label - the bar's accessible name
  * @param props.status - the stage and how far it has come
  * @param props.onCancel - stops the load
  * @param props.cancelLabel - the Cancel button's text
- * @returns The bar
+ * @param props.withBar - whether to draw the bar (false when it is drawn under the URL field)
+ * @returns The bar, or null when there is nothing to draw
  */
 function LoadBar({
     progress,
@@ -168,21 +197,16 @@ function LoadBar({
     status,
     onCancel,
     cancelLabel,
+    withBar,
 }: Readonly<{
     progress: number | null;
     label: string;
     status: FileSourceProps["status"];
     onCancel: (() => void) | undefined;
     cancelLabel: string;
-}>): React.JSX.Element {
-    const bar =
-        progress === null ? (
-            <Progress.Root size="xs" role="progressbar" aria-label={label}>
-                <Progress.Section value={100} animated striped withAria={false} />
-            </Progress.Root>
-        ) : (
-            <Progress size="xs" value={Math.round(Math.min(1, Math.max(0, progress)) * 100)} aria-label={label} />
-        );
+    withBar: boolean;
+}>): React.JSX.Element | null {
+    const bar = withBar ? progressBar(progress, label, "xs") : null;
     if (status === undefined && onCancel === undefined) {
         return bar;
     }
@@ -360,6 +384,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         url,
         onFiles,
         onUrl,
+        submitOnBlur = false,
         label,
         placeholder,
         disabled = false,
@@ -369,6 +394,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         folderLabel,
         hint,
         progress,
+        barUnderField = false,
         status,
         onCancel,
         cancelLabel,
@@ -397,9 +423,12 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         folders: folder,
     });
     const [address, setAddress] = useState(defaultValue);
+    // The address last submitted (or in effect): blurring a field that still holds it submits nothing.
+    const lastSubmitted = useRef(defaultValue.trim());
     // The address in effect changed (written, undone, another project): the field shows it.
     useEffect(() => {
         setAddress(defaultValue);
+        lastSubmitted.current = defaultValue.trim();
     }, [defaultValue]);
     const [invalid, setInvalid] = useState(false);
     const showUrl = url ?? onUrl !== undefined;
@@ -438,9 +467,15 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             setInvalid(value !== "");
             return;
         }
+        lastSubmitted.current = value;
         onUrl?.(value);
     };
+    // With barUnderField the field always sits in the bar's wrapper, so a load starting or ending
+    // never remounts it (the reader's focus and caret stay).
+    const underField = barUnderField && showUrl && drawn !== "button";
+    const barHere = underField && progress !== undefined;
     const urlInput = useRef<HTMLInputElement>(null);
+    const openButton = useRef<HTMLButtonElement>(null);
 
     const urlField = (rightSection?: React.ReactNode, rightSectionWidth?: number): React.JSX.Element => {
         const field = (
@@ -466,23 +501,54 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                         setInvalid(false);
                     });
                 }}
+                onBlur={
+                    submitOnBlur
+                        ? (event) => {
+                              // Focus moving to its Open button leaves the submit to that button.
+                              const inside = event.relatedTarget !== null && event.relatedTarget === openButton.current;
+                              const value = event.currentTarget.value.trim();
+                              if (!inside && value !== "" && value !== lastSubmitted.current) {
+                                  submit(event.currentTarget);
+                              }
+                          }
+                        : undefined
+                }
             />
         );
-        return openLabel === undefined ? (
-            field
-        ) : (
-            <div className="cm-file-url-row">
-                {field}
-                <Button
-                    variant="default"
-                    disabled={disabled}
-                    onClick={() => {
-                        submit(urlInput.current);
-                    }}
-                >
-                    {openLabel}
-                </Button>
+        const withButton =
+            openLabel === undefined ? (
+                field
+            ) : (
+                <div className="cm-file-url-row">
+                    {field}
+                    <Button
+                        ref={openButton}
+                        variant="default"
+                        disabled={disabled}
+                        // With submitOnBlur, a press keeps focus in the field (Safari never focuses a
+                        // pressed button), so the field does not submit on its way to the click.
+                        onMouseDown={
+                            submitOnBlur
+                                ? (event) => {
+                                      event.preventDefault();
+                                  }
+                                : undefined
+                        }
+                        onClick={() => {
+                            submit(urlInput.current);
+                        }}
+                    >
+                        {openLabel}
+                    </Button>
+                </div>
+            );
+        return underField ? (
+            <div className="cm-file-url-bar">
+                {withButton}
+                {progress === undefined ? null : progressBar(progress, labels.fileLoading, "sm")}
             </div>
+        ) : (
+            withButton
         );
     };
 
@@ -583,6 +649,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                     status={status}
                     onCancel={onCancel}
                     cancelLabel={cancelLabel ?? labels.fileCancel}
+                    withBar={!barHere}
                 />
             )}
         </div>

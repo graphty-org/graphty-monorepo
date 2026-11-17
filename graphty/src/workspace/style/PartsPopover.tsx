@@ -195,6 +195,7 @@ function SupplyPart({
                 />
             ) : null}
             <FileSource
+                submitOnBlur
                 variant="row"
                 url
                 autoFocus={first && unused.length === 0}

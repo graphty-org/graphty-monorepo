@@ -2230,11 +2230,19 @@ export interface SessionDataApi {
      *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
      *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
      *     load is read again.
+     * @param options.onProgress - Called with each change of the read, as `progress:changed`
+     *     publishes it (`task: "prepare"`): the rows read so far and, when the size is known, the
+     *     share read (`fraction`). @since 3.40.0
      * @returns The draft.
      */
     prepare(
         source: DataSourceInput,
-        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
+        options?: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        },
     ): Promise<LoadDraft>;
     /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made

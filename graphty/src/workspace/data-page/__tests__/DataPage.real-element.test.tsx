@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
@@ -175,6 +175,10 @@ function assertInOrder(...elements: HTMLElement[]): void {
         );
     }
 }
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe("the Data page on the real element", () => {
     it("T3: opens a graph file with every check green and focus on Load, and Enter loads it", async () => {
@@ -355,6 +359,41 @@ describe("the Data page on the real element", () => {
         await waitFor(() => {
             assert.equal(session.data.lastImport()?.counts.nodes, 3);
         });
+    });
+
+    it("reads an address typed on the empty page when the reader tabs away, with a bar under the field", async () => {
+        const url = "https://data.example.com/slow/les-miserables.gml";
+        let finish: (() => void) | undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    finish = () => {
+                        controller.enqueue(new TextEncoder().encode(GML));
+                        controller.close();
+                    };
+                },
+            });
+            return Promise.resolve(new Response(stream, { status: 200 }));
+        });
+        await openFromEmptyApp();
+        const field = screen.getByRole("textbox", { name: "URL" });
+        await userEvent.type(field, url);
+        await userEvent.tab();
+
+        const bar = await screen.findByRole("progressbar");
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
+        assert.isNotNull(screen.getByText(`Reading ${url}`));
+        await waitFor(() => {
+            assert.isDefined(finish);
+        });
+        finish?.();
+        await screen.findByText(/: 3 nodes, 2 edges$/);
+        assert.isNull(screen.queryByRole("progressbar"), "gone once read");
     });
 
     it("opens a saved project chosen on the page as a project, not as data with no rows", async () => {

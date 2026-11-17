@@ -18,7 +18,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { dragAcross } from "../../../test/real-pointer";
+import { dragAcross, dragTo } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
@@ -782,7 +782,10 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
         assert.isNotNull(await within(dialog).findByText("Downloading"));
-        assert.isNotNull(within(dialog).getByRole("progressbar"), "a progress bar while it downloads");
+        const bar = within(dialog).getByRole("progressbar");
+        const field = within(dialog).getByRole("textbox", { name: "Model address" });
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
         await waitFor(() => {
             assert.isDefined(slow.push);
         });
@@ -799,6 +802,29 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isTrue(slow.cancelled, "the download stopped");
         });
         assert.isUndefined(written(session, "node.model"));
+    });
+
+    it("loads a typed address when the reader leaves the field, and not again for the same one", async () => {
+        const url = "https://models.example.com/slow/blur.glb";
+        const slow = slowFetch(url, quadGlb());
+        const fetches = vi.mocked(globalThis.fetch);
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const field = within(dialog).getByRole("textbox", { name: "Model address" });
+        await userEvent.type(field, url);
+        await userEvent.tab();
+        assert.isNotNull(await within(dialog).findByText("Downloading"), "Tab out of the field loads it");
+        await waitFor(() => {
+            assert.isDefined(slow.push);
+        });
+        const asked = fetches.mock.calls.filter(
+            ([input]) => String(input instanceof Request ? input.url : input) === url,
+        );
+        assert.lengthOf(asked, 1, "one download");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
+        await waitFor(() => {
+            assert.isTrue(slow.cancelled, "the download stopped");
+        });
     });
 
     it("replaces a load still under way with a model dropped on the dialog", async () => {
@@ -909,6 +935,26 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isUndefined(session.assets.find(url), "let go once it settled");
         });
         assert.isUndefined(written(session, "node.model"), "the reader closed it before it loaded");
+    });
+
+    it("selects nothing, and paints nothing in the selection color, for a drag across the dialog (#8612)", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        // Across the empty dialog, from its title out past its edge.
+        await dragTo(within(dialog).getByText("Load custom model"), { x: 4, y: 4 });
+        assert.equal(document.getSelection()?.toString(), "", "the empty dialog");
+        const address = within(dialog).getByRole("textbox", { name: "Model address" });
+        assert.equal(getComputedStyle(address).userSelect, "text", "what the reader types stays selectable");
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        const canvas = await previewOf(dialog, "cube");
+        // From Details, across the preview, and out of the dialog.
+        const preview = canvas.getBoundingClientRect();
+        await dragTo(within(dialog).getByTestId("model-details"), { x: preview.right + 40, y: preview.top + 10 });
+        assert.equal(document.getSelection()?.toString(), "", "Details and the preview");
+        await dragTo(within(dialog).getByTestId("model-details"), { x: 4, y: window.innerHeight - 4 });
+        assert.equal(document.getSelection()?.toString(), "", "out of the dialog");
+        assert.equal(getComputedStyle(canvas).userSelect, "none", "the preview is never selected");
+        assert.equal(getComputedStyle(dialog).userSelect, "none");
     });
 
     it("turns the live preview with a drag and Reset view, changing no setting", async () => {

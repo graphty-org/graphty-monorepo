@@ -259,7 +259,9 @@ export class LiveModelPreview implements ModelPreview {
         this.#engine = engine;
         canvas.tabIndex = 0;
         // The canvas takes every drag, wheel and pinch: the page neither scrolls nor zooms under it.
-        canvas.style.cssText = "display:block;width:100%;height:100%;touch-action:none;outline-offset:-2px";
+        // A drag on the page around it must not select the canvas (as Graph.createCanvas does).
+        canvas.style.cssText =
+            "display:block;width:100%;height:100%;touch-action:none;outline-offset:-2px;user-select:none;-webkit-user-select:none";
         host.appendChild(canvas);
         engine.resize();
         this.#resized =

@@ -195,6 +195,7 @@ export function MapSourceFields({
                         error={sameKind && unreachable ? "Not reachable" : undefined}
                     >
                         <FileSource
+                            submitOnBlur
                             variant="row"
                             url
                             accept="image/*"

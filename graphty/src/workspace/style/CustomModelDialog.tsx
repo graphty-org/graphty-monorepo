@@ -1151,6 +1151,8 @@ export function CustomModelDialog({
 
     const fileSource = (
         <FileSource
+            submitOnBlur
+            barUnderField
             variant="row"
             autoFocus={empty}
             disabled={busy}

@@ -6327,6 +6327,7 @@ export interface SessionDataApi {
         readonly signal?: AbortSignal;
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
+        readonly onProgress?: (change: ProgressChange) => void;
     }): Promise<LoadDraft>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;

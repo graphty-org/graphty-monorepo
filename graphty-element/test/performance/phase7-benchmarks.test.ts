@@ -6,7 +6,7 @@
  * cache builds. Wall-clock budgets used to live here; they measured the runner rather than the
  * code, and the per-call helpers they timed (arrow geometry, arrow position, line endpoint,
  * transformMesh) are checked for correctness in test/EdgeMesh.test.ts. A hang is caught by the
- * test timeout.
+ * repository's one global hang guard, tools/test-wait-guard.mjs.
  */
 
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";

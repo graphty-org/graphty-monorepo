@@ -1,7 +1,9 @@
 /**
- * Credentials (design section 6): objects made by factories, holding their secret where no code
- * can read it back. graph-io applies a credential inside `ctx.fetch`, only to the origins it is
- * bound to, and keeps nothing after a load settles.
+ * Credentials (design section 6): objects made by factories that hide their secret from
+ * enumeration, JSON and inspection. The secret is not unreachable: `storableCredential()`
+ * deliberately returns it so an app can persist it, so hand a credential only to code you trust.
+ * graph-io applies a credential inside `ctx.fetch`, only to the origins it is bound to, and keeps
+ * nothing after a load settles.
  *
  * Experimental, with the source contract.
  */

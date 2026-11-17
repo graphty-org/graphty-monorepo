@@ -27736,7 +27736,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.983,
-            "edge.arrowShape": 0.97,
+            "edge.arrowShape": 0.98,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 0.96,
@@ -27812,7 +27812,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.983,
-            "edge.arrowShape": 0.97,
+            "edge.arrowShape": 0.98,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 0.96,
@@ -28510,7 +28510,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.976,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -28586,7 +28586,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.976,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -39405,7 +39405,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.902,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -39452,7 +39452,7 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.902,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -56373,6 +56373,18 @@
                 "to": 0.375,
                 "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
                 "date": "2026-11-05"
+            },
+            "edge.arrowLength": {
+                "floor": 0.99,
+                "to": 0.98,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            },
+            "edge.arrowWidth": {
+                "floor": 0.98,
+                "to": 0.97,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56381,6 +56393,18 @@
                 "to": 0.375,
                 "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
                 "date": "2026-11-05"
+            },
+            "edge.arrowLength": {
+                "floor": 0.99,
+                "to": 0.98,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            },
+            "edge.arrowWidth": {
+                "floor": 0.98,
+                "to": 0.97,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

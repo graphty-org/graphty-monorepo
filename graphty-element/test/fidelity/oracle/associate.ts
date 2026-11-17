@@ -1029,7 +1029,11 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
     // wide pen: 1.8 px on `dot-specimen-edges-lines-p11`)
     const behind = endBack(line, 0.75 * length) ?? end;
     const before = (behind[0] - end[0]) * axis[0] + (behind[1] - end[1]) * axis[1] < 0;
-    return Math.min(...along) >= -0.3 * length && before && !inPolygon(behind, outline) ? axis : dir;
+    // or stopped on one of its corners, its notch: yEd cuts a curved line where its standard head
+    // begins and aims the head from there at the node, its back corners well behind the cut and up to 10 degrees off
+    // the flattened curve's last run (yed-graphml-specimen-edges-lines arc-fixed-height-20, bezier)
+    const notched = outline.some(([x, y]) => Math.hypot(x - end[0], y - end[1]) <= ON_LINE_PX);
+    return (Math.min(...along) >= -0.3 * length || notched) && before && !inPolygon(behind, outline) ? axis : dir;
 }
 
 /**

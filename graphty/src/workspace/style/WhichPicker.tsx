@@ -3,6 +3,7 @@ import {
     HistogramRow,
     LISTBOX_CLASS_NAMES,
     RangeSlider,
+    ScrollArea,
     useNumberParser,
 } from "@graphty/compact-mantine";
 import {
@@ -21,7 +22,6 @@ import {
     CloseButton,
     Combobox,
     Group,
-    ScrollArea,
     Select,
     Stack,
     Text,

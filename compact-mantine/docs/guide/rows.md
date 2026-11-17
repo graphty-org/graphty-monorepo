@@ -32,7 +32,7 @@ live with their group:
 
 ## A worked example
 
-A complete section of a property panel. The scale is a themed Mantine `SegmentedControl` whose
+A complete section of a property panel. The scale is this package's `SegmentedControl` whose
 segments are drawings with a visually hidden word, the recipe that replaced `IconGroupRow`.
 
 <<< ../examples/node-size-section.tsx

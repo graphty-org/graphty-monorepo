@@ -381,6 +381,25 @@ export default tseslint.config(
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
     },
+    // The files that need Mantine's own SegmentedControl, Slider, RangeSlider and ScrollArea: the
+    // wrappers that replace them, the theme that styles them, the stories of the themed stock
+    // components, and the tests of that theme.
+    {
+        files: [
+            "compact-mantine/src/components/SegmentedControl.tsx",
+            "compact-mantine/src/components/Slider.tsx",
+            "compact-mantine/src/components/ScrollArea.tsx",
+            "compact-mantine/src/theme/**/*.ts",
+            "compact-mantine/stories/mantine/**/*.tsx",
+            "compact-mantine/tests/**/*.{ts,tsx}",
+        ],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { paths: MANTINE_REPLACEMENTS.filter((entry) => !entry.importNames.includes("ScrollArea")) },
+            ],
+        },
+    },
 
     // ============================================
     // ONE ZOD: IMPORT IT AS "zod"

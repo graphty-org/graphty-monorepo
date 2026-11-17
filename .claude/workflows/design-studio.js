@@ -482,7 +482,7 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
             : `Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only`;
     // Every walk saves its route (route.jsonl). A walk an earlier pass already made is replayed, not
     // re-walked by hand: the replay runs every step that still matches with no model, and stops,
-    // session open, where the build now differs (tool/README.md, "Replaying a route").
+    // session open, where the build now differs (tool/REFERENCE.md, "Replaying a route").
     const replayNote = ` SPEED: where an earlier pass walked the same route (a folder with route.jsonl under ${WALKS}/*/pilot/${id0()}/, newest first), start that walk with \`node ${SD}/tool/real.mjs --replay <that walk folder> <your new walk folder>\` instead of stepping by hand: it replays every step whose screen still matches and stops at the first that differs, leaving the session open on that screen for you to look at and carry on by hand (exit 5); exit 0 means the whole route matched and the session is ended. Batch the steps you are sure of into one --step (one screenshot), and look at every screenshot where something is new.`;
     // The note on an earlier pass's walks that were already replayed on this build, or "".
     const rewalkNote = (id, rewalked) =>
@@ -816,7 +816,7 @@ async function dryRun(tag, phaseName, pilots, prevRound) {
 // that four bars are scored by did not exist, so those bars could not hold whatever happened.
 const TOOL_CHECK = (
     RD,
-) => `Check mechanically, on the frozen build, before any session (read ${SD}/tool/README.md first):
+) => `Check mechanically, on the frozen build, before any session (read ${SD}/tool/README.md and ${SD}/tool/REFERENCE.md first):
 1. The browser gate: start ${SLOTS + 2} sessions at once (real.mjs --start, which takes its own slot through ${SD}/tool/with-browser.sh); a one-second poll never shows more than ${SLOTS} studio browsers alive (count the real.mjs --serve and --warm processes); the gate refuses BROWSER_SLOTS above 16; every session is ended afterwards.
 2. The matcher: a click on a name that matches more than one control is refused with the candidate list, never resolved to the first match.
 3. File drop: a file dropped on the start screen opens in the app (a real file chooser or setInputFiles, not synthetic events); where the tool cannot deliver it, it prints that the drop was not delivered.
@@ -859,7 +859,7 @@ Start every session these checks need under ${WALKS}/${tag}/tool-check-${k}/, ne
     return false;
 }
 
-// The round's start gate (real.mjs --gate, tool/README.md "Before a round's first session: the
+// The round's start gate (real.mjs --gate, tool/REFERENCE.md "Before a round's first session: the
 // gate") must pass before any session: --start refuses every session of a round whose plan.md has no
 // "Gate evidence" section. Tier 5 round 1 never ran it and burned all 60 sessions (30 and their 30
 // re-runs) on that one refusal. A plain agent runs the gate and reports its exit; a fixer does what
@@ -877,7 +877,7 @@ async function roundGate(tag, RD, phaseName) {
         if (k === 3) return `the round's start gate (${GATE}) still fails after two fix passes:\n${fails}`;
         await slot(() =>
             agent(
-                `${RULES}\nThe ${NAME} ${tag} sessions may not start until \`${GATE}\` exits 0 (read ${SD}/tool/README.md, "Before a round's first session: the gate"). It printed these FAIL lines:\n${fails}\nDo what each one names (the walks, the bars runs, the documents it asks for), on the frozen build, then run the gate again; repeat until it exits 0. Never write the "Gate evidence" section yourself and never edit real.mjs to pass it. Stop and return what is left when a FAIL line needs an owner decision or a change to the build. Commit what you wrote under ${SD} (never walk screenshots). Return what you did and what is left.`,
+                `${RULES}\nThe ${NAME} ${tag} sessions may not start until \`${GATE}\` exits 0 (read ${SD}/tool/REFERENCE.md, "Before a round's first session: the gate"). It printed these FAIL lines:\n${fails}\nDo what each one names (the walks, the bars runs, the documents it asks for), on the frozen build, then run the gate again; repeat until it exits 0. Never write the "Gate evidence" section yourself and never edit real.mjs to pass it. Stop and return what is left when a FAIL line needs an owner decision or a change to the build. Commit what you wrote under ${SD} (never walk screenshots). Return what you did and what is left.`,
                 { label: `${tag}: fix the start gate ${k}`, phase: phaseName, effort: "high" },
             ),
         );

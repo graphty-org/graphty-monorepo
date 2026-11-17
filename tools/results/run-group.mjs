@@ -20,6 +20,8 @@
 // `affected` when it has a `base` (newFlakyJudge). When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
+// The full path (RESULTS_STORE_QUARANTINE=1, no plan file) reads its family's quarantine from the store as well, and
+// keeps the committed list only when the store does not answer.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
 // switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
@@ -332,7 +334,7 @@ export async function shotsPlan({ cfg, sha, base, family, variant }) {
     try {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
         const own = family.replace(/-shots$/, "");
-        const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
+        const variants = [...new Set([`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant])];
         const r = await fetchPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
         const fresh = r.ok ? r.data : null;
         if (!fresh || fresh.unavailable) {
@@ -837,7 +839,9 @@ async function groupPlan({ root, env, shardName, family, variant, head }) {
     // a screenshot run's `-shots` quarantine is only the store's (never committed): with no plan for it (none given,
     // a store outage then, or a family the light check did not ask about, such as graph-io's fidelity stories on a
     // graphty-element change) ask the store for it here (#3648)
-    if (!plan && family !== familyOf(shardName))
+    // the full path (ci.yml's test job on the release train's call or a dispatch: RESULTS_STORE_QUARANTINE=1) has no
+    // plan file and asks the store for its family's quarantine the same way; no answer keeps the committed list
+    if (!plan && (family !== familyOf(shardName) || env.RESULTS_STORE_QUARANTINE === "1"))
         plan = await shotsPlan({
             cfg: config(env, root),
             sha: head.commit,

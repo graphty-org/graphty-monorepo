@@ -2168,6 +2168,24 @@ describe("health API fan-out", () => {
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
     });
+    it("sends a PUT and a DELETE to HEALTH_API_URL too, with their method, and never a GET", async () => {
+        const s = await serve();
+        const h = await serveHealth();
+        const cfg = config(healthEnv(s.url, h.url));
+        await call(cfg, "GET", "/v1/plan?variants=");
+        await call(cfg, "DELETE", "/v1/base-checks", { base: "abc" });
+        await call(cfg, "PUT", "/v1/durations/tests/x", { k: [1] });
+        await flushHealth();
+        const writes = h.seen.filter((r) => !r.url.startsWith("/token"));
+        // both are in flight at once, so they may arrive in either order
+        assert.deepEqual(
+            writes.map((r) => [r.method, r.url, r.body]).sort((a, b) => a[0].localeCompare(b[0])),
+            [
+                ["DELETE", "/v1/base-checks", { base: "abc" }],
+                ["PUT", "/v1/durations/tests/x", { k: [1] }],
+            ],
+        );
+    });
     it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
         const h = await serveHealth();
         const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test", GITHUB_SHA: "abc" };

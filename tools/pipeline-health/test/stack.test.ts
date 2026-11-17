@@ -58,18 +58,27 @@ describe("health stack", () => {
                 Audience: ["graphty-health", "graphty-results"],
             },
         });
-        for (const path of ["invocations", "failures", "durations", "verdicts", "issues", "channel-moves"]) {
-            t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
-                RouteKey: `POST /v1/${path}`,
-                AuthorizationType: "JWT",
-            });
+        const writes = ["invocations", "failures", "durations", "verdicts", "issues", "channel-moves", "hold"];
+        for (const key of [
+            ...[...writes, "base-checks", "story-captures", "story-reach"].map((path) => `POST /v1/${path}`),
+            "DELETE /v1/base-checks",
+            "PUT /v1/durations/tests/{name}",
+        ]) {
+            t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key, AuthorizationType: "JWT" });
         }
         t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
             RouteKey: "POST /v1/local/{kind}",
             AuthorizationType: "NONE",
         });
         const reads = ["GET /v1/health", "GET /v1/status", "GET /v1/page/{page}", "GET /v1/{proxy+}"];
-        for (const key of [...reads, "GET /v1/plan", "GET /v1/site"]) {
+        const results = ["plan", "site", "quarantine", "candidate", "release-state", "failures", "story-reach"];
+        for (const key of [
+            ...reads,
+            ...results.map((path) => `GET /v1/${path}`),
+            "GET /v1/durations/medians",
+            "GET /v1/durations/tests/{name}",
+            "GET /v1/story-captures",
+        ]) {
             t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key, AuthorizationType: "NONE" });
         }
     });
@@ -81,6 +90,7 @@ describe("health stack", () => {
                 "POST /v1/invocations": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
                 "POST /v1/verdicts": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
                 "POST /v1/local/{kind}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
+                "PUT /v1/durations/tests/{name}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
             },
         });
     });

@@ -161,6 +161,15 @@ input.addEventListener("change", async () => {
 });
 ```
 
+A folder, a `.zip` or a drop may hold several models. `session.assets.addEach` adds each one as its
+own record, holding only the files that model uses, and gives one record for a source of one model,
+just as `add` does:
+
+```ts
+const models = await element.session.assets.addEach(input.files!);
+const ids = models.filter((m) => m.state === "accepted").map((m) => m.id);
+```
+
 The same files always get the same id, so adding a file twice is harmless. A drop target that
 accepts both graph data and models asks `detectModelFormat` which one a file is, instead of
 guessing from the name:
@@ -292,6 +301,22 @@ img.src = await element.modelThumbnail(car.id, { size: 160, style: { "node.model
 element.session.assets.rename(car.id, "Cruiser"); // record.plainName, saved with the project
 ```
 
+For a preview the reader can turn, `element.modelPreview(ref, box, { style })` draws the model
+live in a canvas that fills `box` (any sized element): dragging turns it, the wheel or a pinch
+zooms, and the arrow keys turn it while the canvas has focus. A clip named by
+`node.modelAnimation` plays at `node.modelAnimationSpeed` (Speed 0 holds the pose at
+`node.modelAnimationOffset`), and `node.unlit` and `node.wireframe` are drawn too.
+`preview.update(style)` redraws it with other values and keeps the reader's view;
+`preview.resetView()` goes back to the first view; `preview.dispose()` removes the canvas. It
+rejects with the same codes as `modelThumbnail`.
+
+```ts
+const preview = await element.modelPreview(car.id, box, { style: { "node.modelAnimation": "Drive" } });
+preview.canvas.setAttribute("aria-label", "Cruiser preview, drag to turn");
+await preview.update({ "node.modelAnimation": "Drive", "node.color": "#e63946", "node.modelTint": "replace" });
+preview.dispose(); // when the picker closes
+```
+
 ### Dropped files go to the model that waits for them
 
 A page usually has one place to drop files, and a reader who was told a model needs
@@ -337,11 +362,16 @@ await element.session.styles.add({
 `"node.modelTint": "replace"` paints the whole model in `node.color`, a flat silhouette.
 `"node.modelTint": "untextured"` paints only the parts with no picture and no vertex colors in
 `node.color` and leaves the rest as the file draws them: an OBJ's plain colors follow your data
-while its labels and decals keep their pictures.
+while its labels and decals keep their pictures. To draw a model with your styles instead of its
+own materials -- its embedded pictures dropped too -- use `"replace"`.
 
-A part the file gives no material, no picture and no vertex colors -- an OBJ with no `.mtl`, most
-STL files -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
-says. When a layer colors a model node and some part keeps the file's own color, the color is not
+A part the file gives no material, no picture and no vertex colors -- an OBJ loaded with no `.mtl`
+(or with its `.mtl` skipped), most STL and PLY files, a glTF primitive with no material, or a
+material left at its defaults (white, with no picture, map or glow) -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
+says. A model whose materials are all plain, opaque, non-metallic grays (white and black included)
+with no picture -- such as Blender's default material -- is shaded, not colored, so it too is drawn
+in `node.color` while `node.modelTint` is unset; a layer that sets `node.modelTint: false` keeps
+its grays. When a layer colors a model node and some part keeps the file's own color, the color is not
 drawn there and the element reports `W_MODEL_COLOR_IGNORED` with the layers that set it, so the
 color never disappears in silence.
 

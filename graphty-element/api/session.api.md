@@ -190,6 +190,7 @@ export interface AssetRecord {
 // @public
 export interface AssetsApi {
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     allowHosts(hosts: readonly string[]): void;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
     find(ref: string): AssetRecord | undefined;
@@ -237,6 +238,9 @@ export type AssetState = "pending" | "accepted" | "rejected";
 
 // @public
 export type AssetStorage = "embed" | "url";
+
+// @public
+export function attachKeymap(session: KeymapSession, root: KeymapRoot): () => void;
 
 // @public
 export interface AttributeDescriptor {
@@ -1126,7 +1130,7 @@ export interface ElementSet {
 }
 
 // @public
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";
 
 // @public
 export interface EnabledFeatures {
@@ -1246,7 +1250,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FieldBand {
@@ -1861,7 +1865,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -1907,7 +1911,6 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @experimental timeline
 * @beta
 */
 | "E_NO_TIME_FIELD"
@@ -3366,6 +3369,12 @@ export interface JournalEntry {
 export type JournalId = string;
 
 // @public
+export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventListener">;
+
+// @public
+export type KeymapSession = Pick<GraphSession, "selection" | "canUndo" | "canRedo" | "undo" | "redo">;
+
+// @public
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
@@ -3420,6 +3429,7 @@ export interface LayerProblem {
     readonly message: string;
     readonly path?: string;
     readonly position?: number;
+    readonly scope?: Selector_2;
 }
 
 // @public
@@ -4638,6 +4648,7 @@ export interface ProjectConfig {
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
     readonly startingRows: boolean;
+    readonly timelineHiddenLook: "hidden" | "ghost";
     readonly viewRotation?: number;
 }
 
@@ -4666,6 +4677,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
+    readonly timelineHiddenLook?: "hidden" | "ghost";
     readonly viewRotation?: number;
 }
 
@@ -6141,8 +6153,9 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+* edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
+* condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+* a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
 * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
 * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
 * `selectorRule` reads this selector as with its `states` option.
@@ -6310,6 +6323,7 @@ export interface SessionDataApi {
     renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
@@ -7644,6 +7658,7 @@ export interface TimeApi {
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
+    readonly inside: TimeCountPair | null;
     readonly interval: number;
     readonly mode: TimePlayMode;
     notices(): readonly CodedFact<TimeNoticeCode>[];
@@ -7894,7 +7909,6 @@ export interface TimeStepEvent {
     // (undocumented)
     readonly to: number;
     readonly untimed: TimeCountPair;
-    // (undocumented)
     readonly visible: TimeCountPair;
 }
 

@@ -7,38 +7,16 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, test } from "vitest";
 
-import type { Graphty } from "../../index.js";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 const INTERACTIONS = "source,target\nTP53,MDM2\nMDM2,CDKN1A\nCDKN1A,TP53\nTP53,ATM\n";
 const EXPRESSION = "symbol,log2fc\nTP53,2.1\nmdm2,-1.4\nBRCA1,0.3\n";
 
-let mounted: Graphty | null = null;
-
-/**
- * Mount an empty element and wait for it to settle.
- * @returns the element
- */
-async function mount(): Promise<Graphty> {
-    const container = document.createElement("div");
-    container.style.width = "400px";
-    container.style.height = "300px";
-    container.innerHTML = `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`;
-    document.body.appendChild(container);
-    const element = container.querySelector("graphty-element") as Graphty;
-    mounted = element;
-    await element.updateComplete;
-    await element.waitForSettled();
-    return element;
-}
-
-afterEach(() => {
-    mounted?.parentElement?.remove();
-    mounted = null;
-});
+afterEach(unmountElements);
 
 describe("joining a table onto the element's graph", () => {
     test("the joined values paint through a layer, and one undo takes them back", async () => {
-        const { session } = await mount();
+        const { session } = await mountElement();
         await session.data.import({ type: "csv", config: { data: INTERACTIONS }, name: "ppi.csv" });
         const draft = await session.data.prepare(
             { config: { file: new File([EXPRESSION], "expression.csv") } },

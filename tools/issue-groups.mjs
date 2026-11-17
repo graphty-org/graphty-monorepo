@@ -29,6 +29,8 @@
 //                                          families of ready, unopened branches that may be merged into one new
 //                                          branch from master and opened as one pull request
 //   metrics [--append] [--json]            throughput and guardrails over the last 7 days
+//   idle [--json]                          whether the issue-round session sits idle while jobs are startable
+//                                          (exit 1 when it does: start jobs); writes idle.json beside the ledger
 //
 // Exit codes: 0 done, 1 refused (the reason is printed), 2 usage, 3 the ledger is busy (run it again).
 import { execFileSync } from "node:child_process";
@@ -42,11 +44,13 @@ import {
     writeFileSync,
     closeSync,
 } from "node:fs";
+import { cpus, loadavg } from "node:os";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
+import { liveTickets, slotCount, slotDir } from "./test-slots.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
@@ -1841,6 +1845,92 @@ const fallbackJobs = (rest) => {
 };
 
 // ---------------------------------------------------------------------------------------------------------------
+// Idle: whether the issue-round session should be starting jobs (2026-11-16: an hour of pipeline plumbing with ten
+// jobs startable and test slots free).
+
+const SLOT_WAIT_LIMIT_MS = 10 * 60_000;
+
+/**
+ * The fix jobs a session runs: issues whose newest state marker is that session's `taken`, one job per branch.
+ * @param issues Map n -> `{ comments }` (fetchFacts with comments)
+ * @param session the session id
+ * @returns `{ jobs, issues }`: the job count and the issue numbers
+ */
+export function runningJobs(issues, session) {
+    const branches = new Set();
+    const held = [];
+    if (!session) return { jobs: 0, issues: held };
+    for (const [n, f] of issues) {
+        const m = newestMarker(f.comments ?? []);
+        if (m?.kind !== "taken" || /^by session ([^,\s]+)/.exec(m.text)?.[1] !== session) continue;
+        held.push(n);
+        branches.add(m.branch ?? `#${n}`);
+    }
+    return { jobs: branches.size, issues: held.sort((a, b) => a - b) };
+}
+
+/**
+ * The idle verdict.
+ * @param f `{ running, slots: { count, held, waitedMs }, load, cores, startable }`; slots.count 0 means no limit
+ * @returns `{ idle, reason, line, ...f, free }`
+ */
+export function idleVerdict(f) {
+    const free = f.slots.count === 0 ? Infinity : Math.max(0, f.slots.count - f.slots.held);
+    const slots = f.slots.count === 0 ? "slots off" : `slots free ${free} of ${f.slots.count}`;
+    const load = Math.round(f.load);
+    let reason = "start jobs";
+    if (f.startable === 0) reason = "nothing startable";
+    else if (f.running >= free) reason = "the running jobs fill the free slots";
+    else if (f.slots.waitedMs > SLOT_WAIT_LIMIT_MS)
+        reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
+    else if (f.load >= f.cores) reason = "load is at or over the cores";
+    const idle = reason === "start jobs";
+    const line = `idle: running ${f.running}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}`;
+    return { idle, reason, line, ...f, free: Number.isFinite(free) ? free : null };
+}
+
+const slotFacts = (now) => {
+    let tickets = [];
+    try {
+        tickets = liveTickets(slotDir());
+    } catch {
+        // no ticket directory yet: nothing runs
+    }
+    const waits = tickets.filter((t) => !t.granted).map((t) => now - t.since);
+    return { count: slotCount(), held: tickets.length - waits.length, waitedMs: Math.max(0, ...waits) };
+};
+
+const lastRoundSession = (ledgerPath) => {
+    try {
+        return (
+            readFileSync(`${dirname(ledgerPath)}/last-round`, "utf8")
+                .trim()
+                .split(/\s+/)[1] ?? null
+        );
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * The facts of `idle`: the open issues once (the queue `jobs` reads), the comments of the in-progress ones once
+ * (the marker read `check` makes), the test slots and the load from this machine.
+ * @param c the command context
+ * @returns the facts for idleVerdict(), plus `session` and `issues` (the running jobs' issues)
+ */
+const idleFacts = (c) => {
+    const open = c.fetchOpen();
+    const inProgress = open
+        .filter((i) => (i.labels?.nodes ?? []).some((l) => l.name === "in-progress"))
+        .map((i) => i.number);
+    const session = c.session();
+    const running = runningJobs(inProgress.length ? c.markers(inProgress) : new Map(), session);
+    const startable = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now).jobs.length;
+    const machine = c.machine();
+    return { session, running: running.jobs, issues: running.issues, startable, ...machine };
+};
+
+// ---------------------------------------------------------------------------------------------------------------
 // The command line.
 
 const OPTIONS = {
@@ -1863,7 +1953,7 @@ const OPTIONS = {
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -2057,6 +2147,16 @@ const COMMANDS = {
         return ok(c.o.json ? JSON.stringify(plan, null, 2) : combineLines(plan).join("\n"));
     },
     metrics: (c) => metricsCommand(c),
+    idle: (c) => {
+        const v = idleVerdict(idleFacts(c));
+        // the Stop hook (tools/issue-round-idle-hook.mjs) reads this: the GitHub reads take ~10 s, too slow for a hook
+        try {
+            writeFileSync(`${dirname(c.ledgerPath)}/idle.json`, `${JSON.stringify({ at: c.now, ...v })}\n`);
+        } catch {
+            // no cache, no hook block: the verdict is still printed
+        }
+        return { code: v.idle ? 1 : 0, out: c.o.json ? JSON.stringify(v, null, 2) : v.line };
+    },
 };
 
 const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", import.meta.url));
@@ -2064,7 +2164,8 @@ const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", i
 /**
  * The command line.
  * @param argv arguments after the script
- * @param deps `{ ledgerPath, run, now, fetchQueue, readFile, isAncestor, fallback, metricsLog, git, guard }`
+ * @param deps `{ ledgerPath, run, now, fetchQueue, fetchOpen, readFile, isAncestor, fallback, metricsLog, git, guard,
+ *   session, markers, machine }`
  * @returns `{ code, out }`
  */
 export function main(argv, deps = {}) {
@@ -2095,6 +2196,10 @@ export function main(argv, deps = {}) {
         guard: deps.guard ?? readGuard,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
+        fetchOpen: deps.fetchOpen ?? (() => fetchOpen()),
+        session: deps.session ?? (() => lastRoundSession(ledgerPath)),
+        markers: deps.markers ?? ((numbers) => fetchFacts(numbers, [], run, true).issues),
+        machine: deps.machine ?? (() => ({ slots: slotFacts(now), load: loadavg()[0], cores: cpus().length })),
     };
     try {
         return command(ctx);

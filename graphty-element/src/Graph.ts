@@ -7188,7 +7188,7 @@ export class Graph implements GraphContext {
      * @param rows - The rows.
      * @yields Each row's spot.
      */
-    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot> {
+    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot, void> {
         const batches = this.#nodeBatches;
         const table = this.#rowTable;
         if (batches === null || table === null || batches.columnRowCount === 0) {
@@ -8701,8 +8701,9 @@ export class Graph implements GraphContext {
             camera.position.set(state.position.x, state.position.y, state.position.z);
         }
 
-        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+        const targeted = camera as Camera & { setTarget?: (target: Vector3) => void };
+        if (state.target && typeof targeted.setTarget === "function") {
+            targeted.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 
@@ -10994,9 +10995,12 @@ export class Graph implements GraphContext {
         this.aiXr?.leave();
 
         // Clean up XR camera controller
-        if (this.scene.metadata?.xrCameraController) {
-            this.scene.metadata.xrCameraController.dispose();
-            this.scene.metadata.xrCameraController = null;
+        const metadata = this.scene.metadata as {
+            xrCameraController?: import("./cameras/XRPivotCameraController").XRPivotCameraController | null;
+        } | null;
+        if (metadata?.xrCameraController) {
+            metadata.xrCameraController.dispose();
+            metadata.xrCameraController = null;
         }
 
         // Remove render loop observer

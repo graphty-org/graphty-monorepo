@@ -3072,12 +3072,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The values, by channel.
      */
     const baseValues = (target: "node" | "edge"): StaticStyle =>
-        Object.assign(
-            {},
-            ...(sources.base ?? [])
-                .filter((spec) => spec.target === target && spec.selector.match === "everything")
-                .map((spec) => spec.set),
-        );
+        (sources.base ?? [])
+            .filter((spec) => spec.target === target && spec.selector.match === "everything")
+            .reduce<StaticStyle>((all, spec) => Object.assign(all, spec.set), {});
 
     /**
      * The layers of the stack by id, cached until the stack changes.

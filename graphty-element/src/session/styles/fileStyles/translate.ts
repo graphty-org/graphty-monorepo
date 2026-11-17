@@ -491,7 +491,7 @@ function termsOf(where: Predicate): number {
     }
 
     const list = listOf(where);
-    if (!Array.isArray(list)) {
+    if (list === null) {
         return Infinity;
     }
 

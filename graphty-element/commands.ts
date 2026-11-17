@@ -58,6 +58,7 @@ export const COMMANDS = Object.freeze({
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },
     "shader.set": { undo: "undoable" },
+    "asset.defaults": { undo: "undoable" },
     "visibility.set": { undo: "undoable" },
     "visibility.window": { undo: "undoable" },
     "visibility.context": { undo: "undoable" },

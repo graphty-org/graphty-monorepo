@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { MeasurementDeclaration } from "../../../catalog/types";
+import type { ModelDefaultsPatch } from "../../../session/assets/AssetsApi";
 import { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "../../../session/backgroundImage";
 import { CONFIG_KEYS, unwrap } from "../../../session/configKeys";
 import type { ProjectConfigPatch } from "../../../session/types";
@@ -165,9 +166,41 @@ export const projectTool: ToolDefinition = {
     plainName: "Project",
     core: false,
     description:
-        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
+        "Project settings (background, selection style, layout behavior, data columns, direction), a model's own settings, its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
     example: { action: "settings", data: { knownFields: { nodeLabelPath: "name" } } },
     actions: [
+        {
+            name: "model_settings",
+            summary: "a model's own settings; null removes",
+            fields: {
+                model: z.string().max(MAX_STRING).describe("The model's asset id or URL, as node.model names it."),
+                values: z
+                    .record(
+                        z.string().max(100),
+                        z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]),
+                    )
+                    .optional()
+                    .describe("node.model* values every node drawing it starts from."),
+                hiddenTextures: z
+                    .array(z.string().max(MAX_STRING))
+                    .max(256)
+                    .optional()
+                    .describe("Picture names (inspect pictures) drawn without."),
+            },
+            effect: "write",
+            reaches: [{ door: "AssetsApi.setDefaults" }, { op: "asset.defaults" }],
+            run: async ({ tx }, args) => {
+                const record = await coded(() =>
+                    tx.assets.setDefaults(text(args.model), {
+                        ...(args.values === undefined ? {} : { style: args.values as ModelDefaultsPatch["style"] }),
+                        ...(Array.isArray(args.hiddenTextures)
+                            ? { hiddenTextures: args.hiddenTextures as string[] }
+                            : {}),
+                    }),
+                );
+                return ok(record.defaults ?? null, { model: record.id });
+            },
+        },
         {
             name: "settings",
             summary: "Change project settings; only the groups given change.",

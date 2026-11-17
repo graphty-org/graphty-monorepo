@@ -43,6 +43,7 @@ import {
     resolveLocation,
 } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
+import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { DataDeriveCommand } from "./commands/derive";
@@ -137,6 +138,7 @@ export type SessionCommand =
     | SourceExpandOpCommand
     | StyleCommand
     | ShaderCommand
+    | AssetCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand

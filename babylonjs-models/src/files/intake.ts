@@ -969,6 +969,7 @@ export async function checkModelFiles(
             textureBytes,
             upAxis: "unknown",
             animations: [],
+            pictures: [],
             skinned: false,
             morphTargets: 0,
             transparent: false,

@@ -12,6 +12,7 @@ import type { CommandDefinition, UndoableDefinition } from "../project/Dispatche
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
 import { ALGO_DEFINITIONS } from "./algo";
+import { ASSET_DEFINITIONS } from "./assets";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
 import { DERIVE_DEFINITIONS } from "./derive";
@@ -103,6 +104,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...SHADER_DEFINITIONS,
+    ...ASSET_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,

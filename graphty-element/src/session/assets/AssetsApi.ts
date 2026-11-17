@@ -22,7 +22,7 @@ import {
 } from "babylonjs-models/detect";
 import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
 
-import type { LayerId } from "../../catalog/types";
+import type { ChannelValue, LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact, ProgressChange } from "../shared";
@@ -193,6 +193,67 @@ export interface AssetRecord {
     readonly parts?: readonly ModelPart[];
     /** The reader's name for it (`assets.rename`), saved with the project. */
     readonly plainName?: string;
+    /**
+     * The model's own settings (`assets.setDefaults`): every node drawing it starts from them, and a
+     * layer's value wins. Saved with the project and undone like any edit. Absent when none is set.
+     */
+    readonly defaults?: ModelDefaults;
+}
+
+/** The `node.model*` settings a model can carry for every node that draws it ({@link ModelDefaults}). */
+export type ModelDefaultChannel =
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelAnimation"
+    | "node.modelAnimationSpeed"
+    | "node.modelAnimationOffset"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.modelDoubleSided";
+
+/** Every {@link ModelDefaultChannel}. */
+export const MODEL_DEFAULT_CHANNELS: readonly ModelDefaultChannel[] = Object.freeze([
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.modelDoubleSided",
+]);
+
+/**
+ * A model's own settings: a node drawing it takes each `style` value its layers leave unset (a
+ * layer's value wins, then the model's, then the channel's default), and draws the pictures
+ * named in `hiddenTextures` without them.
+ */
+export interface ModelDefaults {
+    /** Values of the model's channels, as a layer's `set` holds them. */
+    readonly style: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue>>>;
+    /**
+     * Pictures drawn without, by {@link ModelSummary.pictures} name: each part that drew one draws
+     * in its material's plain color, which takes the node's color when that is plain white.
+     */
+    readonly hiddenTextures: readonly string[];
+}
+
+/** A change to a model's settings (`assets.setDefaults`). */
+export interface ModelDefaultsPatch {
+    /** Values to set; `undefined` (or `null`) takes a value out. Keys left out keep their value. */
+    readonly style?: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue | null | undefined>>>;
+    /** The pictures drawn without, replacing the list whole. Left out keeps it. */
+    readonly hiddenTextures?: readonly string[];
+}
+
+/** One picture a model's materials draw ({@link ModelSummary.pictures}). */
+export interface ModelPicture {
+    /** A glTF image's name, else its `uri`, else `image<index>`; an OBJ picture's path in the set. */
+    readonly name: string;
+    /** The materials that draw it, by name ("" for an unnamed one). */
+    readonly materials: readonly string[];
 }
 
 /** What a model holds, read from its files without drawing it. */
@@ -216,7 +277,16 @@ export interface ModelSummary {
      * Gaussian splats, which store Y pointing down). `node.modelSourceUp: "detected"` draws it up.
      */
     readonly upAxis: "y" | "z" | "-y" | "unknown";
+    /**
+     * Each clip, named as `node.modelAnimation` plays it: an unnamed glTF clip is
+     * `animation<index>`, as the glTF loader names it.
+     */
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
+    /**
+     * glTF and OBJ: every picture the materials draw, embedded or external, with the materials that
+     * draw it; empty for the other formats. `ModelDefaults.hiddenTextures` names these.
+     */
+    readonly pictures: readonly ModelPicture[];
     readonly skinned: boolean;
     readonly morphTargets: number;
     readonly transparent: boolean;
@@ -431,6 +501,25 @@ export interface AssetsApi {
      */
     supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
     /**
+     * Accept a model waiting for parts without the ones it can be drawn without: every missing
+     * picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
+     * the record lists them in `skipped`. For an "add it anyway" button beside a model whose
+     * pictures did not come.
+     * @param ref - What a layer named, or the record's id.
+     * @param options - `without: "missing"`: skip every missing part.
+     * @param options.without - What to accept the model without.
+     * @returns The accepted record, with its digest id (the id it had while it waited still finds it).
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
+     *     or `E_MODEL_PART_REQUIRED` when a missing part is its geometry (a glTF's `.bin`), with
+     *     `details.name` naming it; nothing is skipped then.
+     * @example
+     * ```ts
+     * const waiting = await graph.session.assets.add(input.files);
+     * if (waiting.state === "rejected") await graph.session.assets.accept(waiting.id, { without: "missing" });
+     * ```
+     */
+    accept(ref: string, options: { readonly without: "missing" }): Promise<AssetRecord>;
+    /**
      * Hand files to the session first, before treating them as new assets: every file that exactly
      * one waiting model is missing (by its folder path, then by its base name, in any case) is
      * supplied to that model. A file two models could take is never guessed; it stays in `rest`.
@@ -480,6 +569,30 @@ export interface AssetsApi {
      * ```
      */
     rename(ref: string, plainName?: string): AssetRecord;
+    /**
+     * Change a model's own settings ({@link ModelDefaults}): one undoable step, saved with the
+     * project. Inside `session.transaction`, call it on the transaction's `tx.assets` to join it.
+     * @param ref - An asset id, or a URL the session holds.
+     * @param patch - The values to set or take out, and the pictures to draw without.
+     * @returns The record, with its `defaults`.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold, or
+     *     `E_BAD_COMMAND` for a channel that is not a model's or a value its channel does not take.
+     * @example
+     * ```ts
+     * await graph.session.assets.setDefaults(record.id, { style: { "node.modelTurn": 90 } });
+     * ```
+     */
+    setDefaults(ref: string, patch: ModelDefaultsPatch): Promise<AssetRecord>;
+}
+
+/** How `session.assets` reaches the project's model settings: read one, and dispatch a change. */
+export interface ModelDefaultsBinding {
+    read(id: AssetId): ModelDefaults | undefined;
+    dispatch(command: {
+        readonly op: "asset.defaults";
+        readonly id: AssetId;
+        readonly patch: ModelDefaultsPatch;
+    }): Promise<unknown>;
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -576,6 +689,24 @@ const PART_CODES = new Set(["E_MODEL_MISSING_FILE", "E_MODEL_PART_AMBIGUOUS", "E
 
 /** The assets API plus what the drawing side reads and the public interface does not offer. */
 export interface AssetsApiInternal extends AssetsApi {
+    /**
+     * Give the assets the project's model settings, once the session's dispatcher exists.
+     * @param binding - How to read and change them.
+     */
+    bindDefaults(binding: ModelDefaultsBinding): void;
+    /**
+     * Read the model settings of some assets again, after the project's changed (an edit, an undo).
+     * @param ids - The assets' ids.
+     */
+    refreshDefaults(ids: Iterable<string>): void;
+    /**
+     * Put a model's settings back whole, as a project file saved them, whether or not the session
+     * holds the model yet (one kept by URL loads later).
+     * @param id - The model's accepted id.
+     * @param defaults - The settings.
+     * @returns Once they are recorded.
+     */
+    putDefaults(id: AssetId, defaults: ModelDefaultsPatch): Promise<void>;
     /**
      * Whether a layer that did not come from code may fetch from a host.
      * @param host - The host name.
@@ -964,6 +1095,16 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const expectedDigests = new Map<string, string>();
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
+    let defaultsBinding: ModelDefaultsBinding | undefined;
+    /**
+     * A record's `defaults` field, as the project holds it now.
+     * @param id - The record's id.
+     * @returns The field, or nothing when the project sets none.
+     */
+    const defaultsOf = (id: AssetId): { defaults?: ModelDefaults } => {
+        const defaults = defaultsBinding?.read(id);
+        return defaults === undefined ? {} : { defaults };
+    };
 
     /**
      * Every entry once, whatever names it.
@@ -1123,6 +1264,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             problems: checked.warnings,
             ...at.extra,
             ...(checked.kind === "model" ? parts : {}),
+            ...defaultsOf(at.acceptedId),
         });
         return { settled, summary: checked.summary };
     };
@@ -2174,6 +2316,30 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return abortable(result, options.signal);
         },
 
+        async accept(ref) {
+            if (findEntry(ref) === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            let current = await api.ready(ref);
+            const missing = (current.parts ?? []).filter((part) => part.state === "missing");
+            const geometry = missing.find((part) => part.role === "geometry" || part.role === "model");
+            if (geometry !== undefined) {
+                throw supplyError("E_MODEL_PART_REQUIRED", { id: current.id, name: geometry.name });
+            }
+
+            for (const part of missing) {
+                current = await api.supply(ref, { name: part.name, skip: true });
+            }
+
+            return current;
+        },
+
         async offer(files, options = {}) {
             const waiting = waitingEntries();
             const taken = new Set<string>();
@@ -2228,6 +2394,62 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             return entry.record;
+        },
+
+        bindDefaults(binding) {
+            defaultsBinding = binding;
+        },
+
+        refreshDefaults(ids) {
+            const wanted = new Set(ids);
+            for (const each of allEntries()) {
+                if (wanted.has(each.record.id)) {
+                    const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...each.record };
+                    delete fields.defaults;
+                    each.record = record({ ...fields, ...defaultsOf(each.record.id) });
+                    each.settled = Promise.resolve(each.record);
+                }
+            }
+        },
+
+        async putDefaults(id, defaults) {
+            if (defaultsBinding === undefined) {
+                return;
+            }
+
+            // Every channel the file does not set is taken out: the file's settings replace the model's.
+            const style = Object.fromEntries(
+                MODEL_DEFAULT_CHANNELS.map((channel) => [channel, defaults.style?.[channel] ?? null]),
+            );
+            await defaultsBinding.dispatch({
+                op: "asset.defaults",
+                id,
+                patch: { style, hiddenTextures: defaults.hiddenTextures ?? [] },
+            });
+            api.refreshDefaults([id]);
+        },
+
+        setDefaults(ref, patch) {
+            try {
+                const entry = findEntry(ref);
+                if (entry === undefined || defaultsBinding === undefined) {
+                    throw new GraphtyError({
+                        code: "E_MODEL_UNKNOWN_ASSET",
+                        source: "data",
+                        message: `No model is held as ${ref}.`,
+                        details: { id: ref },
+                    });
+                }
+
+                const { id } = entry.record;
+                // Dispatched before any await, so a call routed into a transaction joins it.
+                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch }).then(() => {
+                    api.refreshDefaults([id]);
+                    return findEntry(ref)?.record ?? entry.record;
+                });
+            } catch (error) {
+                return Promise.reject(error);
+            }
         },
 
         usedBy(ref) {

@@ -46,7 +46,7 @@ export interface ModelThumbnailOptions {
      * The node's style values, as a layer's `set` holds them: `node.color` and the `node.model*`
      * channels (Up, Turn, Fit, Center, Tint, Animation and its Start, the pose drawn),
      * `node.unlit`, `node.wireframe` and `node.texture` (the picture every material takes) are
-     * read, the rest are ignored.
+     * read, the rest are ignored. The model's own settings (`defaults.style`) fill what they leave out.
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
     /**
@@ -57,6 +57,11 @@ export interface ModelThumbnailOptions {
      * model throws.
      */
     readonly standInMissing?: boolean;
+    /**
+     * The pictures drawn without, by `ModelSummary.pictures` name, in place of the model's own
+     * `defaults.hiddenTextures` (`session.assets.setDefaults`): each part that drew one draws plain.
+     */
+    readonly hiddenTextures?: readonly string[];
 }
 
 /**

@@ -21,7 +21,7 @@
  */
 
 import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references.js";
-import type { ModelCompression, ModelFact, ModelLimits, ModelSummary } from "./types.js";
+import type { ModelCompression, ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
 /** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
 const GLTF_CAPS = Object.freeze({
@@ -1098,6 +1098,114 @@ function animationClips(
     });
 }
 
+/** Where a texture may name its image: its own `source`, or an image-format extension's. */
+const SOURCE_EXTENSIONS = ["EXT_texture_webp", "EXT_texture_avif", "KHR_texture_basisu"];
+
+/**
+ * Each image's picture name: its name, else its `uri` (not a data URI), else `image<index>`, as
+ * Babylon's glTF loader names it.
+ * @param images - The glTF's images.
+ * @returns The names, by image index.
+ */
+function pictureNames(images: readonly Record<string, unknown>[]): string[] {
+    return images.map((image, at) => {
+        if (typeof image.name === "string" && image.name !== "") {
+            return cut(image.name);
+        }
+
+        return cut(typeof image.uri === "string" && !/^data:/i.test(image.uri) ? image.uri : `image${String(at)}`);
+    });
+}
+
+/**
+ * The images a texture may draw.
+ * @param texture - The texture.
+ * @returns Their indices.
+ */
+function sourcesOf(texture: Record<string, unknown> | undefined): number[] {
+    if (texture === undefined) {
+        return [];
+    }
+
+    const extensions = isObject(texture.extensions) ? texture.extensions : {};
+    return [
+        texture.source,
+        ...SOURCE_EXTENSIONS.map((name) => (extensions[name] as { source?: unknown } | undefined)?.source),
+    ].filter((source): source is number => typeof source === "number");
+}
+
+/**
+ * Every texture reference in a material (`baseColorTexture`, `normalTexture`, an extension's
+ * `...Texture`), with the object holding it, to read or drop.
+ * @param value - The material, or a part of it.
+ * @param found - Where each reference goes: its holder, its key and its texture index.
+ */
+function textureRefs(value: unknown, found: [Record<string, unknown>, string, number][]): void {
+    if (!isObject(value)) {
+        return;
+    }
+
+    for (const [key, entry] of Object.entries(value)) {
+        if (key.endsWith("Texture") && isObject(entry) && typeof entry.index === "number") {
+            found.push([value, key, entry.index]);
+        } else {
+            textureRefs(entry, found);
+        }
+    }
+}
+
+/**
+ * Every picture a glTF's materials draw, and the materials that draw it.
+ * @param json - The glTF.
+ * @returns The pictures, in image order.
+ */
+function picturesOf(json: Record<string, unknown>): ModelPicture[] {
+    const images = list(json, "images");
+    const textures = list(json, "textures");
+    const names = pictureNames(images);
+    const using = images.map(() => new Set<string>());
+    for (const material of list(json, "materials")) {
+        const refs: [Record<string, unknown>, string, number][] = [];
+        textureRefs(material, refs);
+        for (const [, , texture] of refs) {
+            for (const image of sourcesOf(textures[texture])) {
+                using[image]?.add(cut(typeof material.name === "string" ? material.name : ""));
+            }
+        }
+    }
+
+    return names.map((name, at) => Object.freeze({ name, materials: Object.freeze([...using[at]]) }));
+}
+
+/**
+ * Drop every material's references to the named pictures, so those parts draw without them.
+ * @param json - The glTF, changed in place.
+ * @param hidden - Picture names, as {@link ModelSummary.pictures} gives them.
+ * @returns Whether anything was dropped.
+ */
+export function withoutGltfPictures(json: Record<string, unknown>, hidden: ReadonlySet<string>): boolean {
+    if (hidden.size === 0) {
+        return false;
+    }
+
+    const names = pictureNames(Array.isArray(json.images) ? json.images.filter(isObject) : []);
+    const textures = Array.isArray(json.textures) ? json.textures.filter(isObject) : [];
+    const materials = Array.isArray(json.materials) ? json.materials : [];
+    let dropped = false;
+    for (const material of materials) {
+        const refs: [Record<string, unknown>, string, number][] = [];
+        textureRefs(material, refs);
+        for (const [holder, key, texture] of refs) {
+            if (sourcesOf(textures[texture]).some((image) => hidden.has(names[image] ?? ""))) {
+                Reflect.deleteProperty(holder, key);
+                dropped = true;
+            }
+        }
+    }
+
+    return dropped;
+}
+
 /**
  * Check a glTF and summarize it.
  * @param input - The parsed glTF and its files.
@@ -1156,6 +1264,7 @@ export function checkGltf(input: GltfInput): GltfChecked {
         ...(bounds === undefined ? {} : { bounds: Object.freeze(bounds) }),
         upAxis: "y" as const,
         animations: Object.freeze(clips),
+        pictures: Object.freeze(picturesOf(json)),
         skinned: skins.length > 0,
         morphTargets,
         transparent: materials.some((m) => m.alphaMode === "BLEND"),

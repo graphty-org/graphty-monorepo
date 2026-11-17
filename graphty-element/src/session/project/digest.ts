@@ -156,6 +156,8 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         ...(state.valueLabels.size === 0 ? [] : [`valueLabels=${canonical(state.valueLabels, path)}`]),
         // Likewise for pasted shaders.
         ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
+        // And for the models' own settings.
+        ...(state.modelDefaults.size === 0 ? [] : [`modelDefaults=${canonical(state.modelDefaults, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(

@@ -87,6 +87,36 @@ describe("the glTF checks", () => {
         );
     });
 
+    it("list every picture the materials draw, by image name, uri or index, with their materials", async () => {
+        const checked = await checkModelFiles(
+            cubeWith((json) => {
+                const images = json.images as Json[];
+                images.push(
+                    { name: "wood", uri: "cube.png" },
+                    {
+                        uri: `data:image/png;base64,${Buffer.from(fixture("gltf-textured", "cube.png")).toString("base64")}`,
+                    },
+                );
+                (json.textures as Json[]).push({ source: 1 }, { extensions: { EXT_texture_webp: { source: 2 } } });
+                (json.materials as Json[]).push({ normalTexture: { index: 1 }, emissiveTexture: { index: 2 } });
+            }),
+            {},
+            DEFAULT_MODEL_LIMITS,
+        );
+        assert.deepEqual(checked.summary.pictures, [
+            { name: "cube.png", materials: ["cube"] },
+            { name: "wood", materials: [""] },
+            { name: "image2", materials: [""] },
+        ]);
+
+        const obj = await checkModelFiles(
+            new Map(["cube.obj", "cube.mtl", "cube.png"].map((name) => [name, fixture("obj-mtl-png", name)])),
+            {},
+            DEFAULT_MODEL_LIMITS,
+        );
+        assert.deepEqual(obj.summary.pictures, [{ name: "cube.png", materials: ["cube"] }]);
+    });
+
     it("refuse JSON that does not parse and a GLB cut short", async () => {
         const broken = new Map([["cube.gltf", new TextEncoder().encode("{ not json")]]);
         assert.strictEqual((await refusalOf(broken)).code, "E_MODEL_STRUCTURE");

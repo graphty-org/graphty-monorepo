@@ -115,6 +115,7 @@ function baseSummary(
         format,
         upAxis,
         animations: Object.freeze([]),
+        pictures: Object.freeze([]),
         skinned: false,
         morphTargets: 0,
         transparent: false,
@@ -309,6 +310,8 @@ function checkPositiveIndices(text: string, vertices: number): void {
 interface MtlTally {
     readonly materials: string[];
     readonly textures: Set<string>;
+    /** Each picture's path in the set, and the materials that draw it. */
+    readonly pictures: Map<string, Set<string>>;
     textureBytes: number;
     transparent: boolean;
 }
@@ -338,6 +341,9 @@ function addTexture(
     tally: MtlTally,
 ): void {
     const image = resolveReference(name, mtlPath, files);
+    const using = tally.pictures.get(image.path) ?? new Set<string>();
+    using.add(tally.materials.at(-1) ?? "");
+    tally.pictures.set(image.path, using);
     if (tally.textures.has(image.path)) {
         return;
     }
@@ -367,7 +373,13 @@ function readMtls(
     files: ReadonlyMap<string, Uint8Array>,
     limits: ModelLimits,
 ): MtlTally {
-    const tally: MtlTally = { materials: [], textures: new Set(), textureBytes: 0, transparent: false };
+    const tally: MtlTally = {
+        materials: [],
+        textures: new Set(),
+        pictures: new Map(),
+        textureBytes: 0,
+        transparent: false,
+    };
     for (const name of mtlFiles) {
         const mtl = resolveReference(name, path, files);
         for (const raw of textOf(mtl.bytes, limits).split("\n")) {
@@ -400,7 +412,7 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
     // A positive index may only name a vertex the file has.
     checkPositiveIndices(text, vertices);
 
-    const { materials, textures, textureBytes, transparent } = readMtls(mtlFiles, path, files, limits);
+    const { materials, textures, pictures, textureBytes, transparent } = readMtls(mtlFiles, path, files, limits);
     const bounds = box.value;
     return {
         summary: Object.freeze({
@@ -408,6 +420,9 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
             triangles,
             meshes: Math.max(groups, 1),
             materials: Object.freeze(materials),
+            pictures: Object.freeze(
+                [...pictures].map(([name, using]) => Object.freeze({ name, materials: Object.freeze([...using]) })),
+            ),
             textures: textures.size,
             textureBytes,
             transparent,

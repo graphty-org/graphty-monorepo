@@ -273,6 +273,17 @@ it in `record.skipped`, and a saved project remembers the skip, so reopening it 
 An address on this machine or the local network is never fetched as a missing file unless it is
 the model's own site, and an address's query is used for the request and never shown or saved.
 
+To take a model without the pictures and `.mtl` files that did not come (an "add it anyway"
+button), `assets.accept(ref, { without: "missing" })` skips every one of them at once and resolves
+with the accepted record, its skips in `record.skipped`. A model missing its geometry throws
+`E_MODEL_PART_REQUIRED` with `details.name`, and nothing is skipped:
+
+```ts
+const waiting = await element.session.assets.add(droppedFiles); // rejected: wood.png is missing
+const car = await element.session.assets.accept(waiting.id, { without: "missing" });
+// car.state === "accepted"; car.skipped lists wood.png; find(waiting.id) finds it too
+```
+
 ### Listing a model's files
 
 `record.parts` lists a model's files, accepted or waiting: the main file (`role: "model"`), each
@@ -309,6 +320,20 @@ zooms, and the arrow keys turn it while the canvas has focus. A clip named by
 `preview.update(style)` redraws it with other values and keeps the reader's view;
 `preview.resetView()` goes back to the first view; `preview.dispose()` removes the canvas. It
 rejects with the same codes as `modelThumbnail`.
+
+To mark the models of a set that cannot be drawn before the reader looks at each one,
+`element.checkModel(ref)` builds the model once, as a node would draw it, without drawing it on
+screen, and resolves with `{ drawable: true }`, or `{ drawable: false, failure }` with the code
+`modelThumbnail` would reject with (`E_MODEL_PARSE`, `E_MODEL_STRUCTURE`, a missing file's code,
+...). It answers `{ drawable: null }` when nothing is drawn on this page (no WebGL), which is not
+the model's fault. The answer is kept by the model's files, so asking again costs nothing:
+
+```ts
+for (const record of records) {
+    const check = await element.checkModel(record.id);
+    if (check.drawable === false) markUndrawable(record, check.failure);
+}
+```
 
 ```ts
 const preview = await element.modelPreview(car.id, box, { style: { "node.modelAnimation": "Drive" } });
@@ -401,11 +426,13 @@ the others.
 ### Playing an animation
 
 A model whose file holds animation clips (a walking figure, a watch's hands) is drawn still until a
-layer names one in `node.modelAnimation`. The asset's summary lists the clips:
+layer, or the model's own settings, names one in `node.modelAnimation`. The asset's summary lists
+the clips by the names that play them; a glTF clip with no name of its own is `animation0`,
+`animation1`, ... by its place in the file:
 
 ```ts
 const robot = await element.session.assets.add(file);
-const [walk] = robot.summary?.animations ?? [];
+const [walk] = element.session.assets.inspect(robot.id).animations;
 await element.session.styles.add({
     name: "Walking",
     target: "node",
@@ -420,6 +447,34 @@ a thousand walking nodes cost about what one does. A pose is a clip held still:
 shape keys (morph targets) are not played (`W_MODEL_ANIMATION_PARTIAL`), and a clip name the file
 does not have holds the first frame (`W_MODEL_ANIMATION_UNKNOWN`). While any node plays, the
 element draws every frame; once all are still or gone, it rests.
+
+### A model's own settings
+
+A model can carry its own `node.model*` settings, so every node that draws it starts from them,
+whichever layer names it: its up axis, turn, tint, clip and pose, fit, center and sides.
+`assets.setDefaults(ref, patch)` changes them as one step the reader can undo, and they are saved
+with the project. A layer's own value wins over the model's, and the model's over the channel's
+default. `undefined` (or `null`) takes a value out:
+
+```ts
+await element.session.assets.setDefaults(robot.id, {
+    style: { "node.modelAnimation": "Walk", "node.modelTurn": 90 },
+});
+element.session.assets.find(robot.id)?.defaults; // { style: { ... }, hiddenTextures: [] }
+```
+
+`hiddenTextures` draws the model without some of its pictures, by the names
+`assets.inspect(id).pictures` lists (each with the materials that draw it): those parts draw in
+their material's plain color, which takes the node's color when it is plain white.
+`modelThumbnail` and `modelPreview` draw with the model's settings under the `style` they are
+given, and take `hiddenTextures` of their own for a picker that tries some out before keeping them.
+Inside `session.transaction`, call `tx.assets.setDefaults` so the change joins the transaction's
+one step.
+
+```ts
+const [picture] = element.session.assets.inspect(robot.id).pictures;
+await element.session.assets.setDefaults(robot.id, { hiddenTextures: [picture.name] });
+```
 
 ### Selecting, outlining and glowing a model
 

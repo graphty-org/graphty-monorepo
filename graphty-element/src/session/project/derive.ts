@@ -37,6 +37,8 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "valueLabels",
     // Before styles, whose layers name a pasted shader by id.
     "shaders",
+    // Before styles: a node draws its model with the model's own settings under its layers'.
+    "modelDefaults",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -66,7 +68,17 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
+type KeyedSlice =
+    | "pins"
+    | "config"
+    | "runs"
+    | "sets"
+    | "views"
+    | "notes"
+    | "attributes"
+    | "valueLabels"
+    | "shaders"
+    | "modelDefaults";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -87,6 +99,7 @@ function copyAll(state: ProjectState): Copies {
         attributes: new Map(state.attributes),
         valueLabels: new Map(state.valueLabels),
         shaders: new Map(state.shaders),
+        modelDefaults: new Map(state.modelDefaults),
     };
 }
 

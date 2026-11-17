@@ -11,6 +11,7 @@ import type { Lighting } from "../config/Lighting";
 import { GraphtyError } from "../errors";
 import { LIGHTS } from "../managers/RenderManager";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { CodedFact } from "../session/shared";
 import { useBundledStandardShaders } from "./bundledStandardShaders";
 import { type PlacedModel, placeModel } from "./NodeThumbnail";
 
@@ -25,6 +26,34 @@ export interface ModelPreviewOptions {
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
     /** As `modelThumbnail`'s: draw a model still waiting for pictures or materials with them stood in for. */
+    readonly standInMissing?: boolean;
+    /**
+     * As `modelThumbnail`'s: the pictures drawn without, by `ModelSummary.pictures` name, in place
+     * of the model's own `defaults.hiddenTextures`. Fixed for the preview's life.
+     */
+    readonly hiddenTextures?: readonly string[];
+}
+
+/** Whether a model can be drawn (`checkModel`). */
+export interface ModelCheck {
+    /**
+     * True when it can be drawn; false when it cannot, with `failure` saying why; null when that
+     * could not be told because nothing is drawn here (no WebGL), which is not the model's fault.
+     */
+    readonly drawable: boolean | null;
+    /**
+     * Why it cannot be drawn, as `modelThumbnail` would reject: its first problem for a rejected or
+     * waiting model, the load or build failure (`E_MODEL_PARSE`, `E_MODEL_STRUCTURE`,
+     * `E_MODEL_DECODER_UNAVAILABLE`, ...) for an accepted one, `E_MODEL_UNKNOWN_ASSET` for nothing held.
+     */
+    readonly failure?: CodedFact;
+}
+
+/** What `checkModel` takes. */
+export interface ModelCheckOptions {
+    /** Stops waiting: the check rejects with the signal's reason. */
+    readonly signal?: AbortSignal;
+    /** As `modelThumbnail`'s: a model waiting only for pictures or materials counts as drawable. */
     readonly standInMissing?: boolean;
 }
 
@@ -188,6 +217,8 @@ export class LiveModelPreview implements ModelPreview {
     readonly #scene: Scene;
     readonly #camera: ArcRotateCamera;
     readonly #load: TemplateLoader;
+    /** The model's own settings, under every style the preview is given. */
+    readonly #base: Readonly<Partial<Record<Channel, ChannelValue>>>;
     #template: ModelTemplate | null = null;
     #placed: PlacedModel | null = null;
     /** The camera distance that frames the model; the reader's zoom is kept as a share of it. */
@@ -210,9 +241,17 @@ export class LiveModelPreview implements ModelPreview {
      * @param load - Builds the template in the preview's scene.
      * @param lighting - The graph's lighting.
      * @param engines - The graph's kept preview engines.
+     * @param base - The model's own settings, under every style it is given.
      */
-    constructor(host: HTMLElement, load: TemplateLoader, lighting: Lighting, engines: PreviewEngines) {
+    constructor(
+        host: HTMLElement,
+        load: TemplateLoader,
+        lighting: Lighting,
+        engines: PreviewEngines,
+        base: Readonly<Partial<Record<Channel, ChannelValue>>> = {},
+    ) {
         this.#load = load;
+        this.#base = base;
         this.#engines = engines;
         this.#drawing = engines.take();
         const { canvas, engine } = this.#drawing;
@@ -277,10 +316,11 @@ export class LiveModelPreview implements ModelPreview {
 
     /**
      * Draw the model with other style values, keeping the reader's view. See {@link ModelPreview.update}.
-     * @param style - The node's style values.
+     * @param given - The node's style values; the model's own settings fill what they leave out.
      * @returns Resolves once drawn with them.
      */
-    update(style: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void> {
+    update(given: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void> {
+        const style = { ...this.#base, ...given };
         const turn = ++this.#asked;
         const next = this.#queue.then(async () => {
             if (this.#disposed || turn !== this.#asked) {

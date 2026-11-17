@@ -140,6 +140,8 @@ interface Entry {
     readonly ref: string;
     /** The `node.texture` its template is built with. */
     readonly image?: string;
+    /** The model's pictures it is built without. */
+    readonly hidden: readonly string[];
     template: ModelTemplate | null;
     readonly users: Set<ModelUser>;
     /** The shape block that first asked for it, to load again after a part is supplied. */
@@ -418,12 +420,16 @@ export class ModelCache {
             return null;
         }
 
-        const key = JSON.stringify([keyOf(shape, look), image ?? null]);
+        // The pictures the model's own settings draw it without (`assets.setDefaults`).
+        // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+        const hidden = this.session.assets.find(ref)?.defaults?.hiddenTextures ?? [];
+        const key = JSON.stringify([keyOf(shape, look), image ?? null, hidden]);
         let entry = this.entries.get(key);
         if (entry === undefined) {
             entry = {
                 key,
                 ref,
+                hidden,
                 ...(image === undefined || image === "" ? {} : { image }),
                 template: null,
                 shape,
@@ -630,7 +636,14 @@ export class ModelCache {
             this.settle(ref, "accepted", [...record.problems]);
             try {
                 const files = this.session.assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                    entry.hidden,
+                );
                 const chunk = await loadChunk();
                 entry.template = await chunk.prepareTemplate(
                     this.scene,

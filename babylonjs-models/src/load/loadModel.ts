@@ -14,7 +14,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
 import type { BuiltInModelFormat, ModelFormat } from "../files/detect.js";
-import { IGNORED_EXTENSIONS, readGlb } from "../files/gltfChecks.js";
+import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
 import { ModelReadError } from "../files/readers/geometry.js";
@@ -87,9 +87,15 @@ interface GltfPrepared {
  * @param files - The file set.
  * @param main - The main file.
  * @param format - `glb` or `gltf`.
+ * @param hidden - Pictures to draw without, by their summary names.
  * @returns The set to load, the loader, and the extensions the file uses and requires.
  */
-function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, format: "glb" | "gltf"): GltfPrepared {
+function prepareGltf(
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    format: "glb" | "gltf",
+    hidden: ReadonlySet<string>,
+): GltfPrepared {
     const bytes = files.get(main) as Uint8Array;
     const glbVersion = format === "glb" ? new DataView(bytes.buffer, bytes.byteOffset, 8).getUint32(4, true) : 0;
     let json: Record<string, unknown>;
@@ -123,7 +129,7 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
             seeThrough(json);
         }
 
-        const plain = withoutClimbs(json, files, main, body, stripped);
+        const plain = withoutClimbs(json, files, main, body, withoutGltfPictures(json, hidden) || stripped);
         return {
             files: plain.files,
             extension: plain.extension ?? (READERS[format] as ModelExtension),
@@ -356,6 +362,11 @@ export interface LoadModelFilesOptions extends LoaderOptions {
      * OBJ's MTL lines naming it are dropped. Default: none.
      */
     readonly skipped?: readonly string[];
+    /**
+     * Pictures to draw without, by their {@link ModelSummary.pictures} name: every material that
+     * draws one loses it, so that part draws in its plain color (glTF and OBJ). Default: none.
+     */
+    readonly withoutPictures?: readonly string[];
 }
 
 /**
@@ -387,10 +398,16 @@ export async function loadModelFiles(
         files = withSkips(files, skipped, format === "obj");
     }
 
+    const hidden = options.withoutPictures ?? [];
+    if (format === "obj" && hidden.length > 0) {
+        // An OBJ's pictures are named by their paths: their MTL lines are dropped, as a skip's are.
+        files = withSkips(files, hidden, true);
+    }
+
     let reader = READERS[format];
     let draco: DracoModule | undefined;
     if (format === "glb" || format === "gltf") {
-        const prepared = prepareGltf(files, main, format);
+        const prepared = prepareGltf(files, main, format, new Set(hidden));
         ({ files } = prepared);
         reader = prepared.extension;
         draco = await loadDecoders(prepared.used, prepared.required);

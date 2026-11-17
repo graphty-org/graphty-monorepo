@@ -355,6 +355,20 @@ function walk(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) 
 }
 
 /**
+ * Every path a definition, a scope or a rule tree reads, without repeats: its leaves' paths and,
+ * given `pathsOf`, its queries' paths.
+ * @param value - What to walk.
+ * @param pathsOf - The paths a query reads; absent, queries list nothing.
+ * @returns The paths, in the order they are read.
+ */
+export function pathsRead(
+    value: SetDefinition | Scope | RuleTree,
+    pathsOf?: (where: Query) => readonly Path[],
+): readonly Path[] {
+    return [...new Set(walk(value, pathsOf).paths)];
+}
+
+/**
  * Refuse a value that reads a `graphty.notes.*` path at a write door: a note must not change what
  * a result, a set or the visibility filter is computed over (design/notes 6.2). Only style layers
  * and `select({ where })` read them.

@@ -54,8 +54,6 @@ interface GraphHome {
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
     readonly session: boolean;
-    /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
-    readonly countsRewrites?: () => boolean;
     /**
      * Whether the rows are drawn on the `"batched"` render path: a forward add then marks its
      * edges dirty as one range key, not one key per edge. Absent reads `false`.
@@ -481,9 +479,15 @@ export interface GraphWriter {
      * @param id - Its id.
      * @param values - The new values.
      * @param replace - The values are the whole new record: a key they lack is dropped.
-     * @returns False when the graph holds no such element.
+     * @returns False when the graph holds no such element. The sets watching the fields hear of
+     *     it at {@link GraphWriter.announce}, once the whole batch is written.
      */
     setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace?: boolean): boolean;
+    /**
+     * End a batch of attribute writes: tell the sets that watch the fields it changed, once, now
+     * that every record of the batch is written (design/sets 11).
+     */
+    announce(): void;
     /**
      * Set graph-level values: the import report, graph-level results.
      * @param values - The values by name.
@@ -622,19 +626,9 @@ export class GraphOps {
         return `${String(this.rewritten)}:${String(this.store?.renumberCount ?? 0)}`;
     }
 
-    /**
-     * Whether anything reads {@link GraphOps.rewrites}.
-     * @returns True with the timeline on.
-     */
-    get countsRewrites(): boolean {
-        return this.home.countsRewrites?.() === true;
-    }
-
     /** Count a change that is more than rows added at the end. */
     noteRewrite(): void {
-        if (this.countsRewrites) {
-            this.rewritten++;
-        }
+        this.rewritten++;
     }
 
     /**
@@ -1377,6 +1371,9 @@ class GraphEntry implements OpLogEntry {
             maps = this.undoOp(this.ops[index], maps, seen);
         }
 
+        // After every record is put back: the watching sets resolve against the whole step undone.
+        announceFields(store, seen);
+
         if (this.ops.some(movesRows)) {
             this.graph.touch(ROWS_MOVED);
         }
@@ -1428,8 +1425,6 @@ class GraphEntry implements OpLogEntry {
                     op.target === "node" ? op.id : String(op.id),
                     op.prior,
                 );
-                // After the restore: the announcement resolves the watching sets at once, and they
-                // must read the record put back, not the one being undone.
                 bumpFields(store, op.target, op.next, op.prior, seen, true);
                 if (op.target === "edge") {
                     writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.prior);
@@ -1660,6 +1655,8 @@ class GraphEntry implements OpLogEntry {
         }
 
         store.recordsChanged();
+        // After every record is put back, as in undo.
+        announceFields(store, seen);
         this.graph.restoreToken(this.tokenAfter);
     }
 
@@ -1728,7 +1725,6 @@ class GraphEntry implements OpLogEntry {
     ): void {
         const { store } = this;
         restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
-        // After the restore, as in undo: the watching sets resolve against the record put back.
         bumpFields(store, op.target, op.prior, op.next, seen, true);
         if (op.target === "edge") {
             writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.next);
@@ -1771,8 +1767,9 @@ class GraphEntry implements OpLogEntry {
  * @param prior - The record before, or undefined.
  * @param next - The record after, or undefined.
  * @param seen - The fields this batch (one command, one undo or redo of a step) bumped already.
- * @param announce - Whether to tell the sets that watch attributes, as an edit after load does.
- * A row added or removed announces nothing: the freeze that follows re-queues every watch.
+ * @param announce - Whether the sets that watch attributes are to hear of it, as of an edit after
+ * load: the fields wait in `seen` for {@link announceFields} at the end of the batch. A row added or
+ * removed announces nothing: the freeze that follows re-queues every watch.
  */
 function bumpFields(
     store: GraphStore,
@@ -1800,12 +1797,29 @@ function bumpFields(
 
     for (const field of fields) {
         seen[target].add(field);
+        if (announce) {
+            seen.unannounced[target].add(field);
+        }
     }
 
     const { inputs } = store;
     (target === "node" ? inputs.nodes : inputs.edges).bump(fields);
-    if (announce) {
-        inputs.tick.announce({ kind: "attributes", element: target, fields: [...fields] });
+}
+
+/**
+ * Tell the sets that watch attributes which fields a batch changed, once per element, after every
+ * record of it is written (design/sets 11), and forget them.
+ * @param store - The store whose owner's sets hear it.
+ * @param seen - The batch.
+ */
+function announceFields(store: GraphStore, seen: Bumped): void {
+    for (const element of ["node", "edge"] as const) {
+        const fields = seen.unannounced[element];
+        if (fields.size > 0) {
+            const moved = [...fields];
+            fields.clear();
+            store.inputs.tick.announce({ kind: "attributes", element, fields: moved });
+        }
     }
 }
 
@@ -1813,6 +1827,8 @@ function bumpFields(
 interface Bumped {
     readonly node: Set<string>;
     readonly edge: Set<string>;
+    /** The fields bumped by edits the watching sets have not heard of yet. */
+    readonly unannounced: { readonly node: Set<string>; readonly edge: Set<string> };
 }
 
 /**
@@ -1820,7 +1836,7 @@ interface Bumped {
  * @returns It.
  */
 function bumped(): Bumped {
-    return { node: new Set(), edge: new Set() };
+    return { node: new Set(), edge: new Set(), unannounced: { node: new Set(), edge: new Set() } };
 }
 
 /**
@@ -1906,7 +1922,7 @@ class Writer implements GraphWriter {
         }
 
         // A record holding only the id, as a node an edge made is given, puts nothing in the row.
-        if (this.graph.countsRewrites && (prior !== undefined || (merged && Object.keys(record).length > 1))) {
+        if (prior !== undefined || (merged && Object.keys(record).length > 1)) {
             this.graph.noteRewrite();
         }
 
@@ -2061,6 +2077,10 @@ class Writer implements GraphWriter {
             null,
         );
         return true;
+    }
+
+    announce(): void {
+        announceFields(this.store, this.bumped);
     }
 
     graphValue(name: string): unknown {

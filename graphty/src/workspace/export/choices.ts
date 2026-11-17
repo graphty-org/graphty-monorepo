@@ -237,7 +237,6 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorC
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
     "E_UNSUPPORTED/format": "This browser cannot write this image format.",
-    "E_UNSUPPORTED/preserve-drawing-buffer": "The drawing is not ready yet.",
     E_CAPTURE_FAILED: "The drawing could not be captured.",
 };
 

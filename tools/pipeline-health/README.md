@@ -80,8 +80,10 @@ with `VITE_HEALTH_FIXTURES=1`; the published page has none and ignores `?fixture
 ## The read API
 
 Base URL: the `ApiUrl` output of the `graphty-health` stack, today
-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
-seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
+https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, throttled (20
+requests/s, burst 40); a good answer carries `Cache-Control: public, max-age=60` (there is no server-side
+cache). CORS allows https://health.graphty.app, plus the origin in the `devOrigin` cdk context when a deploy
+sets one.
 
 | Route                                                   | Returns                                                                      |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -90,7 +92,7 @@ seconds and throttled (20 requests/s, burst 40). CORS allows https://health.grap
 | `/v1/page/overview?range=1h\|6h\|24h`                   | The status, with each headline's value and sparkline                         |
 | `/v1/page/<page>?range=1h\|6h\|24h`                     | One page: its members (value, SLA, state) and sections                       |
 | `/v1/page/costs?range=7d\|28d`                          | The Costs page                                                               |
-| `/v1/page/issues?range=28d\|all`                        | The Issues page (default 28d)                                                |
+| `/v1/page/issues?range=28d\|1h\|6h\|1d\|7d\|all`        | The Issues page (default 28d)                                                |
 | `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins`   | Shard times, for full runs or pull request runs                              |
 | `/v1/page/flaky/hotspots?range=7d\|28d`                 | Flake hotspots                                                               |
 | `/v1/page/runners/jobs?range=7d`                        | Runner history: 15-minute running, queued, longest queued and saturated time |
@@ -182,9 +184,26 @@ own bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 la
 `POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
 API takes only from master's workflows.
 
+### The results service's copy
+
+The health API also keeps the results service's own records (issue #3607), in `RS#` items of the same table, so
+CI's `RESULTS_URL` can later name this API instead of the Cloudflare Worker. The ingest Lambda stores them from the
+same posts, under the Worker's claim rules: `POST /v1/invocations` (each evidence run's file durations, its failed
+files, master's failures, and the flaky proof that quarantines a test), `/v1/verdicts`, and two routes only the
+results service has, `POST /v1/issues` and `POST /v1/channel-moves`. The Results Lambda answers
+`GET /v1/plan` and `GET /v1/site` with the Worker's query strings, answers and `{ "error": "..." }` refusals (see
+[`tools/results-service/README.md`](../results-service/README.md)). Like every read here, both are public.
+
+Where they differ from the Worker: records are kept 90 days; a quarantine entry's `passes` are counted as master's
+runs are stored, not on read; and `passedWithInputs` looks only at the variant's newest 1,000 runs. The failure
+signatures come from `tools/results-service/src/signature.js`, so a change there reaches AWS with the next deploy of
+this directory. The other results routes (base checks, the hold, candidate and release state, story captures,
+duration trends and histories) are not here yet.
+
 Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
 `permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer
-(`https://token.actions.githubusercontent.com`), audience and expiry; the ingest Lambda then checks
+(`https://token.actions.githubusercontent.com`), audience (`graphty-health`, or the results service's
+`graphty-results`) and expiry; the ingest Lambda then checks
 the `repository`, `repository_id`, `job_workflow_ref` and `ref` claims against what that workflow may
 write (pull request runs, or the listed workflows on master). A body is at most 1 MB.
 

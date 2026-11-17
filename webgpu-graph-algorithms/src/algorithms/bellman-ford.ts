@@ -1,23 +1,22 @@
 /**
- * Bellman-Ford with negative-cycle detection on the device (design 8.4, 3.3 line 809, 9.7; P8-T10, the P8 plan's
- * PD-12 / PD-19 / PD-22 / PD-27 / DEP-P8-E): the edge-parallel relaxation of `bf-relax` over the `edgeList()` view
+ * Bellman-Ford with negative-cycle detection on the device: the edge-parallel relaxation of `bf-relax` over the `edgeList()` view
  * -- every logical edge once, both directions on an undirected snapshot -- in batches of `ROUNDS_PER_BATCH` rounds
  * with the `BfFlags` block (`changed`, `retryExhausted`) zeroed before each batch and read back after it, one
  * `mapAsync` per batch. The loop stops when a batch changed nothing (a reachable negative cycle changes something
  * every round, so nothing has been missed) or when `n - 1` rounds have run, in which case ONE more round runs and
  * `changed` after it IS `hasNegativeCycle`; the last batch is clamped so the reported round count never exceeds
- * `n - 1`. `dist` holds f32 bit patterns and the claim is a BOUNDED compare-exchange (PD-12: `MAX_RETRIES`, because
+ * `n - 1`. `dist` holds f32 bit patterns and the claim is a BOUNDED compare-exchange (`MAX_RETRIES`, because
  * with a negative distance the bit-pattern order reverses and `atomicMin` is wrong, and WGSL lets the exchange fail
  * spuriously; only those spurious failures count, never a loss to another lane's improvement, issue #470): a lane that exhausts the bound raises `retryExhausted`, which the driver treats as changed and runs
  * on -- the lost update is retried by the next round, which examines every edge anyway -- and tallies for the tests;
  * raised in the decision round it is E_VALIDATION, never a guess.
  *
- * The routing is P8-T9's, by the RUN's weight vector (PD-22): `options.weights` when given (`arcCount` long or
+ * The routing is the one `sssp` uses, by the RUN's weight vector: `options.weights` when given (`arcCount` long or
  * E_INVALID_ARGUMENT; narrowed to `Float32Array` when it is not one -- a `U32` or `I32` value above 2^24, or the bits
  * of an `F64` value below the f32 ulp, is rounded silently, the package-wide f32 caveat and not a refusal), else the
- * snapshot's column, else none; a run whose vector is all ones, or has none, is the unit-weight BFS of P8-T6 with a
+ * snapshot's column, else none; a run whose vector is all ones, or has none, is the unit-weight BFS with a
  * depth cap derived from `cutoff` (there is nothing negative to relax) and the flag false; a non-finite weight is
- * E_UNSUPPORTED `bellmanFord.nonFiniteWeights`; `cutoff: NaN` is E_INVALID_ARGUMENT (PD-19); every other cutoff goes
+ * E_UNSUPPORTED `bellmanFord.nonFiniteWeights`; `cutoff: NaN` is E_INVALID_ARGUMENT; every other cutoff goes
  * to the kernel's `nd <= cutoff` unchanged, a negative one yielding the source alone only when no negative weight
  * can satisfy it. One rule the kernel's shape forces: on an UNDIRECTED snapshot the kernel reads ONE weight per
  * logical edge (its forward arc's) and applies it in both directions, so a caller-supplied override whose two arcs
@@ -27,7 +26,7 @@
  * list (`flags.arcToEdgeIsIdentity`): edge `e` IS arc `e` there, and the driver binds an `edgeCount`-word iota
  * scratch in that slot (the `fill` kernel's mode 1) so the kernel reads `weights[edgeToArc[e]]` unchanged.
  *
- * `predArc` is P8-T9's predecessor pass under PD-27's tight-subgraph rule (`P.mode 1`): the key is the hop count
+ * `predArc` is the predecessor pass of `sssp` under the tight-subgraph rule (`P.mode 1`): the key is the hop count
  * from the source over every tight arc (`fround(dist[u] + w) == dist[v]`; a tight arc with a negative weight steps to
  * a LARGER distance, so `dist` is no key here), `hops[source] = 0` the only seed and no roots pass, so the chain
  * strictly decreases the key and ends at the source. An ORPHAN -- a reached node the tight subgraph never reaches --
@@ -37,7 +36,7 @@
  * source (the seam's walker would hand `arcSourceIn` an `INVALID_INDEX`). With `hasNegativeCycle` the result carries
  * the last round's `dist` and `predArc` and says so: the pass still runs, its chains are still acyclic, a node the
  * tight subgraph does not reach keeps `INVALID_INDEX`, and the orphan refusal is skipped. The tuning entry
- * `bellmanFordWithTuning` (PD-26's shape) is what the tests drive; nothing public exposes it.
+ * `bellmanFordWithTuning` is what the tests drive; nothing public exposes it.
  */
 
 import { type F32, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -75,7 +74,7 @@ const ALGORITHM = "bellmanFord";
 /** Design 8.4: the changed flag is read every 8 rounds (one `mapAsync` per batch). */
 const ROUNDS_PER_BATCH = 8;
 
-/** PD-12: the bound on one lane's SPURIOUS compare-exchange failures (a loss to another lane is not counted, issue #470). */
+/** The bound on one lane's SPURIOUS compare-exchange failures (a loss to another lane is not counted, issue #470). */
 const MAX_RETRIES = 16;
 
 /**
@@ -86,7 +85,7 @@ const MAX_RETRIES = 16;
 const RING_SLOTS = MAX_LEVELS_PER_SUBMIT + 16;
 
 /**
- * The knobs the tests need and nothing public offers (PD-26's shape): the retry bound and the batch cadence.
+ * The knobs the tests need and nothing public offers: the retry bound and the batch cadence.
  * @internal
  */
 export interface BellmanFordTuning {
@@ -104,7 +103,7 @@ export interface BellmanFordRun {
     readonly result: GpuBellmanFordResult;
     /** The rounds dispatched before the decision round (at most `n - 1`; 0 on the unit-weight route). */
     readonly rounds: number;
-    /** The batches in which some lane exhausted the retry bound (PD-12); 0 on every fixture of the suite. */
+    /** The batches in which some lane exhausted the retry bound; 0 on every fixture of the suite. */
     readonly retryExhaustedRounds: number;
 }
 
@@ -230,7 +229,7 @@ async function relaxToFixedPoint(
 }
 
 /**
- * Bellman-Ford with the test knobs of PD-26's shape; `bellmanFord` is this with an empty tuning.
+ * Bellman-Ford with the test knobs; `bellmanFord` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
@@ -373,7 +372,7 @@ export async function bellmanFordWithTuning(
             options,
         );
 
-        // the predecessor pass (PD-11, PD-27) under the tight-subgraph rule; the flags block was read after the
+        // the predecessor pass under the tight-subgraph rule; the flags block was read after the
         // decision round, so the batch reads dist, the arcs and the pass's two words
         const passed = await predecessorPass({
             algorithm: ALGORITHM,
@@ -413,7 +412,7 @@ export async function bellmanFordWithTuning(
 }
 
 /**
- * Bellman-Ford on the device (spec 3.3 line 809, design 8.4, 9.7): `dist` in f32 (bitwise the f32 Bellman-Ford
+ * Bellman-Ford on the device: `dist` in f32 (bitwise the f32 Bellman-Ford
  * fixed point, which is `sssp`'s where the weights are non-negative), `predArc` a tight arc one hop of the tight
  * subgraph below each reached node (the chain always ends at the source), `reachedCount`, and `hasNegativeCycle` --
  * true when a negative cycle is reachable from the source, in which case `dist` and `predArc` are the last round's

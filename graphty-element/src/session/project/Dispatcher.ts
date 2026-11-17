@@ -108,8 +108,6 @@ interface CommandServices {
     layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
-    /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
-    timeline?: () => boolean;
     /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
     batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
@@ -129,8 +127,6 @@ interface CommandServices {
      * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
      */
     legacyShaderText?: (id: string) => Promise<string | undefined>;
-    /** True while a project open restores the style values its file saved, which it does with the experiment off. */
-    restoringFileStyles?: boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
@@ -240,6 +236,12 @@ interface DefinitionBase<C extends CommandLike> {
      * frozen (a style layer's `userData`). Everything else is copied and frozen at dispatch.
      */
     readonly byReference?: readonly string[];
+    /**
+     * The command as it is kept (by its job, its step and the journal), made from the dispatch
+     * copy when its job starts. `data.apply` freezes its records here, so one copy serves the
+     * command and the graph.
+     */
+    kept?(command: C): C;
     /**
      * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
      * them, one step, and its own `execute` is never called.
@@ -962,7 +964,6 @@ export class Dispatcher {
             },
             strict: this.strict,
             session: true,
-            countsRewrites: () => this.services.timeline?.() === true,
             batched: () => this.services.batched?.() === true,
             touchLater: (key) => {
                 this.lane.touchLater("graph", key);
@@ -1191,17 +1192,22 @@ export class Dispatcher {
                 throw error;
             },
         );
+        let onAbort = (): void => undefined;
         const aborted = new Promise<never>((_, reject) => {
-            signal.addEventListener(
-                "abort",
-                () => {
-                    void this.lane.settled().then(() => {
-                        reject(signal.reason as Error);
-                    });
-                },
-                { once: true },
-            );
+            onAbort = (): void => {
+                void this.lane.settled().then(() => {
+                    reject(signal.reason as Error);
+                });
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
         });
+        // Stop listening once the body settles: the signal outlives it (the group keeps its
+        // controller), and the listener would keep this call's closure, and the records its
+        // commands carried, alive.
+        const off = (): void => {
+            signal.removeEventListener("abort", onAbort);
+        };
+        settled.then(off, off);
 
         return Promise.race([settled, aborted]);
     }
@@ -1828,20 +1834,7 @@ export class Dispatcher {
         options: DispatchOptions = {},
         origin: DeferredOrigin | null = null,
     ): unknown {
-        this.checkStrict();
-        const { state } = this.store;
-        const raw = typeof command === "function" ? command(state) : command;
-        const definition = this.definitions.get(raw.op);
-        const concrete = deepFreezeArgs(raw, definition?.byReference);
-        this.events.dispatched?.(concrete);
-        if (definition === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `There is no command "${concrete.op}".`,
-                source: "history",
-                details: { op: concrete.op },
-            });
-        }
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -1957,18 +1950,17 @@ export class Dispatcher {
     }
 
     /**
-     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
-     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
-     * job that dispatched it does.
+     * A dispatched command made concrete against state now, copied as its definition says, and
+     * announced; the start of both {@link Dispatcher.submit} and {@link Dispatcher.inline}.
      * @param command - The command, or a function from state to one.
-     * @param parent - The running job.
-     * @returns What an exempt command returned, or the command's promise.
+     * @returns The state it was resolved against, its definition and the command as copied.
+     * @throws `E_BAD_COMMAND` when no definition has its op.
      */
-    private inline(command: Dispatchable, parent: Job): unknown {
-        if (parent.status !== "running") {
-            throw cancelledError(parent.group.label, "cancel");
-        }
-
+    private resolve(command: Dispatchable): {
+        state: ProjectState;
+        definition: CommandDefinition<CommandLike>;
+        concrete: CommandLike;
+    } {
         this.checkStrict();
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
@@ -1983,6 +1975,24 @@ export class Dispatcher {
                 details: { op: concrete.op },
             });
         }
+
+        return { state, definition, concrete };
+    }
+
+    /**
+     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
+     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
+     * job that dispatched it does.
+     * @param command - The command, or a function from state to one.
+     * @param parent - The running job.
+     * @returns What an exempt command returned, or the command's promise.
+     */
+    private inline(command: Dispatchable, parent: Job): unknown {
+        if (parent.status !== "running") {
+            throw cancelledError(parent.group.label, "cancel");
+        }
+
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -2072,13 +2082,17 @@ export class Dispatcher {
             job.status = "queued";
             group.jobs.add(job);
             this.enter(group);
-            job.slot.signal.addEventListener(
-                "abort",
-                () => {
-                    this.obsolete(job, "obsolete");
-                },
-                { once: true },
-            );
+            // Stop listening once the job settles, as cancelOnAbort does: the slot's signal would
+            // otherwise keep the job, and its command's records, alive.
+            const { signal } = job.slot;
+            const obsolete = (): void => {
+                this.obsolete(job, "obsolete");
+            };
+            const off = (): void => {
+                signal.removeEventListener("abort", obsolete);
+            };
+            signal.addEventListener("abort", obsolete, { once: true });
+            job.promise.then(off, off);
         } else {
             this.admit(job);
         }
@@ -2214,7 +2228,11 @@ export class Dispatcher {
         };
         let out: unknown;
         try {
-            out = definition.execute(command, ctx);
+            // Made into the command as kept when it runs, not at dispatch: `data.apply` freezes its
+            // records in `kept`, which at a million records would hold the caller's synchronous
+            // setter for half a second. A record it cannot copy fails the job, as ingest's did.
+            job.command = definition.kept?.(command) ?? command;
+            out = definition.execute(job.command, ctx);
         } catch (error) {
             this.syncFailure = { error };
             this.fail(job, error);

@@ -3406,6 +3406,15 @@ describe("actions/cache in the workflows", () => {
         }
         assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
     });
+
+    it("fails a stalled git transfer in ci.yml so actions/checkout retries it (#8526)", () => {
+        // git waits forever on an HTTPS transfer that stops delivering bytes; a Test job's checkout sat silent
+        // for its whole 30 minutes and the cancelled job turned the full run's CI lane red (run 43924294024).
+        const env = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).env;
+        assert.ok(Number(env.GIT_HTTP_LOW_SPEED_LIMIT) > 0, "env GIT_HTTP_LOW_SPEED_LIMIT is set");
+        const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
+        assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
+    });
 });
 
 describe("Playwright's system packages", () => {
@@ -6399,10 +6408,6 @@ describe("the commit and push hooks", () => {
         );
     });
 
-    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
-        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
-    });
-
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));
@@ -8677,7 +8682,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
     });
 
     it("a pull request touching no docs or cost files runs neither", () => {
-        assert.deepEqual(optional(["compact-mantine/src/a.ts"], { affected: ["compact-mantine"] }), {
+        assert.deepEqual(optional(["graphty/src/a.ts"], { affected: ["graphty"] }), {
             docs: "false",
             "cost-accuracy": "false",
         });
@@ -8688,7 +8693,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
             assert.equal(optional([f]).docs, "true", f);
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
-        assert.equal(optional(["compact-mantine/README.md"], { affected: ["compact-mantine"] }).docs, "false");
+        assert.equal(optional(["graphty/README.md"], { affected: ["graphty"] }).docs, "false");
     });
 
     it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {

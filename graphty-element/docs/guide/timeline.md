@@ -1,11 +1,10 @@
 # Timeline
 
 Show a graph as it was over time: pick the column that holds each element's time, then move a window
-along it. Only what falls inside the window is drawn.
+along it. Style layers decide how what falls outside the window is drawn: hidden, faint, or as
+everything else.
 
-Everything on this page needs the `timeline` experiment. Switch it on with `features="timeline"` on
-the element, or see [Experiments](./experiments) for the other ways. The JavaScript snippets below
-assume it is on, and `g` is the element and `time` is `g.session.time`.
+In the JavaScript snippets below, `g` is the element and `time` is `g.session.time`.
 
 ## Your first timeline
 
@@ -19,7 +18,6 @@ bob,cid,2026-01-02T09:00:00Z
 
 ```html
 <graphty-element
-    features="timeline"
     data-source="url"
     data-source-config='{"url": "emails.csv"}'
     edge-time-path="data.sent"
@@ -56,7 +54,7 @@ plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that re
 `time.notices()` reports values that did not.
 `session.catalog.timeAttributes()` gives the same columns as attribute descriptors (the ones
 `data.attributes()` returns), with any column a file or a load declared as time first, so a time
-picker can list them by their `plainName`. With the experiment off it lists none.
+picker can list them by their `plainName`.
 
 Before a load, a draft says which columns look like time, and applies nothing. A column looks like
 time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,
@@ -85,7 +83,6 @@ name the end column, beside the start:
 
 ```html
 <graphty-element
-    features="timeline"
     data-source="url"
     data-source-config='{"url": "tenures.csv"}'
     node-time-path="hired"
@@ -208,8 +205,8 @@ history step, so `time.committed` follows every step.
 
 A move of the window redraws only what entered and left it. The exception is an edge drawn through a
 support point (`edge.supportModel`): support points settle together, so a move that reveals, hides or
-repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
-ghost or back.
+repaints one visits every edge. Repainting includes `outside: "ghost"` drawing such an edge or
+hiding it again.
 
 ## Settings
 
@@ -228,10 +225,58 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
   them again over each new window, a play waiting for them at every step.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
-- `outside`: `"hide"` (the default) or `"ghost"`, which keeps elements outside the window drawn in the
-  `"ghosted"` element state (`{ match: "state", state: "ghosted" }` in a style layer), never counted
-  as visible.
+- `outside`: `"hide"` or `"ghost"`, read from and written to the style layers. See [What lies outside the window](#what-lies-outside-the-window).
 - `timeZone` and `ageFade`: see [Time zones](#time-zones) and [Fading older edges](#fading-older-edges).
+
+## What lies outside the window
+
+The window only changes how the graph is drawn. It never takes anything out of the graph: what lies
+outside it stays visible, so `visibility.summary`, the selection, an export of what is shown,
+algorithm runs and the layout are the same with or without a window. An element outside the window
+is in the `"outsideWindow"` element state, and style layers that select that state decide how it
+looks, as they decide how a selected or a pinned node looks. With no such layer, the window draws
+nothing differently. `time.inside` counts what every filter keeps inside the window, by kind
+(`{ nodes, edges }`, or `null` with no window), and each `time:step` event carries the same counts as
+`visible`.
+
+With the project setting `startingRows` on, the element adds one such row for you, Timeline Hidden,
+directly below Selected. The project setting `timelineHiddenLook` picks how it starts:
+
+- `"hidden"` (the default): `visible: false`, so what lies outside the window is not drawn at all;
+- `"ghost"`: `visible: true`, grey at low opacity, so it stays on screen as context.
+
+```js
+await g.session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+```
+
+Timeline Hidden is an ordinary row: edit it, hide it or delete it like any other. It is added only
+when no layer already selects `"outsideWindow"`, so it never
+comes twice, and a project file brings back exactly the rows it saved. Changing
+`timelineHiddenLook` later never rewrites a row that is already there. You can also write the row
+yourself:
+
+```js
+await g.session.styles.add({
+    name: "Outside the window",
+    target: "node",
+    selector: { match: "state", state: "outsideWindow" },
+    set: { "node.color": "#9E9E9E", "node.opacity": 0.2 },
+});
+```
+
+`time.setSettings({ outside: "hide" })` sets `visible: false` on every layer that selects the state,
+adding one for nodes and one for edges when no layer selects it, and `outside: "ghost"` sets
+`visible: true` on them the same way. `time.settings.outside` reads the layers: it
+says `"ghost"` only while layers selecting the state draw both nodes and edges outside the window,
+and `"hide"` otherwise.
+
+A project saved before what lies outside the window had a state of its own opens the way it
+looked then: its layers reading `"ghosted"` read `"outsideWindow"`, and what lies outside is hidden
+unless its timeline settings said `"ghost"`. A project saved since opens with its layers exactly
+as saved, including a layer of yours that reads `"ghosted"`.
+
+A play, a step or a jump moves no node and no camera, even with `layout.visibleOnly`, which lays
+out only what the filter keeps. A hidden element's halo, label and support point go with it.
 
 ## Fading older edges
 
@@ -291,8 +336,9 @@ const days = time.bins({ step: "day" }); // bars start at local midnight
 ```
 
 `window`, `bins` and `play` each take `timeZone` too. A call's zone wins, then the window's, then the
-setting's. A new zone in `setSettings` snaps a sliding window to the new boundaries, as a new step
-does, and a new `parseZone` clears the window. A zone is an IANA name; any other name is refused with
+setting's. A new zone in `setSettings` moves each bound that sits on a step boundary to the nearest
+boundary in the new zone and leaves the window's length alone, so switching back returns the same
+window. A new `parseZone` clears the window. A zone is an IANA name; any other name is refused with
 `E_BAD_COMMAND`, reason `"time-zone"`.
 
 Days and longer follow the zone's clock, so a day across a clock change is 23 or 25 hours; an hour is

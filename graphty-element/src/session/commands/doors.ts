@@ -32,6 +32,7 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { defineSource, registerSource, registry } from "@graphty/graph-io";
 
 import type { LayerSpec } from "../../catalog/types";
+import type { DrawnAnnotation } from "../annotations";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
@@ -755,6 +756,9 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+const PREVIEW = exempt(
+    "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
+);
 const TRANSPORT = exempt(
     "In-flight layout computation; where the layout comes to rest is recorded with the step that moved it.",
 );
@@ -959,6 +963,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    annotations: READ,
     layout: READ,
     positions: READ,
     hidden: READ,
@@ -1206,6 +1211,7 @@ const TIME_API: Readonly<Record<string, Door>> = {
     candidates: READ,
     notices: READ,
     parse: READ,
+    inside: READ,
     atStart: READ,
     atEnd: READ,
     settings: READ,
@@ -1213,6 +1219,24 @@ const TIME_API: Readonly<Record<string, Door>> = {
     playing: READ,
     mode: READ,
     interval: READ,
+};
+
+/** An annotation the annotation doors add. */
+const DOOR_ANNOTATION: DrawnAnnotation = {
+    id: "door-note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "door note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
 };
 
 /** A layer the style doors add. */
@@ -1581,6 +1605,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             exportFigure: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
+            modelPreview: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -1969,6 +1994,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
+            modelPreview: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -2433,6 +2459,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Whether followView would lay the graph out again; it only reads.
             viewChanged: READ,
         },
+    },
+    {
+        name: "ModelPreview",
+        file: "src/meshes/ModelPreview.ts",
+        half: "renderer",
+        whole: PREVIEW,
     },
     {
         name: "SupportPoints",
@@ -3120,6 +3152,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             },
             attributes: READ,
+            roleCandidate: READ,
             readableValues: READ,
             structureValues: READ,
             structureValue: READ,
@@ -3667,6 +3700,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             get: READ,
             status: READ,
             authors: READ,
+            tags: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(
@@ -3748,6 +3782,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             subscribe: LISTEN,
             clear: exempt("Forgets the record of what ran; it changes nothing a project saves."),
             cap: exempt("How many records of what ran are kept; it changes nothing a project saves."),
+        },
+    },
+    {
+        name: "SessionAnnotations",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            scale: READ,
+            list: READ,
+            add: calls([DOOR_ANNOTATION], [{ op: "annotations.patch", action: "add", annotation: DOOR_ANNOTATION }]),
+            update: calls(
+                ["no-such-annotation", { text: "renamed" }],
+                [{ op: "annotations.patch", action: "update", id: "no-such-annotation", patch: { text: "renamed" } }],
+            ),
+            remove: calls(
+                ["no-such-annotation"],
+                [{ op: "annotations.patch", action: "remove", id: "no-such-annotation" }],
+            ),
+            clear: calls([], [{ op: "annotations.set", annotations: [], scale: 1 }]),
         },
     },
     {
@@ -3837,6 +3890,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
+            timelineHiddenLook: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -3955,14 +4009,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
             restoreWindow: calls(
-                [{ attribute: "data.t", from: 0, to: 1 }, false],
+                [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
             ),
             restorePlayback: calls(
                 [{ mode: "cumulative" }],
                 [{ op: "visibility.playback", playback: { mode: "cumulative" } }],
             ),
-            holdsInstants: READ,
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,
@@ -3972,6 +4025,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openDrafts: READ,
             filterBytes: READ,
             passingBytes: READ,
+            outsideWindow: READ,
+            outsideWindowBytes: READ,
+            windowMasks: READ,
+            windowCounts: READ,
+            insideMasks: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
             ),
@@ -4363,9 +4421,6 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.collapse":
         "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
         "test/session/sources/expand.test.ts.",
-    "data.setFileStyles":
-        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
-        "checked by test/session/styles/file-style-store.test.ts.",
 };
 
 /**

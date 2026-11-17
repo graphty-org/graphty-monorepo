@@ -8,7 +8,7 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { Node } from "../../src/Node";
+import { type Node, nodeInternals } from "../../src/Node";
 import { asData, styleEveryNode } from "../helpers/testSetup";
 
 let container: HTMLElement | undefined;
@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 interface Faced {
-    decorationPieces: readonly { kind: "shape" | "image"; box: { x0: number; y0: number; x1: number; y1: number } }[];
+    decorationPieces: Node["decorationPieces"];
     decorations: InstancedMesh[];
 }
 
@@ -46,7 +46,16 @@ async function oneNode(set: StaticStyle): Promise<{ node: Node; faced: Faced }> 
     await graph.waitForStableFrame();
     const node = graph.getDataManager().nodes.get("A");
     assert(node, "the node is drawn");
-    return { node, faced: node as unknown as Faced };
+    const faced: Faced = {
+        get decorationPieces() {
+            return node.decorationPieces;
+        },
+        // Read when asked, since a repaint that rebuilds the mesh builds new decorations.
+        get decorations() {
+            return nodeInternals.drawn(node).decorations as InstancedMesh[];
+        },
+    };
+    return { node, faced };
 }
 
 /** World units per unit of size under the default size mode. */

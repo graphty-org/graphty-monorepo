@@ -1027,6 +1027,19 @@ export interface RunResult {
      */
     groupRanks(): ReadonlyMap<string, number> | undefined;
     /**
+     * Every group of a partition into groups, largest first: its id, its size and its rank (1 for
+     * the largest), for every group and not only the ones a summary lists.
+     *
+     * ```ts
+     * for (const { group, size, rank } of result.groups() ?? []) {
+     *     console.log(rank, group, size); // 1 "4" 37
+     * }
+     * ```
+     * @returns The groups, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groups(): readonly SummaryGroup[] | undefined;
+    /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *
      * Every figure comes from the result's own statistics; nothing is asserted that the run did

@@ -1241,6 +1241,16 @@ class Result implements RunResult {
 
     #groupRanks: ReadonlyMap<string, number> | undefined;
 
+    groups(): readonly SummaryGroup[] | undefined {
+        if (this.shape !== "community") {
+            return undefined;
+        }
+        this.#groups ??= toSummaryGroups(this.graph.sizes, Number.POSITIVE_INFINITY, true)?.groups;
+        return this.#groups;
+    }
+
+    #groups: readonly SummaryGroup[] | undefined;
+
     /**
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.

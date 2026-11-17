@@ -25,6 +25,12 @@ export interface Change {
     set?: Record<string, unknown>;
 }
 
+export interface Range {
+    from?: string;
+    to?: string;
+    newest?: number;
+}
+
 export type BatchOp = { put: Item } | { delete: Key };
 export type TransactOp = { put: Item; condition?: Condition } | { delete: Key };
 
@@ -32,8 +38,11 @@ export interface Store {
     get(key: Key): Promise<Item | undefined>;
     /** False when the condition failed; the item is then unchanged. */
     put(item: Item, condition?: Condition): Promise<boolean>;
-    /** Items of one partition, sk ascending, with from <= sk <= to when given. */
-    query(pk: string, range?: { from?: string; to?: string }): Promise<Item[]>;
+    /**
+     * Items of one partition, sk ascending, with from <= sk <= to when given; with `newest`, only that many of the
+     * highest sort keys, sk descending (eventually consistent in the adapter).
+     */
+    query(pk: string, range?: Range): Promise<Item[]>;
     /** The item after the change, or undefined when the condition failed. */
     update(key: Key, change: Change, condition?: Condition): Promise<Item | undefined>;
     /** Unconditional puts and deletes; the adapter chunks them into BatchWriteItem calls of 25. */
@@ -124,11 +133,12 @@ export class MemoryStore implements Store {
      * @param range - optional inclusive sort-key bounds
      * @param range.from - lowest sort key to include
      * @param range.to - highest sort key to include
-     * @returns copies of the matching items, sk ascending
+     * @param range.newest - only this many of the highest sort keys, sk descending
+     * @returns copies of the matching items, sk ascending (descending with newest)
      */
-    query(pk: string, range: { from?: string; to?: string } = {}): Promise<Item[]> {
-        return settle(() =>
-            [...this.items.values()]
+    query(pk: string, range: Range = {}): Promise<Item[]> {
+        return settle(() => {
+            const found = [...this.items.values()]
                 .filter(
                     (i) =>
                         i.pk === pk &&
@@ -136,8 +146,13 @@ export class MemoryStore implements Store {
                         (range.to === undefined || i.sk <= range.to),
                 )
                 .sort((a, b) => Number(a.sk > b.sk) - Number(a.sk < b.sk))
-                .map(copy),
-        );
+                .map(copy);
+            if (range.newest === undefined) {
+                return found;
+            }
+            found.reverse();
+            return found.slice(0, range.newest);
+        });
     }
 
     /**

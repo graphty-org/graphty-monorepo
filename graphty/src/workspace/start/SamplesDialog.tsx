@@ -6,8 +6,8 @@ import React, { useState } from "react";
 import type { CommandContext } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { unlessUnsaved } from "../project/actions";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { countWords, isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import {
@@ -238,7 +238,7 @@ function cardLabel(card: SampleCardData): string {
  */
 export function SamplesDialog(): React.JSX.Element {
     const ctx = useWorkspace();
-    useSessionVersion(ctx.session);
+    useSessionEvents(ctx.session, TOOLBAR_EVENTS);
     const opened = useWorkspaceState((state) => state.dialog === "samples");
     const [text, setText] = useState("");
     const [group, setGroup] = useState("");

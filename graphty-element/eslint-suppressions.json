@@ -496,9 +496,6 @@
   "src/meshes/EdgeMesh.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
-    },
-    "unicorn/prefer-modern-math-apis": {
-      "count": 1
     }
   },
   "src/meshes/MaterialHelper.ts": {

@@ -160,6 +160,25 @@ export function babylonTextureNames(json: Json): string[] {
 }
 
 /**
+ * The pictures a `.babylon` file's materials draw as their color, each with the names of the
+ * materials that draw it ("" for an unnamed one).
+ * @param json - The parsed file.
+ * @returns The materials' names, by picture name, in the file's order.
+ */
+export function babylonPictureUses(json: Json): Map<string, string[]> {
+    const list = Array.isArray(json.materials) ? json.materials.filter(isObject) : [];
+    const uses = new Map<string, string[]>();
+    for (const m of list) {
+        const texture = isObject(m.diffuseTexture) ? m.diffuseTexture.name : undefined;
+        if (typeof texture === "string" && texture !== "") {
+            uses.set(texture, [...(uses.get(texture) ?? []), typeof m.name === "string" ? m.name : ""]);
+        }
+    }
+
+    return uses;
+}
+
+/**
  * Read a parsed `.babylon` file.
  * @param json - The parsed file.
  * @returns Its meshes and materials.

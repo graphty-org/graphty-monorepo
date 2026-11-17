@@ -56,6 +56,38 @@ function previewFrame(): Promise<void> {
     });
 }
 
+/**
+ * Three cubes in a row: one painted by cube.png, one by other.png (both green), and one blue by
+ * its base color alone, with no picture.
+ * @returns The files.
+ */
+async function threeCubes(): Promise<Map<string, Uint8Array>> {
+    const files = await filesOf("gltf-textured");
+    const gltf = JSON.parse(new TextDecoder().decode(files.get("cube.gltf"))) as Record<string, unknown[]>;
+    const [mesh] = gltf.meshes as { primitives: Record<string, unknown>[] }[];
+    const primitive = (material: number): unknown => ({ primitives: [{ ...mesh.primitives[0], material }] });
+    gltf.images = [{ uri: "cube.png" }, { uri: "other.png" }];
+    gltf.textures = [{ source: 0 }, { source: 1 }];
+    gltf.meshes = [primitive(0), primitive(1), primitive(2)];
+    gltf.nodes = [
+        { mesh: 0, translation: [-1.5, 0, 0] },
+        { mesh: 1, translation: [0, 0, 0] },
+        { mesh: 2, translation: [1.5, 0, 0] },
+    ];
+    gltf.scenes = [{ nodes: [0, 1, 2] }];
+    const textured = (index: number): unknown => ({
+        pbrMetallicRoughness: { baseColorTexture: { index }, metallicFactor: 0, roughnessFactor: 1 },
+    });
+    gltf.materials = [
+        textured(0),
+        textured(1),
+        { pbrMetallicRoughness: { baseColorFactor: [0, 0, 1, 1], metallicFactor: 0, roughnessFactor: 1 } },
+    ];
+    files.set("cube.gltf", new TextEncoder().encode(JSON.stringify(gltf)));
+    files.set("other.png", files.get("cube.png") as Uint8Array);
+    return files;
+}
+
 describe("a model's own settings", () => {
     it("play the clip they name on a node whose layer names none", async () => {
         const element = await mount();
@@ -110,6 +142,50 @@ describe("a model's own settings", () => {
         const kept = await element.modelThumbnail(record.id, { size: 64, style: red });
         assert.isAtLeast(await colorShare(kept, "red"), 0.05, "the model's own list hides it too");
         assert.isAtLeast(await drawnShare(kept), 0.03);
+    });
+
+    for (const [variant, picture, materials] of [
+        ["babylon-textured", "cube.png", ["cube"]],
+        ["babylon-absolute-textures", "assets.example.com/textures/cube.png", ["cube"]],
+        ["ply-uv-png", "cube.png", [""]],
+    ] as const) {
+        it(`list ${variant}'s picture and draw its part without it in the node's color (#8613)`, async () => {
+            const element = await mount();
+            const record = await element.session.assets.add({ files: await filesOf(variant) });
+            const { pictures } = element.session.assets.inspect(record.id);
+            assert.deepEqual(pictures, [{ name: picture, materials: [...materials] }]);
+            const red = { "node.color": "#ff0000" };
+            const own = await element.modelThumbnail(record.id, { size: 64, style: red });
+            assert.isAtLeast(await colorShare(own, "green"), 0.05, "its green picture is drawn");
+            const hidden = await element.modelThumbnail(record.id, { size: 64, style: red, hiddenTextures: [picture] });
+            assert.isBelow(await colorShare(hidden, "green"), 0.01, "the picture is gone");
+            assert.isAtLeast(await colorShare(hidden, "red"), 0.05, "and the part takes the node's color");
+        });
+    }
+
+    it("draw the whole model in the node's color once every picture is gone, and only a picture's part for one (#8613, #8614)", async () => {
+        const element = await mount();
+        const files = await threeCubes();
+        const record = await element.session.assets.add({ files });
+        const red = { "node.color": "#ff0000" };
+        const thumb = (hiddenTextures: string[]): Promise<string> =>
+            element.modelThumbnail(record.id, { size: 96, style: red, hiddenTextures });
+
+        const some = await thumb(["cube.png"]);
+        assert.isAtLeast(await colorShare(some, "red"), 0.02, "the cube that lost its picture takes the node's color");
+        assert.isAtLeast(await colorShare(some, "green"), 0.02, "the other picture is still drawn");
+        assert.isAtLeast(await colorShare(some, "blue"), 0.02, "and the blue cube keeps its own color");
+
+        const none = await thumb(["cube.png", "other.png"]);
+        assert.isAtLeast(await colorShare(none, "red"), 0.06, "every cube takes the node's color");
+        assert.isBelow(await colorShare(none, "green"), 0.005, "no picture is left");
+        assert.isBelow(await colorShare(none, "blue"), 0.005, "the blue cube too: the model has no look left");
+
+        const without = new Map([...files].filter(([name]) => !name.endsWith(".png")));
+        const bare = await element.session.assets.add({ files: without }, { skipped: ["cube.png", "other.png"] });
+        const added = await element.modelThumbnail(bare.id, { size: 96, style: red });
+        assert.isAtLeast(await colorShare(added, "red"), 0.06, "added without its pictures, every cube takes it");
+        assert.isBelow(await colorShare(added, "blue"), 0.005);
     });
 
     it("hold a pose in a preview: the clip at Speed 0 stays at its Start", async () => {

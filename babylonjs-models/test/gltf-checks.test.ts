@@ -117,6 +117,20 @@ describe("the glTF checks", () => {
             DEFAULT_MODEL_LIMITS,
         );
         assert.deepEqual(obj.summary.pictures, [{ name: "cube.png", materials: ["cube"] }]);
+
+        for (const [id, main] of [
+            ["babylon-textured", "cube.babylon"],
+            ["ply-uv-png", "cube.ply"],
+        ] as const) {
+            const own = await checkModelFiles(
+                new Map([main, "cube.png"].map((name) => [name, fixture(id, name)])),
+                {},
+                DEFAULT_MODEL_LIMITS,
+            );
+            assert.deepEqual(own.summary.pictures, [
+                { name: "cube.png", materials: [id === "ply-uv-png" ? "" : "cube"] },
+            ]);
+        }
     });
 
     it("refuse JSON that does not parse and a GLB cut short", async () => {

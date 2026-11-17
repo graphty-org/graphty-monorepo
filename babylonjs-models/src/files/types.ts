@@ -130,10 +130,12 @@ export interface ModelSummary {
     /** Each clip; an unnamed glTF clip is `animation<index>`, as Babylon's glTF loader names it. */
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
     /**
-     * glTF and OBJ: every picture the materials draw, embedded or external, and the materials that
-     * draw it ("" for an unnamed one). A glTF picture is named by its image's name, else its `uri`,
-     * else `image<index>` (as Babylon's glTF loader names it); an OBJ's by its path in the set. Load
-     * with `withoutPictures` naming some to draw those parts without them. Empty for the others.
+     * glTF, OBJ, `.babylon` and PLY: every picture the materials draw, and the materials that draw
+     * it ("" for an unnamed one). A glTF picture, embedded or external, is named by its image's
+     * name, else its `uri`, else `image<index>` (as Babylon's glTF loader names it); an OBJ's
+     * `map_Kd`, a `.babylon` material's diffuse texture and a PLY's `TextureFile` by its path in
+     * the set. Load with `withoutPictures` naming some to draw those parts without them. Empty for
+     * the others, which draw no pictures.
      */
     readonly pictures: readonly ModelPicture[];
     readonly skinned: boolean;

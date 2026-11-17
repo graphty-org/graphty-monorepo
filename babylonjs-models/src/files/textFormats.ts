@@ -19,7 +19,7 @@
 import { gunzipSync } from "fflate";
 
 import { parseGltfJson } from "./gltfChecks.js";
-import { babylonTextureNames, readBabylon } from "./readers/babylon.js";
+import { babylonPictureUses, babylonTextureNames, readBabylon } from "./readers/babylon.js";
 import { ModelReadError, pointsDrawn, SPLAT_ROW_BYTES, TRIANGLES_PER_POINT } from "./readers/geometry.js";
 import { plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
 import { stlFacts } from "./readers/stl.js";
@@ -35,7 +35,7 @@ import {
     setKeyOf,
     textureBytesOf,
 } from "./references.js";
-import type { ModelFact, ModelLimits, ModelSummary } from "./types.js";
+import type { ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
 /** What a scan returns. */
 export interface Scanned {
@@ -690,6 +690,12 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
             materials: Object.freeze([]),
             textures: texture === undefined ? 0 : 1,
             textureBytes: texture === undefined ? 0 : textureBytesOf(texture.bytes, texture.path),
+            // A PLY's one picture paints its one unnamed part.
+            pictures: Object.freeze(
+                texture === undefined || texture.path === ""
+                    ? []
+                    : [Object.freeze({ name: texture.path, materials: Object.freeze([""]) })],
+            ),
             ...facts,
             encoding: encoding.get(header.format as "ascii"),
             ...(kind === "splats" || names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
@@ -890,9 +896,16 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
 
     let textureBytes = 0;
     const names = babylonTextureNames(json);
+    const uses = babylonPictureUses(json);
+    const pictures: ModelPicture[] = [];
     for (const name of names) {
         const image = resolveReference(name, path, files);
         textureBytes += textureBytesOf(image.bytes, image.path);
+        // Named by its path in the set, as `withoutPictures` takes it.
+        if (image.path !== "") {
+            const using = (uses.get(name) ?? []).map(cut);
+            pictures.push(Object.freeze({ name: image.path, materials: Object.freeze(using) }));
+        }
     }
 
     if (textureBytes > limits.maxTextureBytes) {
@@ -913,6 +926,7 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
             ),
             textures: names.length,
             textureBytes,
+            pictures: Object.freeze(pictures),
             transparent: scene.materials.some((m) => m.alpha !== undefined && m.alpha < 1),
             geometry: "mesh",
             ...(scene.meshes.some((m) => m.geometry.colors !== undefined) ? { vertexColors: true } : {}),

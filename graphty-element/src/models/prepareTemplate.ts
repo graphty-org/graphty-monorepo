@@ -441,6 +441,33 @@ function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
 }
 
 /**
+ * Whether every picture that colored the model is gone (it was added without them, or drawn
+ * without them by `hiddenTextures`): then the model has no look of its own left, and its parts
+ * colored only by a base color take the node's color too (#8613, #8614). False while any picture
+ * still colors a part, so drawing without some pictures recolors only the parts that lost one.
+ * @param groups - The parts by group key.
+ * @returns True when at least one part lost its picture and none still draws one.
+ */
+function picturesAllGone(groups: ReadonlyMap<string, Part[]>): boolean {
+    let lost = false;
+    for (const list of groups.values()) {
+        for (const { material } of list) {
+            if (material === null) {
+                continue;
+            }
+
+            if (hasPicture(material)) {
+                return false;
+            }
+
+            lost ||= drawsWithoutPicture(material);
+        }
+    }
+
+    return lost;
+}
+
+/**
  * The material a merged group draws with, and whether it takes the node's color whatever
  * `node.modelTint` says: a part the file gives no material (or one left at its defaults, see
  * `statesNoColor`) or one that lost the picture that was its color, no picture and no vertex
@@ -452,6 +479,8 @@ function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
  *   set `node.modelTint` to false.
  * @param options - The template options.
  * @param flat - The template's flat material, made on first use.
+ * @param bare - Whether every picture that colored the model is gone (`picturesAllGone`) and no
+ *   layer set `node.modelTint` to false: every opaque part takes the node's color.
  * @returns The material, and whether the group follows the node's color.
  */
 function lookOf(
@@ -460,6 +489,7 @@ function lookOf(
     gray: boolean,
     options: TemplateOptions,
     flat: () => PBRMaterial,
+    bare = false,
 ): { material: Material; follows: boolean } {
     if (options.replace) {
         return { material: flat(), follows: true };
@@ -477,6 +507,8 @@ function lookOf(
         statesNoColor(material) ||
         // Added or drawn without the picture that was its color: no look of its own is left (#8614).
         drawsWithoutPicture(material) ||
+        // A see-through part (a watch's glass) keeps its look: drawn flat and opaque, it would cover what is under it.
+        (bare && material.alpha >= 1) ||
         (options.untextured === true && !hasPicture(material))
     ) {
         return { material: flat(), follows: true };
@@ -505,6 +537,7 @@ function mergeGroups(
 ): void {
     const { used, meshes, follows } = made;
     const gray = options.ownColors !== true && allPlainGray(groups);
+    const bare = options.ownColors !== true && picturesAllGone(groups);
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.vertices.positions?.length ?? 0) / 3, 0);
@@ -524,7 +557,7 @@ function mergeGroups(
         meshes.push(mesh);
         merged.applyToMesh(mesh);
         const colored = (merged.colors?.length ?? 0) > 0;
-        const look = lookOf(first, colored, gray, options, flat);
+        const look = lookOf(first, colored, gray, options, flat, bare);
         mesh.material = look.material;
         used.add(look.material);
 

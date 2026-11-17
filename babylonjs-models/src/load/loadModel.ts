@@ -403,7 +403,8 @@ export interface LoadModelFilesOptions extends LoaderOptions {
     readonly skipped?: readonly string[];
     /**
      * Pictures to draw without, by their {@link ModelSummary.pictures} name: every material that
-     * draws one loses it, so that part draws in its plain color (glTF and OBJ). Default: none.
+     * draws one loses it, so that part draws in its plain color (glTF, OBJ, `.babylon` and PLY).
+     * Default: none.
      */
     readonly withoutPictures?: readonly string[];
 }
@@ -469,7 +470,8 @@ export async function loadModelFiles(
         const folder = root + main.slice(0, slash + 1);
         if (!reader.startsWith(".")) {
             const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
-            markWithoutPictures(own, root, skipped, lostPicture);
+            // Their pictures are named by their paths in the set: taken off once loaded, as a skip's are.
+            markWithoutPictures(own, root, [...skipped, ...hidden], lostPicture);
             return own;
         }
 

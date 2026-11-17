@@ -704,6 +704,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("stripeFrame", "tab-position-none")).toBeNull();
     });
 
+    it("draws an untabbed open group's panel alone, 4 in from its box, its corners rounded 2", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none`, stored 150 x 80, is drawn 142 x 72 with arcs of 2
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("width", "tab-position-none")).toBe(142);
+        expect(node("height", "tab-position-none")).toBe(72);
+        expect(node("cornerRadius", "tab-position-none")).toBe(2);
+    });
+
     it("reads tabHeight, and contentAreaFill with its alpha", async () => {
         const p2 = await sheet("specimen-groups-p2.graphml");
         expect(p2.node("fill", "content-area-fill")).toBe("#ffffcc");

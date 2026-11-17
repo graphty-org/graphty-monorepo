@@ -784,6 +784,9 @@ describe("the Load custom model dialog, on the real element", () => {
         assertStacked(closed, "settings closed");
         assert.isAtLeast(closed.box.top, closed.file.bottom, "the model is under the file");
         assert.isAbove(closed.box.width, body.width * 0.8, "the model takes the body's width");
+        const drawing = preview.querySelector(".ws-model-live")?.getBoundingClientRect();
+        assert.isAtLeast(drawing?.height ?? 0, 238, "drawn no smaller than in the side column");
+        assert.isBelow(Math.abs((drawing?.width ?? 0) - (drawing?.height ?? 0)), 2, "and square");
         assert.isAbove(closed.under.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
         // Settings open: they sit left, under the file, and the model with its Name and Details right.
         const rows = await openSettings(dialog);

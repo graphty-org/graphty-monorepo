@@ -37,6 +37,7 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import {
     ALGO_DEFINITIONS,
     type AlgoMoveCommand,
@@ -1441,6 +1442,7 @@ class Runs implements SessionRunsApi {
         const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
+        algorithmLog.info("run requested", { algorithm, id, params: params ?? null, existing: existing !== undefined });
 
         if (hold === undefined) {
             this.holds.delete(id);

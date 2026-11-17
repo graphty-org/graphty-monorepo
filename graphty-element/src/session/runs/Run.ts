@@ -26,6 +26,7 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import { englishPartialReason } from "../english";
 import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
@@ -1140,6 +1141,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
+        algorithmLog.info("run started", { algorithm: this.algorithm, id: this.id });
         this.surroundings.notify?.("start");
         this.report({ phase: "running", completed: 0 });
 
@@ -1520,6 +1522,13 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param action - Resolve or reject.
      */
     private settle(action: () => void): void {
+        algorithmLog.info(`run ${this.statusValue}`, {
+            algorithm: this.algorithm,
+            id: this.id,
+            ms: this.durationValue,
+            partial: this.partialValue,
+            ...(this.errorValue === undefined ? {} : { code: this.errorValue.code, message: this.errorValue.message }),
+        });
         this.settledFlag = true;
         this.clearTimeBox();
         this.detachSignal?.();

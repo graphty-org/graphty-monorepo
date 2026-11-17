@@ -126,6 +126,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.imageSmoothing",
                         "node.imageAutoSize",
                         "node.imageOpacity",
+                        "node.imageAspect",
                     ],
                 },
                 { id: "picture", name: "Picture", main: ["node.texture"] },

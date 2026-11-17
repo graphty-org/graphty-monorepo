@@ -189,6 +189,7 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.groupPaddingRatio",
     "node.height",
     "node.image",
+    "node.imageAspect",
     "node.imageAutoSize",
     "node.imageClip",
     "node.imageFallback",

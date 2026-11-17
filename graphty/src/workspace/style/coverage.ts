@@ -229,6 +229,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.imageSmoothing": NOT_PLACED,
     "node.imageAutoSize": NOT_PLACED,
     "node.imageOpacity": NOT_PLACED,
+    "node.imageAspect": NOT_PLACED,
     "node.glyph": NOT_PLACED,
     "node.glyphFont": NOT_PLACED,
     "node.glyphSize": NOT_PLACED,

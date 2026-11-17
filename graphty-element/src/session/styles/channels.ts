@@ -474,6 +474,7 @@ export interface ChannelValues {
     "node.labelFitQuantum": number;
     "node.labelFitImage": number;
     "node.labelFitImagePadding": number;
+    "node.imageAspect": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -4050,6 +4051,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
             "Without `node.labelFitImage` it changes nothing.",
+    },
+    "node.imageAspect": {
+        channel: "node.imageAspect",
+        target: "node",
+        plainName: "Node Image Aspect",
+        shortName: "Image aspect",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.imageAspect",
+        renderable: true,
+        caveat:
+            "The node takes its picture's (`node.image`) proportions: its box grows the longer way until the " +
+            "picture, at its own proportions, covers the node's width and height, as vis-network sizes an image " +
+            "node to its picture. The node is fitted again once the picture is read; until then, and for a " +
+            "picture that cannot be read, it keeps its own box. A node that grows to hold its label " +
+            "(`node.labelFit`) is sized by that instead.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",

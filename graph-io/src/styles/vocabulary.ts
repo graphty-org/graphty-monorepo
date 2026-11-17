@@ -165,6 +165,7 @@ export const STYLE_PROPERTIES: {
         ["imageSmoothing", "boolean"],
         ["imageAutoSize", "text"],
         ["imageOpacity", "opacity"],
+        ["imageAspect", "boolean"],
         ["glyph", "text"],
         ["glyphFont", "text"],
         ["glyphSize", "number"],

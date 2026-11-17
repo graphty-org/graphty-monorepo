@@ -577,7 +577,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
         root: "Run",
-        members: ["label", "distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
+        members: ["distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

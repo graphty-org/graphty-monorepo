@@ -4734,6 +4734,7 @@ describe("release.yml", () => {
         );
         chmodSync(join(dir, "npx"), 0o755);
         const ran = spawnSync("bash", ["-e", "-c", step.run], {
+            cwd: new URL(`../${step["working-directory"]}`, import.meta.url), // the step's own
             env: {
                 ...process.env,
                 PATH: `${dir}:${process.env.PATH}`,

@@ -135,6 +135,11 @@ jobs:
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
             GRAPHTY_RUNNER_CLASS: gpu-linux-t4 # the benchmark runner class names the hardware (the T4), not the provider that ran it
             XDG_RUNTIME_DIR: /tmp
+            # each test step's record in the results store, run once as it would bare (tools/results/run-group.mjs,
+            # RESULTS_RECORD_ONLY: no retry, no quarantine, its exit code untouched; a retry here is paid T4 time)
+            RESULTS_URL: ${{ vars.RESULTS_URL }}
+            HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+            RESULTS_RECORD_ONLY: "1"
         defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
         steps:
             # Bootstrap, and it must come BEFORE checkout: a bare ubuntu:24.04 has no git, so actions/checkout
@@ -207,7 +212,7 @@ jobs:
             - name: Use the workflow's own tools and actions
               working-directory: .
               env:
-                  OVERLAY: .github/actions
+                  OVERLAY: tools .github/actions # tools/: run-group.mjs records each test step
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
@@ -305,24 +310,24 @@ jobs:
                   node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --project=node-limits --passWithNoTests "$@"
                   GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --passWithNoTests "$@"
             - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+              run: cd .. && node tools/results/run-group.mjs t4-node "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --project=node-gpu-alone"
             # The files that break a device on purpose: a worker they kill takes eleven files with it instead of
             # the whole lane.
             - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node-device-errors
+              run: cd .. && node tools/results/run-group.mjs t4-node-device-errors "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node-device-errors"
             # The multi-gigabyte limit files (test/limits, oom-scope asks for exactly maxBufferSize), one at a
             # time and after the main suite, so an out-of-memory test never shares the GPU with ordinary tests
             # and a crash in one never takes the main suite's results with it (issue #274).
             - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node-limits
+              run: cd .. && node tools/results/run-group.mjs t4-node-limits "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node-limits"
             # The twin pass, in two invocations because the device-error files are their own project now.
             # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
             # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
             # where a missing-subgroup code path is most likely to behave differently.
             - if: ${{ !inputs.files }}
-              run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+              run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone"
             - if: ${{ !inputs.files }}
-              run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
+              run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups-device-errors "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors"
             # The key carries the container image, not just runner.os. Playwright downloads a browser build
             # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without
             # this the 22.04 build another job saved would be restored into a 24.04 container and run against the
@@ -347,12 +352,12 @@ jobs:
                   image: ${{ steps.t4-debs-key.outputs.key }}
             - name: Browser smoke on NVIDIA
               if: ${{ !inputs.files }}
-              run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
+              run: cd .. && node tools/results/run-group.mjs t4-browser "cd webgpu-graph-algorithms && node scripts/run-browser-project.js" # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
               if: ${{ !inputs.files }}
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
-              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples,babylonjs-map,babylonjs-models && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
+              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples,babylonjs-map,babylonjs-models && cd .. && node tools/results/run-group.mjs t4-element-layout "cd graphty-element && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts" # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
             # The large-graph stories of cytoscape-extensions' Storybook (ForceAtlas2, Fruchterman-Reingold and
             # spring-electrical at 2,000, 10,000 and 50,000 nodes) drawn WITH WebGPU on this card and compared, with
             # visual review's own comparison, against reference images made on the developer's RTX 4070 SUPER and

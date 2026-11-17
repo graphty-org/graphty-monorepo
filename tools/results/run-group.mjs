@@ -26,8 +26,13 @@
 // variant flags=on; RESULTS_VARIANT names the whole variant (base-check.yml asks for the pull request's);
 // RESULTS_REPEAT=<n> keeps repeated runs of one job apart, and RESULTS_PART=<n> the legs of one job's matrix
 // that run parts of one shard (ci.yml's story-tests legs).
+//
+// RESULTS_RECORD_ONLY=1 is the paid lanes' mode (gpu.yml's T4 job, work-protection-macos.yml, release.yml's LLM
+// job): the command runs once, exactly as it would bare -- no retry, no quarantine, no output budget, its exit code
+// untouched -- and only its one record is written (outcome from its JUnit report); no issue is filed. A retry there
+// costs paid minutes or paid API calls, and those lanes' verdicts are their own.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
@@ -664,11 +669,13 @@ export function junitOf(dir, id) {
 }
 
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
-const firstOutcome = (code, result) => {
+const firstOutcome = (code, result, junit) => {
     // The group's code is its verdict after the retry; the first try is judged by its own exit code. A first try
     // that exited 0 is never retried, so a group code other than 0 is runShard's own verdict on it (the output
     // budget): an error, not a pass.
     if ((result.firstCode ?? code) === 0) return code === 0 ? "passed" : "error";
+    // a record-only run (RESULTS_RECORD_ONLY) has no wrapper verdict: its JUnit report says whether tests failed
+    if (result.recordOnly) return junit?.failures.length ? "failed" : "error";
     return OUTCOMES.has(result.firstOutcome) ? result.firstOutcome : "infra";
 };
 const retryOutcome = (result, junit) => {
@@ -726,7 +733,7 @@ export function recordsOf(o) {
         recordOf({
             ...common,
             try: 1,
-            outcome: firstOutcome(o.code, result),
+            outcome: firstOutcome(o.code, result, junit),
             startedAt: o.startedAt,
             ms: firstEnd - o.startedAt,
             junit: hung.length ? { files: junit?.files ?? [], failures: [...(junit?.failures ?? []), ...hung] } : junit,
@@ -870,6 +877,7 @@ export async function runGroup(
     { root = process.cwd(), env: given = process.env, gh = ghCli, storeMs = {} } = {},
 ) {
     const env = withTestDeadline(given);
+    const recordOnly = env.RESULTS_RECORD_ONLY === "1";
     const { SHARDS, STORY_PROJECTS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const shard = SHARDS.find((s) => s.shard === shardName);
     const cmd = command ?? shard?.["test-command"];
@@ -888,8 +896,11 @@ export async function runGroup(
         mkdirSync(dirname(env.RESULTS_QUARANTINE_OUT), { recursive: true });
         writeFileSync(env.RESULTS_QUARANTINE_OUT, `${JSON.stringify({ quarantine }, null, 4)}\n`);
     }
-    if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL)
-        return runShard(shardName, cmd, { root, env, state: emptyState(), ...rules });
+    const run = (e) =>
+        recordOnly
+            ? (spawnSync("sh", ["-c", cmd], { cwd: root, env: e, stdio: "inherit" }).status ?? 1)
+            : runShard(shardName, cmd, { root, env: e, state: emptyState(), ...rules });
+    if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL) return run(env);
     const id = baseId(shardName, env);
     const runId = env.TEST_LEDGER_RUN ?? newRunId(shardName);
     const resultFile = join(tmpdir(), `run-group-${process.pid}-${Date.now()}.json`);
@@ -900,14 +911,14 @@ export async function runGroup(
         TEST_QUARANTINE_RESULT: resultFile,
     };
     const startedAt = Date.now();
-    const code = await runShard(shardName, cmd, { root, env: childEnv, state: emptyState(), ...rules });
+    const code = await run(childEnv);
     const endedAt = Date.now();
     // the tests this run failed, which base-check.yml compares with the pull request's before it re-runs a job (#8363)
     if (env.RESULTS_FAILED_OUT)
         for (const f of readResult(resultFile).failing ?? [])
             appendFileSync(env.RESULTS_FAILED_OUT, `${JSON.stringify({ file: f.file, name: f.name })}\n`);
     try {
-        const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
+        const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, recordOnly };
         await record(shardName, shard, { ...facts, command, head, gh, storeMs, storyProjects: STORY_PROJECTS });
     } catch (e) {
         // The store never changes the verdict: a record that cannot be built or sent is only a warning.
@@ -992,13 +1003,13 @@ export function runShape(env, selected) {
  * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
  * @param o runGroup()'s facts: `cmd`, `root`, `env`, `id`, `runId`, `code`, `resultFile`, `startedAt`,
- *   `endedAt`, `command`, `head`, `gh`, `storyProjects` (STORY_PROJECTS)
+ *   `endedAt`, `command`, `head`, `gh`, `storyProjects` (STORY_PROJECTS), `recordOnly` (RESULTS_RECORD_ONLY)
  */
 async function record(shardName, shard, o) {
     const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, head, gh, storeMs } = o;
     const shots = env.VISUAL_REVIEW_STORY_OUT ? shotsInputs(root, o.storyProjects?.[shardName]) : "";
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
-    const result = readResult(resultFile);
+    const result = o.recordOnly ? { recordOnly: true } : readResult(resultFile);
     const facts = { id, head, code, result, startedAt, endedAt, runId };
     const recs = recordsOf({
         ...facts,
@@ -1009,6 +1020,7 @@ async function record(shardName, shard, o) {
     const cfg = config(env, root);
     if (cfg && storeMs.retry) cfg.retryMs = storeMs.retry;
     const answers = await postRecords(cfg, recs, storeMs.record);
+    if (o.recordOnly) return;
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),

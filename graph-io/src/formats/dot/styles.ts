@@ -34,6 +34,7 @@ import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../.
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
+import { graphvizFontName } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import {
     type DotEscapeNames,
@@ -44,6 +45,7 @@ import {
     recordLabelText,
 } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
@@ -62,13 +64,11 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     type GlyphPoint,
     GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
-    graphvizFontName,
     type GraphvizGlyph,
     graphvizGlyph,
     graphvizPolygonCorners,

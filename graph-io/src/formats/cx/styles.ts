@@ -11,12 +11,14 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { nonEmpty } from "../../styles/columns.js";
 import {
     type CytoscapeDialect,
     type CytoscapeEmitted,
     cytoscapeWritableProperties,
     emitCytoscapeStyle,
 } from "../../styles/cytoscape/emit.js";
+import { exactFromBlock } from "../../styles/cytoscape/exact.js";
 import {
     type CytoscapeStyle,
     cytoscapeStyleFromCx,
@@ -35,7 +37,7 @@ import {
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     EdgeStyleProperty,
@@ -43,14 +45,11 @@ import type {
     NodeStyleProperty,
     ReaderOutput,
     StyleColumn,
-    StyleNote,
     StyleReadContext,
     StyleTarget,
     StyleWriteCapabilities,
 } from "../../styles/types.js";
-import { isStyleProperty } from "../../styles/vocabulary.js";
 import type { LossNote } from "../../types.js";
-import { exactFromBlock, nonEmpty } from "../xgmml/styles.js";
 
 type Table = GraphSnapshot["nodes"];
 
@@ -390,27 +389,6 @@ interface CytoscapeStyledExport {
     readonly styled: CytoscapeEmitted;
     /** Every value written approximately or flattened into bypasses, as loss notes. */
     readonly notes: readonly LossNote[];
-}
-
-/**
- * A style note as a loss note.
- * @param n - the note
- * @returns the loss note
- */
-export function lossOf(n: StyleNote): LossNote {
-    return Object.freeze({
-        code: n.code,
-        message: n.message,
-        column: null,
-        count: n.params.count,
-        style:
-            n.params.target === null ||
-            n.params.property === null ||
-            n.params.target === "graph" ||
-            !isStyleProperty(n.params.target, n.params.property)
-                ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property }),
-    });
 }
 
 /**

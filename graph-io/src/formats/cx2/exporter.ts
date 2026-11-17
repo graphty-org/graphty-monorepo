@@ -32,6 +32,7 @@ import {
 } from "../../common/cx-export.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
+import { ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { isRecord, POSITION_COLUMN } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
@@ -43,7 +44,7 @@ import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { blockAspect, cytoscapeStyledExport, snapshotBlock } from "../cx/styles.js";
-import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./importer.js";
+import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type } from "./importer.js";
 import { CX2_STYLE_CAPABILITIES } from "./styles.js";
 
 /**

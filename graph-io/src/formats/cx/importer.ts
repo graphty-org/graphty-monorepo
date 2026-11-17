@@ -82,7 +82,7 @@ import {
     WIDENED_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
     type AspectEvent,
@@ -111,6 +111,7 @@ import {
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
+    zAsOption,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
@@ -125,7 +126,6 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
 import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */

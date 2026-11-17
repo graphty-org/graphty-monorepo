@@ -20,7 +20,7 @@
 import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
-import { IdCoercer } from "../../common/ids.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { decodeEntryName, readText, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
@@ -44,7 +44,6 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import { XGMML_ISSUE, XGMML_ORIGIN_NAMESPACE } from "../xgmml/constants.js";
 import {
     type AttRec,

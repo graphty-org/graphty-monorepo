@@ -26,7 +26,6 @@ import {
     type ColumnDecl,
     type ColumnHandle,
     type Dtype,
-    GraphFormatError,
     type GraphMetaPatch,
     type GraphSink,
     INVALID_INDEX,
@@ -75,7 +74,7 @@ import {
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
     type AspectEvent,
@@ -103,6 +102,7 @@ import {
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
+    zAsOption,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
@@ -118,12 +118,6 @@ import { readCx2Styles } from "./styles.js";
  * @category Plugin helpers
  */
 export const CX2_FORMAT = "cx2";
-
-/**
- * The node attribute the exporter's `sanitizeIds: "mangle"` keeps an original id in.
- * @category Plugin helpers
- */
-export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
 
 /**
  * The origin namespace of the per-element visual property columns.
@@ -2658,25 +2652,6 @@ function describeStyle(aspect: string, elements: readonly unknown[]): string {
         return `visualProperties: ${defaults} default${plural(defaults)}, ${count("nodeMapping")} node mapping${plural(count("nodeMapping"))}, ${count("edgeMapping")} edge mapping${plural(count("edgeMapping"))}`;
     }
     return `${aspect}: ${elements.length} element${plural(elements.length)}`;
-}
-
-/**
- * Resolve the zAs option.
- * @param value - the option
- * @returns the mode; E_UNSUPPORTED for any other value
- * @category Plugin helpers
- */
-export function zAsOption(value: unknown): "column" | "position" {
-    if (value === undefined) {
-        return "column";
-    }
-    if (value === "column" || value === "position") {
-        return value;
-    }
-    throw new GraphFormatError("E_UNSUPPORTED", `option zAs: ${shown(value)} is not one of "column", "position"`, {
-        option: "zAs",
-        found: typeof value === "string" ? value : typeof value,
-    });
 }
 
 /**

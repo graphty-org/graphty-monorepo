@@ -1,5 +1,5 @@
 /**
- * The `spmv-pull` kernel body (spec 6 row 9, 8.2; PD-1 of the M8b plan) in its three in-degree tiers (P4-T5, PD-6):
+ * The `spmv-pull` kernel body in its three in-degree tiers:
  * every tier folds `weight * xNorm[nbr]` over a row's in-arcs of the REVERSE adjacency in chunks of 64 terms (a
  * two-level f32 sum: the chunk absorbs the rounding of 64 terms, the row total the rounding of the chunk count, so a
  * 10,000-arc hub row loses about 200 rounding steps instead of 10,000; Kahan compensation is not used because
@@ -40,7 +40,7 @@ fn row_sum(v: u32, lane: u32, step: u32) -> f32 {               // this lane's a
     var chunk = 0.0;
     var inChunk = 0u;
     for (var arc = a0 + lane; arc < a1; arc = arc + step) {
-        let nbr = colIdx[arc - P.arcBase];               // \`target\` is a WGSL reserved word (spec 16.2)
+        let nbr = colIdx[arc - P.arcBase];               // \`target\` is a WGSL reserved word
         var weight = 1.0;
         if (HAS_WEIGHTS) { weight = weights[arc - P.arcBase]; }
         // two-level sum: 64 terms into chunk, chunk into acc (see the header; no compensation, no select)
@@ -64,7 +64,7 @@ fn row_sum_dense(v: u32) -> f32 {                                // TIER 0's str
     for (var left = select(0u, hi - lo, hi > lo); left > 0u; left = left - 1u) {   // counts DOWN (see the header)
         let arc = hi - left;                             // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                         // the window-local index; this walk is contiguous
-        let nbr = colIdx[k];                             // \`target\` is a WGSL reserved word (spec 16.2)
+        let nbr = colIdx[k];                             // \`target\` is a WGSL reserved word
         var weight = 1.0;
         if (HAS_WEIGHTS) { weight = weights[k]; }
         // two-level sum: 64 terms into chunk, chunk into acc (see the header; no compensation, no select)
@@ -95,7 +95,7 @@ fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: grid
 
 var<workgroup> sh: array<f32, WG>;
 
-fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 lanes per row; TIER 2: WG lanes per row; rows [P.start, P.n) (PD-6)
+fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 lanes per row; TIER 2: WG lanes per row; rows [P.start, P.n)
     let g = group_id(wid);
     var row = P.start + g;
     var lane = lid;

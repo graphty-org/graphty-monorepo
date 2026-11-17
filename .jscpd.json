@@ -24,6 +24,7 @@
         "**/.vitepress/config.*",
         "**/.storybook/**",
         "**/commitlint.config.*",
-        "**/eslint.config.*"
+        "**/eslint.config.*",
+        "graphty-element/session.ts"
     ]
 }

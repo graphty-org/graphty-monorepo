@@ -23,7 +23,7 @@ const ON_DEMAND = [
     "notes: notes on elements",
     "import_data: load data from text or a URL the reader gave; rename the data source",
     "export_graph: write the graph as a file for the reader",
-    "project: settings, name, what a column measures",
+    "project: settings (edge direction: directed or undirected, background, data columns), name, what a column measures",
     "capture: a picture or a video for the reader",
     "immersive: VR and AR",
     "time: move a window along a time column, play it",

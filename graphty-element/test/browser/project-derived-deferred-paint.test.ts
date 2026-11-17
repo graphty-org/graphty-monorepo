@@ -12,32 +12,16 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { dispatcherOf } from "../../src/session/GraphSession";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
-let mounted: Graphty | null = null;
-
-afterEach(() => {
-    mounted?.parentElement?.remove();
-    mounted = null;
-});
+afterEach(unmountElements);
 
 /**
  * Mount a graphty-element with nodes a (kind x) and b (kind y) and wait for it to settle.
  * @returns the element
  */
 async function mount(): Promise<Graphty> {
-    const container = document.createElement("div");
-    container.style.width = "400px";
-    container.style.height = "300px";
-    document.body.appendChild(container);
-    const element = document.createElement("graphty-element");
-    element.style.display = "block";
-    element.style.width = "100%";
-    element.style.height = "100%";
-    container.appendChild(element);
-    mounted = element;
-    await vi.waitFor(() => {
-        assert.isTrue(element.graph.initialized, "the element finished initialising");
-    });
+    const element = await mountElement();
     await element.session.data.addNodes([
         { id: "a", kind: "x" },
         { id: "b", kind: "y" },

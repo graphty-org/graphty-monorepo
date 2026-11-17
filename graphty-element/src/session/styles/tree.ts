@@ -585,3 +585,63 @@ export function readDocumentRows(
 export function folderIdsOf(rows: Rows): StyleRowId[] {
     return rows.flatMap((row) => (row.kind === "folder" ? [row.id, ...folderIdsOf(row.children ?? [])] : []));
 }
+
+/**
+ * Whether the stack draws what lies outside the time window: for nodes and for edges alike, the
+ * topmost layer that paints (enabled, its row not hidden), selects
+ * `{ match: "state", state: "outsideWindow" }` and sets `visible` sets it true. With no such
+ * layer it is drawn as any other element, which this does not count as drawing it.
+ * @param stack - The stack.
+ * @returns True when both kinds are drawn.
+ */
+export function drawsOutsideWindow(stack: readonly CompiledLayer[]): boolean {
+    const painted = paintedStack(stack);
+    return drawsOutsideWindowOf(painted, "node") && drawsOutsideWindowOf(painted, "edge");
+}
+
+/**
+ * Whether the stack draws one kind outside the time window: see {@link drawsOutsideWindow}.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns True when that kind is drawn.
+ */
+export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: "node" | "edge"): boolean {
+    const visible = outsideWindowVisible(painted, target);
+    return visible !== undefined && visible !== false;
+}
+
+/**
+ * The `visible` the topmost painting layer selecting `{ match: "state", state: "outsideWindow" }`
+ * sets for one kind, or undefined when no such layer sets it.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns The value it sets.
+ */
+function outsideWindowVisible(painted: readonly CompiledLayer[], target: "node" | "edge"): unknown {
+    for (let at = painted.length - 1; at >= 0; at--) {
+        const { layer } = painted[at];
+        const visible = layer.set?.[`${target}.visible`];
+        if (
+            layer.enabled &&
+            layer.target === target &&
+            layer.selector.match === "state" &&
+            layer.selector.state === "outsideWindow" &&
+            visible !== undefined
+        ) {
+            return visible;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether the stack hides what lies outside the time window, of either kind: the topmost painting
+ * layer selecting `{ match: "state", state: "outsideWindow" }` that sets `visible` sets it false.
+ * @param stack - The stack.
+ * @returns True when nodes or edges outside the window are hidden.
+ */
+export function hidesOutsideWindow(stack: readonly CompiledLayer[]): boolean {
+    const painted = paintedStack(stack);
+    return (["node", "edge"] as const).some((target) => outsideWindowVisible(painted, target) === false);
+}

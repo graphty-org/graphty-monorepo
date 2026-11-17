@@ -18,21 +18,9 @@ import {
 } from "../../src/builder/compact.js";
 import { resolveColumnMeta } from "../../src/columns/column.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { isIdentity } from "../../src/snapshot/validate.js";
 import { type Dtype, type F32Column } from "../../src/types/index.js";
-
-function code(fn: () => unknown): string | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
+import { thrownCode } from "../helpers/errors.js";
 
 function stagingOptions(
     weighted = false,
@@ -49,9 +37,9 @@ describe("inference helpers", () => {
         expect(inferInitialDtype(2 ** 40)).toBe("f64");
         expect(inferInitialDtype("x")).toBe("string");
         expect(inferInitialDtype([])).toBe("json");
-        expect(code(() => inferInitialDtype(null))).toBe("E_COLUMN_TYPE");
-        expect(code(() => inferInitialDtype(undefined))).toBe("E_COLUMN_TYPE");
-        expect(code(() => inferInitialDtype(Symbol("s")))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => inferInitialDtype(null))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => inferInitialDtype(undefined))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => inferInitialDtype(Symbol("s")))).toBe("E_COLUMN_TYPE");
     });
 
     it("inferredEquivalent maps every dtype into the widening order", () => {
@@ -70,7 +58,7 @@ describe("inference helpers", () => {
         for (const [dtype, target] of Object.entries(expected)) {
             expect(inferredEquivalent(dtype as Dtype)).toBe(target);
         }
-        expect(code(() => inferredEquivalent("nope" as Dtype))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => inferredEquivalent("nope" as Dtype))).toBe("E_COLUMN_TYPE");
     });
 });
 
@@ -169,32 +157,32 @@ describe("StagingColumn: declared columns", () => {
         json.write(0, 1);
         const frozen = json.toColumn(2);
         expect(frozen.value(1)).toBeNull();
-        expect(code(() => names.unset(0))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => names.unset(0))).toBe("E_COLUMN_TYPE");
     });
 
     it("rejects values a declared column cannot hold", () => {
         const u8 = createStagingColumn("u", "node", { dtype: "u8" }, false);
-        expect(code(() => u8.write(0, 256))).toBe("E_COLUMN_TYPE");
-        expect(code(() => u8.write(0, -1))).toBe("E_COLUMN_TYPE");
-        expect(code(() => u8.write(0, "1"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => u8.write(0, 256))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => u8.write(0, -1))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => u8.write(0, "1"))).toBe("E_COLUMN_TYPE");
         const pos = createStagingColumn("pos", "node", { dtype: "i32", components: 2 }, false);
-        expect(code(() => pos.write(0, [1.5, 2]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => pos.write(0, "ab"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => pos.write(0, [1.5, 2]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => pos.write(0, "ab"))).toBe("E_COLUMN_TYPE");
         const lists = createStagingColumn("l", "node", { dtype: "list", itemDtype: "u8" }, false);
-        expect(code(() => lists.write(0, [300]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => lists.write(0, [300]))).toBe("E_COLUMN_TYPE");
         const pairs = createStagingColumn("p", "node", { dtype: "list", itemDtype: "f64", itemComponents: 2 }, false);
-        expect(code(() => pairs.write(0, [[1, "x"]]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => pairs.write(0, [1]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => pairs.write(0, [[1, "x"]]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => pairs.write(0, [1]))).toBe("E_COLUMN_TYPE");
         const bools = createStagingColumn("b", "node", { dtype: "list", itemDtype: "bool" }, false);
-        expect(code(() => bools.write(0, [1]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => bools.write(0, [1]))).toBe("E_COLUMN_TYPE");
         const dicts = createStagingColumn("d", "node", { dtype: "list", itemDtype: "dict" }, false);
-        expect(code(() => dicts.write(0, [1]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => dicts.write(0, ["\ud800"]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => dicts.write(0, [1]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => dicts.write(0, ["\ud800"]))).toBe("E_COLUMN_TYPE");
         const jsons = createStagingColumn("j", "node", { dtype: "list", itemDtype: "json" }, false);
-        expect(code(() => jsons.write(0, [() => 1]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => jsons.write(0, [() => 1]))).toBe("E_COLUMN_TYPE");
         jsons.write(0, [{ ok: true }]);
         const strings = createStagingColumn("s", "node", { dtype: "string" }, false);
-        expect(code(() => strings.write(0, "\ud800"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => strings.write(0, "\ud800"))).toBe("E_COLUMN_TYPE");
     });
 });
 
@@ -240,9 +228,9 @@ describe("StagingColumn: inferred columns", () => {
 
     it("validates raw strings and json values at the write", () => {
         const column = createStagingColumn("v", "node", { dtype: "string", nullable: true }, true);
-        expect(code(() => column.write(0, "\ud800"))).toBe("E_COLUMN_TYPE");
-        expect(code(() => column.write(0, { f: () => 1 }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => column.write(0, 1n))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => column.write(0, "\ud800"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => column.write(0, { f: () => 1 }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => column.write(0, 1n))).toBe("E_COLUMN_TYPE");
     });
 
     it("widenTo turns a declared column into an inferred one keeping its values and validity", () => {

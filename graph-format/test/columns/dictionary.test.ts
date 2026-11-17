@@ -2,21 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { assertWellFormedString, buildCodeMap, DictionaryBuilder } from "../../src/columns/dictionary.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { hasLoneSurrogate } from "../../src/ids/string-store.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 describe("lone surrogate detection", () => {
     it("flags unpaired surrogates only", () => {

@@ -120,7 +120,7 @@ describe("ControlSection", () => {
         });
     });
 
-    // Contract 2.3: the 16px leading / 8px trailing asymmetry has to be written
+    // The 16px leading / 8px trailing asymmetry has to be written
     // logically or a right-to-left panel inverts its own grid. jsdom does no
     // layout, so what is assertable here is that the component writes the
     // logical property and never the physical one -- the flip itself is the
@@ -286,9 +286,9 @@ describe("ControlSection", () => {
 
             renderSection(<ControlSection label="Edge properties" />);
 
-            // Contract 7.2: three of the package's console.warn strings leaked
-            // in-house codenames into a consumer's own devtools. This one must
-            // say what to do instead, in words that stand alone.
+            // A warning lands in a consumer's own devtools, so it names no
+            // in-house codename and says what to do instead, in words that
+            // stand alone.
             const message = String(warn.mock.calls[0][0]);
             expect(message).not.toMatch(/RT-\d|VOCAB|DECISIONS|COMPACTION|the door|the floor|Phase \d/i);
             expect(message).toMatch(/pass the rows/i);
@@ -409,7 +409,7 @@ describe("ControlSection", () => {
         });
     });
 
-    // Contract 1.4: a disclosure reports opened/defaultOpened/onOpenChange, and
+    // A disclosure reports opened/defaultOpened/onOpenChange, and
     // the change carries the event so a consumer can read modifier keys or call
     // preventDefault.
     describe("the disclosure event model", () => {
@@ -627,7 +627,7 @@ describe("ControlSection", () => {
         });
     });
 
-    // Contract 2.1: every string the section speaks comes from useLabels(), so
+    // Every string the section speaks comes from useLabels(), so
     // a consumer can translate or reword all of them and none is stuck in
     // English.
     describe("translation", () => {
@@ -836,9 +836,8 @@ describe("ControlSection", () => {
             expect(screen.getByText(EXPLANATION)).not.toBeVisible();
         });
 
-        // Contract 7.4: the published documentation claimed info was the
-        // section's accessible description while nothing set aria-describedby.
-        // It does now, and this is the test that keeps the claim true.
+        // The documentation says info is the section's accessible
+        // description; this keeps aria-describedby pointing at it.
         it("is the section's accessible description", () => {
             renderSection(
                 <ControlSection label="Betweenness" info={EXPLANATION}>

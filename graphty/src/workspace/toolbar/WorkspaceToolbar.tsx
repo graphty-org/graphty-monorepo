@@ -332,6 +332,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     }
                     delete openers.path;
                     delete openers.analyze;
+                    store.set({ analyzeOn: null });
                 }}
                 closeOnEscape={false}
                 width={380}
@@ -344,6 +345,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         <AnalyzePopover
                             session={session}
                             path={dialog === "path"}
+                            initialPick={dialog === "analyze" ? (store.get().analyzeOn ?? undefined) : undefined}
                             onClose={close}
                             onTab={(back) => {
                                 const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;

@@ -9,7 +9,8 @@
 // A session (.cys) is opened with `session open`; anything else with `network load file`, never
 // `network import`, which drops the file's style. A .gz sample is loaded decompressed (regenerate.sh)
 // and hashed as stored. Ids are the node `name` column (the file's own names); edge ids are
-// "<source name>-><target name>", with "#k" for the k-th parallel edge.
+// "<source name>-><target name>", with "#k" for the k-th parallel edge in SUID order (the order the
+// file lists them, which is how graphty numbers them; the view's topology lists them in another order).
 // Cytoscape's canvas is y down and node locations are centers.
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -22,7 +23,8 @@ const POSITION = { "C,C": "inside", "S,N": "below", "N,S": "above", "E,W": "righ
 
 /**
  * The scene ids of a Cytoscape view's elements: each node's `name` (with "#k" for the k-th repeat of
- * a name), and "<source>-><target>" for each edge (with "#k" for the k-th parallel edge), keyed by SUID.
+ * a name), and "<source>-><target>" for each edge (with "#k" for the k-th parallel edge in SUID order, the order the
+ * file lists them), keyed by SUID.
  * @param topology - the view's Cytoscape.js JSON
  * @returns the node and edge ids by SUID, and whether a name repeats
  */
@@ -37,7 +39,7 @@ export function cyrestIds(topology) {
     }
     const ordinal = new Map();
     const edges = new Map();
-    for (const e of topology.elements.edges) {
+    for (const e of [...topology.elements.edges].sort((a, b) => Number(a.data.SUID) - Number(b.data.SUID))) {
         const key = `${nodes.get(String(e.data.source))}->${nodes.get(String(e.data.target))}`;
         const k = ordinal.get(key) ?? 0;
         ordinal.set(key, k + 1);

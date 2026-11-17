@@ -1,14 +1,13 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Chip, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useState } from "react";
 
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { unlessUnsaved } from "../project/actions";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { countWords, isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import {
@@ -168,11 +167,10 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
  * library in its order (the app's own graphs and graph-samples' datasets the element opens, one
  * network sample of each kind of network source, and graph-samples' generators).
  * @param ctx - the command context.
- * @param timeline - whether the timeline experiment is on.
  * @param asks - what the dialog asks first.
  * @returns the cards, in order.
  */
-function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): SampleEntry[] {
+function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
     const fileEntry = (sample: PrototypeSample, group: string, hook: string, field: string): SampleEntry => {
         const name = sampleName(sample);
         const incoming: Incoming = { name, source: { config: { url: sampleUrl(sample) }, name }, origin: "sample" };
@@ -203,7 +201,7 @@ function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): Samp
                 : [fileEntry(sample, "Join", `${walk.name} ${String(at + 1)} of ${String(walk.files.length)}`, "Join")];
         }),
     );
-    const library = offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks));
+    const library = offeredTiles().map((tile) => libraryEntry(ctx, tile, asks));
     const network = NETWORK_TILES.map((tile): SampleEntry => ({
         key: tile.id,
         group: NETWORK,
@@ -240,7 +238,7 @@ function cardLabel(card: SampleCardData): string {
  */
 export function SamplesDialog(): React.JSX.Element {
     const ctx = useWorkspace();
-    useSessionVersion(ctx.session);
+    useSessionEvents(ctx.session, TOOLBAR_EVENTS);
     const opened = useWorkspaceState((state) => state.dialog === "samples");
     const [text, setText] = useState("");
     const [group, setGroup] = useState("");
@@ -249,9 +247,7 @@ export function SamplesDialog(): React.JSX.Element {
     const close = (): void => {
         ctx.store.set({ dialog: null });
     };
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const entries = sampleEntries(ctx, timeline, {
+    const entries = sampleEntries(ctx, {
         ask: (dataset, target) => {
             setAsking({ dataset, target });
         },

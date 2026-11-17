@@ -1163,7 +1163,7 @@ export type StyleDialect =
     | "graphology"
     /** A `graphty.styles` block written by graphty: already canonical. */
     | "graphty"
-    | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+    | (string & {}); // an open union, so editors still offer its literal values
 
 /**
  * The program whose defaults fill in what a file leaves unset, by id: the keys of the tool defaults table.
@@ -1198,7 +1198,7 @@ export type StyleTool =
     | "tk"
     /** graphty itself, for a file holding a `graphty.styles` block. */
     | "graphty"
-    | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+    | (string & {}); // an open union, so editors still offer its literal values
 
 // ============================================================ rules
 
@@ -1312,13 +1312,13 @@ export type Mapping =
  * What a rule is: the defaults, a group, a data mapping, per-element copies or the exceptions on top. Open union.
  * @category Styles
  */
-export type StyleRuleRole = "defaults" | "group" | "mapping" | "passthrough" | "exceptions" | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+export type StyleRuleRole = "defaults" | "group" | "mapping" | "passthrough" | "exceptions" | (string & {}); // an open union, so editors still offer its literal values
 
 /**
  * Where a rule came from: written by the file, recovered from its values, or the writing tool's default. Open union.
  * @category Styles
  */
-export type StyleRuleOrigin = "declared" | "inferred" | "tool" | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+export type StyleRuleOrigin = "declared" | "inferred" | "tool" | (string & {}); // an open union, so editors still offer its literal values
 
 /**
  * Why a rule copies values instead of explaining them, or how it was built. Open union.
@@ -1365,7 +1365,7 @@ export type StyleRuleReason =
     | "CALCULATED"
     /** A value read from a path the file does not hold (an algorithm result); values are copied. */
     | "RESULT_PATH"
-    | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+    | (string & {}); // an open union, so editors still offer its literal values
 
 /**
  * Facts about a rule an application may show; never sentences.
@@ -1715,4 +1715,4 @@ export type StyleBlockIgnoredReason =
     | "FINGERPRINT"
     /** The block's content does not have the expected shape. */
     | "INVALID"
-    | (string & {}); // NOSONAR(S4335): an open union, so editors still offer its literal values
+    | (string & {}); // an open union, so editors still offer its literal values

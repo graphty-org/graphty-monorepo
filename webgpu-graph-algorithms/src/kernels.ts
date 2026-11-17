@@ -1,25 +1,22 @@
 /**
- * THE kernel registry (spec 3.5; contract 3.10): every WGSL module the package compiles, keyed by id, with the
+ * THE kernel registry: every WGSL module the package compiles, keyed by id, with the
  * binding table, the override declarations, the generated uniform / storage blocks and the feature needs from
  * which src/kernel/wgsl.ts emits the bind declarations and src/kernel/pipeline-cache.ts derives the explicit
  * bind-group layouts. A variant cannot exist without an entry here: the compile tests, the bind-group-budget
- * test and PipelineCache.warm() iterate this table. P1-T4 lands degree, reduce, fill, fa2-repulsion-exact (K3)
- * and fa2-speed-finalize (K4) together with every generated block of contract 3.10.2; P2-T2 lands
- * segmented-reduce; P3-T2 adds fa2-stats-finalize (K1), fa2-attraction (K2), fa2-integrate (K5) and
- * fa2-to-scene; M8b-T3 adds the seven P7 entries: spmv-pull, pr-scale, pr-finalize, wcc-link-sample,
- * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
- * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
- * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
- * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
- * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks; closeness adds closeness-level and closeness-rowsum with the ClosenessParams block; P9 (betweenness) adds bc-finalize, bc-forward,
- * bc-backward, bc-gather, bc-edge-gather, bc-forward-edge and bc-count (issue #719) with the BcParams block; all-pairs shortest paths
- * (design 8.7) adds apsp-init and apsp-fw with the ApspParams block. P11 (the structure and community phase, plan
- * design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md) adds the graph build on the device (coo-emit,
- * run-flags, coo-scatter), the per-row group-by-key (group-by-key-row), label propagation's step (lpa-step) and
- * triangle counting (orient-flags, tri-intersect), and Boruvka's minimum spanning tree adds mst-best and mst-link
- * with the MstParams block. This file is the only importer of src/wgsl/** (spec 3.2;
- * test/layers.test.ts).
+ * test and PipelineCache.warm() iterate this table. Entries are only ever appended, grouped by family: the
+ * walking-skeleton kernels (degree, reduce, fill, fa2-repulsion-exact, fa2-speed-finalize), segmented-reduce, the
+ * rest of the ForceAtlas2 iteration (fa2-stats-finalize, fa2-attraction, fa2-integrate, fa2-to-scene), the SpMV and
+ * connected-components kernels (spmv-pull, pr-scale, pr-finalize, wcc-link-sample, wcc-link-edges, wcc-compress,
+ * wcc-sample), the scan, sort and grid-pyramid primitives (indirect-finalize and the rest), the frontier family
+ * (compact-scatter, dedupe-claim, dedupe-filter, frontier-finalize, advance-expand, bfs-contract, sssp-pred,
+ * bfs-fused, bfs-bottom-up, bfs-bitset-build, bfs-unvisited-flags, sssp-relax, bf-relax), closeness
+ * (closeness-level, closeness-rowsum), betweenness (bc-finalize, bc-forward, bc-backward, bc-gather, bc-edge-gather,
+ * bc-forward-edge and bc-count, issue #719), all-pairs shortest paths (apsp-init, apsp-fw), the graph build on the
+ * device (coo-emit, run-flags, coo-scatter), the per-row group-by-key (group-by-key-row), label propagation's step
+ * (lpa-step), triangle counting (orient-flags, tri-intersect) and Boruvka's minimum spanning tree (mst-best,
+ * mst-link), each with its params blocks. This file is the only importer of src/wgsl/** (test/layers.test.ts).
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "3.5 WGSL source organisation and composition".
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -99,7 +96,7 @@ import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
 import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P4, P7, P8, P9 and P11 (later ids are appended, never renamed). */
+/** Every module id (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -188,9 +185,9 @@ export interface KernelEntry {
     readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9" | "P11";
 }
 
-// ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
+// ---- the generated blocks: field order = byte order, offsets in the JSDoc
 
-/** `RangeParams` (uniform, 32 B): rows `[start, end)` @0 / @4 of the dispatch, the bound arc window `[arcBase, arcEnd)` @8 / @12 (0 and arcCount when not windowed), `accumulate` @16 (1 combines into `out[i]` instead of overwriting: the P4 windowed loop), `n` @20 (the node count that bounds neighbour indices), `pad0` @24, `pad1` @28. */
+/** `RangeParams` (uniform, 32 B): rows `[start, end)` @0 / @4 of the dispatch, the bound arc window `[arcBase, arcEnd)` @8 / @12 (0 and arcCount when not windowed), `accumulate` @16 (1 combines into `out[i]` instead of overwriting: the windowed loop), `n` @20 (the node count that bounds neighbour indices), `pad0` @24, `pad1` @28. */
 export const RANGE_PARAMS: UniformBlock = UniformBlock.define("RangeParams", [
     ["start", "u32"],
     ["end", "u32"],
@@ -246,7 +243,7 @@ export const COLLIDE_PARAMS: UniformBlock = UniformBlock.define("CollideParams",
     ["pad1", "u32"],
 ]);
 
-/** `Fa2Params` (uniform, 144 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; `settleFloor` @128 (the absolute bound on the mean displacement of a settled iteration, in layout units: issue #97); `live` @132 (n less the inert rows, what K1 and K4 divide by: `setInert`, issue #3075); `clusterStrength` @136, `clusterCount` @140 (the cluster force, issue #3257); 144 B. */
+/** `Fa2Params` (uniform, 144 B): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries; both 0 without a permutation); the Fruchterman-Reingold and spring model fields: `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; `settleFloor` @128 (the absolute bound on the mean displacement of a settled iteration, in layout units: issue #97); `live` @132 (n less the inert rows, what K1 and K4 divide by: `setInert`, issue #3075); `clusterStrength` @136, `clusterCount` @140 (the cluster force, issue #3257); 144 B. */
 export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["n", "u32"],
     ["dim", "u32"],
@@ -283,7 +280,7 @@ export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["clusterCount", "u32"],
 ]);
 
-/** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `frEnergy` @120 / `frProgress` @124 (the FR adaptive cooling), `invCellSize` @128 (P4, PD-10: `1 / cellSize`, written by K1 beside `cellSize` in `gridMin.w`; G1 multiplies by it so every key is bitwise reproducible), `reserved0` @132 (f32), `reserved1` @136 (vec2f), `reserved2` .. `reserved8` @144 .. @240. */
+/** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (grid), `eps` @96 (grid), `settledCount` @100, `outsideGrid` @104 (grid), `maxCellOccupancy` @108 (grid), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `frEnergy` @120 / `frProgress` @124 (the FR adaptive cooling), `invCellSize` @128 (grid: `1 / cellSize`, written by K1 beside `cellSize` in `gridMin.w`; G1 multiplies by it so every key is bitwise reproducible), `reserved0` @132 (f32), `reserved1` @136 (vec2f), `reserved2` .. `reserved8` @144 .. @240. */
 export const FA2_STATE: UniformBlock = UniformBlock.define(
     "Fa2State",
     [
@@ -321,7 +318,7 @@ export const FA2_STATE: UniformBlock = UniformBlock.define(
     { layout: "storage", padTo: STATE_HEADER_BYTES },
 );
 
-/** `Fa2Trace` (storage record, 32 B; spec 7.3): one per-iteration trace record -- `swing` @0, `traction` @4, `speed` @8, `speedEfficiency` @12 (written by K4), `meanDisplacement` @16, `settledCount` @20, `iteration` @24 (written by K1), `modelScalar` @28 (K1: the temperature under STATS_MODE 1, the kinetic energy under 2, 0 under 0); the trace region is `array<Fa2Trace>` at byte offset STATE_HEADER_BYTES of the state buffer. */
+/** `Fa2Trace` (storage record, 32 B): one per-iteration trace record -- `swing` @0, `traction` @4, `speed` @8, `speedEfficiency` @12 (written by K4), `meanDisplacement` @16, `settledCount` @20, `iteration` @24 (written by K1), `modelScalar` @28 (K1: the temperature under STATS_MODE 1, the kinetic energy under 2, 0 under 0); the trace region is `array<Fa2Trace>` at byte offset STATE_HEADER_BYTES of the state buffer. */
 export const FA2_TRACE: UniformBlock = UniformBlock.define(
     "Fa2Trace",
     [
@@ -337,7 +334,7 @@ export const FA2_TRACE: UniformBlock = UniformBlock.define(
     { layout: "storage" },
 );
 
-/** `Fa2Partial` (storage record, 64 B; spec 7.3): one per-workgroup partial -- `sum` @0 (xyz = sum of positions, w = sum of |p - centroid|^2), `min` @16, `max` @32 (w = max of |p - centroid|^2, the exact layoutRadius source), written by K5; `swingTraction` @48 (written by K3's epilogue); `dispFree` @56 (x = sum |dp| over free rows, y = the free count as an f32 <= 256, written by K5). */
+/** `Fa2Partial` (storage record, 64 B): one per-workgroup partial -- `sum` @0 (xyz = sum of positions, w = sum of |p - centroid|^2), `min` @16, `max` @32 (w = max of |p - centroid|^2, the exact layoutRadius source), written by K5; `swingTraction` @48 (written by K3's epilogue); `dispFree` @56 (x = sum |dp| over free rows, y = the free count as an f32 <= 256, written by K5). */
 export const FA2_PARTIAL: UniformBlock = UniformBlock.define(
     "Fa2Partial",
     [
@@ -350,7 +347,7 @@ export const FA2_PARTIAL: UniformBlock = UniformBlock.define(
     { layout: "storage" },
 );
 
-/** `SpmvParams` (uniform, 32 B; spec 8.2): `n` @0 rows of the pull, the bound arc window `[arcBase, arcEnd)` @4 / @8 (0 and arcCount when not windowed), the grid-stride step `stride` @12, `alpha` @16, `beta` @20 (the `1 - alpha` term), `uniformP` @24 (the uniform personalization mass `1 / n`, 0 for a pure SpMV), `start` @28 (the first row of the dispatch; TIER 0 strides from it, the tiers index from it). */
+/** `SpmvParams` (uniform, 32 B): `n` @0 rows of the pull, the bound arc window `[arcBase, arcEnd)` @4 / @8 (0 and arcCount when not windowed), the grid-stride step `stride` @12, `alpha` @16, `beta` @20 (the `1 - alpha` term), `uniformP` @24 (the uniform personalization mass `1 / n`, 0 for a pure SpMV), `start` @28 (the first row of the dispatch; TIER 0 strides from it, the tiers index from it). */
 export const SPMV_PARAMS: UniformBlock = UniformBlock.define("SpmvParams", [
     ["n", "u32"],
     ["arcBase", "u32"],
@@ -362,7 +359,7 @@ export const SPMV_PARAMS: UniformBlock = UniformBlock.define("SpmvParams", [
     ["start", "u32"],
 ]);
 
-/** `PrParams` (uniform, 32 B; spec 8.2): `n` @0, `groups` @4 (the per-workgroup partial count the finalize folds), `iteration` @8 (1-based), `trackConvergence` @12 (1 records firstConverged), `convergeThreshold` @16 (`tolerance * n`, the design's `delta < tol * n`), `pad0` @20, `pad1` @24, `pad2` @28. */
+/** `PrParams` (uniform, 32 B): `n` @0, `groups` @4 (the per-workgroup partial count the finalize folds), `iteration` @8 (1-based), `trackConvergence` @12 (1 records firstConverged), `convergeThreshold` @16 (`tolerance * n`, the design's `delta < tol * n`), `pad0` @20, `pad1` @24, `pad2` @28. */
 export const PR_PARAMS: UniformBlock = UniformBlock.define("PrParams", [
     ["n", "u32"],
     ["groups", "u32"],
@@ -375,9 +372,9 @@ export const PR_PARAMS: UniformBlock = UniformBlock.define("PrParams", [
 ]);
 
 /**
- * `PrPartial` (storage record, 32 B; spec 8.2). Element 0 is the HEADER, whose first 16 bytes are exactly the four
+ * `PrPartial` (storage record, 32 B). Element 0 is the HEADER, whose first 16 bytes are exactly the four
  * fields the design names -- `danglingMass` @0, `delta` @4, `firstConvergedIteration` @8, `iteration` @12 -- plus
- * `norm` @16, which M8b adds so HITS / eigenvector / Katz keep their normaliser on the device (PD-10). Element
+ * `norm` @16, added so HITS / eigenvector / Katz keep their normaliser on the device. Element
  * `1 + g` is workgroup g's partial: it uses `danglingMass`, `delta` and `norm` as three sums and leaves the two u32
  * fields zero.
  */
@@ -396,7 +393,7 @@ export const PR_PARTIAL: UniformBlock = UniformBlock.define(
     { layout: "storage" },
 );
 
-/** `WccParams` (uniform, 32 B; spec 8.3): `n` @0, `items` @4 (rows for a sample round, edges for an edge round, 1024 for the sampler), `stride` @8, `r` @12 (the neighbour index of the sampled round, and the sampler's seed), `flagIndex` @16 (the changed word inside `comp`, PD-4), `giant` @20 (`U32_MAX` before the sample), `maxSteps` @24, `pad0` @28. */
+/** `WccParams` (uniform, 32 B): `n` @0, `items` @4 (rows for a sample round, edges for an edge round, 1024 for the sampler), `stride` @8, `r` @12 (the neighbour index of the sampled round, and the sampler's seed), `flagIndex` @16 (the changed word inside `comp`), `giant` @20 (`U32_MAX` before the sample), `maxSteps` @24, `pad0` @28. */
 export const WCC_PARAMS: UniformBlock = UniformBlock.define("WccParams", [
     ["n", "u32"],
     ["items", "u32"],
@@ -408,7 +405,7 @@ export const WCC_PARAMS: UniformBlock = UniformBlock.define("WccParams", [
     ["pad0", "u32"],
 ]);
 
-/** `IndirectParams` (uniform, 16 B; spec 5.4): `countIndex` @0 (the word of `counters` holding the count), `wg` @4 (the consumer's workgroup size), `slot` @8 (the 16-byte args slot to write), `pad0` @12. */
+/** `IndirectParams` (uniform, 16 B): `countIndex` @0 (the word of `counters` holding the count), `wg` @4 (the consumer's workgroup size), `slot` @8 (the 16-byte args slot to write), `pad0` @12. */
 export const INDIRECT_PARAMS: UniformBlock = UniformBlock.define("IndirectParams", [
     ["countIndex", "u32"],
     ["wg", "u32"],
@@ -416,7 +413,7 @@ export const INDIRECT_PARAMS: UniformBlock = UniformBlock.define("IndirectParams
     ["pad0", "u32"],
 ]);
 
-/** `ScanParams` (uniform, 16 B; spec 6 row 2): `count` @0 (the u32 words of the level), `pad0` @4, `pad1` @8, `pad2` @12. */
+/** `ScanParams` (uniform, 16 B): `count` @0 (the u32 words of the level), `pad0` @4, `pad1` @8, `pad2` @12. */
 export const SCAN_PARAMS: UniformBlock = UniformBlock.define("ScanParams", [
     ["count", "u32"],
     ["pad0", "u32"],
@@ -424,7 +421,7 @@ export const SCAN_PARAMS: UniformBlock = UniformBlock.define("ScanParams", [
     ["pad2", "u32"],
 ]);
 
-/** `GridLevelParams` (uniform, 32 B; spec 7.7 G5, P4-T9): `childBase` @0 and `parentBase` @4 (the first cell of the child / parent level inside the pyramid), `parentSide` @8, `parentCells` @12 (`parentSide^dim`), `depth` @16 (1 in 2D, 2 in 3D), `pad0` @20, `pad1` @24, `pad2` @28. */
+/** `GridLevelParams` (uniform, 32 B; grid pass G5): `childBase` @0 and `parentBase` @4 (the first cell of the child / parent level inside the pyramid), `parentSide` @8, `parentCells` @12 (`parentSide^dim`), `depth` @16 (1 in 2D, 2 in 3D), `pad0` @20, `pad1` @24, `pad2` @28. */
 export const GRID_LEVEL_PARAMS: UniformBlock = UniformBlock.define("GridLevelParams", [
     ["childBase", "u32"],
     ["parentBase", "u32"],
@@ -436,7 +433,7 @@ export const GRID_LEVEL_PARAMS: UniformBlock = UniformBlock.define("GridLevelPar
     ["pad2", "u32"],
 ]);
 
-/** `HistParams` (uniform, 16 B; spec 6 row 5): `count` @0 (the keys), `bins` @4 (a key >= bins is not counted), `pad0` @8, `pad1` @12. */
+/** `HistParams` (uniform, 16 B): `count` @0 (the keys), `bins` @4 (a key >= bins is not counted), `pad0` @8, `pad1` @12. */
 export const HIST_PARAMS: UniformBlock = UniformBlock.define("HistParams", [
     ["count", "u32"],
     ["bins", "u32"],
@@ -444,7 +441,7 @@ export const HIST_PARAMS: UniformBlock = UniformBlock.define("HistParams", [
     ["pad1", "u32"],
 ]);
 
-/** `RadixParams` (uniform, 16 B; spec 6 row 6): `count` @0 (the pairs), `shift` @4 (the pass's digit shift, 8 x pass), `groups` @8 (ceil(count / WG), the stride of the digit-major table), `pad0` @12. */
+/** `RadixParams` (uniform, 16 B): `count` @0 (the pairs), `shift` @4 (the pass's digit shift, 8 x pass), `groups` @8 (ceil(count / WG), the stride of the digit-major table), `pad0` @12. */
 export const RADIX_PARAMS: UniformBlock = UniformBlock.define("RadixParams", [
     ["count", "u32"],
     ["shift", "u32"],
@@ -452,7 +449,7 @@ export const RADIX_PARAMS: UniformBlock = UniformBlock.define("RadixParams", [
     ["pad0", "u32"],
 ]);
 
-/** `CompactParams` (uniform, 16 B; spec 6 row 4, P8-T3): `count` @0 (the entries, or the capacity a device count is clamped to), `outIndex` @4 (the word of `outCount` that receives the output count: the block is bound whole because a four-byte word is never 256-aligned), `countIndex` @8 (the word of the counters block holding the entry count, or `U32_MAX` for a host-known count; `compact-scatter` ignores it), `pad0` @12. */
+/** `CompactParams` (uniform, 16 B): `count` @0 (the entries, or the capacity a device count is clamped to), `outIndex` @4 (the word of `outCount` that receives the output count: the block is bound whole because a four-byte word is never 256-aligned), `countIndex` @8 (the word of the counters block holding the entry count, or `U32_MAX` for a host-known count; `compact-scatter` ignores it), `pad0` @12. */
 export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams", [
     ["count", "u32"],
     ["outIndex", "u32"],
@@ -461,26 +458,26 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
 ]);
 
 /**
- * `FrontierCounters` (storage, 112 B; design 6 row 7, P8-T4, PD-8): EVERY counter of the frontier family is a word of
+ * `FrontierCounters` (storage, 112 B): EVERY counter of the frontier family is a word of
  * this one block, byte offset 4 x index, because a four-byte word is never a legal storage-binding offset and the
  * device-side selector must reach every count it acts on through one binding; every kernel binds it as
  * `array<atomic<u32>>` and indexes by the `W` record of src/primitives/frontier.ts, and the host decodes the result
  * copy with `FRONTIER_COUNTERS.read`. `frontierCount` @0 (role 0 rotates it in from word 1; never seeded),
  * `nextFrontierCount` @4 (the claim kernels' append span; the BFS seed is 1), `frontierDegreeSum` @8,
  * `prevFrontierCount` @12, `prevDegreeSum` @16, `unvisitedCount` @20, `unvisitedDegreeSum` @24,
- * `unvisitedListLen` @28 (P8-T8), `edgeCount` @32 (clamped by role 1), `edgeCountUnclamped` @36 (the overflow
- * detector, PD-23), `overflowLevels` @40, `level` @44 (the current level; the seed is U32_MAX so the first boundary
+ * `unvisitedListLen` @28, `edgeCount` @32 (clamped by role 1), `edgeCountUnclamped` @36 (the overflow
+ * detector), `overflowLevels` @40, `level` @44 (the current level; the seed is U32_MAX so the first boundary
  * lands on 0), `visitedCount` @48, `switches` @52, `direction` @56, `done` @60 (the four bytes the host reads per
  * submit), `arcsScanned` @64, `fusedLevels` @68, `twoPhaseLevels` @72, `bottomUpLevels` @76, `farCount` @80,
- * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9), `path` @96 (what the level's kernels run, written
+ * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92, `path` @96 (what the level's kernels run, written
  * by the selector: 0 nothing, 1 two-phase, 2 fused, 3 bottom-up, 4 the fused retry, 5 a near SSSP round, 6 a far
- * one; every level kernel is a direct dispatch that reads it first -- G8-F5), `nextDegreeSum` @100 (issue #391: the
+ * one; every level kernel is a direct dispatch that reads it first, see docs/decisions/G8.md), `nextDegreeSum` @100 (issue #391: the
  * out-degree sum of the vertices the level claimed, accumulated by `bfs-next-degree` at the end of every level and
  * read, subtracted and zeroed by the next boundary -- Beamer's m_f measured on the frontier the boundary decides
  * for, not on the one it has just expanded); `stackTop` @104 (betweenness: the append cursor of the claim log, which
  * `bc-finalize` also writes into `ends` at every level boundary) and `sigmaOverflow` @108 (betweenness: 1 once a
- * rescaled path count left f32's normal range) are APPENDED so every earlier word keeps its byte offset. The words nothing writes before P8-T8 / P8-T9 are declared now because
- * the byte layout is what the single result copy decodes.
+ * rescaled path count left f32's normal range) are APPENDED so every earlier word keeps its byte offset. Every word is declared
+ * whether or not a given algorithm writes it, because the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
     "FrontierCounters",
@@ -518,14 +515,14 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
 );
 
 /**
- * `FrontierParams` (uniform, 80 B; P8-T4): the params block every P8 kernel except the three compact / dedupe
+ * `FrontierParams` (uniform, 80 B): the params block every frontier-family kernel except the three compact / dedupe
  * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `wg` @4 (the consumers' workgroup size),
- * `alpha` @8, `beta` @12 (Beamer's thresholds, P8-T8), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
- * `mode` @32 (BFS: 0 auto, 1 top-down only, 2 every growing level bottom-up; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
+ * `alpha` @8, `beta` @12 (Beamer's thresholds), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
+ * `mode` @32 (BFS: 0 auto, 1 top-down only, 2 every growing level bottom-up; `sssp-pred`: the predecessor key rule), `cutoffBits` @36, `arcBase` @40,
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
- * `sssp-pred` hop pass, P8-T9), `pad3` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * `sssp-pred` hop pass), `pad3` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
@@ -592,7 +589,7 @@ export const CLOSENESS_PARAMS: UniformBlock = UniformBlock.define("ClosenessPara
     ["pad0", "u32"],
 ]);
 
-/** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
+/** `BfParams` (uniform, 16 B): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (the compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
 export const BF_PARAMS: UniformBlock = UniformBlock.define("BfParams", [
     ["edgeCount", "u32"],
     ["stride", "u32"],
@@ -600,7 +597,7 @@ export const BF_PARAMS: UniformBlock = UniformBlock.define("BfParams", [
     ["cutoffBits", "u32"],
 ]);
 
-/** `BfFlags` (storage, 16 B; P8-T10): the two words `bf-relax` raises and the host reads back after every batch of rounds -- `changed` @0 (some exchange succeeded), `retryExhausted` @4 (some lane hit `maxRetries`, PD-12), `pad0` @8, `pad1` @12. Bound by the kernel as `array<atomic<u32>>`; the block is the host's decoder. */
+/** `BfFlags` (storage, 16 B): the two words `bf-relax` raises and the host reads back after every batch of rounds -- `changed` @0 (some exchange succeeded), `retryExhausted` @4 (some lane hit `maxRetries`), `pad0` @8, `pad1` @12. Bound by the kernel as `array<atomic<u32>>`; the block is the host's decoder. */
 export const BF_FLAGS: UniformBlock = UniformBlock.define(
     "BfFlags",
     [
@@ -612,7 +609,7 @@ export const BF_FLAGS: UniformBlock = UniformBlock.define(
     { layout: "storage" },
 );
 
-/** `ApspParams` (uniform, 16 B; design 8.7): `n` @0 (the node count, the matrix side), `round` @4 (the pivot block index of the blocked Floyd-Warshall round), `blocks` @8 (`ceil(n / APSP_TILE)`), `infBits` @12 (`F32_INF_BITS`: a kernel reads `+Infinity` from a uniform because Tint refuses it as a constant expression). */
+/** `ApspParams` (uniform, 16 B): `n` @0 (the node count, the matrix side), `round` @4 (the pivot block index of the blocked Floyd-Warshall round), `blocks` @8 (`ceil(n / APSP_TILE)`), `infBits` @12 (`F32_INF_BITS`: a kernel reads `+Infinity` from a uniform because Tint refuses it as a constant expression). */
 export const APSP_PARAMS: UniformBlock = UniformBlock.define("ApspParams", [
     ["n", "u32"],
     ["round", "u32"],
@@ -620,7 +617,7 @@ export const APSP_PARAMS: UniformBlock = UniformBlock.define("ApspParams", [
     ["infBits", "u32"],
 ]);
 
-/** `CooParams` (uniform, 16 B; P11): `count` @0 (the arcs or positions of the dispatch), `pad0` @4, `pad1` @8, `pad2` @12. The one params block of `coo-emit`, `run-flags`, `coo-scatter`, `orient-flags` and `tri-intersect`. */
+/** `CooParams` (uniform, 16 B): `count` @0 (the arcs or positions of the dispatch), `pad0` @4, `pad1` @8, `pad2` @12. The one params block of `coo-emit`, `run-flags`, `coo-scatter`, `orient-flags` and `tri-intersect`. */
 export const COO_PARAMS: UniformBlock = UniformBlock.define("CooParams", [
     ["count", "u32"],
     ["pad0", "u32"],
@@ -628,7 +625,7 @@ export const COO_PARAMS: UniformBlock = UniformBlock.define("CooParams", [
     ["pad2", "u32"],
 ]);
 
-/** `GroupParams` (uniform, 16 B; P11): `rowsBase` @0 (the word of `rows` where the dispatch's row list starts), `basesBase` @4 (the word where the workgroup tier's region offsets start), `count` @8 (the rows of the dispatch), `pad0` @12. */
+/** `GroupParams` (uniform, 16 B): `rowsBase` @0 (the word of `rows` where the dispatch's row list starts), `basesBase` @4 (the word where the workgroup tier's region offsets start), `count` @8 (the rows of the dispatch), `pad0` @12. */
 export const GROUP_PARAMS: UniformBlock = UniformBlock.define("GroupParams", [
     ["rowsBase", "u32"],
     ["basesBase", "u32"],
@@ -636,7 +633,7 @@ export const GROUP_PARAMS: UniformBlock = UniformBlock.define("GroupParams", [
     ["pad0", "u32"],
 ]);
 
-/** `LpaParams` (uniform, 16 B; P11): `n` @0, `direction` @4 (0: a pass that moves labels down only, 1: up only), `counterIndex` @8 (the word of `counters` that receives the pass's move count), `pad0` @12. */
+/** `LpaParams` (uniform, 16 B): `n` @0, `direction` @4 (0: a pass that moves labels down only, 1: up only), `counterIndex` @8 (the word of `counters` that receives the pass's move count), `pad0` @12. */
 export const LPA_PARAMS: UniformBlock = UniformBlock.define("LpaParams", [
     ["n", "u32"],
     ["direction", "u32"],
@@ -644,7 +641,7 @@ export const LPA_PARAMS: UniformBlock = UniformBlock.define("LpaParams", [
     ["pad0", "u32"],
 ]);
 
-/** `MstParams` (uniform, 16 B; P11): `count` @0 (the edges of `mst-best`, the vertices of `mst-link`), `counterIndex` @4 (the word of `counters` that receives the round's recorded edges), `pad0` @8, `pad1` @12. */
+/** `MstParams` (uniform, 16 B): `count` @0 (the edges of `mst-best`, the vertices of `mst-link`), `counterIndex` @4 (the word of `counters` that receives the round's recorded edges), `pad0` @8, `pad1` @12. */
 export const MST_PARAMS: UniformBlock = UniformBlock.define("MstParams", [
     ["count", "u32"],
     ["counterIndex", "u32"],
@@ -652,10 +649,10 @@ export const MST_PARAMS: UniformBlock = UniformBlock.define("MstParams", [
     ["pad1", "u32"],
 ]);
 
-// ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
+// ---- the entries (group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
 /**
- * One binding declaration of contract 3.9, so the tables below read like the rows of 3.10.1.
+ * One binding declaration, so the tables below read like rows of a binding table.
  * @param group - the bind group (0 graph, 1 state, 2 params, 3 cold)
  * @param binding - the slot inside the group
  * @param name - the WGSL variable name (also the KernelBindings key)
@@ -673,7 +670,7 @@ function decl(
     return { group, binding, name, kind, wgslType };
 }
 
-/** The four group-0 graph slots of every row-walking kernel (spec 3.5): rowPtr, colIdx, weights | dummy, perm | dummy -- all read-only, so the dummies never alias a writable slot (3.10.1). */
+/** The four group-0 graph slots of every row-walking kernel: rowPtr, colIdx, weights | dummy, perm | dummy -- all read-only, so the dummies never alias a writable slot. */
 const GRAPH_SLOTS: readonly BindingDecl[] = [
     decl(0, 0, "rowPtr", "storage-ro", "array<u32>"),
     decl(0, 1, "colIdx", "storage-ro", "array<u32>"),
@@ -681,7 +678,7 @@ const GRAPH_SLOTS: readonly BindingDecl[] = [
     decl(0, 3, "perm", "storage-ro", "array<u32>"),
 ];
 
-/** `degree` (3.10.1): 5 storage bindings; only the standard USE_PERM / HAS_WEIGHTS overrides. */
+/** `degree`: 5 storage bindings; only the standard USE_PERM / HAS_WEIGHTS overrides. */
 const DEGREE: KernelEntry = {
     id: "degree",
     body: degreeWgsl,
@@ -694,7 +691,7 @@ const DEGREE: KernelEntry = {
     phase: "P1",
 };
 
-/** `reduce` (3.10.1): the multi-level reduction; OP 0 sum / 1 min / 2 max, DTYPE 0 f32 / 1 u32 / 2 vec4f, FINAL for the one-workgroup level; 2 storage bindings; calls the reduction helpers. */
+/** `reduce`: the multi-level reduction; OP 0 sum / 1 min / 2 max, DTYPE 0 f32 / 1 u32 / 2 vec4f, FINAL for the one-workgroup level; 2 storage bindings; calls the reduction helpers. */
 const REDUCE: KernelEntry = {
     id: "reduce",
     body: reduceWgsl,
@@ -715,7 +712,7 @@ const REDUCE: KernelEntry = {
     phase: "P1",
 };
 
-/** `fill` (3.10.1): dst[i] = value (mode 0) or i + value (mode 1) over `count` words; 1 storage binding. */
+/** `fill`: dst[i] = value (mode 0) or i + value (mode 1) over `count` words; 1 storage binding. */
 const FILL: KernelEntry = {
     id: "fill",
     body: fillWgsl,
@@ -728,7 +725,7 @@ const FILL: KernelEntry = {
     phase: "P1",
 };
 
-/** `segmented-reduce` (3.10.1): the per-row fold of the VALUE snippet over the CSR rows; OP 0 sum / 1 min / 2 max, TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row (the degreeOrder tiers, P4 PD-6) plus the standard USE_PERM / HAS_WEIGHTS; 5 storage bindings; one snippet slot; calls the reduction helpers (TIER 2). */
+/** `segmented-reduce`: the per-row fold of the VALUE snippet over the CSR rows; OP 0 sum / 1 min / 2 max, TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row (the degreeOrder tiers) plus the standard USE_PERM / HAS_WEIGHTS; 5 storage bindings; one snippet slot; calls the reduction helpers (TIER 2). */
 const SEGMENTED_REDUCE: KernelEntry = {
     id: "segmented-reduce",
     body: segmentedReduceWgsl,
@@ -744,7 +741,7 @@ const SEGMENTED_REDUCE: KernelEntry = {
     phase: "P2",
 };
 
-/** `fa2-stats-finalize` (K1, 3.10.1): the one-workgroup fold of the previous integrate's partials into the state block and the K1 half of the trace record; STATS_MODE 0 FA2 / 1 FR temperature / 2 kinetic energy (P5); the grid frame, counts and hub-counter reset under `P.gridMax > 0` (P4-T10, PD-14: `cellHist` and `hubCounters` are bound to dummies on the exact tier); 5 storage bindings; calls the reduction helpers. */
+/** `fa2-stats-finalize` (K1): the one-workgroup fold of the previous integrate's partials into the state block and the K1 half of the trace record; STATS_MODE 0 FA2 / 1 FR temperature / 2 kinetic energy; the grid frame, counts and hub-counter reset under `P.gridMax > 0` (`cellHist` and `hubCounters` are bound to dummies on the exact tier); 5 storage bindings; calls the reduction helpers. */
 const FA2_STATS_FINALIZE: KernelEntry = {
     id: "fa2-stats-finalize",
     body: fa2StatsFinalizeWgsl,
@@ -764,7 +761,7 @@ const FA2_STATS_FINALIZE: KernelEntry = {
     phase: "P3",
 };
 
-/** `fa2-attraction` (K2, 3.10.1): the attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / DISSUADE_HUBS / TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row (P4 PD-6) plus the standard USE_PERM / HAS_WEIGHTS; LAW 0 FA2 / 1 FR / 2 spring (P5); 6 storage bindings; calls the reduction helpers (TIER 2). */
+/** `fa2-attraction` (K2): the attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / DISSUADE_HUBS / TIER 0 thread-per-row / 1 32-lanes-per-row / 2 workgroup-per-row plus the standard USE_PERM / HAS_WEIGHTS; LAW 0 FA2 / 1 FR / 2 spring; 6 storage bindings; calls the reduction helpers (TIER 2). */
 const FA2_ATTRACTION: KernelEntry = {
     id: "fa2-attraction",
     body: fa2AttractionWgsl,
@@ -787,7 +784,7 @@ const FA2_ATTRACTION: KernelEntry = {
     phase: "P3",
 };
 
-/** `fa2-repulsion-exact` (K3, 3.10.1): the tiled all-pairs repulsion with the gravity and swing / traction epilogue; LAW 0 FA2 / 1 FR / 2 coulomb (P5); 6 storage bindings (`oldForce` read-only: it only calls load_old); calls the reduction helpers. */
+/** `fa2-repulsion-exact` (K3): the tiled all-pairs repulsion with the gravity and swing / traction epilogue; LAW 0 FA2 / 1 FR / 2 coulomb; 6 storage bindings (`oldForce` read-only: it only calls load_old); calls the reduction helpers. */
 const FA2_REPULSION_EXACT: KernelEntry = {
     id: "fa2-repulsion-exact",
     body: fa2RepulsionExactWgsl,
@@ -813,7 +810,7 @@ const FA2_REPULSION_EXACT: KernelEntry = {
     phase: "P1",
 };
 
-/** `fa2-speed-finalize` (K4, 3.10.1): the one-workgroup partials fold and estimateFactor; 3 storage bindings; calls the reduction helpers. */
+/** `fa2-speed-finalize` (K4): the one-workgroup partials fold and estimateFactor; 3 storage bindings; calls the reduction helpers. */
 const FA2_SPEED_FINALIZE: KernelEntry = {
     id: "fa2-speed-finalize",
     body: fa2SpeedFinalizeWgsl,
@@ -831,7 +828,7 @@ const FA2_SPEED_FINALIZE: KernelEntry = {
     phase: "P1",
 };
 
-/** `fa2-integrate` (K5, 3.10.1): the per-node speed factor and position update (no clamp, D25), `oldForce` stored in SWING_MODE 0, and the partials A / C of the next K1; APPLY 0 FA2 / 1 FR temperature cap / 2 ngraph Euler (P5); 6 storage bindings; calls the reduction helpers. */
+/** `fa2-integrate` (K5): the per-node speed factor and position update (no clamp), `oldForce` stored in SWING_MODE 0, and the partials A / C of the next K1; APPLY 0 FA2 / 1 FR temperature cap / 2 ngraph Euler; 6 storage bindings; calls the reduction helpers. */
 const FA2_INTEGRATE: KernelEntry = {
     id: "fa2-integrate",
     body: fa2IntegrateWgsl,
@@ -855,7 +852,7 @@ const FA2_INTEGRATE: KernelEntry = {
     phase: "P3",
 };
 
-/** `fa2-to-scene` (3.10.1): the per-batch unpack of the vec4f layout positions into the stride-3 scene array with `scale` / `center` applied (z = center.z in 2D); 2 storage bindings. */
+/** `fa2-to-scene`: the per-batch unpack of the vec4f layout positions into the stride-3 scene array with `scale` / `center` applied (z = center.z in 2D); 2 storage bindings. */
 const FA2_TO_SCENE: KernelEntry = {
     id: "fa2-to-scene",
     body: fa2ToSceneWgsl,
@@ -872,7 +869,7 @@ const FA2_TO_SCENE: KernelEntry = {
     phase: "P3",
 };
 
-/** `spmv-pull` (spec 8.10): the pull SpMV over the reverse adjacency; HAS_PERSONALIZATION / USE_DANGLING / TIER 0 grid-stride / 1 32-lanes-per-row / 2 workgroup-per-row (the reverseDegreeOrder tiers, P4 PD-6) plus the standard USE_PERM / HAS_WEIGHTS; 8 storage bindings (the design's count); calls the reduction helpers (TIER 2). */
+/** `spmv-pull`: the pull SpMV over the reverse adjacency; HAS_PERSONALIZATION / USE_DANGLING / TIER 0 grid-stride / 1 32-lanes-per-row / 2 workgroup-per-row (the reverseDegreeOrder tiers) plus the standard USE_PERM / HAS_WEIGHTS; 8 storage bindings (the design's count); calls the reduction helpers (TIER 2). */
 const SPMV_PULL: KernelEntry = {
     id: "spmv-pull",
     body: spmvPullWgsl,
@@ -895,7 +892,7 @@ const SPMV_PULL: KernelEntry = {
     phase: "P7",
 };
 
-/** `pr-scale` (spec 8.2 dispatch (a), 8.10): the per-node normaliser and the per-workgroup partials; NORM_MODE 0 PageRank / 1 L1 pass / 2 L2 pass / 3 scale / 4 identity; 5 storage bindings; calls the reduction helpers. */
+/** `pr-scale`: the per-node normaliser and the per-workgroup partials; NORM_MODE 0 PageRank / 1 L1 pass / 2 L2 pass / 3 scale / 4 identity; 5 storage bindings; calls the reduction helpers. */
 const PR_SCALE: KernelEntry = {
     id: "pr-scale",
     body: prScaleWgsl,
@@ -915,7 +912,7 @@ const PR_SCALE: KernelEntry = {
     phase: "P7",
 };
 
-/** `pr-finalize` (spec 8.2 dispatch (b), 8.10): the one-workgroup fold of the partials into the header at partials[0] and the firstConverged record; NORM_MODE 2 takes the square root; 1 storage binding; calls the reduction helpers. */
+/** `pr-finalize`: the one-workgroup fold of the partials into the header at partials[0] and the firstConverged record; NORM_MODE 2 takes the square root; 1 storage binding; calls the reduction helpers. */
 const PR_FINALIZE: KernelEntry = {
     id: "pr-finalize",
     body: prFinalizeWgsl,
@@ -928,7 +925,7 @@ const PR_FINALIZE: KernelEntry = {
     phase: "P7",
 };
 
-/** `wcc-link-sample` (spec 8.3): Afforest's sampled link round over the CSR rows (every vertex links its r-th neighbour); the standard USE_PERM / HAS_WEIGHTS only; 5 storage bindings (the four graph slots and the atomic `comp`, whose word at P.flagIndex is the changed flag, PD-4). */
+/** `wcc-link-sample`: Afforest's sampled link round over the CSR rows (every vertex links its r-th neighbour); the standard USE_PERM / HAS_WEIGHTS only; 5 storage bindings (the four graph slots and the atomic `comp`, whose word at P.flagIndex is the changed flag). */
 const WCC_LINK_SAMPLE: KernelEntry = {
     id: "wcc-link-sample",
     body: wccLinkSampleWgsl,
@@ -944,7 +941,7 @@ const WCC_LINK_SAMPLE: KernelEntry = {
     phase: "P7",
 };
 
-/** `wcc-link-edges` (spec 8.3, 8.10): Afforest's each-edge-once link round over the edge list; no overrides; 3 storage bindings (the design's count: edgeSrc, edgeDst and the atomic `comp` carrying the changed flag). */
+/** `wcc-link-edges`: Afforest's each-edge-once link round over the edge list; no overrides; 3 storage bindings (the design's count: edgeSrc, edgeDst and the atomic `comp` carrying the changed flag). */
 const WCC_LINK_EDGES: KernelEntry = {
     id: "wcc-link-edges",
     body: wccLinkEdgesWgsl,
@@ -962,7 +959,7 @@ const WCC_LINK_EDGES: KernelEntry = {
     phase: "P7",
 };
 
-/** `wcc-compress` (spec 8.3, 8.10): Afforest's bounded pointer-jumping compress; no overrides; 1 storage binding. */
+/** `wcc-compress`: Afforest's bounded pointer-jumping compress; no overrides; 1 storage binding. */
 const WCC_COMPRESS: KernelEntry = {
     id: "wcc-compress",
     body: wccCompressWgsl,
@@ -975,7 +972,7 @@ const WCC_COMPRESS: KernelEntry = {
     phase: "P7",
 };
 
-/** `wcc-sample` (spec 8.3, 8.10): the component-label sample of P.items pseudo-random vertices the host takes the mode of (PD-12); no overrides; 2 storage bindings. */
+/** `wcc-sample`: the component-label sample of P.items pseudo-random vertices the host takes the mode of; no overrides; 2 storage bindings. */
 const WCC_SAMPLE: KernelEntry = {
     id: "wcc-sample",
     body: wccSampleWgsl,
@@ -992,7 +989,7 @@ const WCC_SAMPLE: KernelEntry = {
     phase: "P7",
 };
 
-/** `indirect-finalize` (spec 5.4; P4-T1): the one-lane count -> (x, y, 1, count) finalize; 2 storage bindings. */
+/** `indirect-finalize`: the one-lane count -> (x, y, 1, count) finalize; 2 storage bindings. */
 const INDIRECT_FINALIZE: KernelEntry = {
     id: "indirect-finalize",
     body: indirectFinalizeWgsl,
@@ -1009,7 +1006,7 @@ const INDIRECT_FINALIZE: KernelEntry = {
     phase: "P4",
 };
 
-/** `scan-block` (spec 6 row 2 steps (a) / (b); P4-T2, PD-3): the Hillis-Steele exclusive scan of one WG-wide block into `out` and its total into `blockSums[group]`; 3 storage bindings; no subgroup variant. */
+/** `scan-block`: the Hillis-Steele exclusive scan of one WG-wide block into `out` and its total into `blockSums[group]`; 3 storage bindings; no subgroup variant. */
 const SCAN_BLOCK: KernelEntry = {
     id: "scan-block",
     body: scanBlockWgsl,
@@ -1027,7 +1024,7 @@ const SCAN_BLOCK: KernelEntry = {
     phase: "P4",
 };
 
-/** `scan-add` (spec 6 row 2 step (c); P4-T2): adds `blockOffsets[group]` to every element of the block; 2 storage bindings. */
+/** `scan-add`: adds `blockOffsets[group]` to every element of the block; 2 storage bindings. */
 const SCAN_ADD: KernelEntry = {
     id: "scan-add",
     body: scanAddWgsl,
@@ -1044,7 +1041,7 @@ const SCAN_ADD: KernelEntry = {
     phase: "P4",
 };
 
-/** `histogram` (spec 6 row 5; P4-T3, PD-4): one global atomicAdd per key into `hist` (zeroed by a `fill` dispatch earlier in the pass); 2 storage bindings; one path, no PRIVATE override. */
+/** `histogram`: one global atomicAdd per key into `hist` (zeroed by a `fill` dispatch earlier in the pass); 2 storage bindings; one path, no PRIVATE override. */
 const HISTOGRAM: KernelEntry = {
     id: "histogram",
     body: histogramWgsl,
@@ -1061,7 +1058,7 @@ const HISTOGRAM: KernelEntry = {
     phase: "P4",
 };
 
-/** `counting-scatter` (spec 6 row 5; P4-T3): the scatter of a counting sort, `outIndex[start[k] + atomicAdd(&cursor[k], 1u)] = i`; 4 storage bindings; set-deterministic (the order inside a bin follows the schedule). */
+/** `counting-scatter`: the scatter of a counting sort, `outIndex[start[k] + atomicAdd(&cursor[k], 1u)] = i`; 4 storage bindings; set-deterministic (the order inside a bin follows the schedule). */
 const COUNTING_SCATTER: KernelEntry = {
     id: "counting-scatter",
     body: countingScatterWgsl,
@@ -1080,7 +1077,7 @@ const COUNTING_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `radix-hist` (spec 6 row 6; P4-T4, PD-5): the per-workgroup 256-bin digit histogram, privatised in workgroup memory and stored digit-major `hist[digit * groups + group]`; 2 storage bindings. */
+/** `radix-hist`: the per-workgroup 256-bin digit histogram, privatised in workgroup memory and stored digit-major `hist[digit * groups + group]`; 2 storage bindings. */
 const RADIX_HIST: KernelEntry = {
     id: "radix-hist",
     body: radixHistWgsl,
@@ -1097,7 +1094,7 @@ const RADIX_HIST: KernelEntry = {
     phase: "P4",
 };
 
-/** `radix-scatter` (spec 6 row 6; P4-T4, PD-5): the stable scatter of one LSD pass, ranked serially by lane 0, written at `offsets[digit * groups + group] + rank`; 5 storage bindings. */
+/** `radix-scatter`: the stable scatter of one LSD pass, ranked serially by lane 0, written at `offsets[digit * groups + group] + rank`; 5 storage bindings. */
 const RADIX_SCATTER: KernelEntry = {
     id: "radix-scatter",
     body: radixScatterWgsl,
@@ -1117,7 +1114,7 @@ const RADIX_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
+/** `grid-cell-key` (grid pass G1): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
 const GRID_CELL_KEY: KernelEntry = {
     id: "grid-cell-key",
     body: gridCellKeyWgsl,
@@ -1248,7 +1245,7 @@ const TO_DRAWN: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
+/** `grid-centroid` (grid pass G4): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
     body: gridCentroidWgsl,
@@ -1269,7 +1266,7 @@ const GRID_CENTROID: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per word of `hubList`, dispatched directly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
+/** `grid-centroid-hub` (grid pass G4b): one workgroup per word of `hubList`, dispatched directly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
 const GRID_CENTROID_HUB: KernelEntry = {
     id: "grid-centroid-hub",
     body: gridCentroidHubWgsl,
@@ -1290,7 +1287,7 @@ const GRID_CENTROID_HUB: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-downsample` (G5, spec 7.7; P4-T9): one dispatch per coarser level, every parent the sum of its 4 / 8 children at `P.childBase`, written at `P.parentBase`; 1 storage binding. */
+/** `grid-downsample` (grid pass G5): one dispatch per coarser level, every parent the sum of its 4 / 8 children at `P.childBase`, written at `P.parentBase`; 1 storage binding. */
 const GRID_DOWNSAMPLE: KernelEntry = {
     id: "grid-downsample",
     body: gridDownsampleWgsl,
@@ -1303,7 +1300,7 @@ const GRID_DOWNSAMPLE: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-far-field` (G6, spec 7.7; P4-T10, PD-16, DEP-P4-G): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the 2^dim orthant pseudo-cells; the FA2 term floored at 0.01 (issue #89); the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell (P4-T13, PD-22); 5 storage bindings. */
+/** `grid-far-field` (grid pass G6): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the 2^dim orthant pseudo-cells; the FA2 term floored at 0.01 (issue #89); the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell; 5 storage bindings. */
 const GRID_FAR_FIELD: KernelEntry = {
     id: "grid-far-field",
     body: gridFarFieldWgsl,
@@ -1323,7 +1320,7 @@ const GRID_FAR_FIELD: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-near-field` (G7, spec 7.7; P4-T10, PD-15): per node in sorted order, K3's exact pair law over the 9 (27) finest cells, a cell above `nearMax` sampled through the hashed window and scaled by `others / sampled`, then K3's fused epilogue (gravity, `force +=`, the swing / traction reduction); SWING_MODE / STRONG_GRAVITY / GRAVITY_CENTER / LAW as K3 (LAW 0 FA2 / 1 FR / 2 coulomb, P4-T13, PD-22); 8 storage bindings; calls the reduction helpers. */
+/** `grid-near-field` (G7): per node in sorted order, K3's exact pair law over the 9 (27) finest cells, a cell above `nearMax` sampled through the hashed window and scaled by `others / sampled`, then K3's fused epilogue (gravity, `force +=`, the swing / traction reduction); SWING_MODE / STRONG_GRAVITY / GRAVITY_CENTER / LAW as K3 (LAW 0 FA2 / 1 FR / 2 coulomb); 8 storage bindings; calls the reduction helpers. */
 const GRID_NEAR_FIELD: KernelEntry = {
     id: "grid-near-field",
     body: gridNearFieldWgsl,
@@ -1351,7 +1348,7 @@ const GRID_NEAR_FIELD: KernelEntry = {
     phase: "P4",
 };
 
-/** `compact-scatter` (spec 6 row 4; P8-T3): the scatter of `compact` after the flags' exclusive scan, plus the total into `outCount[P.outIndex]`; 5 storage bindings; order-preserving, so bitwise reproducible. */
+/** `compact-scatter`: the scatter of `compact` after the flags' exclusive scan, plus the total into `outCount[P.outIndex]`; 5 storage bindings; order-preserving, so bitwise reproducible. */
 const COMPACT_SCATTER: KernelEntry = {
     id: "compact-scatter",
     body: compactScatterWgsl,
@@ -1371,7 +1368,7 @@ const COMPACT_SCATTER: KernelEntry = {
     phase: "P8",
 };
 
-/** `dedupe-claim` (spec 6 row 4; P8-T3): `atomicStore(&owner[queue[i]], i)` for every entry, the count from `P.count` or the device word `counters[P.countIndex]`; 3 storage bindings (`counters` is `array<atomic<u32>>` and therefore read-write, although only loaded: WGSL admits an atomic only in a read-write storage buffer). */
+/** `dedupe-claim`: `atomicStore(&owner[queue[i]], i)` for every entry, the count from `P.count` or the device word `counters[P.countIndex]`; 3 storage bindings (`counters` is `array<atomic<u32>>` and therefore read-write, although only loaded: WGSL admits an atomic only in a read-write storage buffer). */
 const DEDUPE_CLAIM: KernelEntry = {
     id: "dedupe-claim",
     body: dedupeClaimWgsl,
@@ -1389,7 +1386,7 @@ const DEDUPE_CLAIM: KernelEntry = {
     phase: "P8",
 };
 
-/** `dedupe-filter` (spec 6 row 4; P8-T3): a separate dispatch keeping the entries that still own their vertex, packed by a workgroup scan and one `atomicAdd` per workgroup on `outCount[P.outIndex]`, which is also the block the count word `P.countIndex` is read from; 4 storage bindings; set-deterministic. */
+/** `dedupe-filter`: a separate dispatch keeping the entries that still own their vertex, packed by a workgroup scan and one `atomicAdd` per workgroup on `outCount[P.outIndex]`, which is also the block the count word `P.countIndex` is read from; 4 storage bindings; set-deterministic. */
 const DEDUPE_FILTER: KernelEntry = {
     id: "dedupe-filter",
     body: dedupeFilterWgsl,
@@ -1408,7 +1405,7 @@ const DEDUPE_FILTER: KernelEntry = {
     phase: "P8",
 };
 
-/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's `path` word (role 0), then clamps the edge count or switches the path to the fused retry (role 1); 1 storage binding (the block as `array<atomic<u32>>`). Since 2026-09-25 it writes no indirect slots: every level kernel is a direct dispatch gated by the path word. */
+/** `frontier-finalize`: the one-lane level-boundary selector that rotates the counters block and writes the level's `path` word (role 0), then clamps the edge count or switches the path to the fused retry (role 1); 1 storage binding (the block as `array<atomic<u32>>`). Since 2026-09-25 it writes no indirect slots: every level kernel is a direct dispatch gated by the path word. */
 const FRONTIER_FINALIZE: KernelEntry = {
     id: "frontier-finalize",
     body: frontierFinalizeWgsl,
@@ -1421,7 +1418,7 @@ const FRONTIER_FINALIZE: KernelEntry = {
     phase: "P8",
 };
 
-/** `advance-expand` (design 6 row 8, 8.10 "BFS expand"; P8-T5): the block-mapped expansion of the frontier into the edge queue -- each workgroup scans its entries' degrees with the prelude's `wg_scan_u32` (the twin axis: `needs: ["subgroups"]` is what makes the subgroup compilation differ) and strips the aggregate by binary search, one `atomicAdd` per workgroup reserving its span; 7 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `edgeQueue`); no `TIER` override (the workgroup-per-row structure is `bfs-fused`). */
+/** `advance-expand`: the block-mapped expansion of the frontier into the edge queue -- each workgroup scans its entries' degrees with the prelude's `wg_scan_u32` (the twin axis: `needs: ["subgroups"]` is what makes the subgroup compilation differ) and strips the aggregate by binary search, one `atomicAdd` per workgroup reserving its span; 7 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `edgeQueue`); no `TIER` override (the workgroup-per-row structure is `bfs-fused`). */
 const ADVANCE_EXPAND: KernelEntry = {
     id: "advance-expand",
     body: advanceExpandWgsl,
@@ -1439,7 +1436,7 @@ const ADVANCE_EXPAND: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-contract` (design 8.4, 8.10 "BFS contract"; P8-T6, PD-6): the contraction of the edge queue -- `atomicMin(&depth[v], level + 1)` with the invocation that observes `INVALID_INDEX` the unique winner, packed into the output vertex queue by a workgroup scan and one `atomicAdd` per workgroup on `nextFrontierCount`; 4 storage bindings (no `owner`: the claim already dedupes, DEP-P8-B; no `parent`: the post-pass writes it, PD-24; both counts are words of `counters`). */
+/** `bfs-contract`: the contraction of the edge queue -- `atomicMin(&depth[v], level + 1)` with the invocation that observes `INVALID_INDEX` the unique winner, packed into the output vertex queue by a workgroup scan and one `atomicAdd` per workgroup on `nextFrontierCount`; 4 storage bindings (no `owner`: the claim already dedupes; no `parent`: the post-pass writes it; both counts are words of `counters`). */
 const BFS_CONTRACT: KernelEntry = {
     id: "bfs-contract",
     body: bfsContractWgsl,
@@ -1458,7 +1455,7 @@ const BFS_CONTRACT: KernelEntry = {
     phase: "P8",
 };
 
-/** `sssp-pred` (design 8.10 "SSSP predecessor pass"; P8-T6 / P8-T9, PD-24 / PD-27): the one post-pass over the settled distances, grid-striding every row -- `MODE 1` reads u32 depths and writes BFS `parent`, `MODE 0` reads f32 bit patterns and writes `predArc` under PD-27's key, `P.predKind` choosing the node or the arc index; 6 storage bindings (the four graph slots, `dist` bound plain across dispatches, `pred` as `array<atomic<u32>>`, which in `MODE 0` also carries the hop counts and the two flag words in its upper regions). */
+/** `sssp-pred`: the one post-pass over the settled distances, grid-striding every row -- `MODE 1` reads u32 depths and writes BFS `parent`, `MODE 0` reads f32 bit patterns and writes `predArc` under the predecessor key rule, `P.predKind` choosing the node or the arc index; 6 storage bindings (the four graph slots, `dist` bound plain across dispatches, `pred` as `array<atomic<u32>>`, which in `MODE 0` also carries the hop counts and the two flag words in its upper regions). */
 const SSSP_PRED: KernelEntry = {
     id: "sssp-pred",
     body: ssspPredWgsl,
@@ -1475,7 +1472,7 @@ const SSSP_PRED: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; a direct grid-stride dispatch that runs when the path word is 2 (a frontier below `P.fusedMax`) or 4 (the overflow retry, role 1's), sized from `frontierCount`; 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
+/** `bfs-fused`: one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; a direct grid-stride dispatch that runs when the path word is 2 (a frontier below `P.fusedMax`) or 4 (the overflow retry, role 1's), sized from `frontierCount`; 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here. */
 const BFS_FUSED: KernelEntry = {
     id: "bfs-fused",
     body: bfsFusedWgsl,
@@ -1494,7 +1491,7 @@ const BFS_FUSED: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-bottom-up` (design 8.4 "the bottom-up sweep", 8.10 "BFS bottom-up"; P8-T8, PD-18 / PD-21): one invocation per entry of the unvisited list, walking its in-neighbours through the REVERSE core bound in group 0 until the first one whose bit is set in the frontier bitset (the early exit `arcsScanned` witnesses), claiming with a plain `atomicStore` and packing the winners into the output vertex queue by `bfs-contract`'s scan; 8 storage bindings (the four graph slots of the reverse core, `sweepIn` read-only -- the unvisited list at word 0 and the bitset at `P.bitsBase`, one buffer -- the counters block, `depth` and `frontierOut` as `array<atomic<u32>>` / `array<u32>`); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+/** `bfs-bottom-up`: one invocation per entry of the unvisited list, walking its in-neighbours through the REVERSE core bound in group 0 until the first one whose bit is set in the frontier bitset (the early exit `arcsScanned` witnesses), claiming with a plain `atomicStore` and packing the winners into the output vertex queue by `bfs-contract`'s scan; 8 storage bindings (the four graph slots of the reverse core, `sweepIn` read-only -- the unvisited list at word 0 and the bitset at `P.bitsBase`, one buffer -- the counters block, `depth` and `frontierOut` as `array<atomic<u32>>` / `array<u32>`); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
 const BFS_BOTTOM_UP: KernelEntry = {
     id: "bfs-bottom-up",
     body: bfsBottomUpWgsl,
@@ -1513,7 +1510,7 @@ const BFS_BOTTOM_UP: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-bitset-build` (design 8.4 "the bitset frontier"; P8-T8): the vertex-list-to-bitset hand-off of a bottom-up level -- one `atomicOr` per entry of the input frontier into the `ceil(n / 32)`-word bitset at `P.bitsBase` of the `sweepIn` buffer (bound whole as `bits`, read-write); 3 storage bindings. */
+/** `bfs-bitset-build`: the vertex-list-to-bitset hand-off of a bottom-up level -- one `atomicOr` per entry of the input frontier into the `ceil(n / 32)`-word bitset at `P.bitsBase` of the `sweepIn` buffer (bound whole as `bits`, read-write); 3 storage bindings. */
 const BFS_BITSET_BUILD: KernelEntry = {
     id: "bfs-bitset-build",
     body: bfsBitsetBuildWgsl,
@@ -1531,7 +1528,7 @@ const BFS_BITSET_BUILD: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-unvisited-flags` (design 8.4; P8-T8, PD-18): the unvisited set's producer, once per submit -- grid-striding over the vertices, counting the unclaimed ones and their IN-degree sum (issue #1358: the arcs a bottom-up sweep can read) into words 5 and 6 and flagging those with a non-zero IN-degree (word 7, what the sweep iterates) for `compact`; 4 storage bindings (the `inDegree` VIEW rather than the graph group, `depth` read-only, `flags`, the counters block); `needs: ["subgroups"]` for the three `wg_reduce_u32` calls (a twin kernel). */
+/** `bfs-unvisited-flags`: the unvisited set's producer, once per submit -- grid-striding over the vertices, counting the unclaimed ones and their IN-degree sum (issue #1358: the arcs a bottom-up sweep can read) into words 5 and 6 and flagging those with a non-zero IN-degree (word 7, what the sweep iterates) for `compact`; 4 storage bindings (the `inDegree` VIEW rather than the graph group, `depth` read-only, `flags`, the counters block); `needs: ["subgroups"]` for the three `wg_reduce_u32` calls (a twin kernel). */
 const BFS_UNVISITED_FLAGS: KernelEntry = {
     id: "bfs-unvisited-flags",
     body: bfsUnvisitedFlagsWgsl,
@@ -1550,7 +1547,7 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-next-degree` (design 8.4; issues #391 and #1358): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup, and subtracting their `inDegree` sum from word 6 (`unvisitedDegreeSum`), one `atomicSub` per workgroup; 4 storage bindings (`frontier` read-only, the `outDegree` and `inDegree` VIEWS, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` calls (a twin kernel). */
+/** `bfs-next-degree` (issues #391 and #1358): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup, and subtracting their `inDegree` sum from word 6 (`unvisitedDegreeSum`), one `atomicSub` per workgroup; 4 storage bindings (`frontier` read-only, the `outDegree` and `inDegree` VIEWS, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` calls (a twin kernel). */
 const BFS_NEXT_DEGREE: KernelEntry = {
     id: "bfs-next-degree",
     body: bfsNextDegreeWgsl,
@@ -1569,7 +1566,7 @@ const BFS_NEXT_DEGREE: KernelEntry = {
     phase: "P8",
 };
 
-/** `sssp-relax` (design 8.4 "Davidson's near-far", 8.10 "SSSP near-far relax"; P8-T9, PD-9 / PD-20 / DEP-P8-E): one round of the near-far loop -- role 0 relaxes the deduped near pile's whole rows with `atomicMin` on the f32 bit patterns of `dist` and appends each improved vertex to the raw near or far half of `queueOut` (the two halves of ONE buffer at word 0 and word `P.edgeCapacity`), role 1 re-buckets the deduped far pile; 8 storage bindings (the four graph slots with the run's weights bound in the weights slot, `dist` and the counters block as `array<atomic<u32>>`, `queueIn` read-only, `queueOut`) -- exactly at the budget, which is why no `pred` lives here (PD-11) and why the piles' counts, the threshold and the delta are words of the block. */
+/** `sssp-relax`: one round of the near-far loop -- role 0 relaxes the deduped near pile's whole rows with `atomicMin` on the f32 bit patterns of `dist` and appends each improved vertex to the raw near or far half of `queueOut` (the two halves of ONE buffer at word 0 and word `P.edgeCapacity`), role 1 re-buckets the deduped far pile; 8 storage bindings (the four graph slots with the run's weights bound in the weights slot, `dist` and the counters block as `array<atomic<u32>>`, `queueIn` read-only, `queueOut`) -- exactly at the budget, which is why no `pred` lives here and why the piles' counts, the threshold and the delta are words of the block. */
 const SSSP_RELAX: KernelEntry = {
     id: "sssp-relax",
     body: ssspRelaxWgsl,
@@ -1588,7 +1585,7 @@ const SSSP_RELAX: KernelEntry = {
     phase: "P8",
 };
 
-/** `bf-relax` (design 8.4 "Bellman-Ford"; P8-T10, PD-12 / DEP-P8-E): one edge-parallel relaxation round over the `edgeList` view with a bounded compare-exchange on the f32 bit patterns of `dist` (negative distances reverse the bit-pattern order, so no `atomicMin`); `UNDIRECTED` relaxes the other direction of every edge too; 6 storage bindings (`edgeSrc`, `edgeDst`, `edgeToArc` -- the core's segment, or an iota scratch on a directed identity snapshot --, the run's arc-indexed `weights`, `dist` and the `BfFlags` block as `array<atomic<u32>>`); no graph group. */
+/** `bf-relax`: one edge-parallel relaxation round over the `edgeList` view with a bounded compare-exchange on the f32 bit patterns of `dist` (negative distances reverse the bit-pattern order, so no `atomicMin`); `UNDIRECTED` relaxes the other direction of every edge too; 6 storage bindings (`edgeSrc`, `edgeDst`, `edgeToArc` -- the core's segment, or an iota scratch on a directed identity snapshot --, the run's arc-indexed `weights`, `dist` and the `BfFlags` block as `array<atomic<u32>>`); no graph group. */
 const BF_RELAX: KernelEntry = {
     id: "bf-relax",
     body: bfRelaxWgsl,
@@ -1609,7 +1606,7 @@ const BF_RELAX: KernelEntry = {
     phase: "P8",
 };
 
-/** `closeness-level` (design 8.4 "32 sources per u32 word"): one level of closeness's bit-parallel multi-source BFS in one dispatch, `32 x P.words` sources per batch -- role 0 the level (push over the out-arcs or pull over the in-arcs, push one invocation per arc, pull one per node, chosen per level on the device from the frontier's arcs against `P.pullAt`, the pull with an early exit once every source has reached the node), role 1 and role 2 the batch's seed; 6 storage bindings (the forward and the reverse CSR as group-1 state, `bits` and `table` as `array<atomic<u32>>`). */
+/** `closeness-level`: one level of closeness's bit-parallel multi-source BFS in one dispatch, `32 x P.words` sources per batch -- role 0 the level (push over the out-arcs or pull over the in-arcs, push one invocation per arc, pull one per node, chosen per level on the device from the frontier's arcs against `P.pullAt`, the pull with an early exit once every source has reached the node), role 1 and role 2 the batch's seed; 6 storage bindings (the forward and the reverse CSR as group-1 state, `bits` and `table` as `array<atomic<u32>>`). */
 const CLOSENESS_LEVEL: KernelEntry = {
     id: "closeness-level",
     body: closenessLevelWgsl,
@@ -1630,7 +1627,7 @@ const CLOSENESS_LEVEL: KernelEntry = {
     phase: "P8",
 };
 
-/** `closeness-rowsum` (design 8.7): closeness from a finished all-pairs matrix, one workgroup per row -- the off-diagonal finite entries summed as integers (`P.role` 0), as f32 (1) or as reciprocals (2, harmonic), by a tree reduction; 2 storage bindings (`dist` read-only, `out`). */
+/** `closeness-rowsum`: closeness from a finished all-pairs matrix, one workgroup per row -- the off-diagonal finite entries summed as integers (`P.role` 0), as f32 (1) or as reciprocals (2, harmonic), by a tree reduction; 2 storage bindings (`dist` read-only, `out`). */
 const CLOSENESS_ROWSUM: KernelEntry = {
     id: "closeness-rowsum",
     body: closenessRowsumWgsl,
@@ -1647,7 +1644,7 @@ const CLOSENESS_ROWSUM: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-finalize` (design 8.4, 5.4): the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 6 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK`, `sigmaK` and `levelMax` plain: one lane writes the seed; `SCALED` seeds f32 bits). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK`, `sigmaK` and `levelMax` make it six. */
+/** `bc-finalize`: the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 6 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK`, `sigmaK` and `levelMax` plain: one lane writes the seed; `SCALED` seeds f32 bits). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK`, `sigmaK` and `levelMax` make it six. */
 const BC_FINALIZE: KernelEntry = {
     id: "bc-finalize",
     body: bcFinalizeWgsl,
@@ -1668,7 +1665,7 @@ const BC_FINALIZE: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-forward` (design 8.4, 8.10 "BC forward (tagged)", 16.1): one level of the tagged multi-source BFS -- the block-mapped strip over the level's range of the claim log with the claim, the path count and the overflow report inline (`SCALED`: the claim only, `bc-count` counts), the winners appended to the log; 7 storage bindings (`rowPtr`, `colIdx`, `S` read-write -- the level being read and the appends are ranges of ONE binding --, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`); the inlined Hillis-Steele scan, so `needs: []`. */
+/** `bc-forward`: one level of the tagged multi-source BFS -- the block-mapped strip over the level's range of the claim log with the claim, the path count and the overflow report inline (`SCALED`: the claim only, `bc-count` counts), the winners appended to the log; 7 storage bindings (`rowPtr`, `colIdx`, `S` read-write -- the level being read and the appends are ranges of ONE binding --, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`); the inlined Hillis-Steele scan, so `needs: []`. */
 const BC_FORWARD: KernelEntry = {
     id: "bc-forward",
     body: bcForwardWgsl,
@@ -1690,7 +1687,7 @@ const BC_FORWARD: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-backward` (design 8.4, 8.10 "BC backward (successor pull)"): one level of the dependency accumulation, one invocation per log entry of a host-planned range, each pulling over its successors and writing its delta once; 7 storage bindings (`rowPtr`, `colIdx`, `S`, `depthK`, `sigmaK` read-only, `deltaK`, `levelMax` read-only: the depth scale of `bc-count`, read under `SCALED`). */
+/** `bc-backward`: one level of the dependency accumulation, one invocation per log entry of a host-planned range, each pulling over its successors and writing its delta once; 7 storage bindings (`rowPtr`, `colIdx`, `S`, `depthK`, `sigmaK` read-only, `deltaK`, `levelMax` read-only: the depth scale of `bc-count`, read under `SCALED`). */
 const BC_BACKWARD: KernelEntry = {
     id: "bc-backward",
     body: bcBackwardWgsl,
@@ -1712,7 +1709,7 @@ const BC_BACKWARD: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-gather` (design 8.4, 8.10 "BC gather"): `bc[w] += sum over s of delta[s][w]`, one invocation per vertex, no atomic; 2 storage bindings (`deltaK` read-only, `bc`). */
+/** `bc-gather`: `bc[w] += sum over s of delta[s][w]`, one invocation per vertex, no atomic; 2 storage bindings (`deltaK` read-only, `bc`). */
 const BC_GATHER: KernelEntry = {
     id: "bc-gather",
     body: bcGatherWgsl,
@@ -1729,7 +1726,7 @@ const BC_GATHER: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-edge-gather` (design 8.4 "edge BC accumulates per arc from the same n x k deltas"): the per-arc twin of `bc-gather`, one invocation per arc (its row found by an upper-bound search over `rowPtr`) adding the arc's term over the batch's sources; 7 storage bindings (`rowPtr`, `colIdx`, `depthK`, `sigmaK`, `deltaK` read-only, `arcScores`, `levelMax` read-only). */
+/** `bc-edge-gather`: the per-arc twin of `bc-gather`, one invocation per arc (its row found by an upper-bound search over `rowPtr`) adding the arc's term over the batch's sources; 7 storage bindings (`rowPtr`, `colIdx`, `depthK`, `sigmaK`, `deltaK` read-only, `arcScores`, `levelMax` read-only). */
 const BC_EDGE_GATHER: KernelEntry = {
     id: "bc-edge-gather",
     body: bcEdgeGatherWgsl,
@@ -1751,7 +1748,7 @@ const BC_EDGE_GATHER: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-forward-edge` (design 8.4 "the edge-parallel form", 8.8 row 7): one forward level edge-parallel over the `edgeList` view for every source of the batch, with `bc-forward`'s claim, count and overflow report (`SCALED`: the claim only), appending to the same claim log; `UNDIRECTED` relaxes both directions of every edge; 7 storage bindings (`edgeSrc`, `edgeDst`, `S` read-write, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`). */
+/** `bc-forward-edge`: one forward level edge-parallel over the `edgeList` view for every source of the batch, with `bc-forward`'s claim, count and overflow report (`SCALED`: the claim only), appending to the same claim log; `UNDIRECTED` relaxes both directions of every edge; 7 storage bindings (`edgeSrc`, `edgeDst`, `S` read-write, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`). */
 const BC_FORWARD_EDGE: KernelEntry = {
     id: "bc-forward-edge",
     body: bcForwardEdgeWgsl,
@@ -1776,7 +1773,7 @@ const BC_FORWARD_EDGE: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-count` (design 8.4, issue #719): in a batch rerun because its u32 counts wrapped, the path counts of the depth a forward level just claimed, pulled over the in-arcs in CSR order as f32 bits and rescaled per depth by a power of two, the overflow flag raised when a count leaves f32's normal range; 8 storage bindings (the REVERSE core's `rowPtr` and `colIdx`, `S` and `ends` read-only, the counters block and `levelMax` as `array<atomic<u32>>`, `depthK` read-only, `sigmaK` read-write). */
+/** `bc-count` (issue #719): in a batch rerun because its u32 counts wrapped, the path counts of the depth a forward level just claimed, pulled over the in-arcs in CSR order as f32 bits and rescaled per depth by a power of two, the overflow flag raised when a count leaves f32's normal range; 8 storage bindings (the REVERSE core's `rowPtr` and `colIdx`, `S` and `ends` read-only, the counters block and `levelMax` as `array<atomic<u32>>`, `depthK` read-only, `sigmaK` read-write). */
 const BC_COUNT: KernelEntry = {
     id: "bc-count",
     body: bcCountWgsl,
@@ -1799,7 +1796,7 @@ const BC_COUNT: KernelEntry = {
     phase: "P9",
 };
 
-/** `apsp-init` (design 8.7): one lane per row writes that row's arcs into the `+Infinity`-filled `n x n` matrix, the cheapest of parallel arcs, then the diagonal zero; 5 storage bindings (the four graph slots -- `perm` bound to its dummy, the rows are never permuted -- and `dist`). */
+/** `apsp-init`: one lane per row writes that row's arcs into the `+Infinity`-filled `n x n` matrix, the cheapest of parallel arcs, then the diagonal zero; 5 storage bindings (the four graph slots -- `perm` bound to its dummy, the rows are never permuted -- and `dist`). */
 const APSP_INIT: KernelEntry = {
     id: "apsp-init",
     body: apspInitWgsl,
@@ -1812,7 +1809,7 @@ const APSP_INIT: KernelEntry = {
     phase: "P9",
 };
 
-/** `apsp-fw` (design 8.7): one phase of one blocked Floyd-Warshall round over 32 x 32 tiles in workgroup memory -- `PHASE` 0 the pivot block, 1 the pivot row and column, 2 every other block; 1 storage binding (`dist`, read-write). */
+/** `apsp-fw`: one phase of one blocked Floyd-Warshall round over 32 x 32 tiles in workgroup memory -- `PHASE` 0 the pivot block, 1 the pivot row and column, 2 every other block; 1 storage binding (`dist`, read-write). */
 const APSP_FW: KernelEntry = {
     id: "apsp-fw",
     body: apspFwWgsl,
@@ -1825,7 +1822,7 @@ const APSP_FW: KernelEntry = {
     phase: "P9",
 };
 
-/** `coo-emit` (design 6 row 10; P11): position i takes arc i, or `order[i]` under INDEXED, and writes its source, target and weight -- arc 2e is edge e as declared, 2e + 1 its reverse; a self-loop's two arcs become `INVALID_INDEX`; 7 storage bindings. */
+/** `coo-emit`: position i takes arc i, or `order[i]` under INDEXED, and writes its source, target and weight -- arc 2e is edge e as declared, 2e + 1 its reverse; a self-loop's two arcs become `INVALID_INDEX`; 7 storage bindings. */
 const COO_EMIT: KernelEntry = {
     id: "coo-emit",
     body: cooEmitWgsl,
@@ -1850,7 +1847,7 @@ const COO_EMIT: KernelEntry = {
     phase: "P11",
 };
 
-/** `run-flags` (design 6 row 10; P11): 1 where an arc opens a run of equal (keysA, keysB) pairs and is not dropped; 3 storage bindings. */
+/** `run-flags`: 1 where an arc opens a run of equal (keysA, keysB) pairs and is not dropped; 3 storage bindings. */
 const RUN_FLAGS: KernelEntry = {
     id: "run-flags",
     body: runFlagsWgsl,
@@ -1868,7 +1865,7 @@ const RUN_FLAGS: KernelEntry = {
     phase: "P11",
 };
 
-/** `coo-scatter` (design 6 row 10; P11): the scatter of `cooToCsr` -- the cursor mode, or under SORTED_INPUT the order-preserving mode whose precondition flag is `cursors[0]`; 7 storage bindings. */
+/** `coo-scatter`: the scatter of `cooToCsr` -- the cursor mode, or under SORTED_INPUT the order-preserving mode whose precondition flag is `cursors[0]`; 7 storage bindings. */
 const COO_SCATTER: KernelEntry = {
     id: "coo-scatter",
     body: cooScatterWgsl,
@@ -1893,7 +1890,7 @@ const COO_SCATTER: KernelEntry = {
     phase: "P11",
 };
 
-/** `orient-flags` (design 8.5; P11): 1 where arc (u, v) points up the (degree, id) order, one arc per undirected edge; 4 storage bindings. */
+/** `orient-flags`: 1 where arc (u, v) points up the (degree, id) order, one arc per undirected edge; 4 storage bindings. */
 const ORIENT_FLAGS: KernelEntry = {
     id: "orient-flags",
     body: orientFlagsWgsl,
@@ -1912,7 +1909,7 @@ const ORIENT_FLAGS: KernelEntry = {
     phase: "P11",
 };
 
-/** `tri-intersect` (design 8.5, 8.10 "Triangle intersection"; P11): one oriented arc per invocation, merge or binary-search intersection (SEARCH 0 chooses, 1 merge, 2 search), u32 atomic per-node counts; 4 storage bindings. */
+/** `tri-intersect`: one oriented arc per invocation, merge or binary-search intersection (SEARCH 0 chooses, 1 merge, 2 search), u32 atomic per-node counts; 4 storage bindings. */
 const TRI_INTERSECT: KernelEntry = {
     id: "tri-intersect",
     body: triIntersectWgsl,
@@ -1931,7 +1928,7 @@ const TRI_INTERSECT: KernelEntry = {
     phase: "P11",
 };
 
-/** `group-by-key-row` (design 8.6; P11): per listed row, the target key with the largest summed weight (on a tie the row's own key, else the lowest), TIER 0 a thread per row, else a workgroup per row over a global hash region; 8 storage bindings. */
+/** `group-by-key-row`: per listed row, the target key with the largest summed weight (on a tie the row's own key, else the lowest), TIER 0 a thread per row, else a workgroup per row over a global hash region; 8 storage bindings. */
 const GROUP_BY_KEY_ROW: KernelEntry = {
     id: "group-by-key-row",
     body: groupByKeyRowWgsl,
@@ -1957,7 +1954,7 @@ const GROUP_BY_KEY_ROW: KernelEntry = {
     phase: "P11",
 };
 
-/** `lpa-step` (design 8.6, 8.10 "Label propagation"; P11): a vertex adopts its best neighbour label when the move goes the pass's direction; one atomic per workgroup adds the moves to `counters[P.counterIndex]`; 4 storage bindings. */
+/** `lpa-step`: a vertex adopts its best neighbour label when the move goes the pass's direction; one atomic per workgroup adds the moves to `counters[P.counterIndex]`; 4 storage bindings. */
 const LPA_STEP: KernelEntry = {
     id: "lpa-step",
     body: lpaStepWgsl,
@@ -1976,7 +1973,7 @@ const LPA_STEP: KernelEntry = {
     phase: "P11",
 };
 
-/** `mst-best` (design 8.5; P11-T4, PD-7): one edge per invocation offers itself to both endpoint components; PASS 0 takes the minimum `order_key` of the weight, PASS 1 the minimum edge index among that key's edges; 6 storage bindings. */
+/** `mst-best`: one edge per invocation offers itself to both endpoint components; PASS 0 takes the minimum `order_key` of the weight, PASS 1 the minimum edge index among that key's edges; 6 storage bindings. */
 const MST_BEST: KernelEntry = {
     id: "mst-best",
     body: mstBestWgsl,
@@ -2000,7 +1997,7 @@ const MST_BEST: KernelEntry = {
     phase: "P11",
 };
 
-/** `mst-link` (design 8.5; P11-T4): a component root hooks onto the component its best edge reaches and records the edge, the lower root of a two-cycle staying; one atomic per workgroup counts the recorded edges; 6 storage bindings. */
+/** `mst-link`: a component root hooks onto the component its best edge reaches and records the edge, the lower root of a two-cycle staying; one atomic per workgroup counts the recorded edges; 6 storage bindings. */
 const MST_LINK: KernelEntry = {
     id: "mst-link",
     body: mstLinkWgsl,
@@ -2022,19 +2019,10 @@ const MST_LINK: KernelEntry = {
 };
 
 /**
- * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
- * entries landed phase by phase, so the table is built as a Partial record and exported below through the
- * contract's `Readonly<Record<KernelId, KernelEntry>>` type by one assertion; the runtime membership check of
- * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
- * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
- * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
- * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
- * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"`, closeness `"closeness-level"` and `"closeness-rowsum"`, betweenness the
- * six `"bc-*"` entries, all-pairs shortest paths `"apsp-init"` and `"apsp-fw"`, and P11 its seven (the graph
- * build, the group-by-key, label propagation's step and triangle counting) plus Boruvka's `"mst-best"` and
- * `"mst-link"`, so every member of `KernelId`
- * is present and the assertion is exact.
+ * The entries by id, in dispatch order. The table is built as a Partial record and exported below as
+ * `Readonly<Record<KernelId, KernelEntry>>` by one assertion; every member of `KernelId` has an entry, so the
+ * assertion is exact, and the runtime membership check of `entryOf` is the E_INVALID_ARGUMENT a JS caller gets for
+ * an unknown id.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -2109,10 +2097,10 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "mst-link": MST_LINK,
 });
 
-/** THE registry (spec 3.5): every entry, keyed by id. */
+/** THE registry: every entry, keyed by id. */
 export const KERNELS: Readonly<Record<KernelId, KernelEntry>> = REGISTRY as Readonly<Record<KernelId, KernelEntry>>;
 
-/** The bodies installed by setKernelBodyOverride (the sabotage seam of spec 11.9 item 1), by id. */
+/** The bodies installed by setKernelBodyOverride (the sabotage seam), by id. */
 const bodyOverrides = new Map<KernelId, string>();
 
 /**
@@ -2160,7 +2148,7 @@ export function kernelSpec(
 }
 
 /**
- * The sabotage seam (spec 11.9 item 1): replaces an entry's body for specs created afterwards (null restores).
+ * The sabotage seam: replaces an entry's body for specs created afterwards (null restores).
  * Tests use a FRESH context per mutation because the pipeline key does not include the body.
  * @internal
  * @param id - the module id
@@ -2176,10 +2164,10 @@ export function setKernelBodyOverride(id: KernelId, body: string | null): void {
 }
 
 /**
- * The group-0 graph bindings of a core with the dummy rules applied (spec 3.5, 4.1): colIdx <- rowPtr when null,
+ * The group-0 graph bindings of a core with the dummy rules applied: colIdx <- rowPtr when null,
  * weights <- colIdx ?? rowPtr when null, perm <- rowPtr when null. `weights` is the binding to use in the weights
  * slot: omitted -> core.weights (degree, segmented-reduce); a layout passes its RESOLVED weights
- * (ModelResources.weights, 3.13), null meaning "attract with 1.0" even on a weighted snapshot.
+ * (ModelResources.weights), null meaning "attract with 1.0" even on a weighted snapshot.
  * @param core - the resident core arrays of a snapshot
  * @param perm - the degreeOrder row permutation, or null (rowPtr is bound as the dummy)
  * @param weights - the weights binding to use; undefined takes the core's, null binds the colIdx dummy

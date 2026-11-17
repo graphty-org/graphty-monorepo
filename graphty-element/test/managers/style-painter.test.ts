@@ -875,7 +875,7 @@ describe("fillDefaults", () => {
 });
 
 describe("batchableOf", () => {
-    const plain = { flatOutline: false };
+    const plain = { flatOutline: false, sizeSpace: "scene" } as const;
     const style = (over: object): NodeStyleConfig =>
         defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
 
@@ -911,6 +911,6 @@ describe("batchableOf", () => {
     });
 
     it("a flat outline keeps every row an object", () => {
-        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true, sizeSpace: "scene" }));
     });
 });

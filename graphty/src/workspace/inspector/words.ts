@@ -55,7 +55,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
@@ -71,6 +71,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model",

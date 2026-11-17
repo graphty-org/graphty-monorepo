@@ -13,11 +13,11 @@ import { focusPathValuesNext } from "../inspector/reads";
 import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode, reducedMotion } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** Props for CommandTool. */
 interface CommandToolProps {
@@ -203,8 +203,54 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
 }
 
 /**
+ * The reader's saved views on the Camera menu: a row each that moves the camera there, then a
+ * Remove view submenu naming them. Nothing while none is saved.
+ * @param props - Component props
+ * @param props.session - The element's session
+ * @returns The rows
+ */
+function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const names = [...session.views.keys()];
+    if (names.length === 0) {
+        return null;
+    }
+    return (
+        <>
+            {names.map((name) => (
+                <Menu.Item
+                    key={name}
+                    onClick={() => {
+                        void session.execute({ op: "view.camera", preset: name, animate: true });
+                    }}
+                >
+                    {name}
+                </Menu.Item>
+            ))}
+            <Menu.Sub>
+                <Menu.Sub.Target>
+                    <Menu.Sub.Item>Remove view</Menu.Sub.Item>
+                </Menu.Sub.Target>
+                <Menu.Sub.Dropdown>
+                    {names.map((name) => (
+                        <Menu.Item
+                            key={name}
+                            onClick={() => {
+                                void session.views.remove([name]);
+                            }}
+                        >
+                            {name}
+                        </Menu.Item>
+                    ))}
+                </Menu.Sub.Dropdown>
+            </Menu.Sub>
+        </>
+    );
+}
+
+/**
  * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; zoom in and out in 2D; then the Auto-rotate switch.
+ * 2D; the saved views and Save view; zoom in and out in 2D; then the Auto-rotate and Follow
+ * selection switches.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -212,20 +258,29 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
 function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const flat = session?.layout.dimension === "2d";
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
     return (
         <>
             <Sections
                 sections={[
                     ["view.fit", "view.frame-selection"],
                     ["view.front", "view.side", "view.top", "view.isometric"],
-                    ...(flat ? [["view.zoom-in", "view.zoom-out"]] : []),
                 ]}
             />
+            <Menu.Divider />
+            {session === null ? null : <SavedViewRows session={session} />}
+            <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
             <Menu.Divider />
             <CheckItem
                 command="view.auto-rotate"
                 label="Auto-rotate"
                 checked={autoRotate && !reducedMotion()}
+                radio={false}
+            />
+            <CheckItem
+                command="view.follow-selection"
+                label="Follow selection"
+                checked={followSelection}
                 radio={false}
             />
         </>
@@ -272,7 +327,7 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  */
 export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TOOLBAR_EVENTS);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.
@@ -332,6 +387,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     }
                     delete openers.path;
                     delete openers.analyze;
+                    store.set({ analyzeOn: null });
                 }}
                 closeOnEscape={false}
                 width={380}
@@ -344,6 +400,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         <AnalyzePopover
                             session={session}
                             path={dialog === "path"}
+                            initialPick={dialog === "analyze" ? (store.get().analyzeOn ?? undefined) : undefined}
                             onClose={close}
                             onTab={(back) => {
                                 const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;

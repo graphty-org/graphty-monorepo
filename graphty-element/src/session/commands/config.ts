@@ -25,6 +25,7 @@ import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
+import type { TimelineHiddenLook } from "../styles/rows";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
@@ -256,6 +257,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         ...(pinned === undefined ? {} : { pinnedStyle: pinned }),
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,
+        timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

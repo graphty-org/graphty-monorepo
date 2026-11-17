@@ -55,6 +55,12 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
+test("withTestGuards keeps a run's coverage when a test fails, so a retried flaky shard still has it (#8474)", () => {
+    const config = withTestGuards({ test: { coverage: { provider: "v8", reportsDirectory: "./c" } } });
+    assert.deepEqual(config.test.coverage, { provider: "v8", reportsDirectory: "./c", reportOnFailure: true });
+    assert.equal(withTestGuards({}).test.coverage.reportOnFailure, true);
+});
+
 test("a real action gets the wait guard on the object each Playwright provider holds, on instances too", () => {
     // playwright() reads the options object it was handed, so that object is what must change.
     const [root, project, instance, other] = [{ actionTimeout: 5 }, { hasTouch: true }, {}, {}];

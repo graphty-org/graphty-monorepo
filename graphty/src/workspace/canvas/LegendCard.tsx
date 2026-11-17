@@ -3,7 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { nodeModelsOn } from "../features";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
@@ -336,7 +336,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             <Stack gap="xs">
                 {sections.length === 0 ? (
                     <Text size="xs" c="dimmed">
-                        {selectionWorkspaceOn(session) ? "No styles" : NOTHING_KEYED}
+                        {NOTHING_KEYED}
                     </Text>
                 ) : null}
                 {sections.map(({ title, block, entry, merged, scope, covered }) => {

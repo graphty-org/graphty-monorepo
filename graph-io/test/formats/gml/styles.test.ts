@@ -98,6 +98,40 @@ describe("GML styles: who wrote the file", () => {
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
     });
 
+    it("gives a yEd edge with no graphics yEd's standard head, and one whose graphics name no arrow none", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [ directed 0",
+                "  node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ] node [ id 1 graphics [ x 100 y 0 w 10 h 10 ] ]",
+                "  edge [ source 0 target 1 ]",
+                '  edge [ source 1 target 0 graphics [ fill "#505050" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none"]);
+        expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)).toEqual(["none", "none"]);
+    });
+
+    it("draws a yEd arc edge as one quadratic curve, its apex the arc's height or ratio off the line", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                "  node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ] node [ id 1 graphics [ x 100 y 0 w 10 h 10 ] ]",
+                '  edge [ source 0 target 1 graphics [ type "arc" arcType "fixedHeight" arcHeight -15.0 ] ]',
+                '  edge [ source 0 target 1 graphics [ type "arc" arcType "fixedRatio" arcHeight 3.0 arcRatio 1.0',
+                "    Line [ point [ x 0 y 0 ] point [ x 50 y -3 ] point [ x 100 y 0 ] ] ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true]);
+        expect(resolveStyles(styles, "edge", "bendCurve", snapshot)).toEqual(["bezier", "bezier"]);
+        // the control point is twice the apex's offset: 15 below the line (y down), and a quarter of 100 above it
+        // relative to the line from center to center: half way along, 0.3 of its length to one side and 0.5 to the other
+        expect(resolveStyles(styles, "edge", "bends", snapshot)).toEqual(["0.5,-0.3", "0.5,0.5"]);
+    });
+
     it("reads yEd's fill2 as yEd draws it: left to right, and a diamond corner to corner", async () => {
         const { snapshot, styles } = await load(
             [

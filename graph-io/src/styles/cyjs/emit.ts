@@ -177,6 +177,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "curve-style": value === true ? "unbundled-bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
+        case "labelWrapSkipEndSpace":
+            // Cytoscape.js always measures a line's last word without a space after it: nothing to write
+            return value === true ? exact({}) : null;
         case "fanSpacing":
         case "labelWrapWidth":
             return ifNumber(value, (v) => numberToCyjs(property, v));

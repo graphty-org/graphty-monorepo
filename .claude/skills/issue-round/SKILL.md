@@ -54,14 +54,14 @@ pull request), whatever master's state, combine their families into one branch e
       breaking change out of a family of non-breaking ones (X5).
 - [ ] For each `family` line, first claim it, as step 5 marks a job:
       `node tools/issue-queue.mjs taken <combine into> .worktrees/<name> <every issue of the family> --files <the
-    branches' changed files> --why "combines <branches>"`. Its old branches now read as running, so no other round
+branches' changed files> --why "combines <branches>"`. Its old branches now read as running, so no other round
       combines or opens them. Then one background subagent (it holds a test slot like a fix job): in a new worktree
       (`./tools/worktree-new.sh <combine into> origin/master <name> --issue <lead>`) it runs
       `git merge --no-ff origin/<branch>` for each branch, lint and the tests the merged changes touch. A branch it
       leaves out (a conflict beyond settling), or every branch if it gives up, gets
       `pipeline-round: ready <old branch> <its sha>` written again on its issues. Then one Proof listing every issue
       and each old `ready` marker; on each merged branch's issues `pipeline-round: superseded <old branch> by <new
-    branch>`, then `pipeline-round: ready <new branch> <sha>` (last, so it is the newest marker). A superseded
+branch>`, then `pipeline-round: ready <new branch> <sha>` (last, so it is the newest marker). A superseded
       branch is folded into its successor and kept, never deleted (design/owner-standing-rules.md). Then, master
       green, `tools/pr-open.sh`; red, it stops at `ready`.
 - [ ] Never a branch the plan refused (open pull request, owner-only member, red-master fix, running job, moved tip),

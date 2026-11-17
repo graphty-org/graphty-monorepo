@@ -54,8 +54,7 @@ const PAGES: readonly Page[] = [
     {
         file: "starting-rows.md",
         check: (session, printed) => {
-            const ghost = session.features.enabled.includes("timeline") ? ["Ghost top"] : [];
-            assert.deepEqual(printed, ["Everything bottom", ...ghost, "Selected top", "Hovered top", "1"]);
+            assert.deepEqual(printed, ["Everything bottom", "Timeline Hidden top", "Selected top", "Hovered top", "1"]);
         },
     },
     {

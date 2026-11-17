@@ -462,9 +462,33 @@ function along(side: Side, min: number, max: number, gap: number): number {
 }
 
 /**
+ * A label's measured sizes and resolved options, as the tests that check its drawing read them,
+ * typed so a rename in `RichTextLabel` fails to compile rather than at run time (issue #6988). The
+ * class fills it in; no entry point exports it.
+ */
+export const labelInternals = {} as {
+    /** The texture's size, the area inside its borders, the words' own extent, and its options. */
+    drawn(label: RichTextLabel): {
+        actualDimensions: Readonly<RichTextLabel["actualDimensions"]>;
+        contentArea: Readonly<RichTextLabel["contentArea"]>;
+        textSize: Readonly<RichTextLabel["textSize"]>;
+        options: RichTextLabel["options"];
+    };
+};
+
+/**
  * Rich text label with support for formatting, badges, animations, and speech bubble pointers
  */
 export class RichTextLabel {
+    static {
+        labelInternals.drawn = (label) => ({
+            actualDimensions: label.actualDimensions,
+            contentArea: label.contentArea,
+            textSize: label.textSize,
+            options: label.options,
+        });
+    }
+
     private readonly scene: Scene;
     private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
@@ -1246,6 +1270,9 @@ export class RichTextLabel {
             return false;
         }
 
+        // Its world matrix as of now: the node it hangs from may have been rescaled this frame
+        // (`node.sizeSpace`), after Babylon last computed the label's.
+        mesh.computeWorldMatrix(true);
         // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
         const onScreen = this.screenFontPx(camera);
         if (onScreen <= 0) {

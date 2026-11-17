@@ -8,13 +8,11 @@
  * happened, then asserts the invariant of design/work-protection/design.md section 8.
  */
 
-import { rmSync } from "node:fs";
-
 import type { BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { assertInvariant, type Engine, ENGINES, kill, launch, pageProcesses, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { type LogEvent, type PageCheck, useLifecycleFixture } from "./fixture";
 
 /** 50,000 nodes run only on the release train. */
 const FULL = process.env.GRAPHTY_LIFECYCLE_FULL === "1";
@@ -22,28 +20,7 @@ const FULL = process.env.GRAPHTY_LIFECYCLE_FULL === "1";
 /** How long the page is left alone in the long-background test: a night. */
 const NIGHT_MS = 10 * 60 * 60 * 1000;
 
-let fx: Fixture;
-const open: { context: BrowserContext; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    if (process.env.LIFECYCLE_DEBUG === "1") {
-        const t0 = (fx.log[0]?.at as number) ?? 0;
-        console.log(fx.log.map((e) => `${(e.at as number) - t0} ${JSON.stringify(e)}`).join("\n"));
-    }
-
-    for (const { context, dir } of open.splice(0)) {
-        await context.close().catch(() => undefined);
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
+const { fx, track } = useLifecycleFixture();
 
 /**
  * Launch an engine on a fresh profile, closed after the test.
@@ -54,10 +31,7 @@ async function start(engine: Engine): Promise<{ context: BrowserContext; dir: st
     const dir = profile(engine);
     const context = await launch(engine, dir);
     const entry = { context, dir };
-    open.push(entry);
-    onTestFailed(() => {
-        console.log(`last reports: ${JSON.stringify(fx.log.slice(-25))}`);
-    });
+    track(() => context.close(), dir);
     return entry;
 }
 
@@ -90,7 +64,7 @@ const report = (
     type: string,
     mark = 0,
     predicate: (e: LogEvent) => boolean = () => true,
-): Promise<LogEvent> => fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === type && predicate(e));
+): Promise<LogEvent> => fx.report(tab, type, mark, predicate);
 const saved = (tab: string, revision: number, mark = 0): Promise<LogEvent> =>
     report(tab, "saved", mark, (e) => (e.revision as number) >= revision);
 

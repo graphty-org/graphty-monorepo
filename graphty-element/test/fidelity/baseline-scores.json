@@ -150,7 +150,7 @@
             "arrows": 1,
             "edgePath": 1,
             "edgeLabel": 1,
-            "annotations": 0.16666666666666666,
+            "annotations": 0.5,
             "background": 1
         },
         "gml-yed-pmodel": {
@@ -248,18 +248,18 @@
             "edgeWidth": []
         },
         "cys-annotation-example": {
-            "edgePath": ["YPL248C->YML051W","YPL248C->YML051W#1"],
-            "annotations": ["arrow#2","arrow#3","extra arrow#0","extra arrow#5","extra text#2","extra text#3","extra text#4","text#1","text#4","text#5"]
+            "edgePath": ["YPL248C->YML051W#1"],
+            "annotations": ["arrow#2","arrow#3","extra arrow#0","extra arrow#5"]
         },
         "gexf-miserables": {
-            "labelText": ["24.0","38.0","61.0","70.0","76.0"],
+            "labelText": [],
             "edgePath": []
         },
         "gml-yed-pmodel": {
             "edgePath": ["5->5"]
         },
         "xgmml-basicdataviz": {
-            "edgePath": ["YPL248C->YML051W","YPL248C->YML051W#1"]
+            "edgePath": []
         }
     },
     "reasons": [

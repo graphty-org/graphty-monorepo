@@ -454,7 +454,7 @@ export function belowLine(below: number): string {
 }
 
 /** The key's one line when the reader asked for it and no layer paints anything it lists. */
-export const NOTHING_KEYED = "Nothing is styled yet";
+export const NOTHING_KEYED = "No styles";
 
 /**
  * How a layer above covers a section's elements: "covered by Agencies".

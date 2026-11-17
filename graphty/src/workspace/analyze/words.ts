@@ -33,6 +33,12 @@ export const HEADINGS: readonly Heading[] = [
     { id: "measure", title: "Measure the graph", shapes: ["fact", "temporal"] },
 ];
 
+/** The last entry under a heading: run every method under it as one batch, or cancel that batch. */
+export const RUN_ALL = {
+    run: "Run all",
+    cancel: "Cancel all",
+} as const;
+
 /** What the app says about one algorithm. */
 interface AlgorithmWords {
     /** Its name in the list, on its row and in the footer. */
@@ -453,7 +459,6 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
             utm: "UTM",
         },
     },
-    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },

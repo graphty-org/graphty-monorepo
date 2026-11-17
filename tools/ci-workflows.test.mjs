@@ -941,30 +941,38 @@ describe("ci.yml", () => {
     });
 
     it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
-        assert.match(job(ci, "performance"), /continue-on-error: true/);
-        assert.doesNotMatch(job(ci, "performance"), /needs: .*test/);
-        assert.doesNotMatch(job(ci, "all-checks"), /needs: .*performance/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /continue-on-error: true/, name);
+            assert.doesNotMatch(job(ci, name), /needs: .*test/, name);
+            assert.doesNotMatch(job(ci, "all-checks"), new RegExp(`needs: .*${name}`));
+        }
     });
 
     // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
     // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
     it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
-        const perf = parseYaml(ci).jobs.performance;
-        const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
-        assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
-        const benches = perf.steps.filter((s) =>
-            /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
-        );
-        assert.equal(benches.length, 4);
-        for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
-        const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
-        for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
-        const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
-        // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
-        assert.ok(
-            deadline + tailMinutes + 1 <= perf["timeout-minutes"],
-            `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
-        );
+        // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
+        for (const [name, count] of [
+            ["algorithms-benchmarks", 1],
+            ["performance", 3],
+        ]) {
+            const perf = parseYaml(ci).jobs[name];
+            const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
+            assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
+            const benches = perf.steps.filter((s) =>
+                /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
+            );
+            assert.equal(benches.length, count, name);
+            for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
+            const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
+            for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
+            const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
+            // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
+            assert.ok(
+                deadline + tailMinutes + 1 <= perf["timeout-minutes"],
+                `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
+            );
+        }
 
         const underDeadline = (deadlineAt, ...cmd) =>
             spawnSync("bash", [join("tools", "before-deadline.sh"), ...cmd], {
@@ -1314,8 +1322,10 @@ describe("ci.yml", () => {
             );
         }
         // the benchmarks need only the build, and a light run (master) skips them
-        assert.match(job(ci, "performance"), /needs: packages\n/);
-        assert.match(job(ci, "performance"), /&& needs.packages.outputs.light != 'true'\n/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /needs: packages\n/, name);
+            assert.match(job(ci, name), /&& needs.packages.outputs.light != 'true'\n/, name);
+        }
         assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(
@@ -1354,11 +1364,22 @@ describe("ci.yml", () => {
         assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
-        for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
+        for (const name of [
+            "test",
+            "links",
+            "cost-accuracy",
+            "algorithms-benchmarks",
+            "performance",
+            "lint",
+            "checks",
+            "docs",
+        ]) {
             const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1544,7 +1565,9 @@ describe("verification runs of ci.yml", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
@@ -2838,6 +2861,56 @@ describe("base-check.yml", () => {
         assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
         rmSync(dir, { recursive: true, force: true });
     });
+
+    it("#8363: re-runs only the asking job, only when master failed the same test, only on the newest head", () => {
+        const job = parseYaml(workflow("base-check.yml")).jobs.check;
+        assert.equal(job.permissions.actions, "write");
+        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's job"));
+        assert.match(step.if, /steps\.file\.outcome == 'failure'/);
+        assert.match(step.if, /inputs\.job != ''/);
+        const file = job.steps.find((s) => s.name === "Run the file");
+        assert.equal(file.id, "file");
+        assert.equal(file.env.RESULTS_FAILED_OUT, step.env.MASTER_FAILED, "the step reads what the run wrote");
+        const dir = mkdtempSync(join(tmpdir(), "base-check-rerun-"));
+        const failed = join(dir, "master-failed.jsonl");
+        // gh: the job's head and the pull request's head, then the re-run, which it logs
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/sh\ncase "$*" in\n  *actions/jobs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const sh = (env) =>
+            execFileSync("bash", ["-euo", "pipefail", "-c", step.run], {
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    MASTER_FAILED: failed,
+                    JOB: "55",
+                    PR: "7",
+                    FAILED: JSON.stringify(["d > x"]),
+                    RUN_HEAD: "aaa",
+                    PR_HEAD: "aaa",
+                    ...env,
+                },
+                encoding: "utf8",
+            });
+        const calls = () => (existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "");
+        // no failure recorded (a build error, or exit 2: no shard runs the file), or another test's failure
+        sh({});
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > other" })}\n`);
+        sh({});
+        assert.equal(calls(), "", "master did not fail the same test: nothing re-run");
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > x" })}\n`);
+        sh({ RUN_HEAD: "bbb" });
+        assert.equal(calls(), "", "an older head is not re-run");
+        sh({ JOB: "55; x" });
+        sh({ FAILED: "not json" });
+        assert.equal(calls(), "", "a malformed job id or test list is not used");
+        sh({});
+        assert.equal(calls(), "run rerun --job 55 --repo o/r\n", "only the one job, never --failed");
+        rmSync(dir, { recursive: true, force: true });
+    });
 });
 
 describe("pr-title.yml", () => {
@@ -3332,6 +3405,15 @@ describe("actions/cache in the workflows", () => {
             checked++;
         }
         assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
+    });
+
+    it("fails a stalled git transfer in ci.yml so actions/checkout retries it (#8526)", () => {
+        // git waits forever on an HTTPS transfer that stops delivering bytes; a Test job's checkout sat silent
+        // for its whole 30 minutes and the cancelled job turned the full run's CI lane red (run 43924294024).
+        const env = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).env;
+        assert.ok(Number(env.GIT_HTTP_LOW_SPEED_LIMIT) > 0, "env GIT_HTTP_LOW_SPEED_LIMIT is set");
+        const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
+        assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
     });
 });
 
@@ -6384,12 +6466,11 @@ describe("the commit and push hooks", () => {
     it("the source-only checks start the commonest failures first and stop at the first failure", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
-        for (const step of [...steps, "SonarQube (changed lines)"]) {
+        for (const step of [...steps, "Duplicate code"]) {
             assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
-        // The two commonest failures start first, in the background, before any other check.
+        // The commonest failure starts first, in the background, before any other check.
         const firstRun = checks.indexOf('    run_step "');
-        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
         assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         const steps_ = stepFunctions(checks);
         const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
@@ -6646,10 +6727,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 mode: 0o755,
             });
             writeFileSync(
-                join(dir, "tools/sonar-gate.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
-            );
-            writeFileSync(
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
@@ -6690,7 +6767,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const first = run();
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
-            assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
             assert.match(first.calls, /release/);
             const second = run();
@@ -6713,15 +6789,15 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
     });
 
     it("run from the gate's live copy, use the copy's scripts and check the checkout in PREPUSH_ROOT", () => {
-        // gate/: the real scripts, a sonar step and a link check that log "gate-...". root/: the checkout
-        // being pushed, with a different tools/ (its own link check, sonar step and a decoy copy of the
+        // gate/: the real scripts, an image check and a link check that log "gate-...". root/: the checkout
+        // being pushed, with a different tools/ (its own link check and a decoy copy of the
         // source checks) and no check:legacy-use script, as a branch from before that check would have.
         const dir = mkdtempSync(join(tmpdir(), "prepush-gate-dir-"));
         try {
             const gate = join(dir, "gate");
             const root = join(dir, "root");
             const log = (name) => `#!/bin/sh\necho "${name} $PWD" >> ${dir}/calls\n`;
-            const sonar = (name) =>
+            const stub = (name) =>
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "${name}\\n");\n`;
             for (const d of [
                 join(gate, "tools"),
@@ -6735,13 +6811,11 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
-            writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
-            writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
-            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
-            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
-            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
+            writeFileSync(join(gate, "tools/check-committed-images.mjs"), stub("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), stub("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), stub("gate-saved-format"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), stub("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
-            writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$* $PWD" >> ${dir}/calls\n`, { mode: 0o755 });
             const scripts = sourceCheckScripts();
@@ -6761,13 +6835,12 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             });
             assert.equal(r.status, 0, r.stdout + r.stderr);
             const calls = readFileSync(join(dir, "calls"), "utf8");
-            assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
             assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
             assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
-            assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
+            assert.doesNotMatch(calls, /gate-links|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
             assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
@@ -6781,7 +6854,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
         const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
         assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
-        assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
 

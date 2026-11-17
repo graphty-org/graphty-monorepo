@@ -13,6 +13,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
@@ -74,13 +75,24 @@ export interface EdgePaint {
 export interface BatchView {
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
+    /** `layoutBehavior.node.sizeSpace`: how a node whose style sets none follows the camera. */
+    readonly sizeSpace: NodeSizeSpaceValue;
 }
+
+export type { NodeSizeSpace } from "../config/NodeStyle";
 
 /**
  * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
  * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
  */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "size",
+    "detail",
+    "zIndex",
+    "drawOrder",
+    "sizeSpace",
+]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -102,7 +114,7 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    // A size that follows the view (`node.sizeSpace`) is in the row's matrix, through the row's `wholeScale`.
     if (view.flatOutline) {
         return false;
     }
@@ -1391,6 +1403,22 @@ export class StylePainter {
     }
 
     /**
+     * Whether every pending node came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get nodesFromRowsOnly(): boolean {
+        return this.nodesRowsOnly;
+    }
+
+    /**
+     * Whether every pending edge came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get edgesFromRowsOnly(): boolean {
+        return this.edgesRowsOnly;
+    }
+
+    /**
      * Whether the nodes just drawn came only from a time window's slide, and so can skip the visit
      * to every edge that ends a repaint. Asked by the frame that drew the last of them.
      * @returns True when they did, once.
@@ -1656,7 +1684,7 @@ export class StylePainter {
         }
 
         // ONE PAINT PER KEY. Edges painted by their key alone share one paint object, so a pass that
-        // moves thousands of edges between two looks (a time window's Ghost row) builds two paints,
+        // moves thousands of edges between two looks (a time window's ghost look) builds two paints,
         // not thousands, and an edge handed the paint it is already drawn from skips by reference.
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.

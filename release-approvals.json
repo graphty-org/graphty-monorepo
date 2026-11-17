@@ -6,6 +6,13 @@
             "merge": "8d483cfa4f080ed0078d6b2dd3e766d14fff46b2",
             "approval": "https://github.com/graphty-org/graphty-monorepo/issues/4013",
             "since": "2026-10-27"
+        },
+        {
+            "project": "babylonjs-models",
+            "kind": "first",
+            "merge": "a7c27b29330b6a64dea0a2f83a1c335858eaf928",
+            "approval": "https://github.com/graphty-org/graphty-monorepo/issues/8251",
+            "since": "2026-11-16"
         }
     ]
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * User acceptance test of the selection workspace (the `selection-workspace` feature): a pairwise matrix
+ * User acceptance test of the selection workspace: a pairwise matrix
  * of card kinds, verbs, starts, card shapes, entry points, datasets, edits and ways of leaving, plus named
  * scenarios for what the matrix cannot reach. It drives a served build with real clicks, drags and keys
  * and checks what a reader sees (the counts on the title bar and the cards, the table's rows and tints,
@@ -1645,24 +1645,6 @@ const dataColumns = (verb) => async (page) => {
     await reopenSame(v);
 };
 
-// With the feature off, Which nodes opens the old editor and no modal.
-const flagOff = async (page) => {
-    const v = new Visit(page, "karate", "style-nodes");
-    const url = new URL(args.url);
-    url.searchParams.delete("features");
-    await v.open(url.href);
-    await page.getByRole("button", { name: "Add a layer or a folder" }).click();
-    await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
-    await page.getByRole("textbox", { name: "Layer name" }).waitFor();
-    await page.keyboard.press("Escape");
-    // The Style Nodes... line is drawn at rest with the feature on or off (#6810), so it is clicked like any button.
-    await page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
-    await page.locator(".sel-ws").waitFor();
-    if ((await page.locator(".sel-ws.sel-modal").count()) > 0) {
-        fail("the modal opened with the feature off");
-    }
-};
-
 // A picture of a scenario's end state, for the reader to look at, beside the failure shots.
 const shot = (page, name) => page.screenshot({ path: join(args.out, `${name}.png`) });
 
@@ -1912,7 +1894,6 @@ const SCENARIOS = [
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
     ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
-    ["flag: off keeps the old editor", flagOff],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],
@@ -1971,7 +1952,7 @@ async function serve(dist) {
         process.exit(2);
     }
     const http = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
+        const url = new URL(req.url, "https://x");
         const file = join(root, normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, ""));
         if (file !== root && !file.startsWith(root + sep)) {
             return res.writeHead(403).end();
@@ -1987,7 +1968,7 @@ async function serve(dist) {
     });
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     http.unref();
-    return `http://127.0.0.1:${String(http.address().port)}/?features=selection-workspace`;
+    return `http://127.0.0.1:${String(http.address().port)}/`;
 }
 
 if (args.dist !== undefined) {

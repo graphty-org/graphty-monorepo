@@ -6,7 +6,7 @@
   "version": "3.34.3",
   "command": "cytoscape({ elements, style, layout: { name: \"preset\" } }); style(), position(), width(), endpoints",
   "sourceSha256": "cb9f0e66f471891644cc349c8783fec49fed3734e8cb584bea708bbae3af489f",
-  "generatedAt": "2026-10-13T21:13:50.058Z"
+  "generatedAt": "2026-11-16T03:41:43.871Z"
  },
  "canCarry": {
   "position": "yes",
@@ -10896,7 +10896,7 @@
    "label": null
   },
   {
-   "id": "YPL248C->YML051W",
+   "id": "YPL248C->YML051W#1",
    "source": "YPL248C",
    "target": "YML051W",
    "points": [
@@ -10921,7 +10921,7 @@
    "label": null
   },
   {
-   "id": "YPL248C->YML051W#1",
+   "id": "YPL248C->YML051W",
    "source": "YPL248C",
    "target": "YML051W",
    "points": [

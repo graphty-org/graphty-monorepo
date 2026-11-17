@@ -56,14 +56,6 @@ const config: StorybookConfig = {
             };
         }
 
-        if (configType === "DEVELOPMENT") {
-            // Your development configuration goes here
-        }
-
-        if (configType === "PRODUCTION") {
-            // Your production configuration goes here.
-        }
-
         // Storybook 9 builds with every plugin of vite.config.ts, and the library-only ones fail or
         // write into dist/: the declaration rollup finds no dist/index.d.ts, and the font license
         // copy belongs to the published package.

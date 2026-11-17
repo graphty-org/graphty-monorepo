@@ -278,8 +278,6 @@ describe("Edge Case Handling", () => {
 
         test("arrow mesh respects zero opacity", () => {
             const arrowCap = EdgeMesh.createArrowHead(
-                meshCache,
-                "zero-opacity-arrow",
                 {
                     type: "normal",
                     width: 1.0,
@@ -340,8 +338,6 @@ describe("Edge Case Handling", () => {
         arrowTypes.forEach((arrowType) => {
             test(`creates arrow mesh for self-loop with ${arrowType} type`, () => {
                 const arrowCap = EdgeMesh.createArrowHead(
-                    meshCache,
-                    `self-loop-${arrowType}`,
                     {
                         type: arrowType,
                         width: 1.0,

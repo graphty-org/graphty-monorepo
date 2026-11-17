@@ -10,7 +10,8 @@ import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { FORMAT_VERSION, WIRE_MAJOR } from "../../src/constants.js";
 import { type FromWireOptions, type WireBufferRef, type WireSnapshot } from "../../src/types/index.js";
 import { fromByteChunks, fromBytes } from "../../src/wire/bytes.js";
-import { decodeJsonValue, fromWire, parseGuardedJson, SKIPPED_COLUMNS_KEY } from "../../src/wire/from-wire.js";
+import { fromWire, SKIPPED_COLUMNS_KEY } from "../../src/wire/from-wire.js";
+import { decodeJsonValue, parseGuardedJson } from "../../src/wire/json-tags.js";
 import { assertLittleEndianHost, encodeJsonValue } from "../../src/wire/to-wire.js";
 import {
     at,

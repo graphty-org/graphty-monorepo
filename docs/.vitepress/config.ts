@@ -27,6 +27,7 @@ const graphFormatTypedoc = loadTypedocSidebar("./docs/graph-format/api/generated
 const graphSamplesTypedoc = loadTypedocSidebar("./docs/graph-samples/api/generated/typedoc-sidebar.json");
 const compactMantineTypedoc = loadTypedocSidebar("./docs/compact-mantine/api/generated/typedoc-sidebar.json");
 const remoteLoggerTypedoc = loadTypedocSidebar("./docs/remote-logger/api/generated/typedoc-sidebar.json");
+const babylonjsMapTypedoc = loadTypedocSidebar("./docs/babylonjs-map/api/generated/typedoc-sidebar.json");
 
 // One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
 // (whose page `npm run docs:reference` creates) appears here without an edit.
@@ -247,6 +248,7 @@ const config = defineConfig({
                     { text: "graph-samples", link: "/graph-samples/" },
                     { text: "compact-mantine", link: "/compact-mantine/" },
                     { text: "remote-logger", link: "/remote-logger/" },
+                    { text: "babylonjs-map", link: "/babylonjs-map/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
             },
@@ -266,6 +268,7 @@ const config = defineConfig({
                         { text: "graph-samples", link: "/graph-samples/" },
                         { text: "compact-mantine", link: "/compact-mantine/" },
                         { text: "remote-logger", link: "/remote-logger/" },
+                        { text: "babylonjs-map", link: "/babylonjs-map/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
@@ -517,6 +520,33 @@ const config = defineConfig({
                     items: compactMantineTypedoc,
                 },
             ],
+            "/babylonjs-map/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/babylonjs-map/" },
+                        { text: "Getting Started", link: "/babylonjs-map/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Flat Maps", link: "/babylonjs-map/guide/flat-map" },
+                        { text: "Map Sources", link: "/babylonjs-map/guide/sources" },
+                        { text: "Projections", link: "/babylonjs-map/guide/projections" },
+                        { text: "Reading Locations", link: "/babylonjs-map/guide/locations" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/babylonjs-map/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: babylonjsMapTypedoc,
+                },
+            ],
             "/remote-logger/": [
                 {
                     text: "Introduction",
@@ -686,6 +716,7 @@ config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Si
     graphFormatTypedoc,
     graphSamplesTypedoc,
     remoteLoggerTypedoc,
+    babylonjsMapTypedoc,
 ]);
 
 export default config;

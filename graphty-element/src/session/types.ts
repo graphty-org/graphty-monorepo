@@ -15,7 +15,6 @@
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
-import type { StyleTool } from "@graphty/graph-io/styles";
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { z } from "zod";
 
@@ -63,6 +62,7 @@ import type {
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
+import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { GroupsApi } from "./groups";
@@ -2444,7 +2444,7 @@ export interface LoadDraft {
 }
 
 /**
- * How many rules a file's styles hold, and the program whose defaults fill in the rest.
+ * How many rules a file's styles hold.
  * @experimental file-styles
  */
 export interface FileStyleSummary {
@@ -2452,18 +2452,7 @@ export interface FileStyleSummary {
     readonly nodeRules: number;
     /** The rules for edges. */
     readonly edgeRules: number;
-    /**
-     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
-     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
-     */
-    readonly tool: FileStyleTool | null;
 }
-
-/**
- * The program whose defaults a file's styles take: graph-io's tool ids. Open union.
- * @experimental file-styles
- */
-export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -4215,7 +4204,6 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
- * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
@@ -4249,6 +4237,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `annotations.set` | `count`: how many annotations are kept |
+ * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
  * | `view.immersive` | `mode`: `"vr"` or `"ar"` (a switch to 3D on the way in) |
  * | `config.set` | `keys`: the setting paths changed |
@@ -4308,7 +4298,8 @@ export type HistoryCode =
     | "data.show-columns"
     | "data.columns"
     | "data.derive"
-    | "data.set-file-styles"
+    | "annotations.set"
+    | "annotations.patch"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -4572,8 +4563,6 @@ export interface CommandOutcomeMap {
     "data.columns": Promise<void>;
     /** Settles once the computed columns and their values are recorded. */
     "data.derive": Promise<void>;
-    /** Settles once the style values are recorded. */
-    "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -4622,6 +4611,10 @@ export interface CommandOutcomeMap {
     "note.merge": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
+    /** Settles once the annotations are recorded. */
+    "annotations.set": Promise<void>;
+    /** Settles once the change is recorded. */
+    "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
     /** Settles once the camera has arrived. */
@@ -5030,6 +5023,53 @@ export interface LocationUnused {
 }
 
 /**
+ * The annotations drawn beside the graph: shapes, texts, arrows and pictures, in the graph's own
+ * convention (y up). Every change is one undoable step, and a project file saves them. A load
+ * that reads a file's annotations writes them through these same steps.
+ *
+ * ```ts
+ * await session.annotations.add({ id: "note-1", kind: "text", layer: "foreground", z: 0, ... });
+ * session.annotations.list(); // [{ id: "note-1", kind: "text", ... }]
+ * ```
+ */
+export interface SessionAnnotations {
+    /** Scene units per annotation unit: 1 unless whatever wrote the annotations said otherwise. */
+    readonly scale: number;
+    /**
+     * Every annotation, in drawing order.
+     * @returns The annotations; empty when there are none.
+     */
+    list(): readonly DrawnAnnotation[];
+    /**
+     * Add an annotation, drawn over the others. One step.
+     * @param annotation - The annotation; its `id` must be one no other annotation holds.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a malformed annotation or a repeated id.
+     */
+    add(annotation: DrawnAnnotation): Promise<void>;
+    /**
+     * Change an annotation, one key deep; its `id` and `kind` stay. One step.
+     * @param id - The annotation's id.
+     * @param patch - The keys to change.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    update(id: string, patch: Readonly<Record<string, unknown>>): Promise<void>;
+    /**
+     * Remove an annotation. One step.
+     * @param id - The annotation's id.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    remove(id: string): Promise<void>;
+    /**
+     * Remove every annotation. One step.
+     * @returns Settles once the step is recorded.
+     */
+    clear(): Promise<void>;
+}
+
+/**
  * The saved camera views, read as a map from name to camera state.
  *
  * A saved view is a fixed position, not a rule: it does not recompute itself for a different
@@ -5180,6 +5220,8 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
+    readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
     readonly layout: SessionLayout;
     /**

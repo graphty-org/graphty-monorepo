@@ -9,14 +9,14 @@ import { z } from "zod";
 import { setDimension, setLayout } from "../../../src/ai/commands/LayoutCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("LayoutCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph();
+        graph = createMockTestGraph();
         context = createMockContext(graph);
     });
 

@@ -41,7 +41,7 @@ import { StyleApproximations } from "../../styles/io/approximations.js";
 import { parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -51,7 +51,6 @@ import type {
     NodeStyleProperty,
     Predicate,
     StyleColumn,
-    StyleNote,
     StyleReadContext,
     StyleRule,
     StyleTarget,
@@ -3812,24 +3811,6 @@ function notWritten(
         }
     }
     return out;
-}
-
-/**
- * A style note as a loss note.
- * @param n - the note
- * @returns the loss note
- */
-function lossOf(n: StyleNote): LossNote {
-    return Object.freeze({
-        code: n.code,
-        message: n.message,
-        column: null,
-        count: n.params.count,
-        style:
-            n.params.target === null || n.params.property === null
-                ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property as never }),
-    });
 }
 
 /** An editable attribute table of `snapshot.withColumns()`. */

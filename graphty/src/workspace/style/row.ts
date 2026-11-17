@@ -755,37 +755,21 @@ export function beneathOf(
     };
 }
 
-/** A field a layer above paints over: who, and on how many of this row's elements. */
-export interface PaintedOver {
-    /** The rows that paint over it, the most elements first. */
-    readonly by: readonly string[];
-    /** A layer of each name in `by`, in the same order, which a link to it opens. */
-    readonly layers: readonly LayerId[];
-    /** On how many of the row's elements. */
-    readonly count: number;
-    /** How many elements of the field's kind the row matches. */
-    readonly of: number;
-    /**
-     * The shader the row's own layer draws instead of the node, when that is all that covers it:
-     * the field is hidden, not painted over, and comes back when the shader moves.
-     */
-    readonly hiddenBy?: string;
-}
-
 /**
- * Which of a row's fields a layer above paints over, read from graphty-element's answer over the
- * row's own elements with the whole stack (`styles.agreement` with `over`): an element whose
- * deciding layer is not one of the row's. A row that matches nothing is never painted over.
+ * Which of a row's fields its own shader hides: a shader one of the row's own layers draws in place
+ * of the channel (a sprite in place of the shape), while no layer above paints over it. Read from
+ * graphty-element's answer over the row's own elements with the whole stack (`styles.agreement`
+ * with `over`) and the row's counts (`styles.counts(...).covers`).
  * @param session - the element's session.
  * @param row - the tree row.
  * @param ids - the row's layers.
- * @returns a reader by channel: the facts, or undefined where nothing paints over it.
+ * @returns a reader by channel: the hiding shader's name, or undefined where none hides it.
  */
-export function paintedOverOf(
+export function hiddenByOf(
     session: GraphSession,
     row: string,
     ids: readonly LayerId[],
-): (channel: Channel) => PaintedOver | undefined {
+): (channel: Channel) => string | undefined {
     let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
     try {
         agreement = session.styles.agreement("graph", undefined, { over: row });
@@ -798,7 +782,7 @@ export function paintedOverOf(
     }
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
-        if (entry === undefined) {
+        if (entry === undefined || (entry.covered ?? 0) === 0) {
             return undefined;
         }
         const read = agreement.elements ?? { nodes: 0, edges: 0 };
@@ -807,32 +791,14 @@ export function paintedOverOf(
             entry.state === "agree"
                 ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
                 : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
-        const painted = shares.filter((share) => !ids.includes(share.layerId) && share.count > 0);
-        // A shader drawn in place of the channel (a sprite in place of the shape, a mandala in
-        // place of the fill) covers it too: the element names who, per layer, in its counts.
-        const shaded = (entry.covered ?? 0) === 0 ? [] : shaderCovers(session, ids, channel);
-        const above = [...painted, ...shaded.filter((share) => !painted.some((p) => p.layerId === share.layerId))];
-        if (above.length === 0) {
+        if (shares.some((share) => !ids.includes(share.layerId) && share.count > 0)) {
             return undefined;
         }
-        const covering = above.map((share) => share.layerId);
-        // The row's own shader covers its own rows (a sprite over Shape): named by the shader.
-        const nameOf = (id: LayerId): string =>
-            (ids.includes(id) ? ownShaderName(session, id, channel) : undefined) ??
-            layerWord(session, id) ??
-            "the default";
-        const by = [...new Set(covering.map(nameOf))];
-        const own = covering.every((id) => ids.includes(id)) && painted.length === 0;
-        const hiddenBy = own
-            ? covering.map((id) => ownShaderName(session, id, channel)).find((n) => n !== undefined)
-            : undefined;
-        return {
-            by,
-            layers: by.map((name) => covering.find((id) => nameOf(id) === name) ?? covering[0]),
-            count: entry.overridden ?? 0,
-            of,
-            ...(hiddenBy === undefined ? {} : { hiddenBy }),
-        };
+        const shaded = shaderCovers(session, ids, channel);
+        if (shaded.length === 0 || !shaded.every((share) => ids.includes(share.layerId))) {
+            return undefined;
+        }
+        return shaded.map((share) => ownShaderName(session, share.layerId, channel)).find((n) => n !== undefined);
     };
 }
 

@@ -15,9 +15,6 @@ import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
-// Re-export theme for tests and other modules
-export { theme } from "./theme";
-
 // Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.

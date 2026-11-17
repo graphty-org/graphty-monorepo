@@ -12,6 +12,7 @@ import {
     quoteDotId,
     quoteGmlString,
     quotePajekLabel,
+    spreadsheetSafeText,
 } from "../../src/common/escape.js";
 
 const E_ACUTE = String.fromCodePoint(0xe9);
@@ -133,5 +134,25 @@ describe("Pajek labels", () => {
         expect(caught).toBeInstanceOf(GraphFormatError);
         expect((caught as GraphFormatError).code).toBe("E_UNSUPPORTED");
         expect((caught as GraphFormatError).details.reason).toBe("pajek label");
+    });
+});
+
+describe("spreadsheetSafeText", () => {
+    it("prefixes formula-like text with a quote and leaves the rest", () => {
+        for (const text of [
+            '=HYPERLINK("http://x","click")',
+            "+cmd",
+            "-2+3+cmd|' /C calc'!A0",
+            "@SUM(A1)",
+            "\tx",
+            "\rx",
+            "-",
+            "-Infinity",
+        ]) {
+            expect(spreadsheetSafeText(text)).toBe(`'${text}`);
+        }
+        for (const text of ["", "a=b", "-5", "+1.5e3", "-.5", "12", "#tag"]) {
+            expect(spreadsheetSafeText(text)).toBe(text);
+        }
     });
 });

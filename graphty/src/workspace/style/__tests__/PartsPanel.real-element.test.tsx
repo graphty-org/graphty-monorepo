@@ -313,10 +313,11 @@ describe("the node tab by part of the drawing", () => {
         await session.styles.settled();
         const tab = await openStyle("Kinds");
         const row = await within(tab).findByRole("button", { name: /^Which nodes, / });
+        // The rule line is the Which row's name and tooltip, never words in the sidebar (#8739).
         await waitFor(() => {
-            assert.include(row.textContent, "class is Tool or Input");
+            assert.match(row.getAttribute("aria-label") ?? "", /class is Tool or Input$/);
         });
-        assert.match(row.getAttribute("aria-label") ?? "", /class is Tool or Input$/);
+        assert.notInclude(row.textContent, "class is Tool or Input");
     });
 
     it("Hide in Visibility hides the layer's nodes", async () => {

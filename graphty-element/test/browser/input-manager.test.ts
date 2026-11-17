@@ -13,7 +13,7 @@ import type { Graph } from "../../src/Graph";
 import { MouseButton } from "../../src/input/types";
 import { EventManager } from "../../src/managers/EventManager";
 import { InputManager } from "../../src/managers/InputManager";
-import { hover, type Point, press, release } from "../helpers/real-input";
+import { holdPinch, hover, type Point, press, release } from "../helpers/real-input";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /** A spot on the canvas, well inside it. */
@@ -168,6 +168,28 @@ describe("InputManager", () => {
         assert.isFalse(inputManager.isPointerDown(MouseButton.Right), "Right button should not be down");
         await release(canvas, AT);
         assert.isFalse(inputManager.isPointerDown(), "No pointer should be down after release");
+    });
+
+    test("touch state and events come through", async () => {
+        const touchStarts: unknown[] = [];
+        eventManager.onGraphEvent.add((event) => {
+            if ((event as { type: string }).type === "input:touch-start") {
+                touchStarts.push(event);
+            }
+        });
+
+        // Two real fingers land on the canvas and stay there.
+        const lift = await holdPinch(canvas, TO, 60, 60, 1);
+        try {
+            const touches = inputManager.getActiveTouches();
+            assert.equal(touches.length, 2, "Should have 2 active touches");
+            assert.notEqual(touches[0].id, touches[1].id, "Each finger has its own id");
+            assert.isAtLeast(touchStarts.length, 1, "Touch start should reach the event manager");
+        } finally {
+            await lift();
+        }
+
+        assert.equal(inputManager.getActiveTouches().length, 0, "No touches after both fingers lift");
     });
 
     test("updates configuration", () => {

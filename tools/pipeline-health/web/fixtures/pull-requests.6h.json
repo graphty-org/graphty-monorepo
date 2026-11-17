@@ -241,6 +241,105 @@
             }
         },
         {
+            "state": "warn",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 1.3,
+                    "unit": "ratio"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 0.88,
+                    "unit": "ratio"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.issues_per_merge",
+            "value": {
+                "n": 1.12,
+                "unit": "ratio"
+            },
+            "n": 146,
+            "minN": 20
+        },
+        {
+            "state": "warn",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 2.3,
+                    "unit": "pct"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.multi_issue_share",
+            "value": {
+                "n": 8.2,
+                "unit": "pct"
+            },
+            "n": 146,
+            "minN": 20
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 800,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runner-minutes",
+            "id": "pull-requests.runner_minutes_per_issue",
+            "value": {
+                "n": 346,
+                "unit": "min"
+            },
+            "n": 163,
+            "minN": 20
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 10,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "pct"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.group_released_share",
+            "value": {
+                "n": 0.3,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": null,
+            "link": "/pull-requests",
+            "id": "pull-requests.groups_ready",
+            "value": {
+                "n": 16
+            }
+        },
+        {
             "state": "ok",
             "window": "now",
             "sla": {

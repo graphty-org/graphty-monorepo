@@ -79,6 +79,22 @@ export const SPEC: Record<string, Spec> = {
     "pr.oldest_open": { id: "pull-requests.oldest_open", unit: "h", k: toH, link: "/pull-requests" },
     "pr.merge_ratio": { id: "pull-requests.merge_ratio", unit: "ratio", link: "/pull-requests" },
     "pr.caused_failures": { id: "pull-requests.caused_failures", unit: "pct", k: PCT, link: "/pull-requests" },
+    // Issue grouping (design/ci/issue-grouping.md section 9).
+    "pr.issues_per_merge": { id: "pull-requests.issues_per_merge", unit: "ratio", link: "/pull-requests" },
+    "pr.multi_issue_share": { id: "pull-requests.multi_issue_share", unit: "pct", k: PCT, link: "/pull-requests" },
+    "pr.runner_minutes_per_issue": {
+        id: "pull-requests.runner_minutes_per_issue",
+        unit: "min",
+        link: "/ci/runner-minutes",
+    },
+    "pr.group_released_share": {
+        id: "pull-requests.group_released_share",
+        unit: "pct",
+        k: PCT,
+        link: "/pull-requests",
+        now: true,
+    },
+    "pr.groups_ready": { id: "pull-requests.groups_ready", link: "/pull-requests", now: true },
     "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
     "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {

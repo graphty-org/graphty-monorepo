@@ -7,6 +7,8 @@
 //   tmp/waits.jsonl (test-slot, gpu-slot)     -> POST <HEALTH_API_URL>/v1/local/waits
 //   tmp/test-ledger/records/<date>/*.json.gz  -> POST <HEALTH_API_URL>/v1/local/invocations
 //   tmp/push-log.jsonl (push gate runs)       -> POST <HEALTH_API_URL>/v1/local/push-runs
+//   tmp/issue-round/grouping-metrics.jsonl (tools/issue-groups.mjs metrics --append, once a day)
+//                                             -> POST <HEALTH_API_URL>/v1/local/grouping
 // The last two were written only by the retired pre-push gate (tools/prepush.sh), which still writes them
 // when someone runs it by hand.
 // Every body is { rows: [...] }, at most 200 rows and 1 MB. Every row has an id derived from its
@@ -141,6 +143,21 @@ export function mapWait(w) {
         end: Date.parse(w.end),
         ms: w.ms,
     };
+}
+
+/**
+ * A daily issue-grouping metrics line as a grouping row: the share of grouped issues released as not part of their
+ * branch, and the groups finished but not opened. The rest of the line (counts GitHub also has) is not posted.
+ * @param m the metrics line
+ * @returns the grouping row, or null
+ */
+export function mapGrouping(m) {
+    const at = Date.parse(m.at);
+    if (!Number.isFinite(at) || !m.ledger) return null;
+    const row = { id: `local.grouping.${m.at}`, at };
+    if (typeof m.ledger.releasedNotPartShare === "number") row.releasedShare = m.ledger.releasedNotPartShare;
+    if (typeof m.ledger.ready === "number") row.ready = m.ledger.ready;
+    return row;
 }
 
 const bytes = (row) => Buffer.byteLength(JSON.stringify(row)) + 1;
@@ -279,6 +296,10 @@ export function sources(root) {
         { kind: "waits", items: jsonlItems(root, "tmp/waits.jsonl", "waitsOffset", mapWait) },
         // Posted as local runs (the push-runs route), counted under their own name.
         { kind: "held", route: "push-runs", items: jsonlItems(root, "tmp/waits.jsonl", "heldOffset", mapHeld) },
+        {
+            kind: "grouping",
+            items: jsonlItems(root, "tmp/issue-round/grouping-metrics.jsonl", "groupingOffset", mapGrouping),
+        },
     ];
 }
 

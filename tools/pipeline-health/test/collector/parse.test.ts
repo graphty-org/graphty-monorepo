@@ -428,6 +428,9 @@ describe("pull requests and issues", () => {
             p.isDraft ? undefined : Date.parse(p.readyEvents.nodes.at(-1)?.createdAt ?? p.createdAt),
         );
         expect(toPrItem({ ...p, title: "feat(ci)!: drop it" }, REPO).ownerWait).toBe(true);
+        // The issues it closes, read since issue grouping (#8543); a pull request read without them has no count.
+        expect(toPrItem({ ...p, closingIssuesReferences: { totalCount: 3 } }, REPO).closes).toBe(3);
+        expect(toPrItem({ ...p, closingIssuesReferences: undefined }, REPO)).not.toHaveProperty("closes");
     });
 
     it("reads the stocks from the open pull requests", () => {

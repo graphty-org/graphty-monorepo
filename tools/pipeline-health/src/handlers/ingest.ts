@@ -3,7 +3,8 @@
 // CI posts the results service's own bodies to the same paths (POST /v1/invocations, /failures, /durations,
 // /verdicts); the HTTP API's JWT authorizer has already checked the token's signature, issuer, audience
 // (graphty-health) and expiry, and this handler checks its claims the way tools/results-service does. This machine's
-// writer posts {rows: [...]} to /v1/local/{invocations,push-runs,waits} with a bearer token whose SHA-256 is in SSM.
+// writer posts {rows: [...]} to /v1/local/{invocations,push-runs,waits,grouping} with a bearer token whose SHA-256
+// is in SSM.
 // Every record becomes a raw item with a natural id, written through the model's putRaw, so a retried post replaces
 // what it wrote before and the recomputed rollups never count it twice.
 
@@ -67,7 +68,7 @@ const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "
 /** Results in one benchmark post, and the longest benchmark name or source. */
 const MAX_BENCH_ROWS = 1000;
 const MAX_BENCH_NAME = 200;
-const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits"]);
+const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits", "grouping"]);
 
 type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local" | "deploy" | "site";
 type Claims = Record<string, string | number | boolean | string[] | undefined>;
@@ -98,7 +99,8 @@ let localTokenHash: { hash: string; until: number } | undefined;
 let store: Store | undefined;
 
 /**
- * POST /v1/{invocations,failures,durations,verdicts} (CI) and /v1/local/{invocations,push-runs,waits} (this machine).
+ * POST /v1/{invocations,failures,durations,verdicts} (CI) and /v1/local/{invocations,push-runs,waits,grouping} (this
+ * machine).
  * @param event - the HTTP API request, with the JWT claims on the CI routes
  * @returns 200 {stored}, or an error {code, params}
  */
@@ -290,6 +292,8 @@ async function localItems(
             items.push(...(await invocationItems(r, who, db, now)).items);
         } else if (route === "push-runs") {
             items.push(pushRun(r));
+        } else if (route === "grouping") {
+            items.push(...groupingItems(r));
         } else {
             items.push(slotWait(r));
         }
@@ -299,7 +303,9 @@ async function localItems(
 
 async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
     if (who.kind === "local") {
-        return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
+        // The grouping ledger writes once a day, so it is its own source with its own age limit.
+        const source = route === "grouping" ? "grouping-ledger" : "local";
+        return { items: await localItems(route, body, who, db, now), extra: [], source };
     }
     // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
     if (
@@ -682,7 +688,7 @@ function verdictItems(b: Record<string, unknown>, who: Who, now: number): Observ
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The local writer's push log and slot waits.
+// The local writer's push log, slot waits and issue-grouping ledger readings.
 
 function localId(r: Record<string, unknown>): string {
     if (typeof r.id !== "string" || !r.id.startsWith("local.")) {
@@ -722,6 +728,30 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * One daily reading of the issue-grouping ledger (tools/issue-groups.mjs metrics): the share of grouped members
+ * released as not part of their branch, and the groups whose branch is finished but not opened.
+ * @param r - the row: `{ id, at, releasedShare?, ready? }`
+ * @returns its observations
+ */
+function groupingItems(r: Record<string, unknown>): ObservationItem[] {
+    const id = localId(r);
+    need(r, { at: "number" });
+    const out: ObservationItem[] = [];
+    const o = (metric: string, v: unknown): void => {
+        if (v === undefined || v === null) {
+            return;
+        }
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+            refuse(400, "bad_field", { field: metric, type: "number" });
+        }
+        out.push({ kind: "obs", id: `${id}.${metric}`, attempt: 1, metric, value: v as number, at: r.at as number });
+    };
+    o("issues.group_released_share", r.releasedShare);
+    o("issues.groups_ready", r.ready);
+    return out;
+}
 
 async function localTokenOk(authorization: string | undefined, now: number): Promise<boolean> {
     const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];

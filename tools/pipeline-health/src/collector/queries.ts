@@ -3,7 +3,7 @@
 
 const PR_BASE = `
   number title state isDraft reviewDecision baseRefName headRefName headRefOid createdAt updatedAt mergedAt closedAt
-  autoMergeRequest { enabledAt } author { login }
+  autoMergeRequest { enabledAt } author { login } closingIssuesReferences(first: 1) { totalCount }
   labels(first: 20) { nodes { name } }
   readyEvents: timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT], last: 5) {
     nodes { __typename ... on ReadyForReviewEvent { createdAt } ... on ConvertToDraftEvent { createdAt } } }`;

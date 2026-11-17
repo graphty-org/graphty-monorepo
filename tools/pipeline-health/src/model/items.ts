@@ -220,6 +220,8 @@ export interface PullRequestItem extends RawBase {
     readyAt?: number;
     mergedAt?: number;
     closedAt?: number;
+    /** Issues it closes on merging (GitHub's closing references); absent on pull requests stored before it was read. */
+    closes?: number;
     /** Auto-merge off by rule: left out of the time members (4.2). */
     ownerWait?: boolean;
     /** This merge was later reverted (4.1 Reverts). */

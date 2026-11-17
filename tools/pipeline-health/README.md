@@ -23,7 +23,7 @@ with that category's state, so every page repeats the status line; Issues has no
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                                                                                                                                                      |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner". **Issue grouping** (fixing related issues in one pull request, design/ci/issue-grouping.md): issues closed per merged PR, merged PRs closing 2+ issues, runner-minutes per issue closed, grouped issues released as not part of their branch, and finished branches not opened.                                                                                                                                        |
 | CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget, and for full runs each test group's members added up per run against its test step's deadline (not OK past 80%), with the members slower than their `GROUP_MEMBER_SECONDS` entry; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
 | Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -198,10 +198,14 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 | `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
 | `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
 | `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
 runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`); only
+its share of grouped issues released as not part of their branch and its count of ready groups (finished branches not
+opened) are posted, as the source `grouping-ledger` (age limit 48 hours).
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -303,6 +307,9 @@ aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name gr
 ```
 
 Then invoke it without `restart` until it answers `"done": true`; passing `restart` again would start over each time.
+A restart also fills in the issues each stored pull request closes, which "Issues closed per merged PR" and
+"Runner-minutes per issue closed" count; until one runs, pull requests stored before that count was read are left out,
+so for the first 7 days runner-minutes per issue reads high.
 From a workstation the same is `pnpm run backfill -- --days 28 --restart`.
 
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;

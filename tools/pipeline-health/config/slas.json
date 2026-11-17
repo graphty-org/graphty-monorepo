@@ -115,6 +115,11 @@
             "label": "Rolling screenshot captures (results store)",
             "yellowAfterMs": 3600000,
             "notSetUp": "the results store's URL and token are not in SSM yet (owner step, design/visual-testing/early-capture.md)"
+        },
+        "grouping-ledger": {
+            "label": "Issue-grouping ledger (local, daily)",
+            "yellowAfterMs": 172800000,
+            "notSetUp": "no daily reading posted yet: issue-round appends tools/issue-groups.mjs metrics to tmp/issue-round/grouping-metrics.jsonl and the local collector posts it"
         }
     },
     "runnerLimits": {
@@ -317,6 +322,76 @@
             "minN": 20,
             "slowWindow": "7d",
             "sources": ["collector"]
+        },
+        {
+            "id": "pr.issues_per_merge",
+            "category": "pull_requests",
+            "label": "Issues closed per merged PR",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.issues_closed"
+            },
+            "ok": [">=", 1.3],
+            "fail": ["<", 0.88],
+            "minN": 20,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.multi_issue_share",
+            "category": "pull_requests",
+            "label": "Merged PRs closing 2+ issues",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.multi_issue"
+            },
+            "ok": [">=", 0.15],
+            "fail": ["<", 0.023],
+            "minN": 20,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.runner_minutes_per_issue",
+            "category": "pull_requests",
+            "label": "Runner-minutes per issue closed",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.runner_minutes_per_issue"
+            },
+            "ok": ["<=", 800],
+            "minN": 20,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.group_released_share",
+            "category": "pull_requests",
+            "label": "Grouped issues released as not part",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.group_released_share"
+            },
+            "ok": ["<=", 0.1],
+            "fail": [">", 0.15],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.groups_ready",
+            "category": "pull_requests",
+            "label": "Finished branches not opened",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_ready"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
         },
         {
             "id": "pr.automerge_green_stuck",
@@ -737,7 +812,14 @@
                 "metric": "flaky.net_change"
             },
             "ok": ["<=", 0],
-            "also": [{ "metric": "flaky.net_added" }, { "metric": "flaky.net_resolved" }],
+            "also": [
+                {
+                    "metric": "flaky.net_added"
+                },
+                {
+                    "metric": "flaky.net_resolved"
+                }
+            ],
             "fail": [">", 3],
             "slowWindow": "7d",
             "sources": ["ci-results"]

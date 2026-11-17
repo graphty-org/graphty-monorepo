@@ -43,6 +43,8 @@ beforeEach(() => {
     addRecord("ledger-verify-passed", "2026-10-25", 1_792_900_000);
     copyFileSync(join(fixtures, "push-log.jsonl"), join(root, "tmp/push-log.jsonl"));
     copyFileSync(join(fixtures, "waits.jsonl"), join(root, "tmp/waits.jsonl"));
+    mkdirSync(join(root, "tmp/issue-round"));
+    copyFileSync(join(fixtures, "grouping-metrics.jsonl"), join(root, "tmp/issue-round/grouping-metrics.jsonl"));
 });
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -57,6 +59,7 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
         "push-runs": 2,
         waits: 2,
         held: 1,
+        grouping: 2,
     });
     const text = JSON.stringify(calls);
     for (const banned of ["/home/", "/tmp/", "cwd", "sessionId", "gateLog", "heldBy", "waiter", '"log"']) {
@@ -72,6 +75,16 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
     assert.match(inv[0].failures[0].message, /bash tools\/push-queue\.sh git push/);
     assert.equal(inv[1].runUrl, "https://github.com/graphty-org/graphty-monorepo/actions/runs/40148074821");
     assert.equal(inv[1].reusedFrom, "local.1792890000000-1-graphty-element-default");
+    // A daily grouping-ledger line posts only its released share and ready groups; a null share is left out.
+    assert.deepEqual(calls.find((c) => c.kind === "grouping").body.rows, [
+        {
+            id: "local.grouping.2026-11-16T19:41:04.377Z",
+            at: Date.parse("2026-11-16T19:41:04.377Z"),
+            releasedShare: 0.003,
+            ready: 16,
+        },
+        { id: "local.grouping.2026-11-17T08:00:00.000Z", at: Date.parse("2026-11-17T08:00:00.000Z"), ready: 0 },
+    ]);
     const push = calls.find((c) => c.kind === "push-runs").body.rows;
     assert.deepEqual(push[1], {
         id: "local.push.291c6a4ffae5f0a8384096d5bb1968b37bfeaba0.2026-10-25T15:15:41Z",
@@ -181,7 +194,7 @@ test("dry run posts nothing and keeps no cursor", async () => {
     assert.equal(counts.waits.example.kind, "test-slot");
     const later = recorder();
     await collect({ root, post: later.post });
-    assert.equal(later.calls.length, 3);
+    assert.equal(later.calls.length, 4);
 });
 
 test("batches hold at most MAX_ROWS rows and 1 MB", () => {

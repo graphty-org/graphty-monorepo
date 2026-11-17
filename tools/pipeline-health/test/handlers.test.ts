@@ -213,6 +213,24 @@ describe("ingest: who may write", () => {
         expect(ssmSend).toHaveBeenCalledTimes(2);
     });
 
+    it("records a grouping-ledger reading as its two observations, under its own source", async () => {
+        const h = await ingest();
+        const row = {
+            id: "local.grouping.2026-11-16T19:41:04.377Z",
+            at: NOW - 60_000,
+            releasedShare: 0.003,
+            ready: 16,
+        };
+        expect((await h(event("/v1/local/grouping", { rows: [row] }, { auth: TOKEN }))).statusCode).toBe(200);
+        const values = Object.fromEntries(
+            [...mem.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.metric), i.value]),
+        );
+        expect(values).toEqual({ "issues.group_released_share": 0.003, "issues.groups_ready": 16 });
+        expect([...mem.items.values()].some((i) => i.pk === "META#source#grouping-ledger")).toBe(true);
+        const bad = { ...row, ready: "16" };
+        expect((await h(event("/v1/local/grouping", { rows: [bad] }, { auth: TOKEN }))).statusCode).toBe(400);
+    });
+
     it("refuses a local row whose id is not local", async () => {
         const h = await ingest();
         const res = await h(event("/v1/local/waits", { rows: [{ id: "500.1.x", end: NOW, ms: 5 }] }, { auth: TOKEN }));

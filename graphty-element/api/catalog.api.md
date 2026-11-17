@@ -619,6 +619,7 @@ export interface ChannelDescriptor {
     readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
+    readonly integer?: boolean;
     readonly listOf?: "color" | "number";
     readonly max?: number;
     readonly min?: number;

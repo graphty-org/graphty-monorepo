@@ -884,6 +884,12 @@ export interface ChannelDescriptor {
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
     /**
+     * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
+     * what it computes for such a channel.
+     * @since 3.40.0
+     */
+    readonly integer?: boolean;
+    /**
      * How many of this channel's numbers make one world unit, on a channel that is a length in the
      * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
      * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
@@ -1765,6 +1771,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("MaxLines", "Max Lines", {
             accepts: "number",
             min: 1,
+            integer: true,
             caveat: "The most lines drawn; the lines past it are cut. Unset, every line.",
         }),
         row("MaxLinesEllipsis", "Max Lines Ellipsis", {
@@ -1908,43 +1915,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
 
 /** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    ...LABEL_FIELD_OF_SUFFIX,
     Color: "textColor",
     Size: "fontSize",
-    LetterSize: "letterSize",
-    Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
-    WrapWidth: "wrapWidth",
-    WrapTrailingSpace: "wrapTrailingSpace",
-    WrapSkipEndSpace: "wrapSkipEndSpace",
-    WrapEllipsis: "wrapEllipsis",
-    WrapAnywhere: "wrapAnywhere",
-    WrapSpaceCount: "wrapSpaceCount",
-    MaxLines: "maxLines",
-    MaxLinesEllipsis: "maxLinesEllipsis",
-    RunAlign: "runAlign",
-    MinScreenSize: "minScreenSize",
-    OnTop: "onTop",
-    Rotation: "rotation",
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
-    Border: "borderColor",
-    BorderWidth: "borderWidth",
     Opacity: "textOpacity",
-    BackgroundOpacity: "backgroundOpacity",
     OutlineOpacity: "textOutlineOpacity",
-    BorderOpacity: "borderOpacity",
-    Padding: "boxPadding",
-    CornerRadius: "cornerRadius",
-    LineHeight: "lineHeight",
-    OffsetX: "offsetX",
-    OffsetY: "offsetY",
-    ShiftX: "shiftX",
-    ShiftY: "shiftY",
-    ShiftOf: "shiftOf",
-    GapOf: "gapOf",
-    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */

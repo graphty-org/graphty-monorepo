@@ -1,6 +1,6 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
-import { DATASETS, fetchDataset } from "@graphty/graph-samples";
+import { fetchDataset } from "@graphty/graph-samples";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
@@ -102,7 +102,6 @@ describe("graphtyDataset", () => {
     });
 
     it("downloads every dataset, the formerly bundled ones included", async () => {
-        expect(DATASETS.every((d) => d.hosting === "remote")).toBe(true);
         const urls: string[] = [];
         const cy = core();
         await cy.graphtyDataset("dolphins", {

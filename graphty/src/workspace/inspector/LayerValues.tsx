@@ -13,12 +13,13 @@ import { Button, ColorSwatch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { everythingRow, sourceName, wholeGraphRow } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
-import { useAsyncValue, useSessionVersion } from "./hooks";
+import { useAsyncValue } from "./hooks";
 import { nodeKey } from "./inspected";
 import { focusValuesNext, hidden, selectNode } from "./reads";
 import { PathValues } from "./RunValues";
@@ -582,7 +583,7 @@ export function LayerValues({
 }: Readonly<{ id: string; layerIds?: readonly string[] }>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     const styleVersion = useStyleVersion(session, element);
-    const sessionVersion = useSessionVersion(session);
+    const sessionVersion = useSessionEvents(session, INSPECTOR_EVENTS);
     if (session === null) {
         return null;
     }

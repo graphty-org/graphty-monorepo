@@ -350,7 +350,7 @@ const ROWS: Record<string, Row> = {
     "layout.unpin": { args: { action: "unpin", ids: ["a"] }, setup: (s) => s.positions.pin(["a"]) },
     "layout.set_positions": { args: { action: "set_positions", positions: [{ id: "a", x: 1, y: 2 }] } },
     "view.dimension": { args: { action: "dimension", dimension: "2d" } },
-    "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
+    "view.camera": { args: { action: "camera", preset: "topView" }, code: "AI_NOT_AVAILABLE" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
     "hidden.hide": { args: { action: "hide", ids: ["a"] } },
@@ -359,7 +359,7 @@ const ROWS: Record<string, Row> = {
     "view.restore": {
         args: { action: "restore", name: "kept" },
         setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
-        code: "E_UNSUPPORTED",
+        code: "AI_NOT_AVAILABLE",
     },
     "view.remove_saved": {
         args: { action: "remove_saved", name: "kept" },
@@ -533,8 +533,8 @@ const ROWS: Record<string, Row> = {
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },
     "capture.animation": { args: { action: "animation", seconds: 1 } },
     "capture.cancel": { args: { action: "cancel" } },
-    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "E_UNSUPPORTED" },
-    "immersive.exit": { args: { action: "exit" }, code: "E_UNSUPPORTED" },
+    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "AI_NOT_AVAILABLE" },
+    "immersive.exit": { args: { action: "exit" }, code: "AI_NOT_AVAILABLE" },
     "immersive.support": { args: { action: "support" } },
 };
 
@@ -990,7 +990,7 @@ const MORE: Record<string, Row[]> = {
     "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
     // The layout the session already has, so it is run again; a session with no renderer has no
     // layout to run.
-    "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],
+    "layout.set": [{ args: { action: "set", name: "force" }, code: "AI_NOT_AVAILABLE" }],
     "run_algorithm.run": [
         {
             // A class registered with no descriptor runs by its address, through the legacy op.
@@ -1008,7 +1008,7 @@ const MORE: Record<string, Row[]> = {
                 return assistantSession();
             },
             // A session with no renderer has nothing to run a legacy class on.
-            code: "E_UNSUPPORTED",
+            code: "AI_NOT_AVAILABLE",
         },
     ],
 };

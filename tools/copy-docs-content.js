@@ -61,6 +61,12 @@ const contentMap = [
         dest: "graph-samples",
         exclude: [".vitepress", "decisions"],
     },
+    // The guide pages include the tested examples under examples/ (`<<< ../examples/<name>.tsx`).
+    {
+        src: "compact-mantine/docs",
+        dest: "compact-mantine",
+        exclude: [".vitepress", "decisions"],
+    },
     {
         src: "remote-logger/docs",
         dest: "remote-logger",

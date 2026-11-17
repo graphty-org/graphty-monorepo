@@ -1312,7 +1312,7 @@ function datasets(): string[] {
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const bytes = d.bytes ?? 0;
+        const { bytes } = d;
         const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;

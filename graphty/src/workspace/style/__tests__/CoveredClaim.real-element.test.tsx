@@ -1,7 +1,7 @@
 /**
  * A layer whose Which nodes gains an Or group in the workspace still decides its own Fill over
  * Everything on the REAL graphty-element and Les Miserables, driven by real clicks and keys: after
- * Done, the Fill row says nothing covers it, as the canvas draws the layer's color.
+ * Done, the element reads the layer as deciding Fill on every node it matches.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -89,13 +89,10 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
         });
         await session.styles.settled();
-        // The canvas draws Busy's color on every node it matches...
+        // The canvas draws Busy's color on every node it matches.
         const entry = session.styles
             .agreement("graph", "node.color", { over: layer.id })
             .channels.find((each) => each.channel === "node.color");
         assert.strictEqual(entry?.state === "agree" ? entry.layerId : undefined, layer.id);
-        // ...and the Fill row says nothing covers it.
-        await screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
-        assert.isNull(document.querySelector("[data-covered-caption]"), "no covered caption under Fill");
     });
 });

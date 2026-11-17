@@ -354,8 +354,8 @@ describe("ingest: what it stores", () => {
         const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
         const res = await h(event("/v1/durations", { rows }, { claims: site }));
         expect(res.statusCode).toBe(200);
-        // Taken and checked, but not stored: nothing reads a step row (#6813).
-        expect(JSON.parse(res.body as string)).toMatchObject({ stored: 0 });
+        // Taken and checked, but no step row stored: nothing reads one (#6813). The answer is the results service's.
+        expect(JSON.parse(res.body as string)).toEqual({ stored: 1, kind: "deploy", trend: [], lastSeen: {} });
         expect([...mem.items.values()].some((i) => i.kind === "step")).toBe(false);
         // A site deploy's timings never make ci-results look fresh.
         const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
@@ -1034,5 +1034,283 @@ describe("results service routes (#3607)", () => {
         });
         expect((await h(event("/v1/channel-moves", move))).statusCode).toBe(403);
         expect((await read("/v1/site", { sha: "abc" })).status).toBe(400);
+    });
+
+    const answer = (res: { statusCode?: number; body?: unknown }) => ({
+        status: res.statusCode,
+        body: JSON.parse(String(res.body)),
+    });
+    const send = async (method: string, path: string, body: unknown, claims: Record<string, string> = CI_CLAIMS) => {
+        const e = event(path, body, { claims });
+        const h = await ingest();
+        return answer(await h({ ...e, requestContext: { ...e.requestContext, http: { method } } } as never));
+    };
+
+    it("answers a run's failed tests for its bisect, with those master saw fail before the last green site", async () => {
+        const h = await ingest();
+        const good = "1".repeat(40);
+        // master failed the test 2 days before the green commit's site, then a full run failed it again
+        await h(
+            event(
+                "/v1/invocations",
+                invocation({ id: "600.1.a.1", sha: BASE, startedAt: NOW - 3 * 86_400_000, failures: [fail] }),
+                { claims: master("600") },
+            ),
+        );
+        vi.setSystemTime(NOW - 86_400_000);
+        expect((await send("POST", "/v1/sites", { sha: good }, master("601", "deploy-pages.yml"))).body).toEqual({
+            stored: true,
+            sha: good,
+        });
+        vi.setSystemTime(NOW);
+        const other = { file: "b.test.ts", name: "loads", message: "boom" };
+        const run = invocation({ id: "700.1.test.layout-2.1", sha: "2".repeat(40), failures: [fail] });
+        expect((await h(event("/v1/invocations", run, { claims: master("700") }))).statusCode).toBe(200);
+        // a failure event before its record names the same run
+        const posted = await send(
+            "POST",
+            "/v1/failures",
+            { invocation: "700.1.test.layout-3.1", ...other },
+            master("700"),
+        );
+        expect(posted.body).toEqual({ stored: 1 });
+        const failures = await read("/v1/failures", { run: "700", good });
+        expect(failures.body).toEqual({
+            tests: [
+                { shard: "layout-2", file: "a.test.ts", name: "draws" },
+                { shard: "layout-3", file: "b.test.ts", name: "loads" },
+            ],
+            failedBefore: ["layout-2: a.test.ts > draws"],
+        });
+        expect((await read("/v1/failures", { run: "700" })).body.failedBefore).toEqual([]);
+        expect((await read("/v1/failures", { run: "x" })).status).toBe(400);
+    });
+
+    it("answers the candidate pick and release state from sites, verdicts, nightly moves and the hold", async () => {
+        const [a, b, c] = ["a", "b", "c"].map((x) => x.repeat(40));
+        const deploy = master("800", "deploy-pages.yml");
+        for (const [i, sha] of [a, b, c].entries()) {
+            vi.setSystemTime(NOW + i * 1000);
+            await send("POST", "/v1/sites", { sha }, deploy);
+        }
+        // a re-post keeps the first build
+        expect((await send("POST", "/v1/sites", { sha: a }, deploy)).body.stored).toBe(false);
+        vi.setSystemTime(NOW + 5000);
+        await send("POST", "/v1/verdicts", { sha: a, state: "green-clean" }, master("801"));
+        const move = { channel: "nightly", sha: a, siteSha256: "1".repeat(64), channelSha256: "2".repeat(64) };
+        await send("POST", "/v1/channel-moves", move, master("802", "nightly-site.yml"));
+        vi.setSystemTime(NOW + 6000);
+        await send("POST", "/v1/verdicts", { sha: b, state: "green-images" }, master("803"));
+        vi.setSystemTime(NOW + 10_000);
+        const candidate = await read("/v1/candidate", {});
+        expect(candidate.body).toMatchObject({
+            candidate: { sha: c, builtAt: NOW + 2000 },
+            judged: null,
+            sites: [c, b, a],
+            hold: null,
+        });
+        expect(candidate.body.recent.map((v: { sha: string; runId: number }) => [v.sha, v.runId])).toEqual([
+            [b, 803],
+            [a, 801],
+        ]);
+        let state = await read("/v1/release-state", {});
+        expect(state.body).toMatchObject({
+            nightly: { sha: a, movedAt: NOW + 5000 },
+            red: null,
+            offered: { sha: b, state: "green-images", builtAt: NOW + 1000 },
+            canary: { sha: c },
+            ageNightlyMs: 10_000 - 1000,
+            blocking: "unjudged",
+            hold: null,
+        });
+        // one hold at a time; a clear naming another hold clears nothing
+        const release = master("804");
+        expect((await send("POST", "/v1/hold", { base: b, head: c, issue: 9 }, release)).body).toEqual({ held: true });
+        expect((await send("POST", "/v1/hold", { base: c, head: c }, release)).status).toBe(409);
+        // the same base moves the hold (a fix forward), replacing it whole
+        expect((await send("POST", "/v1/hold", { base: b, head: c, issue: 9 }, release)).body).toEqual({ held: true });
+        state = await read("/v1/release-state", {});
+        expect(state.body).toMatchObject({ blocking: "held", offered: null, hold: { base: b, head: c, issue: 9 } });
+        const abandon = master("805", "nightly-abandon.yml");
+        expect((await send("POST", "/v1/hold", { base: b, head: c }, abandon)).status).toBe(403);
+        expect((await send("POST", "/v1/hold", { clear: true }, abandon)).status).toBe(400);
+        expect((await send("POST", "/v1/hold", { clear: true, base: a, head: c }, abandon)).body).toEqual({
+            cleared: false,
+        });
+        expect((await send("POST", "/v1/hold", { clear: true, base: b, head: c }, abandon)).body).toEqual({
+            cleared: true,
+        });
+        expect((await read("/v1/candidate", {})).body.hold).toBeNull();
+        expect((await send("POST", "/v1/hold", { clear: true }, release)).body).toEqual({ cleared: false });
+        expect((await send("POST", "/v1/hold", { base: b, head: c }, master("806", "ci.yml"))).status).toBe(403);
+    });
+
+    it("dispatches a base check once per base, file and variant, and lets its holder give it back", async () => {
+        const ask = { base: "abcdef1", file: "a.test.ts", variant: VARIANT, pr: 12 };
+        expect((await send("POST", "/v1/base-checks", ask)).body).toEqual({ dispatch: true });
+        // the holder's re-send is answered true again; another run's ask false
+        expect((await send("POST", "/v1/base-checks", ask)).body).toEqual({ dispatch: true });
+        const other = { ...CI_CLAIMS, run_id: "501" };
+        expect((await send("POST", "/v1/base-checks", ask, other)).body).toEqual({ dispatch: false });
+        expect((await send("DELETE", "/v1/base-checks", ask, other)).body).toEqual({ released: false });
+        expect((await send("DELETE", "/v1/base-checks", ask)).body).toEqual({ released: true });
+        expect((await send("POST", "/v1/base-checks", ask, other)).body).toEqual({ dispatch: true });
+        expect((await send("POST", "/v1/base-checks", { ...ask, base: "xyz" })).status).toBe(400);
+        expect((await send("POST", "/v1/base-checks", ask, master("900"))).status).toBe(403);
+    });
+
+    it("answers master's duration trend, last samples and medians, and a pull request's trend empty", async () => {
+        const rowsOf = (run: number, ms: number) => [
+            { runId: run, attempt: 1, workflow: "ci.yml", job: "build", ms, sha: `s${run}`, startedAt: NOW + run },
+            { runId: run, attempt: 1, workflow: "ci.yml", job: "build", step: "lint", ms: 1000, startedAt: NOW + run },
+            {
+                runId: run,
+                attempt: 1,
+                workflow: "ci.yml",
+                job: "x",
+                ms: 1,
+                startedAt: NOW + run,
+                conclusion: "cancelled",
+            },
+        ];
+        const push = (run: number) => ({
+            ...master(String(run), "ci.yml"),
+            event_name: "push",
+            workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/ci.yml@refs/heads/master",
+        });
+        let last: { body: Record<string, unknown> } = { body: {} };
+        for (let run = 1; run <= 15; run++) {
+            // 10 runs of 100 s, then 5 of 300 s: over 1.3 x and 60 s slower
+            last = await send("POST", "/v1/durations", { rows: rowsOf(run, run <= 10 ? 100_000 : 300_000) }, push(run));
+        }
+        expect(last.body).toMatchObject({ stored: 3, kind: "master" });
+        expect(last.body.trend).toEqual([
+            { key: "job:ci.yml:build", kind: "master", recent: 300, earlier: 100, alarm: true, range: "s10..s11" },
+            { key: "step:ci.yml:build:lint", kind: "master", recent: 1, earlier: 1, alarm: false, range: null },
+        ]);
+        expect(last.body.lastSeen).toEqual({
+            "job:ci.yml:build": { runId: 15, sha: "s15", at: NOW + 15, runsSince: 0 },
+            "step:ci.yml:build:lint": { runId: 15, sha: null, at: NOW + 15, runsSince: 0 },
+        });
+        const medians = await read("/v1/durations/medians", { workflows: "ci.yml", kind: "master", n: "3" });
+        expect(medians.body).toEqual({ "job:ci.yml:build": 300, "step:ci.yml:build:lint": 1 });
+        expect((await read("/v1/durations/medians", { workflows: "" })).status).toBe(400);
+        const pr = [{ runId: 500, attempt: 1, workflow: "ci.yml", job: "build", ms: 5, startedAt: NOW }];
+        expect((await send("POST", "/v1/durations", { rows: pr })).body).toEqual({
+            stored: 1,
+            kind: "pr",
+            trend: [],
+            lastSeen: {},
+        });
+        expect((await send("POST", "/v1/durations", { rows: [{ ...pr[0], runId: 9 }] })).status).toBe(403);
+    });
+
+    it("keeps a test duration history master writes and anyone reads", async () => {
+        const history = { "p\u0000a.test.ts\u0000draws": [12, 15] };
+        const path = "/v1/durations/tests/test-durations-layout-1";
+        expect((await read(path, {})).body).toEqual({});
+        expect((await send("PUT", path, history, master("900"))).body).toEqual({ stored: true });
+        expect((await read(path, {})).body).toEqual(history);
+        expect((await send("PUT", path, history)).status).toBe(403);
+        expect((await send("PUT", "/v1/durations/tests/a%20b", history, master("900"))).status).toBe(400);
+    });
+
+    it("answers each story's newest capture, its first unapproved render, the units and their reach", async () => {
+        const slices = (run: string, attempt = "1") => ({ ...master(run, "story-slices.yml"), run_attempt: attempt });
+        const tree = "7".repeat(40);
+        const post = (sha: string, status: string, run: string, attempt?: string) =>
+            send(
+                "POST",
+                "/v1/story-captures",
+                {
+                    sha,
+                    baselinesTree: tree,
+                    artifact: `shots-${run}`,
+                    captures: [{ project: "graphty", story: "Panel", mode: "dark", status, hash: run }],
+                    units: [{ project: "graphty", unit: "panels" }],
+                    notified: status === "new" ? ["queue"] : [],
+                },
+                slices(run, attempt),
+            );
+        const [s1, s2, s3] = ["1", "2", "3"].map((x) => x.repeat(40));
+        expect((await post(s1, "unchanged", "10")).body).toEqual({ stored: 1 });
+        await post(s2, "changed", "11");
+        await post(s3, "new", "12");
+        // a late re-run of an older slice hides no newer render, and a re-post stores nothing
+        await post(s1, "unchanged", "10", "2");
+        expect((await post(s3, "new", "12")).body).toEqual({ stored: 0 });
+        const got = await read("/v1/story-captures", {});
+        expect(got.body.captures).toEqual([
+            {
+                project: "graphty",
+                story: "Panel",
+                mode: "dark",
+                sha: s3,
+                baselinesTree: tree,
+                runId: 12,
+                attempt: 1,
+                artifact: "shots-12",
+                status: "new",
+                hash: "12",
+                baselineHash: null,
+                at: NOW,
+                firstUnapprovedSha: s2,
+            },
+        ]);
+        expect(got.body.summary).toEqual({
+            stories: 1,
+            lastSliced: { sha: s3, at: NOW },
+            oldestNewestAt: NOW,
+            statuses: { new: 1 },
+            queue: 1,
+        });
+        expect(got.body.notified).toEqual({ queue: NOW, slot: null });
+        expect(got.body.units).toEqual([{ project: "graphty", unit: "panels", sha: s3, at: NOW }]);
+        expect((await post(s1, "bogus", "13")).status).toBe(400);
+        expect((await send("POST", "/v1/story-captures", {}, master("14"))).status).toBe(403);
+
+        const build = {
+            ...master("20", "ci.yml"),
+            event_name: "push",
+            sha: s1,
+            workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/ci.yml@refs/heads/master",
+        };
+        expect((await send("POST", "/v1/story-reach", { sha: s1, units: ["panels", "graph"] }, build)).body).toEqual({
+            stored: 2,
+        });
+        expect((await send("POST", "/v1/story-reach", { sha: s2, units: ["x"] }, build)).status).toBe(403);
+        expect((await read("/v1/story-reach", { shas: `${s1},${s2}` })).body).toEqual({
+            reach: [
+                { sha: s1, unit: "graph" },
+                { sha: s1, unit: "panels" },
+            ],
+        });
+        expect((await read("/v1/story-reach", { shas: "" })).status).toBe(400);
+    });
+
+    it("answers the whole quarantine and the issues a master run's family tracks", async () => {
+        const sha = "9".repeat(40);
+        const run = (id: string, failures: unknown[]) =>
+            invocation({
+                id,
+                sha,
+                variant: VARIANT,
+                inputs: "k",
+                outcome: failures.length ? "failed" : "passed",
+                failures,
+            });
+        const h = await ingest();
+        await h(event("/v1/invocations", run("700.1.a.1", [fail]), { claims: master("700") }));
+        const proved = answer(await h(event("/v1/invocations", run("701.1.a.1", []), { claims: master("701") })));
+        expect(proved.body).toMatchObject({ stored: true, kind: "full", tracked: [] });
+        expect(proved.body.flaky).toHaveLength(1);
+        const issue = { signature: "s", number: 7, kind: "flaky", family: "layout", file: "a.test.ts", name: "draws" };
+        await h(event("/v1/issues", issue, { claims: master("702") }));
+        const again = answer(await h(event("/v1/invocations", run("703.1.a.1", []), { claims: master("703") })));
+        expect(again.body).toMatchObject({ flaky: [], tracked: [7] });
+        expect((await read("/v1/quarantine", {})).body.quarantine).toEqual([
+            expect.objectContaining({ family: "layout", file: "a.test.ts", issue: 7, since: NOW }),
+        ]);
+        expect((await read("/v1/nowhere", {})).status).toBe(404);
     });
 });

@@ -1,11 +1,9 @@
 /**
- * GpuContext (spec 2.2, 2.8, 3.3, 5.7; contract 3.5): one device, its caps and the singletons built on it --
- * the composition root of D26. probe() never creates a device; create() runs the six steps of spec 2.2 in
- * order; from() adopts a device the caller owns. Step 5 (the uncapturederror sink and the device.lost
+ * GpuContext: one device, its caps and the singletons built on it -- the composition root every layer above the
+ * device is built from. probe() never creates a device; create() runs the six acquisition steps in order; from() adopts a device the caller owns. Step 5 (the uncapturederror sink and the device.lost
  * watcher) and step 6 (the AllocationTracker, GraphResidency, BufferPool, Readback and PipelineCache) run
- * in the private constructor. The Profiler is constructed when "timestamp-query" is on the device (contract
- * 3.5; P2-T1) with `quantised` = runtime !== "node" (Dawn-node is the only runtime whose ticks are known
- * unquantised, spec 2.6). This file never imports ./kernels.js or ./wgsl/**.
+ * in the private constructor. The Profiler is constructed when "timestamp-query" is on the device, with
+ * `quantised` = runtime !== "node" (Dawn-node is the only runtime whose ticks are known unquantised). This file never imports ./kernels.js or ./wgsl/**.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -39,9 +37,9 @@ import type {
 
 /** The label a context and its device carry when create() is given none. */
 const DEFAULT_LABEL = "webgpu-graph-algorithms";
-/** The optionalFeatures default of spec 2.2. */
+/** The optionalFeatures create() asks for when given none. */
 const DEFAULT_OPTIONAL_FEATURES: readonly GPUFeatureName[] = Object.freeze(["subgroups", "timestamp-query"]);
-/** The powerPreference default of spec 2.2 (Chrome 145 needs it; Dawn-node ignores it). */
+/** The powerPreference create() asks for when given none (Chrome 145 needs it; Dawn-node ignores it). */
 const DEFAULT_POWER_PREFERENCE: GPUPowerPreference = "high-performance";
 
 /** What the private constructor takes: the device, its caps and the create-time choices. */
@@ -74,20 +72,20 @@ async function adapterOf(options: GpuContextOptions): Promise<GPUAdapter> {
     });
 }
 
-/** One device, its caps and the singletons built on it (spec 3.3; the composition root of D26). */
+/** One device, its caps and the singletons built on it. */
 export class GpuContext {
     /** The device (owned when create() made it, adopted otherwise). */
     readonly device: GPUDevice;
-    /** The capability record captured from device.limits / device.features (spec 3.3). */
+    /** The capability record captured from device.limits / device.features. */
     readonly caps: GpuCaps;
-    /** Resolves with the lost info once the device is lost or destroyed (spec 2.8). */
+    /** Resolves with the lost info once the device is lost or destroyed. */
     readonly lost: Promise<GPUDeviceLostInfo>;
     /**
-     * The upload cache (spec 3.3).
+     * The upload cache.
      * @internal
      */
     readonly residency: GraphResidency;
-    /** Non-null when "timestamp-query" was granted (P2-T1 makes it functional; P1 always null). */
+    /** Non-null when "timestamp-query" was granted. */
     readonly profiler: Profiler | null;
     /**
      * The compile-once pipeline cache.
@@ -110,7 +108,7 @@ export class GpuContext {
      */
     readonly allocator: AllocationTracker;
     /**
-     * The workgroup size of this device (spec 5.1).
+     * The workgroup size of this device.
      * @internal
      */
     readonly workgroupSize: number;
@@ -151,7 +149,7 @@ export class GpuContext {
     private batchCounter = 0;
 
     /**
-     * Steps 5 and 6 of create() (spec 2.2): the sink, the loss watcher and the singletons.
+     * Steps 5 and 6 of create(): the sink, the loss watcher and the singletons.
      * @param init - the device, its caps and the create-time choices
      */
     private constructor(init: ContextInit) {
@@ -181,7 +179,7 @@ export class GpuContext {
     }
 
     /**
-     * Probe without creating a device (spec 2.2); never throws. `gpu === undefined` -> E_NO_WEBGPU;
+     * Probe without creating a device; never throws. `gpu === undefined` -> E_NO_WEBGPU;
      * requestAdapter() null or a throw -> E_NO_ADAPTER; `rejectSoftware && software` -> E_SOFTWARE_ONLY (the
      * adapter and its summary are still reported); else OK with the UNUSED adapter and its summary.
      * @param options - the GPU object, the power preference and the software policy
@@ -219,7 +217,7 @@ export class GpuContext {
     }
 
     /**
-     * The six-step acquisition of spec 2.2: adopt `device`, else take `adapter`, else request one from `gpu`
+     * The six-step acquisition: adopt `device`, else take `adapter`, else request one from `gpu`
      * (step 1); the software test (step 2); the limits / features and requestDevice (step 3); the caps from
      * device.limits plus assertPlanLimits (step 4); the sink, the loss watcher and the singletons (steps 5-6,
      * in the constructor).
@@ -311,8 +309,8 @@ export class GpuContext {
     }
 
     /**
-     * Throws E_DEVICE_LOST / E_DISPOSED by state and rethrows a pending uncaptured error (spec 5.7: "thrown
-     * from the next public call").
+     * Throws E_DEVICE_LOST / E_DISPOSED by state and rethrows a pending uncaptured error (an uncaptured error is
+     * thrown from the next public call).
      * @internal
      */
     assertReady(): void {
@@ -375,7 +373,7 @@ export class GpuContext {
     }
 
     /**
-     * Destroys every buffer recorded for the snapshot (spec 4.5), then `pool.trim()` (spec 4.4: idle scratch
+     * Destroys every buffer recorded for the snapshot, then `pool.trim()` (idle scratch
      * goes with the graph); idempotent; safe on a snapshot never uploaded; a no-op after dispose().
      * @param snapshot - the snapshot whose buffers are released
      */
@@ -389,7 +387,7 @@ export class GpuContext {
 
     /**
      * Rejects pending work with E_DISPOSED (every later public call), destroys residency, pool and staging
-     * ring, destroys the device when owned, runs attached disposers; idempotent (spec 2.8).
+     * ring, destroys the device when owned, runs attached disposers; idempotent.
      */
     dispose(): void {
         if (this.currentState === "disposed") {
@@ -413,7 +411,7 @@ export class GpuContext {
     }
 
     /**
-     * Step 5 of spec 2.2 on loss: state "lost", the residency cleared without destroying (the buffers are
+     * Step 5 of create(), on loss: state "lost", the residency cleared without destroying (the buffers are
      * gone with the device), every registered listener run once; a loss reported after dispose() (the owned
      * device was destroyed by dispose) changes nothing.
      * @param info - the device.lost result

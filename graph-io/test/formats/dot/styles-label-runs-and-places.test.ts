@@ -1,5 +1,5 @@
 /**
- * DOT settings fix round 3 of the specimen sheets found graph-io missing: each test fails without its fix.
+ * DOT settings the specimen sheets found graph-io missing: HTML font runs and label places. Each test fails without its fix.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";

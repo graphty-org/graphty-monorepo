@@ -1,5 +1,5 @@
 /**
- * What Cytoscape desktop 3.10.5 draws for the CX settings fix round 3 of its specimen sheets showed graph-io read
+ * What Cytoscape desktop 3.10.5 draws for parallel edges in CX, where its specimen sheets showed graph-io read
  * otherwise.
  */
 

@@ -1,6 +1,7 @@
 /**
- * What Pajek 6.02's SVG export draws for the settings the Pajek specimen pages showed graph-io read otherwise in the
- * third fix round: the diamond's `q`, shapes turned by `phi`, and the hooks `h1` and `h2` a line runs between.
+ * What Pajek 6.02's SVG export draws for the settings the Pajek specimen pages showed graph-io read otherwise: the
+ * diamond's `q`, shapes turned by `phi`, Bezier arcs, arrowhead places, Dots, and the hooks `h1` and `h2` a line runs
+ * between.
  */
 
 import { describe, expect, it } from "vitest";
@@ -329,7 +330,7 @@ describe("Pajek Dots and negative values", () => {
 describe("Pajek vertex lines Pajek draws with none of their parameters", () => {
     it("draws a line that starts with s_size, bw or another such key at the defaults, in the shape before it", async () => {
         // pajek-specimen-node-sizes-opacity `s-size-no-shape` (`s_size 2 ic Red` after a box): a box 20 across in
-        // #ffd9bc; a line starting `ic` or `x_fact` is read whole (probed in Pajek 6.02, third fix round)
+        // #ffd9bc; a line starting `ic` or `x_fact` is read whole (probed in Pajek 6.02)
         const { get } = await load(
             "*Vertices 4\n1 a 0.1 0.1 0.5 box x_fact 1.8 ic Gray\n2 b 0.2 0.2 0.5 s_size 2 ic Red\n" +
                 "3 c 0.3 0.3 0.5 bw 3 ic Blue y_fact 2\n4 d 0.4 0.4 0.5 ic Red x_fact 2\n",

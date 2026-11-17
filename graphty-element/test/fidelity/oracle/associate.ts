@@ -1610,7 +1610,11 @@ function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | un
     }
     let at = byLine.get(run);
     if (at === undefined) {
-        at = leaveBox(run, boxOfNode(node), node.shape === "ellipse");
+        const { endBox } = node;
+        at =
+            endBox === undefined
+                ? leaveBox(run, boxOfNode(node), node.shape === "ellipse")
+                : leaveBox(run, boxOfNode({ ...node, ...endBox }));
         byLine.set(run, at);
     }
     return at;
@@ -1877,6 +1881,23 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd, reach = 1, n
     const across = Math.abs(((b[0] - a[0]) * (back[0] - q[0]) + (b[1] - a[1]) * (back[1] - q[1])) / (chord * dir));
     const middle = Math.hypot((a[0] + b[0]) / 2 - q[0], (a[1] + b[1]) / 2 - q[1]);
     return across < 0.3 && middle <= reach * chord;
+}
+
+/**
+ * The ends of an edge an open stroke caps across (`capsAcross`), as arrowhead ends.
+ * @param stroke - the stroke's points
+ * @param e - the edge
+ * @param nodes - the drawn nodes
+ * @returns each end it caps, with its edge
+ */
+function endsCapped(
+    stroke: readonly Pt[],
+    e: PEdge,
+    nodes: readonly PNode[],
+): { e: PEdge; end: "source" | "target" }[] {
+    return (["source", "target"] as const)
+        .filter((end) => capsAcross(stroke, e, end, 1, nodes))
+        .map((end) => ({ e, end }));
 }
 
 /**
@@ -2520,6 +2541,8 @@ export interface Association {
  */
 export interface DrawnNodes {
     nodes: { id: string; x: number; y: number; w: number; h: number; box?: PBox }[];
+    /** The view's scale: the SVG's pixels to one of the program's own (vis-network's `observed.scale`). */
+    scale?: number;
 }
 
 /**
@@ -2579,6 +2602,10 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
     });
 }
 
+/** vis-network's default node margin and border width, in its own pixels. */
+const VIS_MARGIN = 5;
+const VIS_BORDER = 1;
+
 /**
  * A node the program names but drew no body for (vis-network's text node, its words alone) takes its place and size
  * from where the program says it drew it, not from its words: vis-network runs each line to its center and ends the
@@ -2602,17 +2629,28 @@ function drawnBodyless(
             n.shape !== null ||
             n.fill !== null ||
             n.stroke !== null ||
-            (n.pictures?.length ?? 0) > 0 ||
-            // an icon node's glyph is its body (nodeFrom), its box also holding the label below it
-            n.faceless?.some(iconGlyph) === true
+            (n.pictures?.length ?? 0) > 0
         ) {
             continue;
         }
         const hw = Math.min(d.x - d.box.x0, d.box.x1 - d.x);
         const hh = Math.min(d.y - d.box.y0, d.box.y1 - d.y);
-        if (hw > 0 && hh > 0) {
-            nodes.set(id, { ...n, cx: d.x, cy: d.y, w: 2 * hw, h: 2 * hh, drawnBox: true });
+        if (!(hw > 0 && hh > 0)) {
+            continue;
         }
+        if (n.faceless?.some(iconGlyph) === true) {
+            // An icon node's glyph is its body (nodeFrom), its box holding the glyph alone; vis-network ends its lines
+            // and arrowheads at that box with the node's margin and border round it (Icon.resize, _distanceToBorder:
+            // json-vis-synth 13 -> 14 -> 15).
+            // ponytail: vis-network's default margin (5) and border (1); a file setting others would need them here
+            const k = drawn?.scale;
+            if (k !== undefined) {
+                const out = 2 * (VIS_MARGIN + VIS_BORDER) * k;
+                nodes.set(id, { ...n, endBox: { w: 2 * hw + out, h: 2 * hh + out } });
+            }
+            continue;
+        }
+        nodes.set(id, { ...n, cx: d.x, cy: d.y, w: 2 * hw, h: 2 * hh, drawnBox: true });
     }
 }
 
@@ -4104,12 +4142,20 @@ export function associate(
         if (forkedArms.has(p)) {
             continue;
         }
-        const best = arrowheadEdge(
+        const nearest = arrowheadEdge(
             p,
             withPieces.filter((e) => e !== piece),
             nodeList,
             centerLines,
         );
+        // vis-network stands its inv_curve's half circle 0.3 of its length back from where the line leaves the node,
+        // bulging away from it: too far from the end by its tip to be read as that end's, it is read as the middle
+        // arrow of its line, which it does not cross there; it caps the end it crosses (json-vis-synth 6 -> 7, at a
+        // star)
+        const best =
+            nearest?.end === "middle" && !capsAcross(p.points, nearest.e, "middle", 1, nodeList)
+                ? (endsCapped(p.points, nearest.e, nodeList)[0] ?? nearest)
+                : nearest;
         if (
             best !== null &&
             (best.end !== "middle" || piece === null) &&

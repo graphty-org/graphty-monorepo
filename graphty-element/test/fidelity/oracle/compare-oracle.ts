@@ -1085,7 +1085,9 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
-    const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
+    // the same node at both ends, however each end's copy of it was made (each end's outline is its own object)
+    const loop = start !== undefined && start.id === end?.id;
+    const head = trimStart(loop ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
     // what is left wholly under its nodes (two nodes drawn over one another, the line between their centers) shows no
     // part between them: a sliver cut from it would be judged as the route (pajek-synth-vertices 32->41)
@@ -1138,8 +1140,14 @@ export function routeShape(
     if (loop) {
         const unit = Math.max(length, 1e-9);
         const [sx, sy] = shift[0];
-        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
-        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+        const onNode = resample(
+            g.map(([x, y]): Pt => [x - sx, y - sy]),
+            N,
+        );
+        // a loop's arc runs either way round its node, as a ring does: which way it runs is its arrowhead's to say
+        // (edge.arrow); vis-network strokes its loop clockwise and graphty counterclockwise (json-vis-synth 55 -> 55)
+        const O = resample(o, N);
+        return { gap: Math.min(frechet(O, onNode), frechet(O, [...onNode].reverse())) / unit, unit };
     }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
@@ -2367,11 +2375,12 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
-        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text and icon
-        // nodes, whose lines it runs to their middle) is cut at that box, and graphty's line at its own node's box
-        if (on?.drawnBox === true && at !== undefined) {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text nodes, whose
+        // lines it runs to their middle), or where it ends their lines (`PNode.endBox`: its icon nodes), is cut at that
+        // box, and graphty's line at its own node's box
+        if ((on?.drawnBox === true || on?.endBox !== undefined) && at !== undefined) {
             return [
-                { ...on, shape: "rect" },
+                { ...on, ...on.endBox, shape: "rect" },
                 { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
             ];
         }

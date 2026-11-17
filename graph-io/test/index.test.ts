@@ -316,6 +316,7 @@ const VALUE_EXPORTS = [
     "replayFetch",
     "recordingFrom",
     "sha256Hex",
+    "sha256HexSync",
     "NDEX_SOURCE_ID",
     "CYPHER_SOURCE_ID",
     "NEO4J_SOURCE_ID",

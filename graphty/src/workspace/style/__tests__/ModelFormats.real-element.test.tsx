@@ -384,7 +384,10 @@ describe("every model format and variant, through the Load custom model dialog",
         const files = await within(dialog).findByTestId("model-files");
         const row = await within(files).findByRole("group", { name: "cube.png" });
         assert.isNotNull(within(row).getByText("Texture"));
-        assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
+        assert.isNull(
+            within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"),
+            "a missing picture does not block Add",
+        );
         await chooseIn(row, "Choose cube.png", [`${VARIANTS}/obj-mtl-png/cube.png`]);
         const waiting = TABLE.find((v) => v.id === "obj-mtl-missing-png");
         assert.isDefined(waiting);

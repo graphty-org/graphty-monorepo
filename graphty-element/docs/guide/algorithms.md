@@ -114,9 +114,6 @@ for (const swatch of block?.swatches ?? []) {
 }
 ```
 
-`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
-group from `rank` in your own language instead.
-
 #### Hiding one group
 
 `styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint

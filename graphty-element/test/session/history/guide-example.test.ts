@@ -45,7 +45,7 @@ describe("the undo guide's example", () => {
             await tx.data.addNodes([{ id: "d" }]);
             await tx.data.addEdges([{ source: "c", target: "d" }]);
         });
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Grow the chain");
+        assert.strictEqual(session.history.steps.at(-1)?.fact.params.label, "Grow the chain");
         assert.strictEqual(session.data.statistics().nodeCount, 4);
 
         await session.undo();

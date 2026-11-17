@@ -55,7 +55,7 @@ describe("a note's tags", () => {
 
         session.notes.update(id, { tags: ["lead", "checked"] });
         assert.deepEqual(session.notes.get(id)?.tags, ["lead", "checked"]);
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Edited note");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "note.update", params: {} });
         session.notes.update(id, { tags: null });
         assert.notProperty(session.notes.get(id), "tags");
         await session.undo();

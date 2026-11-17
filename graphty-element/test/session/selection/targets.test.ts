@@ -93,9 +93,9 @@ function registryOf(entries: readonly ResultsRunEntry[]): ResultsRegistry {
 
 const RESULTS: ResultsApi = createResultsApi(
     registryOf([
-        { id: "degree", label: "Connections", shape: "node-metric", result: NODE_METRIC },
-        { id: "weight", label: "Weight", shape: "edge-metric", result: EDGE_METRIC },
-        { id: "running", label: "Bridges", shape: "node-metric" },
+        { id: "degree", shape: "node-metric", result: NODE_METRIC },
+        { id: "weight", shape: "edge-metric", result: EDGE_METRIC },
+        { id: "running", shape: "node-metric" },
     ]),
 );
 
@@ -528,9 +528,7 @@ describe("a finished run's ranking", () => {
             caveats: CAVEATS,
             durationMs: 1,
         });
-        const results = createResultsApi(
-            registryOf([{ id: "tied", label: "Tied", shape: "node-metric", result: tied }]),
-        );
+        const results = createResultsApi(registryOf([{ id: "tied", shape: "node-metric", result: tied }]));
         const selection = selectionOf(harness, { results });
 
         selection.applyNow({ top: { run: "tied", field: "value", n: 2 } });

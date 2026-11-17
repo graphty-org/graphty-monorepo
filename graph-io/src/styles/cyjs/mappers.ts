@@ -1316,13 +1316,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "shape":
             return cyjsShape(String(word), site);
         case "borderStyle":
-            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":
-            // cytoscape.js 3.34.3 drawOutline strokes a double outline whole and then erases a line a third of the
-            // BORDER's width down its middle, a hairline under a border of 1: the ring it shows is solid
-            return word === "double"
-                ? "solid"
-                : (canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined);
+            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "lineStyle":
             return canonEnum("lineStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "sourceArrow":

@@ -1,5 +1,5 @@
 /**
- * XGMML specimen fixes, round 2: what Cytoscape desktop 3.10.5's own SVG export draws for settings graph-io read
+ * What Cytoscape desktop 3.10.5's own SVG export draws for settings graph-io read
  * otherwise (the xgmml-specimen-* oracles in graph-io/test/fidelity/oracles/).
  */
 

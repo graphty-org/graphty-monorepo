@@ -1,5 +1,5 @@
 /**
- * GEXF labels and settings drawn as Gephi Toolkit 0.11.3 draws them (specimen sheet fix round 2).
+ * GEXF labels and settings drawn as Gephi Toolkit 0.11.3 draws them.
  */
 
 import { describe, expect, it } from "vitest";

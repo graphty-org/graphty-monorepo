@@ -1,5 +1,5 @@
 /**
- * Cytoscape session specimen fixes, round 2: what Cytoscape desktop 3.10.5's own SVG export draws for the session
+ * What Cytoscape desktop 3.10.5's own SVG export draws for the session
  * sheets' settings (the cys-specimen-* oracles in graph-io/test/fidelity/oracles/), read from the sessions Cytoscape
  * itself saved.
  */

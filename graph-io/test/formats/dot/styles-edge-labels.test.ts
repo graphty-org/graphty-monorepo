@@ -1,5 +1,5 @@
 /**
- * DOT edge label settings round 4 of the specimen sheets found graph-io missing (dot-specimen-edge-labels): the head
+ * DOT edge label settings the specimen sheets found graph-io missing (dot-specimen-edge-labels): the head
  * and tail labels' own face, and where Graphviz puts an edge label it was not given a place for. Each test fails
  * without its fix.
  */

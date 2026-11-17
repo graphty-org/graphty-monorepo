@@ -509,14 +509,47 @@ describe("the Data place's sidebar on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["File...Ctrl+O", "Samples...", "Network data...", "PasteCtrl+V"],
+            ["File...Ctrl+O", "Samples...", "Generator...", "Network data...", "PasteCtrl+V"],
         );
         for (const item of items) {
             assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
         }
         assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
-        assert.equal(items[3]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("adds a generated graph as a source from Sources + > Generator..., with the parameters set", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        assert.lengthOf(session.data.nodes(), 5);
+
+        await userEvent.click(place().getByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Generator..." }));
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
+        // It opens on graph-samples' generators, and only them.
+        assert.deepEqual(
+            within(samples)
+                .getAllByRole("region")
+                .map((section) => section.getAttribute("aria-label")),
+            ["Generated"],
+        );
+        await userEvent.click(within(samples).getByRole("button", { name: "Path" }));
+
+        const path = await screen.findByRole("dialog", { name: "Path" });
+        const count = within(path).getByRole("textbox", { name: "Nodes" });
+        await userEvent.clear(count);
+        await userEvent.type(count, "7");
+        await userEvent.click(within(path).getByRole("button", { name: "Generate" }));
+
+        // A second source beside the log, and its 7 nodes and 6 edges added to the log's 5 and 4.
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 2);
+            assert.lengthOf(session.data.nodes(), 12);
+            assert.lengthOf(session.data.edges(), 10);
+        });
+        const added = session.data.sources()[1]?.name ?? "";
+        assert.isNotNull(await place().findByRole("listitem", { name: added }));
     });
 
     it("renames a source on a double-click or F2, and its menu shows F2 by Rename", async () => {

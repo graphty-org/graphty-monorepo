@@ -3968,6 +3968,22 @@ export function associate(
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [{ t: p.text, index: p.index }]));
+    // a shape over part of some words that another filled box, not inside it, fits more tightly is no box behind them:
+    // the words have their own (Cytoscape desktop's label background beside the square head of a line ending under the
+    // label, cx2-syn-mappings 408->423); a box round a smaller one (a table round its cells) still backs its words
+    const backedCloser = (p: Prim, t: PText, words: number): boolean => {
+        const fit = boxIoU(p.box, t.box);
+        return free().some(
+            (q) =>
+                q !== p &&
+                q.kind === "shape" &&
+                q.fill !== null &&
+                q.index < words &&
+                !within(q.box, p.box) &&
+                backsText(q, t) &&
+                boxIoU(q.box, t.box) > fit,
+        );
+    };
     // the annotations graphty draws, carried into the oracle's frame: a shape under one is that annotation, judged as
     // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
     const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
@@ -4003,7 +4019,8 @@ export function associate(
                     ({ t, index }) =>
                         t.sizePx > 0 &&
                         index > p.index &&
-                        (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))),
+                        (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))) &&
+                        !backedCloser(p, t, index),
                 ))
         ) {
             continue;
@@ -4132,6 +4149,7 @@ export function associate(
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
     // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
+    const guideWords = new Set(guide.texts.map((t) => norm(t.content)).filter((t) => t !== ""));
     const wanting = nodeList
         .filter((n) => n.label === null)
         .map((n) => {
@@ -4214,12 +4232,17 @@ export function associate(
             // a label whose words differ is still this node's when it sits in the node's box, unless an edge of the
             // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
             // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
+            // nor are words graphty draws as a text of their own (a text-only node over a box, cx2-wp1449-tlr's
+            // "Peptidoglycan(G+)" over the unlabelled group box 136935)
             const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
                 .filter(
                     (p) =>
-                        p.text !== null && !endWords.has(norm(p.text.content)) && inside([cx(p.box), cy(p.box)], box),
+                        p.text !== null &&
+                        !endWords.has(norm(p.text.content)) &&
+                        !guideWords.has(norm(p.text.content)) &&
+                        inside([cx(p.box), cy(p.box)], box),
                 )
                 .sort((a, b) => a.index - b.index)[0];
             if (hit !== undefined) {

@@ -682,7 +682,7 @@
 
 .ws-model-side {
     min-height: 0;
-    overflow: hidden auto;
+    overflow: hidden;
 }
 
 .ws-model-footer {
@@ -795,13 +795,20 @@
     border-radius: var(--mantine-radius-sm);
 }
 
-/* Details, directly under the preview in its column, as wide as it, scrolling past its usual rows. */
+/* Details, directly under the preview in its column, as wide as it: it gives up height before the
+   column would scroll, so the preview (and its Reset view) never moves under the header. */
 .ws-model-details-box {
     width: 240px;
+    flex: 0 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .ws-model-details-box .ws-model-scroll {
     max-height: 160px;
+    min-height: 48px;
+    flex: 0 1 auto;
 }
 
 /* The model's pictures under its settings: a plain group, no frame of its own. */

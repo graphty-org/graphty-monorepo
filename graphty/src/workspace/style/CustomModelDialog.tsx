@@ -133,13 +133,29 @@ function refOf(held: Held): string {
 }
 
 /**
- * A model's clips, from graphty-element's summary: none until it is accepted.
+ * What graphty-element read of a model: an accepted one, or one waiting for pictures or materials
+ * (read as it is drawn meanwhile); none for one it cannot read yet (waiting for its geometry or
+ * for an answer).
+ * @param session - the element's session.
+ * @param id - the model's id.
+ * @returns the summary, if any.
+ */
+function summaryOf(session: GraphSession, id: AssetRecord["id"]): ModelSummary | undefined {
+    try {
+        return session.assets.inspect(id);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * A model's clips, from graphty-element's summary: none until it can be read.
  * @param session - the element's session.
  * @param record - the model.
  * @returns the clips.
  */
 function clipsOf(session: GraphSession, record: AssetRecord): ModelSummary["animations"] {
-    return record.state === "accepted" ? session.assets.inspect(record.id).animations : [];
+    return summaryOf(session, record.id)?.animations ?? [];
 }
 
 /**
@@ -212,6 +228,8 @@ interface Loading {
     readonly stage?: string;
     readonly completed: number;
     readonly total: number | null;
+    /** The model is held while its pictures still download: shown, set up and added without them. */
+    readonly held?: boolean;
 }
 
 /** Props for CustomModelDialog. */
@@ -342,13 +360,22 @@ function TextureRows({
 
 /**
  * One file of the model that needs nothing from the reader: its role glyph, its name (the full path
- * in the tooltip), its role word, and its state chip unless it was found.
+ * in the tooltip), its role word, its state chip unless it was found (Downloading while it still
+ * downloads), and an x that takes that one file back out (`assets.dropPart`).
  * @param props - Component props
  * @param props.part - the part
+ * @param props.downloading - it is still downloading
+ * @param props.onDrop - takes it back out, when it can be
  * @returns The line
  */
-function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
-    const chip = partChip(part);
+function PartLine({
+    part,
+    downloading,
+    onDrop,
+}: Readonly<{ part: ModelPart; downloading?: boolean; onDrop?: () => void }>): React.JSX.Element {
+    const file = part.name.split("/").pop() ?? part.name;
+    const chip = downloading === true ? CUSTOM_MODEL.downloadingChip(file) : partChip(part);
+    const removeName = CUSTOM_MODEL.remove(file);
     return (
         <Group gap={4} wrap="nowrap" data-part={part.name}>
             <RoleGlyph role={part.role} />
@@ -359,6 +386,13 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
                 {roleWord(part.role)}
             </Text>
             {chip === undefined ? null : <ModelChip chip={chip} tone="warning" />}
+            {onDrop === undefined ? null : (
+                <Tooltip label={removeName}>
+                    <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={onDrop}>
+                        <GLYPHS.remove size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            )}
         </Group>
     );
 }
@@ -890,7 +924,10 @@ export function CustomModelDialog({
     const [body, setBody] = useState<HTMLDivElement | null>(null);
     const start = useStillOpen(true);
     const uid = useId();
-    const busy = loading !== null;
+    // Loading and nothing to show yet: a model held while its pictures download is shown and taken.
+    const busy = loading !== null && loading.held !== true;
+    // Add pressed: a load settling after it holds nothing more.
+    const adding = useRef(false);
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
     // Stepping through a set's models changes none of this, so focus stays on the arrows.
@@ -1023,7 +1060,13 @@ export function CustomModelDialog({
         }
         // A set loaded again takes the same ids: its new members are drawn off screen again.
         asked.current.clear();
-        setMembers(next.map((h) => memberOf(h)));
+        // A model held while its pictures downloaded keeps what the reader set meanwhile.
+        setMembers((now) =>
+            next.map((h) => {
+                const was = now.find((m) => refOf(m.held) === refOf(h));
+                return was === undefined ? memberOf(h) : { ...was, held: h, failure: undefined, checked: undefined };
+            }),
+        );
         setIndex(0);
     };
     // Waiting for parts: files that are not a model go to it, matched by graphty-element.
@@ -1038,6 +1081,27 @@ export function CustomModelDialog({
         change((member) => ({ ...member, held: { ...waiting, record: after } }));
         const left = new Set(rest.map((f) => f.name));
         say(files.map((f) => `${f.name} ${left.has(f.name) ? "not needed" : "added"}`).join(", "));
+    };
+    // By address: once all but its pictures is in, the model is shown, set up and taken by Add
+    // while they download (graphty-element stops them when Add takes it without them).
+    const holdEarly =
+        (url: string | undefined, controller: AbortController, live: () => boolean) =>
+        (record: AssetRecord): void => {
+            if (url === undefined || !live()) {
+                return;
+            }
+            added.current.add(url);
+            holdAll([{ url, record }]);
+            setLoading((now) => (now?.controller === controller ? { ...now, held: true } : now));
+        };
+    // What a load brought that the session did not hold before is the dialog's to let go, until
+    // Add takes it: once Add took the model, what the load brings is the project's.
+    const noteAdded = (records: readonly AssetRecord[], refs: readonly string[], before: ReadonlySet<string>): void => {
+        for (const [at, r] of records.entries()) {
+            if (!before.has(r.id) && !adding.current) {
+                added.current.add(refs[at]);
+            }
+        }
     };
     const settle = async (
         source: AssetSource,
@@ -1064,15 +1128,16 @@ export function CustomModelDialog({
                 );
             }
         };
-        // A folder, a .zip or a drop may hold several models: graphty-element adds each as its own.
-        const records = await session.assets.addEach(source, { signal: controller.signal, onProgress });
         const url = typeof source === "string" ? source : undefined;
+        const onWaiting = holdEarly(url, controller, live);
+        // A folder, a .zip or a drop may hold several models: graphty-element adds each as its own.
+        const records = await session.assets.addEach(source, {
+            signal: controller.signal,
+            onProgress,
+            onWaiting,
+        });
         const refs = records.map((r) => url ?? r.id);
-        for (const [at, r] of records.entries()) {
-            if (!before.has(r.id)) {
-                added.current.add(refs[at]);
-            }
-        }
+        noteAdded(records, refs, before);
         if (!live()) {
             for (const r of refs) {
                 letGo(r);
@@ -1127,7 +1192,8 @@ export function CustomModelDialog({
         setTried(byAddress ? source : null);
         say(CUSTOM_MODEL.loading(shown));
         const stillOpen = start();
-        const live = (): boolean => stillOpen() && !controller.signal.aborted;
+        // Add pressed: a load settling after it holds nothing more.
+        const live = (): boolean => stillOpen() && !controller.signal.aborted && !adding.current;
         settle(source, files, controller, live)
             .catch((error: unknown) => {
                 if (isAbort(error) || controller.signal.aborted) {
@@ -1146,6 +1212,11 @@ export function CustomModelDialog({
     };
     loadRef.current = load;
     const cancelLoad = (): void => {
+        // A model shown while its pictures download goes with the load, as before it was shown.
+        if (loading?.held === true) {
+            clear();
+            return;
+        }
         if (loading !== null) {
             loading.controller.abort();
             setLoading(null);
@@ -1172,10 +1243,27 @@ export function CustomModelDialog({
         return after.problems.filter((p) => p.params.part !== undefined && p.params.part === named);
     };
 
-    const accepted = held?.record.state === "accepted" ? held : null;
+    // The x on a part's line: the model read again without that file, which it then asks for.
+    const dropPart = async (part: string): Promise<void> => {
+        if (held === null || current === undefined) {
+            return;
+        }
+        try {
+            const after = await session.assets.dropPart(refOf(held), part);
+            added.current.add(after.id);
+            letGo(refOf(held));
+            setMembers((now) => now.map((m) => (m === current ? { ...m, held: { record: after } } : m)));
+            say(CUSTOM_MODEL.removed(part.split("/").pop() ?? part));
+        } catch (error) {
+            const fact = failureOf(error);
+            setProblem(fact);
+            say(refusalLine(fact));
+        }
+    };
+
     // Of a set, Add takes the models checked; of one model, that model.
     const taking = many ? members.filter((m) => m.load) : members;
-    const blocked = addBlock(loading?.name, members, current, draw.failure);
+    const blocked = addBlock(busy ? loading?.name : undefined, members, current, draw.failure);
     let addWord: string = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     if (taking.length > 1) {
         addWord = CUSTOM_MODEL.addMany(taking.length);
@@ -1188,7 +1276,8 @@ export function CustomModelDialog({
             return record;
         }
         try {
-            const after = await session.assets.accept(record.id, { without: "missing" });
+            // By its address while it downloads, so graphty-element stops its pictures first.
+            const after = await session.assets.accept(refOf(member.held), { without: "missing" });
             moved(record, after);
             return after;
         } catch (error) {
@@ -1198,18 +1287,37 @@ export function CustomModelDialog({
             return undefined;
         }
     };
-    const add = async (): Promise<void> => {
-        // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
-        if (blocked !== null || taking.length === 0) {
-            return;
+    // Accepts every model Add takes, or none: undefined after saying why one was refused.
+    const acceptAll = async (): Promise<{ member: Member; record: AssetRecord; ref: string }[] | undefined> => {
+        adding.current = true;
+        // What Add takes is the project's from now: a load settling meanwhile (its pictures
+        // stopped by accept) must not let it go.
+        const taken = taking.map((m) => refOf(m.held));
+        for (const ref of taken) {
+            added.current.delete(ref);
         }
         const ready: { member: Member; record: AssetRecord; ref: string }[] = [];
         for (const member of taking) {
             const record = await acceptOf(member);
             if (record === undefined) {
-                return;
+                adding.current = false;
+                for (const ref of taken) {
+                    added.current.add(ref);
+                }
+                return undefined;
             }
             ready.push({ member, record, ref: member.held.url ?? record.id });
+        }
+        return ready;
+    };
+    const add = async (): Promise<void> => {
+        // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
+        if (blocked !== null || taking.length === 0) {
+            return;
+        }
+        const ready = await acceptAll();
+        if (ready === undefined) {
+            return;
         }
         for (const { member, record } of ready) {
             const wanted = member.name.trim();
@@ -1257,12 +1365,13 @@ export function CustomModelDialog({
     const showFiles = held !== null && (parts.length > 1 || waits);
     // The parts that need an answer come first, so the list's scroll never hides them.
     const listed = [...parts.filter((p) => facts.has(p.name)), ...parts.filter((p) => !facts.has(p.name))];
-    const summary = accepted === null ? undefined : session.assets.inspect(accepted.record.id);
+    // A model waiting for pictures or materials is read as it is drawn meanwhile: set up before Add.
+    const summary = held === null ? undefined : summaryOf(session, held.record.id);
     const clips = summary?.animations ?? [];
     // One chip per word: a model over the budget and heavy for its nodes is "Heavy" once.
     const detailChips = [
         ...new Map(
-            DETAIL_CHIP_CODES.flatMap((code) => accepted?.record.problems.filter((p) => p.code === code) ?? [])
+            DETAIL_CHIP_CODES.flatMap((code) => held?.record.problems.filter((p) => p.code === code) ?? [])
                 .map((p) =>
                     // The dialog plays the first clip, and Model settings chooses another: say so.
                     p.code === "W_MODEL_HAS_ANIMATIONS"
@@ -1272,7 +1381,7 @@ export function CustomModelDialog({
                 .map((chip) => [chip.word, chip]),
         ).values(),
     ];
-    const ignored = (accepted?.record.problems ?? [])
+    const ignored = (held?.record.problems ?? [])
         .filter((p) => p.code === "W_MODEL_EXTENSION_IGNORED")
         .map((p) => String(p.params.extension));
     // A model's own setting goes to the model shown; Light, Wireframe and Picture to the layer's draft.
@@ -1337,7 +1446,7 @@ export function CustomModelDialog({
             autoFocus={empty}
             progress={shownLoad?.progress}
             status={shownLoad?.status}
-            onCancel={busy ? cancelLoad : undefined}
+            onCancel={loading === null ? undefined : cancelLoad}
             cancelLabel={CUSTOM_MODEL.cancelLoad}
             folder
             url
@@ -1372,6 +1481,54 @@ export function CustomModelDialog({
     const left = (
         <Stack gap="sm" className="ws-model-left">
             {fileSource}
+            {held === null || busy ? null : (
+                // Under the file it names, with the model's settings behind its gear: always in reach.
+                <div className="ws-row ws-model-name">
+                    <div className="ws-field" data-named="">
+                        <span className="ws-field-label">
+                            <span className="ws-field-name" aria-hidden>
+                                {CUSTOM_MODEL.name}
+                            </span>
+                        </span>
+                        <div className="ws-field-control">
+                            <TextInput
+                                ref={nameField}
+                                size="xs"
+                                aria-label={CUSTOM_MODEL.name}
+                                value={name}
+                                onChange={(event) => {
+                                    const typed = event.currentTarget.value;
+                                    change((member) => ({ ...member, name: typed }));
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && blocked === null) {
+                                        event.preventDefault();
+                                        void add();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <span className="ws-slot">
+                            {summary === undefined ? null : (
+                                <Tooltip label={CUSTOM_MODEL.settings}>
+                                    <ActionIcon
+                                        variant={settingsOpen ? "light" : "subtle"}
+                                        size="sm"
+                                        aria-label={CUSTOM_MODEL.settings}
+                                        aria-expanded={settingsOpen}
+                                        aria-controls={settingsOpen ? `${uid}-settings` : undefined}
+                                        onClick={() => {
+                                            setSettingsOpen(!settingsOpen);
+                                        }}
+                                    >
+                                        <GLYPHS.settings size={14} aria-hidden />
+                                    </ActionIcon>
+                                </Tooltip>
+                            )}
+                        </span>
+                    </div>
+                </div>
+            )}
             {addressProblem === null || busy ? null : (
                 <AddressActions
                     problem={addressProblem}
@@ -1440,13 +1597,13 @@ export function CustomModelDialog({
                     ) : null}
                 </Group>
             )}
-            {accepted === null || !settingsOpen || busy ? null : (
+            {held === null || summary === undefined || !settingsOpen || busy ? null : (
                 <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings">
                     <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
                     <SettingRows
                         channels={MODEL_DEFAULT_CHANNELS}
                         values={modelDraft}
-                        problems={accepted.record.problems}
+                        problems={held.record.problems}
                         write={write}
                         remove={unset}
                         clips={clips}
@@ -1465,7 +1622,7 @@ export function CustomModelDialog({
                             <SettingRows
                                 channels={LAYER_CHANNELS}
                                 values={draft}
-                                problems={accepted.record.problems}
+                                problems={held.record.problems}
                                 write={write}
                                 remove={unset}
                             />
@@ -1516,8 +1673,21 @@ export function CustomModelDialog({
                                 ))}
                             {listed.map((part) => {
                                 const fact = facts.get(part.name);
+                                if (fact?.params.downloading === true) {
+                                    return <PartLine key={part.name} part={part} downloading />;
+                                }
                                 return fact === undefined ? (
-                                    <PartLine key={part.name} part={part} />
+                                    <PartLine
+                                        key={part.name}
+                                        part={part}
+                                        onDrop={
+                                            part.role === "model" || part.state === "skipped"
+                                                ? undefined
+                                                : () => {
+                                                      void dropPart(part.name);
+                                                  }
+                                        }
+                                    />
                                 ) : (
                                     <PartRow
                                         key={part.name}
@@ -1558,7 +1728,7 @@ export function CustomModelDialog({
                 busy={busy}
                 onHost={setPreviewHost}
             />
-            {summary === undefined || accepted === null || busy ? null : (
+            {summary === undefined || held === null || busy ? null : (
                 <Stack gap={4} className="ws-model-details-box">
                     <Group gap={6} wrap="wrap" data-testid="model-details-line">
                         <Text size="sm" id={`${uid}-details`}>
@@ -1575,7 +1745,7 @@ export function CustomModelDialog({
                         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
                         tabIndex={0} // NOSONAR(S6845): a scrolling table takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
-                        {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
+                        {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored).map((row) => (
                             <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
                         ))}
                     </section>
@@ -1594,54 +1764,6 @@ export function CustomModelDialog({
                     }}
                 />
             ) : null}
-            {held === null || busy ? null : (
-                // Under the model it names: each model of a set will carry its own.
-                <div className="ws-row ws-model-name">
-                    <div className="ws-field" data-named="">
-                        <span className="ws-field-label">
-                            <span className="ws-field-name" aria-hidden>
-                                {CUSTOM_MODEL.name}
-                            </span>
-                        </span>
-                        <div className="ws-field-control">
-                            <TextInput
-                                ref={nameField}
-                                size="xs"
-                                aria-label={CUSTOM_MODEL.name}
-                                value={name}
-                                onChange={(event) => {
-                                    const typed = event.currentTarget.value;
-                                    change((member) => ({ ...member, name: typed }));
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter" && blocked === null) {
-                                        event.preventDefault();
-                                        void add();
-                                    }
-                                }}
-                            />
-                        </div>
-                        <span className="ws-slot">
-                            {accepted === null ? null : (
-                                <Tooltip label={CUSTOM_MODEL.settings}>
-                                    <ActionIcon
-                                        variant={settingsOpen ? "light" : "subtle"}
-                                        size="sm"
-                                        aria-label={CUSTOM_MODEL.settings}
-                                        aria-expanded={settingsOpen}
-                                        aria-controls={settingsOpen ? `${uid}-settings` : undefined}
-                                        onClick={() => {
-                                            setSettingsOpen(!settingsOpen);
-                                        }}
-                                    >
-                                        <GLYPHS.settings size={14} aria-hidden />
-                                    </ActionIcon>
-                                </Tooltip>
-                            )}
-                        </span>
-                    </div>
-                </div>
-            )}
         </Stack>
     );
 

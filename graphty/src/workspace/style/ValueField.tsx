@@ -5,8 +5,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
-import { useModelPicture } from "../canvas/models";
+import { modelName, useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
+import { useWorkspace } from "../state/WorkspaceContext";
 import { ValueListbox } from "./parts/ValueListbox";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
@@ -164,6 +165,9 @@ export function ValueField({
     }
     if (kind === "choice") {
         return <ChoiceValueField {...props} />;
+    }
+    if (kind === "text" && descriptor.channel === "node.model") {
+        return <ModelNameField label={label} value={value} />;
     }
     if (kind === "text") {
         return <TextValueField {...props} />;
@@ -394,6 +398,20 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
             }}
         />
     );
+}
+
+/**
+ * The Model line (`node.model`): the model's name, never its asset id; the Shape field picks it.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - what the line names
+ * @returns The field
+ */
+function ModelNameField({ label, value }: Readonly<{ label: string; value: unknown }>): React.JSX.Element {
+    const { session } = useWorkspace();
+    const ref = typeof value === "string" ? value : "";
+    const name = session === null || ref === "" ? ref : modelName(session, ref);
+    return <TextInput size="xs" aria-label={label} value={name} title={ref} readOnly />;
 }
 
 /**

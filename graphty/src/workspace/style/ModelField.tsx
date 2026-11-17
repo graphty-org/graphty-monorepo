@@ -243,10 +243,10 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
                 await writeLine(tx, ctx.row, ctx.side, into, { value: ref }, ctx.fresh, settings);
             });
         } else {
-            // ponytail: several rows take the model's settings and the model as two undo steps.
+            // Several rows: the model's settings, then the model merged into that step, one undo step.
             done = session
                 .transaction(`changing ${name.toLowerCase()}`, saveDefaults)
-                .then(() => writeIn(ctx, into, { value: ref }, settings));
+                .then(() => writeIn(ctx, into, { value: ref }, settings, false, session.history.steps.at(-1)?.id));
         }
         said(args, done, () =>
             into === "node.model"

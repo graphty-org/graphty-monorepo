@@ -736,7 +736,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(table).queryByRole("group", { name: "Animations" }), "only what the file has");
     });
 
-    it("draws the preview right of the file, Details directly under it with no file type line, then Name", async () => {
+    it("draws the preview right of the file with Details directly under it, and Name under the file", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
@@ -754,10 +754,19 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isBelow(under.top - box.bottom, 12, "directly below it");
         assert.isAtLeast(under.left, box.left - 1, "in the preview's column");
         assert.isNull(within(dialog).queryByTestId("model-variant"), "no file type line");
+        // Naming and the settings are left, under the file (#8611, L14): the preview's column holds
+        // only the preview and Details, so it never scrolls and Reset view stays in sight.
         const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
-        assert.isAtLeast(name.top, under.bottom, "Name is below Details");
-        assert.isAtLeast(name.left, box.left, "in the preview's column");
-        assert.isAtMost(name.right, box.right + 1);
+        assert.isAtLeast(name.top, file.bottom, "Name is below the file");
+        assert.isAtMost(name.right, box.left, "in the file's column");
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Model settings" }), "with the settings beside it");
+        const side = dialog.querySelector<HTMLElement>(".ws-model-side");
+        assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the preview's column does not scroll");
+        const header =
+            dialog.querySelector(".mantine-Modal-header") ??
+            dialog.closest(".mantine-Modal-content")?.querySelector(".mantine-Modal-header");
+        assert.isNotNull(header);
+        assert.isAtLeast(box.top, header?.getBoundingClientRect().bottom ?? 0, "the preview's top is in view");
         // No empty band across the dialog: the taller column fills most of the body above the footer.
         const body = within(dialog).getByTestId("custom-model").getBoundingClientRect();
         const footer = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
@@ -953,6 +962,79 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.isTrue(slow.cancelled, "the download stopped");
         });
+    });
+
+    it("shows, sets up and adds a model by address while its picture still downloads (#8614, L23)", async () => {
+        const base = "https://models.example.com/kit/";
+        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+        const original = globalThis.fetch.bind(globalThis);
+        let stopped = false;
+        // The model arrives at once; its picture never does, until Add stops it.
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            if (to === `${base}police.glb`) {
+                return Promise.resolve(new Response(police, { status: 200 }));
+            }
+            if (to === `${base}Textures/colormap.png`) {
+                init?.signal?.addEventListener("abort", () => {
+                    stopped = true;
+                });
+                return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
+            }
+            return original(input, init);
+        });
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.tab();
+        await previewOf(dialog, "police");
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        assert.isNotNull(within(files).getByText("Downloading"), "the picture is said to be downloading");
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "and can still be stopped");
+        const rows = await openSettings(dialog);
+        await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
+        const add = within(dialog).getByRole("button", { name: "Add to project" });
+        assert.isNull(add.getAttribute("aria-disabled"), "Add takes it before its picture arrives");
+        await addModel(dialog, "Add to project");
+        await waitFor(() => {
+            assert.include(models(session), "police.glb");
+            assert.isTrue(stopped, "the picture's download stopped");
+        });
+        const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
+        assert.equal(record?.defaults?.style["node.modelTurn"], 90, "with what the reader set meanwhile");
+    });
+
+    it("replaces a load still under way with a model chosen through Choose file, and tips Choose folder", async () => {
+        const url = "https://models.example.com/slow/first.glb";
+        const slow = slowFetch(url, quadGlb());
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await userEvent.hover(within(dialog).getByRole("button", { name: "Choose folder" }));
+        assert.isNotNull(await screen.findByText(/for a model exported with its textures and parts in a folder/));
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        assert.isNotNull(await within(dialog).findByText("Downloading"));
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        await waitFor(() => {
+            assert.isTrue(slow.cancelled, "the download stopped");
+        });
+    });
+
+    it("takes one part handed over back out with the x on its line (L39), set up before Add (L24)", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl-png/cube.obj`]);
+        const row = await within(dialog).findByRole("group", { name: "cube.mtl" });
+        await choose(row, "Choose cube.mtl", [`${VARIANTS}/obj-mtl-png/cube.mtl`]);
+        await within(dialog).findByRole("group", { name: "cube.png" });
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        const remove = await within(files).findByRole("button", { name: "Remove cube.mtl" });
+        // While its picture is missing, the model can still be set up before Add.
+        assert.isNotNull(within(dialog).getByRole("button", { name: "Model settings" }));
+        assert.isNotNull(within(dialog).getByTestId("model-details"));
+        await userEvent.click(remove);
+        assert.isNotNull(await within(dialog).findByRole("group", { name: "cube.mtl" }), "asked for again");
+        assert.isNull(within(files).queryByRole("button", { name: "Remove cube.mtl" }));
     });
 
     it("replaces a load still under way with a model dropped on the dialog", async () => {

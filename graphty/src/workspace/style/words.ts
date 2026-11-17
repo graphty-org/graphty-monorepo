@@ -2132,6 +2132,15 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     removed: (name: string): string => `${name} removed`,
+    /**
+     * A part of a model still downloading: the model is shown and added without it meanwhile.
+     * @param file - the part's file name.
+     * @returns the chip's word and tooltip.
+     */
+    downloadingChip: (file: string): { word: string; tip: string } => ({
+        word: "Downloading",
+        tip: `${file} is still downloading; Add takes the model without it`,
+    }),
     name: "Name",
     color: "Color",
     files: "Files",

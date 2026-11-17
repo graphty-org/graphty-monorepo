@@ -15,6 +15,7 @@ import {
     type ColumnRef,
     fileStyleWords,
     type GraphSession,
+    type HistoryStepId,
     type Layer,
     OVERFLOW_SHAPES,
     type TransactionScope,
@@ -515,6 +516,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
  * @param write - the value or the binding.
  * @param also - values for other channels written with it where the row has none.
  * @param alsoReplaces - write `also` over the values the row has.
+ * @param after - several rows only: merges the writes into this undo step.
  * @returns when it is written.
  */
 export function writeIn(
@@ -523,19 +525,23 @@ export function writeIn(
     write: LiteralWrite | { readonly binding: DataBinding },
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
     alsoReplaces = false,
+    after?: HistoryStepId,
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
         return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also, alsoReplaces);
     }
-    // ponytail: several rows take the extra values as separate writes, one undo step each.
-    return many.write(channel, write).then(() =>
-        Promise.all(
-            Object.entries(also ?? {})
-                .filter(([c, value]) => value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined))
-                .map(([c, value]) => many.write(c as Channel, { value })),
-        ),
-    );
+    // Several rows: the value and each extra value are written one after another, each merged into
+    // the step before it, so Undo takes them back together.
+    const stepNow = (): HistoryStepId | undefined => ctx.session.history.steps[ctx.session.history.position - 1]?.id;
+    return many.write(channel, write, after).then(async () => {
+        const first = stepNow();
+        for (const [c, value] of Object.entries(also ?? {})) {
+            if (value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined)) {
+                await many.write(c as Channel, { value }, first);
+            }
+        }
+    });
 }
 
 /**

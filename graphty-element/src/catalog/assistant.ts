@@ -249,6 +249,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "set_type",
             "set_role",
             "compute",
+            "score",
             "hide",
             "label_value",
         ],

@@ -124,7 +124,7 @@ export function derivedRows(
  * @param read - Reads one path for every element, by dense index.
  * @returns The score per element.
  */
-export function scoreValues(terms: readonly ScoreTerm[], read: (path: Path) => unknown[]): (number | null)[] {
+function scoreValues(terms: readonly ScoreTerm[], read: (path: Path) => unknown[]): (number | null)[] {
     let scores: (number | null)[] | null = null;
     for (const term of terms) {
         const raw = read(term.path);

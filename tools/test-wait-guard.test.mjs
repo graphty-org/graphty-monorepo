@@ -123,10 +123,7 @@ test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call n
 });
 
 // Tracked vitest configs that export no config of their own, each with the reason it needs no wrap.
-const UNWRAPPED = {
-    // A factory, not a config: packages build theirs from createVitestConfig(), which guards its result.
-    "vitest.shared.config.ts": /return withTestGuards\(config\);/,
-};
+const UNWRAPPED = {};
 
 test("every tracked vitest config, at any depth, is wrapped in withTestGuards", () => {
     const configs = trackedFiles(/(^|\/)vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/);

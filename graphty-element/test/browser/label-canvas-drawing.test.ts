@@ -11,7 +11,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { RichTextStyleType } from "../../src/config";
 import { richTextLabelOptions } from "../../src/config/RichTextStyle";
-import { RichTextLabel, type RichTextLabelOptions } from "../../src/meshes/RichTextLabel";
+import { labelInternals, RichTextLabel, type RichTextLabelOptions } from "../../src/meshes/RichTextLabel";
 
 /** A label's canvas, and how many of its pixels make one unit of the label's own layout. */
 interface Drawn {
@@ -52,7 +52,7 @@ function draw(options: RichTextLabelOptions): Drawn {
     ).diffuseTexture;
     const ctx = texture.getContext();
     const { width, height } = ctx.canvas;
-    const actual = (label as unknown as { actualDimensions: { width: number; height: number } }).actualDimensions;
+    const actual = labelInternals.drawn(label).actualDimensions;
 
     return { image: ctx.getImageData(0, 0, width, height), sx: width / actual.width, sy: height / actual.height };
 }
@@ -259,10 +259,7 @@ describe("a label's background gradient (#7121)", () => {
             label.labelMesh?.material as unknown as { diffuseTexture: { getContext(): CanvasRenderingContext2D } }
         ).diffuseTexture.getContext();
         const { width, height } = ctx.canvas;
-        const inner = label as unknown as {
-            actualDimensions: { width: number; height: number };
-            contentArea: { x: number; y: number; width: number; height: number };
-        };
+        const inner = labelInternals.drawn(label);
         const sx = width / inner.actualDimensions.width;
         const sy = height / inner.actualDimensions.height;
         const area = inner.contentArea;

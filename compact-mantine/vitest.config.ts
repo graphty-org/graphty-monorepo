@@ -404,6 +404,8 @@ const config = defineConfig({
         projects: [
             // Default project - runs in JSDOM
             {
+                // the documentation examples (docs/examples/) import the package by its published name, as a reader does
+                resolve: { alias: { "@graphty/compact-mantine": resolve(__dirname, "src/index.ts") } },
                 test: {
                     name: "default",
                     globals: true,
@@ -444,8 +446,6 @@ const config = defineConfig({
                         headless: true,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions
-                        fileParallelism: false,
                         commands: browserCommands,
                     },
                 },
@@ -526,10 +526,10 @@ const config = defineConfig({
             include: ["src/**/*.ts", "src/**/*.tsx"],
             exclude: ["**/*.stories.tsx", "**/*.stories.ts", "**/*.test.ts", "**/*.test.tsx"],
             thresholds: {
-                lines: 80,
-                functions: 80,
-                statements: 80,
-                branches: 75,
+                lines: 90,
+                functions: 90,
+                statements: 90,
+                branches: 90,
             },
         },
     },

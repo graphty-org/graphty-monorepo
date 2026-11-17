@@ -311,10 +311,7 @@ export class DefaultGraphContext implements GraphContext {
      * @returns True if in 2D mode, false otherwise
      */
     is2D(): boolean {
-        const config = this.styles().config.graph;
-        // Support both new viewMode and deprecated twoD for backward compatibility
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        return config.viewMode === "2d" || config.twoD;
+        return this.styles().config.graph.viewMode === "2d";
     }
 
     /**

@@ -12,7 +12,6 @@
 import { COLLIDE_CELL_MAX, COLLIDE_FINAL_SWEEPS, COLLIDE_MAX_BUCKETS, GRID_SORT_BITS } from "../constants.js";
 import { plan1d } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
-import { type UniformBlock, type UniformValues } from "../kernel/struct-block.js";
 import { COLLIDE_PARAMS, kernelSpec } from "../kernels.js";
 import { type HistogramPlanner, prepareHistogram } from "../primitives/histogram.js";
 import { prepareRadixSort, radixHistBytes, type RadixSortPlanner } from "../primitives/radix-sort.js";
@@ -20,7 +19,7 @@ import { type ReduceScope } from "../primitives/reduce.js";
 import { prepareScan, type ScanPlanner } from "../primitives/scan.js";
 import { type Binding } from "../types/memory.js";
 import { type ModelResources } from "./force-simulation.js";
-import { type LeaseBox, leaseOf, writeParams } from "./repulsion-grid.js";
+import { type LeaseBox, leasedOnce, leaseOf } from "./repulsion-grid.js";
 
 /**
  * What a collision needs of the owner's call, in the device's layout units.
@@ -146,8 +145,6 @@ export class CollisionStage {
     static async create(resources: ModelResources): Promise<CollisionStage> {
         const { device, caps, pipelines, pool } = resources;
         const box: LeaseBox = { lease: pool.lease() };
-        const written = new Map<string, { readonly binding: Binding; readonly offset: number }>();
-        const scratch = new Map<string, GPUBuffer>();
         try {
             const key = await pipelines.kernel(kernelSpec("collide-cell-key"));
             const gather = await pipelines.kernel(kernelSpec("collide-gather"));
@@ -158,25 +155,7 @@ export class CollisionStage {
                 pipelines,
                 pool,
                 workgroupSize: key.workgroupSize,
-                scratch: (byteLength: number, label: string): GPUBuffer => {
-                    const id = `${label}:${byteLength}`;
-                    const known = scratch.get(id) ?? leaseOf(box).storage(byteLength, label);
-                    scratch.set(id, known);
-                    return known;
-                },
-                params: (
-                    block: UniformBlock,
-                    values: UniformValues,
-                ): { readonly binding: Binding; readonly offset: number } => {
-                    const id = `${block.name}:${JSON.stringify(values)}`;
-                    const known = written.get(id);
-                    if (known !== undefined) {
-                        return known;
-                    }
-                    const params = writeParams(device, leaseOf(box), block, values);
-                    written.set(id, params);
-                    return params;
-                },
+                ...leasedOnce(device, box),
             };
             return new CollisionStage(resources, box, {
                 radix: await prepareRadixSort(scope),

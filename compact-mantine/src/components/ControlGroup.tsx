@@ -33,13 +33,6 @@ export interface ControlGroupProps {
     actions?: React.ReactNode;
     /** The controls the group holds, stacked in the order you write them. */
     children: React.ReactNode;
-    /**
-     * Kept so existing callers compile. The group no longer draws a rule (Figma
-     * does not divide groups inside a section), so there is nothing to bleed and
-     * the prop has no effect.
-     * @deprecated no effect since the Figma restyle
-     */
-    bleed?: boolean;
 }
 
 /**

@@ -229,6 +229,24 @@ On an undirected graph every edge runs both ways, so `strongly-connected` finds 
 await graph.runAlgorithm("graphty", "connected-components");
 ```
 
+#### What breaks if something is removed
+
+`removal-impact` works out what removing some nodes or edges would cut off, without removing
+anything: the graph is left as it was. Pass the nodes (`nodes`) and edges (`edges`) to imagine
+removed:
+
+```typescript
+const result = await element.session.runs.start("removal-impact", { nodes: ["hub"] });
+// The separate pieces before and after, and how many nodes are cut off from the rest of their piece.
+const { componentsBefore, componentsAfter, count } = result.graph;
+```
+
+Each node it cuts off carries `in: true`, which the suggested highlight layer paints. A piece that
+breaks keeps its largest part (the part holding the earliest node, on a tie); every other node of
+it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read through its
+interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
+edge joins its two nodes whichever way it was declared.
+
 ### Traversal Algorithms
 
 Explore the graph systematically:

@@ -725,6 +725,34 @@ describe("a screenshot run's own plan and inputs (#3648)", () => {
         assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
     });
 
+    it("on the full path (no plan file) judges by the store's quarantine, else by the committed list (#3454)", async () => {
+        const s = await serve(() => ({ quarantine: [{ family: "layout", file: "l/a.test.ts", name: "A", issue: 7 }] }));
+        const root = join(TMP, "checkout-full-path-quarantine");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            RESULTS_PLAN: join(root, "absent.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        const judged = async (e) => {
+            assert.equal(await runGroup("layout", undefined, { root, env: e }), 0);
+            return JSON.parse(readFileSync(out, "utf8")).quarantine.map((q) => q.name);
+        };
+        assert.deepEqual(await judged({ ...env, RESULTS_STORE_QUARANTINE: "1" }), ["A"]);
+        assert.deepEqual(await judged(env), []);
+    });
+
     it("fails open to no plan when the store is not configured or does not answer", async () => {
         const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
         assert.equal(await shotsPlan({ ...facts, cfg: null }), null);

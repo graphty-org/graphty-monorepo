@@ -12,6 +12,7 @@ import { csvImporter } from "../../src/formats/csv/index.js";
 import { importGraph } from "../../src/registry.js";
 import { ImportError, type ImportReport } from "../../src/types.js";
 import { byteChunks, textChunksOf } from "../helpers/corpus.js";
+import { codes } from "./helpers.js";
 
 type Input = Parameters<typeof csvImporter.import>[0];
 type Options = Parameters<typeof csvImporter.import>[2];
@@ -39,10 +40,6 @@ async function failure(input: Input, options?: Options): Promise<ImportError> {
         throw err;
     }
     throw new Error("expected an ImportError");
-}
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
 }
 
 function edgesOf(s: GraphSnapshot): string[] {

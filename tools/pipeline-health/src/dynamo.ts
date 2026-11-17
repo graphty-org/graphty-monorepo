@@ -106,13 +106,17 @@ export function dynamoStore(
                         TableName: tableName,
                         KeyConditionExpression: cond,
                         ExpressionAttributeValues: values,
-                        ConsistentRead: true,
+                        // a newest-first read is the results plan's history (handlers/results.ts): half the read cost
+                        ConsistentRead: range.newest === undefined,
                         ExclusiveStartKey: start,
+                        ...(range.newest === undefined
+                            ? {}
+                            : { ScanIndexForward: false, Limit: range.newest - out.length }),
                     }),
                 );
                 out.push(...((r.Items ?? []) as Item[]));
                 start = r.LastEvaluatedKey;
-            } while (start);
+            } while (start && (range.newest === undefined || out.length < range.newest));
             return out;
         },
 

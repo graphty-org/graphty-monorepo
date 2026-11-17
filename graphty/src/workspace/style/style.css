@@ -383,6 +383,12 @@
     border-radius: var(--mantine-radius-sm);
 }
 
+/* A press always lands on the tile: its picture swaps its stand-in for the image when it is drawn,
+   and a swap under the pointer between press and release loses the click (#8609). */
+.ws-gallery-tile * {
+    pointer-events: none;
+}
+
 .ws-gallery-tile:hover:not([aria-disabled]) {
     background: var(--mantine-color-default-hover);
 }
@@ -716,7 +722,18 @@
 .ws-model-body[data-alone] .ws-model-side {
     flex: 1 0 auto;
     overflow: visible;
-    padding-right: 18px;
+}
+
+/* One right edge (#8606): every box and every field's control ends 24 px in from the column's
+   scroll gutter, and a field's last 24 px column (a setting's minus, Name's gear) hangs into that
+   space, so a field with nothing in it there still ends where the address, Files, the model and
+   Details do. */
+.ws-model-body[data-alone] :is(.ws-model-left, .ws-model-side) {
+    padding-right: 42px;
+}
+
+.ws-model-body[data-alone] .ws-field {
+    margin-right: -24px;
 }
 
 /* Every Details row shows whole, its value wrapped: the list is as tall as its rows. */
@@ -753,11 +770,51 @@
     column-gap: 16px;
 }
 
-/* Model settings' rows in two columns across the dialog, so they take half the height. */
+/* Model settings' rows in columns when there is room for two, each clear of the minus hung beside
+   the one before it. */
 .ws-model-body[data-alone] [data-testid="model-settings"] > .ws-model-settings {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+    column-gap: 40px;
+}
+
+/* Model settings open (#8606, #8610): the settings and Files on the left, and the model, all of
+   Details and Name beside them, held in view while the settings scroll, so the reader sees the
+   model while choosing an Animation, a Pose or Textures. */
+.ws-model-body[data-settings] .ws-model-main-inner {
+    display: grid;
+    /* The model's column wide enough for Details in two columns, so all of it fits beside them. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+    grid-template-rows: auto 1fr;
+    align-items: start;
     column-gap: 16px;
+    row-gap: var(--mantine-spacing-sm);
+}
+
+.ws-model-body[data-settings] .ws-model-top {
+    grid-column: 1 / -1;
+}
+
+/* Away from the scroll gutter: only the minus's 24 px. */
+.ws-model-body[data-settings] .ws-model-rest {
+    padding-right: 24px;
+}
+
+.ws-model-body[data-settings] .ws-model-side {
+    position: sticky;
+    top: 0;
+    gap: 4px;
+}
+
+.ws-model-body[data-settings] .ws-model-details {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+/* The model as large as leaves Details and Name in the column with it, 150 px at least: the
+   column is the window's height less about 230 px, and Details and Name take about 260. */
+.ws-model-body[data-settings] .ws-model-preview {
+    flex: none;
+    height: clamp(150px, 100dvh - 490px, 240px);
 }
 
 @media (max-width: 720px) {
@@ -774,6 +831,19 @@
     /* A loaded model keeps the file and its settings on top, as at any width. */
     .ws-model-body[data-alone] .ws-model-side {
         order: 0;
+    }
+
+    /* Too narrow for the model beside Model settings: one column, the model under them. */
+    .ws-model-body[data-settings] .ws-model-main-inner {
+        display: flex;
+    }
+
+    .ws-model-body[data-settings] .ws-model-side {
+        position: static;
+    }
+
+    .ws-model-body[data-settings] .ws-model-rest {
+        padding-right: 42px;
     }
 }
 

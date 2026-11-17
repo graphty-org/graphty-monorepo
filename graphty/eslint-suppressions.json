@@ -264,17 +264,6 @@
       "count": 3
     }
   },
-  "src/workspace/selection/SelectionEditorInline.tsx": {
-    "jsx-a11y/click-events-have-key-events": {
-      "count": 1
-    },
-    "jsx-a11y/prefer-tag-over-role": {
-      "count": 3
-    },
-    "sonarjs/cognitive-complexity": {
-      "count": 3
-    }
-  },
   "src/workspace/selection/StepPane.tsx": {
     "jsx-a11y/no-noninteractive-element-interactions": {
       "count": 2
@@ -306,9 +295,6 @@
   "src/workspace/style/CustomModelDialog.tsx": {
     "sonarjs/cognitive-complexity": {
       "count": 1
-    },
-    "unicorn/no-array-callback-reference": {
-      "count": 3
     }
   },
   "src/workspace/style/Groups.tsx": {

@@ -105,9 +105,26 @@ async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
 }
 
 /**
+ * The right edges of boxes and field controls, rounded.
+ * @param els - the boxes, and elements holding field controls.
+ * @returns their right edges.
+ */
+function rightEdges(els: readonly (Element | null)[]): number[] {
+    return els.flatMap((el) => {
+        if (el === null) {
+            return [];
+        }
+        const controls = el.querySelectorAll(".ws-field-control");
+        const boxes = controls.length === 0 ? [el] : [...controls];
+        return boxes.map((box) => Math.round(box.getBoundingClientRect().right));
+    });
+}
+
+/**
  * Asserts the loaded dialog leaves no blank and cuts nothing off: one column scrolls above the
- * footer, the model takes the body's width directly under the file, its settings and Files, every
- * Details row shows whole, Name ends at the footer or below it, and the footer is in the dialog.
+ * footer, its top (the file's address) in view; settings closed, the model takes the body's width
+ * directly under the file and Files; settings open, the model, every Details row and Name stay in
+ * view beside them; every Details row shows whole, and the footer is in the dialog.
  * @param dialog - the dialog.
  * @param where - what the dialog shows, for the messages.
  */
@@ -116,10 +133,14 @@ function assertNoBlank(dialog: HTMLElement, where: string): void {
     assert.equal(body.dataset.alone, "true", `one column (${where})`);
     const { width } = body.getBoundingClientRect();
     const column = (body.querySelector(".ws-model-main") as HTMLElement).getBoundingClientRect();
-    const content = (body.querySelector(".ws-model-left") as HTMLElement).getBoundingClientRect();
+    const top = body.querySelector(".ws-model-top") as HTMLElement;
+    const rest = body.querySelector(".ws-model-rest");
+    const settings = within(dialog).queryByTestId("model-settings");
+    const content = (rest ?? top).getBoundingClientRect();
     const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
     const details = within(dialog).getByTestId("model-details");
-    const name = (body.querySelector(".ws-model-name") as HTMLElement).getBoundingClientRect();
+    const nameRow = body.querySelector(".ws-model-name") as HTMLElement;
+    const name = nameRow.getBoundingClientRect();
     const footer = (body.querySelector(".ws-model-footer") as HTMLElement).getBoundingClientRect();
     const modal = (dialog.closest(".mantine-Modal-content") ?? dialog).getBoundingClientRect();
     assert.isAtMost(
@@ -129,9 +150,27 @@ function assertNoBlank(dialog: HTMLElement, where: string): void {
     );
     assert.isAtMost(column.bottom, footer.top + 0.5, `the column ends above the footer (${where})`);
     assert.isAbove(column.height, 150, `the column has room (${where})`);
-    assert.isBelow(preview.top - content.bottom, 16, `the model directly under the top (${where})`);
-    assert.isAbove(preview.width, width * 0.95, `the model takes the body's width (${where})`);
+    // The address whole at the column's top, never scrolled under the header by a focus (#8604).
+    const address = (top.firstElementChild as HTMLElement).getBoundingClientRect();
+    assert.isAtLeast(address.top, column.top - 0.5, `the address shows from its top (${where})`);
     assert.isAtLeast(preview.height, 150, `drawn at a size to see (${where})`);
+    if (settings === null) {
+        assert.isBelow(preview.top - content.bottom, 16, `the model directly under the top (${where})`);
+        assert.isAbove(preview.width, width * 0.9, `the model takes the body's width (${where})`);
+    } else {
+        // Beside the settings, the model, Details and Name fit the column together, held in view
+        // while the settings scroll (#8610): its top in view now, and all of it once scrolled.
+        const settingsBox = settings.getBoundingClientRect();
+        assert.isAtLeast(preview.left, settingsBox.right, `the model beside the settings (${where})`);
+        const side = (body.querySelector(".ws-model-side") as HTMLElement).getBoundingClientRect();
+        assert.isAtLeast(side.top, column.top - 0.5, `the model shows from its top (${where})`);
+        assert.isAtMost(side.height, column.height + 0.5, `the model, Details and Name fit together (${where})`);
+        assert.isAtMost(
+            Math.max(...rightEdges([settings])),
+            settingsBox.right + 0.5,
+            `the settings in their column (${where})`,
+        );
+    }
     assert.isAtMost(details.scrollHeight, details.clientHeight + 1, `every Details row shows (${where})`);
     // Each row, its name and its whole value, inside the list and inside the model's column.
     const side = (body.querySelector(".ws-model-side") as HTMLElement).getBoundingClientRect();
@@ -149,17 +188,18 @@ function assertNoBlank(dialog: HTMLElement, where: string): void {
             assert.isAtMost(part.scrollWidth, part.clientWidth + 1, `${what} is not cut`);
         }
     }
-    assert.isAbove(name.bottom, footer.top - 24, `Name ends at the footer (${where})`);
-    // One right edge for the column: the file, its settings and Files, the model, Details and Name.
-    const edges = [
-        (body.querySelector(".ws-model-left") as HTMLElement).firstElementChild,
-        within(dialog).queryByTestId("model-settings"),
-        within(dialog).queryByTestId("model-files"),
-        within(dialog).getByTestId("model-preview"),
-        details,
-        body.querySelector(".ws-model-name"),
-    ].flatMap((el) => (el === null ? [] : [Math.round(el.getBoundingClientRect().right)]));
-    assert.isAtMost(Math.max(...edges) - Math.min(...edges), 1, `one right edge: ${edges.join(", ")} (${where})`);
+    if (settings === null) {
+        assert.isAbove(name.bottom, footer.top - 24, `Name ends at the footer (${where})`);
+    }
+    // One right edge for each column: every box and every field's control (a setting's Turn, Fit
+    // or Sides as much as Files and the model), with a field's minus or gear hung beyond it.
+    const files = within(dialog).queryByTestId("model-files");
+    const model = [top.firstElementChild, within(dialog).getByTestId("model-preview"), details, nameRow];
+    const columns = settings === null ? [[...model, settings, files]] : [model, [settings, files]];
+    for (const els of columns) {
+        const edges = rightEdges(els);
+        assert.isAtMost(Math.max(...edges) - Math.min(...edges), 1, `one right edge: ${edges.join(", ")} (${where})`);
+    }
 }
 
 afterEach(() => {
@@ -890,15 +930,13 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isBelow(Math.abs((drawing?.width ?? 0) - (drawing?.height ?? 0)), 2, "and square");
         assert.isAbove(closed.name.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
         assertNoBlank(dialog, "settings closed");
-        // Settings open: they sit under the file, in two columns, and the model under them at the
-        // body's width, so no blank sits under the settings or beside the model.
+        // Settings open: they sit under the file, and the model, Details and Name beside them, in
+        // view while the reader sets the model up (#8610).
         const rows = await openSettings(dialog);
         const open = boxes();
         assertStacked(open, "settings open");
-        assert.isAtLeast(open.box.top, rows.getBoundingClientRect().bottom, "the model is under the settings");
-        const up = within(rows).getByText("Up").getBoundingClientRect();
-        const turn = within(rows).getByText("Turn").getBoundingClientRect();
-        assert.isBelow(Math.abs(up.top - turn.top), 2, "the settings sit in two columns");
+        assert.isAtLeast(open.box.left, rows.getBoundingClientRect().right, "the model is beside the settings");
+        assert.isAtLeast(open.box.top, open.file.bottom, "under the file");
         assertNoBlank(dialog, "settings open");
         const side = dialog.querySelector<HTMLElement>(".ws-model-side");
         assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the model's column does not scroll");
@@ -1001,7 +1039,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const rows = await openSettings(dialog);
         assertNoBlank(dialog, "settings open");
         const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
-        assert.isBelow(preview.top - rows.getBoundingClientRect().bottom, 16, "the model directly under the settings");
+        assert.isBelow(Math.abs(preview.top - rows.getBoundingClientRect().top), 2, "the model beside the settings");
     });
 
     it("plays an animated model's first clip from the Main menu, and keeps a Pose dragged with the mouse", async () => {

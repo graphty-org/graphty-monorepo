@@ -42,6 +42,17 @@ async function focusOn(name: string): Promise<void> {
     });
 }
 
+/**
+ * Asserts the browser's hit test finds the tile itself at its picture's middle and its name's.
+ * @param tile - the tile.
+ */
+function assertTakesThePress(tile: HTMLElement): void {
+    for (const part of tile.children) {
+        const { left, top, width, height } = part.getBoundingClientRect();
+        assert.strictEqual(document.elementFromPoint(left + width / 2, top + height / 2), tile, part.tagName);
+    }
+}
+
 afterEach(() => {
     vi.restoreAllMocks();
 });
@@ -79,9 +90,14 @@ describe("models in the Shape field, on the real element", () => {
         const own = within(models).getByRole("group", { name: "In this project" });
         const tile = within(own).getByRole("button", { name: "quad" });
         assert.equal(tile.getAttribute("aria-pressed"), "true");
+        // A press lands on the tile itself, never on its picture: the picture swaps its stand-in for
+        // the image when it is drawn, and a swap between the press and the release lost the click,
+        // so the pick never happened (#8609).
+        assertTakesThePress(tile);
         await waitFor(() => {
             assert.match(tile.querySelector("img")?.src ?? "", /^data:image\/png;base64,/);
         });
+        assertTakesThePress(tile);
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Models" }));

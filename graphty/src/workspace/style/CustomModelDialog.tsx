@@ -954,7 +954,7 @@ export function CustomModelDialog({
     // Opened, Model settings scroll into view with the file and its lines above them, wherever the
     // column was scrolled (to Name, where the button is), so pressing the button shows them.
     const showSettings = useCallback((el: HTMLDivElement | null) => {
-        el?.parentElement?.firstElementChild?.scrollIntoView({ block: "start" });
+        el?.closest(".ws-model-main-inner")?.firstElementChild?.scrollIntoView({ block: "start" });
     }, []);
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
@@ -1004,10 +1004,12 @@ export function CustomModelDialog({
             return;
         }
         focusedFor.current = heldKey;
+        // Without scrolling: the column stays at its top, the file's address and Files whole, and
+        // the model under them (a focus that scrolled cut the address under the header, #8606).
         if (waits) {
-            body?.querySelector<HTMLElement>(".ws-part-row input, .ws-part-row button")?.focus();
+            body?.querySelector<HTMLElement>(".ws-part-row input, .ws-part-row button")?.focus({ preventScroll: true });
         } else {
-            nameField.current?.focus();
+            nameField.current?.focus({ preventScroll: true });
         }
     }, [heldKey, waits, body, busy]);
     // Each model of a set remembers whether it could be drawn, so Add stays blocked by one that
@@ -1722,8 +1724,9 @@ export function CustomModelDialog({
             </Stack>
         );
 
-    const left = (
-        <Stack gap="sm" className="ws-model-left">
+    // The file and any line about it: across the column's whole width.
+    const top = (
+        <Stack gap="sm" className="ws-model-left ws-model-top">
             {fileSource}
             {addressProblem === null || busy ? null : (
                 <AddressActions
@@ -1803,57 +1806,65 @@ export function CustomModelDialog({
                     ) : null}
                 </Group>
             )}
-            {held === null || summary === undefined || !settingsOpen || busy ? null : (
-                <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings" ref={showSettings}>
-                    <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
-                    <SettingRows
-                        channels={MODEL_DEFAULT_CHANNELS}
-                        values={modelDraft}
-                        problems={held.record.problems}
-                        write={write}
-                        remove={unset}
-                        clips={clips}
-                    />
-                    {layerOwn === "" ? null : (
-                        <Text size="xs" c="dimmed" data-testid="model-layer-own">
-                            {CUSTOM_MODEL.layerOwn(layerOwn)}
-                        </Text>
-                    )}
-                    <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
-                    {forLayer ? (
-                        <Stack gap={4} data-testid="model-layer-settings">
-                            <Text size="xs" c="dimmed">
-                                {CUSTOM_MODEL.forThisLayer}
-                            </Text>
-                            <SettingRows
-                                channels={LAYER_CHANNELS}
-                                values={draft}
-                                problems={held.record.problems}
-                                write={write}
-                                remove={unset}
-                            />
-                            <div className="ws-model-settings">
-                                <PictureRow
-                                    value={
-                                        typeof draft["node.texture"] === "string" ? draft["node.texture"] : undefined
-                                    }
-                                    write={(ref) => {
-                                        write("node.texture", ref);
-                                    }}
-                                    remove={() => {
-                                        unset("node.texture");
-                                    }}
-                                    open={pictureOpen}
-                                    setOpen={setPictureOpen}
-                                />
-                            </div>
-                        </Stack>
-                    ) : null}
-                </Stack>
-            )}
-            {filesBox}
         </Stack>
     );
+
+    const settings =
+        held === null || summary === undefined || !settingsOpen || busy ? null : (
+            <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings" ref={showSettings}>
+                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+                <SettingRows
+                    channels={MODEL_DEFAULT_CHANNELS}
+                    values={modelDraft}
+                    problems={held.record.problems}
+                    write={write}
+                    remove={unset}
+                    clips={clips}
+                />
+                {layerOwn === "" ? null : (
+                    <Text size="xs" c="dimmed" data-testid="model-layer-own">
+                        {CUSTOM_MODEL.layerOwn(layerOwn)}
+                    </Text>
+                )}
+                <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
+                {forLayer ? (
+                    <Stack gap={4} data-testid="model-layer-settings">
+                        <Text size="xs" c="dimmed">
+                            {CUSTOM_MODEL.forThisLayer}
+                        </Text>
+                        <SettingRows
+                            channels={LAYER_CHANNELS}
+                            values={draft}
+                            problems={held.record.problems}
+                            write={write}
+                            remove={unset}
+                        />
+                        <div className="ws-model-settings">
+                            <PictureRow
+                                value={typeof draft["node.texture"] === "string" ? draft["node.texture"] : undefined}
+                                write={(ref) => {
+                                    write("node.texture", ref);
+                                }}
+                                remove={() => {
+                                    unset("node.texture");
+                                }}
+                                open={pictureOpen}
+                                setOpen={setPictureOpen}
+                            />
+                        </div>
+                    </Stack>
+                ) : null}
+            </Stack>
+        );
+
+    // Model settings and Files: under the file, beside the model while Model settings are open.
+    const rest =
+        settings === null && filesBox === null ? null : (
+            <Stack gap="sm" className="ws-model-left ws-model-rest">
+                {settings}
+                {filesBox}
+            </Stack>
+        );
 
     const side = (
         <Stack gap={8} className="ws-model-side">
@@ -1929,6 +1940,7 @@ export function CustomModelDialog({
                 data-testid="custom-model"
                 data-over={over || undefined}
                 data-alone={alone || undefined}
+                data-settings={(alone && settings !== null) || undefined}
             >
                 <ScrollArea
                     className="ws-model-main"
@@ -1937,9 +1949,11 @@ export function CustomModelDialog({
                     scrollbars="y"
                     offsetScrollbars="y"
                 >
-                    {left}
+                    {top}
+                    {rest}
                     {/* A loaded model scrolls as one column with its file and settings, so opening
-                        Model settings shows them whole and the footer always stays in view. */}
+                        Model settings shows them whole and the footer always stays in view. With
+                        them open, the model, Details and Name stay in view beside them. */}
                     {alone ? side : null}
                 </ScrollArea>
                 {alone ? null : side}

@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import { withoutFeatures } from "../../../test/features";
@@ -105,9 +105,9 @@ async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
 }
 
 /**
- * Asserts the loaded dialog leaves no blank: the file, its settings and Files on top end where
- * their contents do, the model takes the body's width directly under them, every Details row shows
- * without scrolling, and Name ends at the footer.
+ * Asserts the loaded dialog leaves no blank and cuts nothing off: one column scrolls above the
+ * footer, the model takes the body's width directly under the file, its settings and Files, every
+ * Details row shows whole, Name ends at the footer or below it, and the footer is in the dialog.
  * @param dialog - the dialog.
  * @param where - what the dialog shows, for the messages.
  */
@@ -115,14 +115,21 @@ function assertNoBlank(dialog: HTMLElement, where: string): void {
     const body = within(dialog).getByTestId("custom-model");
     assert.equal(body.dataset.alone, "true", `one column (${where})`);
     const { width } = body.getBoundingClientRect();
-    const top = (body.querySelector(".ws-model-main") as HTMLElement).getBoundingClientRect();
+    const column = (body.querySelector(".ws-model-main") as HTMLElement).getBoundingClientRect();
     const content = (body.querySelector(".ws-model-left") as HTMLElement).getBoundingClientRect();
     const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
     const details = within(dialog).getByTestId("model-details");
     const name = (body.querySelector(".ws-model-name") as HTMLElement).getBoundingClientRect();
     const footer = (body.querySelector(".ws-model-footer") as HTMLElement).getBoundingClientRect();
-    assert.isBelow(top.bottom - Math.min(content.bottom, top.bottom), 4, `nothing blank under the top (${where})`);
-    assert.isBelow(preview.top - top.bottom, 16, `the model directly under the top (${where})`);
+    const modal = (dialog.closest(".mantine-Modal-content") ?? dialog).getBoundingClientRect();
+    assert.isAtMost(
+        footer.bottom,
+        Math.min(modal.bottom, window.innerHeight) + 0.5,
+        `the footer is in view (${where})`,
+    );
+    assert.isAtMost(column.bottom, footer.top + 0.5, `the column ends above the footer (${where})`);
+    assert.isAbove(column.height, 150, `the column has room (${where})`);
+    assert.isBelow(preview.top - content.bottom, 16, `the model directly under the top (${where})`);
     assert.isAbove(preview.width, width * 0.95, `the model takes the body's width (${where})`);
     assert.isAtLeast(preview.height, 150, `drawn at a size to see (${where})`);
     assert.isAtMost(details.scrollHeight, details.clientHeight + 1, `every Details row shows (${where})`);
@@ -701,7 +708,8 @@ describe("the Load custom model dialog, on the real element", () => {
         await session.assets.add(quadFile());
         dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
-        await previewOf(dialog, "quad");
+        // The project's quad is never the dialog's to change: it loads a second model of it.
+        await previewOf(dialog, "quad 2");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
@@ -909,6 +917,62 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(record?.defaults?.style["node.modelSourceUp"], "-z", "the model keeps its rotation");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90);
         assert.isUndefined(written(session, "node.modelTurn"), "the layer starts from the model's");
+    });
+
+    for (const [width, height] of [
+        [1024, 640],
+        [1280, 720],
+    ] as const) {
+        it(`shows Model settings whole and keeps Cancel and Add in a ${width} x ${height} window (#8611, #8606)`, async () => {
+            // openShapes sizes the window itself: this one is set after it.
+            await openShapes();
+            await page.viewport(width, height);
+            try {
+                const dialog = await fromMenu();
+                await choose(dialog, "Choose file", ["../graphty-element/test/fixtures/models/Fox.glb"]);
+                await previewOf(dialog, "Fox");
+                assertNoBlank(dialog, "settings closed");
+                const rows = await openSettings(dialog);
+                assertNoBlank(dialog, "settings open");
+                const column = (dialog.querySelector(".ws-model-main") as HTMLElement).getBoundingClientRect();
+                for (const label of ["Up", "Color", "Animation", "Speed", "Sides"]) {
+                    const at = within(rows).getByText(label).getBoundingClientRect();
+                    assert.isAtLeast(at.top, column.top - 0.5, `${label} shows once settings open`);
+                    assert.isAtMost(at.bottom, column.bottom + 0.5, `${label} shows once settings open`);
+                }
+                for (const button of ["Cancel", "Add to project"]) {
+                    const at = within(dialog).getByRole("button", { name: button }).getBoundingClientRect();
+                    assert.isAtMost(at.bottom, window.innerHeight, `${button} is in the window`);
+                }
+            } finally {
+                await page.viewport(1440, 900);
+            }
+        });
+    }
+
+    it("adds a file the project already holds as a second model, set up apart, leaving the first as it was (#8609, #8610)", async () => {
+        const { session } = await openShapes();
+        const first = await session.assets.add(quadFile());
+        await session.assets.setDefaults(first.id, { style: { "node.modelTurn": 90 } });
+        const dialog = await fromMenu();
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad 2");
+        assert.include(within(dialog).getByTestId("model-again").textContent, "quad", "the dialog says so");
+        assert.equal(within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" }).value, "quad 2");
+        const rows = await openSettings(dialog);
+        await userEvent.click(within(rows).getByRole("button", { name: "Tip forward" }));
+        await addModel(dialog, "Add to project");
+        const accepted = session.assets.list().filter((r) => r.kind === "model" && r.state === "accepted");
+        assert.equal(accepted.length, 2, "two models of one file");
+        assert.deepEqual(
+            session.assets.get(first.id)?.defaults?.style,
+            { "node.modelTurn": 90 },
+            "the first unchanged",
+        );
+        const second = accepted.find((r) => r.id !== first.id);
+        assert.equal(second?.plainName, "quad 2");
+        assert.equal(second?.defaults?.style["node.modelSourceUp"], "-z", "the second keeps its own settings");
+        assert.notEqual(second?.defaults?.style["node.modelTurn"], 90, "none of the first one's");
     });
 
     it("shows every Details row of an animated Fox whole with Model settings open, and keeps the model's size (#8606)", async () => {
@@ -1136,9 +1200,18 @@ describe("the Load custom model dialog, on the real element", () => {
         const served = await policeWaitingForPicture(base);
         const { session } = await openShapes();
         const dialog = await fromMenu();
+        // Every text the preview box shows on the way, so a picture still downloading is never
+        // shown as missing (#8605).
+        const shown = new Set<string>();
+        const watch = new MutationObserver(() => {
+            shown.add(dialog.querySelector("[data-testid=model-preview]")?.textContent ?? "");
+        });
+        watch.observe(dialog, { subtree: true, childList: true, characterData: true });
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
         await userEvent.tab();
         await previewOf(dialog, "police");
+        watch.disconnect();
+        assert.notMatch([...shown].join(" | "), /missing/, "the downloading picture is never said to be missing");
         const files = within(dialog).getByRole("region", { name: "Files" });
         assert.isNotNull(within(files).getByText("Downloading"), "the picture is said to be downloading");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "and can still be stopped");
@@ -1394,8 +1467,10 @@ describe("the Load custom model dialog, on the real element", () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [await fixture(damagedPlyUrl, "cube.ply")]);
-        const preview = await within(dialog).findByTestId("model-preview");
-        assert.isNotNull(await within(preview).findByText("Not loaded"));
+        // The box is drawn anew once the model is loaded, in the column that scrolls as one.
+        const said = await within(dialog).findByText("Not loaded");
+        const preview = within(dialog).getByTestId("model-preview");
+        assert.isTrue(preview.contains(said), "said in the model's box");
         assert.isNull(preview.querySelector("img, canvas"));
         assert.match(within(dialog).getByTestId("model-refusal").textContent, /^Not loaded: /);
         assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");

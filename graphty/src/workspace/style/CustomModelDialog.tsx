@@ -34,7 +34,7 @@ import {
     TextInput,
     Tooltip,
 } from "@mantine/core";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
@@ -98,6 +98,11 @@ interface Held {
     /** The address it was loaded from, which a layer names in place of its id. */
     readonly url?: string;
     readonly record: AssetRecord;
+    /**
+     * The name of the model the project already held for the same file: this one is a second model
+     * of it (graphty-element's `assets.copy`), set up and added apart from it.
+     */
+    readonly again?: string;
 }
 
 /** One model the dialog holds: a folder, a .zip or a drop may hold several, each with its own name. */
@@ -177,6 +182,28 @@ function settingsOf(session: GraphSession, member: Member, record: AssetRecord =
     return own["node.modelAnimation"] === undefined && first !== undefined
         ? { ...own, "node.modelAnimation": first.name }
         : own;
+}
+
+/**
+ * A name for a second model of a file the project already holds, that no model of the project has:
+ * the first one's name and the next free number ("Fox 2").
+ * @param session - the element's session.
+ * @param first - the first model's name.
+ * @param id - the second model's id, whose own name does not count.
+ * @returns the name.
+ */
+function freeName(session: GraphSession, first: string, id: AssetRecord["id"]): string {
+    const taken = new Set(
+        session.assets
+            .list()
+            .filter((r) => r.kind === "model" && r.state === "accepted" && r.id !== id)
+            .map((r) => modelName(session, r.id)),
+    );
+    let n = 2;
+    while (taken.has(`${first} ${n}`)) {
+        n += 1;
+    }
+    return `${first} ${n}`;
 }
 
 /**
@@ -416,7 +443,10 @@ function PartLine({
  */
 function previewOver(held: Held | null, name: string, draw: ModelLive, busy: boolean): React.ReactNode {
     const accepted = held?.record.state === "accepted";
-    const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
+    // A picture still downloading is not missing: the box shows it loading, not a failure.
+    const missing = countChip(
+        held?.record.problems.filter((p) => PART_CODES.has(p.code) && p.params.downloading !== true) ?? [],
+    );
     if (draw.drawn && !busy) {
         return null;
     }
@@ -921,6 +951,11 @@ export function CustomModelDialog({
     // with it on Add. The layer's own (Light, Wireframe, Picture) are one draft for the layer.
     const [draft, setDraft] = useState<ModelDraft>({});
     const [settingsOpen, setSettingsOpen] = useState(false);
+    // Opened, Model settings scroll into view with the file and its lines above them, wherever the
+    // column was scrolled (to Name, where the button is), so pressing the button shows them.
+    const showSettings = useCallback((el: HTMLDivElement | null) => {
+        el?.parentElement?.firstElementChild?.scrollIntoView({ block: "start" });
+    }, []);
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
@@ -1059,7 +1094,10 @@ export function CustomModelDialog({
     };
     const memberOf = (next: Held): Member => ({
         held: next,
-        name: next.record.plainName ?? modelName(session, refOf(next)),
+        name:
+            next.again === undefined
+                ? (next.record.plainName ?? modelName(session, refOf(next)))
+                : freeName(session, next.again, next.record.id),
         load: true,
     });
     // What the dialog holds now, after letting go of what it held before and no longer does.
@@ -1146,13 +1184,27 @@ export function CustomModelDialog({
         const url = typeof source === "string" ? source : undefined;
         const onWaiting = holdEarly(url, controller, live);
         // A folder, a .zip or a drop may hold several models: graphty-element adds each as its own.
-        const records = await session.assets.addEach(source, {
+        const loaded = await session.assets.addEach(source, {
             signal: controller.signal,
             onProgress,
             onWaiting,
             stopPictures,
         });
-        const refs = records.map((r) => url ?? r.id);
+        // A model the project already held is never changed from here: the dialog sets up and adds
+        // a second model of the same file, by its own id (#8609, #8610).
+        const again = new Map<AssetRecord["id"], string>();
+        const records = await Promise.all(
+            loaded.map(async (r) => {
+                const ours = added.current.has(r.id) || (url !== undefined && added.current.has(url));
+                if (r.kind !== "model" || r.state !== "accepted" || !before.has(r.id) || ours) {
+                    return r;
+                }
+                const copy = await session.assets.copy(r.id);
+                again.set(copy.id, r.plainName ?? modelName(session, url ?? r.id));
+                return copy;
+            }),
+        );
+        const refs = records.map((r) => (again.has(r.id) ? r.id : (url ?? r.id)));
         noteAdded(records, refs, before);
         if (!live()) {
             for (const r of refs) {
@@ -1188,7 +1240,14 @@ export function CustomModelDialog({
                 return { name: r.path ?? r.id, problem: r.problems[0] ?? { code: "E_MODEL_PARSE", params: {} } };
             });
         setRefused(out);
-        holdAll(kept.map((r) => ({ ...(url === undefined ? {} : { url }), record: r })));
+        holdAll(
+            kept.map((r) => {
+                const first = again.get(r.id);
+                return first === undefined
+                    ? { ...(url === undefined ? {} : { url }), record: r }
+                    : { record: r, again: first };
+            }),
+        );
         const shownName = kept[0].plainName ?? modelName(session, url ?? kept[0].id);
         let loadedLine = kept.length > 1 ? CUSTOM_MODEL.loadedMany(kept.length) : CUSTOM_MODEL.loaded(shownName);
         // Cancel load while only its pictures downloaded: the model stays, without them.
@@ -1681,6 +1740,11 @@ export function CustomModelDialog({
                 />
             )}
             {fileProblem === null || busy ? null : <Refusal problem={fileProblem} />}
+            {current?.held.again === undefined || busy ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" data-testid="model-again">
+                    {CUSTOM_MODEL.again(current.held.again)}
+                </Text>
+            )}
             {stopped === null || busy ? null : (
                 <Text size="xs" c="var(--cm-text-secondary)" data-testid="model-stopped">
                     {stopped}
@@ -1740,7 +1804,7 @@ export function CustomModelDialog({
                 </Group>
             )}
             {held === null || summary === undefined || !settingsOpen || busy ? null : (
-                <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings">
+                <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings" ref={showSettings}>
                     <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
                     <SettingRows
                         channels={MODEL_DEFAULT_CHANNELS}
@@ -1843,9 +1907,9 @@ export function CustomModelDialog({
         </Stack>
     );
 
-    // A loaded model: one column, the file, its settings and Files on top, as tall as they are, and
-    // the model under them taking the rest of the height, with Details, a set's arrows and Name
-    // under it, so neither a short Files list nor a few settings leave a blank beside the model.
+    // A loaded model: one scrolling column, the file, its settings and Files on top, as tall as
+    // they are, and the model under them taking the rest of the height (150 px at least), with
+    // Details, a set's arrows and Name under it, so nothing leaves a blank beside the model.
     const alone = held !== null && !busy;
 
     return (
@@ -1866,10 +1930,19 @@ export function CustomModelDialog({
                 data-over={over || undefined}
                 data-alone={alone || undefined}
             >
-                <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
+                <ScrollArea
+                    className="ws-model-main"
+                    classNames={{ content: "ws-model-main-inner" }}
+                    type="hover"
+                    scrollbars="y"
+                    offsetScrollbars="y"
+                >
                     {left}
+                    {/* A loaded model scrolls as one column with its file and settings, so opening
+                        Model settings shows them whole and the footer always stays in view. */}
+                    {alone ? side : null}
                 </ScrollArea>
-                {side}
+                {alone ? null : side}
                 <ModalFooter className="ws-model-footer">
                     <Button variant="default" onClick={cancel}>
                         {CUSTOM_MODEL.cancel}

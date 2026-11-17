@@ -690,23 +690,33 @@
     margin-top: 0;
 }
 
-/* A loaded model: one column. The file, any line about it, Model settings and Files on top, as
-   tall as they are (scrolling past what leaves the model under them 330 px); the model under them
-   takes the rest of the height, its drawing square in the middle of its box, with Details, a set's
-   arrows and Name under it. Nothing sits beside the model, so no column is left blank. */
+/* A loaded model: one column that scrolls as one, above the footer. The file, any line about it,
+   Model settings and Files on top, as tall as they are; the model under them takes the rest of the
+   height (150 px at least), its drawing square in the middle of its box, with Details, a set's
+   arrows and Name under it. Opening Model settings shows them whole, every Details row shows whole,
+   and the footer is never pushed out of the dialog: what does not fit scrolls (#8606, #8611). */
 .ws-dialog-columns.ws-model-body[data-alone] {
     grid-template-columns: minmax(0, 1fr);
-    /* The model, all of Details and Name never give up height: the file and its settings on top
-       scroll first, down to nothing in a short window (#8606). */
-    grid-template-rows: minmax(0, max-content) minmax(min-content, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     height: min(680px, calc(100dvh - 184px));
 }
 
-/* The model, Details and Name end where the file and its settings above them do: those stop short
-   of the right edge by the top's scroll gutter (its 18 px padding and its 10 px scrollbar). */
+.ws-model-body[data-alone] .ws-model-main-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-sm);
+    min-height: 100%;
+}
+
+.ws-model-body[data-alone] .ws-model-left {
+    flex: none;
+}
+
+/* The model, Details and Name end where the file and its settings above them do. */
 .ws-model-body[data-alone] .ws-model-side {
-    min-height: 330px;
-    padding-right: 28px;
+    flex: 1 0 auto;
+    overflow: visible;
+    padding-right: 18px;
 }
 
 /* Every Details row shows whole, its value wrapped: the list is as tall as its rows. */

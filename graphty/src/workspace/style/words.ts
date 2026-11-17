@@ -2262,6 +2262,12 @@ export const CUSTOM_MODEL = {
      */
     loaded: (name: string): string => `${name} loaded`,
     /**
+     * The file is already in the project: Add adds a second model of it, leaving the first as it is.
+     * @param name - the first model's name.
+     * @returns the words.
+     */
+    again: (name: string): string => `Already in the project as ${name}. Add adds another, set up on its own.`,
+    /**
      * Said once the main menu's dialog added a model.
      * @param name - its name.
      * @returns the words.

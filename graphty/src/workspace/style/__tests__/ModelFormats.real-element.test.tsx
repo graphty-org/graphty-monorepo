@@ -204,8 +204,10 @@ describe("every model format and variant, through the Load custom model dialog",
             return;
         }
         if (variant.drawFails !== undefined) {
-            const preview = await within(dialog).findByTestId("model-preview");
-            assert.isNotNull(await within(preview).findByText("Not loaded"));
+            // The box is drawn anew once the model is loaded, in the column that scrolls as one.
+            const said = await within(dialog).findByText("Not loaded");
+            const preview = within(dialog).getByTestId("model-preview");
+            assert.isTrue(preview.contains(said), "said in the model's box");
             assert.isNull(preview.querySelector("img, canvas"));
             const addButton = within(dialog).getByRole("button", { name: "Add model" });
             assert.equal(addButton.getAttribute("aria-disabled"), "true");

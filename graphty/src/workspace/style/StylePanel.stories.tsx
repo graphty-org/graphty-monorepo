@@ -864,7 +864,8 @@ export const CustomModelDrawFailed: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, [await fixtureFile(damagedPlyUrl, "cube.ply")]);
-        await within(await within(dialog).findByTestId("model-preview")).findByText("Not loaded");
+        // The model's box is drawn anew once the model is loaded: look it up once it says so.
+        await within(dialog).findByText("Not loaded");
     }),
     "Custom model, draw failed",
 );

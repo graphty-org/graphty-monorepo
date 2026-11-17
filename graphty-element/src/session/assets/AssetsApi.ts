@@ -94,8 +94,8 @@ export interface AddAssetOptions {
     readonly format?: ModelFormat;
     /**
      * Parts to draw without: pictures and `.mtl` files the model names, by their path in the set.
-     * A picture is drawn as plain white, so the material's own color still applies; an OBJ
-     * without its `.mtl` draws with the default material. The record lists them in `skipped`.
+     * A material that draws a skipped picture draws without it, in its own plain color (the
+     * node's color when it states none); an OBJ without its `.mtl` draws with the default material. The record lists them in `skipped`.
      * Default: none.
      */
     readonly skipped?: readonly string[];

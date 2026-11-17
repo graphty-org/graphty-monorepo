@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
+import { withoutGltfPictures } from "../src/files/gltfChecks.js";
 import { checkModelFiles, DEFAULT_MODEL_LIMITS, type ModelLimits } from "../src/files/index.js";
 import { ModelError } from "../src/files/references.js";
 
@@ -163,5 +164,41 @@ describe("the glTF checks", () => {
         assert.strictEqual(triangles.params.what, "triangles");
         const textures = await refusalOf(plain, { ...DEFAULT_MODEL_LIMITS, maxTextureBytes: 10 });
         assert.strictEqual(textures.params.what, "textureBytes");
+    });
+});
+
+describe("withoutGltfPictures", () => {
+    /**
+     * A glTF whose two materials draw one picture each, in a folder.
+     * @returns The JSON.
+     */
+    function painted(): Json {
+        return {
+            images: [{ uri: "maps/wood%20grain.png" }, { name: "Metal", uri: "metal.png" }],
+            textures: [{ source: 0 }, { source: 1 }],
+            materials: [
+                { name: "wood", pbrMetallicRoughness: { baseColorTexture: { index: 0 } } },
+                { name: "metal", pbrMetallicRoughness: { baseColorTexture: { index: 1 } } },
+            ],
+        };
+    }
+
+    const colorOf = (json: Json, at: number): unknown =>
+        ((json.materials as Json[])[at].pbrMetallicRoughness as Json).baseColorTexture;
+
+    it("drops a picture whose file is skipped, by its path in the set beside the glTF", () => {
+        const json = painted();
+        assert.isTrue(withoutGltfPictures(json, new Set(), new Set(["models/maps/wood grain.png"]), "models/a.gltf"));
+        assert.isUndefined(colorOf(json, 0), "the skipped picture is drawn without");
+        assert.isDefined(colorOf(json, 1), "the other picture stays");
+    });
+
+    it("drops a picture by its summary name, and nothing when neither list names one", () => {
+        const json = painted();
+        assert.isFalse(withoutGltfPictures(json, new Set(["other"]), new Set(["other.png"])));
+        assert.isDefined(colorOf(json, 1));
+        assert.isTrue(withoutGltfPictures(json, new Set(["Metal"])));
+        assert.isUndefined(colorOf(json, 1));
+        assert.isDefined(colorOf(json, 0));
     });
 });

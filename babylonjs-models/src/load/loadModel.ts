@@ -90,6 +90,8 @@ interface GltfPrepared {
  * @param main - The main file.
  * @param format - `glb` or `gltf`.
  * @param hidden - Pictures to draw without, by their summary names.
+ * @param skipped - Parts loaded without, by their path in the set: a picture among them is drawn
+ *     without too, so its part draws in its plain color rather than over a white stand-in.
  * @returns The set to load, the loader, and the extensions the file uses and requires.
  */
 function prepareGltf(
@@ -97,6 +99,7 @@ function prepareGltf(
     main: string,
     format: "glb" | "gltf",
     hidden: ReadonlySet<string>,
+    skipped: ReadonlySet<string> = new Set(),
 ): GltfPrepared {
     const bytes = files.get(main) as Uint8Array;
     const glbVersion = format === "glb" ? new DataView(bytes.buffer, bytes.byteOffset, 8).getUint32(4, true) : 0;
@@ -131,7 +134,13 @@ function prepareGltf(
             json.extensionsUsed = used.filter((name) => !IGNORED_EXTENSIONS.has(name));
         }
 
-        const plain = withoutClimbs(json, files, main, body, withoutGltfPictures(json, hidden) || stripped);
+        const plain = withoutClimbs(
+            json,
+            files,
+            main,
+            body,
+            withoutGltfPictures(json, hidden, skipped, main) || stripped,
+        );
         return {
             files: plain.files,
             extension: plain.extension ?? (READERS[format] as ModelExtension),
@@ -387,8 +396,8 @@ function failureOf(error: unknown, format: string): ModelFact {
 /** Options for {@link loadModelFiles}. */
 export interface LoadModelFilesOptions extends LoaderOptions {
     /**
-     * Parts to load without, by their path in the set: a picture is a 1 x 1 white PNG, and an
-     * OBJ's MTL lines naming it are dropped. Default: none.
+     * Parts to load without, by their path in the set: a material that draws a skipped picture
+     * (an OBJ's MTL line, a glTF's texture) draws without it, in its plain color. Default: none.
      */
     readonly skipped?: readonly string[];
     /**
@@ -437,7 +446,7 @@ export async function loadModelFiles(
     let draco: DracoModule | undefined;
     let clear: ReadonlySet<string> = new Set();
     if (format === "glb" || format === "gltf") {
-        const prepared = prepareGltf(files, main, format, new Set(hidden));
+        const prepared = prepareGltf(files, main, format, new Set(hidden), new Set(skipped));
         ({ files } = prepared);
         clear = prepared.seeThrough ?? clear;
         reader = prepared.extension;

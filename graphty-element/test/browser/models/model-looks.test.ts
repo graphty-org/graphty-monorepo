@@ -188,6 +188,23 @@ describe("model colors", () => {
         assert.isAbove(count(await readFrame(element), RED), 500, "the plain model is drawn red");
     });
 
+    it("draws a model taken without its picture in the node's color, with no tint asked (#8614)", async () => {
+        const element = await mount();
+        // A cube whose only material draws cube.png, as the Duck's draws DuckCM.png.
+        const files = await filesOf("gltf-textured");
+        files.delete("cube.png");
+        const { problems } = await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" }, [
+            "cube.png",
+        ]);
+        assert.notInclude(
+            problems.map((fact) => fact.code),
+            "W_MODEL_COLOR_IGNORED",
+        );
+        const frame = await readFrame(element);
+        assert.isAbove(count(frame, RED), 500, "the part that lost its picture is drawn red");
+        assert.strictEqual(count(frame, GREEN), 0, "nothing of the picture is left");
+    });
+
     it("keeps a picture under its own colors and 'untextured', darkens it on top, and paints over it under 'replace'", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "gltf-textured", [{ id: "a", x: 0 }], {

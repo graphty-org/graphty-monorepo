@@ -20,7 +20,16 @@
  * What comes out is the model's summary, built from the same JSON.
  */
 
-import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references.js";
+import {
+    cut,
+    dirOf,
+    type Findings,
+    findReference,
+    refuse,
+    resolveReference,
+    setKeyOf,
+    textureBytesOf,
+} from "./references.js";
 import type { ModelCompression, ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
 /** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
@@ -1178,17 +1187,47 @@ function picturesOf(json: Record<string, unknown>): ModelPicture[] {
 }
 
 /**
- * Drop every material's references to the named pictures, so those parts draw without them.
+ * The key in the file set an image's `uri` names, or undefined for an embedded one.
+ * @param image - The image.
+ * @param main - The glTF's path in the set.
+ * @returns The key.
+ */
+function imageKey(image: Record<string, unknown> | undefined, main: string): string | undefined {
+    const uri = image?.uri;
+    if (typeof uri !== "string" || /^data:/i.test(uri)) {
+        return undefined;
+    }
+
+    try {
+        return setKeyOf(dirOf(main) + decodeURIComponent(uri));
+    } catch {
+        return setKeyOf(dirOf(main) + uri);
+    }
+}
+
+/**
+ * Drop every material's references to the named pictures, and to pictures whose file is loaded
+ * without (a skipped part), so those parts draw without them, in their plain color.
  * @param json - The glTF, changed in place.
  * @param hidden - Picture names, as {@link ModelSummary.pictures} gives them.
+ * @param skipped - Parts loaded without, by their path in the set. Default: none.
+ * @param main - The glTF's path in the set, which `skipped` paths are resolved against.
  * @returns Whether anything was dropped.
  */
-export function withoutGltfPictures(json: Record<string, unknown>, hidden: ReadonlySet<string>): boolean {
-    if (hidden.size === 0) {
+export function withoutGltfPictures(
+    json: Record<string, unknown>,
+    hidden: ReadonlySet<string>,
+    skipped: ReadonlySet<string> = new Set(),
+    main = "",
+): boolean {
+    if (hidden.size === 0 && skipped.size === 0) {
         return false;
     }
 
-    const names = pictureNames(Array.isArray(json.images) ? json.images.filter(isObject) : []);
+    const images = Array.isArray(json.images) ? json.images.filter(isObject) : [];
+    const names = pictureNames(images);
+    const gone = (image: number): boolean =>
+        hidden.has(names[image] ?? "") || skipped.has(imageKey(images[image], main) ?? "");
     const textures = Array.isArray(json.textures) ? json.textures.filter(isObject) : [];
     const materials = Array.isArray(json.materials) ? json.materials : [];
     let dropped = false;
@@ -1196,7 +1235,7 @@ export function withoutGltfPictures(json: Record<string, unknown>, hidden: Reado
         const refs: [Record<string, unknown>, string, number][] = [];
         textureRefs(material, refs);
         for (const [holder, key, texture] of refs) {
-            if (sourcesOf(textures[texture]).some((image) => hidden.has(names[image] ?? ""))) {
+            if (sourcesOf(textures[texture]).some((image) => gone(image))) {
                 Reflect.deleteProperty(holder, key);
                 dropped = true;
             }

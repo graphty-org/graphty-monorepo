@@ -20,9 +20,6 @@
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
- *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
- *   catalogue that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *

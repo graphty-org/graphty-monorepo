@@ -978,8 +978,7 @@ for (const entry of channels) {
 `styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
 `layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
 answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
-with). New codes may be added in a minor release: word an unknown one generically. The English
-`reason` on both is deprecated and goes in the next major release.
+with). New codes may be added in a minor release: word an unknown one generically.
 
 ### Several elements at once
 

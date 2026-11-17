@@ -511,11 +511,8 @@ export interface Caveats {
     readonly filterScope?: boolean;
     readonly iterations?: number;
     readonly method: string;
-    // @deprecated
     readonly notes: readonly string[];
     readonly partialCause?: CodedFact<PartialCode>;
-    // @deprecated
-    readonly partialReason?: string;
     readonly precision: Precision;
     readonly sampleSize?: number;
     readonly seed?: number | null;
@@ -564,8 +561,6 @@ export interface ChannelExplanation {
     readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
-    // @deprecated
-    readonly reason?: string;
 }
 
 // @public
@@ -846,15 +841,11 @@ export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
 // @public
 export interface CostEstimate {
     readonly available: boolean;
-    // @deprecated
-    readonly basis: string;
     readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
-    // @deprecated
-    readonly reason?: string;
     readonly refusal?: CodedFact<EstimateRefusalCode>;
     readonly seconds: number;
 }
@@ -872,7 +863,6 @@ export type CostGateDecision = {
     readonly sampleSize: number;
     readonly seeded: boolean;
     readonly facts: readonly CodedFact<CaveatCode>[];
-    readonly notes: readonly string[];
 } | {
     readonly kind: "refused";
     readonly error: GraphtyError;
@@ -1165,8 +1155,6 @@ export interface EncodingRun {
     readonly distinguishedBy: RunDistinction | null;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
-    // @deprecated
-    readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly shape: ResultShape;
     readonly siblingsDifferBy: readonly string[] | null;
@@ -3541,8 +3529,6 @@ export interface LeftOutEdge {
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
-    // @deprecated
-    readonly departures: readonly string[];
     readonly domain?: {
         readonly min: number;
         readonly max: number;
@@ -3554,7 +3540,6 @@ export interface LegendBlock {
     };
     readonly facts: readonly LegendFact[];
     readonly field?: {
-        readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
         readonly result?: FieldResult;
@@ -3578,7 +3563,6 @@ export interface LegendBlock {
     readonly runId?: RunId;
     readonly scale?: {
         readonly kind: string;
-        readonly label: string;
     };
     readonly scope?: {
         readonly count: number;
@@ -3614,8 +3598,6 @@ export interface LegendSwatch {
         readonly max: number;
     };
     readonly hidden?: true;
-    // @deprecated
-    readonly label: string;
     readonly name?: string;
     readonly paintedOverBy?: LayerId;
     readonly paints?: unknown;
@@ -5485,8 +5467,6 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
     readonly journalId: JournalId | null;
-    // @deprecated
-    readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
     readonly progress: Progress;
@@ -5579,7 +5559,6 @@ export interface RunOutcome<T = RunResult> {
     readonly fields?: readonly FieldDescriptor[];
     readonly partial?: boolean;
     readonly partialCause?: CodedFact<PartialCode>;
-    readonly partialReason?: string;
     readonly result: T;
     readonly summary?: ResultSummary;
 }
@@ -5632,8 +5611,6 @@ export interface RunRecord {
     readonly engine: EngineVersions;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
-    // @deprecated
-    readonly label: string;
     readonly name: string | null;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
@@ -8002,8 +7979,6 @@ export interface UnboundLayer {
     readonly fact: CodedFact<UnboundLayerCode>;
     readonly layerId: LayerId;
     readonly needs: readonly Path[];
-    // @deprecated
-    readonly reason: string;
 }
 
 // @public

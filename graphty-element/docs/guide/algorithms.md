@@ -343,8 +343,7 @@ if (run.partial) {
 }
 ```
 
-The codes are in the [table below](#why-a-run-stopped-early). `run.caveats.partialReason`, the
-same cause as an English sentence, is deprecated and removed in the next major.
+The codes are in the [table below](#why-a-run-stopped-early).
 
 ## What a result says
 
@@ -394,9 +393,9 @@ console.log(run.caveats.facts);
 //  { code: "pagerank.sums-to-one", params: {} }, { code: "weights.unread", params: {} }]
 ```
 
-A node id in `params` is the data's own id, a string or a number. `run.caveats.notes`, the same
-remarks as English sentences, is deprecated and removed in the next major; an algorithm registered
-from outside the element that writes its own `notes` in words has no facts for them.
+A node id in `params` is the data's own id, a string or a number. `run.caveats.notes` holds only
+the sentences an algorithm registered from outside the element wrote in its own words; it is empty
+for every built-in algorithm.
 
 | Code                                 | What it says, and its `params`                                                                                                                                                                  |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -579,9 +578,9 @@ console.log(name, run.distinguishedBy); // "Communities" { option: "resolution",
 console.log(run.siblingsDifferBy); // null: no other Communities run yet
 ```
 
-`run.label` ("Communities (resolution 1.5)") is the element's own English for the same facts. It is
-deprecated, with the `label` of a run's record, of a `ResultRoot` and of an `EncodingRun`, and
-removed in the next major.
+When a run paints layers and the call names none, the layers are named from these facts
+("Communities (resolution 1.5)"); `name` on `encode()`, `highlight()` and `mark()` names them
+yourself.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope
 -- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run

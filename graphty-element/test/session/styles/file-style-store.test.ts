@@ -118,10 +118,10 @@ describe("the file-style paths", () => {
         });
         await session.styles.settled();
         const fieldOf = (id: string): string | undefined =>
-            session.styles.legendOf(id).find((block) => block.field !== undefined)?.field?.plainName;
+            session.styles.legendOf(id).find((block) => block.field !== undefined)?.field?.path;
 
-        assert.strictEqual(fieldOf(copied.id), "File style");
-        assert.strictEqual(fieldOf(degree.id), "In-degree");
+        assert.strictEqual(fieldOf(copied.id), fileStylePath("gexf", "edge", "width"));
+        assert.strictEqual(fieldOf(degree.id), "graphty.inDegree");
         session.dispose();
     });
 

@@ -710,13 +710,7 @@ export interface DefectWaiver {
 }
 
 // @public
-export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
-
-// @public
 export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
-
-// @public
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
 export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
@@ -1755,7 +1749,7 @@ export interface KeymapDescriptor {
 }
 
 // @public
-export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "all-paths", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness"];
+export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness"];
 
 // @public
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
@@ -2176,7 +2170,7 @@ export interface MetricAvailability {
     key: AlgorithmKey;
     // (undocumented)
     plainName: string;
-    reason?: string;
+    refusal?: CodedFact<EstimateRefusalCode>;
     // (undocumented)
     runIds: readonly RunId[];
     // (undocumented)

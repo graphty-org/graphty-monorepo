@@ -1854,6 +1854,7 @@ export class UpdateManager implements Manager {
      * say, however it was asked for (a pass, or a read of the edge map): no pass walks it before its
      * row's masks move.
      * @param edge - The edge.
+     * @internal
      */
     adoptBuiltEdge(edge: Edge): void {
         const { index } = edge;

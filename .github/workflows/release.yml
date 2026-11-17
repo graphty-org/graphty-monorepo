@@ -1178,8 +1178,6 @@ jobs:
                       artifact: build-storybook-layout
                     - project: algorithms
                       artifact: build-storybook-algorithms
-                    - project: graphty
-                      artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
                     # four legs, merged by recapture_merge (its matrix lists every legged project)
@@ -1201,6 +1199,24 @@ jobs:
                     - project: graph-io-fidelity
                       artifact: build-storybook-graph-io-fidelity
                       storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 4
+                      legs: 4
+                    # four legs too: 380 changed and new stories took 2603 s in one job, past its 45 minutes with the
+                    # merge (#8128); at about 7 s a story a quarter of them is about 11 minutes
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 1
+                      legs: 4
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 2
+                      legs: 4
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 3
+                      legs: 4
+                    - project: graphty
+                      artifact: build-storybook-app
                       leg: 4
                       legs: 4
         env:
@@ -1392,6 +1408,7 @@ jobs:
             matrix:
                 include:
                     - project: graph-io-fidelity
+                    - project: graphty
         env:
             PROJECT: ${{ matrix.project }}
         steps:

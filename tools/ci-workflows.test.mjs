@@ -3769,6 +3769,10 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             [...new Set(legged.map((r) => r.project))],
         );
         assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.ok(
+            legged.some((r) => r.project === "graphty"),
+            "graphty re-shoots in legs (#8128)",
+        );
         assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);

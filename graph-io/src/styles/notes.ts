@@ -4,7 +4,9 @@
  */
 
 import { jsonText } from "../common/text.js";
+import type { LossNote } from "../types.js";
 import type { StyleNote, StyleNoteCode, StyleTarget } from "./types.js";
+import { isStyleProperty } from "./vocabulary.js";
 
 /** At most this many samples per note. */
 const MAX_SAMPLES = 8;
@@ -165,4 +167,25 @@ function sampleText(value: unknown): string {
         }
     }
     return text.slice(0, MAX_SAMPLE_LENGTH);
+}
+
+/**
+ * A style note as a loss note.
+ * @param n - the note
+ * @returns the loss note
+ */
+export function lossOf(n: StyleNote): LossNote {
+    return Object.freeze({
+        code: n.code,
+        message: n.message,
+        column: null,
+        count: n.params.count,
+        style:
+            n.params.target === null ||
+            n.params.property === null ||
+            n.params.target === "graph" ||
+            !isStyleProperty(n.params.target, n.params.property)
+                ? undefined
+                : Object.freeze({ target: n.params.target, property: n.params.property }),
+    });
 }

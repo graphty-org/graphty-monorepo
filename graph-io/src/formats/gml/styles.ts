@@ -32,11 +32,15 @@ import { canonText } from "../../styles/canon/text.js";
 import { putYedRamp, yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
+    YED_LABEL_BOX_PADDING,
+    YED_LABEL_CHARACTER,
+    YED_LABEL_LINE,
     YED_OUTSIDE_DISTANCE,
     yedLabelBox,
     yedLabelFillsNodeHeight,
 } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { arrowGap, arrowProportion, CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
@@ -81,12 +85,7 @@ import {
     putYedEdgeLabel,
     routeMiddle,
     typeOutline,
-    type ValueColumns,
-    valueColumns,
     YED_ARROWS,
-    YED_LABEL_BOX_PADDING,
-    YED_LABEL_CHARACTER,
-    YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
     yedArcControl,

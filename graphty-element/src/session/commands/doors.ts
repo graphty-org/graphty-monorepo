@@ -2254,7 +2254,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             id: READ,
-            label: READ,
             distinguishedBy: READ,
             siblingsDifferBy: READ,
             algorithm: READ,

@@ -79,7 +79,12 @@ interface LineHelpers extends AssetLineArgs {
  * @returns the values, by channel.
  */
 function modelStyleOf(ctx: RowContext): ModelDraft {
-    const channels: readonly Channel[] = ["node.color", ...MODEL_CHANNELS.filter((c) => c !== "node.model")];
+    const channels: readonly Channel[] = [
+        "node.color",
+        "node.texture",
+        "node.wireframe",
+        ...MODEL_CHANNELS.filter((c) => c !== "node.model"),
+    ];
     return Object.fromEntries(
         channels.flatMap((channel) => {
             const value = lineIn(ctx, channel)?.value;

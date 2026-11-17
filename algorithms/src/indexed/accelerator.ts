@@ -184,10 +184,8 @@ export interface AlgorithmAccelerator {
 }
 
 /**
- * The option shape of the power-iteration family until each one's `indexed.*` port lands and
- * brings its real option type (plan decision PD-2's "NOT TOUCHED" rows). It is DELIBERATELY not
- * `Record<string, unknown>`: these three are the members every one of those algorithms takes, so
- * an accelerator can honour them today and the type narrows rather than widens as ports arrive.
+ * The options every power-iteration algorithm takes, as an accelerator sees them. It is deliberately not
+ * `Record<string, unknown>`, so an accelerator honours exactly these members.
  * @public
  */
 export interface HitsOptionsLike {
@@ -220,7 +218,7 @@ export interface PageRankOptionsLike {
 
 /**
  * Betweenness options as the accelerator sees them: node INDICES, which is the only form that
- * means anything on a snapshot (plan decision PD-5).
+ * means anything on a snapshot.
  * @public
  */
 export interface BetweennessAcceleratorOptions {
@@ -256,8 +254,6 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * accelerator when it has the method and runs the CPU port otherwise, wrapped in `Promise.resolve`
  * so both paths are async and graphty-element's `async run()` adapters treat them alike.
  *
- * The list GROWS with the A2 ports -- each port PR adds its method (plan departure DEP-8A-E).
- *
  * `louvain` and `kCoreDecomposition` pass their port's options through unchanged; Louvain's
  * `resolution` is wider than the `HitsOptionsLike` the accelerator side declares, and narrowing that
  * member belongs to the pull request that lands a GPU Louvain.
@@ -276,7 +272,7 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * to converge: past that an f32 accelerator can overflow to Infinity. The iteration counts
  * of the two paths differ.
  *
- * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
+ * `labelPropagation` passes its options through the same way, except that a call with a `seed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
  * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
  * those. webgpu-graph-algorithms runs synchronous passes (the rules of `labelPropagationSynchronous`),
@@ -319,8 +315,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * every path sum is an integer below 2^24, and otherwise may differ by f32 rounding.
  *
  * `bellmanFord` goes to the accelerator unless the call carries a `weights` override that is not a
- * `Float32Array`: an accelerator narrows the override to f32, so an f64 one -- the exact weights a
- * legacy facade passes -- would be answered for different weights. Its result gets the same
+ * `Float32Array`: an accelerator narrows the override to f32, so an f64 one would be answered
+ * for different weights. Its result gets the same
  * `pathTo` / `pathEdges` decoration as `sssp`.
  *
  * The three path centralities route the same way. `betweennessCentrality` and
@@ -926,7 +922,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.closenessCentrality(s, closenessSources(s, options))
                 : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>
-            acc?.labelPropagation !== undefined && options?.randomSeed === undefined
+            acc?.labelPropagation !== undefined && options?.seed === undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
         labelPropagationSynchronous: (s, options) =>

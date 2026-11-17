@@ -1294,6 +1294,22 @@ describe("the pull request rules", () => {
                 ["a.test.ts", 1, true],
             ],
         );
+        // a touched flake names no test to file against master (its flake is likely the pull request's own), only
+        // the failed tests and job its re-run needs; an untouched line merged in keeps the check untouched (#8363)
+        assert.equal(checks[0].names, undefined);
+        assert.deepEqual(checks[0].failed, ["flips"]);
+        rmSync(out, { recursive: true, force: true });
+        prJudge(
+            { ...plan, affected: [...plan.affected, "d.test.ts"] },
+            { ...o, base: "abc1234", out, env: { RESULTS_JOB_ID: "4242" } },
+        )(d, { firstOutcome: "failed" });
+        assert.deepEqual(
+            readChecks(out).map((c) => [c.file, c.job, c.failed]),
+            [
+                ["d.test.ts", "4242", ["flips"]],
+                ["a.test.ts", "4242", ["x"]],
+            ],
+        );
         rmSync(dir, { recursive: true, force: true });
     });
 
@@ -1461,10 +1477,14 @@ describe("the pull request rules", () => {
         assert.equal(await dispatchChecks([check], gh, { claim, pr: 42 }), 1);
         assert.equal(await dispatchChecks([check], gh, { claim, pr: 43 }), 0);
         assert.match(calls[0], / -f repeat=1 -f pr=42$/);
-        // the run that asked, so a base check that finds master failing too re-runs its failed jobs (#8363)
-        await dispatchChecks([{ ...check, base: "aaa1111" }], gh, { pr: 42, run: "777" });
-        assert.match(calls.at(-1), / -f pr=42 -f run=777$/);
-        await dispatchChecks([{ ...check, base: "aaa2222" }], gh, { run: "7 x" });
+        // only a touched check carries the run, its job and its failed tests: an untouched one's failure already
+        // passed the pull request, so a master failure re-runs nothing (#8363)
+        await dispatchChecks([{ ...check, base: "aaa1111", job: "88" }], gh, { pr: 42, run: "777" });
+        assert.match(calls.at(-1), / -f pr=42$/);
+        const touched = { ...check, base: "aaa3333", touched: true, job: "88", failed: ["d > x"] };
+        await dispatchChecks([touched], gh, { pr: 42, run: "777" });
+        assert.match(calls.at(-1), / -f pr=42 -f run=777 -f job=88 -f failed=\["d > x"\]$/);
+        await dispatchChecks([{ ...touched, base: "aaa2222" }], gh, { run: "7 x" });
         assert.doesNotMatch(calls.at(-1), /run=/);
         // a store that cannot answer does not stop the check
         assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);

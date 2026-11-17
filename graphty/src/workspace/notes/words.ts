@@ -128,6 +128,30 @@ export function noteTimeWords(time: string, edited: string | undefined): string 
     return edited === undefined ? when : `${when}, edited`;
 }
 
+/** How the Notes place orders its notes. */
+export type NoteSort = "newest" | "oldest" | "element";
+
+/**
+ * The notes in the order the reader picked: newest first (as graphty-element lists them), oldest
+ * first, or by the name of what each is about, newest first among notes about the same thing.
+ * @param session - the session.
+ * @param notes - the notes, newest first.
+ * @param sort - the order.
+ * @returns the notes in that order.
+ */
+export function sortNotes(session: GraphSession, notes: readonly Note[], sort: NoteSort): readonly Note[] {
+    if (sort === "oldest") {
+        return [...notes].reverse();
+    }
+    if (sort === "element") {
+        const names = new Map(notes.map((note) => [note, targetWords(session, note.targets[0])]));
+        return [...notes].sort((a, b) =>
+            (names.get(a) ?? "").localeCompare(names.get(b) ?? "", undefined, { numeric: true }),
+        );
+    }
+    return notes;
+}
+
 /** The inspector kinds that list the notes about them: the ones a note can name. */
 const COUNTED = new Set<Resolved["kind"]>(["graph", "node", "edge", "several", "measure-row", "run-row"]);
 

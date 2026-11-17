@@ -107,6 +107,9 @@ describe("list", () => {
                 ...skipped,
                 issue(1, "docs only", ["documentation"]),
                 issue(2, "docs bug", ["documentation", "bug"]),
+                issue(18, "docs infra", ["documentation", "infrastructure"]),
+                issue(19, "docs ux-safe enhancement", ["documentation", "enhancement", "ux-safe"]),
+                issue(20, "docs enhancement awaiting owner", ["documentation", "enhancement"]),
                 issue(676, "held major", ["bug"]),
                 issue(3, "Release held: graphty 1.0", ["bug"]),
                 issue(4, "ci lane red on master", ["bug"]),
@@ -136,7 +139,7 @@ describe("list", () => {
         ];
         assert.deepEqual(
             numbers(pages).sort((a, b) => a - b),
-            [2, 6, 9, 13, 16, 17],
+            [2, 6, 9, 13, 16, 17, 18, 19],
         );
     });
 

@@ -72,7 +72,9 @@ console.log(checked.format, checked.summary.triangles, checked.warnings);
 
 A refused set throws a `ModelError`. Its `facts` lists every problem found at once, such as each
 missing part of a model: `listParts(files, {}, DEFAULT_MODEL_LIMITS)` names every file a model needs
-and whether the set holds it. `loadModelFiles(scene, checked.files, checked.main, checked.format)`
+and whether the set holds it, and `listModels(files, DEFAULT_MODEL_LIMITS)` lists every model a set
+holds (each `{ main, format, files }`) when a folder or `.zip` carries more than one.
+`loadModelFiles(scene, checked.files, checked.main, checked.format)`
 then loads a checked set.
 
 ## Codes

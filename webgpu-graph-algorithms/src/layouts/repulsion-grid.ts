@@ -108,7 +108,7 @@ export function leaseOf(box: LeaseBox): Lease {
  * @param values - the values to write
  * @returns the whole-buffer binding and a zero dynamic offset
  */
-export function writeParams(
+function writeParams(
     device: GPUDevice,
     lease: Lease,
     block: UniformBlock,

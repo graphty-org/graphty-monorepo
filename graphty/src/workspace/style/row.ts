@@ -555,8 +555,11 @@ export async function removeLine(
     layer: Layer,
     ...channels: Channel[]
 ): Promise<void> {
-    const set = without(layer.set, ...channels);
-    const encode = without(layer.encode, ...channels);
+    // The layer as the element holds it now, not the caller's snapshot: two removes in a row would
+    // otherwise each write back the snapshot, and the second would restore what the first took.
+    const now = session.styles.get(layer.id) ?? layer;
+    const set = without(now.set, ...channels);
+    const encode = without(now.encode, ...channels);
     // The layer stays when this was its last value: the panel removes properties one at a time.
     await session.styles.update(layer.id, { set, encode }, { keepEmpty: true });
 }

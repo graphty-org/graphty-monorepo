@@ -25,7 +25,7 @@ import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
 import { focusSectionNext } from "./useFocusLine";
 import { ModelValueField, ValueField } from "./ValueField";
-import { fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTURE_WORD, valueWords } from "./words";
+import { CUSTOM_MODEL, fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTURE_WORD, valueWords } from "./words";
 
 /** The Model settings pop-over's width, as every Style panel pop-over. */
 const POPOUT_WIDTH = 240;
@@ -395,7 +395,7 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title: "Model settings" }}
-                    closeLabel="Close Model settings"
+                    closeLabel={CUSTOM_MODEL.closeSettings}
                 >
                     <Popout.Content>
                         <ModelSettings ctx={ctx} model={model} />

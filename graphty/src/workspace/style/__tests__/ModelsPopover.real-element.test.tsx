@@ -163,6 +163,20 @@ describe("models in the Shape field, on the real element", () => {
             assert.equal(written(session, "node.modelAnimationSpeed"), 0, "held there");
         });
         assert.equal(written(session, "node.modelAnimation"), "spin");
+        // Back on, the speed 0 and the start the switch and Pose wrote both go, and the clip plays.
+        await userEvent.click(within(panel).getByRole("switch", { name: "Playing" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "node.modelAnimationSpeed"), "the speed 0 is gone");
+            assert.isUndefined(written(session, "node.modelAnimationOffset"), "the start is gone");
+        });
+        assert.equal(written(session, "node.modelAnimation"), "spin", "the clip stays");
+        assert.isTrue(within(panel).getByRole<HTMLInputElement>("switch", { name: "Playing" }).checked);
+        assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }));
+        // The layer's Model settings closes by the same name as the dialog's.
+        await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
+        });
     });
 
     it("shows a model added still at its held pose in the layer's Pose slider", async () => {

@@ -93,6 +93,6 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/compact-mantine#readme",
+    "homepage": "https://graphty.app/docs/compact-mantine/",
     "author": "Adam Powers <apowers@ato.ms>"
 }

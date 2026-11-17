@@ -265,7 +265,7 @@ describe("deferring downstream packages' tests (landing checks)", () => {
         const ioOnly = run(["graph-io/src/index.ts"], true);
         assert.ok(ioOnly.length > 0 && ioOnly.every((p) => p === "graph-io"), ioOnly.join(", "));
         assert.ok(run(["graph-io/src/index.ts"], false).includes("graphty-element"), "without deferral it runs");
-        const shared = run(["vitest.shared.config.ts"], true);
+        const shared = run(["vitest.base.mjs"], true);
         assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
     });
 });
@@ -2459,7 +2459,7 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
                 }
             }
         };
-        for (const f of ["vitest.shared.config.ts", ...configs]) walk(f);
+        for (const f of configs) walk(f);
         assert.ok(seen.has("tools/test-slots.mjs"), "the walk finds the configs' tools");
         assert.deepEqual(
             [...seen].filter((f) => storyless.some((re) => re.test(f))),

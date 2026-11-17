@@ -422,7 +422,7 @@ function nowMs(): number {
  * @param error - The thrown value.
  * @returns True when it is an `AbortError` or a `TimeoutError`.
  */
-function isAbortLike(error: unknown): error is Error {
+export function isAbortLike(error: unknown): error is Error {
     return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 

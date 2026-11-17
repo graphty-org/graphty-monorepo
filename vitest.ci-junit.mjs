@@ -11,7 +11,7 @@
 // --reporter=junit and the time-budget reporter itself (tools/ci-test-matrix.mjs); vitest then takes
 // the junit options, the output file included, from the config.
 //
-// Plain JavaScript beside a .d.mts, not part of vitest.shared.config.ts: graphty and layout type-check
+// Plain JavaScript beside a .d.mts, not TypeScript: graphty and layout type-check
 // their vitest config inside a composite TypeScript project, which refuses a .ts source file outside
 // the package.
 

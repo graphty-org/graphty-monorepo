@@ -2,7 +2,6 @@ import type { BaseTexture } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Engine } from "@babylonjs/core/Engines/engine.js";
-import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { GreasedLineMeshColorMode } from "@babylonjs/core/Materials/GreasedLine/greasedLineMaterialInterfaces.js";
 import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
@@ -257,149 +256,6 @@ export class EdgeMesh {
     static readonly SELF_LOOP_RADIUS = 2;
     /** How far a self-loop stays outside a node too big for {@link EdgeMesh.SELF_LOOP_RADIUS}. */
     static readonly SELF_LOOP_CLEARANCE = 0.5;
-    private static shadersRegistered = false;
-
-    /**
-     * Whether solid lines are drawn by CustomLineRenderer (true) or by Babylon.js's
-     * GreasedLine (false). Every line is drawn by CustomLineRenderer today.
-     */
-    private static readonly USE_CUSTOM_RENDERER = true;
-
-    private static _registerShaders(): void {
-        if (this.shadersRegistered) {
-            return;
-        }
-
-        // Register dot arrow screen-space vertex shader
-        // Matches GreasedLine's screen-space expansion algorithm
-        Effect.ShadersStore.dotArrowScreenSpaceVertexShader = `
-precision highp float;
-
-attribute vec3 position;
-attribute vec2 uv;
-
-uniform mat4 world;
-uniform mat4 viewProjection;
-uniform mat4 projection;
-uniform vec2 grlResolution;
-uniform float grlWidth;
-
-varying vec2 vUV;
-
-void main() {
-    vUV = uv;
-
-    // Get disc center in clip space
-    vec4 centerClip = viewProjection * world * vec4(0.0, 0.0, 0.0, 1.0);
-
-    // Simple circle in screen space - expand radially
-    // position.xy is already a unit circle from the disc geometry
-    vec2 offset = position.xy * grlWidth * 0.5;
-
-    // Apply screen-space sizing
-    // Multiply by w to compensate for perspective divide (GPU will divide by w)
-    // Divide by resolution to convert from pixels to NDC (-1 to +1)
-    offset *= centerClip.w;
-    offset /= grlResolution;
-
-    // Apply offset in clip space
-    gl_Position = centerClip;
-    gl_Position.xy += offset;
-}
-`;
-
-        // Register dot arrow screen-space fragment shader
-        Effect.ShadersStore.dotArrowScreenSpaceFragmentShader = `
-precision highp float;
-
-varying vec2 vUV;
-uniform vec3 arrowColor;
-
-void main() {
-    // Center coordinates (-1 to +1)
-    vec2 centered = vUV * 2.0 - 1.0;
-
-    // SDF: distance from center
-    float dist = length(centered);
-
-    // Hard cutoff for uniform color
-    if (dist > 1.0) {
-        discard;
-    }
-
-    gl_FragColor = vec4(arrowColor, 1.0);
-}
-`;
-
-        // Register vee arrow vertex shader
-        // Simple billboard shader - mesh billboard mode handles camera facing
-        Effect.ShadersStore.veeArrowVertexShader = `
-precision highp float;
-
-attribute vec3 position;
-attribute vec2 uv;
-
-uniform mat4 worldViewProjection;
-
-varying vec2 vUV;
-
-void main() {
-    vUV = uv;
-    gl_Position = worldViewProjection * vec4(position, 1.0);
-}
-`;
-
-        // Register vee arrow fragment shader
-        // Draws two lines forming a 90-degree V pointing right
-        Effect.ShadersStore.veeArrowFragmentShader = `
-precision highp float;
-
-varying vec2 vUV;
-uniform vec3 arrowColor;
-uniform float lineWidth;
-
-void main() {
-    // Center coordinates (-1 to +1)
-    vec2 centered = vUV * 2.0 - 1.0;
-
-    // Tip of V points right at (1, 0)
-    // Left arm goes to top-left (-1, 1)
-    // Right arm goes to bottom-left (-1, -1)
-    // This creates a > shape pointing right with 90-degree angle
-
-    vec2 tip = vec2(1.0, 0.0);
-    vec2 leftEnd = vec2(-1.0, 1.0);
-    vec2 rightEnd = vec2(-1.0, -1.0);
-
-    // Calculate distance to left arm line
-    vec2 leftDir = normalize(leftEnd - tip);
-    vec2 toPointLeft = centered - tip;
-    float projLeft = dot(toPointLeft, leftDir);
-    vec2 closestLeft = tip + leftDir * clamp(projLeft, 0.0, length(leftEnd - tip));
-    float distLeft = length(centered - closestLeft);
-
-    // Calculate distance to right arm line
-    vec2 rightDir = normalize(rightEnd - tip);
-    vec2 toPointRight = centered - tip;
-    float projRight = dot(toPointRight, rightDir);
-    vec2 closestRight = tip + rightDir * clamp(projRight, 0.0, length(rightEnd - tip));
-    float distRight = length(centered - closestRight);
-
-    // Take minimum distance to either line
-    float dist = min(distLeft, distRight);
-
-    // Discard if too far from either line
-    if (dist > lineWidth) {
-        discard;
-    }
-
-    gl_FragColor = vec4(arrowColor, 1.0);
-}
-`;
-
-        this.shadersRegistered = true;
-    }
-
     /**
      * Determine if 2D rendering mode should be used
      *
@@ -599,7 +455,7 @@ void main() {
 
                 return mesh;
             };
-        const staticLine = made(() => this.createStaticLine(options, style, scene, cache, widened));
+        const staticLine = made(() => this.createStaticLine(options, style, scene, widened));
         const curve = style.line?.bezier === true;
         // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
         // which is not one, does not fade.
@@ -771,7 +627,7 @@ void main() {
         return cache.getPulledBatch(key, () => {
             const mesh = flat
                 ? this.createFlatPulledLine(options, style, scene, leanLine)
-                : this.createStaticLine(options, style, scene, cache, false, kind);
+                : this.createStaticLine(options, style, scene, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(
@@ -871,8 +727,6 @@ void main() {
      * shape (and, where the material holds them, the same colour and opacity), so a graph's
      * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
      * See `ArrowCapBatch`.
-     * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
-     * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
      * @param scene - Babylon.js scene
      * @param reuse - A cap the edge draws now: handed back recolored when the new cap would be
@@ -880,13 +734,7 @@ void main() {
      *     changes only color and opacity writes the cap in place.
      * @returns The created arrow mesh, or null if type is "none" or undefined
      */
-    static createArrowHead(
-        _cache: MeshCache,
-        _styleId: string,
-        options: ArrowHeadOptions,
-        scene: Scene,
-        reuse: ArrowCap | null = null,
-    ): ArrowCap | null {
+    static createArrowHead(options: ArrowHeadOptions, scene: Scene, reuse: ArrowCap | null = null): ArrowCap | null {
         // A SIZE OF 0 IS NO CAP (#2067), the same as type "none": a zero-scale slot would still be
         // drawn, and the line runs as it would with no cap at that end.
         const size = options.size ?? 1;
@@ -985,7 +833,7 @@ void main() {
                     const source = sided(
                         outline ??
                             widened(
-                                FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                                FilledArrowRenderer.create2DArrow(arrowType, 1, options.color, opacity, scene),
                                 breadth,
                             ),
                         side,
@@ -1149,53 +997,26 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-
-        _cache: MeshCache,
         widened = false,
         pulled: boolean | "curve" | "lean" = false,
     ): Mesh {
-        // Use custom line renderer if flag is enabled
-
-        if (this.USE_CUSTOM_RENDERER || widened) {
-            // A joined line: a straight edge is one piece with square ends, as it always was; a
-            // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
-            return CustomLineRenderer.createJoinedLineMesh(
-                {
-                    width: options.width * 20, // Scale factor to match GreasedLine sizing
-                    color: options.color,
-                    opacity: this.opacityOf(style),
-                    widened,
-                    minScreenWidth: style.line?.minScreenWidth,
-                    fade: widened ? this.fadeOf(style) : undefined,
-                    opaque: this.drawsOpaque(style),
-                    pulled: pulled !== false,
-                    pulledCurve: pulled === "curve",
-                    pulledLean: pulled === "lean",
-                },
-                scene,
-            );
-        }
-
-        // Fallback to GreasedLine
-        const mesh = CreateGreasedLine(
-            "edge-plain",
+        // A joined line: a straight edge is one piece with square ends, as it always was; a
+        // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
+        return CustomLineRenderer.createJoinedLineMesh(
             {
-                points: this.UNIT_VECTOR_POINTS,
-            },
-            {
-                color: Color3.FromHexString(options.color),
-                width: options.width,
+                width: options.width * 20, // Scale factor to match GreasedLine sizing
+                color: options.color,
+                opacity: this.opacityOf(style),
+                widened,
+                minScreenWidth: style.line?.minScreenWidth,
+                fade: widened ? this.fadeOf(style) : undefined,
+                opaque: this.drawsOpaque(style),
+                pulled: pulled !== false,
+                pulledCurve: pulled === "curve",
+                pulledLean: pulled === "lean",
             },
             scene,
         );
-        this.followResolution(mesh);
-
-        // Apply opacity if specified
-        if (style.line?.opacity !== undefined) {
-            mesh.visibility = style.line.opacity;
-        }
-
-        return mesh;
     }
 
     /**
@@ -1355,41 +1176,6 @@ void main() {
             stopFrames();
             texture.dispose();
         });
-    }
-
-    // Helper to create a circular texture with anti-aliasing (white circle on transparent background)
-    private static _createCircleTextureData(size: number): Uint8Array {
-        const data = new Uint8Array(size * size * 4);
-        const center = size / 2;
-        const radius = size / 2 - 1; // Leave 1 pixel margin for anti-aliasing
-
-        for (let y = 0; y < size; y++) {
-            for (let x = 0; x < size; x++) {
-                const dx = x - center + 0.5;
-                const dy = y - center + 0.5;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const index = (y * size + x) * 4;
-
-                // Anti-aliased edge: smooth transition over 1.5 pixels
-                let alpha = 255;
-                if (distance > radius) {
-                    const edgeDistance = distance - radius;
-                    if (edgeDistance < 1.5) {
-                        // Smooth falloff for anti-aliasing
-                        alpha = Math.max(0, Math.min(255, (255 * (1.5 - edgeDistance)) / 1.5));
-                    } else {
-                        alpha = 0;
-                    }
-                }
-
-                data[index] = 255; // R
-                data[index + 1] = 255; // G
-                data[index + 2] = 255; // B
-                data[index + 3] = alpha; // A (anti-aliased)
-            }
-        }
-
-        return data;
     }
 
     /**

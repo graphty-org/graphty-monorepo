@@ -11,7 +11,6 @@ import { useSourceActions } from "../data-place/sourceActions";
 import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -33,6 +32,7 @@ import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
 import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -41,7 +41,6 @@ import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
 import { AttributeValues, Overview } from "./GraphValues";
-import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
@@ -516,11 +515,11 @@ function HeaderMenu({
  */
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, INSPECTOR_EVENTS);
     // The reader's Number format respells every value the inspector draws.
     useNumberFormats();
     // A filter step turned on or off changes its editor's header.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);

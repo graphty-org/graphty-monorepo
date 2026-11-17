@@ -38,11 +38,12 @@ import { flushSync } from "react-dom";
 import { sourceName } from "../data-place/words";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
-import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
+import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -875,7 +876,7 @@ function Cards({
     const sourceTwice = holder !== undefined && side === "edge";
     // The columns follow the data: one that arrives while the picker is open is listed, so they
     // are read on every change the element reports, never kept from the first render.
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const fields = cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source");
     const elsewhere = cardFields(session, side === "node" ? "edge" : "node");
     const bulk = rows.length > 1;

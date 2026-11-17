@@ -7267,8 +7267,6 @@ export class OperationQueueManager implements Manager {
     disableBatching(): void;
     dispose(): void;
     enableBatching(): void;
-    enterBatchMode(): void;
-    exitBatchMode(): Promise<void>;
     getActiveOperations(): string[];
     getOperationController(operationId: string): AbortController | undefined;
     getOperationProgress(operationId: string): OperationProgress | undefined;
@@ -7281,10 +7279,7 @@ export class OperationQueueManager implements Manager {
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
-    isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
-    // (undocumented)
-    onOperationQueued?: (category: OperationCategory, description?: string) => void;
     pause(): void;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;

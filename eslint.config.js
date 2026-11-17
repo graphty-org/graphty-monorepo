@@ -587,7 +587,8 @@ export default tseslint.config(
     // A package that adds its stories to its tsconfig should drop it the same way.
     {
         name: "stories/no-type-information",
-        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        // compact-mantine's stories/ also holds a worked example a story imports (LabelSettingsPopout.tsx).
+        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts", "compact-mantine/stories/**/*.tsx"],
         languageOptions: {
             parserOptions: {
                 projectService: false,

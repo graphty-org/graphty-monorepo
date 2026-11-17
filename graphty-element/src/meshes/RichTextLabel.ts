@@ -249,6 +249,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapAnywhere"
     | "wrapSpaceCount"
     | "maxLines"
+    | "maxLinesEllipsis"
     | "keepBlankLines"
     | "runAlign"
     | "minScreenSize"
@@ -2093,17 +2094,18 @@ export class RichTextLabel {
      * Break the label's lines where they run past its wrap width, at the spaces between words. The
      * width is in the scene, so it is turned into the canvas's pixels by one line's height in each.
      * A word longer than the width keeps a line of its own. With `maxLines`, the lines past it are
-     * cut and the last one kept ends in an ellipsis, with or without a wrap width.
+     * cut and the last one kept ends in an ellipsis (unless `maxLinesEllipsis` is false), with or
+     * without a wrap width.
      * @param ctx - A canvas to measure on.
      */
     private wrapToWidth(ctx: CanvasRenderingContext2D): void {
-        const { wrapWidth, maxLines } = this.options;
+        const { wrapWidth, maxLines, maxLinesEllipsis } = this.options;
         const first = this.parsedContent.find(hasWords);
         if ((wrapWidth === undefined && maxLines === undefined) || first === undefined) {
             return;
         }
         if (wrapWidth === undefined) {
-            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines });
+            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines, maxLinesEllipsis });
             return;
         }
 
@@ -2132,6 +2134,7 @@ export class RichTextLabel {
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
             maxLines,
+            maxLinesEllipsis,
         });
     }
 

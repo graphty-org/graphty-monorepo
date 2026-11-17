@@ -41455,7 +41455,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.896,
+            "label.text": 0.979,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -41476,7 +41476,7 @@
             "background": 1,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
-            "raster.label": 0.9,
+            "raster.label": 0.91,
             "raster.canvas": 0.99
         },
         "yed-live-graphml-specimen-labels-p2@matched": {
@@ -41495,7 +41495,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.896,
+            "label.text": 0.979,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -41684,7 +41684,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.95,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -41725,7 +41725,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.95,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -42033,7 +42033,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.25,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -42059,7 +42059,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.25,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -56625,6 +56625,12 @@
                 "to": 0,
                 "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
                 "date": "2026-11-07"
+            },
+            "label.weight": {
+                "floor": 1,
+                "to": 0.941,
+                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
+                "date": "2026-11-17"
             }
         },
         "yed-live-graphml-specimen-labels-p5@matched": {
@@ -56639,6 +56645,12 @@
                 "to": 0,
                 "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
                 "date": "2026-11-07"
+            },
+            "label.weight": {
+                "floor": 1,
+                "to": 0.941,
+                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
+                "date": "2026-11-17"
             }
         }
     }

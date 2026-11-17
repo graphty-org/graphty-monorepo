@@ -4140,6 +4140,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
+            // A row's stored record and a node id's store row, for `clusterBy` over rows with no `Node`; the layout
+            // manager fills both in when it starts the engine.
+            rowRecord: READ,
+            storeRowOf: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.

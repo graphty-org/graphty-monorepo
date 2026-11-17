@@ -43,10 +43,10 @@ import {
     closeSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { fetchOpen, queue, trustedText } from "./issue-queue.mjs";
+import { fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
@@ -2176,13 +2176,4 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
     });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-    try {
-        const { code, out } = main(process.argv.slice(2));
-        (code === 0 ? console.log : console.error)(out);
-        process.exitCode = code;
-    } catch (error) {
-        console.error(`issue-groups: ${error.message.split("\n")[0]}`);
-        process.exitCode = 2;
-    }
-}
+runCli(import.meta.url, "issue-groups", main);

@@ -494,13 +494,22 @@ export function main(argv, run = gh, now = Date.now(), stdin = () => readFileSyn
     };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+/**
+ * Runs `main` as the command line when `url` is the script node was started with.
+ * @param url - the calling module's import.meta.url
+ * @param name - the tool name that prefixes an error
+ * @param main - the command line
+ */
+export function runCli(url, name, main) {
+    if (url !== pathToFileURL(process.argv[1] ?? "").href) return;
     try {
         const { code, out } = main(process.argv.slice(2));
         (code === 0 ? console.log : console.error)(out);
         process.exitCode = code;
     } catch (error) {
-        console.error(`issue-queue: ${error.message.split("\n")[0]}`);
+        console.error(`${name}: ${error.message.split("\n")[0]}`);
         process.exitCode = 2;
     }
 }
+
+runCli(import.meta.url, "issue-queue", main);

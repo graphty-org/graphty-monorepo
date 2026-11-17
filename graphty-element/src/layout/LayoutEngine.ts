@@ -985,6 +985,20 @@ export abstract class LayoutEngine {
     clusterColumn: ClusterColumn | null = null;
 
     /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /**
+     * The store's row of a node id, which the layout manager fills in; read for `clusterBy` under renderPath
+     * "batched", where a row the engine holds may have no `Node` to ask.
+     * @internal
+     */
+    storeRowOf: ((id: NodeIdType) => number) | null = null;
+
+    /**
      * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
      * @returns True when the frame loop has to start stepping this layout again.
      * @internal

@@ -156,8 +156,12 @@ describe("render loop pacing", () => {
         try {
             await element.updateComplete;
             await operationQueueOf(element.graph).waitForCompletion();
+            // Named, not the default: the forced-batched project makes "batched" the default.
+            element.graph.setRenderPath("objects");
             const renderManager = renderManagerOf(element.graph);
             const fenced = recordFences((renderManager.engine as Engine)._gl);
+            await frames(2);
+            fenced();
 
             await frames(5);
             const objects = fenced();

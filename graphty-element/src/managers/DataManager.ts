@@ -2405,6 +2405,9 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        // Rows stored under "batched" with no `Node`: the node map counts them, so a disposed graph held them.
+        this.unbuilt.clear();
+        this.unbuiltIds.clear();
         this.unbuiltEdges.clear();
         this.unbuiltEdgeIds.clear();
         this.nodeVersion++;
@@ -3293,11 +3296,13 @@ export class DataManager implements Manager {
                 ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
                 : stored.record;
         const edge = this.makeEdge({ ...stored, record }, false, queue);
-        const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
-        if (paint !== null) {
+        const paint = queue ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
+        if (paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 
+        this.graphContext?.getUpdateManager?.().adoptBuiltEdge(edge);
         return edge;
     }
 

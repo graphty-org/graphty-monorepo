@@ -15,10 +15,10 @@ import {
     clusterCentroids,
     type ClusterPoint,
     clusterStrengthOption,
-    readCommunities,
+    readBodyCommunities,
     sameCommunities,
 } from "./clusterForce";
-import type { D3RowSource } from "./D3GraphLayoutEngine";
+import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
 import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { seedSchema } from "./seedOption";
@@ -183,6 +183,8 @@ export class NGraphEngine extends LayoutEngine {
     private readonly rowNodes = new Map<NodeIdType, NGraphNode>();
     /** Where a row body finds its row and publishes, once rows were added. */
     private rowSource: D3RowSource | null = null;
+    /** The ids of the follower rows drawn with no `Node`, as the last hold read them. */
+    private readonly rowFollowers = new Set<NodeIdType>();
     edgeMapping = new Map<Edge, NGraphLink>();
     /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, NGraphLink>();
@@ -217,7 +219,7 @@ export class NGraphEngine extends LayoutEngine {
     private readonly clusterBy: string | null = null;
     private readonly clusterStrength: number = 1;
     /** The last read of `clusterBy`, and each member's body and community, in the same order. */
-    private communities = new Map<Node, number>();
+    private communities = new Map<NodeIdType, number>();
     private clusterBodies: Body[] = [];
     private clusterPoints: ClusterPoint[] = [];
     private clusterOf: number[] = [];
@@ -382,7 +384,7 @@ export class NGraphEngine extends LayoutEngine {
             return 0;
         }
 
-        const count = this.nodeMapping.size;
+        const count = this.nodeMapping.size + this.rowNodes.size;
         const extent = this.gather(gap);
         const size = 2 * extent.largest;
         if (size <= 0) {
@@ -413,7 +415,7 @@ export class NGraphEngine extends LayoutEngine {
      * @returns The largest radius and how far the bodies spread on each axis.
      */
     private gather(gap: number): { largest: number; x: number; y: number; z: number } {
-        const count = this.nodeMapping.size;
+        const count = this.nodeMapping.size + this.rowNodes.size;
         if (this.radii.length < count) {
             this.radii = new Float64Array(count);
             this.reaches = new Float64Array(3 * count);
@@ -426,21 +428,20 @@ export class NGraphEngine extends LayoutEngine {
         let largest = 0;
         const min = [Infinity, Infinity, Infinity];
         const max = [-Infinity, -Infinity, -Infinity];
-        for (const [node, ngraphNode] of this.nodeMapping) {
+        const add = (ngraphNode: NGraphNode, size: RowExtent, follower: boolean): void => {
             const i = bodies.length;
             const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
             bodies.push(b);
-            radii[i] = node.layoutRadius + gap / 2;
+            radii[i] = size.radius + gap / 2;
             // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
             // apart by its bounding box, which one radius over- or under-states (#2668).
-            round[i] = node.roundRadius === null ? 0 : 1;
-            const half = round[i] === 1 ? null : node.drawnHalfExtents;
-            reaches[3 * i] = (half?.x ?? node.layoutRadius) + gap / 2;
-            reaches[3 * i + 1] = (half?.y ?? node.layoutRadius) + gap / 2;
-            reaches[3 * i + 2] = (half?.z ?? node.layoutRadius) + gap / 2;
+            round[i] = size.half === null ? 1 : 0;
+            reaches[3 * i] = (size.half?.x ?? size.radius) + gap / 2;
+            reaches[3 * i + 1] = (size.half?.y ?? size.radius) + gap / 2;
+            reaches[3 * i + 2] = (size.half?.z ?? size.radius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
             // A group following its members encloses them: it is not kept apart from them.
-            if (this.isFollower(node.index)) {
+            if (follower) {
                 radii[i] = 0;
                 reaches.fill(0, 3 * i, 3 * i + 3);
             }
@@ -451,6 +452,17 @@ export class NGraphEngine extends LayoutEngine {
                 min[axis] = Math.min(min[axis], at[axis]);
                 max[axis] = Math.max(max[axis], at[axis]);
             }
+        };
+
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            const half = node.roundRadius === null ? node.drawnHalfExtents : null;
+            add(ngraphNode, { radius: node.layoutRadius, half }, this.isFollower(node.index));
+        }
+
+        // A row drawn with no `Node` (renderPath "batched") is sized from the row table, as its `Node` would be.
+        for (const [id, ngraphNode] of this.rowNodes) {
+            const size = this.rowSource?.extentOf?.(id) ?? null;
+            add(ngraphNode, size ?? { radius: 0, half: null }, this.rowFollowers.has(id));
         }
 
         return { largest, x: max[0] - min[0], y: max[1] - min[1], z: max[2] - min[2] };
@@ -653,12 +665,17 @@ export class NGraphEngine extends LayoutEngine {
      */
     private readClusters(): boolean {
         this.clustersStale = false;
-        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
-            this.isFollower(row),
+        const read = readBodyCommunities(
+            this.clusterBy as string,
+            this.nodeMapping.keys(),
+            [...this.rowNodes.keys()].map((id) => [id, this.storeRowOf?.(id) ?? INVALID_INDEX] as const),
+            this.rowRecord,
+            this.clusterColumn,
+            (row) => this.isFollower(row),
         );
         const same = sameCommunities(read, this.communities);
         this.communities = read;
-        this.clusterBodies = [...read.keys()].map((node) => this.ngraphLayout.getBody(node.id) as Body);
+        this.clusterBodies = [...read.keys()].map((id) => this.ngraphLayout.getBody(id) as Body);
         this.clusterPoints = this.clusterBodies.map((body) => body.pos);
         this.clusterOf = [...read.values()];
         this.clusterCount = new Set(this.clusterOf).size;
@@ -741,8 +758,8 @@ export class NGraphEngine extends LayoutEngine {
 
     /**
      * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
-     * Such a row is unsized (no `nodeGap` push), in no `clusterBy` community and never pinned,
-     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * Such a row is sized for `nodeGap` from the row table and read for `clusterBy` by its row, and is never
+     * pinned, since that is read from a `Node`; a hold reaches it by its row. A third party's
      * engine is handed `Node`s only.
      * @param ids - The rows' node ids.
      * @param source - Where a body finds its row at publish, and the element's array it publishes into.
@@ -750,6 +767,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
+        this.clustersStale = true;
         for (const id of ids) {
             // An edge added first may already have made this body, placed by ngraph's own
             // unseeded generator; nothing has stepped yet, so the seed places it here either way.
@@ -768,11 +786,15 @@ export class NGraphEngine extends LayoutEngine {
      */
     private holdRowBodies(): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        this.rowFollowers.clear();
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
                 this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
                 this.weigh(row, id);
+                if (this.isFollower(row)) {
+                    this.rowFollowers.add(id);
+                }
             }
         }
     }

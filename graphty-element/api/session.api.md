@@ -240,7 +240,7 @@ export type AssetState = "pending" | "accepted" | "rejected";
 export type AssetStorage = "embed" | "url";
 
 // @public
-export function attachKeymap(session: KeymapSession, root: KeymapRoot): () => void;
+export function attachKeymap(session: KeymapSession, root: KeymapRoot, options?: KeymapOptions): () => void;
 
 // @public
 export interface AttributeDescriptor {
@@ -3367,6 +3367,22 @@ export interface JournalEntry {
 
 // @public
 export type JournalId = string;
+
+// @public
+export interface KeymapOptions {
+    readonly ignore?: (event: KeyboardEvent, action: KeymapAction) => boolean;
+    readonly onAction?: (report: KeymapReport) => void;
+}
+
+// @public
+export type KeymapReport = {
+    readonly action: "deselect";
+    readonly nodes: number;
+    readonly edges: number;
+} | {
+    readonly action: "undo" | "redo";
+    readonly done: Promise<HistoryOutcome>;
+};
 
 // @public
 export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventListener">;

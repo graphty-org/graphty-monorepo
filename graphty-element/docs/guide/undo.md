@@ -400,6 +400,23 @@ It skips a press already handled, typed into a field, or that it has nothing to 
 with nothing selected passes on to close your dialog). The keys it answers are listed in
 `KEYMAP_DESCRIPTORS` from `@graphty/graphty-element/catalog`, for a shortcuts list.
 
+A third argument sets your own rule for where the keys are yours (it replaces the field rule above)
+and tells you what was done, for a status line:
+
+```typescript
+attachKeymap(element.session, document, {
+    ignore: (event) => document.querySelector("[role=dialog]") !== null,
+    onAction: (report) => {
+        if (report.action === "deselect") {
+            status.textContent = `Cleared ${report.nodes} nodes and ${report.edges} edges`;
+        } else {
+            // Reported before the step runs, so session.history still names it.
+            void report.done.then((outcome) => (status.textContent = `${report.action}: ${outcome.kind}`));
+        }
+    },
+});
+```
+
 ## Memory
 
 History keeps what undo needs, not copies of everything. An attribute edit keeps the old values; a

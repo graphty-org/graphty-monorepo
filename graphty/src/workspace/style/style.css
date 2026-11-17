@@ -808,6 +808,29 @@
     padding: 4px 6px;
 }
 
+/* Model settings' pop-over: its header stays and its settings scroll in a ScrollArea with the
+   scroll cue, so a reader sees the rows below the cut. Each box down to the viewport takes the
+   height left and no more. */
+.ws-model-settings-modal {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ws-model-settings-body,
+.ws-model-settings-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ws-model-settings-scroll > .cm-scroll-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+}
+
 /* Details, under Name, as wide as the model: it takes the column's height left under Name (190 px
    at least, about five rows) and scrolls past it, every row's whole value wrapped onto as many
    lines as it needs. */

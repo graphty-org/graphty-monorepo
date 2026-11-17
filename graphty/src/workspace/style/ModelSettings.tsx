@@ -322,22 +322,42 @@ export function SettingRows({
             key="animation"
             playing={playing}
             onPlay={(on) => {
+                const unset = (channel: Channel): void => {
+                    if (values[channel] !== undefined) {
+                        remove(channel);
+                    }
+                };
                 if (!on) {
-                    write("node.modelAnimationSpeed", 0);
+                    // Off with no pose chosen draws the model still with no clip; a clip chosen from
+                    // the menu then holds a pose of it.
+                    write("node.modelAnimation", "");
+                    unset("node.modelAnimationSpeed");
+                    unset("node.modelAnimationOffset");
                     return;
                 }
                 if (clip === undefined) {
-                    write("node.modelAnimation", clips[0].name);
+                    // The model's own clip comes back when it has one; else its first clip plays.
+                    const ownClip = inherited["node.modelAnimation"];
+                    if (values["node.modelAnimation"] !== undefined && clips.some((c) => c.name === ownClip)) {
+                        remove("node.modelAnimation");
+                    } else {
+                        write("node.modelAnimation", clips[0].name);
+                    }
                 }
-                // Back on, the speed and start the switch and Pose wrote go, so the rows read unset
-                // again; only a model whose own speed is 0 needs a speed written to play.
-                if (inherited["node.modelAnimationSpeed"] === 0) {
+                // Back on, the clip plays from its start at the model's speed: what the switch and Pose
+                // wrote goes, and a model added still (its own speed 0, its pose as its own start)
+                // gets speed 1 and start 0 written over its own.
+                const heldStill = inherited["node.modelAnimationSpeed"] === 0;
+                if (heldStill) {
                     write("node.modelAnimationSpeed", 1);
-                } else if (values["node.modelAnimationSpeed"] !== undefined) {
-                    remove("node.modelAnimationSpeed");
+                } else {
+                    unset("node.modelAnimationSpeed");
                 }
-                if (values["node.modelAnimationOffset"] !== undefined) {
-                    remove("node.modelAnimationOffset");
+                const ownStart = inherited["node.modelAnimationOffset"];
+                if (typeof ownStart === "number" && ownStart !== 0) {
+                    write("node.modelAnimationOffset", 0);
+                } else {
+                    unset("node.modelAnimationOffset");
                 }
             }}
         >

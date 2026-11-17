@@ -1903,50 +1903,56 @@ export function CustomModelDialog({
 
     const settings =
         held === null || summary === undefined || !settingsOpen || busy ? null : (
-            <Stack gap={6} data-testid="model-settings">
-                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
-                <SettingRows
-                    channels={MODEL_DEFAULT_CHANNELS}
-                    values={modelDraft}
-                    problems={held.record.problems}
-                    write={write}
-                    remove={unset}
-                    clips={clips}
-                />
-                {layerOwn === "" ? null : (
-                    <Text size="xs" c="dimmed" data-testid="model-layer-own">
-                        {CUSTOM_MODEL.layerOwn(layerOwn)}
-                    </Text>
-                )}
-                <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
-                {forLayer ? (
-                    <Stack gap={4} data-testid="model-layer-settings">
-                        <Text size="xs" c="dimmed">
-                            {CUSTOM_MODEL.forThisLayer}
+            // A cue that it scrolls: a tall model's settings (a clip's rows, many pictures) run past
+            // the pop-over, and an overlay scrollbar shows nothing until the reader scrolls.
+            <ScrollArea className="ws-model-settings-scroll" scrollbars="y" scrollCue>
+                <Stack gap={6} data-testid="model-settings">
+                    <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+                    <SettingRows
+                        channels={MODEL_DEFAULT_CHANNELS}
+                        values={modelDraft}
+                        problems={held.record.problems}
+                        write={write}
+                        remove={unset}
+                        clips={clips}
+                    />
+                    {layerOwn === "" ? null : (
+                        <Text size="xs" c="dimmed" data-testid="model-layer-own">
+                            {CUSTOM_MODEL.layerOwn(layerOwn)}
                         </Text>
-                        <SettingRows
-                            channels={LAYER_CHANNELS}
-                            values={draft}
-                            problems={held.record.problems}
-                            write={write}
-                            remove={unset}
-                        />
-                        <div className="ws-model-settings">
-                            <PictureRow
-                                value={typeof draft["node.texture"] === "string" ? draft["node.texture"] : undefined}
-                                write={(ref) => {
-                                    write("node.texture", ref);
-                                }}
-                                remove={() => {
-                                    unset("node.texture");
-                                }}
-                                open={pictureOpen}
-                                setOpen={setPictureOpen}
+                    )}
+                    <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
+                    {forLayer ? (
+                        <Stack gap={4} data-testid="model-layer-settings">
+                            <Text size="xs" c="dimmed">
+                                {CUSTOM_MODEL.forThisLayer}
+                            </Text>
+                            <SettingRows
+                                channels={LAYER_CHANNELS}
+                                values={draft}
+                                problems={held.record.problems}
+                                write={write}
+                                remove={unset}
                             />
-                        </div>
-                    </Stack>
-                ) : null}
-            </Stack>
+                            <div className="ws-model-settings">
+                                <PictureRow
+                                    value={
+                                        typeof draft["node.texture"] === "string" ? draft["node.texture"] : undefined
+                                    }
+                                    write={(ref) => {
+                                        write("node.texture", ref);
+                                    }}
+                                    remove={() => {
+                                        unset("node.texture");
+                                    }}
+                                    open={pictureOpen}
+                                    setOpen={setPictureOpen}
+                                />
+                            </div>
+                        </Stack>
+                    ) : null}
+                </Stack>
+            </ScrollArea>
         );
 
     // The right column, what was loaded: the model, a set's arrows and Load this model under it,
@@ -2030,6 +2036,8 @@ export function CustomModelDialog({
                     closeOnEscape={!pictureOpen}
                     title={CUSTOM_MODEL.settings}
                     closeButtonProps={{ "aria-label": CUSTOM_MODEL.closeSettings }}
+                    // The settings scroll in their own ScrollArea, under a header that stays.
+                    classNames={{ content: "ws-model-settings-modal", body: "ws-model-settings-body" }}
                     // Clear, so the model beside it is seen as each setting changes it.
                     overlayProps={{ backgroundOpacity: 0 }}
                     styles={

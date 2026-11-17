@@ -20,7 +20,7 @@ import { commands, page, userEvent } from "vitest/browser";
 
 import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import { withoutFeatures } from "../../../test/features";
-import { dragAcross, dragTo } from "../../../test/real-pointer";
+import { dragAcross, dragTo, wheelOver } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
@@ -1129,8 +1129,10 @@ describe("the Load custom model dialog, on the real element", () => {
         const rows = await openSettings(dialog);
         const group = within(rows).getByRole("group", { name: "Animation" });
         assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }), "the first clip");
-        // Off, the model holds a pose of the clip.
+        // Off, the model is still; a clip chosen from the menu then holds a pose of it.
         await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, / }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const pose = await within(group).findByRole("slider", { name: "Pose" });
         await dragAcross(pose, 60);
         await waitFor(() => {
@@ -1147,20 +1149,23 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isAbove(Number(style["node.modelAnimationOffset"]), 0);
     });
 
-    it("keeps an animated model still when the reader chooses Still", async () => {
+    it("keeps an animated model Still, with no clip, when Playing goes off and no pose is chosen", async () => {
         const { session } = await openShapes();
         const dialog = await fromMenu();
         await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
         await previewOf(dialog, "cube");
         const rows = await openSettings(dialog);
         await userEvent.click(within(rows).getByRole("switch", { name: "Playing" }));
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Clip, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "Still" }));
+        assert.isNotNull(within(rows).getByRole("combobox", { name: /^Clip, Still/ }), "the menu reads Still");
         assert.isNull(within(rows).queryByRole("slider", { name: "Pose" }), "no pose without a clip");
         await addModel(dialog, "Add to project");
         await waitFor(() => {
             const record = session.assets.list().find((r) => r.path === "cube.glb" && r.state === "accepted");
-            assert.equal(record?.defaults?.style["node.modelAnimation"], "");
+            assert.isDefined(record?.defaults);
+            const style = record?.defaults?.style ?? {};
+            assert.notEqual(style["node.modelAnimation"], "spin", "no clip held");
+            assert.isUndefined(style["node.modelAnimationSpeed"], "nothing held at speed 0");
+            assert.isUndefined(style["node.modelAnimationOffset"]);
         });
     });
 
@@ -1191,8 +1196,10 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(spin);
         // Speed starts unset: the placeholder, no minus.
         assert.isNull(within(group).queryByRole("button", { name: "Remove model speed" }));
-        // Off: the clip and its Pose, no Speed or Start.
+        // Off: Still, then a clip chosen from the menu and its Pose, no Speed or Start.
         await userEvent.click(playing);
+        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, Still/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const pose = await within(group).findByRole("slider", { name: "Pose" });
         pose.focus();
         await userEvent.keyboard("{ArrowRight}");
@@ -1241,6 +1248,35 @@ describe("the Load custom model dialog, on the real element", () => {
                 const list = within(dialog).getByTestId(id);
                 assert.isTrue(list.closest(".ws-model-scroll")?.hasAttribute("data-scroll-cue"), `${id} has the cue`);
             }
+        } finally {
+            await page.viewport(1440, 900);
+        }
+    });
+
+    it("cues that Model settings scrolls when a model's settings run past the pop-over", async () => {
+        await openShapes();
+        await page.viewport(1280, 720);
+        try {
+            const dialog = await fromMenu();
+            await choose(dialog, "Choose file", ["../graphty-element/test/fixtures/models/Fox.glb"]);
+            await previewOf(dialog, "Fox");
+            const rows = await openSettings(dialog);
+            const root = rows.closest(".ws-model-settings-scroll") as HTMLElement;
+            const viewport = root.querySelector<HTMLElement>(".cm-scroll-viewport");
+            assert.isNotNull(viewport);
+            assert.isAbove(viewport.scrollHeight, viewport.clientHeight + 1, "Fox's settings overflow at 1280 x 720");
+            const header = screen.getByRole("button", { name: "Close model settings" });
+            await waitFor(() => {
+                assert.isTrue(root.hasAttribute("data-cue-bottom"), "more below: the bottom fades");
+                const bar = root.querySelector<HTMLElement>(".cm-scroll-scrollbar[data-orientation='vertical']");
+                assert.isTrue(bar?.checkVisibility() === true, "the thumb shows without hovering");
+            });
+            await wheelOver(viewport, 2000);
+            await waitFor(() => {
+                assert.isTrue(root.hasAttribute("data-cue-top"), "scrolled down: the top fades");
+                assert.isFalse(root.hasAttribute("data-cue-bottom"), "at the end: nothing below");
+            });
+            assert.isTrue(header.checkVisibility(), "the header stays while the settings scroll");
         } finally {
             await page.viewport(1440, 900);
         }

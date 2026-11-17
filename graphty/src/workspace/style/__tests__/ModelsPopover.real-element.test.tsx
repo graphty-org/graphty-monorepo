@@ -150,9 +150,9 @@ describe("models in the Shape field, on the real element", () => {
         assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
         await userEvent.click(playing);
         await waitFor(() => {
-            assert.equal(written(session, "node.modelAnimationSpeed"), 0, "off holds the model still");
+            assert.equal(written(session, "node.modelAnimation"), "", "off draws the model Still, with no clip");
         });
-        assert.isNotNull(await within(panel).findByRole("slider", { name: "Pose" }), "a pose of the model's clip");
+        assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }), "a pose waits for a clip");
         await userEvent.click(within(panel).getByRole("combobox", { name: /^Clip, / }));
         await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
@@ -187,6 +187,8 @@ describe("models in the Shape field, on the real element", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
         const settings = await screen.findByRole("dialog", { name: "Model settings" });
         await userEvent.click(within(settings).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(within(settings).getByRole("combobox", { name: /^Clip, / }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const held = await within(settings).findByRole("slider", { name: "Pose" });
         held.focus();
         await userEvent.keyboard("{End}");
@@ -207,6 +209,15 @@ describe("models in the Shape field, on the real element", () => {
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
         assert.equal(pose.getAttribute("aria-valuenow"), "1", "the model's own pose");
         assert.equal(pose.getAttribute("aria-valuetext"), "1.00 s");
+        // Playing on starts the clip from 0 s, as the dialog's switch does, not from the held pose.
+        await userEvent.click(within(panel).getByRole("switch", { name: "Playing" }));
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelAnimationSpeed"), 1, "plays over the model's speed 0");
+            assert.equal(written(session, "node.modelAnimationOffset"), 0, "from the start, not the pose");
+        });
+        await waitFor(() => {
+            assert.equal(within(panel).getByLabelText<HTMLInputElement>(/^Start$/).value, "0", "Start reads 0");
+        });
     });
 
     it("walks the samples as one Tab stop with the arrows, stopping at the edges", async () => {

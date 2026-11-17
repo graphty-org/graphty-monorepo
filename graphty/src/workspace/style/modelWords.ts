@@ -157,7 +157,10 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     E_MODEL_PART_REQUIRED: (p) => ({ word: "Needed", tip: said(p.name) }),
     W_MODEL_UP_GUESSED: () => ({ word: "Guessed", tip: "up axis guessed from the file" }),
     W_MODEL_POINTS_APPROXIMATED: () => ({ word: "Approximated", tip: "points are drawn as small solids" }),
-    W_MODEL_HAS_ANIMATIONS: () => ({ word: "Animated", tip: "turn on Playing under Animation to play a clip" }),
+    W_MODEL_HAS_ANIMATIONS: () => ({
+        word: "Animated",
+        tip: "Animation in Model settings plays a clip or holds a pose",
+    }),
     W_MODEL_EXTENSION_IGNORED: (p) => ({ word: "Drawn opaque", tip: both(said(p.extension), "not drawn") }),
     W_MODEL_ANIMATION_UNKNOWN: (p) => ({ word: "No such clip", tip: both(said(p.name), "not in the file") }),
     W_MODEL_ANIMATION_REDUCED: (p) => ({ word: "Animation reduced", tip: both(amount(p.fps), "frames a second") }),

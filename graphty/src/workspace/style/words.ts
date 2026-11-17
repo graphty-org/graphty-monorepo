@@ -1083,7 +1083,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
     W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Turn on Playing under Animation to play one.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Animation in Model settings plays one or holds a pose.",
     W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
     W_MODEL_ANIMATION_UNKNOWN: (p) =>
         `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,

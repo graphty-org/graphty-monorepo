@@ -3912,6 +3912,9 @@ export interface MergeNodesOptions {
 export type MissingValues = "include" | "exclude";
 
 // @public
+export const MODEL_DEFAULT_CHANNELS: readonly ModelDefaultChannel[];
+
+// @public
 export interface ModelChange {
     readonly id?: AssetId;
     readonly layerIds: readonly LayerId[];

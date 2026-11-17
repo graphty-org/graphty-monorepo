@@ -191,6 +191,36 @@ describe("FileSource", () => {
         assert.sameMembers([...paths.keys()], ["kit/car.obj", "kit/parts/car.mtl"]);
     });
 
+    it("says when to use the row's folder icon on hover with folderTip, keeping its name", async () => {
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource
+                    variant="row"
+                    folder
+                    folderTip="For a model with its textures in a folder"
+                    onFiles={() => undefined}
+                    onUrl={() => undefined}
+                />
+            </div>,
+        );
+        const button = screen.getByRole("button", { name: "Choose folder" });
+        assert.equal(button.getAttribute("title"), "For a model with its textures in a folder");
+        assert.equal(
+            screen.getByRole("button", { name: "Choose file" }).getAttribute("title"),
+            "Choose file",
+            "the file icon's hover text is its name, as before",
+        );
+    });
+
+    it("keeps the row's folder icon's hover text as its name without folderTip", async () => {
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource variant="row" folder onFiles={() => undefined} onUrl={() => undefined} />
+            </div>,
+        );
+        assert.equal(screen.getByRole("button", { name: "Choose folder" }).getAttribute("title"), "Choose folder");
+    });
+
     it("draws no folder icon in a row that was not asked for one", async () => {
         await renderThemed(<FileSource variant="row" onFiles={() => undefined} onUrl={() => undefined} />);
         assert.isNull(screen.queryByRole("button", { name: "Choose folder" }));

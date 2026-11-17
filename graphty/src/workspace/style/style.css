@@ -781,9 +781,9 @@
     width: 240px;
 }
 
-/* Name, under the preview: a short label column, as the side column is narrow. */
+/* Name, under the preview: a short label column, as the side column is narrow, and Model settings. */
 .ws-model-name .ws-field {
-    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-columns: 48px minmax(0, 1fr) 24px;
 }
 
 /* Files and Details: always shown, each a list that scrolls on its own past its height. */
@@ -795,21 +795,25 @@
     border-radius: var(--mantine-radius-sm);
 }
 
-/* Details, under the settings in the left column: tall enough for its usual rows, scrolling past them. */
+/* Details, directly under the preview in its column, as wide as it, scrolling past its usual rows. */
+.ws-model-details-box {
+    width: 240px;
+}
+
 .ws-model-details-box .ws-model-scroll {
-    max-height: 240px;
+    max-height: 160px;
+}
+
+/* The model's pictures under its settings: a plain group, no frame of its own. */
+.ws-model-textures {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
 }
 
 .ws-model-scroll:focus-visible {
     outline: 1px solid var(--cm-border-selected);
-}
-
-/* More options: a chevron and a word that open its rows, as the selection pane's Advanced. */
-.ws-disclosure {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
 }
 
 /* A part's answers sit under its name, in the name's column. */

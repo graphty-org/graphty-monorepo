@@ -66,6 +66,11 @@ export interface FileSourceProps {
     folder?: boolean;
     /** The folder button's text. Defaults to the `fileChooseFolder` label ("Choose folder"). */
     folderLabel?: string;
+    /**
+     * The row's folder icon's hover text, when it should say when to use it (`row`); its name stays
+     * `folderLabel`. Default: `folderLabel`.
+     */
+    folderTip?: string;
     /** A caption under the drop target's buttons (`drop`): what it takes, such as its formats. */
     hint?: string;
     /**
@@ -333,12 +338,14 @@ function dropBody(buttons: React.JSX.Element, hint: React.ReactNode, urlField: R
 
 interface RowIcon {
     readonly text: string;
+    /** Its hover text, when it says more than its name. */
+    readonly tip?: string;
     readonly glyph: UiGlyphName;
     readonly onClick: () => void;
 }
 
 const rowIcon = (disabled: boolean, icon: RowIcon): React.JSX.Element => (
-    <ActionIcon disabled={disabled} title={icon.text} aria-label={icon.text} onClick={icon.onClick}>
+    <ActionIcon disabled={disabled} title={icon.tip ?? icon.text} aria-label={icon.text} onClick={icon.onClick}>
         <UiGlyph name={icon.glyph} size={16} />
     </ActionIcon>
 );
@@ -392,6 +399,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         openLabel,
         folder = false,
         folderLabel,
+        folderTip,
         hint,
         progress,
         barUnderField = false,
@@ -613,6 +621,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                 folder
                     ? {
                           text: folderLabel ?? labels.fileChooseFolder,
+                          ...(folderTip === undefined ? {} : { tip: folderTip }),
                           glyph: folderGlyph,
                           onClick: () => {
                               choose(true);

@@ -228,14 +228,15 @@ describe("every model format and variant, through the Load custom model dialog",
             await waitFor(() => {
                 assert.isFalse(row.isConnected, `${variant.needs} is no longer asked for`);
             });
-            await within(dialog).findByTestId("model-variant");
+            await within(dialog).findByRole("region", { name: "Details" });
         }
 
         await assertPreview(dialog, variant);
-        assert.equal(
-            within(dialog).getByTestId("model-variant").textContent,
+        assert.include(
+            within(within(dialog).getByRole("region", { name: "Details" })).getByRole("group", { name: "Format" })
+                .textContent,
             CUSTOM_MODEL.variantLine(variant),
-            "the caption names the variant",
+            "Details names the variant",
         );
         for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
             assert.isNotNull(within(detailsLine(dialog)).getByText(modelChip({ code, params: {} }).word), code);

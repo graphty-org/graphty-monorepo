@@ -112,7 +112,7 @@ describe("models in the Shape field, on the real element", () => {
         });
     });
 
-    it("offers a Pose under Animation in Model settings, holding the clip at the moment chosen", async () => {
+    it("shows the model's own clip in Model settings, and a Pose holding it at the moment chosen", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
@@ -123,8 +123,12 @@ describe("models in the Shape field, on the real element", () => {
         });
         await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
         const panel = await screen.findByRole("dialog", { name: "Model settings" });
-        assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }), "no pose while the model is still");
-        await userEvent.click(within(panel).getByRole("combobox", { name: /^Animation, / }));
+        // The dialog kept the first clip as the model's own: an unset row shows it as its default.
+        const animation = within(panel).getByRole("combobox", { name: /^Animation, default spin, / });
+        assert.match(animation.getAttribute("placeholder") ?? "", /^spin, /, "the model's clip as the placeholder");
+        assert.isUndefined(written(session, "node.modelAnimation"), "the layer sets none");
+        assert.isNotNull(within(panel).getByRole("slider", { name: "Pose" }), "a pose of the model's clip");
+        await userEvent.click(animation);
         await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
         pose.focus();

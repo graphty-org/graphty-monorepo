@@ -70,6 +70,8 @@ interface SettingControlProps {
     readonly unit: string | undefined;
     readonly step: number | undefined;
     readonly value: unknown;
+    /** The model's own value (`AssetRecord.defaults`), shown in place of graphty-element's default. */
+    readonly inherited?: ChannelValue;
     readonly write: (next: ChannelValue) => void;
 }
 
@@ -85,6 +87,7 @@ interface SettingControlProps {
  * @param props.unit - a number's unit
  * @param props.step - a number's arrow-key step
  * @param props.value - the value set here
+ * @param props.inherited - the model's own value, if it has one
  * @param props.write - writes a value
  * @returns The field
  */
@@ -95,9 +98,10 @@ function SettingControl({
     unit,
     step,
     value,
+    inherited,
     write,
 }: Readonly<SettingControlProps>): React.JSX.Element {
-    const fallback = descriptor?.default;
+    const fallback = inherited ?? descriptor?.default;
     if (choices === undefined) {
         const shown = typeof fallback === "number" ? String(fallback) : "";
         return (
@@ -128,7 +132,7 @@ function SettingControl({
     };
     const chosen = keyOf(value);
     // An unset Animation draws the model still, as "" does; the catalog gives a text channel no default.
-    const unsetKey = descriptor?.channel === "node.modelAnimation" ? STILL : keyOf(fallback);
+    const unsetKey = inherited === undefined && descriptor?.channel === "node.modelAnimation" ? STILL : keyOf(fallback);
     const unsetWord = choices.find(([key]) => key === unsetKey)?.[1];
     const shownWord = choices.find(([key]) => key === chosen)?.[1] ?? `default ${unsetWord ?? ""}`;
     return (
@@ -207,6 +211,8 @@ interface SettingRowsProps {
     readonly remove: (channel: Channel) => void;
     /** The model's clips: the Animation menu's choices. Without any, the animation rows are left out. */
     readonly clips?: readonly ModelClip[];
+    /** The model's own values (`AssetRecord.defaults.style`): an unset row shows them as its default. */
+    readonly inherited?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 /**
@@ -222,6 +228,7 @@ interface SettingRowsProps {
  * @param props.write - writes a value
  * @param props.remove - takes a value back
  * @param props.clips - the model's clips
+ * @param props.inherited - the model's own values
  * @returns The rows
  */
 export function SettingRows({
@@ -231,11 +238,12 @@ export function SettingRows({
     write,
     remove,
     clips = [],
+    inherited = {},
 }: Readonly<SettingRowsProps>): React.JSX.Element {
     const shown = MODEL_SETTING_ROWS.filter(
         (row) => channels.includes(row.channel) && (clips.length > 0 || !ANIMATION_CHANNELS.has(row.channel)),
     );
-    const clip = clips.find((c) => c.name === values["node.modelAnimation"]);
+    const clip = clips.find((c) => c.name === (values["node.modelAnimation"] ?? inherited["node.modelAnimation"]));
     const offset = values["node.modelAnimationOffset"];
     return (
         <Stack gap={4} className="ws-model-settings">
@@ -260,6 +268,7 @@ export function SettingRows({
                                     unit={unit}
                                     step={step}
                                     value={value}
+                                    inherited={inherited[channel]}
                                     write={(next) => {
                                         write(channel, next);
                                     }}
@@ -345,6 +354,8 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
                 }
             }}
             clips={clipsOf(session, model)}
+            // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+            inherited={session.assets.find(model)?.defaults?.style}
         />
     );
 }

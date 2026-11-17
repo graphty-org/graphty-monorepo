@@ -2049,8 +2049,10 @@ export const CUSTOM_MODEL = {
     dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
-    /** The Animated chip's tip where the dialog has no Animation control (opened from the menu). */
-    animatedInLayer: "choose a clip under Animation in a layer's Model",
+    /** The folder icon's hover text: when to use it. */
+    folderTip: "Choose folder: for a model exported with its textures and parts in a folder",
+    /** The Animated chip's tip on the Details line: the dialog plays the first clip unless told otherwise. */
+    animatedTip: "plays its first clip; open Model settings to choose another, a pose or Still",
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.
@@ -2074,7 +2076,24 @@ export const CUSTOM_MODEL = {
         total === null || total <= 0
             ? megabytes(completed)
             : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
-    moreOptions: "More options",
+    /** The button at the end of Name that shows the model's own settings. */
+    settings: "Model settings",
+    textures: "Textures",
+    allTextures: "All textures",
+    /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */
+    forThisLayer: "For this layer",
+    /**
+     * Under the model's settings, opened from a layer that sets some of them itself.
+     * @param words - the settings' words, "Turn, Color".
+     * @returns the words.
+     */
+    layerOwn: (words: string): string => `This layer sets its own ${words}, which wins over the model's`,
+    /**
+     * The undo step that stores a model's settings with it.
+     * @param name - the model's name.
+     * @returns the words.
+     */
+    settingsStep: (name: string): string => `setting ${name}'s model settings`,
     animation: "Animation",
     still: "Still",
     pose: "Pose",

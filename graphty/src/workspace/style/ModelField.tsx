@@ -8,6 +8,7 @@
 import { Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import type { TransactionScope } from "@graphty/graphty-element/session";
 import { Tooltip } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
@@ -21,7 +22,7 @@ import { ModelsPopover } from "./ModelsPopover";
 import { ModelProblems } from "./PartsPopover";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import type { RowContext } from "./PropertyRow";
-import { layerWord, lineIn, removeLine, without, writeIn } from "./row";
+import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
 import { focusSectionNext } from "./useFocusLine";
 import { ModelValueField, ValueField } from "./ValueField";
 import { fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTURE_WORD, valueWords } from "./words";
@@ -227,12 +228,27 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         ref: string,
         into: Channel,
         settings?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+        saveDefaults?: (tx: TransactionScope) => Promise<void>,
     ): void => {
         setModelsOpen(false);
         state.setCustomOpen(false);
         focusField();
-        // The model and the dialog's settings, in one undo step.
-        said(args, writeIn(ctx, into, { value: ref }, settings), () =>
+        // The model, the layer's settings from the dialog and the model's own, in one undo step.
+        let done: Promise<unknown>;
+        if (saveDefaults === undefined) {
+            done = writeIn(ctx, into, { value: ref }, settings);
+        } else if (ctx.many === undefined) {
+            done = session.transaction(`changing ${name.toLowerCase()}`, async (tx) => {
+                await saveDefaults(tx);
+                await writeLine(tx, ctx.row, ctx.side, into, { value: ref }, ctx.fresh, settings);
+            });
+        } else {
+            // ponytail: several rows take the model's settings and the model as two undo steps.
+            done = session
+                .transaction(`changing ${name.toLowerCase()}`, saveDefaults)
+                .then(() => writeIn(ctx, into, { value: ref }, settings));
+        }
+        said(args, done, () =>
             into === "node.model"
                 ? `${name} now ${modelName(session, ref)}`
                 : `Node picture now ${pictureName(session, ref)}`,
@@ -325,8 +341,8 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
                 <CustomModelDialog
                     forLayer
                     baseStyle={modelStyleOf(ctx)}
-                    onAdd={(ref, settings) => {
-                        pickModel(ref, "node.model", settings);
+                    onAdd={(ref, settings, _refs, saveDefaults) => {
+                        pickModel(ref, "node.model", settings, saveDefaults);
                     }}
                     onPicture={(ref) => {
                         pickModel(ref, "node.texture");

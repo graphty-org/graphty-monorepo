@@ -8,20 +8,23 @@ import {
     turnModelOrientation,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
-import type {
-    AssetRecord,
-    AssetSource,
-    CodedFact,
-    ModelPart,
-    ModelSummary,
-    PartAnswer,
-    ProgressChange,
+import {
+    type AssetRecord,
+    type AssetSource,
+    type CodedFact,
+    type GraphSession,
+    MODEL_DEFAULT_CHANNELS,
+    type ModelDefaultsPatch,
+    type ModelPart,
+    type ModelSummary,
+    type PartAnswer,
+    type ProgressChange,
+    type TransactionScope,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
     Checkbox,
-    Collapse,
     Group,
     Loader,
     Modal,
@@ -30,11 +33,10 @@ import {
     Text,
     TextInput,
     Tooltip,
-    UnstyledButton,
 } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { fileStem, modelDrawFailure, type ModelLive, modelName, useModelPreview } from "../canvas/models";
+import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
@@ -43,7 +45,7 @@ import { chipLine, countChip, middleCut, modelChip, PART_CODES, partChip, roleWo
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import { useStillOpen } from "./useStillOpen";
-import { CUSTOM_MODEL, logUnexpected, PICTURE_WORD } from "./words";
+import { CUSTOM_MODEL, logUnexpected, MODEL_SETTING_ROWS, PICTURE_WORD } from "./words";
 
 /**
  * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
@@ -57,21 +59,17 @@ const MODEL_FORMATS = MODEL_MAIN_EXTENSIONS.filter(
     (ext) => ext !== ".zip" && detectModelFormat({ filename: `model${ext}` })?.supported === true,
 );
 
-/** The settings shown at once, with a layer to write them to: Color, and Animation for a model with clips. */
-const SHOWN_CHANNELS: readonly Channel[] = ["node.modelTint", "node.modelAnimation"];
+/** The settings only a layer takes, opened from a layer (with Picture); the model's own are graphty-element's. */
+const LAYER_CHANNELS: readonly Channel[] = ["node.unlit", "node.wireframe"];
 
-/** More options' settings, with a layer to write them to; Speed and Start only for a model with clips. */
-const MORE_CHANNELS: readonly Channel[] = [
-    "node.modelSourceUp",
-    "node.modelTurn",
-    "node.modelFit",
-    "node.modelCenter",
-    "node.modelAnimationSpeed",
-    "node.modelAnimationOffset",
-    "node.modelDoubleSided",
-    "node.unlit",
-    "node.wireframe",
-];
+/**
+ * Whether a setting is one a model carries with it (`assets.setDefaults`), by graphty-element's list.
+ * @param channel - the setting.
+ * @returns true for a model's own setting.
+ */
+function isModelChannel(channel: Channel): boolean {
+    return (MODEL_DEFAULT_CHANNELS as readonly Channel[]).includes(channel);
+}
 
 /** The rotate buttons under the preview, in their order. */
 const TURN_STEPS: readonly ModelTurnStep[] = ["left", "right", "forward", "back"];
@@ -107,6 +105,10 @@ interface Member {
     readonly held: Held;
     /** What Name says for it. */
     readonly name: string;
+    /** The model's own settings as the reader set them, or undefined until the reader changes one. */
+    readonly settings?: ModelDraft;
+    /** The model's pictures drawn without them, or undefined until the reader changes one. */
+    readonly hidden?: readonly string[];
     /** Whether Add takes it (Load this model). */
     readonly load: boolean;
     /** Why graphty-element could not draw it; Add is blocked while it is taken. */
@@ -128,6 +130,68 @@ interface Refused {
  */
 function refOf(held: Held): string {
     return held.url ?? held.record.id;
+}
+
+/**
+ * A model's clips, from graphty-element's summary: none until it is accepted.
+ * @param session - the element's session.
+ * @param record - the model.
+ * @returns the clips.
+ */
+function clipsOf(session: GraphSession, record: AssetRecord): ModelSummary["animations"] {
+    return record.state === "accepted" ? session.assets.inspect(record.id).animations : [];
+}
+
+/**
+ * The model's own settings in the dialog: as the reader set them, else what the model carries
+ * (`AssetRecord.defaults`), with its first clip for a model with clips that names none, so the
+ * preview plays it. Playing is the dialog's choice: graphty-element's default draws a model still.
+ * @param session - the element's session.
+ * @param member - the model.
+ * @returns the settings.
+ */
+function settingsOf(session: GraphSession, member: Member): ModelDraft {
+    if (member.settings !== undefined) {
+        return member.settings;
+    }
+    const own = member.held.record.defaults?.style ?? {};
+    const [first] = clipsOf(session, member.held.record);
+    return own["node.modelAnimation"] === undefined && first !== undefined
+        ? { ...own, "node.modelAnimation": first.name }
+        : own;
+}
+
+/**
+ * The model's pictures drawn without them in the dialog: as the reader set them, else the model's own.
+ * @param member - the model.
+ * @returns the pictures' names.
+ */
+function hiddenOf(member: Member): readonly string[] {
+    return member.hidden ?? member.held.record.defaults?.hiddenTextures ?? [];
+}
+
+/**
+ * What Add stores with a model (`assets.setDefaults`): each setting that differs from what it
+ * carries (null takes one back) and its hidden pictures when they changed.
+ * @param session - the element's session.
+ * @param member - the model, as the dialog holds it.
+ * @param record - the model as it is now (accepted, possibly with a new id).
+ * @returns the patch, or undefined when nothing changed.
+ */
+function defaultsPatch(session: GraphSession, member: Member, record: AssetRecord): ModelDefaultsPatch | undefined {
+    const settings = settingsOf(session, member);
+    const before = record.defaults;
+    const style = Object.fromEntries(
+        MODEL_DEFAULT_CHANNELS.flatMap((channel) =>
+            settings[channel] === before?.style[channel] ? [] : [[channel, settings[channel] ?? null]],
+        ),
+    );
+    const hidden = hiddenOf(member);
+    const sameHidden = JSON.stringify(hidden) === JSON.stringify(before?.hiddenTextures ?? []);
+    if (Object.keys(style).length === 0 && sameHidden) {
+        return undefined;
+    }
+    return sameHidden ? { style } : { style, hiddenTextures: hidden };
 }
 
 /** A picture that arrived where a model was expected. */
@@ -152,7 +216,7 @@ interface Loading {
 
 /** Props for CustomModelDialog. */
 export interface CustomModelDialogProps {
-    /** Whether a layer takes the model: Color, Animation, More options, rotation and Use as picture are offered. */
+    /** Whether a layer takes the model: Light, Wireframe, Picture and Use as picture are offered too. */
     readonly forLayer: boolean;
     /**
      * The target layer's own values (`node.color` and the `node.model*` settings), so the preview
@@ -160,11 +224,18 @@ export interface CustomModelDialogProps {
      */
     readonly baseStyle?: ModelDraft;
     /**
-     * Add model: what `node.model` names, the draft settings, and every model added (`ref` among
-     * them; several when the reader took more than one model of a set). The dialog has already
-     * renamed them.
+     * Add model: what `node.model` names, the layer's own draft settings (Light, Wireframe,
+     * Picture), every model added (`ref` among them; several when the reader took more than one
+     * model of a set), and, when the reader changed a model's own settings, what stores them with
+     * the models (`assets.setDefaults`), to run in the caller's undo step. The dialog has already
+     * renamed and accepted them.
      */
-    readonly onAdd: (ref: string, settings: ModelDraft, refs: readonly string[]) => void;
+    readonly onAdd: (
+        ref: string,
+        settings: ModelDraft,
+        refs: readonly string[],
+        saveDefaults?: (tx: TransactionScope) => Promise<void>,
+    ) => void;
     /** Use as picture, with a layer: the picture's asset id for `node.texture`. */
     readonly onPicture?: (ref: string) => void;
     /** Closed without adding, after what the dialog loaded and nothing uses was let go. */
@@ -213,30 +284,59 @@ function detectedUp(summary: ModelSummary | undefined): ModelUpAxis {
 }
 
 /**
- * A disclosure line, as the selection pane's Advanced: a chevron, its word, and what it carries.
+ * The model's pictures, each drawn or not (`hiddenTextures`): a part drawn without its picture
+ * takes the node's color. All textures checks or clears them all.
  * @param props - Component props
- * @param props.word - its word
- * @param props.open - whether its rows show
- * @param props.onToggle - opens or closes it
- * @param props.children - drawn at its end (a chip or a note)
- * @returns The line
+ * @param props.pictures - the model's pictures, from graphty-element's summary
+ * @param props.hidden - the names drawn without them
+ * @param props.onChange - sets the names drawn without them
+ * @returns The group, or nothing for a model with no pictures
  */
-function Disclosure({
-    word,
-    open,
-    onToggle,
-    children,
-}: Readonly<{ word: string; open: boolean; onToggle: () => void; children?: React.ReactNode }>): React.JSX.Element {
+function TextureRows({
+    pictures,
+    hidden,
+    onChange,
+}: Readonly<{
+    pictures: readonly { readonly name: string }[];
+    hidden: readonly string[];
+    onChange: (hidden: readonly string[]) => void;
+}>): React.JSX.Element | null {
+    if (pictures.length === 0) {
+        return null;
+    }
+    const shown = pictures.filter((p) => !hidden.includes(p.name)).length;
     return (
-        <Group gap={6} wrap="wrap">
-            <UnstyledButton className="ws-disclosure" aria-expanded={open} onClick={onToggle}>
-                <GLYPHS.expand size={12} aria-hidden style={{ transform: open ? undefined : "rotate(-90deg)" }} />
+        <fieldset className="ws-model-textures" data-testid="model-textures">
+            <legend>
                 <Text size="sm" span>
-                    {word}
+                    {CUSTOM_MODEL.textures}
                 </Text>
-            </UnstyledButton>
-            {children}
-        </Group>
+            </legend>
+            <Stack gap={4}>
+                <Checkbox
+                    size="xs"
+                    label={CUSTOM_MODEL.allTextures}
+                    checked={shown === pictures.length}
+                    indeterminate={shown > 0 && shown < pictures.length}
+                    onChange={(event) => {
+                        onChange(event.currentTarget.checked ? [] : pictures.map((p) => p.name));
+                    }}
+                />
+                {pictures.map((p) => (
+                    <Checkbox
+                        key={p.name}
+                        size="xs"
+                        label={p.name}
+                        checked={!hidden.includes(p.name)}
+                        onChange={(event) => {
+                            onChange(
+                                event.currentTarget.checked ? hidden.filter((n) => n !== p.name) : [...hidden, p.name],
+                            );
+                        }}
+                    />
+                ))}
+            </Stack>
+        </fieldset>
     );
 }
 
@@ -689,7 +789,13 @@ function addBlock(
     if (many && taking.length === 0) {
         return CUSTOM_MODEL.noneChosen;
     }
-    const notReady = taking.find((m) => m.held.record.state !== "accepted");
+    // A model waiting only for files that are missing is added without them (`assets.accept`), so a
+    // model can be styled without its textures; one waiting for an answer (which file is which) is not.
+    const notReady = taking.find(
+        (m) =>
+            m.held.record.state !== "accepted" &&
+            m.held.record.problems.some((p) => PART_CODES.has(p.code) && p.code !== "E_MODEL_MISSING_FILE"),
+    );
     if (members.length === 0 || notReady !== undefined) {
         const firstMissing = notReady?.held.record.problems.find((p) => PART_CODES.has(p.code))?.params.name;
         return typeof firstMissing === "string"
@@ -712,6 +818,10 @@ function drawBlock(
     failure: CodedFact | undefined,
 ): string | null {
     for (const member of taking) {
+        if (member.held.record.state !== "accepted") {
+            // Accepted on Add, without what is missing; graphty-element refuses it then if it must.
+            continue;
+        }
         if (member !== current && member.checked !== true) {
             return CUSTOM_MODEL.loading(member.name);
         }
@@ -768,11 +878,10 @@ export function CustomModelDialog({
     const change = (edit: (member: Member) => Member): void => {
         setMembers((now) => now.map((member, at) => (at === index ? edit(member) : member)));
     };
-    // The settings (Color, Animation, More options, rotation, Picture) are one draft shared by every
-    // model of a set: Add writes them with the model the layer takes. Name and Load this model are
-    // each model's own.
+    // A model's own settings (Color, Animation and Pose, Up, Turn, Textures...) are each model's, kept
+    // with it on Add. The layer's own (Light, Wireframe, Picture) are one draft for the layer.
     const [draft, setDraft] = useState<ModelDraft>({});
-    const [moreOpen, setMoreOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
@@ -787,7 +896,10 @@ export function CustomModelDialog({
     // Stepping through a set's models changes none of this, so focus stays on the arrows.
     const heldKey = members.map((m) => `${m.held.record.id} ${m.held.record.state}`).join(",");
     const waits = waitingFor.length > 0;
-    const values: ModelDraft = { ...baseStyle, ...draft };
+    const modelDraft: ModelDraft = session === null || current === undefined ? {} : settingsOf(session, current);
+    const hidden = current === undefined ? [] : hiddenOf(current);
+    // The dialog's settings over the layer's own, so a change in the dialog is always seen.
+    const values: ModelDraft = { ...baseStyle, ...modelDraft, ...draft };
     // graphty-element draws the model live in this element of the preview box.
     const [previewHost, setPreviewHost] = useState<HTMLDivElement | null>(null);
     // A model waiting for parts is drawn with them stood in for, while Files still asks for them.
@@ -797,6 +909,7 @@ export function CustomModelDialog({
         values,
         CUSTOM_MODEL.preview(name),
         true,
+        hidden,
     );
     // Only an accepted model's failure is said: a waiting one keeps the cube and its "N missing".
     const draw: ModelLive = held?.record.state === "accepted" ? drawn : { ...drawn, failure: undefined };
@@ -841,13 +954,17 @@ export function CustomModelDialog({
                 continue;
             }
             asked.current.add(id);
-            void modelDrawFailure(element, refOf(member.held)).then((found) => {
-                setMembers((now) =>
-                    now.map((m) =>
-                        m.held.record.id === id ? { ...m, checked: true, failure: m.failure ?? found } : m,
-                    ),
-                );
-            });
+            // graphty-element says whether it can draw the model; null (no WebGL here) blocks nothing.
+            void element
+                .checkModel(refOf(member.held))
+                .catch((error: unknown) => ({ drawable: false, failure: failureOf(error) }))
+                .then(({ failure: found }) => {
+                    setMembers((now) =>
+                        now.map((m) =>
+                            m.held.record.id === id ? { ...m, checked: true, failure: m.failure ?? found } : m,
+                        ),
+                    );
+                });
         }
     }, [element, members]);
     // A model that is in but cannot be drawn is said, as an intake refusal is.
@@ -1063,13 +1180,38 @@ export function CustomModelDialog({
     if (taking.length > 1) {
         addWord = CUSTOM_MODEL.addMany(taking.length);
     }
-    const add = (): void => {
+    // Accepts a model waiting only for missing files, without them: the new record, or undefined
+    // after saying why graphty-element refused (a part it cannot be drawn without).
+    const acceptOf = async (member: Member): Promise<AssetRecord | undefined> => {
+        const { record } = member.held;
+        if (record.state === "accepted") {
+            return record;
+        }
+        try {
+            const after = await session.assets.accept(record.id, { without: "missing" });
+            moved(record, after);
+            return after;
+        } catch (error) {
+            const fact = failureOf(error);
+            setProblem(fact);
+            say(refusalLine(fact));
+            return undefined;
+        }
+    };
+    const add = async (): Promise<void> => {
         // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
         if (blocked !== null || taking.length === 0) {
             return;
         }
+        const ready: { member: Member; record: AssetRecord; ref: string }[] = [];
         for (const member of taking) {
-            const { record } = member.held;
+            const record = await acceptOf(member);
+            if (record === undefined) {
+                return;
+            }
+            ready.push({ member, record, ref: member.held.url ?? record.id });
+        }
+        for (const { member, record } of ready) {
             const wanted = member.name.trim();
             const usual = fileStem(record.path ?? refOf(member.held)) || "Model";
             if (wanted !== (record.plainName ?? usual)) {
@@ -1080,12 +1222,30 @@ export function CustomModelDialog({
         for (const member of members.filter((m) => !taking.includes(m))) {
             letGo(refOf(member.held));
         }
+        // What Add took is the project's now: nothing the dialog does later lets go of it.
+        for (const { member, ref } of ready) {
+            added.current.delete(ref);
+            added.current.delete(refOf(member.held));
+        }
+        const patches = ready.flatMap(({ member, record, ref }) => {
+            const patch = defaultsPatch(session, member, record);
+            return patch === undefined ? [] : [{ ref, patch }];
+        });
+        const saveDefaults =
+            patches.length === 0
+                ? undefined
+                : async (tx: TransactionScope): Promise<void> => {
+                      for (const { ref, patch } of patches) {
+                          await tx.assets.setDefaults(ref, patch);
+                      }
+                  };
         // A layer takes the model shown when it is checked, else the first checked.
-        const shown = current !== undefined && taking.includes(current) ? current : taking[0];
+        const shown = ready.find((r) => r.member === current) ?? ready[0];
         onAdd(
-            refOf(shown.held),
+            shown.ref,
             draft,
-            taking.map((m) => refOf(m.held)),
+            ready.map((r) => r.ref),
+            saveDefaults,
         );
     };
     const parts = held?.record.parts ?? [];
@@ -1104,9 +1264,9 @@ export function CustomModelDialog({
         ...new Map(
             DETAIL_CHIP_CODES.flatMap((code) => accepted?.record.problems.filter((p) => p.code === code) ?? [])
                 .map((p) =>
-                    // Opened from the menu the dialog has no Animation control: say where the clip is chosen.
-                    !forLayer && p.code === "W_MODEL_HAS_ANIMATIONS"
-                        ? { ...modelChip(p), tip: CUSTOM_MODEL.animatedInLayer }
+                    // The dialog plays the first clip, and Model settings chooses another: say so.
+                    p.code === "W_MODEL_HAS_ANIMATIONS"
+                        ? { ...modelChip(p), tip: CUSTOM_MODEL.animatedTip }
                         : modelChip(p),
                 )
                 .map((chip) => [chip.word, chip]),
@@ -1115,12 +1275,32 @@ export function CustomModelDialog({
     const ignored = (accepted?.record.problems ?? [])
         .filter((p) => p.code === "W_MODEL_EXTENSION_IGNORED")
         .map((p) => String(p.params.extension));
+    // A model's own setting goes to the model shown; Light, Wireframe and Picture to the layer's draft.
     const write = (channel: Channel, value: ChannelValue): void => {
-        setDraft((now) => ({ ...now, [channel]: value }));
+        if (isModelChannel(channel)) {
+            change((member) => ({ ...member, settings: { ...settingsOf(session, member), [channel]: value } }));
+        } else {
+            setDraft((now) => ({ ...now, [channel]: value }));
+        }
     };
     const unset = (channel: Channel): void => {
-        setDraft((now) => Object.fromEntries(Object.entries(now).filter(([c]) => c !== channel)));
+        const drop = (now: ModelDraft): ModelDraft =>
+            Object.fromEntries(Object.entries(now).filter(([c]) => c !== channel));
+        if (isModelChannel(channel)) {
+            change((member) => ({ ...member, settings: drop(settingsOf(session, member)) }));
+        } else {
+            setDraft(drop);
+        }
     };
+    const hide = (next: readonly string[]): void => {
+        change((member) => ({ ...member, hidden: next }));
+    };
+    // The model's own settings a layer opening the dialog sets itself: its value wins on the graph.
+    const layerOwn = MODEL_SETTING_ROWS.filter(
+        (row) => isModelChannel(row.channel) && baseStyle?.[row.channel] !== undefined,
+    )
+        .map((row) => row.word)
+        .join(", ");
     const addressProblem = problem !== null && ADDRESS_CODES.has(problem.code) ? problem : null;
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
     const empty = held === null && !busy;
@@ -1145,7 +1325,7 @@ export function CustomModelDialog({
         setPicture(null);
         setRefused([]);
         setAddress("");
-        setMoreOpen(false);
+        setSettingsOpen(false);
         say(CUSTOM_MODEL.removed(heldFile));
     };
 
@@ -1155,7 +1335,6 @@ export function CustomModelDialog({
             barUnderField
             variant="row"
             autoFocus={empty}
-            disabled={busy}
             progress={shownLoad?.progress}
             status={shownLoad?.status}
             onCancel={busy ? cancelLoad : undefined}
@@ -1172,6 +1351,7 @@ export function CustomModelDialog({
             clearLabel={CUSTOM_MODEL.remove(heldFile)}
             label={CUSTOM_MODEL.chooseFile}
             folderLabel={CUSTOM_MODEL.chooseFolder}
+            folderTip={CUSTOM_MODEL.folderTip}
             placeholder={CUSTOM_MODEL.addressOrDrop}
             urlLabel={CUSTOM_MODEL.address}
             defaultValue={address}
@@ -1214,6 +1394,23 @@ export function CustomModelDialog({
                           {CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem))}
                       </Text>
                   ))}
+            {busy
+                ? null
+                : members
+                      .filter((m) => m !== current && m.failure !== undefined)
+                      .map((m) => (
+                          <Text
+                              key={m.held.record.id}
+                              size="xs"
+                              c="var(--cm-text-danger)"
+                              data-testid="model-undrawable"
+                          >
+                              {CUSTOM_MODEL.ofSet(
+                                  m.name,
+                                  refusalLine(m.failure ?? { code: "E_MODEL_PARSE", params: {} }),
+                              )}
+                          </Text>
+                      ))}
             {picture === null ? null : (
                 <Group gap={4} wrap="nowrap">
                     <Text size="xs" c="var(--cm-text-warning)">
@@ -1233,20 +1430,6 @@ export function CustomModelDialog({
                     ) : null}
                 </Group>
             )}
-            {accepted === null || !forLayer || busy ? null : (
-                <Stack gap={4} className="ws-model-settings">
-                    {forLayer ? (
-                        <SettingRows
-                            channels={SHOWN_CHANNELS}
-                            values={draft}
-                            problems={accepted.record.problems}
-                            write={write}
-                            remove={unset}
-                            clips={clips}
-                        />
-                    ) : null}
-                </Stack>
-            )}
             {draw.failure === undefined || busy ? null : (
                 <Group gap={4} wrap="nowrap">
                     <Refusal problem={draw.failure} />
@@ -1257,24 +1440,34 @@ export function CustomModelDialog({
                     ) : null}
                 </Group>
             )}
-            {accepted === null || !forLayer || busy ? null : (
-                <>
-                    <Disclosure
-                        word={CUSTOM_MODEL.moreOptions}
-                        open={moreOpen}
-                        onToggle={() => {
-                            setMoreOpen(!moreOpen);
-                        }}
+            {accepted === null || !settingsOpen || busy ? null : (
+                <Stack gap={6} id={`${uid}-settings`} data-testid="model-settings">
+                    <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+                    <SettingRows
+                        channels={MODEL_DEFAULT_CHANNELS}
+                        values={modelDraft}
+                        problems={accepted.record.problems}
+                        write={write}
+                        remove={unset}
+                        clips={clips}
                     />
-                    <Collapse in={moreOpen} transitionDuration={0}>
-                        <div data-testid="model-more">
+                    {layerOwn === "" ? null : (
+                        <Text size="xs" c="dimmed" data-testid="model-layer-own">
+                            {CUSTOM_MODEL.layerOwn(layerOwn)}
+                        </Text>
+                    )}
+                    <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
+                    {forLayer ? (
+                        <Stack gap={4} data-testid="model-layer-settings">
+                            <Text size="xs" c="dimmed">
+                                {CUSTOM_MODEL.forThisLayer}
+                            </Text>
                             <SettingRows
-                                channels={MORE_CHANNELS}
+                                channels={LAYER_CHANNELS}
                                 values={draft}
                                 problems={accepted.record.problems}
                                 write={write}
                                 remove={unset}
-                                clips={clips}
                             />
                             <div className="ws-model-settings">
                                 <PictureRow
@@ -1291,9 +1484,9 @@ export function CustomModelDialog({
                                     setOpen={setPictureOpen}
                                 />
                             </div>
-                        </div>
-                    </Collapse>
-                </>
+                        </Stack>
+                    ) : null}
+                </Stack>
             )}
             {held === null || !showFiles || busy ? null : (
                 <Stack gap={4}>
@@ -1351,6 +1544,20 @@ export function CustomModelDialog({
                     </section>
                 </Stack>
             )}
+        </Stack>
+    );
+
+    const side = (
+        <Stack gap={8} className="ws-model-side">
+            <Preview
+                held={held}
+                name={name}
+                label={many && !busy ? name : undefined}
+                skipped={many && current?.load === false}
+                draw={draw}
+                busy={busy}
+                onHost={setPreviewHost}
+            />
             {summary === undefined || accepted === null || busy ? null : (
                 <Stack gap={4} className="ws-model-details-box">
                     <Group gap={6} wrap="wrap" data-testid="model-details-line">
@@ -1374,20 +1581,6 @@ export function CustomModelDialog({
                     </section>
                 </Stack>
             )}
-        </Stack>
-    );
-
-    const side = (
-        <Stack gap={8} className="ws-model-side">
-            <Preview
-                held={held}
-                name={name}
-                label={many && !busy ? name : undefined}
-                skipped={many && current?.load === false}
-                draw={draw}
-                busy={busy}
-                onHost={setPreviewHost}
-            />
             {many && current !== undefined && !busy ? (
                 <ModelSteps
                     at={index}
@@ -1423,22 +1616,32 @@ export function CustomModelDialog({
                                 onKeyDown={(event) => {
                                     if (event.key === "Enter" && blocked === null) {
                                         event.preventDefault();
-                                        add();
+                                        void add();
                                     }
                                 }}
                             />
                         </div>
+                        <span className="ws-slot">
+                            {accepted === null ? null : (
+                                <Tooltip label={CUSTOM_MODEL.settings}>
+                                    <ActionIcon
+                                        variant={settingsOpen ? "light" : "subtle"}
+                                        size="sm"
+                                        aria-label={CUSTOM_MODEL.settings}
+                                        aria-expanded={settingsOpen}
+                                        aria-controls={settingsOpen ? `${uid}-settings` : undefined}
+                                        onClick={() => {
+                                            setSettingsOpen(!settingsOpen);
+                                        }}
+                                    >
+                                        <GLYPHS.settings size={14} aria-hidden />
+                                    </ActionIcon>
+                                </Tooltip>
+                            )}
+                        </span>
                     </div>
                 </div>
             )}
-            {summary === undefined || busy ? null : (
-                <Text size="xs" c="dimmed" ta="center" data-testid="model-variant">
-                    {CUSTOM_MODEL.variantLine(summary)}
-                </Text>
-            )}
-            {forLayer && accepted !== null && !busy ? (
-                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
-            ) : null}
         </Stack>
     );
 
@@ -1472,7 +1675,9 @@ export function CustomModelDialog({
                             // A blocked Add stays focusable, with its reason as its tooltip.
                             aria-disabled={blocked !== null || undefined}
                             data-disabled={blocked !== null || undefined}
-                            onClick={add}
+                            onClick={() => {
+                                void add();
+                            }}
                         >
                             {addWord}
                         </Button>

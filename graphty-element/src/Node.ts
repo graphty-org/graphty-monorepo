@@ -2533,7 +2533,7 @@ export class Node implements ModelUser {
         const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
         const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
         const batch = this.drawnByBatch();
-        const halo = batch && this.renderState === "visible" ? this.haloLook() : null;
+        const halo = batch && this.getRenderState() === "visible" ? this.haloLook() : null;
         const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
         const outline = style.effect?.outline;
         const glow = style.effect?.glow;
@@ -3573,7 +3573,8 @@ export class Node implements ModelUser {
      * Draw or take down this node's halo from the selection and the layers as they now stand.
      */
     private syncHalo(): void {
-        const look = this.renderState === "visible" ? this.haloLook() : null;
+        // Drawn only while the node is: a layer hiding it (what lies outside a time window) hides its halo too.
+        const look = this.getRenderState() === "visible" ? this.haloLook() : null;
         this.syncModelMark();
         if (this.drawnModel !== null) {
             // A copy of one part, scaled out, is no halo for a model: its silhouette is marked instead.
@@ -3640,7 +3641,7 @@ export class Node implements ModelUser {
      */
     private syncModelMark(): void {
         const model = this.drawnModel;
-        const look = model === null || this.renderState !== "visible" ? null : this.modelMarkLook();
+        const look = model === null || this.getRenderState() !== "visible" ? null : this.modelMarkLook();
         if (look === null && !this.#modelMarked) {
             return;
         }

@@ -54,6 +54,7 @@ import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/re
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
@@ -1524,7 +1525,7 @@ export class Graphty extends LitElement {
     #featuresValue: readonly string[] | undefined;
 
     /**
-     * The experiments to switch on, space separated (`features="timeline location-map"`); `all`
+     * The experiments to switch on, space separated (`features="assistant location-map"`); `all`
      * switches on every one this build declares. Absent takes the page default
      * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
      * Features marked `@experimental` may change or disappear in a minor release.
@@ -1532,7 +1533,7 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline"></graphty-element>
+     * <graphty-element features="location-map"></graphty-element>
      * ```
      */
     @property({ attribute: "features" })
@@ -1906,20 +1907,15 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set one of the timeline's attributes. With the experiment off it is refused and changes
-     * nothing; before the first render it waits to find out, as `features` may come later.
+     * Set one of the timeline's attributes; before the first render it waits for the session.
      * @param name - The field, which is also the property's name.
      * @param value - The value.
      */
     #setTimeField(name: string, value: string | undefined): void {
         if (this.#settingUp) {
             this.#heldTimeFields.set(name, value);
-        } else if (this.session.features.enabled.includes("timeline")) {
+        } else {
             this.#setKnownField(name, value);
-        } else if (value !== undefined && value !== null && value !== "") {
-            const refusal = featureOff("timeline", name);
-            this.#refusedFeatures.set(name, { code: "E_FEATURE_OFF", params: { feature: "timeline", key: name } });
-            console.error(`<graphty-element>: ${name} was refused.`, refusal);
         }
     }
 
@@ -2337,9 +2333,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Keep a `"url"` pair out of the load line until the first update, when `features` is settled
-     * and says whether the element finds the format. An element nobody connected in this tick and
-     * that asks for no timeline will not get there: its pair loads now, as an unknown format.
+     * Keep a `"url"` pair out of the load line until the first update, when the element finds the
+     * format.
      * @param setup - Whether the page declared it before the first update.
      * @returns Settles once the pair's load ran or failed.
      */
@@ -2354,11 +2349,6 @@ export class Graphty extends LitElement {
                     type === "url" && config !== undefined ? this.#joinLoadLine({ type, config }, setup) : undefined,
                 );
             };
-            queueMicrotask(() => {
-                if (!this.isConnected && !resolveFeatures(this.#featuresValue).enabled.includes("timeline")) {
-                    this.#releaseUrlPair?.();
-                }
-            });
         });
         return this.#heldUrlPair;
     }
@@ -2494,8 +2484,7 @@ export class Graphty extends LitElement {
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
-                findsUrlFormat:
-                    !this.#settingUp && this.#readsUrl(source) && this.session.features.enabled.includes("timeline"),
+                findsUrlFormat: !this.#settingUp && this.#readsUrl(source),
                 readFailed: (error) => {
                     this.#reportLoadFailure(error);
                 },
@@ -2789,10 +2778,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" edge-time-path="sent"></graphty-element>
+     * <graphty-element edge-time-path="sent"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "edge-time-path" })
@@ -2800,7 +2788,7 @@ export class Graphty extends LitElement {
         return this.#timeField("edgeTimePath");
     }
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     set edgeTimePath(value: string | undefined) {
         this.#setTimeField("edgeTimePath", value);
@@ -2811,10 +2799,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" node-time-path="published"></graphty-element>
+     * <graphty-element node-time-path="published"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "node-time-path" })
@@ -2822,7 +2809,7 @@ export class Graphty extends LitElement {
         return this.#timeField("nodeTimePath");
     }
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     set nodeTimePath(value: string | undefined) {
         this.#setTimeField("nodeTimePath", value);
@@ -2834,10 +2821,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" edge-time-path="opened" edge-time-end-path="closed"></graphty-element>
+     * <graphty-element edge-time-path="opened" edge-time-end-path="closed"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "edge-time-end-path" })
@@ -2845,7 +2831,7 @@ export class Graphty extends LitElement {
         return this.#timeField("edgeTimeEndPath");
     }
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     set edgeTimeEndPath(value: string | undefined) {
         this.#setTimeField("edgeTimeEndPath", value);
@@ -2857,10 +2843,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" node-time-path="hired" node-time-end-path="left"></graphty-element>
+     * <graphty-element node-time-path="hired" node-time-end-path="left"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "node-time-end-path" })
@@ -2868,7 +2853,7 @@ export class Graphty extends LitElement {
         return this.#timeField("nodeTimeEndPath");
     }
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     set nodeTimeEndPath(value: string | undefined) {
         this.#setTimeField("nodeTimeEndPath", value);
@@ -2881,10 +2866,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" edge-time-path="ts" edge-time-unit="s"></graphty-element>
+     * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "edge-time-unit" })
@@ -2892,7 +2876,7 @@ export class Graphty extends LitElement {
         return this.#timeField("edgeTimeUnit");
     }
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     set edgeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
@@ -2910,10 +2894,9 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element features="timeline" node-time-path="year" node-time-unit="ordinal"></graphty-element>
+     * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
-     * @experimental timeline
      * @beta
      */
     @property({ attribute: "node-time-unit" })
@@ -2921,7 +2904,7 @@ export class Graphty extends LitElement {
         return this.#timeField("nodeTimeUnit");
     }
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     set nodeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
@@ -4483,6 +4466,34 @@ export class Graphty extends LitElement {
      */
     async modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string> {
         return this.#graph.modelThumbnail(ref, options);
+    }
+
+    /**
+     * One node drawn as a model, live, in a canvas that fills an element of yours (a sized `div`):
+     * the reader turns it by dragging, zooms
+     * with the wheel or a pinch, and turns it with the arrow keys while the canvas has focus, and a
+     * clip named by `node.modelAnimation` plays at `node.modelAnimationSpeed`. For a model picker or
+     * an import dialog. The preview draws with its own small WebGL context until you dispose it.
+     * @param ref - What `node.model` takes: an asset id from `session.assets.add`, a sample's id,
+     *     or a URL the session holds.
+     * @param host - The element the preview's canvas fills; size it with CSS. The canvas is
+     *     `preview.canvas`, for you to label; `dispose` removes it.
+     * @param options - The node's style values (`node.color`, the `node.model*` settings,
+     *     `node.unlit`, `node.wireframe`) and `standInMissing`, as for `modelThumbnail`.
+     * @returns The preview, once the model is drawn: `update(style)` redraws it with other values,
+     *     keeping the reader's view; `resetView()`; `dispose()`.
+     * @throws GraphtyError the same codes as `modelThumbnail`.
+     * @example
+     * ```typescript
+     * const asset = await element.session.assets.add(input.files);
+     * const preview = await element.modelPreview(asset.id, box, { style: { "node.color": "#e63946" } });
+     * preview.canvas.setAttribute("aria-label", "Model preview, drag to turn");
+     * await preview.update({ "node.modelAnimation": "Walk" });
+     * preview.dispose();
+     * ```
+     */
+    async modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview> {
+        return this.#graph.modelPreview(ref, host, options);
     }
 
     /**

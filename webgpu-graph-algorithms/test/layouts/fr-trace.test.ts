@@ -58,6 +58,7 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../helpers/sabotage.js";
 import { type FrOracleTraceRecord, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 /** 10 .. 1,000 nodes (spec 11.4): the path of 10, karate, the grid and random1k (scaled on software adapters). */
@@ -355,7 +356,7 @@ describe("FR trace: the temperature schedule, the free-running trajectory and th
     }
 
     it(`writes the ${TRAJ10_HORIZON}-iteration positions of the UNSCALED ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
             // ones on every run (issue #455)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

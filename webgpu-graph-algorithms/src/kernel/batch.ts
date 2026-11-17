@@ -61,6 +61,48 @@ function messageOf(error: unknown): string {
     return `non-error thrown (${typeof error})`;
 }
 
+/**
+ * Receives one named step of device work and its facts (see `GpuContext.trace`): a host that logs them can tell
+ * afterwards which submit, map or error scope a run that never finished was waiting on.
+ */
+export type GpuTrace = (event: string, facts: Readonly<Record<string, unknown>>) => void;
+
+/** How long a traced wait runs before it is reported as waiting, in milliseconds. */
+const SLOW_WAIT_MS = 1000;
+
+/**
+ * Awaits `pending`, telling `trace` when the wait passes {@link SLOW_WAIT_MS} and again when it ends; silent for a
+ * wait shorter than that, so a per-frame batch costs no lines.
+ * @param pending - the promise waited on
+ * @param trace - the sink, or null for no tracing
+ * @param event - names the wait ("map", "error scope", ...)
+ * @param facts - what identifies it
+ * @returns what `pending` resolved with
+ */
+export async function traced<T>(
+    pending: Promise<T>,
+    trace: GpuTrace | null | undefined,
+    event: string,
+    facts: Readonly<Record<string, unknown>>,
+): Promise<T> {
+    if (trace === null || trace === undefined) {
+        return pending;
+    }
+    const started = performance.now();
+    const timer = setTimeout(() => {
+        trace(`${event} waiting`, { ...facts, ms: SLOW_WAIT_MS });
+    }, SLOW_WAIT_MS);
+    try {
+        return await pending;
+    } finally {
+        clearTimeout(timer);
+        const ms = Math.round(performance.now() - started);
+        if (ms >= SLOW_WAIT_MS) {
+            trace(`${event} ended`, { ...facts, ms });
+        }
+    }
+}
+
 /** What a CommandBatch needs of its owner (GpuContext satisfies it structurally; kernel/ never imports context.ts). */
 export interface BatchHost {
     readonly device: GPUDevice;
@@ -69,6 +111,8 @@ export interface BatchHost {
     readonly allocator: AllocationTracker;
     /** True when no uncaptured-error sink feeds takePendingError, so submit() scopes its own commands. */
     readonly scopesBatches?: boolean;
+    /** Where slow waits are reported (GpuContext.trace); absent or null traces nothing. */
+    readonly trace?: GpuTrace | null;
     assertReady(): void;
     takePendingError(): WebGpuGraphError | null;
     nextBatchId(): number;
@@ -295,7 +339,11 @@ export class CommandBatch {
         scope: Promise<GPUError | null>,
         readback: Promise<ArrayBuffer>,
     ): Promise<ArrayBuffer> {
-        const [error] = await Promise.all([scope.catch(() => null), readback.catch(() => undefined)]);
+        const facts = { batch: this.label, id: this.id };
+        const [error] = await Promise.all([
+            traced(scope, this.host.trace, "error scope", facts).catch(() => null),
+            readback.catch(() => undefined),
+        ]);
         if (error !== null) {
             const { message } = error;
             throw this.attribute(
@@ -311,8 +359,9 @@ export class CommandBatch {
     }
 
     private async awaitReadback(slot: StagingSlot | null, state: DiscardState): Promise<ArrayBuffer> {
+        const facts = { batch: this.label, id: this.id };
         if (slot === null) {
-            await this.host.allocator.check();
+            await traced(this.host.allocator.check(), this.host.trace, "allocator check", facts);
             return new ArrayBuffer(0);
         }
         const total = this.stagingBytes;
@@ -327,7 +376,7 @@ export class CommandBatch {
         void mapped.catch(() => undefined);
         let bytes: ArrayBuffer;
         try {
-            await Promise.race([mapped, lost]);
+            await traced(Promise.race([mapped, lost]), this.host.trace, "map", facts);
             this.host.assertReady();
             bytes = state.discarded ? new ArrayBuffer(0) : slot.buffer.getMappedRange(0, total).slice(0);
         } catch (error) {
@@ -339,7 +388,7 @@ export class CommandBatch {
             unregister();
         }
         this.releaseSlot();
-        await this.host.allocator.check();
+        await traced(this.host.allocator.check(), this.host.trace, "allocator check", facts);
         return bytes;
     }
 

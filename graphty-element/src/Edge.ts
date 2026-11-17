@@ -2244,7 +2244,7 @@ export class Edge {
      * and placing them again.
      *
      * WHY THIS EXISTS (#6026). Colour and opacity are a batch's, folded into the mesh key, so a
-     * look that changes only them -- the Ghost row, as a time window slides past thousands of
+     * look that changes only them -- a ghost look, as a time window slides past thousands of
      * edges a frame -- took the whole rebuild in `paintFrom` for every edge: release the line,
      * dispose and rebuild every cap, rebuild the content, and place everything again on the next
      * frame. Nothing about where the edge is drawn moved, so the slots are copied instead.
@@ -4021,7 +4021,7 @@ export class Edge {
     supportEdge(centerOf: (node: Node) => Readonly<Vector3> = (node) => node.drawnPosition): SupportEdge | null {
         const line = this.drawnStyle?.line;
         const model = line?.supportModel;
-        if (model === undefined || !this.curved || this.isLoop || !this.renderVisible) {
+        if (model === undefined || !this.curved || this.isLoop || !this.isRenderVisible()) {
             return null;
         }
         return {

@@ -1589,8 +1589,7 @@ export function CustomModelDialog({
             </div>
         );
 
-    // Files: in the left column under the settings, or, with Model settings closed, a column of
-    // its own beside the model, as tall as the dialog lets it, so no blank sits under it.
+    // Files: under the file and its settings, as tall as the list it holds.
     const filesBox =
         held === null || !showFiles || busy ? null : (
             <Stack gap={4}>
@@ -1661,7 +1660,6 @@ export function CustomModelDialog({
                 </section>
             </Stack>
         );
-    const filesBeside = filesBox !== null && !settingsOpen;
 
     const left = (
         <Stack gap="sm" className="ws-model-left">
@@ -1787,7 +1785,7 @@ export function CustomModelDialog({
                     ) : null}
                 </Stack>
             )}
-            {filesBeside ? null : filesBox}
+            {filesBox}
         </Stack>
     );
 
@@ -1845,10 +1843,10 @@ export function CustomModelDialog({
         </Stack>
     );
 
-    // A model with nothing to show beside it -- settings closed and no Files list: the model, its
-    // Name and Details take the whole width under the file and any line about it (a model of the
-    // set refused, why one cannot be drawn), so no blank column sits beside the model.
-    const alone = held !== null && !busy && !settingsOpen && !showFiles;
+    // A loaded model: one column, the file, its settings and Files on top, as tall as they are, and
+    // the model under them taking the rest of the height, with Details, a set's arrows and Name
+    // under it, so neither a short Files list nor a few settings leave a blank beside the model.
+    const alone = held !== null && !busy;
 
     return (
         <Modal
@@ -1867,13 +1865,11 @@ export function CustomModelDialog({
                 data-testid="custom-model"
                 data-over={over || undefined}
                 data-alone={alone || undefined}
-                data-files-beside={filesBeside || undefined}
             >
                 <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
                     {left}
                 </ScrollArea>
                 {side}
-                {filesBeside ? <div className="ws-model-files-beside">{filesBox}</div> : null}
                 <ModalFooter className="ws-model-footer">
                     <Button variant="default" onClick={cancel}>
                         {CUSTOM_MODEL.cancel}

@@ -103,6 +103,31 @@ async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
     return within(dialog).findByTestId("model-settings");
 }
 
+/**
+ * Asserts the loaded dialog leaves no blank: the file, its settings and Files on top end where
+ * their contents do, the model takes the body's width directly under them, every Details row shows
+ * without scrolling, and Name ends at the footer.
+ * @param dialog - the dialog.
+ * @param where - what the dialog shows, for the messages.
+ */
+function assertNoBlank(dialog: HTMLElement, where: string): void {
+    const body = within(dialog).getByTestId("custom-model");
+    assert.equal(body.dataset.alone, "true", `one column (${where})`);
+    const { width } = body.getBoundingClientRect();
+    const top = (body.querySelector(".ws-model-main") as HTMLElement).getBoundingClientRect();
+    const content = (body.querySelector(".ws-model-left") as HTMLElement).getBoundingClientRect();
+    const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+    const details = within(dialog).getByTestId("model-details");
+    const name = (body.querySelector(".ws-model-name") as HTMLElement).getBoundingClientRect();
+    const footer = (body.querySelector(".ws-model-footer") as HTMLElement).getBoundingClientRect();
+    assert.isBelow(top.bottom - Math.min(content.bottom, top.bottom), 4, `nothing blank under the top (${where})`);
+    assert.isBelow(preview.top - top.bottom, 16, `the model directly under the top (${where})`);
+    assert.isAbove(preview.width, width * 0.95, `the model takes the body's width (${where})`);
+    assert.isAtLeast(preview.height, 150, `drawn at a size to see (${where})`);
+    assert.isAtMost(details.scrollHeight, details.clientHeight + 1, `every Details row shows (${where})`);
+    assert.isAbove(name.bottom, footer.top - 24, `Name ends at the footer (${where})`);
+}
+
 afterEach(() => {
     vi.restoreAllMocks();
 });
@@ -318,12 +343,9 @@ describe("the Load custom model dialog, on the real element", () => {
         // Details, in the left column, ends above the footer.
         const side = dialog.querySelector<HTMLElement>(".ws-model-side");
         assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the model's column does not scroll");
-        const details = within(dialog).getByTestId("model-details");
-        const footer = dialog.querySelector(".ws-model-footer") as Element;
-        assert.isAtMost(details.getBoundingClientRect().bottom, footer.getBoundingClientRect().top);
-        // Under a set's preview the steps take a row, and Details gives up height before the
-        // column would scroll: four of its rows still show.
-        assert.isAtLeast(details.clientHeight, Math.min(details.scrollHeight, 120), "Details shows most of its rows");
+        assertNoBlank(dialog, "a set");
+        await openSettings(dialog);
+        assertNoBlank(dialog, "a set with Model settings open");
         const nameField = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(nameField);
         await userEvent.type(nameField, "Wall panel");
@@ -822,13 +844,17 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isAtLeast(drawing?.height ?? 0, 238, "drawn no smaller than in the side column");
         assert.isBelow(Math.abs((drawing?.width ?? 0) - (drawing?.height ?? 0)), 2, "and square");
         assert.isAbove(closed.name.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
-        // Settings open: they sit left, under the file, and the model with its Name and Details right.
+        assertNoBlank(dialog, "settings closed");
+        // Settings open: they sit under the file, in two columns, and the model under them at the
+        // body's width, so no blank sits under the settings or beside the model.
         const rows = await openSettings(dialog);
         const open = boxes();
         assertStacked(open, "settings open");
-        assert.isAtMost(open.file.right, open.box.left, "the model is in the right column");
-        assert.isBelow(Math.abs(open.box.top - open.file.top), 48, "both columns start at the top");
-        assert.isAtMost(rows.getBoundingClientRect().right, open.box.left, "the settings are left of it");
+        assert.isAtLeast(open.box.top, rows.getBoundingClientRect().bottom, "the model is under the settings");
+        const up = within(rows).getByText("Up").getBoundingClientRect();
+        const turn = within(rows).getByText("Turn").getBoundingClientRect();
+        assert.isBelow(Math.abs(up.top - turn.top), 2, "the settings sit in two columns");
+        assertNoBlank(dialog, "settings open");
         const side = dialog.querySelector<HTMLElement>(".ws-model-side");
         assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the model's column does not scroll");
         const header =
@@ -846,6 +872,23 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(record?.defaults?.style["node.modelSourceUp"], "-z", "the model keeps its rotation");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90);
         assert.isUndefined(written(session, "node.modelTurn"), "the layer starts from the model's");
+    });
+
+    it("leaves no blank under Model settings for the second model of a .zip of two", async () => {
+        await openShapes();
+        const dialog = await fromMenu();
+        await choose(dialog, "Choose file", [`${VARIANTS}/zip-two-models/two.zip`]);
+        await within(dialog).findByTestId("model-position");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await waitFor(() => {
+            assert.equal(within(dialog).getByTestId("model-position").textContent, "2 of 2");
+        });
+        await within(dialog).findByTestId("model-details");
+        assertNoBlank(dialog, "settings closed");
+        const rows = await openSettings(dialog);
+        assertNoBlank(dialog, "settings open");
+        const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+        assert.isBelow(preview.top - rows.getBoundingClientRect().bottom, 16, "the model directly under the settings");
     });
 
     it("plays an animated model's first clip from the Main menu, and keeps a Pose dragged with the mouse", async () => {
@@ -1177,18 +1220,12 @@ describe("the Load custom model dialog, on the real element", () => {
         const textured = session.assets.list().find((r) => r.path === "pair.obj" && r.state === "accepted");
         assert.isDefined(textured);
         const files = within(dialog).getByRole("region", { name: "Files" });
-        // Settings closed: the model and its Files side by side, the model larger than a 240 px column.
+        // Settings closed: Files above the model, as tall as its few lines, and the model under it
+        // at the body's width, so no blank sits under the list or beside the model.
         const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
-        assert.isAtMost(preview.right, files.getBoundingClientRect().left, "Files beside the model");
-        assert.isAbove(preview.width, 300, "the model takes its half of the dialog");
-        const footer = within(dialog).getByRole("button", { name: "Add to project" }).getBoundingClientRect();
-        const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
-        assert.isAbove(name.bottom, footer.top - 48, "Details and Name under it fill the column: no blank below");
-        assert.isAbove(
-            files.getBoundingClientRect().bottom,
-            footer.top - 48,
-            "and the Files list runs to the foot of its column",
-        );
+        assert.isAtLeast(preview.top, files.getBoundingClientRect().bottom, "Files above the model");
+        assert.isAtMost(files.scrollHeight, files.clientHeight + 1, "the list as tall as its lines");
+        assertNoBlank(dialog, "a model with Files");
         // Both x's pressed one after the other, the second while graphty-element still takes the
         // first file out: each answer is held until both clicks are in (the real dropPart runs).
         let release = (): void => undefined;

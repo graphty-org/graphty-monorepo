@@ -652,11 +652,10 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its body: the shared two-column dialog (.ws-dialog-columns), here the file, the settings and Files
-   on the left and the model, its Name and Details on the right in a 240 px column (blank until a
-   model is loaded), the footer across both. 540 px tall leaves Details four rows under a set's
-   preview, its arrows and Name. The right column fits the dialog's height, so its box never scrolls away.
-   The whole body takes a drop, and shows it while files are held over it. */
+/* Its body: the shared two-column dialog (.ws-dialog-columns), here the file on the left and the
+   drop area (or the model while it loads) on the right in a 240 px column, the footer across both.
+   Once a model is loaded it is one column (data-alone, below). The whole body takes a drop, and
+   shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
     grid-template-rows: minmax(0, 1fr) auto;
@@ -691,22 +690,24 @@
     margin-top: 0;
 }
 
-/* A model with nothing beside it (one file, settings closed, no problem): one column, the file on
-   top and the model under it at the column's width, so no blank column sits beside the model. The
-   drawing stays square in the middle of its box, never smaller than in the side column. */
+/* A loaded model: one column. The file, any line about it, Model settings and Files on top, as
+   tall as they are (scrolling past what leaves the model under them 330 px); the model under them
+   takes the rest of the height, its drawing square in the middle of its box, with Details, a set's
+   arrows and Name under it. Nothing sits beside the model, so no column is left blank. */
 .ws-dialog-columns.ws-model-body[data-alone] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, max-content) minmax(330px, 1fr) auto;
+    height: min(680px, calc(100dvh - 184px));
 }
 
 .ws-model-body[data-alone] .ws-model-preview {
     width: 100%;
     height: auto;
-    flex: 1 0 240px;
+    flex: 1 1 150px;
+    min-height: 150px;
 }
 
-.ws-model-body[data-alone] .ws-model-live,
-.ws-model-body[data-files-beside] .ws-model-live {
+.ws-model-body[data-alone] .ws-model-live {
     inset: 0 auto;
     left: 50%;
     translate: -50% 0;
@@ -715,55 +716,22 @@
 }
 
 .ws-model-body[data-alone] .ws-model-steps,
-.ws-model-body[data-alone] .ws-model-details-box,
-.ws-model-body[data-files-beside] .ws-model-steps,
-.ws-model-body[data-files-beside] .ws-model-details-box {
+.ws-model-body[data-alone] .ws-model-details-box {
     width: 100%;
 }
 
-/* A model of several files with Model settings closed: the file across the top, then the model
-   (its drawing as large as the column leaves, Details and Name under it) beside its Files, which
-   take the column's whole height, so neither column has a blank under it. */
-.ws-dialog-columns.ws-model-body[data-files-beside] {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+/* At the dialog's width, Details' rows sit in columns, so all of them show without scrolling. */
+.ws-model-body[data-alone] .ws-model-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    column-gap: 16px;
 }
 
-.ws-model-body[data-files-beside] .ws-model-main {
-    grid-column: 1 / -1;
-    grid-row: 1;
-}
-
-.ws-model-body[data-files-beside] .ws-model-side {
-    grid-column: 1;
-    grid-row: 2;
-}
-
-.ws-model-files-beside {
-    grid-column: 2;
-    grid-row: 2;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.ws-model-files-beside > * {
-    min-height: 0;
-    flex: 1 1 auto;
-}
-
-/* The list runs to the foot of the column, level with Name, however few files it holds. */
-.ws-model-files-beside .ws-model-files {
-    max-height: none;
-    min-height: 0;
-    flex: 1 1 auto;
-}
-
-.ws-model-body[data-files-beside] .ws-model-preview {
-    width: 100%;
-    height: auto;
-    flex: 1 1 160px;
-    min-height: 160px;
+/* Model settings' rows in two columns across the dialog, so they take half the height. */
+.ws-model-body[data-alone] [data-testid="model-settings"] > .ws-model-settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    column-gap: 16px;
 }
 
 @media (max-width: 720px) {
@@ -772,21 +740,14 @@
         grid-template-rows: auto minmax(0, 1fr) auto;
     }
 
-    .ws-dialog-columns.ws-model-body[data-files-beside] {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: none;
-        overflow-y: auto;
-    }
-
-    .ws-model-body[data-files-beside] .ws-model-side,
-    .ws-model-files-beside {
-        grid-column: 1;
-        grid-row: auto;
-    }
-
     .ws-model-side {
         order: -1;
         align-items: center;
+    }
+
+    /* A loaded model keeps the file and its settings on top, as at any width. */
+    .ws-model-body[data-alone] .ws-model-side {
+        order: 0;
     }
 }
 

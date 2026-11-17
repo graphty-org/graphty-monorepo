@@ -783,7 +783,7 @@ export const CustomModelMoreOptions: Story = nodeModelsStory(
         await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
         await within(dialog).findByRole("combobox", { name: /^Up, / });
-        // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
+        // However tall the settings grow, Add model stays in view: the top scrolls, the footer stays.
         const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
         expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
     }),

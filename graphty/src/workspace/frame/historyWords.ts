@@ -353,28 +353,44 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
 }
 
 /**
- * Runs Undo or Redo and says what it took back on the status line: "Undid Size by PageRank" (a
+ * What an Undo or Redo about to run will say on the status line: "Undid Size by PageRank" (a
  * notice takes no final period). Named before it runs, since what the step names (a run, a filter
  * step) may be gone after; a filter step that only exists after (a Redo of its adding) is named
  * after. It is also a notice, except for an Assistant message's step with the Assistant panel open:
  * that turn reads Undone (or no longer does) in the panel, and a turn's notice is for a closed panel.
+ * Read it before the Undo or Redo starts and call what it returns once it has finished.
+ * @param session - the element's session.
+ * @param undo - true for Undo, false for Redo.
+ * @param store - the workspace store the words are posted to.
+ * @returns the function that posts the words and returns them, or null when there was nothing to take back.
+ */
+export function historyNotice(session: GraphSession, undo: boolean, store: WorkspaceStore): () => string | null {
+    const next = nextStep(session, undo);
+    const before = next === null ? null : historyWords(session, next);
+    const filterStep = next === null ? null : filterChange(session, next.fact);
+    return () => {
+        if (next === null) {
+            return null;
+        }
+        // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
+        const words =
+            (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
+        const message = `${undo ? "Undid" : "Redid"} ${words}`;
+        const inTurn = next.provenance?.message !== undefined && assistantShown(store);
+        store.set(inTurn ? { announcement: message } : { notice: { message } });
+        return message;
+    };
+}
+
+/**
+ * Runs Undo or Redo and says what it took back on the status line, as {@link historyNotice} does.
  * @param session - the element's session.
  * @param undo - true for Undo, false for Redo.
  * @param store - the workspace store the words are posted to.
  * @returns the words, or null when there was nothing to take back.
  */
 export async function undoOrRedo(session: GraphSession, undo: boolean, store: WorkspaceStore): Promise<string | null> {
-    const next = nextStep(session, undo);
-    const before = next === null ? null : historyWords(session, next);
-    const filterStep = next === null ? null : filterChange(session, next.fact);
+    const say = historyNotice(session, undo, store);
     await (undo ? session.undo() : session.redo());
-    if (next === null) {
-        return null;
-    }
-    // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
-    const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
-    const message = `${undo ? "Undid" : "Redid"} ${words}`;
-    const inTurn = next.provenance?.message !== undefined && assistantShown(store);
-    store.set(inTurn ? { announcement: message } : { notice: { message } });
-    return message;
+    return say();
 }

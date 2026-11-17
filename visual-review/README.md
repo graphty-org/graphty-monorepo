@@ -1,5 +1,7 @@
 # @graphty/visual-review
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fvisual-review.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/visual-review.md)
+
 <!-- #region overview -->
 
 Visual regression review for Storybook, hosted by nobody. GitHub Actions screenshots every story

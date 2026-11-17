@@ -1,5 +1,7 @@
 # @graphty/remote-logger
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fremote-logger.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/remote-logger.md)
+
 Remote logging client and server for browser debugging. Send console logs from browsers to a terminal-based log server for easy debugging of web applications.
 
 ## Why Remote Logging?

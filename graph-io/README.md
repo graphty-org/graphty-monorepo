@@ -3,6 +3,7 @@
 # @graphty/graph-io
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fgraph-io.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/graph-io.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Read and write 13 graph file formats, from GraphML and GEXF to CSV, JSON and Cytoscape sessions, as

@@ -104,6 +104,37 @@ jobs:
             - name: Merge coverage reports
               run: ./tools/merge-coverage.sh --ci --artifacts coverage-reports
 
+            # Each package README's coverage badge (#3042): a shields.io endpoint JSON and a coverage report per
+            # package, force-pushed as one commit to the coverage-badges branch (no history), over SSH with the
+            # release deploy key the way bisect.yml pushes its branches. Coveralls serves one badge per repository.
+            - name: Publish the per-package coverage badges
+              continue-on-error: true # advisory: Coveralls still publishes when this push fails
+              if: hashFiles('.coverage-packages/*.info') != ''
+              env:
+                  DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+                  REF: ${{ inputs.ref }}
+              run: |
+                  out="$RUNNER_TEMP/coverage-badges"
+                  node tools/coverage-badges.mjs .coverage-packages "$out" "$REF"
+                  if [ -z "$DEPLOY_KEY" ]; then
+                      echo "::notice::RELEASE_DEPLOY_KEY is not set, so the badges were written but not published"
+                      exit 0
+                  fi
+                  key="$RUNNER_TEMP/deploy-key"
+                  hosts="$RUNNER_TEMP/known_hosts"
+                  printf '%s\n' "$DEPLOY_KEY" > "$key"
+                  chmod 600 "$key"
+                  echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$hosts"
+                  export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$hosts"
+                  cd "$out"
+                  git init -q -b coverage-badges
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git add -A
+                  git commit -q -m "coverage: ${REF}"
+                  git push -q --no-verify --force "git@github.com:${GITHUB_REPOSITORY}.git" HEAD:refs/heads/coverage-badges
+                  rm -f "$key"
+
             - name: Publish to Coveralls
               if: hashFiles('coverage/lcov.info') != ''
               uses: coverallsapp/github-action@v2

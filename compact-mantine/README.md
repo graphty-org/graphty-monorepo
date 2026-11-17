@@ -1,6 +1,7 @@
 # @graphty/compact-mantine
 
 [![npm version](https://img.shields.io/npm/v/@graphty/compact-mantine.svg)](https://www.npmjs.com/package/@graphty/compact-mantine)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fcompact-mantine.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/compact-mantine.md)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/compact-mantine/)
 [![license](https://img.shields.io/npm/l/@graphty/compact-mantine.svg)](./LICENSE)
 

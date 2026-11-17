@@ -1,7 +1,7 @@
 # babylonjs-map
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fbabylonjs-map.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/babylonjs-map.md)
 [![npm version](https://img.shields.io/npm/v/babylonjs-map.svg)](https://www.npmjs.com/package/babylonjs-map)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

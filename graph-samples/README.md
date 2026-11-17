@@ -2,6 +2,8 @@
 
 # @graphty/graph-samples
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fgraph-samples.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/graph-samples.md)
+
 Graphs to try things on: seeded random-graph generators that produce the same graph on every
 machine, the classic deterministic families, and a handful of well-known real networks with their
 ground truth. The generators produce typed arrays that

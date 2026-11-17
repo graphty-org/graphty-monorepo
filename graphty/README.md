@@ -1,5 +1,7 @@
 # graphty
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fgraphty.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/graphty.md)
+
 graphty is a graph visualization app that runs in the browser: open a graph file, lay it out in 2D
 or 3D, run graph algorithms over it and style the result. It is the app at
 [graphty.app](https://graphty.app/), built on the

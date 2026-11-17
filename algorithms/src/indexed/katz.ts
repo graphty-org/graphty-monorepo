@@ -128,7 +128,7 @@ export function katzRadiusBound(s: GraphSnapshot, weighted: boolean): number {
  * @param s - The snapshot
  * @param o - Algorithm options
  * @returns The caller's alpha, or the derived one
- * @internal
+ * @public
  */
 export function katzAlpha(s: GraphSnapshot, o: KatzOptions | undefined): number {
     if (o?.alpha !== undefined) {

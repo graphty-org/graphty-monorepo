@@ -652,9 +652,9 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings, Files and Details
-   on the left and the model on the right in a 240 px column (blank until a model is loaded), the
-   footer across both. The right column fits the dialog's height, so its box never scrolls away.
+/* Its body: the shared two-column dialog (.ws-dialog-columns), here the file, the settings and Files
+   on the left and the model, its Name and Details on the right in a 240 px column (blank until a
+   model is loaded), the footer across both. The right column fits the dialog's height, so its box never scrolls away.
    The whole body takes a drop, and shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
@@ -688,6 +688,30 @@
 .ws-model-footer {
     grid-column: 1 / -1;
     margin-top: 0;
+}
+
+/* A model with nothing beside it but its file and Files (settings closed, no problem): one column,
+   those on top and the model under them at the column's width, so no blank column sits beside it. */
+.ws-dialog-columns.ws-model-body[data-alone] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.ws-model-body[data-alone] .ws-model-preview {
+    width: 100%;
+    height: auto;
+    flex: 1 1 160px;
+    min-height: 120px;
+}
+
+/* The file and Files on top give up height first, scrolling, so the model stays in view. */
+.ws-model-body[data-alone] .ws-model-main {
+    max-height: 168px;
+}
+
+.ws-model-body[data-alone] .ws-model-steps,
+.ws-model-body[data-alone] .ws-model-details-box {
+    width: 100%;
 }
 
 @media (max-width: 720px) {
@@ -781,7 +805,8 @@
     width: 240px;
 }
 
-/* Name, under the preview: a short label column, as the side column is narrow, and Model settings. */
+/* Name, under the preview (and the arrows of a set): a short label column, as the side column is
+   narrow, and Model settings. */
 .ws-model-name .ws-field {
     grid-template-columns: 48px minmax(0, 1fr) 24px;
 }

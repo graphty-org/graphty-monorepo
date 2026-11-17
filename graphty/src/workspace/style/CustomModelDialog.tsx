@@ -389,7 +389,8 @@ function PartLine({
             {onDrop === undefined ? null : (
                 <Tooltip label={removeName}>
                     <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={onDrop}>
-                        <GLYPHS.remove size={14} aria-hidden />
+                        {/* An x, as the loaded file's own line clears it. */}
+                        <GLYPHS.close size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             )}
@@ -1481,57 +1482,59 @@ export function CustomModelDialog({
         />
     );
 
+    // Name, under the model it names, with the model's settings behind its gear: always in reach.
+    const nameRow =
+        held === null || busy ? null : (
+            <div className="ws-row ws-model-name">
+                <div className="ws-field" data-named="">
+                    <span className="ws-field-label">
+                        <span className="ws-field-name" aria-hidden>
+                            {CUSTOM_MODEL.name}
+                        </span>
+                    </span>
+                    <div className="ws-field-control">
+                        <TextInput
+                            ref={nameField}
+                            size="xs"
+                            aria-label={CUSTOM_MODEL.name}
+                            value={name}
+                            onChange={(event) => {
+                                const typed = event.currentTarget.value;
+                                change((member) => ({ ...member, name: typed }));
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" && blocked === null) {
+                                    event.preventDefault();
+                                    void add();
+                                }
+                            }}
+                        />
+                    </div>
+                    <span className="ws-slot">
+                        {summary === undefined ? null : (
+                            <Tooltip label={CUSTOM_MODEL.settings}>
+                                <ActionIcon
+                                    variant={settingsOpen ? "light" : "subtle"}
+                                    size="sm"
+                                    aria-label={CUSTOM_MODEL.settings}
+                                    aria-expanded={settingsOpen}
+                                    aria-controls={settingsOpen ? `${uid}-settings` : undefined}
+                                    onClick={() => {
+                                        setSettingsOpen(!settingsOpen);
+                                    }}
+                                >
+                                    <GLYPHS.settings size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
+                    </span>
+                </div>
+            </div>
+        );
+
     const left = (
         <Stack gap="sm" className="ws-model-left">
             {fileSource}
-            {held === null || busy ? null : (
-                // Under the file it names, with the model's settings behind its gear: always in reach.
-                <div className="ws-row ws-model-name">
-                    <div className="ws-field" data-named="">
-                        <span className="ws-field-label">
-                            <span className="ws-field-name" aria-hidden>
-                                {CUSTOM_MODEL.name}
-                            </span>
-                        </span>
-                        <div className="ws-field-control">
-                            <TextInput
-                                ref={nameField}
-                                size="xs"
-                                aria-label={CUSTOM_MODEL.name}
-                                value={name}
-                                onChange={(event) => {
-                                    const typed = event.currentTarget.value;
-                                    change((member) => ({ ...member, name: typed }));
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter" && blocked === null) {
-                                        event.preventDefault();
-                                        void add();
-                                    }
-                                }}
-                            />
-                        </div>
-                        <span className="ws-slot">
-                            {summary === undefined ? null : (
-                                <Tooltip label={CUSTOM_MODEL.settings}>
-                                    <ActionIcon
-                                        variant={settingsOpen ? "light" : "subtle"}
-                                        size="sm"
-                                        aria-label={CUSTOM_MODEL.settings}
-                                        aria-expanded={settingsOpen}
-                                        aria-controls={settingsOpen ? `${uid}-settings` : undefined}
-                                        onClick={() => {
-                                            setSettingsOpen(!settingsOpen);
-                                        }}
-                                    >
-                                        <GLYPHS.settings size={14} aria-hidden />
-                                    </ActionIcon>
-                                </Tooltip>
-                            )}
-                        </span>
-                    </div>
-                </div>
-            )}
             {addressProblem === null || busy ? null : (
                 <AddressActions
                     problem={addressProblem}
@@ -1731,6 +1734,21 @@ export function CustomModelDialog({
                 busy={busy}
                 onHost={setPreviewHost}
             />
+            {/* The arrows under the box they step, then Name under the model, then Details under both. */}
+            {many && current !== undefined && !busy ? (
+                <ModelSteps
+                    at={index}
+                    count={members.length}
+                    load={current.load}
+                    onStep={(by) => {
+                        setIndex((index + by + members.length) % members.length);
+                    }}
+                    onLoad={(load) => {
+                        change((member) => ({ ...member, load }));
+                    }}
+                />
+            ) : null}
+            {nameRow}
             {summary === undefined || held === null || busy ? null : (
                 <Stack gap={4} className="ws-model-details-box">
                     <Group gap={6} wrap="wrap" data-testid="model-details-line">
@@ -1754,21 +1772,22 @@ export function CustomModelDialog({
                     </section>
                 </Stack>
             )}
-            {many && current !== undefined && !busy ? (
-                <ModelSteps
-                    at={index}
-                    count={members.length}
-                    load={current.load}
-                    onStep={(by) => {
-                        setIndex((index + by + members.length) % members.length);
-                    }}
-                    onLoad={(load) => {
-                        change((member) => ({ ...member, load }));
-                    }}
-                />
-            ) : null}
         </Stack>
     );
+
+    // A model with nothing but its file (and Files) to show beside it -- settings closed, no
+    // problem: the model, its Name and Details take the whole width under them, so no blank column
+    // sits beside the model.
+    const alone =
+        held !== null &&
+        !busy &&
+        !settingsOpen &&
+        addressProblem === null &&
+        fileProblem === null &&
+        refused.length === 0 &&
+        picture === null &&
+        draw.failure === undefined &&
+        !members.some((m) => m !== current && m.failure !== undefined);
 
     return (
         <Modal
@@ -1786,6 +1805,7 @@ export function CustomModelDialog({
                 className="ws-dialog-columns ws-model-body"
                 data-testid="custom-model"
                 data-over={over || undefined}
+                data-alone={alone || undefined}
             >
                 <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
                     {left}

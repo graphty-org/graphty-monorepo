@@ -272,7 +272,7 @@ export function SettingRows({
                                     write={(next) => {
                                         write(channel, next);
                                         // A clip chosen plays: over a pose held still (Speed 0, set here or
-                                        // inherited from the model) it would stay frozen at the pose (L11).
+                                        // inherited from the model) it would stay frozen at the pose.
                                         const speed =
                                             values["node.modelAnimationSpeed"] ?? inherited["node.modelAnimationSpeed"];
                                         if (channel === "node.modelAnimation" && next !== "" && speed === 0) {

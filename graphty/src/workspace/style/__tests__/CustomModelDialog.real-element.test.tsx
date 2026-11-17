@@ -5,8 +5,8 @@
  * with the dialog's settings, in one undo step); a folder, a file or an address loads one model
  * whose preview graphty-element draws; a missing picture is answered from the row or with another
  * file of the set; Cancel lets go of what it loaded; Model settings starts closed while Details and Files are plain lists; a load
- * shows its progress and Cancel load stops it; once loaded the preview sits right of the name and
- * its rotate buttons write Up and Turn. Every assertion reads
+ * shows its progress and Cancel load stops it; once loaded the model has Name and Details under
+ * it, beside Model settings when they are open, and its rotate buttons write Up and Turn. Every assertion reads
  * what the element reports: its layers, its assets and its pictures.
  */
 
@@ -263,6 +263,13 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(position.textContent, "1 of 3");
         assert.equal(label.textContent, "police", "the box names the model it shows");
         assert.isTrue(within(dialog).getByTestId("model-preview").contains(label), "the name sits on the box");
+        // The arrows sit directly under the box they step through, above Name and Details.
+        const box = within(dialog).getByTestId("model-preview");
+        const steps = position.closest(".ws-model-steps");
+        assert.isNotNull(steps);
+        assert.equal(box.nextElementSibling, steps, "the arrows are the box's next sibling");
+        assert.isAtLeast(steps.getBoundingClientRect().top, box.getBoundingClientRect().bottom, "under the box");
+        assert.isBelow(steps.getBoundingClientRect().top - box.getBoundingClientRect().bottom, 12, "directly");
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "quad");
@@ -739,44 +746,59 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(table).queryByRole("group", { name: "Animations" }), "only what the file has");
     });
 
-    it("draws the preview right of the file with Details directly under it, and Name under the file", async () => {
+    it("draws Name under the model and Details under Name, with no blank column beside them", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         const preview = within(dialog).getByTestId("model-preview");
-        const box = preview.getBoundingClientRect();
-        const file = within(dialog).getByRole("button", { name: "Remove quad.glb" }).getBoundingClientRect();
-        assert.isAtMost(file.right, box.left, "the preview is in the right column");
-        assert.isBelow(Math.abs(box.top - file.top), 48, "both columns start at the top");
+        const body = within(dialog).getByTestId("custom-model").getBoundingClientRect();
+        const footer = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
         const details = within(dialog).getByTestId("model-details-line").closest(".ws-model-details-box");
         assert.isNotNull(details);
-        assert.equal(preview.nextElementSibling, details, "Details is the preview's next sibling");
-        const under = details.getBoundingClientRect();
-        assert.isAtLeast(under.top, box.bottom, "Details is below the preview");
-        assert.isBelow(under.top - box.bottom, 12, "directly below it");
-        assert.isAtLeast(under.left, box.left - 1, "in the preview's column");
         assert.isNull(within(dialog).queryByTestId("model-variant"), "no file type line");
-        // Naming and the settings are left, under the file (#8611, L14): the preview's column holds
-        // only the preview and Details, so it never scrolls and Reset view stays in sight.
-        const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
-        assert.isAtLeast(name.top, file.bottom, "Name is below the file");
-        assert.isAtMost(name.right, box.left, "in the file's column");
-        assert.isNotNull(within(dialog).getByRole("button", { name: "Model settings" }), "with the settings beside it");
+        const nameRow = within(dialog).getByRole("textbox", { name: "Name" }).closest(".ws-model-name");
+        assert.isNotNull(nameRow);
+        assert.equal(preview.nextElementSibling, nameRow, "Name is the model's next sibling");
+        assert.equal(nameRow.nextElementSibling, details, "and Details comes next");
+        /**
+         * Where the file, the model, Name and Details are drawn now.
+         * @returns their boxes.
+         */
+        const boxes = (): Record<"file" | "box" | "name" | "under", DOMRect> => ({
+            file: within(dialog).getByRole("button", { name: "Remove quad.glb" }).getBoundingClientRect(),
+            box: preview.getBoundingClientRect(),
+            name: nameRow.getBoundingClientRect(),
+            under: details.getBoundingClientRect(),
+        });
+        const assertStacked = ({ box, name, under }: ReturnType<typeof boxes>, where: string): void => {
+            assert.isAtLeast(name.top, box.bottom, `Name is below the model (${where})`);
+            assert.isBelow(name.top - box.bottom, 12, `directly below it (${where})`);
+            assert.isAtLeast(name.left, box.left - 1, `in the model's column (${where})`);
+            assert.isAtLeast(under.top, name.bottom, `Details is below Name (${where})`);
+            assert.isAtLeast(under.left, box.left - 1, `in the model's column (${where})`);
+        };
+        // Settings closed and one file: nothing sits beside the model, so it takes the whole width
+        // under the file rather than leaving a blank column.
+        const closed = boxes();
+        assertStacked(closed, "settings closed");
+        assert.isAtLeast(closed.box.top, closed.file.bottom, "the model is under the file");
+        assert.isAbove(closed.box.width, body.width * 0.8, "the model takes the body's width");
+        assert.isAbove(closed.under.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
+        // Settings open: they sit left, under the file, and the model with its Name and Details right.
+        const rows = await openSettings(dialog);
+        const open = boxes();
+        assertStacked(open, "settings open");
+        assert.isAtMost(open.file.right, open.box.left, "the model is in the right column");
+        assert.isBelow(Math.abs(open.box.top - open.file.top), 48, "both columns start at the top");
+        assert.isAtMost(rows.getBoundingClientRect().right, open.box.left, "the settings are left of it");
         const side = dialog.querySelector<HTMLElement>(".ws-model-side");
-        assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the preview's column does not scroll");
+        assert.isAtMost(side?.scrollHeight ?? 0, side?.clientHeight ?? 0, "the model's column does not scroll");
         const header =
             dialog.querySelector(".mantine-Modal-header") ??
             dialog.closest(".mantine-Modal-content")?.querySelector(".mantine-Modal-header");
         assert.isNotNull(header);
-        assert.isAtLeast(box.top, header?.getBoundingClientRect().bottom ?? 0, "the preview's top is in view");
-        // No empty band across the dialog: the taller column fills most of the body above the footer.
-        const body = within(dialog).getByTestId("custom-model").getBoundingClientRect();
-        const footer = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
-        const columns = [...dialog.querySelectorAll(".ws-model-left > *, .ws-model-side > *")];
-        const lowest = Math.max(...columns.map((child) => child.getBoundingClientRect().bottom));
-        assert.isAbove(lowest - body.top, (footer.top - body.top) * 0.6, "the columns fill the body");
-        const rows = await openSettings(dialog);
+        assert.isAtLeast(open.box.top, header?.getBoundingClientRect().bottom ?? 0, "the model's top is in view");
         await userEvent.click(within(rows).getByRole("button", { name: "Tip forward" }));
         await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
         await addModel(dialog);
@@ -967,7 +989,7 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
-    it("shows, sets up and adds a model by address while its picture still downloads (#8614, L23)", async () => {
+    it("shows, sets up and adds a model by address while its picture still downloads (#8614)", async () => {
         const base = "https://models.example.com/kit/";
         const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
         const original = globalThis.fetch.bind(globalThis);
@@ -1028,7 +1050,7 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
-    it("takes one part handed over back out with the x on its line (L39), set up before Add (L24)", async () => {
+    it("takes one part handed over back out with the x on its line, set up before Add", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl-png/cube.obj`]);
@@ -1037,6 +1059,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await within(dialog).findByRole("group", { name: "cube.png" });
         const files = within(dialog).getByRole("region", { name: "Files" });
         const remove = await within(files).findByRole("button", { name: "Remove cube.mtl" });
+        assert.isNotNull(remove.querySelector("svg.lucide-x"), "an x, as the loaded file's own line has");
         // While its picture is missing, the model can still be set up before Add.
         assert.isNotNull(within(dialog).getByRole("button", { name: "Model settings" }));
         assert.isNotNull(within(dialog).getByTestId("model-details"));

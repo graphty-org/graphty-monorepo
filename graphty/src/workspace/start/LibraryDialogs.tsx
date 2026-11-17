@@ -18,13 +18,12 @@ import { countWords, megabytes } from "./library";
 type ParamValue = GeneratorParams[string];
 
 /**
- * A dataset's size in words: its node and edge counts, and its download size when known.
+ * A dataset's size in words: its node and edge counts and its download size.
  * @param dataset - The dataset
  * @returns The sentence
  */
 function sizeOf(dataset: DatasetMeta): string {
-    const download = dataset.bytes === undefined ? "." : `, a ${megabytes(dataset.bytes)} download.`;
-    return `${countWords(dataset.nodes)} nodes and ${countWords(dataset.edges)} edges${download}`;
+    return `${countWords(dataset.nodes)} nodes and ${countWords(dataset.edges)} edges, a ${megabytes(dataset.bytes)} download.`;
 }
 
 /**

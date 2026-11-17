@@ -1,11 +1,11 @@
 /**
- * The shared layout state machine (spec 7.19): the buffers every model shares (positions, scenePositions, fixed,
+ * The shared layout state machine: the buffers every model shares (positions, scenePositions, fixed,
  * partials, state + trace), the in-flight batches and their readbacks, the settle window, the fixed mask and the
- * setPosition override list (spec 7.12), the trace and the batch driver; consumes a ForceModel by composition (the
+ * setPosition override list, the trace and the batch driver; consumes a ForceModel by composition (the
  * per-model kernel sequence, buffers, overrides, per-iteration params, controller hooks and stats decoding).
- * Positions are layout units on the device and scene units in the owner's array (spec 7.18): load() repacks
- * (scene - center) / scale into vec4f with the mass in .w (D23); the model's toScene stage, recorded once per batch
- * on the last iteration (PLAN DECISION 2), writes p * scale + center back into scenePositions.
+ * Positions are layout units on the device and scene units in the owner's array: load() repacks
+ * (scene - center) / scale into vec4f with the mass in .w; the model's toScene stage, recorded once per batch
+ * on the last iteration, writes p * scale + center back into scenePositions.
  */
 
 import { type F32, type GraphSnapshot, makeMask, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
@@ -56,9 +56,9 @@ import { type DrawnRecord, DrawnStage } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
-// ============================================================ the model hook interface (contract 3.13)
+// ============================================================ the model hook interface
 
-/** A model-owned buffer beyond the shared set (spec 7.19: oldForce, velocity, the grid tier's). */
+/** A model-owned buffer beyond the shared set (oldForce, velocity, the grid tier's). */
 export interface BufferSpec {
     readonly name: string;
     readonly byteLength: number;
@@ -66,7 +66,7 @@ export interface BufferSpec {
     readonly zero: boolean;
 }
 
-/** Host writes into the state header collected between submits (spec 7.19 onLoad / onReheat / onSetParams). */
+/** Host writes into the state header collected between submits (onLoad / onReheat / onSetParams). */
 export interface StateWriter {
     /** Queues a field write (flushed by one writeBuffer before the next submit; also applied to the host shadow immediately). */
     set(field: string, value: number | readonly number[]): void;
@@ -83,8 +83,8 @@ export interface ModelResources {
     /**
      * The degree tiers of the snapshot's degreeOrder view (the perm binding and the CPU-side segment offsets
      * [0, hiEnd, midEnd, lowEnd, n]), or null when no row has degree >= 32 -- then every K2 dispatch is the
-     * thread-per-row TIER 0 over node indices, as before P4, and the rowPtr dummy is bound with USE_PERM false
-     * (P4 PD-7). `tiers?.perm ?? null` is the one source of the permutation binding.
+     * thread-per-row TIER 0 over node indices, and the rowPtr dummy is bound with USE_PERM false.
+     * `tiers?.perm ?? null` is the one source of the permutation binding.
      */
     readonly tiers: DegreeTiers | null;
     /**
@@ -97,7 +97,7 @@ export interface ModelResources {
     readonly dim: 2 | 3;
     readonly tier: "exact" | "grid";
     readonly ring: UniformRing;
-    /** The context's buffer pool (the grid stage's lease of sort scratch draws on it, P4 PD-11). */
+    /** The context's buffer pool (the grid stage's lease of sort scratch draws on it). */
     readonly pool: BufferPool;
     /** A shared or model-owned buffer by name: "positions", "scenePositions", "fixed", "partials", "state", "trace", plus every BufferSpec name. */
     buffer(name: string): Binding;
@@ -107,26 +107,26 @@ export interface ModelResources {
 export interface ModelInputs {
     readonly mass: F32;
     readonly weights: ResolvedWeights;
-    /** A mask to apply at load (the FR `fixed` option, PD-6); validated against `ceil(n / 32)` words; absent / null leaves the words as they are (kept on a same-size reload, cleared on a resize, spec 7.12). */
+    /** A mask to apply at load (the FR `fixed` option); validated against `ceil(n / 32)` words; absent / null leaves the words as they are (kept on a same-size reload, cleared on a resize). */
     readonly fixed?: NodeMask | null | undefined;
 }
 
 /**
- * Spec 7.19 ForceModel (kind, buffers, overrides, paramsFor, recordIteration, onLoad, onReheat, onSetParams,
- * readStats) with SEVEN additions (CONTRACT DECISION, each with its reason): `stages` (the kernel stage names for
- * debugRunStages / inspect, spec 11.9 item 2); `params` (the model's uniform block, which must declare the shared
+ * What one force model supplies to the shared simulation: kind, buffers, overrides, paramsFor, recordIteration,
+ * onLoad, onReheat, onSetParams and readStats, plus `stages` (the kernel stage names for
+ * debugRunStages / inspect); `params` (the model's uniform block, which must declare the shared
  * field names n, dim, flags, iterationIndex, seed, scale, center, settleThreshold, so the simulation can write
  * them); `state` and `trace` (the model's generated Fa2State / Fa2Trace blocks, so the simulation allocates,
- * initialises and decodes the state buffer through the model's own layouts, D20); `specs` (the module specs of an
+ * initialises and decodes the state buffer through the model's own layouts); `specs` (the module specs of an
  * override set, for warm() and the compile matrix); `bind` (the model compiles and binds after load(), when the
  * buffers exist); `inputs` (mass and weight resolution need the model's option names -- nodeMass / weight are
  * ForceAtlas2Options, not CommonLayoutOptions -- so the simulation calls it at load() and derives USE_PERM /
- * HAS_WEIGHTS from ModelResources, 3.10); and the optional `upTo` argument of `recordIteration` (truncates the
- * sequence after a stage, for debugRunStages / inspect). PLAN DECISION 4: the state block must declare centroid,
+ * HAS_WEIGHTS from ModelResources); and the optional `upTo` argument of `recordIteration` (truncates the
+ * sequence after a stage, for debugRunStages / inspect). The state block must declare centroid,
  * min, max (vec4f), rmsRadius, radius, meanDisplacement (f32), iteration, settledCount (u32) and fit in
  * STATE_HEADER_BYTES; the params block must declare the eight shared names with center a vec4f and fit in
- * UNIFORM_SLOT_BYTES. PLAN DECISION 6: paramsFor receives the GLOBAL iteration index; the shared fields win.
- * PLAN DECISION 2: recordIteration with `upTo` undefined records EVERY stage (toScene included); `upTo = <stage>`
+ * UNIFORM_SLOT_BYTES. paramsFor receives the GLOBAL iteration index; the shared fields win.
+ * recordIteration with `upTo` undefined records EVERY stage (toScene included); `upTo = <stage>`
  * stops after that stage.
  */
 export interface ForceModel<Options, Stats extends LayoutStatsBase> {
@@ -153,13 +153,13 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     onReheat(state: StateWriter): void;
     onSetParams(patch: Partial<Options>, state: StateWriter): void;
     readStats(state: DataView, trace: DataView): Stats;
-    /** Releases what the model holds outside the simulation's buffers (the grid stage's lease, P4-T10); called by dispose() once every in-flight batch has settled. */
+    /** Releases what the model holds outside the simulation's buffers (the grid stage's lease); called by dispose() once every in-flight batch has settled. */
     dispose?(): void;
 }
 
 // ============================================================ module-private helpers
 
-/** The shared params fields (name, width) every model params block must declare (PLAN DECISION 4). */
+/** The shared params fields (name, width) every model params block must declare. */
 const SHARED_PARAM_FIELDS: readonly (readonly [string, number])[] = [
     ["n", 1],
     ["dim", 1],
@@ -171,7 +171,7 @@ const SHARED_PARAM_FIELDS: readonly (readonly [string, number])[] = [
     ["settleThreshold", 1],
 ];
 
-/** The state fields (name, width) the simulation writes at load() and reads after every batch (PLAN DECISION 4). */
+/** The state fields (name, width) the simulation writes at load() and reads after every batch. */
 const SHARED_STATE_FIELDS: readonly (readonly [string, number])[] = [
     ["centroid", 4],
     ["min", 4],
@@ -193,7 +193,7 @@ const SHARED_BUFFER_NAMES: ReadonlySet<string> = new Set([
     "trace",
 ]);
 
-/** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays (P4). */
+/** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays. */
 const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
     "fixed",
     "trace",
@@ -207,7 +207,7 @@ const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
     "hubCounters",
 ]);
 
-/** The per-batch epilogue stage: iterations 0..k-2 stop after the stage that precedes it (PLAN DECISION 2). */
+/** The per-batch epilogue stage: iterations 0..k-2 stop after the stage that precedes it. */
 const EPILOGUE_STAGE = "toScene";
 
 let simulationCounter = 0;
@@ -312,7 +312,7 @@ function fieldTypeOf(block: UniformBlock, field: string): UniformFieldType {
 }
 
 /**
- * Asserts a block declares every (name, width) pair (PLAN DECISION 4).
+ * Asserts a block declares every (name, width) pair.
  * @param block - the block
  * @param required - the required fields
  * @param what - "model.params" or "model.state", for the error
@@ -353,7 +353,7 @@ function stableKey(record: Readonly<Record<string, number | boolean>>): string {
 }
 
 /**
- * The stats record with msPerIteration filled by the simulation (PLAN DECISION 3).
+ * The stats record with msPerIteration filled by the simulation.
  * @param stats - the model's record
  * @param msPerIteration - the measured value
  * @returns the record
@@ -363,7 +363,7 @@ function withMs<S extends LayoutStatsBase>(stats: S, msPerIteration: number | nu
 }
 
 /**
- * True for a SharedArrayBuffer (the package never writes into one, spec 5.7).
+ * True for a SharedArrayBuffer (the package never writes into one).
  * @param buffer - the backing buffer
  * @returns true when shared
  */
@@ -406,8 +406,8 @@ function centerOf(options: CommonLayoutOptions): [number, number, number] {
 }
 
 /**
- * The repulsion tier of a node count under a tuning (PLAN DECISION 11; spec 7.8: `"auto"` by `n` alone). Exported
- * so a model's `buffers(n, dim)` decides the tier by the same rule `load()` applies (P4 PD-18).
+ * The repulsion tier of a node count under a tuning (`"auto"` decides by `n` alone). Exported
+ * so a model's `buffers(n, dim)` decides the tier by the same rule `load()` applies.
  * @param tuning - the resolved tuning
  * @param n - the node count
  * @returns "exact" or "grid"
@@ -433,7 +433,7 @@ function wholeBinding(buffer: GPUBuffer, size: number): Binding {
 }
 
 /**
- * The host side of the state header (PLAN DECISION 5): a shadow of every field, a queue of the fields set since
+ * The host side of the state header: a shadow of every field, a queue of the fields set since
  * the last flush, and the byte image the queued fields are copied from.
  */
 class HeaderWriter implements StateWriter {
@@ -499,7 +499,7 @@ class HeaderWriter implements StateWriter {
     }
 
     /**
-     * The byte image of the shadow (the block's own writer, D20).
+     * The byte image of the shadow (the block's own writer).
      * @returns block.byteLength bytes
      */
     headerBytes(): ArrayBuffer {
@@ -536,7 +536,7 @@ class HeaderWriter implements StateWriter {
     }
 }
 
-/** One batch from the step() call that created it until its readback settled (PLAN DECISION 7). */
+/** One batch from the step() call that created it until its readback settled. */
 interface PendingBatch {
     readonly k: number;
     readonly generation: number;
@@ -594,7 +594,7 @@ function createPending(k: number, generation: number): PendingBatch {
     };
 }
 
-/** The simulation's buffers of one load() (spec 7.3) plus the name -> Binding map the model and inspect() read. */
+/** The simulation's buffers of one load() plus the name -> Binding map the model and inspect() read. */
 interface SimulationBuffers {
     readonly positions: GPUBuffer;
     readonly scene: GPUBuffer;
@@ -618,7 +618,7 @@ interface WeightsUpload {
 // ============================================================ the simulation
 
 /**
- * The load checks on the snapshot and the owner's array, in PLAN DECISION 16's order: E_SNAPSHOT (directed),
+ * The load checks on the snapshot and the owner's array, in this order: E_SNAPSHOT (directed),
  * E_TOO_LARGE (nodeCount), then the positions array (length, then a SharedArrayBuffer).
  * @param snapshot - the snapshot
  * @param positions - the owner's stride-3 array
@@ -639,7 +639,7 @@ function assertLoadable(snapshot: GraphSnapshot, positions: F32, kind: string): 
     if (n > MAX_1D_ITEMS) {
         throw new WebGpuGraphError(
             "E_TOO_LARGE",
-            `${n} nodes exceed ${MAX_1D_ITEMS} (the third partials level is P4)`,
+            `${n} nodes exceed ${MAX_1D_ITEMS} (the layout kernels have no third partials level)`,
             {
                 needed: n,
                 limit: MAX_1D_ITEMS,
@@ -696,7 +696,7 @@ function assertModelInputs(inputs: ModelInputs, n: number): void {
 const CLUSTER_LAW = { forceatlas2: 0, fruchtermanReingold: 1, springElectrical: 2 } as const;
 
 /**
- * The shared layout state machine (spec 7.19): buffers, in-flight batches, readback, settle window, fixed mask,
+ * The shared layout state machine: buffers, in-flight batches, readback, settle window, fixed mask,
  * setPosition overrides, trace, batch driver; consumes a ForceModel by composition.
  */
 export class ForceSimulation<
@@ -707,10 +707,9 @@ export class ForceSimulation<
     readonly model: ForceModel<Options, Stats>;
     readonly tuning: ResolvedLayoutTuning;
     /**
-     * The uniform ring, sized (maxInFlight + 1) x MAX_ITERATIONS_PER_STEP slots at construction (CONTRACT DECISION:
-     * reserve() wraps to 0 when the tail is short, so maxInFlight batches of up to MAX_ITERATIONS_PER_STEP slots
+     * The uniform ring, sized (maxInFlight + 1) x MAX_ITERATIONS_PER_STEP slots at construction (reserve() wraps to 0 when the tail is short, so maxInFlight batches of up to MAX_ITERATIONS_PER_STEP slots
      * plus one wasted tail always fit without a slot being rewritten while a submitted batch still reads it; hence
-     * setParams cannot change maxInFlight, 3.13 forceatlas2.ts).
+     * setParams cannot change maxInFlight).
      * @internal
      */
     readonly ring: UniformRing;
@@ -794,7 +793,7 @@ export class ForceSimulation<
     private statsValue: Stats | null = null;
     private lastPassTimingsValue: readonly PassTiming[] | null = null;
     private lastSubmittedBatchIdValue = 0;
-    /** The id of the last batch submitted BEFORE the most recent reheat() (PLAN DECISION 21); 0 = none. */
+    /** The id of the last batch submitted BEFORE the most recent reheat(); 0 = none. */
     private reheatedAfterBatchId = 0;
     private coalescedValue = 0;
     private torndown = false;
@@ -904,7 +903,7 @@ export class ForceSimulation<
     }
 
     /**
-     * The repulsion tier of the current load (spec 7.8).
+     * The repulsion tier of the current load.
      * @returns the tier
      */
     get tier(): "exact" | "grid" {
@@ -913,7 +912,7 @@ export class ForceSimulation<
 
     /**
      * The profiler's per-pass timings of the last landed batch (pass order; the grid tier's `fa2-k1` /
-     * `fa2-attraction` / `fa2-grid` / `fa2-to-scene` rows give T-7's attraction figure, P4 PD-16), or null before a
+     * `fa2-attraction` / `fa2-grid` / `fa2-to-scene` rows give the attraction pass's own time), or null before a
      * batch landed or without `timestamp-query`.
      * @internal
      * @returns the timings
@@ -940,7 +939,7 @@ export class ForceSimulation<
     }
 
     /**
-     * 2 or 3, fixed at construction (setParams({ dim }) is rejected, spec 7.13).
+     * 2 or 3, fixed at construction (setParams({ dim }) is rejected).
      * @returns the dimension
      */
     get dim(): 2 | 3 {
@@ -948,7 +947,7 @@ export class ForceSimulation<
     }
 
     /**
-     * iterationsDone >= the budget OR settledCount >= settleWindow of the last completed batch (spec 7.17); true for an empty graph.
+     * iterationsDone >= the budget OR settledCount >= settleWindow of the last completed batch; true for an empty graph.
      * @returns whether the layout is settled
      */
     get settled(): boolean {
@@ -956,7 +955,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Batches created by step() and not yet landed (PLAN DECISION 7: counted from the step() call).
+     * Batches created by step() and not yet landed, counted from the step() call.
      * @returns the count
      */
     get inFlight(): number {
@@ -986,7 +985,7 @@ export class ForceSimulation<
     }
 
     /**
-     * The override list (spec 7.12): rows whose readback is skipped while a batch older than the write is in flight.
+     * The override list: rows whose readback is skipped while a batch older than the write is in flight.
      * @internal
      * @returns row -> lastSubmittedBatchId at the write
      */
@@ -1004,7 +1003,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Number of step() calls that returned an existing batch's promise instead of submitting (spec 7.19 item 3;
+     * Number of step() calls that returned an existing batch's promise instead of submitting (coalesced;
      * read by test/helpers/frame-loop.ts).
      * @internal
      * @returns the count
@@ -1017,12 +1016,10 @@ export class ForceSimulation<
 
     /**
      * Uploads the snapshot's core, seeds the NaN rows of `positions`, repacks it into layout-unit vec4f with the
-     * mass in .w, writes the initial state, starts the model's compile + bind and enters "loaded" (spec 7.19; a
-     * load() during flight bumps the generation and discards the in-flight batches). Order of the checks (PLAN
-     * DECISION 16): E_DISPOSED, the context's assertReady, E_SNAPSHOT (directed), E_TOO_LARGE (nodeCount), the
+     * mass in .w, writes the initial state, starts the model's compile + bind and enters "loaded" (a
+     * load() during flight bumps the generation and discards the in-flight batches). Order of the checks: E_DISPOSED, the context's assertReady, E_SNAPSHOT (directed), E_TOO_LARGE (nodeCount), the
      * positions array, the tuning, then the core upload and model.inputs() BEFORE any state is touched.
-     * PLAN DECISION 10: nodeCount 0 loads with no GPU work at all. PLAN DECISION 11: the tier is resolved here
-     * and "grid" is E_UNSUPPORTED until P4. PLAN DECISION 17: a same-size load() keeps the buffers and re-zeroes
+     * nodeCount 0 loads with no GPU work at all. The repulsion tier is resolved here. A same-size load() keeps the buffers and re-zeroes
      * partials, the trace region and every `zero: true` model buffer.
      * @param snapshot - an undirected snapshot
      * @param positions - the owner's stride-3 scene-unit array (NaN rows are seeded in place)
@@ -1050,19 +1047,15 @@ export class ForceSimulation<
         if (n > 0) {
             core = this.ctx.residency.core(snapshot);
             if (core.plan === "windowed") {
-                throw new WebGpuGraphError(
-                    "E_TOO_LARGE",
-                    "a windowed core cannot be walked by the layout kernels until P4",
-                    {
-                        needed: snapshot.arcCount,
-                        limit: this.ctx.caps.limits.maxStorageBufferBindingSize,
-                        path: "windowed",
-                        algorithm: this.model.kind,
-                    },
-                );
+                throw new WebGpuGraphError("E_TOO_LARGE", "a windowed core cannot be walked by the layout kernels", {
+                    needed: snapshot.arcCount,
+                    limit: this.ctx.caps.limits.maxStorageBufferBindingSize,
+                    path: "windowed",
+                    algorithm: this.model.kind,
+                });
             }
-            // PD-7 (the 7.3 rule): the permutation is bound iff a row of degree >= 32 exists; the view is uploaded
-            // only then, so a low-degree snapshot compiles and runs the same pipelines as before P4
+            // the permutation is bound iff a row of degree >= 32 exists; the view is uploaded only then, so a
+            // low-degree snapshot compiles and runs the thread-per-row pipelines alone
             if (snapshot.degreeOrder().segmentOffsets[2] > 0) {
                 tiers = degreeTiersOf(this.ctx.residency.view(snapshot, "degreeOrder"));
             }
@@ -1110,10 +1103,10 @@ export class ForceSimulation<
             this.fixedDirty = true;
         }
         if (n === 0 || core === null || inputs === null) {
-            // PLAN DECISION 10: an empty graph loads with no GPU work
+            // an empty graph loads with no GPU work
             this.weightsUpload = null;
             this.resources = null;
-            // keep the chain (PLAN DECISION 20): a bind of the previous load may still be running and the next
+            // keep the chain: a bind of the previous load may still be running and the next
             // non-empty load() must start its bind after it; its outcome is irrelevant here
             this.ready = this.ready.catch(() => undefined);
             this.settledValue = true;
@@ -1144,12 +1137,12 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- step and the batch driver
 
     /**
-     * Submits k iterations (spec 7.19 items 1-6): "created" -> E_NOT_LOADED; "disposed" -> E_DISPOSED; a released
+     * Submits k iterations: "created" -> E_NOT_LOADED; "disposed" -> E_DISPOSED; a released
      * snapshot -> E_RELEASED; k outside [1, MAX_ITERATIONS_PER_STEP] -> E_INVALID_ARGUMENT; settled -> resolves at
      * once; inFlight >= maxInFlight -> the OLDEST pending batch's promise (coalesced); else the batch is queued on
      * the submit chain (after the bind promise and allocator.check()) and its promise resolves when its readback
-     * landed in the owner's array. The same promise object is returned for every coalesced call. PLAN DECISION 7:
-     * the batch counts in `inFlight` from this call, not from its submission.
+     * landed in the owner's array. The same promise object is returned for every coalesced call.
+     * The batch counts in `inFlight` from this call, not from its submission.
      * @param iterations - k (default options.iterationsPerStep, default 1)
      * @returns resolves when the batch landed (or was discarded); rejects E_VALIDATION / E_DEVICE_LOST / E_OUT_OF_MEMORY / E_SHADER_COMPILE
      */
@@ -1214,8 +1207,8 @@ export class ForceSimulation<
     }
 
     /**
-     * Node batch driver: loops step(batch) until settled, the budget (`maxIter ?? options.maxIter`, PLAN DECISION
-     * 1) is reached or the signal aborts (E_ABORTED; the batch in flight at the abort is discarded, spec 5.7 / Q-15).
+     * Node batch driver: loops step(batch) until settled, the budget (`maxIter ?? options.maxIter`) is
+     * reached or the signal aborts (E_ABORTED; the batch in flight at the abort is discarded).
      * @param options - maxIter, batch (default 8), signal
      * @returns the stats of the last completed batch
      */
@@ -1264,9 +1257,9 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- pins, drags, reheat, params
 
     /**
-     * Copies the mask words (spec 7.12): E_INVALID_ARGUMENT when shorter than ceil(n / 32); the buffer is marked
-     * dirty and re-uploaded before the next submit; reheat() iff some bit went 1 -> 0 (an unpin). PLAN DECISION
-     * 18: the comparison is bit by bit below n (bits at or above n never count as an unpin).
+     * Copies the mask words: E_INVALID_ARGUMENT when shorter than ceil(n / 32); the buffer is marked
+     * dirty and re-uploaded before the next submit; reheat() iff some bit went 1 -> 0 (an unpin). The
+     * comparison is bit by bit below n (bits at or above n never count as an unpin).
      * @param mask - the NodeMask (LSB-first words)
      */
     setFixed(mask: NodeMask): void {
@@ -1418,9 +1411,9 @@ export class ForceSimulation<
     }
 
     /**
-     * Writes a scene-unit position (spec 7.12): into the owner's array at once, into the device (layout units, z 0
+     * Writes a scene-unit position: into the owner's array at once, into the device (layout units, z 0
      * in 2D, 12 bytes at 16 i, queue-ordered before the next submit), into the override list keyed by the last
-     * submitted batch id, then reheat(). PLAN DECISION 18: non-finite coordinates are E_INVALID_ARGUMENT.
+     * submitted batch id, then reheat(). Non-finite coordinates are E_INVALID_ARGUMENT.
      * @param index - the node index (< n)
      * @param x - scene x
      * @param y - scene y
@@ -1464,9 +1457,9 @@ export class ForceSimulation<
     }
 
     /**
-     * iterationsDone = 0, settledCount = 0 (a queued state write), model.onReheat(writer); nothing else (D8: the
-     * speed controller keeps its state). `settled` is recomputed at once (PLAN DECISION 8). Allowed before load().
-     * PLAN DECISION 21: the id of the last batch submitted so far is remembered; a batch with that id or an older
+     * iterationsDone = 0, settledCount = 0 (a queued state write), model.onReheat(writer); nothing else (the
+     * speed controller keeps its state). `settled` is recomputed at once. Allowed before load().
+     * The id of the last batch submitted so far is remembered; a batch with that id or an older
      * one was computed from the pre-reheat counter, so its landed settledCount is taken as 0 (see onLanded) and a
      * drag or unpin can never leave the simulation settled through a batch that was already in flight.
      */
@@ -1483,7 +1476,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Live tuning (spec 3.3, 7.17): `dim` differing from the current -> E_INVALID_ARGUMENT; `maxInFlight` differing
+     * Live tuning: `dim` differing from the current -> E_INVALID_ARGUMENT; `maxInFlight` differing
      * -> E_INVALID_ARGUMENT (the ring is sized by it); a non-null `nodeSize` -> E_UNSUPPORTED; the record is
      * replaced through `resolve(patch, current)`; a change of the model's override set (a force LAW) recompiles
      * and re-binds; scale / center changes reach the next batch through the shared params of every slot (the
@@ -1499,7 +1492,7 @@ export class ForceSimulation<
                 "dim",
                 dim,
                 this.dimValue,
-                "dim is fixed at construction; graphty-element re-creates the engine on a view-mode switch (spec 7.13)",
+                "dim is fixed at construction; graphty-element re-creates the engine on a view-mode switch",
             );
         }
         if (maxInFlight !== undefined && maxInFlight !== this.maxInFlight) {
@@ -1512,7 +1505,7 @@ export class ForceSimulation<
         }
         const nodeSize = optionField(patch, "nodeSize");
         if (nodeSize !== undefined && nodeSize !== null) {
-            throw new WebGpuGraphError("E_UNSUPPORTED", "nodeSize (adjustSizes) is deferred (spec 7.14)", {
+            throw new WebGpuGraphError("E_UNSUPPORTED", "nodeSize (adjustSizes) is deferred", {
                 option: "nodeSize",
                 hint: "leave nodeSize null; the size correction ships in a later slice",
             });
@@ -1654,8 +1647,8 @@ export class ForceSimulation<
     /**
      * The serialised submission of one pending batch: awaits the bind / warm promise and allocator.check(), then
      * records and submits unless the record went stale meanwhile; wires the readback handlers. A record that went
-     * stale while waiting (a load() or dispose() superseded it) RESOLVES even when the wait rejected (PLAN
-     * DECISION 8: the rejection belongs to the superseded generation -- a bind that failed E_SHADER_COMPILE, or
+     * stale while waiting (a load() or dispose() superseded it) RESOLVES even when the wait rejected (the
+     * rejection belongs to the superseded generation -- a bind that failed E_SHADER_COMPILE, or
      * the ring's E_DISPOSED after dispose() tore it down under a running bind).
      * @param record - the pending batch
      */
@@ -1700,7 +1693,7 @@ export class ForceSimulation<
 
     /**
      * Flushes the host writes, fills k ring slots, records k iterations (only the last one runs the model's toScene
-     * epilogue, PLAN DECISION 2) + the two readbacks into one CommandBatch and submits it (spec 7.19 items 4-5).
+     * epilogue) + the two readbacks into one CommandBatch and submits it.
      * @param record - the pending batch
      * @returns the submitted batch
      */
@@ -1759,11 +1752,11 @@ export class ForceSimulation<
     }
 
     /**
-     * A landed readback (spec 7.19 item 6): stale -> discard; else the scene bytes go into the owner's array row by
+     * A landed readback: stale -> discard; else the scene bytes go into the owner's array row by
      * row (skipping overridden rows, clearing overrides older than this batch), the header refreshes the shadow,
-     * the stats are decoded through the model (msPerIteration from the profiler or the wall time, PLAN DECISION 3),
+     * the stats are decoded through the model (msPerIteration from the profiler or the wall time),
      * iterationsDone += k and settled is recomputed -- with the landed settledCount taken as 0 when the batch was
-     * submitted before the last reheat() (PLAN DECISION 21; the header is still absorbed and the stats decoded).
+     * submitted before the last reheat() (the header is still absorbed and the stats decoded).
      * @param record - the pending batch
      * @param bytes - the batch's readback bytes
      */
@@ -1801,7 +1794,7 @@ export class ForceSimulation<
             const ms = this.batchMilliseconds(record, bytes);
             this.statsValue = withMs(this.model.readStats(header, trace), ms / k);
             this.iterationsDoneValue += k;
-            // PLAN DECISION 21: a batch in flight at reheat() carries the pre-reheat settle counter
+            // a batch in flight at reheat() carries the pre-reheat settle counter
             this.settledCountValue = record.id <= this.reheatedAfterBatchId ? 0 : settledCount;
             this.collisionSwept ||= record.sweptCollision && record.id > this.reheatedAfterBatchId;
             this.settledValue = this.computeSettled();
@@ -1812,7 +1805,7 @@ export class ForceSimulation<
     }
 
     /**
-     * A failed readback: a discarded batch's E_ABORTED resolves (PLAN DECISION 8); a lost device rejects
+     * A failed readback: a discarded batch's E_ABORTED resolves; a lost device rejects
      * E_DEVICE_LOST; everything else (E_VALIDATION, E_DISPOSED) rejects as is.
      * @param record - the pending batch
      * @param err - the rejection
@@ -1836,7 +1829,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list (spec 7.12).
+     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list.
      * @param owner - the owner's array
      * @param bytes - the readback
      * @param record - the batch
@@ -1867,7 +1860,7 @@ export class ForceSimulation<
     /**
      * The batch's duration in milliseconds: the profiler's pass timings summed when present and complete, else wall
      * time. The profiler budgets PROFILER_QUERY_SLOTS / 2 passes per batch; the grid tier records three passes per
-     * iteration (P4 PD-16), so a grid batch above (PROFILER_QUERY_SLOTS / 2 - 1) / 3 iterations is timed partially:
+     * iteration, so a grid batch above (PROFILER_QUERY_SLOTS / 2 - 1) / 3 iterations is timed partially:
      * its rows stay in `lastPassTimings` but the duration is the wall time, never the sum of a prefix.
      * @param record - the batch
      * @param bytes - its readback (the profiler's resolve lands in it)
@@ -1939,7 +1932,7 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: params, state writes, toScene
 
     /**
-     * The uniform values of one iteration slot: the model's values with the shared fields on top (PLAN DECISION 6).
+     * The uniform values of one iteration slot: the model's values with the shared fields on top.
      * @param global - the global iteration index (iterationsSubmitted + i)
      * @param index - the slot index within the batch (the trace slot)
      * @param flags - FA2_FLAG_FIRST for the first iteration after load(), else 0; the model's own flag bits are OR-ed in
@@ -1965,7 +1958,7 @@ export class ForceSimulation<
     }
 
     /**
-     * The option seed as a u32 (0 when unseeded), the near-field hash seed of P4.
+     * The option seed as a u32 (0 when unseeded), the near-field hash seed of the grid tier.
      * @returns the seed
      */
     private seedU32(): number {
@@ -1977,7 +1970,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Writes the queued state fields, each as one writeBuffer of its own byte range (PLAN DECISION 5).
+     * Writes the queued state fields, each as one writeBuffer of its own byte range.
      * @param state - the state buffer
      */
     private flushStateWrites(state: GPUBuffer): void {
@@ -2024,7 +2017,7 @@ export class ForceSimulation<
     }
 
     /**
-     * The iteration budget (PLAN DECISION 1): options.maxIter, else options.iterations, else no budget.
+     * The iteration budget: options.maxIter, else options.iterations, else no budget.
      * @returns the budget
      */
     private iterationBudget(): number {
@@ -2040,7 +2033,7 @@ export class ForceSimulation<
     }
 
     /**
-     * The settle rule of spec 7.17 over the counters of the last completed batch.
+     * The settle rule (SETTLE_FLOOR_FRACTION) over the counters of the last completed batch.
      * @returns whether the layout is settled
      */
     private computeSettled(): boolean {
@@ -2059,12 +2052,10 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: buffers, upload, bind
 
     /**
-     * Allocates the shared buffers (spec 7.3 sizes) and the model's BufferSpecs through the allocator (every buffer
-     * labelled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads (PLAN
-     * DECISION 17). The state buffer is STATE_HEADER_BYTES + MAX_ITERATIONS_PER_STEP x model.trace.byteLength:
-     * contract 3.13 writes TRACE_RECORD_BYTES (32, the FA2 record) for the last factor; the model's block is the
-     * same number for FA2 and is what the simulation decodes the trace with, so it is the general rule (PLAN
-     * DECISION 4) and the constant is not imported here.
+     * Allocates the shared buffers (sizes) and the model's BufferSpecs through the allocator (every buffer
+     * labelled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads. The state buffer is STATE_HEADER_BYTES + MAX_ITERATIONS_PER_STEP x model.trace.byteLength:
+     * the model's trace block (32 bytes, TRACE_RECORD_BYTES, for FA2) is what the simulation decodes the trace
+     * with, so it is the general rule and the constant is not imported here.
      * @param n - the node count (> 0)
      * @returns the buffers and the name -> Binding map
      */
@@ -2220,7 +2211,7 @@ export class ForceSimulation<
      * Repacks the seeded scene array into layout-unit vec4f (mass in .w, z = 0 in 2D), uploads it, and writes the
      * initial centroid / bbox / rmsRadius / radius (f64 over the f32 values uploaded) with iteration 0,
      * settledCount 0, meanDisplacement 0 into the state header, then model.onLoad(writer) and one whole-header
-     * writeBuffer (spec 7.4, 7.17, 7.18).
+     * writeBuffer.
      * @param buffers - the buffers
      * @param positions - the seeded owner array
      * @param mass - the resolved masses
@@ -2433,7 +2424,7 @@ export class ForceSimulation<
     }
 
     /**
-     * Chains the compile + bind promise the next step() awaits on the PREVIOUS one (PLAN DECISION 20: binds are
+     * Chains the compile + bind promise the next step() awaits on the PREVIOUS one (binds are
      * serialised on `ready` for load() and setParams() alike, so a superseded load()'s bind either fails its
      * generation check before model.bind() or completes before its successor's bind starts -- it can never bind
      * the model to destroyed buffers AFTER the new bind finished). The previous promise's rejection is swallowed by
@@ -2657,7 +2648,7 @@ export class ForceSimulation<
 
     /**
      * debugRunStages(upTo): one iteration truncated after a stage, submitted alone after flush(), awaited through
-     * a header readback; never advances the counters or the FA2_FLAG_FIRST flag (PLAN DECISION 9).
+     * a header readback; never advances the counters or the FA2_FLAG_FIRST flag.
      * @param upTo - a model stage name
      */
     private async runStages(upTo: string): Promise<void> {
@@ -2703,7 +2694,7 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: lifecycle
 
     /**
-     * Device loss (spec 5.7): every pending promise rejects E_DEVICE_LOST, the simulation is disposed.
+     * Device loss: every pending promise rejects E_DEVICE_LOST, the simulation is disposed.
      * @param info - the loss info
      */
     private onDeviceLost(info: GPUDeviceLostInfo): void {

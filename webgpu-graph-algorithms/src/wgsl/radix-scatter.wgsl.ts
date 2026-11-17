@@ -1,6 +1,6 @@
 /**
- * The `radix-scatter` kernel body (spec 6 row 6; P4-T4): the stable scatter of one LSD pass. Lane 0 ranks the block's
- * keys serially in index order with a RADIX_BINS-entry counter table (PD-5: deterministic and stable, WG steps per
+ * The `radix-scatter` kernel body: the stable scatter of one LSD pass. Lane 0 ranks the block's
+ * keys serially in index order with a RADIX_BINS-entry counter table (deterministic and stable, WG steps per
  * workgroup; ponytail: the 8-way split ranking of GraphWaGu is the upgrade if T-6 shows the sort on the critical
  * path), then every lane writes its key and value at `offsets[digit * P.groups + group] + rank`. Body only;
  * normative text.
@@ -21,7 +21,7 @@ fn radix_scatter(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocatio
         d = (key >> P.shift) & RADIX_DIGIT_MASK;
     }
     workgroupBarrier();
-    if (lid.x == 0u) {                                             // serial stable ranking (PD-5)
+    if (lid.x == 0u) {                                             // serial stable ranking
         let last = min(WG, P.count - g * WG);
         for (var s = 0u; s < last; s = s + 1u) {
             let ds = (keys[g * WG + s] >> P.shift) & RADIX_DIGIT_MASK;

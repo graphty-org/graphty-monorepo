@@ -9,35 +9,12 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
+import { GraphFormatError } from "../../src/errors.js";
 import { coerceId, fromRecords } from "../../src/populate/from-records.js";
 import { type GraphSnapshot, type RecordsInput } from "../../src/types/index.js";
+import { thrownCode, thrownError } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
 import { KARATE_EDGES } from "../helpers/parts.js";
-
-function thrown(fn: () => unknown): GraphFormatError {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err;
-        }
-        throw err;
-    }
-    throw new Error("expected a GraphFormatError");
-}
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 function expectSameCore(a: GraphSnapshot, b: GraphSnapshot): void {
     expect(a.directed).toBe(b.directed);
@@ -241,28 +218,28 @@ describe("fromRecords: keys", () => {
     });
 
     it("rejects a record without its id or an endpoint (E_INVALID_ID)", () => {
-        const node = thrown(() => fromRecords({ directed: true, nodes: [{ label: "x" }], edges: [] }));
+        const node = thrownError(() => fromRecords({ directed: true, nodes: [{ label: "x" }], edges: [] }));
         expect(node.code).toBe("E_INVALID_ID");
         expect(node.details).toMatchObject({ field: "id", node: 0, reason: "missing id" });
-        const source = thrown(() => fromRecords({ directed: true, edges: [{ target: "b" }] }));
+        const source = thrownError(() => fromRecords({ directed: true, edges: [{ target: "b" }] }));
         expect(source.code).toBe("E_INVALID_ID");
         expect(source.details).toMatchObject({ field: "source", edge: 0, keys: ["source", "src", "from"] });
-        const target = thrown(() =>
+        const target = thrownError(() =>
             fromRecords({ directed: true, edges: [{ source: "a", dst: "b" }], edgeTarget: "to" }),
         );
         expect(target.details).toMatchObject({ field: "target", keys: ["to"] });
-        expect(code(() => fromRecords({ directed: true, edges: [{ source: "a", target: undefined }] }))).toBe(
+        expect(thrownCode(() => fromRecords({ directed: true, edges: [{ source: "a", target: undefined }] }))).toBe(
             "E_INVALID_ID",
         );
     });
 
     it("rejects a non-numeric weight (E_INVALID_WEIGHT) and a NaN weight", () => {
-        const err = thrown(() => fromRecords({ directed: true, edges: [{ source: 1, target: 2, weight: "3" }] }));
+        const err = thrownError(() => fromRecords({ directed: true, edges: [{ source: 1, target: 2, weight: "3" }] }));
         expect(err.code).toBe("E_INVALID_WEIGHT");
         expect(err.details).toMatchObject({ key: "weight", found: "string", edge: 0 });
-        expect(code(() => fromRecords({ directed: true, edges: [{ source: 1, target: 2, weight: Number.NaN }] }))).toBe(
-            "E_INVALID_WEIGHT",
-        );
+        expect(
+            thrownCode(() => fromRecords({ directed: true, edges: [{ source: 1, target: 2, weight: Number.NaN }] })),
+        ).toBe("E_INVALID_WEIGHT");
         // null and undefined weights are "no weight"
         const { snapshot } = fromRecords({
             directed: true,
@@ -300,7 +277,7 @@ describe("fromRecords: positional nodes (nodeId: null)", () => {
         expect(snapshot.nodeCount).toBe(5);
         expect(snapshot.edgeSource(0)).toBe(0);
         expect(snapshot.edgeTarget(0)).toBe(4);
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromRecords(
                 { directed: true, nodeId: null, nodes: [{}], edges: [{ source: 0, target: 4 }] },
                 { addMissingNodes: false },
@@ -312,7 +289,7 @@ describe("fromRecords: positional nodes (nodeId: null)", () => {
 
     it("rejects an endpoint that is not an index (E_INVALID_ID)", () => {
         for (const bad of ["1", 1.5, -1, null, undefined]) {
-            const err = thrown(() =>
+            const err = thrownError(() =>
                 fromRecords({ directed: true, nodeId: null, edges: [{ source: bad, target: 0 }] }),
             );
             expect(err.code).toBe("E_INVALID_ID");
@@ -325,9 +302,9 @@ describe("fromRecords: id coercion", () => {
     it("keep leaves typed values alone and rejects other shapes", () => {
         expect(coerceId(1, "keep", "id")).toBe(1);
         expect(coerceId("1", "keep", "id")).toBe("1");
-        expect(code(() => coerceId(true, "keep", "id"))).toBe("E_INVALID_ID");
-        expect(code(() => coerceId(null, "keep", "id"))).toBe("E_INVALID_ID");
-        expect(code(() => coerceId({}, "keep", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId(true, "keep", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId(null, "keep", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId({}, "keep", "id"))).toBe("E_INVALID_ID");
         const { snapshot } = fromRecords({ directed: true, edges: [{ source: 1, target: "1" }] });
         expect(snapshot.nodeCount).toBe(2);
         expect(snapshot.ids.toArray()).toEqual([1, "1"]);
@@ -344,7 +321,7 @@ describe("fromRecords: id coercion", () => {
         expect(coerceId("-0", "canonical", "id")).toBe("-0");
         expect(coerceId("9007199254740993", "canonical", "id")).toBe("9007199254740993");
         expect(coerceId(2.5, "canonical", "id")).toBe(2.5);
-        expect(code(() => coerceId(false, "canonical", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId(false, "canonical", "id"))).toBe("E_INVALID_ID");
         const { snapshot } = fromRecords({
             directed: true,
             nodes: [{ id: "1" }, { id: "x" }],
@@ -361,14 +338,14 @@ describe("fromRecords: id coercion", () => {
         expect(coerceId(true, "string", "id")).toBe("true");
         expect(coerceId(null, "string", "id")).toBe("null");
         expect(coerceId("s", "string", "id")).toBe("s");
-        expect(code(() => coerceId({}, "string", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId({}, "string", "id"))).toBe("E_INVALID_ID");
         expect(coerceId("01", "number", "id")).toBe(1);
         expect(coerceId(3, "number", "id")).toBe(3);
-        expect(code(() => coerceId(true, "number", "id"))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => coerceId(true, "number", "id"))).toBe("E_INVALID_ID");
         // "abc" becomes NaN, which the builder refuses
-        expect(code(() => fromRecords({ directed: true, edges: [{ source: "abc", target: 1 }], ids: "number" }))).toBe(
-            "E_INVALID_ID",
-        );
+        expect(
+            thrownCode(() => fromRecords({ directed: true, edges: [{ source: "abc", target: 1 }], ids: "number" })),
+        ).toBe("E_INVALID_ID");
         const merged = fromRecords({ directed: true, edges: [{ source: "01", target: 1 }], ids: "number" }).snapshot;
         expect(merged.nodeCount).toBe(1);
         expect(merged.selfLoopCount).toBe(1);
@@ -378,7 +355,7 @@ describe("fromRecords: id coercion", () => {
     });
 
     it("rejects an unknown coercion rule (E_UNSUPPORTED)", () => {
-        const err = thrown(() => coerceId(1, "upper" as unknown as "keep", "id"));
+        const err = thrownError(() => coerceId(1, "upper" as unknown as "keep", "id"));
         expect(err.code).toBe("E_UNSUPPORTED");
         expect(err.details.field).toBe("ids");
     });
@@ -451,13 +428,13 @@ describe("fromRecords: column modes", () => {
         expect(snapshot.edges.names()).toEqual(["n", "flag"]);
         expect(snapshot.edges.requireTyped("flag", "bool").value(0)).toBe(true);
         // a declared column never widens: a value its dtype cannot hold is refused at the cell
-        const err = thrown(() => fromRecords({ ...input, columns: [{ name: "n", dtype: "i32" }] }));
+        const err = thrownError(() => fromRecords({ ...input, columns: [{ name: "n", dtype: "i32" }] }));
         expect(err.code).toBe("E_COLUMN_TYPE");
         expect(err.details).toMatchObject({ column: "n", row: 1 });
     });
 
     it("rejects a bad declaration list", () => {
-        const twice = thrown(() =>
+        const twice = thrownError(() =>
             fromRecords({
                 ...input,
                 columns: [
@@ -467,9 +444,9 @@ describe("fromRecords: column modes", () => {
             }),
         );
         expect(twice.code).toBe("E_COLUMN_EXISTS");
-        const unnamed = thrown(() => fromRecords({ ...input, columns: [{ name: "", dtype: "f64" }] }));
+        const unnamed = thrownError(() => fromRecords({ ...input, columns: [{ name: "", dtype: "f64" }] }));
         expect(unnamed.code).toBe("E_COLUMN_TYPE");
-        const mode = thrown(() => fromRecords({ ...input, columns: "all" as unknown as "infer" }));
+        const mode = thrownError(() => fromRecords({ ...input, columns: "all" as unknown as "infer" }));
         expect(mode.code).toBe("E_UNSUPPORTED");
         expect(mode.details.field).toBe("columns");
     });
@@ -486,8 +463,8 @@ describe("fromRecords: options", () => {
     };
 
     it("applies the builder policies", () => {
-        expect(code(() => fromRecords(input, { duplicateEdges: "error" }))).toBe("E_DUPLICATE_EDGE");
-        expect(code(() => fromRecords(input, { selfLoops: "error" }))).toBe("E_SELF_LOOP");
+        expect(thrownCode(() => fromRecords(input, { duplicateEdges: "error" }))).toBe("E_DUPLICATE_EDGE");
+        expect(thrownCode(() => fromRecords(input, { selfLoops: "error" }))).toBe("E_SELF_LOOP");
         const merged = fromRecords(input, { duplicateEdges: "sum", selfLoops: "drop" });
         assertInvariants(merged.snapshot);
         expect(merged.snapshot.edgeCount).toBe(1);
@@ -496,7 +473,7 @@ describe("fromRecords: options", () => {
         expect(merged.report.droppedSelfLoops).toBe(1);
         expect(merged.report.edgeRemap).not.toBeNull();
         expect(Array.from(merged.report.edgeRemap as Uint32Array)).toEqual([0, 0, INVALID_INDEX]);
-        const unknown = thrown(() =>
+        const unknown = thrownError(() =>
             fromRecords(
                 { directed: true, nodes: [{ id: "a" }], edges: [{ source: "a", target: "zz" }] },
                 { addMissingNodes: false },
@@ -522,9 +499,11 @@ describe("fromRecords: options", () => {
     });
 
     it("rejects an illegal id in a record (E_INVALID_ID)", () => {
-        expect(code(() => fromRecords({ directed: true, edges: [{ source: Infinity, target: 1 }] }))).toBe(
+        expect(thrownCode(() => fromRecords({ directed: true, edges: [{ source: Infinity, target: 1 }] }))).toBe(
             "E_INVALID_ID",
         );
-        expect(code(() => fromRecords({ directed: true, nodes: [{ id: "\ud800" }], edges: [] }))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => fromRecords({ directed: true, nodes: [{ id: "\ud800" }], edges: [] }))).toBe(
+            "E_INVALID_ID",
+        );
     });
 });

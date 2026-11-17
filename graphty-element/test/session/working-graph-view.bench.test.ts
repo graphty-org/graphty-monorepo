@@ -1,7 +1,8 @@
 /**
  * @file What building the working graph's view costs at 50,000 nodes and 250,000 edges, through the
  * real session with no renderer (design/working-graph/design.md section 8): a rebuild after a filter
- * change, and a rebuild after each step of a time-window slider drag.
+ * change, and, on each step of a time-window slider drag, a rebuild of what is visible now while the
+ * working graph itself stays as it was (the time window is never part of it, owner rule 2026-11-12).
  *
  * The design's rule: a slider drag rebuilds the view on every step, unless a 50,000-node rebuild
  * takes longer than 16 ms (one frame), in which case the view rebuilds when the slider pauses. This
@@ -12,9 +13,8 @@
  */
 
 import { mulberry32 } from "@graphty/algorithms";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { workingGraphOfSession } from "../../src/session/GraphSession";
 import type { RuleTree } from "../../src/session/visibility";
 import { workingViewCounters } from "../../src/session/working/view";
@@ -98,17 +98,15 @@ function report(measure: string, timing: { median: number; slowest: number }, sh
 }
 
 describe("the working graph's view at 50,000 nodes", () => {
-    beforeAll(() => {
-        // The timeline is an experiment: this file's sessions switch it on.
-        setDefaultFeatures(["timeline"]);
-    });
-
     it("rebuilds once per filter change", async () => {
         const harness = graphOf();
         const working = workingGraphOfSession(harness.session);
+        // Counted across both passes, so every set changes the filter: a pass of seven rounds would
+        // end on HALF and the next begin on HALF, a set that changes nothing and builds nothing.
+        let sets = 0;
 
-        const timing = await timed(async (at) => {
-            await harness.session.visibility.set(at % 2 === 0 ? HALF : OTHER);
+        const timing = await timed(async () => {
+            await harness.session.visibility.set(sets++ % 2 === 0 ? HALF : OTHER);
             const before = workingViewCounters.builds;
             const start = performance.now();
             working.view();
@@ -138,14 +136,16 @@ describe("the working graph's view at 50,000 nodes", () => {
             // A drag moves the window without recording it, as a play frame does.
             await time.seek(from, { commit: false });
             const before = workingViewCounters.builds;
-            const start = performance.now();
             working.view();
+            assert.strictEqual(workingViewCounters.builds, before, "a step never rebuilds the working graph");
+            const start = performance.now();
+            working.view("visible");
             const took = performance.now() - start;
-            assert.strictEqual(workingViewCounters.builds, before + 1, "one build per step");
+            assert.strictEqual(workingViewCounters.builds, before + 1, "one build of the visible view per step");
             return took;
         });
 
-        report("rebuild per slider step", timing, working.view().nodeCount);
+        report("rebuild of the visible view per slider step", timing, working.view("visible").nodeCount);
         await time.commit();
         harness.session.dispose();
     });

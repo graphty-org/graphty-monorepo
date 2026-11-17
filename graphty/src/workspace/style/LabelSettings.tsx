@@ -695,7 +695,7 @@ function ColorsField({
         color,
     }));
     return (
-        <div // NOSONAR(S6819): an ARIA group naming the gradient's controls; a fieldset would draw its own border and padding
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the gradient's controls; a fieldset would draw its own border and padding
             role="group"
             aria-label={word}
             data-set={list(value) === undefined ? undefined : ""}

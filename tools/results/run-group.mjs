@@ -20,6 +20,8 @@
 // `affected` when it has a `base` (newFlakyJudge). When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
+// The full path (RESULTS_STORE_QUARANTINE=1, no plan file) reads its family's quarantine from the store as well, and
+// keeps the committed list only when the store does not answer.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
 // switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
@@ -108,7 +110,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * @param o.variant its variant
  * @param o.base the pull request's base commit
  * @param [o.out] the directory the base checks to dispatch are written to
- * @param [o.env] the environment (GITHUB_STEP_SUMMARY)
+ * @param [o.env] the environment (GITHUB_STEP_SUMMARY, RESULTS_JOB_ID)
  * @returns the judge
  */
 export function prJudge(plan, { shard, family, variant, base, out, env = process.env }) {
@@ -130,55 +132,72 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
     const check = (f, repeat) => {
         if (out) {
             mkdirSync(out, { recursive: true });
-            // the test's name too: a flaky one's base check that passes files its issue (#8317)
+            // the test's name too: a flaky one's base check that passes files its issue (#8317); and this job's id,
+            // which a touched test's base check re-runs when master fails the same test (#8363)
+            const job = env.RESULTS_JOB_ID || undefined;
             appendFileSync(
                 join(out, `${shard}.jsonl`),
-                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name })}\n`,
+                `${JSON.stringify({ base, file: f.file, variant, repeat, name: f.name, touched: touched(f), job })}\n`,
             );
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
+    };
+    const issue = (q) => `issue #${q.issue ?? "pending"}`;
+    // only its imports changed: master's evidence before the next full run, which a re-run reads as [KNOWN] or
+    // quarantined (base-check.yml re-runs this run's failed jobs when master fails the file too, #8363)
+    const ask = (f, repeat) => (excusable(f) ? `. Base check: ${check(f, repeat)}` : "");
+    const flakyVerdict = (f) => {
+        const q = quarantined(list, family, f);
+        if (q) return { text: `[QUARANTINED] ${shard}: ${idOf(f)} failed and passed; ${issue(q)}` };
+        if (!touched(f)) {
+            const why = "this pull request did not touch it";
+            return {
+                text: `[FLAKY-UNRELATED] ${shard}: ${idOf(f)} failed and passed; ${why}. Base check: ${check(f, 5)}`,
+            };
+        }
+        const why = "this pull request changed it or its imports";
+        return { fail: true, text: `[NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed, and ${why}${ask(f, 5)}` };
+    };
+    const failingVerdict = (f, how) => {
+        const k = excusable(f) && known(f);
+        if (k) return { text: `[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}` };
+        if (touched(f)) return { fail: true, text: `[FAIL] ${shard}: ${idOf(f)} ${how}${ask(f, 1)}` };
+        // #3925: a failure this pull request did not cause must not block it; the base check (dispatched in the
+        // background) files `Failing on master`, and the full run with bisect and revert is the net
+        const why = "this pull request did not touch it";
+        return { summary: true, text: `[UNRELATED] ${shard}: ${idOf(f)} ${how}; ${why}. Base check: ${check(f, 1)}` };
     };
     return (d, { firstOutcome, unretried }) => {
         if (firstOutcome !== "failed" || d.flaky.length + d.excused.length + d.failing.length === 0) return d;
         const lines = [];
         const failing = [];
-        const warn = (text) => lines.push({ warn: true, text });
-        const fail = (f, text) => {
-            failing.push(f);
-            lines.push({ text });
+        const put = (f, v) => {
+            lines.push(v.fail ? { text: v.text } : { warn: true, text: v.text });
+            if (v.fail) failing.push(f);
+            if (v.fail) annotate(env, f, v.text);
+            if (v.summary) summary(`- ${v.text}`);
         };
-        const issue = (q) => `issue #${q.issue ?? "pending"}`;
         for (const f of d.excused)
-            warn(`[QUARANTINED] ${shard}: ${idOf(f)} failed again; ${issue(quarantined(list, family, f))}`);
-        for (const f of d.flaky) {
-            const q = quarantined(list, family, f);
-            if (q) warn(`[QUARANTINED] ${shard}: ${idOf(f)} failed and passed; ${issue(q)}`);
-            else if (touched(f))
-                fail(
-                    f,
-                    `[NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed, and this pull request changed it or its imports`,
-                );
-            else
-                warn(
-                    `[FLAKY-UNRELATED] ${shard}: ${idOf(f)} failed and passed; this pull request did not touch it. Base check: ${check(f, 5)}`,
-                );
-        }
+            put(f, { text: `[QUARANTINED] ${shard}: ${idOf(f)} failed again; ${issue(quarantined(list, family, f))}` });
+        for (const f of d.flaky) put(f, flakyVerdict(f));
         // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
         const how = unretried ? `failed (${unretried})` : "failed every time";
-        for (const f of d.failing) {
-            const k = excusable(f) && known(f);
-            if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
-            else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
-            else {
-                // #3925: a failure this pull request did not cause must not block it; the base check (dispatched
-                // in the background) files `Failing on master`, and the full run with bisect and revert is the net
-                const text = `[UNRELATED] ${shard}: ${idOf(f)} ${how}; this pull request did not touch it. Base check: ${check(f, 1)}`;
-                warn(text);
-                summary(`- ${text}`);
-            }
-        }
+        for (const f of d.failing) put(f, failingVerdict(f, how));
         return { ...d, flaky: d.flaky.filter((f) => !failing.includes(f)), failing, pass: failing.length === 0, lines };
     };
+}
+
+/**
+ * A failing test's line as an error annotation on its file, in GitHub Actions: refresh-inherited-prs.mjs finds the
+ * pull requests a master break held by it, after the break's fix lands (#8363).
+ * @param env the environment
+ * @param f the failure
+ * @param text its line
+ */
+function annotate(env, f, text) {
+    if (env.GITHUB_ACTIONS !== "true") return;
+    const prop = (v) => v.replaceAll("%", "%25").replaceAll(",", "%2C").replaceAll(":", "%3A");
+    console.log(`::error file=${prop(f.file)},title=${prop(text.split(" ")[0])}::${text.replaceAll("%", "%25")}`);
 }
 
 /**
@@ -234,6 +253,32 @@ function readPlanFile(file) {
 }
 
 /**
+ * The store's quarantine and master evidence for one family, read under the job's own flags, or null when the store
+ * did not answer.
+ * @param o the run's facts
+ * @param o.cfg config()
+ * @param o.sha the commit tested
+ * @param o.base the pull request's base commit
+ * @param o.family the shard family
+ * @param o.variant the variant
+ * @returns `{ quarantine, failingOnBase }` or null
+ */
+async function readEvidence({ cfg, sha, base, family, variant }) {
+    if (!cfg || !base) return null;
+    // an On twin's master evidence is recorded under flags=on (#7847), so ask under the job's own flags
+    const flags = variant.split("|")[1] ?? "flags=off";
+    const variants = [...new Set([`${family}|${flags}|whole`, `${family}|${flags}|selected`, variant])];
+    try {
+        const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-") });
+        if (r.ok && r.data) return { quarantine: r.data.quarantine ?? [], failingOnBase: r.data.failingOnBase ?? [] };
+        console.log(`run-group: the store's evidence not read (${r.why ?? "no plan"})`);
+    } catch (e) {
+        console.log(`run-group: the store's evidence not read (${e.message.split("\n")[0]})`);
+    }
+    return null;
+}
+
+/**
  * A re-run attempt's plan: the store's quarantine and master evidence read again (a base check dispatched after the
  * first attempt stored its evidence since), the rest as the first attempt planned. Fails open to the plan as it is.
  * @param plan the plan file
@@ -245,21 +290,30 @@ function readPlanFile(file) {
  * @returns the plan
  */
 export async function refreshPlan(plan, { cfg, sha, family, variant }) {
-    if (!cfg || !plan?.base) return plan;
-    // an On twin's master evidence is recorded under flags=on (#7847), so ask under the job's own flags
-    const flags = variant.split("|")[1] ?? "flags=off";
-    const variants = [...new Set([`${family}|${flags}|whole`, `${family}|${flags}|selected`, variant])];
-    try {
-        const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
-        if (!r.ok || !r.data) {
-            console.log(`run-group: plan not read again (${r.why ?? "no plan"}): the first attempt's plan stands`);
-            return plan;
-        }
-        return { ...plan, quarantine: r.data.quarantine ?? [], failingOnBase: r.data.failingOnBase ?? [] };
-    } catch (e) {
-        console.log(`run-group: plan not read again (${e.message.split("\n")[0]}): the first attempt's plan stands`);
-        return plan;
-    }
+    const fresh = await readEvidence({ cfg, sha, base: plan?.base, family, variant });
+    if (!fresh && cfg && plan?.base) console.log("run-group: the first attempt's plan stands");
+    return fresh ? { ...plan, ...fresh } : plan;
+}
+
+/**
+ * A pull request group's plan when the run's one plan read got no answer for its family (the store answered 5xx):
+ * what the pull request touched, with this family's quarantine and master evidence read now. Without it, every
+ * master break and every quarantined test failed each pull request it reached, and a re-run never read again
+ * (#8363). Null when the store does not answer this read either: the [NEW-FLAKY] rule and the committed list stand.
+ * @param touchedPlan the plan file, with `base`, `affected` and `changed`
+ * @param o the run's facts (`cfg`, `sha`, `family`, `variant`)
+ * @returns the plan, or null
+ */
+export async function familyPlan(touchedPlan, o) {
+    const { unavailable, ...rest } = touchedPlan;
+    const touched = { ...rest, unanswered: undefined };
+    const fresh = await readEvidence({ ...o, base: touched.base });
+    console.log(
+        fresh
+            ? `run-group: the run's plan read failed (${unavailable ?? "no answer for this family"}); read ${o.family}'s own`
+            : "run-group: no plan for this family: the [NEW-FLAKY] rule and the committed quarantine list stand",
+    );
+    return fresh ? { ...touched, ...fresh, families: [o.family] } : null;
 }
 
 /**
@@ -280,7 +334,7 @@ export async function shotsPlan({ cfg, sha, base, family, variant }) {
     try {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
         const own = family.replace(/-shots$/, "");
-        const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
+        const variants = [...new Set([`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant])];
         const r = await fetchPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
         const fresh = r.ok ? r.data : null;
         if (!fresh || fresh.unavailable) {
@@ -748,6 +802,7 @@ function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, 
             variant,
             base: plan.base ?? base,
             out: env.RESULTS_BASE_CHECKS_OUT,
+            env,
         });
     }
     rules.family = family;
@@ -758,6 +813,47 @@ function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, 
     if (family !== own) rules.list = rules.list.map((q) => (q.family === own ? { ...q, family } : q));
     if (!rules.judge && touchedPlan) rules.judge = newFlakyJudge(touchedPlan, family, rules.list);
     return rules;
+}
+
+/**
+ * The plan a group judges by, and what the pull request touched.
+ * @param o the group
+ * @param o.root the checkout
+ * @param o.env the environment
+ * @param o.shardName the shard
+ * @param o.family its family
+ * @param o.variant its variant
+ * @param o.head headFacts()
+ * @returns `{ plan, touchedPlan }`; plan is null when the committed list stands
+ */
+async function groupPlan({ root, env, shardName, family, variant, head }) {
+    // no file (the full path), an unreadable one or a store outage: the committed list stands
+    let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
+    // what the pull request touched (ci.yml writes `base` with it), which holds even without the store's answer
+    const touchedPlan = env.GITHUB_EVENT_NAME === "pull_request" && plan?.base ? plan : null;
+    // the run's plan read got no answer for this family (plan-read.mjs: a store outage, or a family whose own read
+    // failed): this group reads it itself below
+    const missing = Boolean(plan?.unavailable || plan?.unanswered?.includes(family));
+    // a family the store was not asked about (a bin of a package nx did not call affected) keeps the committed list
+    if (missing || (plan?.families && !plan.families.includes(family))) plan = null;
+    // a screenshot run's `-shots` quarantine is only the store's (never committed): with no plan for it (none given,
+    // a store outage then, or a family the light check did not ask about, such as graph-io's fidelity stories on a
+    // graphty-element change) ask the store for it here (#3648)
+    // the full path (ci.yml's test job on the release train's call or a dispatch: RESULTS_STORE_QUARANTINE=1) has no
+    // plan file and asks the store for its family's quarantine the same way; no answer keeps the committed list
+    if (!plan && (family !== familyOf(shardName) || env.RESULTS_STORE_QUARANTINE === "1"))
+        plan = await shotsPlan({
+            cfg: config(env, root),
+            sha: head.commit,
+            base: touchedPlan?.base ?? head.base,
+            family,
+            variant,
+        });
+    else if (!plan && missing && touchedPlan)
+        plan = await familyPlan(touchedPlan, { cfg: config(env, root), sha: head.commit, family, variant });
+    else if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
+        plan = await refreshPlan(plan, { cfg: config(env, root), sha: head.commit, family, variant });
+    return { plan, touchedPlan };
 }
 
 /**
@@ -788,25 +884,7 @@ export async function runGroup(
     const { variant } = groupShape({ shardName, shard, command, env });
     const family = groupFamily(shardName, env);
     const head = headFacts(root, env);
-    // no file (the full path), an unreadable one or a store outage: the committed list stands
-    let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
-    // what the pull request touched (ci.yml writes `base` with it), which holds even without the store's answer
-    const touchedPlan = env.GITHUB_EVENT_NAME === "pull_request" && plan?.base ? plan : null;
-    // a family the store was not asked about (a bin of a package nx did not call affected) keeps the committed list
-    if (plan?.unavailable || (plan?.families && !plan.families.includes(family))) plan = null;
-    // a screenshot run's `-shots` quarantine is only the store's (never committed): with no plan for it (none given,
-    // a store outage then, or a family the light check did not ask about, such as graph-io's fidelity stories on a
-    // graphty-element change) ask the store for it here (#3648)
-    if (!plan && family !== familyOf(shardName))
-        plan = await shotsPlan({
-            cfg: config(env, root),
-            sha: head.commit,
-            base: touchedPlan?.base ?? head.base,
-            family,
-            variant,
-        });
-    else if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
-        plan = await refreshPlan(plan, { cfg: config(env, root), sha: head.commit, family, variant });
+    const { plan, touchedPlan } = await groupPlan({ root, env, shardName, family, variant, head });
     const rules = judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, base: head.base });
     // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
     if (env.RESULTS_QUARANTINE_OUT) {
@@ -828,6 +906,10 @@ export async function runGroup(
     const startedAt = Date.now();
     const code = await runShard(shardName, cmd, { root, env: childEnv, state: emptyState(), ...rules });
     const endedAt = Date.now();
+    // the tests this run failed, which base-check.yml compares with the pull request's before it re-runs a job (#8363)
+    if (env.RESULTS_FAILED_OUT)
+        for (const f of readResult(resultFile).failing ?? [])
+            appendFileSync(env.RESULTS_FAILED_OUT, `${JSON.stringify({ file: f.file, name: f.name })}\n`);
     try {
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
         await record(shardName, shard, { ...facts, command, head, gh, storeMs, storyProjects: STORY_PROJECTS });

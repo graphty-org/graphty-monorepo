@@ -111,7 +111,7 @@ function referenceProblems(file, text, declared, files) {
 }
 
 /**
- * The places a file still names a graduated flag.
+ * The places a file still names a graduated flag, a command's `keywords` aside.
  * @param file - The file, relative to the root.
  * @param text - Its text.
  * @param graduated - The graduated flag ids.
@@ -119,10 +119,12 @@ function referenceProblems(file, text, declared, files) {
  */
 function graduatedProblems(file, text, graduated) {
     const problems = [];
+    // A command's search words are words, not flag ids: "timeline" stays a word a reader types.
+    const searched = text.replaceAll(/\bkeywords:\s*\[[^\]\n]*\]/g, "");
     for (const id of graduated) {
         const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
-        const at = text.search(new RegExp(`["'\`]${escaped}["'\`]`));
-        if (at >= 0) problems.push(`${file}:${lineOf(text, at)}: graduated feature "${id}" is still named`);
+        const at = searched.search(new RegExp(`["'\`]${escaped}["'\`]`));
+        if (at >= 0) problems.push(`${file}:${lineOf(searched, at)}: graduated feature "${id}" is still named`);
     }
     return problems;
 }

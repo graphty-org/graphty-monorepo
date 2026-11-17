@@ -1,5 +1,5 @@
 /**
- * The `coo-scatter` kernel body (design 6 row 10): the last step of `cooToCsr`, after the histogram of the sources
+ * The `coo-scatter` kernel body: the last step of `cooToCsr`, after the histogram of the sources
  * and its exclusive scan into `rowPtr`. Two modes under SORTED_INPUT.
  *
  * SORTED_INPUT false is the design's cursor scatter: an arc reserves its slot with `atomicAdd` on its row's cursor
@@ -9,7 +9,7 @@
  * SORTED_INPUT true takes arcs already ordered by source: arc `i` then sits at its own index minus its row's start
  * inside the row, no cursor and no atomic, so the write is a pure function of the input and the input order survives
  * into every row. The precondition is checked, not trusted: an arc whose source is below its predecessor's raises
- * `cursors[0]`, the word the driver reads back and refuses. Body only (spec 3.5, D9); normative text.
+ * `cursors[0]`, the word the driver reads back and refuses. Body only; normative text.
  */
 export const cooScatterWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

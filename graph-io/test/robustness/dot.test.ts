@@ -7,15 +7,14 @@
 import { describe, expect, it } from "vitest";
 
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
+import { codes, ids } from "./helpers.js";
 import {
     chunks,
-    codes,
     column,
     edgePairs,
     fatalCode,
     GZIP_BYTES,
     HTML_404,
-    ids,
     issue,
     latin1,
     rejects,

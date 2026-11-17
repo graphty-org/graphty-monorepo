@@ -176,7 +176,7 @@ and sized by a `team` attribute gives:
   table does not list is left to the layers beneath; a Cytoscape continuous mapping becomes a
   `stops` binding (see [Styling](./styling#literal-values-and-bound-values)); label colors, sizes
   and fonts bind the label channels `node.labelColor`, `node.labelSize` and the rest.
-- **Where they sit**: directly above the element's two base layers, under every layer you add, so
+- **Where they sit**: directly above the element's base layers, under every layer you add, so
   your own layers always paint over the file's.
 - **`source`** files them under the template `file:<load>`, which is how a later load finds and
   replaces them.

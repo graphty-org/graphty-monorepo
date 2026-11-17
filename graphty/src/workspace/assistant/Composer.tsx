@@ -11,9 +11,9 @@ import {
     writeAssistantChoice,
 } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { answerQuestion, failureOf, link, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
@@ -35,7 +35,7 @@ interface Scope {
  */
 function useScope(): Scope {
     const { session } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TOOLBAR_EVENTS);
     const picked = useWorkspaceState((state) => state.assistantScopeSelection);
     return {
         kind: scopeKind(session, picked),
@@ -92,7 +92,7 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                 </Menu.Target>
                 <Menu.Dropdown>
                     <Menu.Label id={aboutId}>{WORDS["assistant.scope.about"]}</Menu.Label>
-                    <div // NOSONAR(S6819): a group of menu items; a fieldset is not allowed inside a menu
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a group of menu items; a fieldset is not allowed inside a menu
                         role="group"
                         aria-labelledby={aboutId}
                     >
@@ -130,7 +130,7 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                         <>
                             <Menu.Divider />
                             <Menu.Label id={effortId}>{WORDS["assistant.provider.effort"]}</Menu.Label>
-                            <div // NOSONAR(S6819): a group of menu items; a fieldset is not allowed inside a menu
+                            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a group of menu items; a fieldset is not allowed inside a menu
                                 role="group"
                                 aria-labelledby={effortId}
                             >

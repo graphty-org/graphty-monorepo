@@ -195,7 +195,7 @@ export interface ColumnEncodingSpec extends EncodingOptions {
  *
  * OPEN UNION: codes may be added in a minor release.
  */
-export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared

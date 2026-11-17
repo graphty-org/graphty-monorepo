@@ -562,6 +562,7 @@ function placeWindow(kind: KindState, from: number, to: number, missingInside: b
  * @param filterEdges - The filter's edge bytes.
  * @returns The counts.
  */
+// eslint-disable-next-line sonarjs/no-invariant-returns -- both paths return the counts they measured; what differs is the slide state left for the next move
 function countEnds(
     graph: GraphSnapshot,
     edge: KindState | null,

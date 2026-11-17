@@ -1,10 +1,10 @@
 /**
- * The `dedupe-claim` kernel body (spec 6 row 4; P8-T3): the first of `dedupe`'s two dispatches. Every entry stores
+ * The `dedupe-claim` kernel body: the first of `dedupe`'s two dispatches. Every entry stores
  * its own index into `owner[queue[i]]` (relaxed atomics: between two dispatches last-writer-wins is well defined, so
  * exactly one index per distinct vertex is the owner). The entry count is `P.count`, or the device word
  * `counters[P.countIndex]` clamped to `P.count` when `P.countIndex` is not `U32_MAX` (the SSSP piles only know their
  * count on the device). `owner` needs no reset between calls: a stale or garbage word is only ever read by an entry
- * whose vertex a current entry has just overwritten. Body only (spec 3.5, D9); normative text.
+ * whose vertex a current entry has just overwritten. Body only; normative text.
  */
 export const dedupeClaimWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

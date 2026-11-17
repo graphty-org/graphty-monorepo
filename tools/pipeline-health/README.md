@@ -80,8 +80,10 @@ with `VITE_HEALTH_FIXTURES=1`; the published page has none and ignores `?fixture
 ## The read API
 
 Base URL: the `ApiUrl` output of the `graphty-health` stack, today
-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
-seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
+https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, throttled (20
+requests/s, burst 40); a good answer carries `Cache-Control: public, max-age=60` (there is no server-side
+cache). CORS allows https://health.graphty.app, plus the origin in the `devOrigin` cdk context when a deploy
+sets one.
 
 | Route                                                   | Returns                                                                      |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -90,7 +92,7 @@ seconds and throttled (20 requests/s, burst 40). CORS allows https://health.grap
 | `/v1/page/overview?range=1h\|6h\|24h`                   | The status, with each headline's value and sparkline                         |
 | `/v1/page/<page>?range=1h\|6h\|24h`                     | One page: its members (value, SLA, state) and sections                       |
 | `/v1/page/costs?range=7d\|28d`                          | The Costs page                                                               |
-| `/v1/page/issues?range=28d\|all`                        | The Issues page (default 28d)                                                |
+| `/v1/page/issues?range=28d\|1h\|6h\|1d\|7d\|all`        | The Issues page (default 28d)                                                |
 | `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins`   | Shard times, for full runs or pull request runs                              |
 | `/v1/page/flaky/hotspots?range=7d\|28d`                 | Flake hotspots                                                               |
 | `/v1/page/runners/jobs?range=7d`                        | Runner history: 15-minute running, queued, longest queued and saturated time |

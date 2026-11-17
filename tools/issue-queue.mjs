@@ -96,7 +96,8 @@ export function skipReason(issue) {
     if (label) return `label ${label}`;
     // An enhancement only when labelled ux-safe (owner, 2026-11-10); ux-owner ones are owner-ordered only.
     if (labels.includes("enhancement") && !labels.includes("ux-safe")) return "label enhancement";
-    if (labels.includes("documentation") && !labels.includes("bug")) return "documentation, not a bug";
+    if (labels.includes("documentation") && !TYPES.some((t) => labels.includes(t)))
+        return "documentation with no type label";
     if (HELD_MAJOR.has(issue.number)) return "held major";
     if (issue.title.startsWith("Release held:")) return "release held";
     if (issue.title.includes("lane red on master")) return "lane red on master";

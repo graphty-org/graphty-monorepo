@@ -19,7 +19,7 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON } from "../fixtures";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /** Four sites and no routes: a load that supplies only nodes. */
@@ -58,16 +58,41 @@ async function openWithGraph(): Promise<GraphSession> {
 }
 
 /**
- * Opens a new filter card from the Filters "+" on a field.
+ * Opens a new filter card from the Filters "+" and its Value list in the selection workspace. With
+ * two loads each load's section has its own "+": the first is the one for the filters of every load.
+ */
+async function newCard(): Promise<void> {
+    const [plus] = screen.getAllByRole("button", { name: "Add filter" });
+    await userEvent.click(plus);
+    await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+}
+
+/**
+ * Opens a new filter card on a field.
  * @param name - the field's name, as the list shows it.
  */
 async function newCardOn(name: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    await newCard();
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
- * The one card's step rule: a card says what stays, All and a Keep step on its value.
+ * Done in the selection workspace: the card is a draft until Done writes it as one step.
+ */
+async function done(): Promise<void> {
+    const open = document.querySelector<HTMLElement>(".sel-ws");
+    assert.isNotNull(open, "the card is open in the selection workspace");
+    await userEvent.click(within(open ?? document.body).getByRole("button", { name: "Done" }));
+    // Done closes the workspace once graphty-element has painted the result, a frame or more after
+    // the click.
+    await waitFor(() => {
+        assert.isNull(document.querySelector(".sel-ws"));
+    });
+}
+
+/**
+ * The one card's step rule: a new card in the selection workspace starts with no nodes and adds
+ * what its value matches.
  * @param session - the element's session.
  * @returns the step's rule.
  */
@@ -76,8 +101,8 @@ function stepRule(session: GraphSession): unknown {
     if (rule?.kind !== "union") {
         return undefined;
     }
-    assert.equal(rule.branches[0]?.start, "all");
-    assert.equal(rule.branches[0]?.steps[0]?.op, "keep");
+    assert.equal(rule.branches[0]?.start, "none");
+    assert.equal(rule.branches[0]?.steps[0]?.op, "add");
     return rule.branches[0]?.steps[0]?.rule;
 }
 
@@ -105,6 +130,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         const from = await screen.findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "3{Enter}");
+        await done();
 
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
@@ -119,11 +145,15 @@ describe("picking nodes by a condition card from the Data place", () => {
 
     it("offers Data source once two loads are in, and keeps only the ticked load's nodes", async () => {
         const session = await openWithGraph();
-        // One load: no Data source in "+".
-        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+        // One load: no Data source in the new card's Value list.
+        await newCard();
         await screen.findByRole("option", { name: /^group(,|$)/ });
         assert.isNull(screen.queryByRole("option", { name: "Data source" }));
+        // Escape on a new card with no step leaves no card, and closes the workspace.
         await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
 
         await session.data.import(
             { type: "json", name: "people.json", config: { data: PLAIN_JSON } },
@@ -137,6 +167,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         await newCardOn("Data source");
         const loads = await screen.findByRole("group", { name: "Data source values" });
         await userEvent.click(within(loads).getByRole("checkbox", { name: /^people\.json, 4 nodes$/ }));
+        await done();
 
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
@@ -144,24 +175,14 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0].effect, "keep");
         });
-        // The card's step is written untested (no load ticked) as it opens; the tick writes its load.
+        // The card's step holds the ticked load.
         await waitFor(() => {
             const source = stepRule(session) as { kind?: string; sources?: unknown[] } | undefined;
             assert.equal(source?.kind, "source");
             assert.deepEqual(source?.sources, [people.key]);
         });
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
-        // The card is named for the load, not its key, and counts the nodes it keeps, at rest: while
-        // its workspace is open the sidebar keeps only its title row (ws-polish 2).
-        const open = document.querySelector<HTMLElement>(".sel-ws");
-        if (open !== null) {
-            await userEvent.click(within(open).getByRole("button", { name: "Done" }));
-            // Done closes the workspace once graphty-element has painted the result, a frame or more
-            // after the click; until then the card is still open, its title row saying "Editing".
-            await waitFor(() => {
-                assert.isNull(document.querySelector(".sel-ws"));
-            });
-        }
+        // The card is named for the load, not its key, and counts the nodes it keeps, at rest.
         // The card itself: the Data sources section names the load too.
         const card = await waitFor(() => {
             const found = [
@@ -213,6 +234,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         await newCardOn("Data source");
         const loads = await screen.findByRole("group", { name: "Data source values" });
         await userEvent.click(within(loads).getByRole("checkbox", { name: /^sites\.json/ }));
+        await done();
 
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);

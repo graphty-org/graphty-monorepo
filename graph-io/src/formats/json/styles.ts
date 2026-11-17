@@ -973,6 +973,12 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
         row.imageOpacity = opacity;
     }
     visImagePlace(row, layer, box);
+    // an image node's box is its picture's, the shorter side across 2 * size (CircleImageBase._resizeImage); a
+    // circularImage is cut to its square
+    // ponytail: not with imagePadding, whose picture size visImagePlace takes from the square; both when a file needs
+    if (!circular && layer.useImageSize !== true && row.imageFit === "cover") {
+        row.imageAspect = true;
+    }
     return row;
 }
 
@@ -2087,10 +2093,15 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
             visIcon(merged, site("glyphColor")),
         );
     }
-    // vis-network's triangleDown: its triangle turned over, a corner down
-    if (shape === "triangleDown") {
+    // vis-network's triangle is equilateral, not filling its 2 * size square (shapes.js triangle: its radius times 1.15,
+    // so 2.3 * size wide and sqrt(3) * 1.15 * size tall, its centroid 0.275 * 1.15 * size below the node's center): the
+    // apex 1.0117 * size above the center, the base 0.9802 * size below; triangleDown is it turned over, a corner down.
+    // The square stays the node's box, which places its label
+    if (shape === "triangle" || shape === "triangleDown") {
+        const [apex, base] = shape === "triangle" ? ["1.0117", "-0.9802"] : ["-1.0117", "0.9802"];
         row.shape = "polygon";
-        row.shapePoints = "-1,1 0,-1 1,1";
+        row.shapePoints = `0,${apex} 1.15,${base} -1.15,${base}`;
+        row.shapePointsStretch = false;
     }
     return row;
 }

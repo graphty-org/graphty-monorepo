@@ -116,6 +116,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelItalic",
                         "node.labelWrapWidth",
                         "node.labelWrapTrailingSpace",
+                        "node.labelWrapSkipEndSpace",
                         "node.labelWrapEllipsis",
                         "node.labelWrapAnywhere",
                         "node.labelWrapSpaceCount",

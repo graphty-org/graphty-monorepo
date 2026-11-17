@@ -351,6 +351,8 @@ export function measureLine(
 export interface WrapOptions {
     /** Whether the spaces after a word must fit too (`wrapTrailingSpace`). */
     trailingSpace?: boolean;
+    /** With `trailingSpace`, measure a line's last word without a space after it (`wrapSkipEndSpace`). */
+    skipEndSpace?: boolean;
     /** Cut a line that does not fit, with an ellipsis after it, in place of wrapping (`wrapEllipsis`). */
     ellipsis?: boolean;
     /** Break between any two letters, not only at spaces (`wrapAnywhere`). */
@@ -449,21 +451,28 @@ function pushKept(out: TextSegment[], text: string, style: TextSegment["style"])
 const SPACES = /^\s+$/;
 
 /**
- * How wide the space after a word is: the spaces that follow it, or one space where the line ends
- * with it, as Cytoscape measures every word.
+ * How wide the space after a word is: the spaces that follow it, or, where the line ends with it, one
+ * space as Cytoscape desktop measures every word, or none as Cytoscape.js measures its last (`skipEnd`).
  * @param pieces - The line's words and spaces.
  * @param i - The word's place among them.
  * @param measure - How wide a piece of text is in a style.
  * @param anywhere - Whether the line breaks between any two letters, each followed by a zero-width break.
+ * @param skipEnd - Whether the line's last word has no space after it.
  * @returns The width.
  */
-function spaceAfter(pieces: readonly TextSegment[], i: number, measure: Measure, anywhere: boolean): number {
+function spaceAfter(
+    pieces: readonly TextSegment[],
+    i: number,
+    measure: Measure,
+    anywhere: boolean,
+    skipEnd: boolean,
+): number {
     const next = pieces[i + 1];
     if (next !== undefined && SPACES.test(next.text)) {
         return measure(next.text, next.style);
     }
     // broken anywhere, a letter is followed by a zero-width break, as Cytoscape.js joins them
-    return anywhere ? 0 : measure(" ", pieces[i].style);
+    return anywhere || (skipEnd && next === undefined) ? 0 : measure(" ", pieces[i].style);
 }
 
 /**
@@ -519,7 +528,10 @@ function wrapLine(line: TextSegment[], width: number, measure: Measure, options:
     for (const [i, piece] of pieces.entries()) {
         const space = SPACES.test(piece.text);
         const span = measure(piece.text, piece.style) * (space ? blanks : 1);
-        const after = options.trailingSpace === true && !space ? spaceAfter(pieces, i, measure, anywhere) : 0;
+        const after =
+            options.trailingSpace === true && !space
+                ? spaceAfter(pieces, i, measure, anywhere, options.skipEndSpace === true)
+                : 0;
         if (!space && used > 0 && used + span + after > width) {
             out.push(withoutTrailingSpaces(current));
             current = [];

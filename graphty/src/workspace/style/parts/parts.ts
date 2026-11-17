@@ -275,6 +275,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Wrap: [
                             "node.labelWrapWidth",
                             "node.labelWrapTrailingSpace",
+                            "node.labelWrapSkipEndSpace",
                             "node.labelWrapEllipsis",
                             "node.labelWrapAnywhere",
                             "node.labelWrapSpaceCount",
@@ -532,6 +533,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Wrap: [
                             "edge.labelWrapWidth",
                             "edge.labelWrapTrailingSpace",
+                            "edge.labelWrapSkipEndSpace",
                             "edge.labelWrapEllipsis",
                             "edge.labelWrapAnywhere",
                             "edge.labelWrapSpaceCount",

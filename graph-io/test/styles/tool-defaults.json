@@ -120,6 +120,7 @@
             "labelWeight": "normal",
             "labelPosition": "top",
             "labelWrapTrailingSpace": true,
+            "labelWrapSkipEndSpace": true,
             "borderPosition": "center",
             "outerBorderColor": "#999999",
             "underlayColor": "#000000",

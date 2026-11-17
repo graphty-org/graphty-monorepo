@@ -370,6 +370,7 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapSkipEndSpace": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
@@ -696,6 +697,7 @@ export interface ChannelValues {
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapSkipEndSpace": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
@@ -1544,7 +1546,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1556,6 +1558,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
@@ -1736,6 +1739,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -1894,6 +1898,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
@@ -1979,7 +1984,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 

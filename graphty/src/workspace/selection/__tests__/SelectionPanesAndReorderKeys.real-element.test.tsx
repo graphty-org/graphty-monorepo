@@ -1,12 +1,8 @@
 /**
- * The selection editor's polish rounds (design/ui/studio/tier5/decided.md) on the REAL
- * graphty-element, driven by real clicks, keys and hovers: a yes-or-no value picked removes and
- * selects nothing until Yes or No, a data column named rank is listed, a text step takes the
- * reader's typing, "And..." adds a step with the group's verb after a group's first, a value with no test shows no
- * test in its pane, an edge step reading a node value can take either end (in Advanced), a So far
- * step's pane draws its test, a filter card is named as its rows say it, "Or..." then Escape leaves
- * no group, the key names a single group by the selection's title, hovering a group row marks it,
- * and the style tree's rows move with Mod+[ and Mod+].
+ * The selection editor's panes on the REAL graphty-element, driven by real clicks and keys: a text
+ * card puts focus in its text box, a step computed on So far draws its test from its own values, a
+ * filter card is named as its rows say its steps, and the style tree's rows move with Mod+[ and
+ * Mod+].
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

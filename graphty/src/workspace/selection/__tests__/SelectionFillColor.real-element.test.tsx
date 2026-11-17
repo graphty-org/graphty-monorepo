@@ -1,12 +1,6 @@
 /**
- * Tier 5 round 1's fix pass (design/ui/studio/tier5/rounds/round-1/insights.md) on the REAL
- * graphty-element and Les Miserables, driven by real clicks and keys: a filter step picked from a
- * run over what was showing stays bound to that run and says so; By position says which end and
- * in what it counts, and claims no limit it does not apply; "Is exactly" takes on an empty text
- * step; Clear then Escape (or Done) on a reopened filter card keeps the card; the empty Fill box
- * says what it takes and its picker stays open over the first pick; a new Or group shows no "0";
- * the add buttons say And... and Or...; Tab past the workspace's last control reaches its header,
- * which is an F6 stop, and Done shows Escape as its key.
+ * The empty Fill color box on the REAL graphty-element and Les Miserables, driven by real clicks
+ * and keys: it says what it takes, and its picker stays open over the first pick.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

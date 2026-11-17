@@ -7,11 +7,12 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { scriptEnable } from "../../../test/element-prototype";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
@@ -19,20 +20,6 @@ import { Workspace } from "../../Workspace";
 
 const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const KEY = "AIza-a-key-of-the-right-shape";
-
-/** Every enable reaches the mock model instead of the network; a given key goes to the key store. */
-function scriptEnable(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const real = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await real.call(this, { ...config, providerInstance: new MockLlmProvider() });
-    });
-}
 
 /**
  * The workspace with Settings open on the AI provider page.
@@ -54,7 +41,7 @@ describe("the AI provider page", () => {
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
-        scriptEnable();
+        scriptEnable((config) => ({ ...config, providerInstance: new MockLlmProvider() }));
     });
 
     afterEach(() => {

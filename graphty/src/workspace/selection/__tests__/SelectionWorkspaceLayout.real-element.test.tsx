@@ -1,12 +1,8 @@
 /**
- * The selection workspace's second polish round (design/ui/studio/tier5/ws-polish-2-*.md) on the
- * REAL graphty-element and Les Miserables, driven by real clicks and keys: the canvas takes the
- * preview cell's box while the workspace is open; the sidebar keeps only its title row; a
- * narrowing step says no verb and has one Except switch; Advanced says edges; an existing rule
- * reopens on a step's pane; the sidebar's Edit shows on hover; the value picker opens
- * below its field; Escape closes an open Advanced; a new filter card keeps Nodes | Edges over its
- * picker, its first Escape goes to the outline and a discarded one is announced; Redo names the
- * filter as it comes back.
+ * The selection workspace's layout on the REAL graphty-element and Les Miserables, driven by real
+ * clicks and keys: the canvas takes the preview cell's box while the workspace is open, the
+ * sidebar keeps only its Style Nodes... line with no count, and Redo names the filter as it comes
+ * back.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

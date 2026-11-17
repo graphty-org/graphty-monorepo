@@ -1,10 +1,8 @@
 /**
- * The selection editor's second repolish (design/ui/studio/tier5/decided.md, "Repolish 2 fixes")
- * on the REAL graphty-element, driven by real clicks and keys: selecting a row moves no row, the
- * pane's first row holds "And..." and "Or...", the title pane's "..." holds Select N, Start
- * with lives in a group's Advanced, a condition is said once, groups read "or", a relative
- * condition is never cut, an exact id is listed first, a filter card's name keeps its verb, and a
- * collapsed filter card opens to its title row.
+ * The selection editor's reference search, checklists and text boxes on the REAL graphty-element,
+ * driven by real clicks and keys: an exact id is listed first on a large graph, a saved Select
+ * card reads in its own words, a narrowing step's checklist counts over what comes into the step,
+ * and leaving a text box by Tab commits its text.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

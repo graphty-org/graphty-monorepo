@@ -11,28 +11,17 @@ import { cdp } from "vitest/browser";
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
 /**
- * A point of an element (its middle unless told) in the top page's viewport, where the protocol's
- * input lands. The test page runs in an iframe of the vitest page, possibly scaled to fit.
- * @param element - The element.
- * @param at - The point, in CSS pixels from the element's top left corner; its middle when unset.
- * @returns The point in the top page's CSS pixels.
+ * Sends Chrome DevTools Protocol commands to the test's browser.
+ * @returns the send function, bound to the session.
  */
-function middleOf(element: Element, at?: { readonly x: number; readonly y: number }): { x: number; y: number } {
-    const rect = element.getBoundingClientRect();
-    const x = rect.left + (at?.x ?? rect.width / 2);
-    const y = rect.top + (at?.y ?? rect.height / 2);
-    const frame = window.frameElement;
-    if (frame === null) {
-        return { x, y };
-    }
-
-    const box = frame.getBoundingClientRect();
-    const scale = box.width / window.innerWidth;
-    return { x: box.left + (frame.clientLeft + x) * scale, y: box.top + (frame.clientTop + y) * scale };
+export function cdpSend(): Send {
+    const session = cdp() as unknown as { send: Send };
+    return session.send.bind(session);
 }
 
 /**
- * A point of the test frame in the top page's viewport, where the protocol's input lands.
+ * A point of the test frame in the top page's viewport, where the protocol's input lands. The test
+ * page runs in an iframe of the vitest page, possibly scaled to fit.
  * @param x - The x in the frame's CSS pixels.
  * @param y - The y in the frame's CSS pixels.
  * @returns The point in the top page's CSS pixels.
@@ -49,6 +38,32 @@ function inTopPage(x: number, y: number): { x: number; y: number } {
 }
 
 /**
+ * A point of an element in the top page's viewport, where the protocol's input lands: the middle of
+ * the part of it on screen unless told, since the middle of an element taller than the window (a
+ * whole page) is below the fold, where no input lands.
+ * @param element - The element.
+ * @param at - The point, in CSS pixels from the element's top left corner; the middle of its
+ * visible part when unset.
+ * @returns The point in the top page's CSS pixels.
+ */
+export function topPagePoint(
+    element: Element,
+    at?: { readonly x: number; readonly y: number },
+): { x: number; y: number } {
+    const rect = element.getBoundingClientRect();
+    if (at !== undefined) {
+        return inTopPage(rect.left + at.x, rect.top + at.y);
+    }
+
+    const left = Math.max(rect.left, 0);
+    const top = Math.max(rect.top, 0);
+    return inTopPage(
+        (left + Math.min(rect.right, window.innerWidth)) / 2,
+        (top + Math.min(rect.bottom, window.innerHeight)) / 2,
+    );
+}
+
+/**
  * Presses the mouse on the middle of an element, moves it in steps to a point and lets go there,
  * as a reader drags a row by its handle.
  * @param element - Where the press lands.
@@ -57,12 +72,12 @@ function inTopPage(x: number, y: number): { x: number; y: number } {
  * @param to.y - Its y.
  */
 export async function dragTo(element: Element, to: { x: number; y: number }): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const from = middleOf(element);
+    const send = cdpSend();
+    const from = topPagePoint(element);
     const end = inTopPage(to.x, to.y);
     const steps = 10;
-    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...from });
-    await session.send("Input.dispatchMouseEvent", {
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...from });
+    await send("Input.dispatchMouseEvent", {
         type: "mousePressed",
         ...from,
         button: "left",
@@ -70,7 +85,7 @@ export async function dragTo(element: Element, to: { x: number; y: number }): Pr
         clickCount: 1,
     });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchMouseEvent", {
+        await send("Input.dispatchMouseEvent", {
             type: "mouseMoved",
             x: from.x + ((end.x - from.x) * step) / steps,
             y: from.y + ((end.y - from.y) * step) / steps,
@@ -78,7 +93,7 @@ export async function dragTo(element: Element, to: { x: number; y: number }): Pr
             buttons: 1,
         });
     }
-    await session.send("Input.dispatchMouseEvent", {
+    await send("Input.dispatchMouseEvent", {
         type: "mouseReleased",
         ...end,
         button: "left",
@@ -94,8 +109,8 @@ export async function dragTo(element: Element, to: { x: number; y: number }): Pr
  * @param element - What the pointer rests on.
  */
 export async function hoverOver(element: Element): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...middleOf(element) });
+    const send = cdpSend();
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...topPagePoint(element) });
 }
 
 /**
@@ -104,8 +119,8 @@ export async function hoverOver(element: Element): Promise<void> {
  * @param deltaY - How far, in CSS pixels; negative scrolls up.
  */
 export async function wheelOver(element: Element, deltaY: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    await session.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOf(element), deltaX: 0, deltaY });
+    const send = cdpSend();
+    await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...topPagePoint(element), deltaX: 0, deltaY });
 }
 
 /**
@@ -115,19 +130,19 @@ export async function wheelOver(element: Element, deltaY: number): Promise<void>
  * @param distance - How far the finger moves down, in CSS pixels.
  */
 export async function swipeOver(element: Element, distance: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
     const steps = 10;
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchTouchEvent", {
+        await send("Input.dispatchTouchEvent", {
             type: "touchMove",
             touchPoints: [{ x, y: y + (distance * step) / steps }],
         });
     }
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
 /**
@@ -138,15 +153,15 @@ export async function swipeOver(element: Element, distance: number): Promise<voi
  * @param at - Where on the element the press lands, from its top left corner; its middle when unset.
  */
 export async function dragAcross(element: Element, dx: number, at?: { x: number; y: number }): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element, at);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element, at);
     const frame = window.frameElement;
     const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
     const steps = 10;
-    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
-    await session.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchMouseEvent", {
+        await send("Input.dispatchMouseEvent", {
             type: "mouseMoved",
             x: x + (dx * scale * step) / steps,
             y,
@@ -154,7 +169,7 @@ export async function dragAcross(element: Element, dx: number, at?: { x: number;
             buttons: 1,
         });
     }
-    await session.send("Input.dispatchMouseEvent", {
+    await send("Input.dispatchMouseEvent", {
         type: "mouseReleased",
         x: x + dx * scale,
         y,
@@ -171,21 +186,21 @@ export async function dragAcross(element: Element, dx: number, at?: { x: number;
  * @param dx - How far it moves, in CSS pixels of the test page; negative moves left.
  */
 export async function swipeAcross(element: Element, dx: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
     const frame = window.frameElement;
     const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
     const steps = 10;
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchTouchEvent", {
+        await send("Input.dispatchTouchEvent", {
             type: "touchMove",
             touchPoints: [{ x: x + (dx * scale * step) / steps, y }],
         });
     }
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
 /**
@@ -196,15 +211,15 @@ export async function swipeAcross(element: Element, dx: number): Promise<void> {
  * @param released - Resolves when the finger may lift (the menu the hold opens is showing).
  */
 export async function touchHold(element: Element, released: () => Promise<unknown>): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     try {
-        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+        await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
         await released();
     } finally {
-        await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-        await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+        await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await send("Emulation.setTouchEmulationEnabled", { enabled: false });
     }
 }
 
@@ -213,12 +228,12 @@ export async function touchHold(element: Element, released: () => Promise<unknow
  * @param element - What the finger taps.
  */
 export async function tap(element: Element): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
 /**
@@ -228,24 +243,24 @@ export async function tap(element: Element): Promise<void> {
  * @param spread - How far each finger moves away from the middle, in CSS pixels.
  */
 export async function pinchOver(element: Element, spread: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
     const gap = 80;
     const fingers = (apart: number): { id: number; x: number; y: number }[] => [
         { id: 0, x: x - apart, y },
         { id: 1, x: x + apart, y },
     ];
     const steps = 6;
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchTouchEvent", {
+        await send("Input.dispatchTouchEvent", {
             type: "touchMove",
             touchPoints: fingers(gap + (spread * step) / steps),
         });
     }
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
 /**
@@ -255,25 +270,25 @@ export async function pinchOver(element: Element, spread: number): Promise<void>
  * @param spread - How far the second finger moves right, in CSS pixels.
  */
 export async function pinchFrom(element: Element, spread: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
     const gap = 80;
     const fingers = (apart: number): { id: number; x: number; y: number }[] => [
         { id: 0, x, y },
         { id: 1, x: x + apart, y },
     ];
     const steps = 6;
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 0, x, y }] });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 0, x, y }] });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchTouchEvent", {
+        await send("Input.dispatchTouchEvent", {
             type: "touchMove",
             touchPoints: fingers(gap + (spread * step) / steps),
         });
     }
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
 /**
@@ -283,12 +298,12 @@ export async function pinchFrom(element: Element, spread: number): Promise<void>
  * @returns settles once the browser is back.
  */
 export async function onTouchScreen(run: () => Promise<void>): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    const send = cdpSend();
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     try {
         await run();
     } finally {
-        await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+        await send("Emulation.setTouchEmulationEnabled", { enabled: false });
     }
 }
 
@@ -299,11 +314,11 @@ export async function onTouchScreen(run: () => Promise<void>): Promise<void> {
  * @returns settles once the zone is back.
  */
 export async function inBrowserZone(zone: string, run: () => Promise<void>): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    await session.send("Emulation.setTimezoneOverride", { timezoneId: zone });
+    const send = cdpSend();
+    await send("Emulation.setTimezoneOverride", { timezoneId: zone });
     try {
         await run();
     } finally {
-        await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
+        await send("Emulation.setTimezoneOverride", { timezoneId: "" });
     }
 }

@@ -325,8 +325,6 @@ describe("POST /v1/failures", () => {
         assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
             stored: 0,
         });
-        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
-        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 

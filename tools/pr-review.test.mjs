@@ -190,6 +190,31 @@ describe("pr-review.sh", () => {
         assert.match(readFileSync(promptLog, "utf8"), /^===== ISSUE #1234 \(Refs\) \[/m);
     });
 
+    it("reads a member answer written plain, as a list item or in bold", () => {
+        group();
+        const answers = [
+            "Member #1234: addressed -- a",
+            "- Member #1: addressed -- b",
+            "* **Member #2:** addressed -- c",
+        ].join("\n");
+        let r = run(undefined, `${answers}\n\nBlocking findings: 0`);
+        assert.equal(r.code, 0, r.out);
+        assert.doesNotMatch(readFileSync(reportPath(), "utf8"), /member-not-addressed/);
+        // a bulleted "not addressed" still blocks, and never reads as "addressed"
+        r = run(
+            ["--proof", proof, "--again"],
+            `${answers}\n+ **Member #1:** not addressed -- untouched\n\nBlocking findings: 0`,
+        );
+        assert.equal(r.code, 3, r.out);
+        assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 1 -->$/m);
+        r = run(
+            ["--proof", proof, "--again"],
+            "Member #1234: addressed -- a\n- Member #1: not addressed -- b\n- Member #2: addressed -- c\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 1 -->$/m);
+    });
+
     it("refuses a group whose fixed member is untrusted, and withholds an untrusted Refs member", () => {
         group();
         writeMember(2, "someone-else");

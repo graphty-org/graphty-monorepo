@@ -77,6 +77,7 @@ import type {
     LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
+    ScoreTerm,
     TransactionScope,
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
@@ -2419,11 +2420,15 @@ async function readDerived(opening: Opening, derived: unknown): Promise<void> {
     }
 
     for (const column of Array.isArray(derived.columns) ? (derived.columns as unknown[]) : []) {
-        const { kind, name, expression } = isObject(column) ? column : {};
+        const { kind, name, expression, score } = isObject(column) ? column : {};
+        const options = { kind: kind as "node" | "edge" };
         await attempt(
             opening,
             "graph",
-            () => opening.tx.data.derive(name as string, expression as string, { kind: kind as "node" | "edge" }),
+            () =>
+                score === undefined
+                    ? opening.tx.data.derive(name as string, expression as string, options)
+                    : opening.tx.data.deriveScore(name as string, score as ScoreTerm[], options),
             `${String(kind)}:${String(name)}`,
         );
     }

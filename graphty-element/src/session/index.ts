@@ -188,6 +188,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,

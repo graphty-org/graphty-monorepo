@@ -9,10 +9,9 @@
  * here is a compile error too.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
@@ -20,11 +19,6 @@ import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 
 fileStylesOn();
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** The undoable ops of the vocabulary. */
 type UndoableOp = {

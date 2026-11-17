@@ -99,8 +99,6 @@ export interface VisibilityService {
      * @param window - The window, or null.
      */
     check(filter: RuleTree | null, window: TimeWindow | null): void;
-    /** Whether the timeline experiment is on. */
-    timeline(): boolean;
 }
 
 /**
@@ -268,10 +266,9 @@ const PLAYBACK_STEPS = new Set(["auto", "hour", "day", "week", "month", "quarter
 /**
  * Refuse a malformed playback setting.
  * @param playback - The settings, or null.
- * @param timeline - Whether the timeline is on: off, a zone or a fade does nothing and stays saved as it came.
  * @throws `E_BAD_COMMAND` naming the setting.
  */
-function assertPlayback(playback: TimePlayback | null, timeline: boolean): void {
+function assertPlayback(playback: TimePlayback | null): void {
     if (playback === null) {
         return;
     }
@@ -300,11 +297,11 @@ function assertPlayback(playback: TimePlayback | null, timeline: boolean): void 
     }
 
     const { ageFade } = playback;
-    if (timeline && ageFade !== undefined && !(typeof ageFade === "number" && ageFade >= 0 && ageFade <= 1)) {
+    if (ageFade !== undefined && !(typeof ageFade === "number" && ageFade >= 0 && ageFade <= 1)) {
         throw bad("ageFade", ageFade);
     }
 
-    if (timeline && playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {
+    if (playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {
         throw bad("timeZone", playback.timeZone, "time-zone");
     }
 }
@@ -322,7 +319,7 @@ const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
         coalesce: () => "playback",
     },
     execute: (command, ctx) => {
-        assertPlayback(command.playback, ctx.services.visibility?.timeline() !== false);
+        assertPlayback(command.playback);
         ctx.draft.visibility.set("playback", command.playback === null ? null : Object.freeze({ ...command.playback }));
     },
 };

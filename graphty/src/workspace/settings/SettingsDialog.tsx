@@ -33,6 +33,7 @@ import {
     readAuthor,
     readPreference,
     SINGLE_KEY_SHORTCUTS,
+    TIMELINE_STYLE,
     writeAuthor,
     writeFileStylesChoice,
     writePreference,
@@ -82,8 +83,8 @@ function YourName(): React.JSX.Element {
 }
 
 /**
- * General: Your name, Theme (the app's chrome only), Number format, Import styles from files and the map
- * layout's node size rule.
+ * General: Your name, Theme (the app's chrome only), Number format, Default timeline style, Import
+ * styles from files and the map layout's node size rule.
  * @returns The section
  */
 function General(): React.JSX.Element {
@@ -94,6 +95,7 @@ function General(): React.JSX.Element {
     // start screen has no session yet, so there the site's feature list decides, as the element will.
     const { session, store } = useWorkspace();
     const styled = session ? fileStylesOn(session) : siteFileStyles();
+    const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
     const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
     return (
         <Stack gap="md">
@@ -126,6 +128,23 @@ function General(): React.JSX.Element {
                         { value: "period", label: "1,234.5" },
                         { value: "comma", label: "1.234,5" },
                         { value: "space", label: "1 234,5" },
+                    ]}
+                />
+            </Input.Wrapper>
+            <Input.Wrapper
+                label="Default timeline style"
+                description="How a new project draws what lies outside the time window. Hidden leaves it out; Ghost draws it nearly transparent."
+            >
+                <SegmentedControl
+                    value={timelineStyle}
+                    onChange={(value) => {
+                        const next = TIMELINE_STYLE.values.find((v) => v === value) ?? TIMELINE_STYLE.fallback;
+                        setTimelineStyle(next);
+                        writePreference(TIMELINE_STYLE, next);
+                    }}
+                    data={[
+                        { value: "hidden", label: "Hidden" },
+                        { value: "ghost", label: "Ghost" },
                     ]}
                 />
             </Input.Wrapper>

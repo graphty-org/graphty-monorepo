@@ -332,7 +332,10 @@ stopped at its `ready` marker while master was red), and the issue still open. L
 excuse it: `fix attempt`, `inherited`, `reran`, `diagnosis`, `asked session`. A later `stranded branch <b> not
 opened`, `released`, `restarted` or newer `taken` marker does: skip the branch. A tip that moved past the `ready` sha
 is opened only when every commit after that sha is a merge of master, or when the session that owns the issue fails
-the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. Open them oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
+the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. First combine the families of such branches into one
+branch each (issue-round step 1, "Combine finished branches"; a family it claims is marked `taken` at once, so its old
+branches are no longer opened here), then open what is left (never a branch `node tools/issue-groups.mjs check` reports
+`over-cap`) oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
 before any other (the `pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red,
 checked again after each one). `CI_PR_RUN_CAP` already limits how many
 pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);

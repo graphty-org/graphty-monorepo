@@ -987,13 +987,7 @@ export function styleAgreement(
 
         const groups = new Map<string, { index: number; weight: number }>();
         for (const index of indices) {
-            const key = appliesKey(stack, { target, index });
-            const group = groups.get(key);
-            if (group === undefined) {
-                groups.set(key, { index, weight: 1 });
-            } else {
-                group.weight++;
-            }
+            countInGroup(groups, appliesKey(stack, { target, index }), index);
         }
 
         for (const { index, weight } of groups.values()) {
@@ -1464,6 +1458,22 @@ function readsNoData(stack: readonly StackEntry[], own: readonly PreparedBinding
 }
 
 /**
+ * Counts one element into the group of elements the same layers apply to, the first one standing
+ * for the group.
+ * @param groups - The groups by key.
+ * @param key - The element's key ({@link appliesKey}).
+ * @param index - The element.
+ */
+function countInGroup(groups: Map<string, { index: number; weight: number }>, key: string, index: number): void {
+    const group = groups.get(key);
+    if (group === undefined) {
+        groups.set(key, { index, weight: 1 });
+    } else {
+        group.weight++;
+    }
+}
+
+/**
  * Which layers of the stack apply to one element, as a key: equal keys walk alike.
  * @param stack - The stack.
  * @param at - Where the element sits.
@@ -1570,13 +1580,7 @@ export function styleCounts(
             continue;
         }
 
-        const key = appliesKey(stack, { target: layer.target, index });
-        const group = groups.get(key);
-        if (group === undefined) {
-            groups.set(key, { index, weight: 1 });
-        } else {
-            group.weight++;
-        }
+        countInGroup(groups, appliesKey(stack, { target: layer.target, index }), index);
     }
 
     for (const { index, weight } of groups?.values() ?? []) {

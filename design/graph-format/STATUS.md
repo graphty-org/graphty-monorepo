@@ -18,6 +18,14 @@ state" is current. The sections after "Final state of every phase" are the histo
 the graph-format and graph-io implementation and landing (2026-09-13 to 2026-09-18); their version
 numbers and "A1 has not started" are no longer current.
 
+## After the migration (2026-11-16)
+
+The rest of `feat/graph-format-migration` reached master in pull request #607 (merge `f99d5957e9`,
+2026-09-29), and graphty-element 3.0.0, algorithms 3.x and layout 2.x were released from it. The
+statements below that master is still at algorithms 2.1.2, layout 1.10.5 and graphty-element 2.6.2,
+and that no release may be cut from master, no longer hold; each package's `package.json` has its
+current version.
+
 ## Finished state (2026-09-29)
 
 The graph-format migration is complete on `feat/graph-format-migration`, and nothing is left

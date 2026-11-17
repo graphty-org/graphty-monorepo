@@ -51,10 +51,10 @@ import { fetchOpen, queue, trustedText } from "./issue-queue.mjs";
 const REPO = "graphty-org/graphty-monorepo";
 const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
 
-// The cap of a source group; docs and tests groups carry more (CAPS). Provisional: no measurement of first-run
-// failure rates per class existed when they were set (design/ci/issue-grouping.md section 1, "Size cap").
-export const MAX_ISSUES = 4;
-export const MAX_POINTS = 6;
+// The cap of a source group; docs and tests groups carry more (CAPS). Set from the 2026-11-16 measurement of
+// first-run failures per class (design/ci/issue-grouping.md section 1, "Size cap").
+export const MAX_ISSUES = 5;
+export const MAX_POINTS = 8;
 /** Risk classes, least risky first. A group's class is its riskiest member's. */
 export const CLASSES = ["docs", "tests", "source"];
 export const CAPS = {

@@ -72,8 +72,9 @@ export class EventManager implements Manager {
         return this.graphObservable as Observable<GraphErrorEvent>;
     }
 
-    // Track observers for cleanup: each entry removes its own observer from its own observable.
-    private readonly observers = new Map<symbol, { type: "graph" | "node" | "edge"; remove: () => void }>();
+    // Each listener's removal, keyed by the id addListener returned; the closure keeps the
+    // observer paired with the observable it was added to.
+    private readonly observers = new Map<symbol, () => void>();
 
     // Error handling configuration
     private readonly errorRetryCount = 3;
@@ -93,7 +94,7 @@ export class EventManager implements Manager {
      */
     dispose(): void {
         // Clear all observers
-        for (const { remove } of this.observers.values()) {
+        for (const remove of this.observers.values()) {
             remove();
         }
         this.observers.clear();
@@ -577,10 +578,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "graph",
-                    remove: () => this.graphObservable.remove(observer),
-                });
+                this.observers.set(id, () => this.graphObservable.remove(observer));
                 break;
             }
 
@@ -596,10 +594,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "node",
-                    remove: () => this.nodeObservable.remove(observer),
-                });
+                this.observers.set(id, () => this.nodeObservable.remove(observer));
                 break;
             }
 
@@ -611,10 +606,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "edge",
-                    remove: () => this.edgeObservable.remove(observer),
-                });
+                this.observers.set(id, () => this.edgeObservable.remove(observer));
                 break;
             }
 
@@ -634,12 +626,12 @@ export class EventManager implements Manager {
      * @returns True if listener was removed, false if not found
      */
     removeListener(id: symbol): boolean {
-        const entry = this.observers.get(id);
-        if (!entry) {
+        const remove = this.observers.get(id);
+        if (!remove) {
             return false;
         }
 
-        entry.remove();
+        remove();
         this.observers.delete(id);
         return true;
     }

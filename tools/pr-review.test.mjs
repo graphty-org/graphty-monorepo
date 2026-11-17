@@ -336,7 +336,8 @@ describe("pr-review.sh", () => {
     });
 
     // #5083: test-integrity findings are answered by this review, bound to the head, one marker per cleared finding.
-    it("hands the reviewer each test-integrity finding and records the ones it cleared for this head", () => {
+    // Gives the branch two test-integrity findings (tests -1 and assertions -1) and returns its head.
+    const twoIntegrityFindings = () => {
         git(work, "checkout", "-q", "master");
         const TEST = 'it("a", () => { expect(1).toBe(1); });\nit("b", () => { expect(2).toBe(2); });\n';
         writeFileSync(join(work, "a.test.mjs"), TEST);
@@ -347,17 +348,48 @@ describe("pr-review.sh", () => {
         git(work, "merge", "-q", "--no-edit", "origin/master");
         writeFileSync(join(work, "a.test.mjs"), TEST.split("\n")[0] + "\n");
         git(work, "commit", "-q", "-am", "test: drop b");
-        const head = git(work, "rev-parse", "HEAD").trim();
+        return git(work, "rev-parse", "HEAD").trim();
+    };
+    const promptFindings = () => {
+        const [, list] = readFileSync(promptLog, "utf8").split(
+            /^===== TEST-INTEGRITY FINDINGS \[[0-9a-f]{16}\] =====\n/m,
+        );
+        return [...list.matchAll(/^\d+\. (.*)$/gm)].map((m) => m[1]);
+    };
+
+    // #8593: "- **Integrity 1: cleared.**" wrote no marker, so a review that cleared every finding still blocked.
+    it("reads an integrity answer written plain, as a list item or in bold", () => {
+        const head = twoIntegrityFindings();
+        let r = run(
+            undefined,
+            "- **Integrity 1: cleared.** moved\nIntegrity 2: cleared -- gone\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 0, r.out);
+        const [first, second] = promptFindings();
+        let report = readFileSync(reportPath(), "utf8");
+        assert.ok(report.includes(`<!-- integrity-cleared ${head} ${findingId(first)} -->`), report);
+        assert.ok(report.includes(`<!-- integrity-cleared ${head} ${findingId(second)} -->`), report);
+        // a bulleted bold "not cleared" still blocks, and never reads as "cleared"
+        r = run(
+            ["--proof", proof, "--again"],
+            "- **Integrity 1: cleared.** moved\n* **Integrity 2: not cleared.** gone\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        report = readFileSync(reportPath(), "utf8");
+        assert.ok(report.includes(findingId(first)), report);
+        assert.ok(!report.includes(findingId(second)), "the uncleared finding has no marker");
+    });
+
+    it("hands the reviewer each test-integrity finding and records the ones it cleared for this head", () => {
+        const head = twoIntegrityFindings();
         // tests -1 and assertions -1; the reviewer clears the first only
         let r = run(
             undefined,
             "Integrity 1: cleared -- moved\nIntegrity 2: not cleared -- gone\n\nBlocking findings: 0",
         );
         assert.equal(r.code, 3, r.out);
-        const prompt = readFileSync(promptLog, "utf8");
-        const [, list] = prompt.split(/^===== TEST-INTEGRITY FINDINGS \[[0-9a-f]{16}\] =====\n/m);
-        const found = [...list.matchAll(/^\d+\. (.*)$/gm)].map((m) => m[1]);
-        assert.equal(found.length, 2, list);
+        const found = promptFindings();
+        assert.equal(found.length, 2, found.join("\n"));
         const report = readFileSync(reportPath(), "utf8").split("\n");
         assert.equal(report[1], `<!-- integrity-review ${head} -->`);
         assert.equal(report[2], `<!-- integrity-cleared ${head} ${findingId(found[0])} -->`);

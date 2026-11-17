@@ -298,11 +298,16 @@ claude -p --output-format text \
     <"$prompt" >"$out" || die "claude -p failed (exit $?)"
 n=$(verdict "$out")
 [ -n "$n" ] || die "the review ended without a 'Blocking findings: N' line; its output is not a verdict"
+# The start of an answer line, "<label>:" then space: an answer may be written as a list item (-, * or +) and in bold
+# or emphasis, "- **Member #N:** addressed" or "- **Integrity N: cleared.**". The word right after the colon decides,
+# so "not addressed" never reads as "addressed" and "not cleared" never as "cleared".
+answer() { printf '^[[:space:]]*([-*+][[:space:]]+)?(\\*\\*?|__?)?%s:(\\*\\*?|__?)?[[:space:]]+' "$1"; }
 # One marker per finding the reviewer cleared; one it did not clear counts as blocking.
 cleared=() uncleared=0
 for i in "${!findings[@]}"; do
     # cleared only when answered so and never also "not cleared"
-    if grep -qE "^Integrity $((i + 1)): cleared\b" "$out" && ! grep -qE "^Integrity $((i + 1)): not cleared\b" "$out"; then
+    a=$(answer "Integrity $((i + 1))")
+    if grep -qE "${a}cleared\b" "$out" && ! grep -qE "${a}not cleared\b" "$out"; then
         cleared+=("<!-- integrity-cleared $head $(printf '%s' "${findings[$i]}" | sha256sum | cut -c1-16) -->")
     else
         uncleared=$((uncleared + 1))
@@ -310,12 +315,10 @@ for i in "${!findings[@]}"; do
 done
 # Each issue the pull request would close must be answered "addressed", and never also "not addressed". One that is
 # not gets a marker tools/pr-open.sh refuses even with --review-answered: merging would close it unfixed.
-# An answer may be written as a list item (-, * or +) and in bold: "- **Member #N:** addressed". The word right after
-# the colon decides, so "not addressed" never reads as "addressed".
 unaddressed=()
 for m in "${closing[@]}"; do
-    answer="^[[:space:]]*([-*+][[:space:]]+)?(\*\*)?Member #$m:(\*\*)?[[:space:]]+"
-    if ! grep -qE "${answer}addressed\b" "$out" || grep -qE "${answer}not addressed\b" "$out"; then
+    a=$(answer "Member #$m")
+    if ! grep -qE "${a}addressed\b" "$out" || grep -qE "${a}not addressed\b" "$out"; then
         uncleared=$((uncleared + 1))
         unaddressed+=("<!-- member-not-addressed $m -->")
     fi

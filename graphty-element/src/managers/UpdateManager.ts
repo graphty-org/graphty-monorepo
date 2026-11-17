@@ -66,6 +66,9 @@ interface FramingBox {
     spots: FramingSpot[];
 }
 
+/** A framing box's corners alone, kept after a fit to tell whether the extent moved. */
+type FittedBox = Pick<FramingBox, "min" | "max">;
+
 /**
  * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
@@ -276,7 +279,7 @@ const MAX_LABEL_FIT_ROUNDS = 32;
  * @param b - The other.
  * @returns True when no corner moved by more than that.
  */
-function sameBox(a: FramingBox, b: FramingBox): boolean {
+function sameBox(a: FittedBox, b: FittedBox): boolean {
     const tolerance = Math.max(Vector3.Distance(a.min, a.max), Vector3.Distance(b.min, b.max)) * 1e-9;
     return Vector3.Distance(a.min, b.min) <= tolerance && Vector3.Distance(a.max, b.max) <= tolerance;
 }
@@ -1616,8 +1619,11 @@ export class UpdateManager implements Manager {
     /** {@link UpdateManager.labelPasses} as the last fit measured them. */
     private fitLabelPasses = 0;
 
-    /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
-    private fittedBox: FramingBox | undefined;
+    /**
+     * The corners of the box the last fit framed, before any map grew it; see
+     * {@link UpdateManager.noteRepaintedExtent}. Only the corners: the box's spots are one per node.
+     */
+    private fittedBox: FittedBox | undefined;
 
     /** Whether a node repaint was applied since the last fit, before its picture was final. */
     private repaintedSinceFit = false;
@@ -4701,7 +4707,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
-        this.fittedBox = framed;
+        this.fittedBox = { min: framed.min, max: framed.max };
         this.fitLabelPasses = this.labelPasses();
         this.fitExtentMoved = false;
         this.repaintedSinceFit = false;

@@ -1920,6 +1920,7 @@ jobs:
                       tools/release-held.sh
                       tools/gpu-runner-lost.sh
                       tools/release-status.mjs
+                      tools/lib/github.mjs
                   sparse-checkout-cone-mode: false
 
             - name: Open or update the held-release issue

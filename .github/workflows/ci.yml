@@ -160,7 +160,9 @@ jobs:
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/ci-run-cap.mjs
+                  sparse-checkout: |
+                      tools/ci-run-cap.mjs
+                      tools/lib/github.mjs
                   sparse-checkout-cone-mode: false
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions

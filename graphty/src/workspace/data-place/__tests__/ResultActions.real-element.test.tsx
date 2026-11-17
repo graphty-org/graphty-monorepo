@@ -23,10 +23,15 @@ import { Workspace } from "../../Workspace";
 withFeatures([]);
 
 /**
- * The workspace on Les Miserables, with one finished PageRank result.
+ * The workspace on Les Miserables, with one finished result.
+ * @param algorithm - the result's algorithm.
+ * @param params - its settings.
  * @returns the session and the result's id.
  */
-async function withResult(): Promise<{ session: GraphSession; id: string }> {
+async function withResult(
+    algorithm: string,
+    params: Record<string, unknown> = {},
+): Promise<{ session: GraphSession; id: string }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
@@ -39,7 +44,7 @@ async function withResult(): Promise<{ session: GraphSession; id: string }> {
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-    const run = session.runs.start("pagerank", {});
+    const run = session.runs.start(algorithm, params);
     await run;
     await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
     return { session, id: run.id };
@@ -67,7 +72,7 @@ async function pick(id: string, item: string): Promise<void> {
 
 describe("a result row's Copy items", () => {
     it("copy the result as TSV at full precision, as JSON, as a command, as methods text and as member ids", async () => {
-        const { session, id } = await withResult();
+        const { session, id } = await withResult("pagerank");
         const run = session.runs.get(id);
         const result = run?.result;
         assert.isDefined(result);
@@ -107,18 +112,24 @@ describe("a result row's Copy items", () => {
 
 describe("a result row's Run again with changes...", () => {
     it("opens Analyze on the result's algorithm, and a changed setting's Run adds a second result", async () => {
-        const { session, id } = await withResult();
+        const { session, id } = await withResult("katz", { alpha: 0.01 });
 
         await pick(id, "Run again with changes");
-        // Its own settings, unchanged, are up to date; a changed one runs.
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for PageRank" }));
-        const damping = await screen.findByRole("spinbutton", { name: /^Damping factor/ });
-        await userEvent.tripleClick(damping);
-        await userEvent.keyboard("0.5{Tab}");
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        // It opens with the result's own settings (the button says it holds set values); unchanged
+        // they are up to date, and a changed one runs.
+        await userEvent.click(await screen.findByRole("button", { name: /^Settings for Katz.+/ }));
+        const attenuation = await screen.findByRole("spinbutton", { name: /^Attenuation/ });
+        await userEvent.tripleClick(attenuation);
+        await userEvent.keyboard("0.02{Tab}");
+        // Named for the result it paints over: "Update Katz layer" while that layer shows.
+        await userEvent.click(await screen.findByRole("button", { name: /^Update Katz layer/ }));
 
         await waitFor(() => {
-            assert.strictEqual(session.runs.list().filter((each) => each.algorithm === "pagerank").length, 2);
+            const katz = session.runs.list().filter((each) => each.algorithm === "katz");
+            assert.deepEqual(
+                katz.map((each) => each.params.alpha),
+                [0.01, 0.02],
+            );
         });
     });
 });

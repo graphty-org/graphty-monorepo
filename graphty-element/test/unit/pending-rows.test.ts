@@ -116,4 +116,29 @@ describe("PendingRows", () => {
             assert.equal(rows.has(row), model.has(row), `row ${row}`);
         }
     });
+
+    it("lets go of the arrays a large queue grew once it is drained, and grows them again", () => {
+        const rows = new PendingRows();
+        const empty = rows.bytes;
+        for (let row = 0; row < 100_000; row++) {
+            rows.add(row);
+        }
+
+        assert.isAbove(rows.bytes, 100_000 * 5, "a byte and a slot per row while they wait");
+        rows.take(60_000);
+        assert.isAbove(rows.bytes, 100_000 * 5, "kept while rows still wait");
+        assert.strictEqual(rows.take(Infinity).length, 40_000);
+        assert.strictEqual(rows.bytes, empty, "drained: back to an empty queue's size");
+
+        rows.add(99_999);
+        rows.add(3);
+        assert.deepEqual(rows.take(10), [99_999, 3]);
+        for (let row = 0; row < 1000; row++) {
+            rows.add(row);
+        }
+
+        rows.clear();
+        assert.strictEqual(rows.bytes, empty, "cleared: the same");
+        assert.isFalse(rows.has(5));
+    });
 });

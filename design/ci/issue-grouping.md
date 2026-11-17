@@ -19,9 +19,11 @@ fidelity issues (the yEd, Cytoscape, vis-network, Graphviz and Pajek comparisons
 files under `graphty-element/test/fidelity/`) collided in CI on 2026-11-15, and on 2026-11-16 most queued issues sat
 blocked because an open pull request touched their files. Meanwhile 70 of 73 jobs on 2026-11-15 were single issues.
 
-The aim is fewer concurrent edits to the same lines, not bigger pull requests. Most collisions are on a handful of
-**hub files** (`Graph.ts`, `doors.ts` and similar); splitting those files is a separate piece of work with its own
-measure.
+The aim is throughput: more issues per pull request and per CI run (owner, 2026-11-16: grouping is a throughput
+multiplier, not a safety check), with fewer concurrent edits to the same lines as a side effect. Risk sets how far
+that goes: a group of documentation changes can be large, a group of source changes stays small (the size cap
+below). Most collisions are on a handful of **hub files** (`Graph.ts`, `doors.ts` and similar); splitting those
+files is a separate piece of work with its own measure.
 
 ## 1. The rubric: when issues are fixed together
 
@@ -50,9 +52,23 @@ A group of two or more issues may be opened only when `tools/pr-open.sh` writes 
 (below), and `issue-groups.mjs jobs` enforces it. Both scripts are owner-guarded, so this change is the owner's to
 merge (section 8).
 
-### Inclusion: an issue joins a group when one test holds against the lead
+### Risk classes
 
-Tests are tried in order; the first that holds is the reason written in the ledger.
+What a change touches sets its class:
+
+- **docs:** only Markdown, `design/` files, READMEs, doc comments and code comments;
+- **tests:** only test files, fixtures and test helpers (with or without docs);
+- **source:** anything else.
+
+`issue-groups.mjs` reads the class from file paths (a path under `test/`, `tests/` or `fixtures/`, a `*.test.*` or
+`*.spec.*` file, a test helper); a change to comments inside a source file looks like source from its path, so the
+scan declares it (`class` on the member). A group's class is its riskiest member's class.
+
+### Inclusion: an issue joins a group when one test holds against any member
+
+Tests are tried in order; the first that holds is written in the ledger with the member it holds against (`with`;
+the lead when none is named). Each member records its own reason -- its test, that member and its own words -- never
+the group's summary: a scan member without a reason of its own starts a group of its own.
 
 - **T1 Subset.** One issue's failures are contained in the other's, and the same diff fixes both. If the smaller
   issue needs code of its own, it is not T1. A T1 member is a **fold**.
@@ -63,11 +79,15 @@ Tests are tried in order; the first that holds is the reason written in the ledg
 - **T4 Same proof.** Both fixes must change the same test cases, fixture or record entries (the same oracle program
   and the same sample and property rows). The same test file alone is not enough.
 - **T5 Same document.** Both change only documentation (`design/`, docs, READMEs), in the same file or the same
-  `design/` subdirectory. Comments in code never count.
+  `design/` subdirectory.
+- **T6 Same package, low risk.** Both are docs or tests changes (above) to the same package, the same `design/`
+  subfolder or the same `tools/` subfolder. T6 never holds in a source group, so a source issue cannot join a group
+  that holds by T6.
 
 A triage issue's list never satisfies T1 or T4. A member from a different package is allowed only through T1 or T2.
 
-**Never enough on their own:** the same topic, outcome, package, label or oracle program ("both are fidelity");
+**Never enough on their own** for source changes: the same topic, outcome, package, label or oracle program ("both
+are fidelity");
 a shared hub or registry file (the collision check handles those); the same record file with different entries
 (that is a lane, not a group).
 
@@ -92,11 +112,19 @@ A regression from any member reverts the whole group, which is why the size is c
 
 ### Size cap
 
-At most **4 issues and 6 effort points** (`effort:low` 1, `medium` 2, `high` 3, unlabelled 2). A triage lead counts
-as one issue with its full points. A T1 fold counts 0 points but still counts as an issue. Four is the long-standing
-job limit; at the 75th percentile groups of 2 to 4 took 3.2 hours to merge against 1.5 hours for one issue. Six
-points is about what one subagent context and one review hold. Never wait to fill a group: the median time from
-opening to master is 26 minutes.
+| Class  | Issues | Effort points |
+| ------ | ------ | ------------- |
+| docs   | 10     | no cap        |
+| tests  | 8      | 12            |
+| source | 4      | 6             |
+
+Points: `effort:low` 1, `medium` 2, `high` 3, unlabelled 2. A triage lead counts as one issue with its full points. A
+T1 fold counts 0 points but still counts as an issue. The source cap is the long-standing job limit: at the 75th
+percentile groups of 2 to 4 took 3.2 hours to merge against 1.5 hours for one issue, and six points is about what one
+subagent context and one review hold. The docs and tests caps are **provisional**: no measurement of how often a
+first CI run fails on its own change, per class, existed when they were set (2026-11-16); they are revised from that
+measurement and from the per-class guardrails (section 9). Never wait to fill a group: the median time from opening
+to master is 26 minutes.
 
 ### Ties and doubt
 
@@ -106,9 +134,10 @@ of every member, a missed one costs one more pull request.
 
 ### Why locality
 
-Code-locality tests won over "same outcome plus same reviewer context" because collisions, not topics, slow pull
-requests down, and because locality can be checked in under a minute. Documentation (T5) is the exception: it
-rarely conflicts in meaning.
+For source changes, code-locality tests won over "same outcome plus same reviewer context" because collisions, not
+topics, slow pull requests down, and because locality can be checked in under a minute. Documentation and test-only
+changes (T5, T6) rarely conflict in meaning and rarely break master, so for them the same package or folder is
+enough.
 
 ### Worked examples (queue of 2026-11-16)
 
@@ -155,27 +184,29 @@ reader picks the same newest marker.
 
 ### Commands
 
-| Command                                                            | What it does                                                                                                |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `seed <file> [--force]`                                            | loads a ledger file (the first ledger, or a rebuilt one); refuses one that puts an issue in two live groups |
-| `show [<group>\|<issue>] [--json]`                                 | one group, the group holding an issue with its waits, or the summary line                                   |
-| `create <lead> [<n>:<test>...] --why <reason> [--files <path>...]` | a proposed group                                                                                            |
-| `add <group> <n> --test <T#>`                                      | a member for a proposed group, or a join to a ready branch                                                  |
-| `route <n> [--to <group> --test <T#> [--join]] [--why <reason>]`   | puts a new issue where the target's state says (section 3)                                                  |
-| `import-scan [<free-queue.json>]`                                  | replaces the proposed groups with the free-queue scan's jobs, and keeps the scan's blocked list             |
-| `start <group> <branch> <n>...`                                    | the job took these issues of the group; the other members stay proposed under the group's id                |
-| `ready`, `freeze`, `close --merged\|--unmerged`, `release`, `wait` | the state changes of section 4                                                                              |
-| `archive`, `compact`                                               | bounded growth (section 6)                                                                                  |
-| `check [--fix] [--json]`                                           | drift against GitHub (section 4)                                                                            |
-| `jobs [--json]`                                                    | the jobs issue-round may start, from the ledger                                                             |
-| `metrics [--append] [--json]`                                      | throughput and guardrails (section 9)                                                                       |
+| Command                                                                                     | What it does                                                                                                |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `seed <file> [--force]`                                                                     | loads a ledger file (the first ledger, or a rebuilt one); refuses one that puts an issue in two live groups |
+| `show [<group>\|<issue>] [--json]`                                                          | one group, the group holding an issue with its waits, or the summary line                                   |
+| `create <lead> [<n>:<test>[:<with>]...] --why <reason> [--files <path>...] [--class <c>]`   | a proposed group                                                                                            |
+| `add <group> <n> --test <T#> [--with <n>] [--class <c>] [--why <reason>]`                   | a member for a proposed group, or a join to a ready branch                                                  |
+| `route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <reason>]` | puts a new issue where the target's state says (section 3)                                                  |
+| `import-scan [<free-queue.json>]`                                                           | replaces the proposed groups with the free-queue scan's jobs, and keeps the scan's blocked list             |
+| `start <group> <branch> <n>...`                                                             | the job took these issues of the group; the other members stay proposed under the group's id                |
+| `ready`, `freeze`, `close --merged\|--unmerged`, `release`, `wait`                          | the state changes of section 4                                                                              |
+| `archive`, `compact`                                                                        | bounded growth (section 6)                                                                                  |
+| `check [--fix] [--json]`                                                                    | drift against GitHub (section 4)                                                                            |
+| `jobs [--json]`                                                                             | the jobs issue-round may start, from the ledger                                                             |
+| `combine-plan [--link <a>:<b>:<T#>...] [--json]`                                            | families of finished, unopened branches to combine (section 4)                                              |
+| `metrics [--append] [--json]`                                                               | throughput and guardrails (section 9)                                                                       |
 
-`jobs` prints one line per job, `job #a #b <priority> <group> tests a:<test> b:<test> -- <why>; files <path>...`,
-in strict priority order. Members of started, ready, frozen and held groups, members recorded under an exclusion,
-issues with a live wait and follow-up groups whose base is still open are not offered. A top-10 queue issue in no
-group is offered alone as `unscanned` and named on a `rescan:` line, unless the last scan listed it as blocked
+`jobs` prints one line per job, `job #a #b <priority> <group> tests a:<test> b:<test>[@<with>] -- <why>; files
+<path>...`, in strict priority order. Members of started, ready, frozen and held groups, members recorded under an
+exclusion, issues with a live wait and follow-up groups whose base is still open are not offered. A top-10 queue issue
+in no group is offered alone as `unscanned` and named on a `rescan:` line, unless the last scan listed it as blocked
 (owner-only, waiting on a decision, colliding with an open pull request); a ledger whose last scan is over 2 hours old
-also asks for a rescan. While the ledger is empty, `jobs` runs `tools/issue-queue.mjs jobs` instead, so the round works as before.
+also asks for a rescan. While the ledger is empty, `jobs` runs `tools/issue-queue.mjs jobs` instead, so the round works
+as before.
 
 ## 3. Routing a new issue
 
@@ -185,8 +216,8 @@ a new issue is routed one at a time:
 
 1. **Exclusions first.** An owner-only or tracker issue is refused. An X6 or X9 issue gets
    `wait <n> --on <branch or #pr> [--x9 <sha>]` and no group.
-2. **Find the best candidate** by the rubric's tests and tie order, skipping a group the issue was released from or
-   whose wait on it expired.
+2. **Find the best candidate** by the rubric's tests against any member and the tie order, skipping a group the
+   issue was released from or whose wait on it expired; `--with` names the member the test holds against.
 3. **The candidate's state decides** (`route <n> --to <group> --test <T#>`):
     - **proposed:** the issue joins it, within the cap.
     - **ready:** the issue waits, like a started one. It joins the branch only through `route --join`, which the
@@ -223,9 +254,9 @@ another issue.
 - **Split.** A job first checks its group against the code and releases any member the rubric does not hold for
   (`released -- not part of <branch>`). The issue is never routed back to that group. The share released is the
   measure of the rubric's precision.
-- **Merge.** Groups merge only before they start (the scan proposes them as one) and, later, in a lane batch
-  (section 5). When one job took the issues of several groups on one branch (its `taken` marker named them all),
-  `check --fix` folds them into the branch's group.
+- **Merge.** Groups merge before they start (the scan proposes them as one), when finished branches are combined
+  (below) and in a lane batch (section 5). When one job took the issues of several groups on one branch (its `taken`
+  marker named them all), `check --fix` folds them into the branch's group.
 - **A merge** ends every wait on the group and makes its follow-up group startable.
 - **Closing unmerged** dissolves the group and its follow-up group and expires their waits; every issue is routed
   again in the next scan.
@@ -235,14 +266,42 @@ another issue.
   request's fix attempt. An X9 wait ends only when its commit reaches `origin/master`. An X6 wait is a dependency
   and never expires by these rules.
 
-**Following the markers.** `check` compares the ledger with GitHub and lists each difference; `check --fix` applies
-the ones it can: a `taken` marker starts a proposed group, `ready` readies it, `opened` freezes it, a merged or closed
-pull request closes or dissolves it, a `released` member leaves, a closed issue leaves a proposed group, an X9
-commit that landed ends its wait, and an idle red or long-held pull request expires its follow-up waits. A proposed
-member's markers count only while it is labelled `in-progress`, so an old job's markers are history. In a proposed
-group only the members whose own marker names the job's branch move (a `taken` marker is written on every issue of
-its job); the others stay proposed, so a join by one member never drags the rest of its group along. A group over
-the cap, an issue in two groups, an unreadable issue and a branch that differs from the ledger are reported only.
+### Combining finished branches
+
+Finished branches that have not opened (`ready`, no pull request) are combined into one pull request: one CI run instead
+of several. It is a standing step of both rounds, run whenever such branches exist, whatever master's state: while
+master is red they wait anyway, and combined they open as one pull request when it turns green:
+
+1. `node tools/issue-groups.mjs check --fix`, `git fetch origin`, then `node tools/issue-groups.mjs combine-plan`. It
+   lists **families**: ready branches linked because they came from one ledger group, because T6 holds (both docs or
+   tests, same package or folder, read from each branch's diff against master), or by a test the round judged and
+   passed back with `--link <a>:<b>:<T#>` (its `judge` lines name source branches that change the same file). A
+   family stays within its class's cap and never mixes a branch touching `GUARD_PATHS` of `tools/pr-open.sh` with
+   one that does not. It refuses a branch with an open pull request, a red-master fix (its `taken` marker says it
+   fixes the red), a branch whose job is still running (an issue's newest marker is not its `ready`) and a branch
+   whose tip moved past its `ready` commit.
+2. For each family: `./tools/worktree-new.sh <type>/<lead>-batch origin/master <name> --issue <lead>`, then
+   `git merge --no-ff origin/<branch>` for each branch; settle a conflict as the job that wrote it would, or leave
+   that branch out. Run lint and the tests the merged changes touch.
+3. Mark it: `issue-queue.mjs taken <new branch> <worktree> <every issue> --files ... --why "combines <branches>"`,
+   one Proof listing every issue with each old branch's `ready` marker and the new runs, then
+   `pipeline-round: ready <new branch> <sha>` on every issue, and on each old branch's issues
+   `pipeline-round: superseded <old branch> by <new branch>`. Old branches are kept, never deleted (owner standing
+   rule 7); their commits reach master through the merge.
+4. Open it like any ready branch (pipeline-round step 9). The next `check --fix` **folds**: a group whose issues'
+   newest marker names another branch moves its members to that branch's group (made on the first fold), whose
+   aliases keep the old branch names and which takes over waits on them; the old groups are dissolved with
+   `supersededBy` and their history kept.
+
+**Following the markers.** `check` compares the ledger with GitHub and lists each difference; `check --fix` applies the
+ones it can: a `taken` marker starts a proposed group, `ready` readies it, `opened` freezes it, a merged or closed pull
+request closes or dissolves it, a `released` member leaves, a newer marker naming another branch folds a started or
+ready group into that branch's group (combining, above), a closed issue leaves a proposed group, an X9 commit that
+landed ends its wait, and an idle red or long-held pull request expires its follow-up waits. A proposed member's markers
+count only while it is labelled `in-progress`, so an old job's markers are history. In a proposed group only the members
+whose own marker names the job's branch move (a `taken` marker is written on every issue of its job); the others stay
+proposed, so a join by one member never drags the rest of its group along. A group over the cap, an issue in two groups,
+an unreadable issue and a branch that differs from the ledger are reported only.
 
 ## 5. Lanes for record files
 
@@ -269,7 +328,8 @@ then the collision check of the issue-round skill keeps lane branches apart.
 
 ## 6. Bounded growth
 
-- **Size:** at most 4 issues and 6 points per group; trackers never count.
+- **Size:** the class caps of section 1 (source 4 issues and 6 points); trackers never count. A combined branch
+  stays within its family's class cap.
 - **Joins:** a ready branch takes at most 2 joins over its life.
 - **Follow-ups:** a frozen group has at most one follow-up group, which itself grows only to the cap; it gets its
   own follow-up only once it is frozen.
@@ -295,13 +355,15 @@ flakiness improving.
 
 **Decision:** no stacking. Every branch is cut from master and every pull request targets master. Issues are added
 only to unopened branches, through the join. An issue that matches an opened pull request goes to its follow-up
-group. The lane batch is the only multi-branch merge, and it produces a new branch from master.
+group. Combining finished branches (section 4) and the lane batch are the only multi-branch merges, and each produces
+a new branch from master.
 
 ## 8. What is built and what comes next
 
 Built (`tools/issue-groups.mjs`, tests in `tools/issue-groups.test.mjs`): the ledger, its lock, every state change,
-routing, follow-up groups and waits, `check --fix` against markers and pull requests, `jobs`, `import-scan`,
-archive and compact, and `metrics`. The issue-round and pipeline-round skills call it.
+routing against any member, risk classes and their caps, follow-up groups and waits, `check --fix` against markers
+and pull requests (folding combined branches), `jobs`, `import-scan`, `combine-plan`, archive and compact, and
+`metrics` per class. The issue-round and pipeline-round skills call it.
 
 Still to build, in this order:
 
@@ -341,8 +403,10 @@ after 00:00 Pacific appends `metrics --append` to `tmp/issue-round/grouping-metr
 | Members released as `not part of`       | 15% or less of members                              |
 | Waits older than 24 hours (X9 excluded) | 0                                                   |
 
-`metrics` lists any breach. **One breach:** issue-round files a `priority:high` issue naming it; its fix lowers the
-cap from 4 issues and 6 points to 3 and 4. **Two breaches in a week:** that issue becomes `priority:critical` and the
-rounds group only T1 folds until it closes. Reverts caused by a member's fix and members reopened within 7 days are
-counted by hand at the day-7 and day-14 reviews, which compare against the baseline; changing a threshold is decided
-and recorded in the day-14 issue.
+The first three apply per class (`metrics` groups each pull request by its ledger group's class; one outside the ledger
+counts as source), each once that class has 20 grouped pull requests. `metrics` lists any breach, named with its class.
+**One breach:** issue-round files a `priority:high` issue naming it; its fix lowers that class's cap by about a quarter
+(source 4 issues and 6 points to 3 and 4). **Two breaches in a week:** that issue becomes `priority:critical` and the
+rounds group that class only by T1 folds until it closes. Reverts caused by a member's fix and members reopened within 7
+days are counted by hand at the day-7 and day-14 reviews, which compare against the baseline; changing a threshold is
+decided and recorded in the day-14 issue.

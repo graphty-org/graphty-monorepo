@@ -199,4 +199,23 @@ describe("session.assets.dropPart", () => {
         assert.strictEqual(await codeOf(session.assets.dropPart("asset:nothing", "tex.png")), "E_MODEL_UNKNOWN_ASSET");
         session.dispose();
     });
+
+    it("takes a part handed over to a waiting model back out in place, keeping its id", async () => {
+        const session = createGraphSession({ workingGraph: false });
+        const files = objSet();
+        const obj = new Map([...files].filter(([name]) => name === "quad.obj"));
+        const waiting = await session.assets.add({ files: obj });
+        assert.strictEqual(waiting.state, "rejected");
+        const mtl = files.get("quad.mtl") as Uint8Array;
+        const supplied = await session.assets.supply(waiting.id, { name: "quad.mtl", file: mtl });
+        assert.strictEqual(supplied.parts?.find((p) => p.name === "quad.mtl")?.state, "found");
+        const again = await session.assets.dropPart(waiting.id, "quad.mtl");
+        assert.strictEqual(again.id, waiting.id, "the same model");
+        assert.strictEqual(again.parts?.find((p) => p.name === "quad.mtl")?.state, "missing");
+        assert.strictEqual(
+            session.assets.find(waiting.id)?.parts?.find((p) => p.name === "quad.mtl")?.state,
+            "missing",
+        );
+        session.dispose();
+    });
 });

@@ -462,12 +462,28 @@ async function readBody(
             const whole = new Uint8Array(await response.arrayBuffer());
             read = { chunks: [whole], total: whole.length };
         } else {
-            read = await readChunks(response.body.getReader(), limits.maxBytes, onChunk);
+            // A stop ends the read itself: a body that does not end with its request (a fetch
+            // stand-in, a service worker's stream) kept the download waiting after it was stopped.
+            const reader = response.body.getReader();
+            const stop = (): void => {
+                reader.cancel().catch(() => undefined);
+            };
+            signal?.addEventListener("abort", stop, { once: true });
+            if (signal?.aborted === true) {
+                stop();
+            }
+            try {
+                read = await readChunks(reader, limits.maxBytes, onChunk);
+            } finally {
+                signal?.removeEventListener("abort", stop);
+            }
         }
     } catch {
         signal?.throwIfAborted();
         refuse("E_MODEL_FETCH", { url: shown, status: null, offline: isOffline() });
     }
+
+    signal?.throwIfAborted();
 
     if (read.total > limits.maxBytes) {
         refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: read.total, limit: limits.maxBytes });

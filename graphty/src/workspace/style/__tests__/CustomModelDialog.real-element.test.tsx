@@ -1009,8 +1009,13 @@ describe("the Load custom model dialog, on the real element", () => {
         const slow = slowFetch(url, quadGlb());
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.hover(within(dialog).getByRole("button", { name: "Choose folder" }));
-        assert.isNotNull(await screen.findByText(/for a model exported with its textures and parts in a folder/));
+        // The browser's own tip on hover: the button's title.
+        const folderButton = within(dialog).getByRole("button", { name: "Choose folder" });
+        await userEvent.hover(folderButton);
+        assert.match(
+            String(folderButton.getAttribute("title")),
+            /for a model exported with its textures and parts in a folder/,
+        );
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
         assert.isNotNull(await within(dialog).findByText("Downloading"));
         await choose(dialog, "Choose file", [quadFile()]);

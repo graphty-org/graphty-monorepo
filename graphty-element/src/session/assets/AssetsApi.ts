@@ -463,8 +463,9 @@ export interface AssetsApi {
      * Take one file back out of a model, for a part handed over by mistake: the model is read
      * again from its other files, as `add` reads a set, so that part is missing again (and asked
      * for, or drawn without, as any missing part). Pictures, `.mtl` files and buffers only; the
-     * model's own file is cleared with `remove`. The model as it was stays held until the caller
-     * removes it.
+     * model's own file is cleared with `remove`. A model still waiting for parts is read again in
+     * place, keeping its id; an accepted one gives a new record, and the model as it was stays
+     * held until the caller removes it.
      * @param ref - What a layer named, or the record's id.
      * @param name - The part's name, as `record.parts` lists it.
      * @returns The model read without it: a new record, waiting for that part.
@@ -2411,8 +2412,29 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             const rest = new Map([...given].filter(([path]) => path !== file));
             const skipped = (entry.held?.skipped ?? entry.record.skipped ?? []).filter((n) => n !== name);
-            // Not filled from the project's pictures: the part taken back would come straight back.
-            return intake(rest, skipped.length === 0 ? {} : { skipped }, main, false, undefined, undefined, false);
+            const options = skipped.length === 0 ? {} : { skipped };
+            const { held } = entry;
+            if (held === undefined) {
+                // Not filled from the project's pictures: the part taken back would come straight back.
+                return intake(rest, options, main, false, undefined, undefined, false);
+            }
+
+            // A model still waiting is read again in place, keeping its id, as `supply` does: the
+            // set without the part is the set it was first added as, whose id it already holds.
+            const settled = await intake(rest, { ...held.options, ...options }, main, false, held.url, entry, false);
+            entry.record = settled;
+            entry.settled = Promise.resolve(settled);
+            if (settled.state === "accepted") {
+                // The part taken back was one it never needed.
+                entry.given = rest;
+                delete entry.held;
+                entries.set(settled.id, entry);
+                return settled;
+            }
+
+            entry.held = { ...held, given: rest, skipped };
+            await summarizeHeld(entry);
+            return settled;
         },
 
         async offer(files, options = {}) {

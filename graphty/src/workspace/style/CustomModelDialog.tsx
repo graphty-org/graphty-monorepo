@@ -1250,8 +1250,11 @@ export function CustomModelDialog({
         }
         try {
             const after = await session.assets.dropPart(refOf(held), part);
-            added.current.add(after.id);
-            letGo(refOf(held));
+            // A waiting model is read again in place; an accepted one comes back as a new one.
+            if (after.id !== held.record.id) {
+                added.current.add(after.id);
+                letGo(refOf(held));
+            }
             setMembers((now) => now.map((m) => (m === current ? { ...m, held: { record: after } } : m)));
             say(CUSTOM_MODEL.removed(part.split("/").pop() ?? part));
         } catch (error) {

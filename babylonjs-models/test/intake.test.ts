@@ -319,6 +319,29 @@ describe("fetching a model by URL", () => {
         );
     });
 
+    it("stops reading a body that does not end with its request when the caller stops", async () => {
+        vi.stubGlobal("fetch", () =>
+            Promise.resolve({
+                ok: true,
+                status: 200,
+                redirected: false,
+                url: `${BASE}cube.glb`,
+                headers: { get: () => null },
+                // A stream that never ends and ignores the request's signal.
+                body: new ReadableStream<Uint8Array>(),
+                arrayBuffer: () => new Promise<ArrayBuffer>(() => undefined),
+            }),
+        );
+        const stop = new AbortController();
+        const fetching = fetchModelSet(new URL(`${BASE}cube.glb`), DEFAULT_MODEL_LIMITS, stop.signal);
+        stop.abort(new Error("stopped"));
+        const error = await fetching.then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        assert.strictEqual((error as Error).message, "stopped");
+    });
+
     it("says a web page is not a model, and names the raw file behind a GitHub page without fetching", async () => {
         serve({ [`${BASE}cube.glb`]: { bytes: new TextEncoder().encode("\n  <!DOCTYPE html><html></html>") } });
         assert.strictEqual(

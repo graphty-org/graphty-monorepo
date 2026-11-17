@@ -282,6 +282,25 @@ describe("model variant words", () => {
         const value = (name: string): string | undefined => rows.find((row) => row.name === name)?.value;
         assert.equal(value("Animations"), "Walk, 2.0 s");
         assert.equal(value("Textures"), "3, 2.0 MB");
+        const summary = {
+            format: "babylon",
+            triangles: 474,
+            meshes: 5,
+            materials: [],
+            textures: 2,
+            textureBytes: 12,
+            upAxis: "y",
+            animations: [],
+            pictures: [],
+            skinned: false,
+            morphTargets: 0,
+            transparent: false,
+            extensionsRequired: [],
+        } as const;
+        const textures = (waiting: Parameters<typeof CUSTOM_MODEL.detailRows>[3]): string | undefined =>
+            CUSTOM_MODEL.detailRows(summary, undefined, [], waiting).find((row) => row.name === "Textures")?.value;
+        assert.equal(textures({ count: 0, downloading: false, skipped: 2 }), "2, 2 skipped", "no size for stand-ins");
+        assert.equal(textures({ count: 2, downloading: false }), "2, 2 missing");
         assert.equal(rows.find((row) => row.name === "Materials")?.tip, "Glass");
         assert.equal(value("Extensions ignored"), "KHR_materials_transmission");
         assert.equal(value("Skinned"), "Yes");

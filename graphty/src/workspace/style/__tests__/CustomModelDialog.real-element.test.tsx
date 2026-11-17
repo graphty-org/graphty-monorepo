@@ -142,6 +142,32 @@ function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) 
     return state;
 }
 
+/**
+ * Serves police.glb at an address at once, and its picture as a download that never arrives:
+ * the model is shown while its picture still downloads, until Add or Cancel load stops it.
+ * @param base - the folder's address, ending in a slash.
+ * @returns whether the picture's download was stopped.
+ */
+async function policeWaitingForPicture(base: string): Promise<{ stopped: boolean }> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const original = globalThis.fetch.bind(globalThis);
+    const state = { stopped: false };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        if (to === `${base}police.glb`) {
+            return Promise.resolve(new Response(police, { status: 200 }));
+        }
+        if (to === `${base}Textures/colormap.png`) {
+            init?.signal?.addEventListener("abort", () => {
+                state.stopped = true;
+            });
+            return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
+        }
+        return original(input, init);
+    });
+    return state;
+}
+
 describe("the Load custom model dialog, on the real element", () => {
     it("adds the car kit's folder to the project from the Main menu, changing no layer", async () => {
         const { session, tab, store } = await openShapes();
@@ -263,13 +289,14 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(position.textContent, "1 of 3");
         assert.equal(label.textContent, "police", "the box names the model it shows");
         assert.isTrue(within(dialog).getByTestId("model-preview").contains(label), "the name sits on the box");
-        // The arrows sit directly under the box they step through, above Name and Details.
+        // Details sit directly under the box (#8606); the arrows that step it come next, above Name.
         const box = within(dialog).getByTestId("model-preview");
         const steps = position.closest(".ws-model-steps");
         assert.isNotNull(steps);
-        assert.equal(box.nextElementSibling, steps, "the arrows are the box's next sibling");
+        const under = box.nextElementSibling;
+        assert.isTrue(under?.classList.contains("ws-model-details-box"), "Details is the box's next sibling");
+        assert.equal(under?.nextElementSibling, steps, "and the arrows come after Details");
         assert.isAtLeast(steps.getBoundingClientRect().top, box.getBoundingClientRect().bottom, "under the box");
-        assert.isBelow(steps.getBoundingClientRect().top - box.getBoundingClientRect().bottom, 12, "directly");
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "quad");
@@ -753,7 +780,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(table).queryByRole("group", { name: "Animations" }), "only what the file has");
     });
 
-    it("draws Name under the model and Details under Name, with no blank column beside them", async () => {
+    it("draws Details directly under the model and Name under Details, with no blank column beside them (#8606)", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
@@ -766,8 +793,8 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(dialog).queryByTestId("model-variant"), "no file type line");
         const nameRow = within(dialog).getByRole("textbox", { name: "Name" }).closest(".ws-model-name");
         assert.isNotNull(nameRow);
-        assert.equal(preview.nextElementSibling, nameRow, "Name is the model's next sibling");
-        assert.equal(nameRow.nextElementSibling, details, "and Details comes next");
+        assert.equal(preview.nextElementSibling, details, "Details is the model's next sibling");
+        assert.equal(details.nextElementSibling, nameRow, "and Name comes next");
         /**
          * Where the file, the model, Name and Details are drawn now.
          * @returns their boxes.
@@ -779,11 +806,11 @@ describe("the Load custom model dialog, on the real element", () => {
             under: details.getBoundingClientRect(),
         });
         const assertStacked = ({ box, name, under }: ReturnType<typeof boxes>, where: string): void => {
-            assert.isAtLeast(name.top, box.bottom, `Name is below the model (${where})`);
-            assert.isBelow(name.top - box.bottom, 12, `directly below it (${where})`);
-            assert.isAtLeast(name.left, box.left - 1, `in the model's column (${where})`);
-            assert.isAtLeast(under.top, name.bottom, `Details is below Name (${where})`);
+            assert.isAtLeast(under.top, box.bottom, `Details is below the model (${where})`);
+            assert.isBelow(under.top - box.bottom, 12, `directly below it (${where})`);
             assert.isAtLeast(under.left, box.left - 1, `in the model's column (${where})`);
+            assert.isAtLeast(name.top, under.bottom, `Name is below Details (${where})`);
+            assert.isAtLeast(name.left, box.left - 1, `in the model's column (${where})`);
         };
         // Settings closed and one file: nothing sits beside the model, so it takes the whole width
         // under the file rather than leaving a blank column.
@@ -794,7 +821,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const drawing = preview.querySelector(".ws-model-live")?.getBoundingClientRect();
         assert.isAtLeast(drawing?.height ?? 0, 238, "drawn no smaller than in the side column");
         assert.isBelow(Math.abs((drawing?.width ?? 0) - (drawing?.height ?? 0)), 2, "and square");
-        assert.isAbove(closed.under.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
+        assert.isAbove(closed.name.bottom - body.top, (footer.top - body.top) * 0.8, "it fills the body");
         // Settings open: they sit left, under the file, and the model with its Name and Details right.
         const rows = await openSettings(dialog);
         const open = boxes();
@@ -1013,23 +1040,8 @@ describe("the Load custom model dialog, on the real element", () => {
 
     it("shows, sets up and adds a model by address while its picture still downloads (#8614)", async () => {
         const base = "https://models.example.com/kit/";
-        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
-        const original = globalThis.fetch.bind(globalThis);
-        let stopped = false;
         // The model arrives at once; its picture never does, until Add stops it.
-        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-            const to = input instanceof Request ? input.url : String(input);
-            if (to === `${base}police.glb`) {
-                return Promise.resolve(new Response(police, { status: 200 }));
-            }
-            if (to === `${base}Textures/colormap.png`) {
-                init?.signal?.addEventListener("abort", () => {
-                    stopped = true;
-                });
-                return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
-            }
-            return original(input, init);
-        });
+        const served = await policeWaitingForPicture(base);
         const { session } = await openShapes();
         const dialog = await fromMenu();
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
@@ -1053,7 +1065,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await addModel(dialog, "Add to project");
         await waitFor(() => {
             assert.include(models(session), "police.glb");
-            assert.isTrue(stopped, "the picture's download stopped");
+            assert.isTrue(served.stopped, "the picture's download stopped");
         });
         const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90, "with what the reader set meanwhile");
@@ -1061,22 +1073,7 @@ describe("the Load custom model dialog, on the real element", () => {
 
     it("keeps a model by address when Cancel load stops only its pictures, and adds it without them", async () => {
         const base = "https://models.example.com/stop/";
-        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
-        const original = globalThis.fetch.bind(globalThis);
-        let stopped = false;
-        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-            const to = input instanceof Request ? input.url : String(input);
-            if (to === `${base}police.glb`) {
-                return Promise.resolve(new Response(police, { status: 200 }));
-            }
-            if (to === `${base}Textures/colormap.png`) {
-                init?.signal?.addEventListener("abort", () => {
-                    stopped = true;
-                });
-                return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
-            }
-            return original(input, init);
-        });
+        const served = await policeWaitingForPicture(base);
         const { session, store } = await openShapes();
         const dialog = await fromMenu();
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
@@ -1084,10 +1081,11 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
         await waitFor(() => {
-            assert.isTrue(stopped, "the picture's download stopped");
+            assert.isTrue(served.stopped, "the picture's download stopped");
             assert.isNull(within(dialog).queryByRole("button", { name: "Cancel load" }), "nothing loads now");
         });
         assert.match(store.get().announcement, /^Stopped loading/);
+        assert.match(within(dialog).getByTestId("model-stopped").textContent, /^Stopped loading police/, "and shown");
         await previewOf(dialog, "police");
         const files = within(dialog).getByRole("region", { name: "Files" });
         assert.isNull(within(files).queryByText("Downloading"), "the picture is no longer downloading");
@@ -1152,17 +1150,109 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.lengthOf(finished, 0, "the model with cube.mtl is let go");
     });
 
-    it("adds a model once for a double click on Add", async () => {
-        const { session, tab } = await openShapes();
-        const dialog = await openCustom(tab);
-        await choose(dialog, "Choose file", [quadFile()]);
-        await previewOf(dialog, "quad");
+    it("takes both pictures of a model by address out with their x's, pressed at once, and adds one model without them (#8613)", async () => {
+        const base = "https://models.example.com/two/";
+        const site = new Map<string, Uint8Array<ArrayBuffer>>([
+            [
+                `${base}pair.obj`,
+                new TextEncoder().encode(
+                    "mtllib pair.mtl\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nusemtl a\nf 1 2 3\nusemtl b\nf 1 3 4\n",
+                ),
+            ],
+            [`${base}pair.mtl`, new TextEncoder().encode("newmtl a\nmap_Kd a.png\nnewmtl b\nmap_Kd b.png\n")],
+            [`${base}a.png`, dotPng()],
+            [`${base}b.png`, dotPng()],
+        ]);
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            const body = site.get(to);
+            return body === undefined ? original(input, init) : Promise.resolve(new Response(body, { status: 200 }));
+        });
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}pair.obj`);
+        await userEvent.tab();
+        await previewOf(dialog, "pair");
+        const textured = session.assets.list().find((r) => r.path === "pair.obj" && r.state === "accepted");
+        assert.isDefined(textured);
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        // Settings closed: the model and its Files side by side, the model larger than a 240 px column.
+        const preview = within(dialog).getByTestId("model-preview").getBoundingClientRect();
+        assert.isAtMost(preview.right, files.getBoundingClientRect().left, "Files beside the model");
+        assert.isAbove(preview.width, 300, "the model takes its half of the dialog");
+        const footer = within(dialog).getByRole("button", { name: "Add to project" }).getBoundingClientRect();
+        const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
+        assert.isAbove(name.bottom, footer.top - 48, "Details and Name under it fill the column: no blank below");
+        assert.isAbove(
+            files.getBoundingClientRect().bottom,
+            footer.top - 48,
+            "and the Files list runs to the foot of its column",
+        );
+        // Both x's pressed one after the other, the second while graphty-element still takes the
+        // first file out: each answer is held until both clicks are in (the real dropPart runs).
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const realDrop = session.assets.dropPart.bind(session.assets);
+        vi.spyOn(session.assets, "dropPart").mockImplementation(async (ref, part) => {
+            const out = await realDrop(ref, part);
+            await gate;
+            return out;
+        });
+        await userEvent.click(within(files).getByRole("button", { name: "Remove a.png" }));
+        await userEvent.click(within(files).getByRole("button", { name: "Remove b.png" }));
+        release();
+        await within(dialog).findByRole("group", { name: "a.png" });
+        await within(dialog).findByRole("group", { name: "b.png" });
+        assert.isNull(within(dialog).queryByTestId("model-refusal"), "no model lost on the way");
+        for (const name of ["a.png", "b.png"]) {
+            const row = within(dialog).getByRole("group", { name });
+            await userEvent.click(within(row).getByRole("button", { name: `Load without ${name}` }));
+        }
+        const details = within(dialog).getByRole("region", { name: "Details" });
+        await waitFor(() => {
+            assert.include(
+                within(details).getByRole("group", { name: "Textures" }).textContent,
+                "2 skipped",
+                "no size for pictures drawn without",
+            );
+        });
+        await addModel(dialog, "Add to project");
+        const kept = session.assets.list().filter((r) => r.path === "pair.obj");
+        assert.lengthOf(kept, 1, "one model, not the textured one beside it");
+        assert.notEqual(kept[0].id, textured.id);
+        assert.sameMembers([...(kept[0].skipped ?? [])], ["a.png", "b.png"], "added without both pictures");
+    });
+
+    it("adds a model once for a double click on Add, in one undo step", async () => {
+        // police.glb by address, its picture never arriving: Add stops the picture and takes the model
+        // without it (a real wait), and a Turn set in the dialog makes Add write one undo step. A
+        // second click while the first is taking the model must write no second one.
+        const base = "https://models.example.com/twice/";
+        await policeWaitingForPicture(base);
+        const { session } = await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.tab();
+        await previewOf(dialog, "police");
+        const rows = await openSettings(dialog);
+        await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
         const before = session.history.steps.length;
-        await userEvent.dblClick(within(dialog).getByRole("button", { name: "Add model" }));
+        const add = within(dialog).getByRole("button", { name: "Add to project" });
+        await waitFor(() => {
+            assert.isNull(add.getAttribute("aria-disabled"));
+        });
+        const adds = vi.spyOn(session.assets, "accept");
+        await userEvent.dblClick(add);
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
-            assert.isDefined(written(session, "node.model"));
+            const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
+            assert.equal(record?.defaults?.style["node.modelTurn"], 90);
+            assert.isAbove(session.history.steps.length, before);
         });
+        assert.strictEqual(adds.mock.calls.length, 1, "the model is taken once");
         assert.strictEqual(session.history.steps.length, before + 1, "one undo step");
     });
 

@@ -1996,6 +1996,29 @@ function megabytes(bytes: number): string {
 }
 
 /**
+ * The Details Textures row: how many, then the pictures not in yet or drawn without, else their size.
+ * @param summary - from graphty-element's `assets.inspect`.
+ * @param waiting - the pictures missing or skipped, as `detailRows` takes them.
+ * @param waiting.count - how many are not in yet.
+ * @param waiting.downloading - whether they still download.
+ * @param waiting.skipped - how many the model is drawn without.
+ * @returns the words.
+ */
+function texturesLine(
+    summary: ModelSummary,
+    waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
+): string {
+    const count = formatCount(summary.textures);
+    if (waiting !== undefined && waiting.count > 0) {
+        return `${count}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`;
+    }
+    if (waiting?.skipped !== undefined && waiting.skipped > 0) {
+        return `${count}, ${formatCount(waiting.skipped)} skipped`;
+    }
+    return `${count}, ${megabytes(summary.textureBytes)}`;
+}
+
+/**
  * A model's extent along one axis, in the file's own units, to three figures.
  * @param value - the extent.
  * @returns the words.
@@ -2139,13 +2162,15 @@ export const CUSTOM_MODEL = {
      *     known, so the Textures row gives none.
      * @param waiting.count - how many.
      * @param waiting.downloading - whether they still download.
+     * @param waiting.skipped - how many the model is drawn without (`W_MODEL_PART_SKIPPED`): drawn
+     *     with none of their own, so the Textures row gives no size for them either.
      * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
      */
     detailRows: (
         summary: ModelSummary,
         fileBytes: number | undefined,
         ignored: readonly string[] = [],
-        waiting?: { readonly count: number; readonly downloading: boolean },
+        waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
     ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
         const rows: { name: string; value: string; tip?: string }[] = [
             { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
@@ -2165,13 +2190,7 @@ export const CUSTOM_MODEL = {
             formatCount(summary.materials.length),
             summary.materials.filter((m) => m !== "").join(", ") || undefined,
         );
-        add(
-            summary.textures > 0,
-            "Textures",
-            waiting !== undefined && waiting.count > 0
-                ? `${formatCount(summary.textures)}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`
-                : `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`,
-        );
+        add(summary.textures > 0, "Textures", texturesLine(summary, waiting));
         add(
             summary.animations.length > 0,
             "Animations",

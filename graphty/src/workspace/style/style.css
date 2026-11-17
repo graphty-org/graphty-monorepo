@@ -705,7 +705,8 @@
     flex: 1 0 240px;
 }
 
-.ws-model-body[data-alone] .ws-model-live {
+.ws-model-body[data-alone] .ws-model-live,
+.ws-model-body[data-files-beside] .ws-model-live {
     inset: 0 auto;
     left: 50%;
     translate: -50% 0;
@@ -714,14 +715,73 @@
 }
 
 .ws-model-body[data-alone] .ws-model-steps,
-.ws-model-body[data-alone] .ws-model-details-box {
+.ws-model-body[data-alone] .ws-model-details-box,
+.ws-model-body[data-files-beside] .ws-model-steps,
+.ws-model-body[data-files-beside] .ws-model-details-box {
     width: 100%;
+}
+
+/* A model of several files with Model settings closed: the file across the top, then the model
+   (its drawing as large as the column leaves, Details and Name under it) beside its Files, which
+   take the column's whole height, so neither column has a blank under it. */
+.ws-dialog-columns.ws-model-body[data-files-beside] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.ws-model-body[data-files-beside] .ws-model-main {
+    grid-column: 1 / -1;
+    grid-row: 1;
+}
+
+.ws-model-body[data-files-beside] .ws-model-side {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.ws-model-files-beside {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ws-model-files-beside > * {
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+/* The list runs to the foot of the column, level with Name, however few files it holds. */
+.ws-model-files-beside .ws-model-files {
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.ws-model-body[data-files-beside] .ws-model-preview {
+    width: 100%;
+    height: auto;
+    flex: 1 1 160px;
+    min-height: 160px;
 }
 
 @media (max-width: 720px) {
     .ws-dialog-columns.ws-model-body {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .ws-dialog-columns.ws-model-body[data-files-beside] {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        overflow-y: auto;
+    }
+
+    .ws-model-body[data-files-beside] .ws-model-side,
+    .ws-model-files-beside {
+        grid-column: 1;
+        grid-row: auto;
     }
 
     .ws-model-side {
@@ -809,7 +869,7 @@
     width: 240px;
 }
 
-/* Name, under the preview (and the arrows of a set): a short label column, as the side column is
+/* Name, under the preview and its Details (and the arrows of a set): a short label column, as the side column is
    narrow, and Model settings. */
 .ws-model-name .ws-field {
     grid-template-columns: 48px minmax(0, 1fr) 24px;

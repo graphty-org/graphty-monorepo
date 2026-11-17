@@ -775,13 +775,13 @@ export const CustomModelUrlError: Story = nodeModelsStory(
     "Custom model, address error",
 );
 
-/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides, Light and Wireframe. */
+/** The dialog with police loaded and Model settings open: Up, Turn, Fit, Center, Sides, Light and Wireframe. */
 export const CustomModelMoreOptions: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
         await within(dialog).findByRole("img", { name: /^police preview/ });
-        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
         await within(dialog).findByRole("combobox", { name: /^Up, / });
         // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
         const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();

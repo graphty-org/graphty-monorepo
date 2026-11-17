@@ -931,6 +931,13 @@ export function CustomModelDialog({
     const busy = loading !== null && loading.held !== true;
     // Add pressed: a load settling after it holds nothing more.
     const adding = useRef(false);
+    // The x's on parts still taking their files out, in turn: Add waits for them.
+    const [dropping, setDropping] = useState(0);
+    const drops = useRef<Promise<void>>(Promise.resolve());
+    // A model a part's x replaced, by the id it had: an x pressed before it was redrawn follows it.
+    const replaced = useRef(new Map<string, Held>());
+    // Cancel load said under the file: the model stays, without what had not arrived.
+    const [stopped, setStopped] = useState<string | null>(null);
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
     // Stepping through a set's models changes none of this, so focus stays on the arrows.
@@ -1061,8 +1068,10 @@ export function CustomModelDialog({
                 letGo(refOf(member.held));
             }
         }
-        // A set loaded again takes the same ids: its new members are drawn off screen again.
+        // A set loaded again takes the same ids: its new members are drawn off screen again, and an
+        // x on one follows no model an x replaced before.
         asked.current.clear();
+        replaced.current.clear();
         // A model held while its pictures downloaded keeps what the reader set meanwhile.
         setMembers((now) =>
             next.map((h) => {
@@ -1183,6 +1192,7 @@ export function CustomModelDialog({
         // Cancel load while only its pictures downloaded: the model stays, without them.
         if (stopPictures?.aborted === true) {
             loadedLine = CUSTOM_MODEL.cancelled(shownName);
+            setStopped(loadedLine);
         }
         say([loadedLine, ...out.map((r) => CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem)))].join(". "));
     };
@@ -1196,6 +1206,7 @@ export function CustomModelDialog({
         setProblem(null);
         setPicture(null);
         setRefused([]);
+        setStopped(null);
         setTried(byAddress ? source : null);
         say(CUSTOM_MODEL.loading(shown));
         const stillOpen = start();
@@ -1228,6 +1239,7 @@ export function CustomModelDialog({
         if (loading !== null) {
             loading.controller.abort();
             setLoading(null);
+            setStopped(CUSTOM_MODEL.cancelled(loading.name));
             say(CUSTOM_MODEL.cancelled(loading.name));
         }
     };
@@ -1251,30 +1263,53 @@ export function CustomModelDialog({
         return after.problems.filter((p) => p.params.part !== undefined && p.params.part === named);
     };
 
-    // The x on a part's line: the model read again without that file, which it then asks for.
-    const dropPart = async (part: string): Promise<void> => {
-        if (held === null || current === undefined) {
+    // The x on a part's line: the model read again without that file, which it then asks for. The
+    // x's pressed one after another each take their file out of what the one before left, in turn.
+    const dropPart = (part: string): void => {
+        if (held === null) {
             return;
         }
-        try {
-            const after = await session.assets.dropPart(refOf(held), part);
-            // A waiting model is read again in place; an accepted one comes back as a new one.
-            if (after.id !== held.record.id) {
-                added.current.add(after.id);
-                letGo(refOf(held));
+        const clicked = held;
+        setDropping((n) => n + 1);
+        drops.current = drops.current.then(async () => {
+            // Pressed before the x before it was drawn: the model that x left.
+            let from = clicked;
+            const seen = new Set([from.record.id]);
+            for (let next = replaced.current.get(from.record.id); next !== undefined && !seen.has(next.record.id);) {
+                from = next;
+                seen.add(from.record.id);
+                next = replaced.current.get(from.record.id);
             }
-            setMembers((now) => now.map((m) => (m === current ? { ...m, held: { record: after } } : m)));
-            say(CUSTOM_MODEL.removed(part.split("/").pop() ?? part));
-        } catch (error) {
-            const fact = failureOf(error);
-            setProblem(fact);
-            say(refusalLine(fact));
-        }
+            try {
+                const after = await session.assets.dropPart(refOf(from), part);
+                // A waiting model is read again in place; an accepted one comes back as a new one,
+                // and the model as it was is let go.
+                const next: Held = after.id === from.record.id ? { ...from, record: after } : { record: after };
+                if (after.id !== from.record.id) {
+                    replaced.current.set(from.record.id, next);
+                    added.current.add(after.id);
+                    letGo(refOf(from));
+                }
+                setMembers((now) => now.map((m) => (m.held.record.id === from.record.id ? { ...m, held: next } : m)));
+                say(CUSTOM_MODEL.removed(part.split("/").pop() ?? part));
+            } catch (error) {
+                const fact = failureOf(error);
+                setProblem(fact);
+                say(refusalLine(fact));
+            } finally {
+                setDropping((n) => n - 1);
+            }
+        });
     };
 
     // Of a set, Add takes the models checked; of one model, that model.
     const taking = many ? members.filter((m) => m.load) : members;
-    const blocked = addBlock(busy ? loading?.name : undefined, members, current, draw.failure);
+    const blocked = addBlock(
+        busy || dropping > 0 ? (loading?.name ?? name) : undefined,
+        members,
+        current,
+        draw.failure,
+    );
     let addWord: string = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     if (taking.length > 1) {
         addWord = CUSTOM_MODEL.addMany(taking.length);
@@ -1402,6 +1437,8 @@ export function CustomModelDialog({
     const picturesWaiting = {
         count: missingPictures.length,
         downloading: missingPictures.some((p) => p.params.downloading === true),
+        skipped: (held?.record.parts ?? []).filter((part) => part.role === "texture" && part.state === "skipped")
+            .length,
     };
     const ignored = (held?.record.problems ?? [])
         .filter((p) => p.code === "W_MODEL_EXTENSION_IGNORED")
@@ -1448,6 +1485,7 @@ export function CustomModelDialog({
         }
         setLoading(null);
         asked.current.clear();
+        replaced.current.clear();
         setMembers([]);
         setIndex(0);
         setDraft({});
@@ -1455,6 +1493,7 @@ export function CustomModelDialog({
         setTried(null);
         setPicture(null);
         setRefused([]);
+        setStopped(null);
         setAddress("");
         setSettingsOpen(false);
         say(CUSTOM_MODEL.removed(heldFile));
@@ -1550,6 +1589,80 @@ export function CustomModelDialog({
             </div>
         );
 
+    // Files: in the left column under the settings, or, with Model settings closed, a column of
+    // its own beside the model, as tall as the dialog lets it, so no blank sits under it.
+    const filesBox =
+        held === null || !showFiles || busy ? null : (
+            <Stack gap={4}>
+                <Text size="sm" id={`${uid}-files`}>
+                    {CUSTOM_MODEL.files}
+                </Text>
+                <section
+                    className="ws-model-files ws-model-scroll"
+                    data-testid="model-files"
+                    aria-labelledby={`${uid}-files`}
+                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
+                    tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
+                >
+                    <Stack gap={6}>
+                        {waitingFor
+                            .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
+                            .map((fact) => (
+                                <PartRow
+                                    key="main"
+                                    part={fact}
+                                    first={false}
+                                    supply={supply}
+                                    onDiscard={() => {
+                                        say("Address discarded");
+                                    }}
+                                />
+                            ))}
+                        {listed.map((part) => {
+                            const fact = facts.get(part.name);
+                            if (fact?.params.downloading === true) {
+                                return <PartLine key={part.name} part={part} downloading />;
+                            }
+                            return fact === undefined ? (
+                                <PartLine
+                                    key={part.name}
+                                    part={part}
+                                    onDrop={
+                                        part.role === "model" || part.state === "skipped"
+                                            ? undefined
+                                            : () => {
+                                                  dropPart(part.name);
+                                              }
+                                    }
+                                />
+                            ) : (
+                                <PartRow
+                                    key={part.name}
+                                    part={fact}
+                                    first={false}
+                                    supply={supply}
+                                    unused={part.state === "missing" ? unused : []}
+                                    onDiscard={() => {
+                                        say("Address discarded");
+                                    }}
+                                />
+                            );
+                        })}
+                        {held.record.problems
+                            .filter(
+                                (p) =>
+                                    p.code === "W_MODEL_PART_UNUSED" &&
+                                    !unusedFiles.has(String(p.params.fileName).split("/").pop()),
+                            )
+                            .map((fact) => (
+                                <FactChip key={String(fact.params.fileName)} fact={fact} />
+                            ))}
+                    </Stack>
+                </section>
+            </Stack>
+        );
+    const filesBeside = filesBox !== null && !settingsOpen;
+
     const left = (
         <Stack gap="sm" className="ws-model-left">
             {fileSource}
@@ -1568,6 +1681,11 @@ export function CustomModelDialog({
                 />
             )}
             {fileProblem === null || busy ? null : <Refusal problem={fileProblem} />}
+            {stopped === null || busy ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" data-testid="model-stopped">
+                    {stopped}
+                </Text>
+            )}
             {busy
                 ? null
                 : refused.map((r) => (
@@ -1669,75 +1787,7 @@ export function CustomModelDialog({
                     ) : null}
                 </Stack>
             )}
-            {held === null || !showFiles || busy ? null : (
-                <Stack gap={4}>
-                    <Text size="sm" id={`${uid}-files`}>
-                        {CUSTOM_MODEL.files}
-                    </Text>
-                    <section
-                        className="ws-model-files ws-model-scroll"
-                        data-testid="model-files"
-                        aria-labelledby={`${uid}-files`}
-                        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
-                        tabIndex={0} // NOSONAR(S6845): a scrolling list takes focus so the keyboard scrolls it (WCAG 2.1.1)
-                    >
-                        <Stack gap={6}>
-                            {waitingFor
-                                .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
-                                .map((fact) => (
-                                    <PartRow
-                                        key="main"
-                                        part={fact}
-                                        first={false}
-                                        supply={supply}
-                                        onDiscard={() => {
-                                            say("Address discarded");
-                                        }}
-                                    />
-                                ))}
-                            {listed.map((part) => {
-                                const fact = facts.get(part.name);
-                                if (fact?.params.downloading === true) {
-                                    return <PartLine key={part.name} part={part} downloading />;
-                                }
-                                return fact === undefined ? (
-                                    <PartLine
-                                        key={part.name}
-                                        part={part}
-                                        onDrop={
-                                            part.role === "model" || part.state === "skipped"
-                                                ? undefined
-                                                : () => {
-                                                      void dropPart(part.name);
-                                                  }
-                                        }
-                                    />
-                                ) : (
-                                    <PartRow
-                                        key={part.name}
-                                        part={fact}
-                                        first={false}
-                                        supply={supply}
-                                        unused={part.state === "missing" ? unused : []}
-                                        onDiscard={() => {
-                                            say("Address discarded");
-                                        }}
-                                    />
-                                );
-                            })}
-                            {held.record.problems
-                                .filter(
-                                    (p) =>
-                                        p.code === "W_MODEL_PART_UNUSED" &&
-                                        !unusedFiles.has(String(p.params.fileName).split("/").pop()),
-                                )
-                                .map((fact) => (
-                                    <FactChip key={String(fact.params.fileName)} fact={fact} />
-                                ))}
-                        </Stack>
-                    </section>
-                </Stack>
-            )}
+            {filesBeside ? null : filesBox}
         </Stack>
     );
 
@@ -1752,21 +1802,7 @@ export function CustomModelDialog({
                 busy={busy}
                 onHost={setPreviewHost}
             />
-            {/* The arrows under the box they step, then Name under the model, then Details under both. */}
-            {many && current !== undefined && !busy ? (
-                <ModelSteps
-                    at={index}
-                    count={members.length}
-                    load={current.load}
-                    onStep={(by) => {
-                        setIndex((index + by + members.length) % members.length);
-                    }}
-                    onLoad={(load) => {
-                        change((member) => ({ ...member, load }));
-                    }}
-                />
-            ) : null}
-            {nameRow}
+            {/* Details directly under the model, then a set's arrows and the model's Name. */}
             {summary === undefined || held === null || busy ? null : (
                 <Stack gap={4} className="ws-model-details-box">
                     <Group gap={6} wrap="wrap" data-testid="model-details-line">
@@ -1792,6 +1828,20 @@ export function CustomModelDialog({
                     </section>
                 </Stack>
             )}
+            {many && current !== undefined && !busy ? (
+                <ModelSteps
+                    at={index}
+                    count={members.length}
+                    load={current.load}
+                    onStep={(by) => {
+                        setIndex((index + by + members.length) % members.length);
+                    }}
+                    onLoad={(load) => {
+                        change((member) => ({ ...member, load }));
+                    }}
+                />
+            ) : null}
+            {nameRow}
         </Stack>
     );
 
@@ -1817,11 +1867,13 @@ export function CustomModelDialog({
                 data-testid="custom-model"
                 data-over={over || undefined}
                 data-alone={alone || undefined}
+                data-files-beside={filesBeside || undefined}
             >
                 <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
                     {left}
                 </ScrollArea>
                 {side}
+                {filesBeside ? <div className="ws-model-files-beside">{filesBox}</div> : null}
                 <ModalFooter className="ws-model-footer">
                     <Button variant="default" onClick={cancel}>
                         {CUSTOM_MODEL.cancel}

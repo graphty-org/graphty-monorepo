@@ -33,7 +33,7 @@ export function Sources({
     useEffect(() => {
         const before = known.current;
         known.current = new Set(sources.map((source) => source.key));
-        const added = before === null ? undefined : sources.filter((source) => !before.has(source.key)).at(-1); // NOSONAR(S7750): graphty's lib is ES2022, which has no Array#findLast
+        const added = before === null ? undefined : sources.filter((source) => !before.has(source.key)).at(-1); // eslint-disable-line unicorn/prefer-array-find -- graphty's lib is ES2022, which has no Array#findLast
         const active = document.activeElement;
         const typing = active instanceof HTMLElement && active.matches("input, textarea, [contenteditable]");
         if (added === undefined || typing) {
@@ -44,7 +44,7 @@ export function Sources({
     return (
         <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={sources.length === 0}>
             {sources.length === 0 ? null : (
-                <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                     ref={list}
                     role="list"
                     aria-label="Data sources"

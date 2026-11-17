@@ -353,7 +353,12 @@ export const notesTool: ToolDefinition = {
             summary: "The notes, with their targets.",
             fields: {},
             effect: "read",
-            reaches: [{ door: "NotesApi.list" }, { door: "NotesApi.counts" }, { door: "NotesApi.authors" }],
+            reaches: [
+                { door: "NotesApi.list" },
+                { door: "NotesApi.counts" },
+                { door: "NotesApi.authors" },
+                { door: "NotesApi.tags" },
+            ],
             run: ({ tx }) =>
                 Promise.resolve(
                     ok(
@@ -361,7 +366,7 @@ export const notesTool: ToolDefinition = {
                             .list()
                             .slice(0, 50)
                             .map((each) => compactRecord({ ...each })),
-                        { ...tx.notes.counts(), authors: [...tx.notes.authors()] },
+                        { ...tx.notes.counts(), authors: [...tx.notes.authors()], tags: [...tx.notes.tags()] },
                     ),
                 ),
         },

@@ -282,24 +282,32 @@ export interface ImporterSourceOptions<Opts> {
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
     /**
-     * The time field the file declares, which a load with the timeline experiment on designates
+     * The time field the file declares, which a load designates
      * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
      * when the file declares none. Left out, no file declares one.
      * @param snapshot - the imported graph
      * @param report - the importer's report
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     readonly time?: (snapshot: GraphSnapshot, report: ImportReport) => TimeField | null;
 }
 
 /**
- * The readers a load with the timeline experiment on reads through: a reader in it keeps the time
- * data only the timeline reads (GEXF's lists of instants), so a load with the experiment off keeps
- * its records exactly as they were.
+ * The cancel signal of the load a reader is read for, set by the session before it reads: reading
+ * a file or fetching a URL stops on it, and rejects with its reason. Kept beside the reader, not
+ * in its config, which is the load's recorded options.
  */
-export const TIMELINE_READERS = new WeakSet();
+const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
+ * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
+ * @param reader - the reader
+ * @param signal - the load's cancel signal
+ */
+export function setReaderSignal(reader: object, signal: AbortSignal): void {
+    READER_SIGNALS.set(reader, signal);
+}
 
 /**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
@@ -554,26 +562,34 @@ export abstract class DataSource {
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
         const last: { status?: number; timeoutMs?: number } = {};
+        const cancel = READER_SIGNALS.get(this);
 
         for (let attempt = 0; attempt < retries; attempt++) {
+            cancel?.throwIfAborted();
             try {
-                // Create AbortController for timeout
+                // Create AbortController for timeout, which the load's own cancel also fires
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
                 }, timeout);
+                const abort = (): void => {
+                    controller.abort();
+                };
+                cancel?.addEventListener("abort", abort, { once: true });
 
                 try {
                     const response = await fetch(url, { signal: controller.signal });
-                    clearTimeout(timeoutId);
                     checkResponse(response, url, attempt, last);
                     return response;
                 } catch (error) {
-                    clearTimeout(timeoutId);
+                    cancel?.throwIfAborted();
                     throw attemptError(error, timeout, last);
+                } finally {
+                    clearTimeout(timeoutId);
+                    cancel?.removeEventListener("abort", abort);
                 }
             } catch (error) {
-                if (error instanceof GraphtyError) {
+                if (error instanceof GraphtyError || cancel?.aborted === true) {
                     throw error;
                 }
 
@@ -669,14 +685,20 @@ export abstract class DataSource {
             return toSourceInput(config.data);
         }
 
+        const cancel = READER_SIGNALS.get(this);
+        cancel?.throwIfAborted();
         if (config.file) {
             const { file } = config;
-            return new Uint8Array(await readOrRefuse(file.arrayBuffer(), { file: file.name }));
+            const bytes = await readOrRefuse(file.arrayBuffer(), { file: file.name });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
+            const bytes = await readOrRefuse(response.arrayBuffer(), { url: config.url });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         throw new GraphtyError({
@@ -869,7 +891,6 @@ export abstract class DataSource {
     /**
      * The time field the file declared, or null when it declared none. Read it after the last chunk.
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     get declaredTime(): TimeField | null {
@@ -877,12 +898,11 @@ export abstract class DataSource {
     }
 
     /**
-     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. With
-     * the timeline experiment on, the load designates it (`session.time.field`, and `time:field`
-     * fires) in the load's own step, unless a time field is already set; off, it is ignored. Call it
+     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. The
+     * load designates it (`session.time.field`, and `time:field` fires) in the load's own step,
+     * unless a time field is already set. Call it
      * only when the file itself says which columns hold time.
      * @param field - the field, with paths as the records name them
-     * @experimental timeline
      * @beta
      * @example
      * ```ts
@@ -1272,7 +1292,7 @@ export abstract class DataSource {
                 }
                 let loaded: Awaited<ReturnType<typeof loadFromSource>>;
                 try {
-                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // picks the overload; tsc refuses the call without it
                 } catch (error) {
                     throw toGraphtyError(error);
                 }

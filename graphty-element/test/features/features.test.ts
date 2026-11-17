@@ -14,7 +14,7 @@ import { createGraphSession } from "../../src/session";
 
 vi.mock("../../src/features/registry", () => ({
     FEATURES: Object.freeze([
-        { id: "timeline", plainName: "Timeline", issue: 1, since: "2026-10-24" },
+        { id: "assistant", plainName: "Assistant", issue: 1, since: "2026-10-24" },
         { id: "location-map", plainName: "Location map", issue: 2, since: "2026-10-24" },
     ]),
     GRADUATED_FEATURES: Object.freeze(["data-management"]),
@@ -32,25 +32,25 @@ describe("resolveFeatures", () => {
     });
 
     it("switches on declared ids in table order, trimmed and lowercased", () => {
-        const resolved = resolveFeatures([" Location-Map ", "timeline", "timeline"]);
-        assert.deepEqual(resolved.enabled, ["timeline", "location-map"]);
+        const resolved = resolveFeatures([" Location-Map ", "assistant", "assistant"]);
+        assert.deepEqual(resolved.enabled, ["assistant", "location-map"]);
         assert.deepEqual(resolved.unknown, []);
         assert.isTrue(Object.isFrozen(resolved) && Object.isFrozen(resolved.enabled));
     });
 
     it("lists unknown ids without throwing and accepts graduated ones silently", () => {
-        const resolved = resolveFeatures(["timeline", "warp-drive", "data-management", ""]);
-        assert.deepEqual(resolved.enabled, ["timeline"]);
+        const resolved = resolveFeatures(["assistant", "warp-drive", "data-management", ""]);
+        assert.deepEqual(resolved.enabled, ["assistant"]);
         assert.deepEqual(resolved.unknown, ["warp-drive"]);
     });
 
     it("skips entries that are not strings instead of throwing", () => {
-        const fromUntypedCaller = ["timeline", 7, null] as unknown as string[];
-        assert.deepEqual({ ...resolveFeatures(fromUntypedCaller) }, { enabled: ["timeline"], unknown: [] });
+        const fromUntypedCaller = ["assistant", 7, null] as unknown as string[];
+        assert.deepEqual({ ...resolveFeatures(fromUntypedCaller) }, { enabled: ["assistant"], unknown: [] });
     });
 
     it("turns on every declared experiment for all", () => {
-        assert.deepEqual(resolveFeatures(["all"]).enabled, ["timeline", "location-map"]);
+        assert.deepEqual(resolveFeatures(["all"]).enabled, ["assistant", "location-map"]);
     });
 
     it("takes the page default only when nothing is requested", () => {
@@ -62,12 +62,12 @@ describe("resolveFeatures", () => {
 
 describe("featuresFromUrl", () => {
     it("reads comma-separated ids, unknown ones included", () => {
-        const ids = featuresFromUrl("https://graphty.app/?features=Timeline,%20nope,,timeline");
-        assert.deepEqual(ids, ["timeline", "nope"]);
+        const ids = featuresFromUrl("https://graphty.app/?features=Assistant,%20nope,,assistant");
+        assert.deepEqual(ids, ["assistant", "nope"]);
     });
 
     it("reads another parameter and returns nothing for a URL that does not parse", () => {
-        assert.deepEqual(featuresFromUrl(new URL("https://x.test/?exp=timeline"), "exp"), ["timeline"]);
+        assert.deepEqual(featuresFromUrl(new URL("https://x.test/?exp=assistant"), "exp"), ["assistant"]);
         assert.deepEqual(featuresFromUrl("not a url"), []);
     });
 });
@@ -78,9 +78,9 @@ describe("createGraphSession({ features })", () => {
     });
 
     it("settles the session's features once, at creation's first read", () => {
-        const session = createGraphSession({ features: ["timeline", "unheard-of"] });
+        const session = createGraphSession({ features: ["assistant", "unheard-of"] });
         try {
-            assert.deepEqual(session.features.enabled, ["timeline"]);
+            assert.deepEqual(session.features.enabled, ["assistant"]);
             assert.deepEqual(session.features.unknown, ["unheard-of"]);
             assert.strictEqual(session.features, session.features);
         } finally {
@@ -89,13 +89,13 @@ describe("createGraphSession({ features })", () => {
     });
 
     it("keeps what it settled at creation when the page default or the caller's array changes", () => {
-        const asked = ["timeline"];
+        const asked = ["assistant"];
         const named = createGraphSession({ features: asked });
         const unnamed = createGraphSession();
         try {
             asked.push("location-map");
             setDefaultFeatures(["all"]);
-            assert.deepEqual(named.features.enabled, ["timeline"]);
+            assert.deepEqual(named.features.enabled, ["assistant"]);
             assert.deepEqual(unnamed.features.enabled, []);
         } finally {
             named.dispose();
@@ -107,7 +107,7 @@ describe("createGraphSession({ features })", () => {
         setDefaultFeatures(["all"]);
         const session = createGraphSession();
         try {
-            assert.deepEqual(session.features.enabled, ["timeline", "location-map"]);
+            assert.deepEqual(session.features.enabled, ["assistant", "location-map"]);
         } finally {
             session.dispose();
         }

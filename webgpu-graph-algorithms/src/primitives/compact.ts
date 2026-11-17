@@ -1,5 +1,5 @@
 /**
- * The `compact` and `dedupe` primitive driver (spec 6 row 4; P8-T3, the P8 plan's PD-1 / DEP-P8-A). `compact` is
+ * The `compact` and `dedupe` primitive driver. `compact` is
  * flag, scan, scatter: the flags are the caller's (one u32 per entry, written by the kernel that produced the queue),
  * `exclusiveScan` turns them into offsets, and `compact-scatter` lands every flagged entry at its offset in queue
  * order -- order-preserving, so bitwise reproducible -- and writes the total into one word of the caller's block.
@@ -14,7 +14,7 @@
  * compares against it, and a word no current entry names is never read. The design's row implies a reset; the `fill`
  * over `n` per round is the dispatch this saves.
  *
- * The count of `compact` is host-known. `dedupe`'s callers (the SSSP piles of P8-T9) only know their entry count on
+ * The count of `compact` is host-known. `dedupe`'s callers (the SSSP piles) only know their entry count on
  * the device, so `countIndex` names a word of the counters block and the kernels read `min(counters[countIndex],
  * count)` -- the device word clamped to the capacity `count` -- or `count` alone when `countIndex` is `U32_MAX`. The
  * counters block is bound WHOLE and indexed, for the count word and for the output word alike, because
@@ -69,7 +69,7 @@ export interface DedupeRecord {
     readonly outIndex: number;
 }
 
-/** A prepared compact / dedupe (spec 6 row 4): records the dispatches of one call into a pass. */
+/** A prepared compact / dedupe: records the dispatches of one call into a pass. */
 export interface CompactPlanner {
     /**
      * Records the compaction (the flags' exclusive scan, then the scatter). For count 0 nothing is recorded and
@@ -166,7 +166,7 @@ function checkCompactArguments(r: CompactRecord): void {
 
 /**
  * The argument checks of recordDedupe(): the count, the two entry buffers (`out` holds at
- * most one entry per owner word, so it is checked against `min(count, owner words)`: the SSSP piles of P8-T9 dedupe
+ * most one entry per owner word, so it is checked against `min(count, owner words)`: the SSSP piles dedupe
  * a raw half of `arcCount` capacity into an `n`-word pile), the output word, and -- with a device count -- a count
  * word that is inside `counters`, is not the output word (the filter's atomicAdd would corrupt the count other
  * workgroups of the same dispatch still read) and lives in the block `outCount` names (the two kernels read it

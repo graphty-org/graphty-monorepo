@@ -12,7 +12,7 @@ import type { LayerSpec, NodeId, Scope } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import type { ScopeResolver } from "../../../src/session/scope";
 import type { ElementSession } from "../../../src/session/types";
-import { makeSession } from "../helpers";
+import { makeSession, rejectionCode } from "../helpers";
 
 const RED = "#ff0000";
 
@@ -24,21 +24,6 @@ function sessionOf(): ReturnType<typeof makeSession>["session"] {
     const harness = makeSession();
     harness.add([{ id: "a" }, { id: "b" }, { id: "c" }], [{ src: "a", dst: "b" }]);
     return harness.session;
-}
-
-/**
- * The code a call refused with.
- * @param call - The call.
- * @returns The code, or null when it did not refuse.
- */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 /**
@@ -276,7 +261,7 @@ describe("kept sets under undo", () => {
 
         const undone = session.undo();
         assert.strictEqual(
-            codeOf(() => scope.resolveNow({ set: id })),
+            rejectionCode(() => scope.resolveNow({ set: id })),
             "E_BAD_COMMAND",
         );
         await undone;

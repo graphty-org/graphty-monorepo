@@ -115,15 +115,6 @@ export function siteConfig(): SiteConfig {
 }
 
 /**
- * Whether this site switches the timeline on, for a door the start page draws before any session
- * exists; `timelineOn(session)` answers everywhere else.
- * @returns true when it is on.
- */
-export function siteTimeline(): boolean {
-    return resolveFeatures(current.features).enabled.includes("timeline");
-}
-
-/**
  * Whether this site switches styles from files on, for the Settings switch the start page offers
  * before any session exists; `fileStylesOn(session)` answers everywhere else.
  * @returns true when it is on.

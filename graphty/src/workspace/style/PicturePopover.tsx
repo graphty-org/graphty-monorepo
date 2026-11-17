@@ -281,7 +281,7 @@ export function PicturePopover({
                         {own.length === 0 ? null : (
                             <>
                                 <SectionHeading>In this project</SectionHeading>
-                                <div // NOSONAR(S6819): an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
+                                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
                                     className="ws-model-list"
                                     role="group"
                                     aria-label="In this project"

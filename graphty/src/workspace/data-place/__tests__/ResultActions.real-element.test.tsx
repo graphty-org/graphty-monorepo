@@ -2,7 +2,7 @@
  * A result row's Run again and Copy items (#177), on the REAL graphty-element and Les Miserables:
  * each Copy item puts graphty-element's own form of the result on the clipboard, TSV at full
  * stored precision, and Run again with changes... opens Analyze on the result's algorithm, whose
- * Run adds a second result.
+ * Run adds a second result. The inspector's header "..." for a result holds the same items.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -107,6 +107,29 @@ describe("a result row's Copy items", () => {
         await pick(id, "Copy member ids");
         await screen.findByText("Copied member ids");
         assert.strictEqual((await navigator.clipboard.readText()).split("\n").length, result?.memberIds().length);
+    });
+});
+
+describe("the inspector's result view", () => {
+    it("holds the same Copy and Run again items in its header's ...", async () => {
+        const { session, id } = await withResult("pagerank");
+        const result = session.runs.get(id)?.result;
+        const list = await screen.findByRole("list", { name: "Results" });
+        const row = await waitFor(() => {
+            const found = list.querySelector<HTMLElement>(`[data-run="${id}"] .dp-run-main`);
+            assert.isNotNull(found);
+            return found;
+        });
+        if (row === null) {
+            throw new Error("no row");
+        }
+        await userEvent.click(row);
+
+        await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
+        await screen.findByRole("menuitem", { name: /^Run again with changes/ });
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Copy as TSV/ }));
+        await screen.findByText("Copied as TSV");
+        assert.strictEqual(await navigator.clipboard.readText(), result?.toTsv());
     });
 });
 

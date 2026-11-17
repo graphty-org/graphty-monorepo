@@ -140,12 +140,13 @@ export function runsAsPicked(descriptor: AlgorithmDescriptor): boolean {
  * @param session - the element's session.
  * @param descriptor - the algorithm.
  * @param values - the values the reader set.
+ * @returns the run, as `session.runs.start` returned it.
  */
 export function startAlgorithm(
     session: GraphSession,
     descriptor: AlgorithmDescriptor,
     values: Readonly<Record<string, unknown>>,
-): void {
+): ReturnType<GraphSession["runs"]["start"]> {
     const runParams = paramsFor(session, descriptor, values);
     const run = session.runs.start(descriptor.key, runParams, {
         style: {
@@ -158,6 +159,7 @@ export function startAlgorithm(
     });
     // A failed run is reported in the notice, on its row and in the inspector, from the run itself.
     run.then(undefined, () => undefined);
+    return run;
 }
 
 /**

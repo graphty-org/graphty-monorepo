@@ -215,13 +215,6 @@ export interface ExportResult {
      */
     readonly losses: readonly ExportLoss[];
     /**
-     * Everything the format could not carry, one note per kind of omission, from the exporter's
-     * `check()`. Empty only when the export is exact.
-     * @deprecated Its `message` is English written by the element. Word {@link ExportResult.losses}
-     * instead; removed in the next major release.
-     */
-    readonly lossNotes: readonly LossNote[];
-    /**
      * The whole output as one string.
      * @returns The document.
      * @throws A `GraphtyError` (as a rejection): `E_UNSUPPORTED` when the writer refuses this graph
@@ -716,11 +709,9 @@ function exportGroupTable(session: GraphSession, format: FormatId, options: Expo
         }
     }
 
-    const lossNotes = Object.freeze(notes);
     return {
         format,
-        losses: Object.freeze(lossNotes.map(lossOf)),
-        lossNotes,
+        losses: Object.freeze(notes.map(lossOf)),
         text: () => Promise.resolve(output),
         bytes: {
             async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
@@ -1327,7 +1318,7 @@ function channelOf(property: string | undefined): { channel?: string } {
  * Write the project file, Graphty JSON: the document `session.project.save` produces, without
  * marking the project saved. The one format still built as a single string, because the project
  * is serialized as one document; `bytes` yields that string's UTF-8 in one chunk. Nothing is lost,
- * so `losses` and `lossNotes` are empty.
+ * so `losses` is empty.
  * @param session - The session.
  * @param options - Must be empty: the project file takes no writer options.
  * @returns The result.
@@ -1340,7 +1331,6 @@ function exportProject(session: GraphSession, options: ExportGraphOptions): Expo
     return {
         format: "graphty",
         losses: Object.freeze([]),
-        lossNotes: Object.freeze([]),
         text,
         bytes: {
             async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
@@ -1438,14 +1428,13 @@ function writeWith(
         throw writerFailure(error, format);
     }
 
-    const lossNotes = Object.freeze([
+    const lossNotes = [
         ...notes,
         ...(written === undefined ? checked : withoutBaseLosses(checked, written.extracted, written.base)),
-    ]);
+    ];
     return {
         format,
         losses: Object.freeze(lossNotes.map(lossOf)),
-        lossNotes,
         async text(): Promise<string> {
             try {
                 return registry === null

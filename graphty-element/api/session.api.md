@@ -3011,8 +3011,6 @@ export interface HistoryStep {
     readonly bytes: number;
     readonly fact: CodedFact<HistoryCode>;
     readonly id: HistoryStepId;
-    // @deprecated
-    readonly label: string;
     readonly ops: readonly SessionCommand["op"][];
     readonly provenance: Readonly<Record<string, string>>;
     readonly slices: readonly ProjectSlice[];
@@ -3442,8 +3440,6 @@ export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
     readonly options?: Readonly<Record<string, unknown>>;
-    // @deprecated
-    readonly reason?: string;
 }
 
 // @public
@@ -4387,8 +4383,6 @@ export interface PendingSourceLoad {
 export interface PendingStep {
     readonly fact: CodedFact<HistoryCode>;
     readonly id: PendingId;
-    // @deprecated
-    readonly label: string;
     readonly runIds: readonly RunId[];
     readonly since: string;
 }
@@ -7511,8 +7505,6 @@ export interface SummaryEntry {
 // @public
 export interface SummaryGroup {
     readonly group: string | number;
-    // @deprecated
-    readonly name?: string;
     readonly rank?: number;
     readonly size: number;
 }

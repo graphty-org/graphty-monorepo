@@ -5334,7 +5334,6 @@ function tellData(
 function toResultsEntry(runs: SessionRunsApi, run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         distinguishedBy: run.distinguishedBy,
         siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,

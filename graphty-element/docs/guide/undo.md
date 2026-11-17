@@ -172,8 +172,7 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `transaction`                                                                                                        | `label` (the label given to `transaction`, or null)        |
 
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
-before putting it into HTML. `step.label`, an English sentence, is deprecated and goes in the next
-major release.
+before putting it into HTML.
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
 dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a

@@ -521,7 +521,6 @@ const NO_SCHEDULER: Scheduler = {
 /** Pending undoable work, as the history lists it. Frozen. */
 interface PendingStep {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
@@ -3266,7 +3265,6 @@ export class Dispatcher {
     private view(group: Group): PendingStep {
         group.view ??= Object.freeze({
             id: group.id,
-            label: group.label,
             fact: frozenFact(group.fact),
             since: group.since,
             runIds: Object.freeze([]),

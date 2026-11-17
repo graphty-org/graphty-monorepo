@@ -9903,8 +9903,8 @@ export class Graph implements GraphContext {
      * The export carries whatever the format can represent: every node and edge with its
      * attributes, the current positions, every published algorithm result (as attributes named
      * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
-     * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
-     * per kind of omission; nothing is dropped silently. The element's internal ids and columns
+     * element is drawn with. What the format has no place for is listed in `losses`, one coded
+     * fact per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
      * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note

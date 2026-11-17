@@ -73,26 +73,53 @@ export function layersReadingOnly(stack: readonly CompiledLayer[], gone: Columns
     return out;
 }
 
+/** What a layer does, less the values it paints with: the elements it selects and what it writes. */
+interface Shape {
+    /** The kind, target and selector: which elements it paints. */
+    readonly elements: string;
+    /** Per channel it writes, where the value comes from: a set value, or the column an encoding reads. */
+    readonly writes: ReadonlyMap<string, string>;
+}
+
 /**
- * What a layer does, less the values it paints with: the elements it selects and, per channel it
- * writes, the column it reads. Two layers with the same key paint the same channels of the same
- * elements from the same columns, so the later one restates the earlier.
+ * What a layer does, less the values it paints with.
  * @param layer - The layer.
- * @returns The key.
+ * @returns Its shape.
  */
-function shapeOf(layer: CompiledLayer["layer"]): string {
-    const encode = Object.entries(layer.encode ?? {})
-        .map(([channel, binding]) => [channel, (binding as { by?: unknown } | undefined)?.by] as const)
-        .sort(([a], [b]) => a.localeCompare(b));
-    const set = Object.keys(layer.set ?? {}).sort((a, b) => a.localeCompare(b));
-    return JSON.stringify([layer.kind, layer.target, layer.selector, set, encode]);
+function shapeOf(layer: CompiledLayer["layer"]): Shape {
+    const writes = new Map<string, string>();
+    for (const channel of Object.keys(layer.set ?? {})) {
+        writes.set(channel, "set");
+    }
+    for (const [channel, binding] of Object.entries(layer.encode ?? {})) {
+        writes.set(channel, JSON.stringify(["encode", (binding as { by?: unknown } | undefined)?.by]));
+    }
+
+    return { elements: JSON.stringify([layer.kind, layer.target, layer.selector]), writes };
+}
+
+/**
+ * Whether a later layer restates an earlier one: it paints the same elements and writes every
+ * channel the earlier writes, from the same column. It may write more channels (a load at another
+ * scale adds letter sizes), so the earlier layer has nothing left of its own to paint.
+ * @param later - The later layer's shape.
+ * @param earlier - The earlier layer's shape.
+ * @returns Whether it does.
+ */
+function restates(later: Shape, earlier: Shape): boolean {
+    return (
+        later.elements === earlier.elements &&
+        earlier.writes.size > 0 &&
+        [...earlier.writes].every(([channel, source]) => later.writes.get(channel) === source)
+    );
 }
 
 /**
  * The earlier layers a replacing load leaves without purpose: those whose every data binding reads
- * a column the new graph no longer holds, and those of the same shape as a layer the load itself
- * added -- the same elements, channels and columns (the load's copy stays, so loading the same data
- * twice keeps one, and a newer version's values replace the older). Every other layer stays,
+ * a column the new graph no longer holds, and those a layer the load itself added restates -- the
+ * same elements, and every channel the earlier writes from the same column (the load's copy stays,
+ * so loading the same data twice keeps one, and a newer version's values replace the older, even
+ * when the newer writes more channels, as a load at another scale does). Every other layer stays,
  * whoever made it: nothing records which layers a load added, only what each layer reads and does.
  * @param stack - The style stack after the load.
  * @param earlier - The ids of the layers the stack held before the load.
@@ -105,7 +132,12 @@ export function layersAReloadReplaces(
     gone: ColumnsByKind,
 ): LayerId[] {
     const old = stack.filter(({ layer }) => earlier.has(layer.id));
-    const added = new Set(stack.filter(({ layer }) => !earlier.has(layer.id)).map(({ layer }) => shapeOf(layer)));
+    const added = stack.filter(({ layer }) => !earlier.has(layer.id)).map(({ layer }) => shapeOf(layer));
     const stale = new Set(layersReadingOnly(old, gone));
-    return old.filter(({ layer }) => stale.has(layer.id) || added.has(shapeOf(layer))).map(({ layer }) => layer.id);
+    return old
+        .filter(({ layer }) => {
+            const shape = shapeOf(layer);
+            return stale.has(layer.id) || added.some((later) => restates(later, shape));
+        })
+        .map(({ layer }) => layer.id);
 }

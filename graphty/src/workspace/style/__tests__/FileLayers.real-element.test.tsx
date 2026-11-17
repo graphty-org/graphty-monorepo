@@ -121,7 +121,8 @@ describe("the Style panel on a file's layers", () => {
         if (ws === null) {
             return;
         }
-        await userEvent.click(await within(ws).findByRole("button", { name: "Or..." }));
+        // "+ Card" adds an Or group: a new card.
+        await userEvent.click(await within(ws).findByRole("button", { name: "Card" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree{Enter}");
         await waitFor(() => {

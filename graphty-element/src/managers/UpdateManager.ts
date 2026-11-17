@@ -2739,8 +2739,12 @@ export class UpdateManager implements Manager {
 
         engine.currentRenderPassId = layer.mainTexture.renderPassId;
 
+        // Babylon leaves subMeshes unset on a mesh with no geometry (a model's root), which a layer
+        // draws nothing of.
+        const { subMeshes }: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+
         try {
-            return mesh.subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
+            return subMeshes === undefined || subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
         } finally {
             engine.currentRenderPassId = pass;
         }

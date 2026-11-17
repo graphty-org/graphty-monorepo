@@ -18,12 +18,11 @@ import {
     openLegacyScope,
     TEMPLATE_RUNS,
 } from "../session/commands/algo";
-import { englishNotes } from "../session/english";
 import { dispatcherOf } from "../session/GraphSession";
 import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
-import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
 import { wholeGraph } from "../session/working/graphs";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
@@ -227,7 +226,6 @@ export class AlgorithmManager implements Manager {
                 : {
                       ...caveats,
                       facts: [...caveats.facts, mergedFact],
-                      notes: [...englishNotes(caveats), caveatSentence(mergedFact)],
                   };
 
         return {
@@ -349,8 +347,9 @@ export class AlgorithmManager implements Manager {
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (options && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(options);
+            const legacy = alg as typeof alg & { configure?: (options: object) => void };
+            if (options && typeof legacy.configure === "function") {
+                legacy.configure(options);
             }
 
             await alg.run(facade);

@@ -22,9 +22,6 @@ import { ModelDetection } from 'babylonjs-models/detect';
 import { ModelDetectionInput } from 'babylonjs-models/detect';
 import { ModelFormat } from 'babylonjs-models/detect';
 import { SourceInfo } from '@graphty/graph-io';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
@@ -710,13 +707,7 @@ export interface DefectWaiver {
 }
 
 // @public
-export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
-
-// @public
 export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
-
-// @public
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
 export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
@@ -1742,7 +1733,20 @@ export type ItemKey = {
 };
 
 // @public
-export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "all-paths", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness"];
+export const KEYMAP_DESCRIPTORS: readonly KeymapDescriptor[];
+
+// @public
+export type KeymapAction = "deselect" | "undo" | "redo";
+
+// @public
+export interface KeymapDescriptor {
+    readonly action: KeymapAction;
+    readonly keys: readonly string[];
+    readonly plainName: string;
+}
+
+// @public
+export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness", "removal-impact"];
 
 // @public
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
@@ -1956,7 +1960,6 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
-    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -2163,7 +2166,7 @@ export interface MetricAvailability {
     key: AlgorithmKey;
     // (undocumented)
     plainName: string;
-    reason?: string;
+    refusal?: CodedFact<EstimateRefusalCode>;
     // (undocumented)
     runIds: readonly RunId[];
     // (undocumented)
@@ -2224,7 +2227,7 @@ export interface NonemptyLeaf {
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "edge-set", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -2358,6 +2361,18 @@ export type Path = string;
 
 // @public
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
+
+// @public
+export const PRIMARY_CHANNELS: Readonly<{
+    readonly node: Readonly<{
+        color: "node.color";
+        size: "node.size";
+    }>;
+    readonly edge: Readonly<{
+        color: "edge.color";
+        size: "edge.width";
+    }>;
+}>;
 
 // @public
 export type Query = string;

@@ -27,7 +27,7 @@ import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
-import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
+import { D3GraphEngine, type D3RowSource, type RowExtent, spacingOf } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
@@ -520,6 +520,8 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
+    styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
 };
@@ -695,6 +697,7 @@ export class LayoutManager implements Manager {
 
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
+        layoutManagerInternals.styles = (manager) => manager.styles;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
@@ -1650,17 +1653,8 @@ export class LayoutManager implements Manager {
                             ? dataManagerInternals.builtNodes(this.dataManager)
                             : this.dataManager.nodes.values(),
                     rowSpacingRadius: (row, flat) => {
-                        if (this.dataManager.renderLimits?.batched() !== true) {
-                            return null;
-                        }
-
-                        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                        if (extent === undefined || extent.scale <= 0) {
-                            return null;
-                        }
-
-                        const { half } = extent;
-                        return extent.round ?? Math.hypot(half.x, half.y, flat ? 0 : half.z);
+                        const size = this.rowExtent(row);
+                        return size === null ? null : spacingOf(size, flat);
                     },
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
@@ -1744,6 +1738,7 @@ export class LayoutManager implements Manager {
             },
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
+            rankSets: () => this.dataManager.rankSets,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },
@@ -1792,6 +1787,28 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
+     * answer for `layoutRadius` and `drawnHalfExtents`.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
+     */
+    private rowExtent(row: number): RowExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        if (extent === undefined || extent.scale <= 0) {
+            return null;
+        }
+
+        const { half } = extent;
+        return extent.round === null
+            ? { radius: Math.max(half.x, half.y, half.z), half }
+            : { radius: extent.round, half: null };
+    }
+
+    /**
      * How an engine is handed a row stored with no `Node` after it started: d3 and ngraph take a
      * body for it, a static engine or a simulation reads it from the snapshot, and any other
      * engine lays out only `Node`s, so every row stored under it gets one.
@@ -1804,6 +1821,7 @@ export class LayoutManager implements Manager {
                 engine.addRows(ids, {
                     getSnapshot: () => wholeGraph(this.dataManager),
                     positions: this.dataManager[WRITABLE_LANE],
+                    extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
                 });
             };
         }
@@ -1922,9 +1940,10 @@ export class LayoutManager implements Manager {
         }
 
         const snapshot = wholeGraph(this.dataManager);
-        const source = {
+        const source: D3RowSource = {
             getSnapshot: () => wholeGraph(this.dataManager),
             positions: this.dataManager[WRITABLE_LANE],
+            extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
         };
         const byRow = new Map<number, Node>();
         const later: Node[] = [];
@@ -2178,8 +2197,7 @@ export class LayoutManager implements Manager {
      * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
      */
     private async setLayout(type: string, opts: object = {}, scope?: ScopeInput): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the old spelling still means 2D
-        const twoD = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
+        const twoD = this.graphContext?.is2D() === true;
         // Built outside the `layout` slice, so no slice value describes it any more.
         this.#built = null;
         this.#building++;

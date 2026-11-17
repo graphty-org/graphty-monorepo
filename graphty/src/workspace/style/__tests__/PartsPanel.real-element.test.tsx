@@ -267,7 +267,7 @@ describe("the node tab by part of the drawing", () => {
         const options = within(list).getAllByRole("option");
         assert.deepEqual(
             options.slice(0, 3).map((option) => option.textContent),
-            ["Box2 nodes", "Sphere1 node", "Cylinder"],
+            ["Box 2 nodes", "Sphere 1 node", "Cylinder"],
             "the graph's shapes first, with how many nodes each, then the rest",
         );
         assert.strictEqual(document.activeElement, search);
@@ -444,7 +444,7 @@ describe("the node tab by part of the drawing", () => {
             .getAllByRole("option")
             .filter((option) => option.getAttribute("aria-selected") === "true");
         assert.deepEqual(
-            selected.map((option) => option.textContent?.replace(/\d+ nodes?$/, "")),
+            selected.map((option) => option.textContent?.replace(/ \d+ nodes?$/, "")),
             ["Box"],
         );
     });

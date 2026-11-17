@@ -349,6 +349,10 @@ interface ExistingEdge {
  * read-only to everything else, and nodes and edges arrive through the data doors.
  */
 export const dataManagerInternals = {} as {
+    /** The styles the manager reads now; see `DataManager.updateStyles`. */
+    styles(manager: DataManager): Styles;
+    /** The load id each data source's configuration was read under; see `DataManager.loadIds`. */
+    loadIds(manager: DataManager): WeakMap<object, number>;
     /** Register a node under its id. */
     adoptNode(manager: DataManager, node: Node): void;
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
@@ -744,6 +748,8 @@ export class DataManager implements Manager {
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.loadIds = (manager) => manager.loadIds;
+        dataManagerInternals.styles = (manager) => manager.styles;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;

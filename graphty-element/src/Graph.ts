@@ -256,6 +256,7 @@ import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { ANNOTATIONS_VALUE } from "./session/annotations";
 import type { AssetRecord, AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
@@ -305,7 +306,6 @@ import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
-import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
 import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
@@ -322,6 +322,7 @@ const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { createLazyShaderHost, disposedError } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
+import { asError } from "./utils/asError";
 import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { XrAvailability } from "./xr/XrAvailability";
@@ -631,6 +632,33 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     }
 
     return queue;
+}
+
+/** Reads a graph's private render manager; the class sets it, since only its own code may read the field. */
+let readRenderManager: (graph: Graph) => RenderManager;
+
+/**
+ * A graph's render manager: what its tests hold frames, count ticks and read shader passes on, typed so a rename in
+ * `Graph` fails to compile rather than at run time (issue #6988). Not published, like {@link operationQueueOf}.
+ * @param graph - The graph.
+ * @returns Its render manager, the one in use now.
+ */
+export function renderManagerOf(graph: Graph): RenderManager {
+    return readRenderManager(graph);
+}
+
+/** Reads a graph's private graph context; the class sets it, like {@link readRenderManager}. */
+let readGraphContext: (graph: Graph) => DefaultGraphContext;
+
+/**
+ * A graph's context: what its managers read the graph's settings through, which its tests check
+ * agrees with the session, typed so a rename in `Graph` fails to compile (issue #6988). Not
+ * published, like {@link operationQueueOf}.
+ * @param graph - The graph.
+ * @returns Its graph context, the one in use now.
+ */
+export function graphContextOf(graph: Graph): DefaultGraphContext {
+    return readGraphContext(graph);
 }
 
 /** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
@@ -976,13 +1004,15 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
+    static {
+        readRenderManager = (graph) => graph.renderManager;
+        readGraphContext = (graph) => graph.graphContext;
+    }
     /** Draws the map under a geographic layout. */
     private readonly basemapManager: BasemapManager;
     private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
-    /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
-    private readonly useMockInput: boolean;
     /** See {@link Graph.setPixelRatio}. */
     #pixelRatio: PixelRatio = 1;
     /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
@@ -1136,7 +1166,6 @@ export class Graph implements GraphContext {
     /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
-     * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
      * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
      *     frame a still scene rests on (`"at-rest"`). Left out, true.
@@ -1145,10 +1174,8 @@ export class Graph implements GraphContext {
      */
     constructor(
         element: Element | string,
-        useMockInput = false,
         options: { readonly antialias?: Antialias; readonly preserveDrawingBuffer?: boolean } = {},
     ) {
-        this.useMockInput = useMockInput;
         this.#antialias = options.antialias ?? true;
         this.#multisampled = this.#antialias !== false;
         this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
@@ -1608,7 +1635,7 @@ export class Graph implements GraphContext {
             await this.applyLayout(choice, { restoring: lane.cause !== "command" }).catch((error: unknown) => {
                 // A failure is reported on the element's error channel by the layout itself.
                 if (!isAbort(error)) {
-                    console.error("[graphty] The layout could not follow the project.", error);
+                    graphLogger.error("The layout could not follow the project.", asError(error));
                     reportCaught(error);
                 }
             });
@@ -2053,8 +2080,8 @@ export class Graph implements GraphContext {
                 return;
             }
 
-            console.error("ERROR setting default layout:", e);
-            this.eventManager.emitGraphError(this, e instanceof Error ? e : new Error(String(e)), "layout", {
+            graphLogger.error("The default layout could not be set.", asError(e));
+            this.eventManager.emitGraphError(this, asError(e), "layout", {
                 layoutType: opening.engine,
                 isDefault: true,
             });
@@ -2164,7 +2191,7 @@ export class Graph implements GraphContext {
             // skip the manager teardown and the controller dispose below -- a leaked scene and a
             // device that is never destroyed, to avoid leaking one buffer. The release that follows
             // still frees the snapshot itself.
-            console.warn("graphty: an undirected copy could not be derived for release", error);
+            graphLogger.warn("An undirected copy could not be derived for release", { error });
         }
 
         return () => {
@@ -2210,7 +2237,7 @@ export class Graph implements GraphContext {
             try {
                 (release as (target: GraphSnapshot) => void).call(accelerator, released);
             } catch (error) {
-                console.warn("graphty: an accelerator threw while releasing a snapshot", error);
+                graphLogger.warn("An accelerator threw while releasing a snapshot", { error });
             }
         };
 
@@ -2284,7 +2311,8 @@ export class Graph implements GraphContext {
                 void this.runOnLoad(entry, dispatch).catch((error: unknown) => {
                     // Cancelled -- by an undo, the queue, or the reader -- is not a failure.
                     if (!(error instanceof Error && error.name === "AbortError")) {
-                        console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+                        graphLogger.error(`An algorithm run on load failed: ${JSON.stringify(entry)}`, asError(error));
+                        this.eventManager.emitGraphError(this, asError(error), "algorithm", { entry });
                     }
                 });
             }
@@ -2943,7 +2971,6 @@ export class Graph implements GraphContext {
      */
     private createInputManager(): InputManager {
         const inputConfig: InputManagerConfig = {
-            useMockInput: this.useMockInput,
             touchEnabled: true,
             keyboardEnabled: true,
             pointerLockEnabled: false,
@@ -3395,7 +3422,7 @@ export class Graph implements GraphContext {
                 .dispatch(command)
                 .catch((error: unknown) => {
                     if (!isAbort(error)) {
-                        console.error("[graphty] A layout behaviour was refused and nothing was changed.", error);
+                        graphLogger.error("A layout behaviour was refused and nothing was changed.", asError(error));
                     }
                 });
         } else if (Object.keys(project).length > 0) {
@@ -3480,7 +3507,7 @@ export class Graph implements GraphContext {
      */
     private setProjectConfig(values: ProjectConfigPatch): void {
         this.session.config.set(values).catch((error: unknown) => {
-            console.error("[graphty] A setting was refused and nothing was changed.", error);
+            graphLogger.error("A setting was refused and nothing was changed.", asError(error));
         });
     }
 
@@ -4858,8 +4885,8 @@ export class Graph implements GraphContext {
                 configurable: true,
                 writable: true,
                 value: (...args: unknown[]) => {
-                    console.warn(
-                        `[graphty] ${verb} was called on the graph while its batchOperations callback was open, ` +
+                    graphLogger.warn(
+                        `${verb} was called on the graph while its batchOperations callback was open, ` +
                             `so it is a step of its own. Call ${instead} inside the callback to make it part of the batch.`,
                     );
                     return Reflect.apply(door, this, args);
@@ -5974,8 +6001,7 @@ export class Graph implements GraphContext {
      * @deprecated Use getViewMode() === "2d" instead
      */
     is2D(): boolean {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        return this.styles.config.graph.twoD;
+        return this.dimension() === "2d";
     }
 
     /**
@@ -6824,7 +6850,7 @@ export class Graph implements GraphContext {
             try {
                 await this.exitXR();
             } catch (error) {
-                console.warn("[Graph] Failed to exit XR mode:", error);
+                graphLogger.warn("Failed to exit XR mode", { error });
             }
 
             const twoD = this.dimension() === "2d";
@@ -7181,7 +7207,7 @@ export class Graph implements GraphContext {
      * @param rows - The rows.
      * @yields Each row's spot.
      */
-    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot> {
+    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot, void> {
         const batches = this.#nodeBatches;
         const table = this.#rowTable;
         if (batches === null || table === null || batches.columnRowCount === 0) {
@@ -8656,7 +8682,7 @@ export class Graph implements GraphContext {
                         throw error; // Re-throw cancellation
                     }
 
-                    console.error("Camera animation failed:", error);
+                    graphLogger.error("Camera animation failed", asError(error));
                     // Fallback to immediate
                     this.applyCameraStateImmediate(resolvedState);
                     this.eventManager.emit("camera-state-changed", { state: resolvedState });
@@ -8790,8 +8816,9 @@ export class Graph implements GraphContext {
             camera.position.set(state.position.x, state.position.y, state.position.z);
         }
 
-        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+        const targeted = camera as Camera & { setTarget?: (target: Vector3) => void };
+        if (state.target && typeof targeted.setTarget === "function") {
+            targeted.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 
@@ -10045,7 +10072,9 @@ export class Graph implements GraphContext {
             // entry is a fixed position, and overwriting a view with it would quietly turn a rule
             // that recomputes itself for the graph on screen into one that does not.
             if (isCameraViewName(name)) {
-                console.warn(`Skipping import of camera preset "${name}": a camera view already answers to that name`);
+                graphLogger.warn(
+                    `Skipping import of camera preset "${name}": a camera view already answers to that name`,
+                );
                 continue;
             }
 
@@ -10092,7 +10121,8 @@ export class Graph implements GraphContext {
                 return;
             }
 
-            console.error("Error setting data:", e);
+            graphLogger.error("The graph data could not be set.", asError(e));
+            this.eventManager.emitGraphError(this, asError(e), "data-loading", { op: "setData" });
         });
     }
 
@@ -10823,7 +10853,7 @@ export class Graph implements GraphContext {
         const adapter = this.getVoiceAdapter();
 
         if (!adapter.isSupported) {
-            console.warn("Voice input is not supported in this browser");
+            graphLogger.warn("Voice input is not supported in this browser");
             return false;
         }
 
@@ -10915,7 +10945,7 @@ export class Graph implements GraphContext {
             this.session
                 .execute({ op: "view.immersive", mode: mode === "immersive-vr" ? "vr" : "ar" })
                 .catch((error: unknown) => {
-                    console.error("Failed to enter XR mode:", error);
+                    graphLogger.error("Failed to enter XR mode", asError(error));
                 });
         };
     }
@@ -10974,7 +11004,7 @@ export class Graph implements GraphContext {
         dispatcherOf(this.session)
             .dispatch({ op: "view.immersive", mode: null })
             .catch((error: unknown) => {
-                console.warn("[Graph] Failed to leave XR after the device ended the session:", error);
+                graphLogger.warn("Failed to leave XR after the device ended the session", { error });
             })
             .finally(emit);
     }
@@ -11062,7 +11092,7 @@ export class Graph implements GraphContext {
             ?.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
             .catch((error: unknown) => {
                 // The session runs on without the assistant's controls.
-                console.warn("[Graph] The assistant could not bind to the XR session:", error);
+                graphLogger.warn("The assistant could not bind to the XR session", { error });
             });
         this.xrAvailability.changed();
     }
@@ -11080,9 +11110,12 @@ export class Graph implements GraphContext {
         this.aiXr?.leave();
 
         // Clean up XR camera controller
-        if (this.scene.metadata?.xrCameraController) {
-            this.scene.metadata.xrCameraController.dispose();
-            this.scene.metadata.xrCameraController = null;
+        const metadata = this.scene.metadata as {
+            xrCameraController?: import("./cameras/XRPivotCameraController").XRPivotCameraController | null;
+        } | null;
+        if (metadata?.xrCameraController) {
+            metadata.xrCameraController.dispose();
+            metadata.xrCameraController = null;
         }
 
         // Remove render loop observer

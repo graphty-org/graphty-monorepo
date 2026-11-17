@@ -75,9 +75,9 @@ describe("the names of a partition's groups", () => {
         );
         assert.isDefined(block, "the groups were painted, so the legend has a block for them");
         assert.deepStrictEqual(
-            block?.swatches.map((swatch) => [swatch.label, swatch.value]),
-            groups.map((group) => [group.name, group.group]),
-            "each swatch carries the summary's name and the group exactly as the summary spells it",
+            block?.swatches.map((swatch) => [swatch.rank, swatch.value]),
+            groups.map((group) => [group.rank, group.group]),
+            "each swatch carries the summary's rank and the group exactly as the summary spells it",
         );
         assert.deepStrictEqual(
             groups.map((group) => group.rank),

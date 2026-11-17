@@ -8,7 +8,6 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
-import { LayerLink } from "../inspector/WhyThisLook";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
@@ -24,7 +23,6 @@ import {
     lineIn,
     type LiteralWrite,
     type NewLayer,
-    type PaintedOver,
     partlySet,
     propose,
     readsNothing,
@@ -89,8 +87,8 @@ export interface RowContext {
     readonly documentColors: readonly string[];
     /** Several rows edited together: what they share, and writes that reach every one of them. */
     readonly many?: ManyRows;
-    /** Which of the row's fields a layer above covers, where the row is a tree row. */
-    readonly paintedOver?: (channel: Channel) => PaintedOver | undefined;
+    /** Which of the row's fields its own shader hides, by the shader's name, where the row is a tree row. */
+    readonly hiddenBy?: (channel: Channel) => string | undefined;
     /** `"listbox"`: a choice property picks from a named, searchable list with the graph's values first. */
     readonly pickers?: "listbox";
 }
@@ -314,57 +312,6 @@ function undrawnCode(session: GraphSession, layer: LayerId, channel: Channel): s
         return undefined;
     }
     return session.styles.counts(layer).undrawn.find((fact) => UNDRAWN_WORDS[fact.code] !== undefined)?.code;
-}
-
-/** The most layers a coverage caption names; past it, "and N more", as the line under a field. */
-const COVERED_NAMES = 3;
-
-/**
- * The line under a set field a layer above covers: "Covered by Degree on 77 of 77", each layer's
- * name a link that opens it, as in Why this look. Past three layers it names the first three and
- * counts the rest, so a folder of 35 is one short line.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.over - who covers it, and where
- * @returns The line; the count is drawn on one line ("on 24 of 24", never "on 2" above "4 of 24")
- */
-function CoveredLine({ session, over }: Readonly<{ session: GraphSession; over: PaintedOver }>): React.JSX.Element {
-    if (over.hiddenBy !== undefined) {
-        // The row's own shader draws instead of the node: the value is kept, and comes back when
-        // the shader moves to another place.
-        return (
-            <Text
-                size="xs"
-                c="var(--cm-text-secondary)"
-                className="ws-field-covered"
-                data-covered-caption
-                data-hidden-by
-            >
-                {hiddenByWords(over.hiddenBy)}
-            </Text>
-        );
-    }
-    const rest = over.by.length - COVERED_NAMES;
-    const shown = rest > 1 ? COVERED_NAMES : over.by.length;
-    const between = (at: number): string => {
-        if (at === 0) {
-            return "";
-        }
-        return at === shown - 1 && rest <= 1 ? " and " : ", ";
-    };
-    const links = over.by.slice(0, shown).map((name, at) => (
-        <React.Fragment key={over.layers[at]}>
-            {between(at)}
-            <LayerLink session={session} layer={over.layers[at]} name={name} />
-        </React.Fragment>
-    ));
-    return (
-        <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-covered-caption>
-            Covered by {links}
-            {rest > 1 ? ` and ${String(rest)} more` : ""}{" "}
-            <span style={{ whiteSpace: "nowrap" }}>{`on ${String(over.count)} of ${String(over.of)}`}</span>
-        </Text>
-    );
 }
 
 /**
@@ -1198,20 +1145,20 @@ interface FieldCaptionsProps {
     channel: Channel;
     own: FieldLines["own"];
     pending: boolean;
-    over: PaintedOver | undefined;
+    hiddenBy: string | undefined;
     label: string;
     breakdown: string;
 }
 
 /**
- * The captions under a property row: what covers it, a value the element draws nothing for, the
+ * The captions under a property row: the shader that hides it, a value the element draws nothing for, the
  * first value of a selection with no layer yet, and how several rows set it.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the property
  * @param props.own - the row's own line
  * @param props.pending - just added with "+", waiting for a value
- * @param props.over - what a layer above covers
+ * @param props.hiddenBy - the row's own shader drawn instead of the node, hiding it
  * @param props.label - the name drawn in the label column
  * @param props.breakdown - how several rows set it, or empty
  * @returns the captions
@@ -1221,7 +1168,7 @@ function FieldCaptions({
     channel,
     own,
     pending,
-    over,
+    hiddenBy,
     label,
     breakdown,
 }: Readonly<FieldCaptionsProps>): React.JSX.Element {
@@ -1234,7 +1181,13 @@ function FieldCaptions({
     const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
         <>
-            {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {hiddenBy === undefined ? null : (
+                // The row's own shader draws instead of the node: the value is kept, and comes back
+                // when the shader moves to another place.
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-hidden-by>
+                    {hiddenByWords(hiddenBy)}
+                </Text>
+            )}
             {undrawn === undefined ? null : (
                 <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
                     {UNDRAWN_WORDS[undrawn]}
@@ -1260,7 +1213,7 @@ function FieldCaptions({
  * layer does not set has no row at all, so nothing here ever shows a value from beneath. Several
  * rows edited together that do not all set it alike read "Set on 1 of 2" with no value.
  * Delete or Backspace on a closed select or color chit, or Enter in an emptied typed field, removes
- * it too. A layer above that covers it adds a caption: "Covered by Degree on 77 of 77".
+ * it too.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
@@ -1306,8 +1259,8 @@ export function Field({
     const name = asset?.name ?? fieldName(channel);
     const label = word ?? asset?.label ?? channelWord(channel);
     const receipt = ctx.many?.receipt?.(channel);
-    // A layer above covers this row's value on some of its elements (a shown row only).
-    const over = own?.layer.enabled ? ctx.paintedOver?.(channel) : undefined;
+    // The row's own shader draws instead of the node (a shown row only).
+    const hiddenBy = own?.layer.enabled ? ctx.hiddenBy?.(channel) : undefined;
     const write = fieldWrite(ctx, channel, store);
     const writeValue = (value: ChannelValue): void => {
         // A list's new value is read by the list itself as it closes; a typed or picked value is not.
@@ -1406,7 +1359,6 @@ export function Field({
             data-setting={setting ? "" : undefined}
             data-accepts={descriptor.accepts}
             data-bound={own?.binding === undefined ? undefined : ""}
-            data-covered={over === undefined ? undefined : ""}
             onKeyDownCapture={(event) => {
                 fieldKeyDown(event, keys);
             }}
@@ -1435,7 +1387,7 @@ export function Field({
                 channel={channel}
                 own={own}
                 pending={pending}
-                over={over}
+                hiddenBy={hiddenBy}
                 label={label}
                 breakdown={breakdown}
             />
@@ -1987,7 +1939,7 @@ function lineOfBlock(block: LegendBlock): LineList {
         ...(block.scale === undefined || NEUTRAL_SCALES.has(block.scale.kind)
             ? []
             : [`${SCALE_WORDS[block.scale.kind] ?? enumWords(block.scale.kind)} scale`]),
-        // The field's own coverage caption ("Covered by ... on 77 of 77") says who paints over it.
+        // Painting over is the style tree's painted-over mark, not a note on the field.
         ...block.facts.flatMap((fact) => {
             const sentence = fact.code === "legend.painted-over" ? null : factSentence(fact);
             return sentence === null ? [] : [sentence.charAt(0).toUpperCase() + sentence.slice(1)];

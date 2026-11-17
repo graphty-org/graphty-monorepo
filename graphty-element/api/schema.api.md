@@ -8,9 +8,6 @@ import type { GeoBounds } from 'babylonjs-map/projection';
 import type { LocationFormat } from 'babylonjs-map/location';
 import type { MapSourceId } from 'babylonjs-map';
 import type { ProjectionId } from 'babylonjs-map/projection';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
@@ -1526,41 +1523,6 @@ export type Encoding = Partial<Record<Channel, Binding>> & {
     [address: ShaderParamAddress]: Binding;
 };
 
-// @public
-export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
-
-// @public
-export interface FileStyleMeaning {
-    readonly name: string;
-    readonly value: string | number | boolean;
-}
-
-// @public
-export interface FileStyleOrigin {
-    readonly classes?: number;
-    readonly column?: Path;
-    readonly distinctValues?: number;
-    readonly elements?: number;
-    readonly entries?: number;
-    readonly format: string;
-    readonly importId: string;
-    readonly mapping?: FileStyleMappingKind;
-    readonly meanings?: readonly FileStyleMeaning[];
-    readonly origin: FileStyleRuleOrigin;
-    readonly reason?: FileStyleReason;
-    readonly role: FileStyleRole;
-    readonly ruleId: string;
-}
-
-// @public
-export type FileStyleReason = StyleRuleReason;
-
-// @public
-export type FileStyleRole = StyleRuleRole;
-
-// @public
-export type FileStyleRuleOrigin = StyleRuleOrigin;
-
 // @public @deprecated
 export type Filter = RuleTree;
 
@@ -1801,7 +1763,6 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
-    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -1981,8 +1942,8 @@ export const NodeStyle: z.ZodObject<{
             pivot: "pivot";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            full: "full";
             low: "low";
+            full: "full";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -2412,9 +2373,9 @@ export const NodeStyle: z.ZodObject<{
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
             min: "min";
+            average: "average";
             max: "max";
             height: "height";
-            average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;
         minHeight: z.ZodOptional<z.ZodNumber>;

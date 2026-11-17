@@ -11,6 +11,7 @@
  * page's code and are never saved.
  */
 
+import { sha256HexSync } from "@graphty/graph-io";
 import {
     baseName,
     cutParam,
@@ -29,7 +30,7 @@ import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
-import { digestFileSet, sha256Fallback } from "./digest";
+import { digestFileSet } from "./digest";
 
 /**
  * The intake checks, loaded on the first add, so a page that never adds a model never
@@ -818,7 +819,7 @@ function holdOf(
  * @returns 64 hex characters.
  */
 function syncHex(text: string): string {
-    return [...sha256Fallback(new TextEncoder().encode(text))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return sha256HexSync(text);
 }
 
 /**

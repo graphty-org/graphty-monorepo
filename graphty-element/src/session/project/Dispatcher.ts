@@ -127,8 +127,6 @@ interface CommandServices {
      * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
      */
     legacyShaderText?: (id: string) => Promise<string | undefined>;
-    /** True while a project open restores the style values its file saved, which it does with the experiment off. */
-    restoringFileStyles?: boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */

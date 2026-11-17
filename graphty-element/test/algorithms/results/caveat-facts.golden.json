@@ -1,0 +1,732 @@
+{
+    "degree": [
+        {
+            "code": "degree.as-declared",
+            "params": {}
+        }
+    ],
+    "betweenness": [
+        {
+            "code": "paths.counted-exactly",
+            "params": {}
+        },
+        {
+            "code": "betweenness.halved",
+            "params": {}
+        },
+        {
+            "code": "paths.hop-lengths",
+            "params": {}
+        }
+    ],
+    "betweenness sampled": [
+        {
+            "code": "betweenness.sampled",
+            "params": {
+                "sources": 2,
+                "nodes": 6
+            }
+        },
+        {
+            "code": "betweenness.halved",
+            "params": {}
+        },
+        {
+            "code": "paths.hop-lengths",
+            "params": {}
+        }
+    ],
+    "closeness": [
+        {
+            "code": "closeness.exact",
+            "params": {}
+        },
+        {
+            "code": "closeness.hop-distances",
+            "params": {}
+        },
+        {
+            "code": "closeness.reciprocal",
+            "params": {}
+        }
+    ],
+    "closeness sampled": [
+        {
+            "code": "closeness.sampled",
+            "params": {
+                "sources": 2,
+                "nodes": 6
+            }
+        },
+        {
+            "code": "closeness.hop-distances",
+            "params": {}
+        },
+        {
+            "code": "closeness.reciprocal",
+            "params": {}
+        }
+    ],
+    "pagerank": [
+        {
+            "code": "pagerank.damping",
+            "params": {
+                "dampingFactor": 0.85
+            }
+        },
+        {
+            "code": "pagerank.sums-to-one",
+            "params": {}
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "pagerank personalized": [
+        {
+            "code": "pagerank.damping",
+            "params": {
+                "dampingFactor": 0.85
+            }
+        },
+        {
+            "code": "pagerank.sums-to-one",
+            "params": {}
+        },
+        {
+            "code": "pagerank.personalized",
+            "params": {}
+        },
+        {
+            "code": "pagerank.personalization-outside",
+            "params": {
+                "count": 1
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "pagerank personalization unmatched": [
+        {
+            "code": "pagerank.damping",
+            "params": {
+                "dampingFactor": 0.85
+            }
+        },
+        {
+            "code": "pagerank.sums-to-one",
+            "params": {}
+        },
+        {
+            "code": "pagerank.personalization-unmatched",
+            "params": {}
+        },
+        {
+            "code": "pagerank.personalization-outside",
+            "params": {
+                "count": 2
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "eigenvector": [
+        {
+            "code": "eigenvector.converged",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 1000
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "katz": [
+        {
+            "code": "katz.attenuation",
+            "params": {
+                "beta": 1,
+                "alpha": 0.1
+            }
+        },
+        {
+            "code": "katz.direction",
+            "params": {
+                "mode": "total"
+            }
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "hits": [
+        {
+            "code": "hits.published-score",
+            "params": {
+                "mode": "total"
+            }
+        },
+        {
+            "code": "hits.unit-length",
+            "params": {}
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "hits capped": [
+        {
+            "code": "hits.published-score",
+            "params": {
+                "mode": "total"
+            }
+        },
+        {
+            "code": "hits.unit-length",
+            "params": {}
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 1
+            }
+        },
+        {
+            "code": "iteration.cap-reached",
+            "params": {
+                "maxIterations": 1
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "k-core": [
+        {
+            "code": "k-core.undirected",
+            "params": {}
+        },
+        {
+            "code": "k-core.loops-and-parallels",
+            "params": {}
+        }
+    ],
+    "eigenvector in": [
+        {
+            "code": "eigenvector.converged",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 1000
+            }
+        },
+        {
+            "code": "eigenvector.scored-by",
+            "params": {
+                "mode": "in"
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "eigenvector out": [
+        {
+            "code": "eigenvector.converged",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 1000
+            }
+        },
+        {
+            "code": "eigenvector.scored-by",
+            "params": {
+                "mode": "out"
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "katz in": [
+        {
+            "code": "katz.attenuation",
+            "params": {
+                "beta": 1,
+                "alpha": 0.1
+            }
+        },
+        {
+            "code": "katz.direction",
+            "params": {
+                "mode": "in"
+            }
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "katz out": [
+        {
+            "code": "katz.attenuation",
+            "params": {
+                "beta": 1,
+                "alpha": 0.1
+            }
+        },
+        {
+            "code": "katz.direction",
+            "params": {
+                "mode": "out"
+            }
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "hits authority unscaled": [
+        {
+            "code": "hits.published-score",
+            "params": {
+                "mode": "in"
+            }
+        },
+        {
+            "code": "hits.max-scaled",
+            "params": {}
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "hits hub": [
+        {
+            "code": "hits.published-score",
+            "params": {
+                "mode": "out"
+            }
+        },
+        {
+            "code": "hits.unit-length",
+            "params": {}
+        },
+        {
+            "code": "iteration.stop-rule",
+            "params": {
+                "tolerance": 0.000001,
+                "maxIterations": 100
+            }
+        },
+        {
+            "code": "weights.unread",
+            "params": {}
+        }
+    ],
+    "louvain": [
+        {
+            "code": "community.resolution",
+            "params": {
+                "resolution": 1
+            }
+        }
+    ],
+    "leiden": [
+        {
+            "code": "community.resolution",
+            "params": {
+                "resolution": 1
+            }
+        }
+    ],
+    "label propagation": [
+        {
+            "code": "partition.unscored",
+            "params": {
+                "algorithm": "label-propagation"
+            }
+        }
+    ],
+    "girvan-newman": [
+        {
+            "code": "girvan-newman.best-of",
+            "params": {
+                "cuts": 3
+            }
+        }
+    ],
+    "connected components": [
+        {
+            "code": "components.weak",
+            "params": {}
+        }
+    ],
+    "strongly connected components": [
+        {
+            "code": "components.strong",
+            "params": {}
+        }
+    ],
+    "dijkstra": [
+        {
+            "code": "route.found",
+            "params": {
+                "source": "A",
+                "target": "F"
+            }
+        }
+    ],
+    "dijkstra no route": [
+        {
+            "code": "route.none",
+            "params": {
+                "source": "A",
+                "target": "D"
+            }
+        }
+    ],
+    "bellman-ford": [
+        {
+            "code": "route.found",
+            "params": {
+                "source": "A",
+                "target": "F"
+            }
+        }
+    ],
+    "floyd-warshall": [
+        {
+            "code": "floyd-warshall.eccentricity",
+            "params": {}
+        }
+    ],
+    "bfs": [
+        {
+            "code": "bfs.origin",
+            "params": {
+                "source": "A"
+            }
+        }
+    ],
+    "bfs reached": [
+        {
+            "code": "bfs.origin",
+            "params": {
+                "source": "A"
+            }
+        },
+        {
+            "code": "bfs.target-reached",
+            "params": {
+                "target": "F"
+            }
+        }
+    ],
+    "bfs unreached": [
+        {
+            "code": "bfs.origin",
+            "params": {
+                "source": "A"
+            }
+        },
+        {
+            "code": "bfs.target-unreached",
+            "params": {
+                "target": "D"
+            }
+        }
+    ],
+    "dfs": [
+        {
+            "code": "dfs.walk",
+            "params": {
+                "source": "A",
+                "order": "pre"
+            }
+        }
+    ],
+    "dfs post-order": [
+        {
+            "code": "dfs.walk",
+            "params": {
+                "source": "A",
+                "order": "post"
+            }
+        }
+    ],
+    "kruskal": [
+        {
+            "code": "tree.edge-count",
+            "params": {
+                "edges": 5
+            }
+        }
+    ],
+    "prim": [
+        {
+            "code": "tree.edge-count",
+            "params": {
+                "edges": 5
+            }
+        }
+    ],
+    "bipartite matching": [
+        {
+            "code": "matching.not-bipartite",
+            "params": {}
+        }
+    ],
+    "bipartite matching paired": [
+        {
+            "code": "matching.partnered",
+            "params": {
+                "count": 2
+            }
+        }
+    ],
+    "max flow": [
+        {
+            "code": "flow.ends",
+            "params": {
+                "source": "A",
+                "sink": "F"
+            }
+        }
+    ],
+    "max flow none": [
+        {
+            "code": "flow.ends",
+            "params": {
+                "source": "A",
+                "sink": "D"
+            }
+        },
+        {
+            "code": "flow.no-path",
+            "params": {
+                "source": "A",
+                "sink": "D"
+            }
+        }
+    ],
+    "max flow chosen": [
+        {
+            "code": "flow.ends",
+            "params": {
+                "source": "A",
+                "sink": "F"
+            }
+        },
+        {
+            "code": "flow.ends-chosen",
+            "params": {}
+        }
+    ],
+    "min cut": [
+        {
+            "code": "min-cut.sides",
+            "params": {
+                "first": 1,
+                "second": 5
+            }
+        }
+    ],
+    "min cut karger": [
+        {
+            "code": "min-cut.karger",
+            "params": {}
+        }
+    ],
+    "strongly connected components undirected": [
+        {
+            "code": "components.strong",
+            "params": {}
+        },
+        {
+            "code": "components.undirected-strong",
+            "params": {}
+        }
+    ],
+    "a-star steered": [
+        {
+            "code": "route.found",
+            "params": {
+                "source": "A",
+                "target": "F"
+            }
+        },
+        {
+            "code": "astar.straight-line",
+            "params": {}
+        }
+    ],
+    "min cut one end": [
+        {
+            "code": "min-cut.sides",
+            "params": {
+                "first": 1,
+                "second": 5
+            }
+        },
+        {
+            "code": "min-cut.end-chosen",
+            "params": {
+                "source": "A",
+                "sink": "F"
+            }
+        }
+    ],
+    "clustering coefficient": [
+        {
+            "code": "clustering-coefficient.local",
+            "params": {}
+        },
+        {
+            "code": "clustering-coefficient.simple",
+            "params": {}
+        }
+    ],
+    "link prediction": [
+        {
+            "code": "link-prediction.candidates",
+            "params": {}
+        }
+    ],
+    "markov clustering": [
+        {
+            "code": "partition.unscored",
+            "params": {
+                "algorithm": "markov-clustering"
+            }
+        }
+    ],
+    "spectral clustering": [
+        {
+            "code": "partition.unscored",
+            "params": {
+                "algorithm": "spectral-clustering"
+            }
+        }
+    ],
+    "hierarchical clustering": [
+        {
+            "code": "hierarchical.hop-distances",
+            "params": {}
+        },
+        {
+            "code": "partition.unscored",
+            "params": {
+                "algorithm": "hierarchical-clustering"
+            }
+        }
+    ],
+    "hierarchical clustering fewer": [
+        {
+            "code": "hierarchical.hop-distances",
+            "params": {}
+        },
+        {
+            "code": "partition.unscored",
+            "params": {
+                "algorithm": "hierarchical-clustering"
+            }
+        },
+        {
+            "code": "hierarchical.fewer-clusters",
+            "params": {
+                "asked": 5,
+                "allowed": 4
+            }
+        }
+    ],
+    "a-star": [
+        {
+            "code": "route.found",
+            "params": {
+                "source": "A",
+                "target": "F"
+            }
+        }
+    ],
+    "a-star no route": [
+        {
+            "code": "route.none",
+            "params": {
+                "source": "A",
+                "target": "D"
+            }
+        }
+    ],
+    "edge betweenness": [
+        {
+            "code": "paths.counted-exactly",
+            "params": {}
+        },
+        {
+            "code": "paths.hop-lengths",
+            "params": {}
+        }
+    ],
+    "edge betweenness sampled": [
+        {
+            "code": "edge-betweenness.sampled",
+            "params": {
+                "sources": 2,
+                "nodes": 6
+            }
+        },
+        {
+            "code": "paths.hop-lengths",
+            "params": {}
+        }
+    ]
+}

@@ -189,8 +189,8 @@ only the selected test files where `test-select-rules.json` allows file-level se
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-scorecard` (the drawn fidelity
-scorecard on the batched render path) run only in the full run.
+fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-1` to `-12` (the browser and
+interaction tests on the batched render path) run only in the full run.
 
 ## Visual review
 

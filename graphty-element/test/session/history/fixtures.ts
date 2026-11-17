@@ -35,6 +35,24 @@ export interface RoundTripFixture {
 /** Both twins run every style and visibility fixture. */
 const BOTH = ["session", "renderer"] as const;
 
+/** A text annotation the annotation fixtures write. */
+const FIXTURE_ANNOTATION = {
+    id: "fixture-note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "fixture note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
+} as const;
+
 /**
  * A node layer a fixture adds. Its id is minted from its name: "Fixture A" is `fixture-a_1`.
  * @param name - The layer's name.
@@ -822,19 +840,33 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
-        name: "data.setFileStyles",
-        tags: ["session"],
+        name: "annotations.set",
+        tags: BOTH,
         command: {
-            op: "data.setFileStyles",
-            loads: [
-                {
-                    importId: "fixture",
-                    namespace: "gexf",
-                    format: "gexf",
-                    columns: [{ kind: "node", key: "member.1", ids: ["n1", "n3"], values: [true, true] }],
-                },
-            ],
+            op: "annotations.set",
+            annotations: [FIXTURE_ANNOTATION],
+            scale: 2,
         },
+    },
+    {
+        name: "annotations.patch add",
+        variant: "add",
+        tags: BOTH,
+        command: { op: "annotations.patch", action: "add", annotation: FIXTURE_ANNOTATION },
+    },
+    {
+        name: "annotations.patch update",
+        variant: "update",
+        tags: BOTH,
+        before: (session) => session.annotations.add(FIXTURE_ANNOTATION),
+        command: { op: "annotations.patch", action: "update", id: FIXTURE_ANNOTATION.id, patch: { text: "changed" } },
+    },
+    {
+        name: "annotations.patch remove",
+        variant: "remove",
+        tags: BOTH,
+        before: (session) => session.annotations.add(FIXTURE_ANNOTATION),
+        command: { op: "annotations.patch", action: "remove", id: FIXTURE_ANNOTATION.id },
     },
     {
         name: "view.save",

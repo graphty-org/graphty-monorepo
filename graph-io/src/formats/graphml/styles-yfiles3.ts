@@ -14,7 +14,9 @@ import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText, htmlLabelSpans } from "../../styles/canon/text.js";
 import { spreadRamp } from "../../styles/canon/yed-gradient.js";
+import { YED_LABEL_CHARACTER, YED_LABEL_LINE } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { valueColumns } from "../../styles/columns.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleDialect, StyleProperty, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
@@ -39,9 +41,6 @@ import {
     treeChild,
     treeChildren,
     treeText,
-    valueColumns,
-    YED_LABEL_CHARACTER,
-    YED_LABEL_LINE,
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";

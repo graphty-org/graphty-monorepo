@@ -1,28 +1,28 @@
 /**
- * K1 of the ForceAtlas2 iteration, `fa2-stats-finalize` (spec 7.4; contract 4.5): one workgroup folds the partials
+ * K1 of the ForceAtlas2 iteration, `fa2-stats-finalize`: one workgroup folds the partials
  * the previous integrate (K5) wrote into the state block -- centroid, RMS radius, layout radius (max |p - c|, the
- * exact spec 3.3 value from `partials.max.w`), bounding box, mean displacement over free nodes (0 when every node
+ * exact value from `partials.max.w`), bounding box, mean displacement over free nodes (0 when every node
  * is fixed), the settle counter -- increments the iteration counter and writes the K1 half of the trace record.
  * On the first iteration after load() (`FA2_FLAG_FIRST`) it folds nothing and keeps the host-written state.
- * `STATS_MODE` (P5, spec 7.20) adds the model statistic: 0 = the FA2 text, 1 = the Fruchterman-Reingold temperature
+ * `STATS_MODE` adds the model statistic: 0 = the FA2 text, 1 = the Fruchterman-Reingold temperature
  * of this iteration into `S.temperature` and the trace's `modelScalar` -- the uniform's under the linear schedule,
  * or, with `FA2_FLAG_ADAPTIVE` set, the adaptive one: the previous iteration's force energy (K5 folds sum |F|^2 over
  * free nodes into `partials.swingTraction.x`) against `S.frEnergy` grows the temperature by 1 / FR_COOLING_STEP after
  * FR_COOLING_PATIENCE consecutive falls and shrinks it by FR_COOLING_STEP on a rise (Yifan Hu 2005, section 3.2);
- * 2 = the spring-electrical kinetic energy K5 folded into `partials.swingTraction.x` (PD-4) into `S.kineticEnergy`
- * and the trace. On the grid tier (`P.gridMax > 0`, P4-T10, PD-14) it also derives the grid frame of the next build
+ * 2 = the spring-electrical kinetic energy K5 folded into `partials.swingTraction.x` into `S.kineticEnergy`
+ * and the trace. On the grid tier (`P.gridMax > 0`) it also derives the grid frame of the next build
  * from the fold (`extent = max(min(bboxExtent * GRID_BBOX_MARGIN, extentFactor * rmsRadius), GRID_EXTENT_FLOOR)`,
  * `cellSize = extent / G`, `gridMin = centroid - extent / 2` with `cellSize` in `.w`, `invCellSize`, `eps = 0.25
  * cellSize`), copies the previous iteration's pseudo-cell count and occupancy max into the state, and resets the
  * hub counters; the exact tier writes `gridMax: 0` and binds two dummies, so the block is dead there.
  *
- * This file holds the kernel BODY only (spec 3.5, D9): no bind-group lines and no `override` lines -- the composer
- * emits them from the registry entry in src/kernels.ts (contract 3.10.1). The text is normative (contract 4.5) and
- * is the target of the K1 sabotage mutations (test/helpers/sabotage.ts, P3-T5); amend the contract before editing.
+ * This file holds the kernel BODY only: no bind-group lines and no `override` lines -- the composer
+ * emits them from the registry entry in src/kernels.ts. The text is normative and is the target of the K1 sabotage mutations
+ * (test/helpers/sabotage.ts); change those rows with it. See design/webgpu/webgpu-acceleration-plan.md, "7.4 Per-iteration kernel sequence".
  */
 
-/** The K1 body: entry point `stats_finalize`; calls the reduction helpers (`needs: ["subgroups"]`, contract 4.3). */
-export const fa2StatsFinalizeWgsl = /* wgsl */ `// K1: folds the previous integrate's partials into the state block (spec 7.4); one workgroup
+/** The K1 body: entry point `stats_finalize`; calls the reduction helpers (`needs: ["subgroups"]`). */
+export const fa2StatsFinalizeWgsl = /* wgsl */ `// K1: folds the previous integrate's partials into the state block; one workgroup
 @compute @workgroup_size(WG)
 fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
     let groups = (P.n + WG - 1u) / WG;
@@ -55,11 +55,11 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             let n = f32(max(P.live, 1u));                              // inert rows are not counted (setInert)
             let c = tSum.xyz / n;
             S.centroid = vec4f(c, 0.0);
-            S.rmsRadius = sqrt(max(tSum.w, 0.0) / n);                  // RMS radius about the previous centroid (7.17)
+            S.rmsRadius = sqrt(max(tSum.w, 0.0) / n);                  // RMS radius about the previous centroid
             S.min = vec4f(tLo.xyz, 0.0);
             S.max = vec4f(tHi.xyz, 0.0);
             S.radius = sqrt(max(tHi.w, 0.0));                          // max |p - centroid| about the same previous centroid as rmsRadius (K5 puts |q|^2 in max.w)
-            let meanDisp = select(tDisp / f32(tFree), 0.0, tFree == 0u);  // all-fixed: 0, never NaN (7.4)
+            let meanDisp = select(tDisp / f32(tFree), 0.0, tFree == 0u);  // all-fixed: 0, never NaN
             S.meanDisplacement = meanDisp;
             S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= min(P.settleThreshold * S.rmsRadius, P.settleFloor));   // relative AND absolute (issue #97)
         }
@@ -67,13 +67,13 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         T[P.iterationIndex].meanDisplacement = S.meanDisplacement;
         T[P.iterationIndex].settledCount = S.settledCount;
         T[P.iterationIndex].iteration = S.iteration;
-        if (P.gridMax > 0u) {                                      // the grid tier (7.7): the robust extent, the cell size, eps, last iteration's counts, the hub counter reset (PD-14)
+        if (P.gridMax > 0u) {                                      // the grid tier: the robust extent, the cell size, eps, last iteration's counts, the hub counter reset
             let cells = P.gridMax * P.gridMax * select(1u, P.gridMax, P.dim == 3u);
             if (fold) {
                 let box = (S.max.xyz - S.min.xyz) * GRID_BBOX_MARGIN;
                 var bboxExtent = max(box.x, box.y);
                 if (P.dim == 3u) { bboxExtent = max(bboxExtent, box.z); }
-                let extent = max(min(bboxExtent, P.extentFactor * S.rmsRadius), GRID_EXTENT_FLOOR);   // min(bbox, extentFactor x rms), floored (7.7)
+                let extent = max(min(bboxExtent, P.extentFactor * S.rmsRadius), GRID_EXTENT_FLOOR);   // min(bbox, extentFactor x rms), floored
                 let cellSize = extent / f32(P.gridMax);
                 S.gridMin = vec4f(S.centroid.xyz - vec3f(0.5 * extent), cellSize);   // gridMin.w carries cellSize
                 S.invCellSize = 1.0 / cellSize;
@@ -86,7 +86,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             atomicStore(&hubCounters[0], 0u);
             atomicStore(&hubCounters[1], 0u);
         }
-        if (STATS_MODE == 1u) {                                    // FR: this iteration's temperature (7.20) into the state and the trace
+        if (STATS_MODE == 1u) {                                    // FR: this iteration's temperature into the state and the trace
             if ((P.flags & FA2_FLAG_ADAPTIVE) != 0u) {                // adaptive cooling (Yifan Hu 2005 3.2): tKe is the previous iteration's sum |F|^2 over free nodes
                 if (fold) {
                     var t = S.temperature;
@@ -105,7 +105,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             }
             T[P.iterationIndex].modelScalar = S.temperature;
         }
-        if (STATS_MODE == 2u) {                                    // spring-electrical: the kinetic energy K5 folded into partials B (PD-4); 0 on the first iteration after load()
+        if (STATS_MODE == 2u) {                                    // spring-electrical: the kinetic energy K5 folded into partials B; 0 on the first iteration after load()
             S.kineticEnergy = tKe;
             T[P.iterationIndex].modelScalar = tKe;
         }

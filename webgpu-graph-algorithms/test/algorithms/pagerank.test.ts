@@ -7,7 +7,6 @@
 
 import { pageRank as cpuPageRank } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { pageRank, personalizedPageRank } from "../../src/algorithms/pagerank.js";
 import { GpuContext } from "../../src/context.js";
@@ -20,7 +19,7 @@ import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from ".
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
 import { pageRankOracle, type PageRankOracleOptions, pageRankOracleTo } from "../oracle/pagerank.js";
-import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
+import { acquireRaw, gpuScale, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** The defaults of pageRank, spelled for the oracle. */
 const OPTS: PageRankOracleOptions = { alpha: 0.85, tolerance: 1e-6, maxIterations: 100, weighted: true };
@@ -119,14 +118,7 @@ describe("pageRankOracle (pure)", () => {
 });
 
 describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "pagerank" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "pagerank" });
 
     for (const name of FIXTURE_NAMES) {
         it(`matches the oracle after exactly 8 iterations on ${name} within 1e-5 relative`, async (t) => {

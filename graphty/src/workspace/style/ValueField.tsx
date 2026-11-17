@@ -407,7 +407,7 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
  * @param props.value - what the line names
  * @returns The field
  */
-function ModelNameField({ label, value }: Readonly<{ label: string; value: unknown }>): React.JSX.Element {
+export function ModelNameField({ label, value }: Readonly<{ label: string; value: unknown }>): React.JSX.Element {
     const { session } = useWorkspace();
     const ref = typeof value === "string" ? value : "";
     const name = session === null || ref === "" ? ref : modelName(session, ref);

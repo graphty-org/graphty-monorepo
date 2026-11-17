@@ -784,6 +784,10 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(record?.defaults?.style["node.modelSourceUp"], "-z", "the model keeps its rotation");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90);
         assert.isUndefined(written(session, "node.modelTurn"), "the layer starts from the model's");
+        // The Style panel names the model, never its asset id.
+        await waitFor(() => {
+            assert.equal(screen.getByRole<HTMLInputElement>("textbox", { name: "Node model" }).value, "quad");
+        });
     });
 
     it("plays an animated model's first clip from the Main menu, and keeps a Pose dragged with the mouse", async () => {

@@ -35,7 +35,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
-import { ValueField } from "./ValueField";
+import { ModelNameField, ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindingTitle,
@@ -897,6 +897,9 @@ function OneValue({
         return (
             <NumberValue descriptor={descriptor} name={name} value={value} combine={combine} writeValue={writeValue} />
         );
+    }
+    if (descriptor.channel === "node.model") {
+        return <ModelNameField label={name} value={value} />;
     }
     return <TextValue name={name} value={value} writeValue={writeValue} />;
 }

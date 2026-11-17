@@ -3690,7 +3690,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             { name: "door naming" },
                         );
                         sets.remove("set_door-kept");
-                        return () => Promise.resolve();
+                        return Promise.resolve(() => Promise.resolve());
                     },
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],

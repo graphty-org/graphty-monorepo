@@ -224,6 +224,8 @@ interface Loading {
     readonly byAddress: boolean;
     /** Stops it. */
     readonly controller: AbortController;
+    /** Stops only the pictures still downloading: the model stays, waiting for them. */
+    readonly pictures: AbortController;
     /** graphty-element's stage, or undefined before its first change. */
     readonly stage?: string;
     readonly completed: number;
@@ -1109,6 +1111,7 @@ export function CustomModelDialog({
         files: readonly File[],
         controller: AbortController,
         live: () => boolean,
+        stopPictures?: AbortSignal,
     ): Promise<void> => {
         if (held?.record.state === "rejected" && files.length > 0 && !files.some((f) => isModelFile(f))) {
             await offer(held, files, live);
@@ -1136,6 +1139,7 @@ export function CustomModelDialog({
             signal: controller.signal,
             onProgress,
             onWaiting,
+            stopPictures,
         });
         const refs = records.map((r) => url ?? r.id);
         noteAdded(records, refs, before);
@@ -1174,21 +1178,21 @@ export function CustomModelDialog({
             });
         setRefused(out);
         holdAll(kept.map((r) => ({ ...(url === undefined ? {} : { url }), record: r })));
-        say(
-            [
-                kept.length > 1
-                    ? CUSTOM_MODEL.loadedMany(kept.length)
-                    : CUSTOM_MODEL.loaded(kept[0].plainName ?? modelName(session, url ?? kept[0].id)),
-                ...out.map((r) => CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem))),
-            ].join(". "),
-        );
+        const shownName = kept[0].plainName ?? modelName(session, url ?? kept[0].id);
+        let loadedLine = kept.length > 1 ? CUSTOM_MODEL.loadedMany(kept.length) : CUSTOM_MODEL.loaded(shownName);
+        // Cancel load while only its pictures downloaded: the model stays, without them.
+        if (stopPictures?.aborted === true) {
+            loadedLine = CUSTOM_MODEL.cancelled(shownName);
+        }
+        say([loadedLine, ...out.map((r) => CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem)))].join(". "));
     };
     const load = (source: AssetSource, files: readonly File[], shown: string): void => {
         // A new source (a drop, Retry, the address field) replaces the one still loading.
         loading?.controller.abort();
         const controller = new AbortController();
         const byAddress = typeof source === "string";
-        setLoading({ name: shown, byAddress, controller, completed: 0, total: null });
+        const pictures = new AbortController();
+        setLoading({ name: shown, byAddress, controller, pictures, completed: 0, total: null });
         setProblem(null);
         setPicture(null);
         setRefused([]);
@@ -1197,7 +1201,7 @@ export function CustomModelDialog({
         const stillOpen = start();
         // Add pressed: a load settling after it holds nothing more.
         const live = (): boolean => stillOpen() && !controller.signal.aborted && !adding.current;
-        settle(source, files, controller, live)
+        settle(source, files, controller, live, pictures.signal)
             .catch((error: unknown) => {
                 if (isAbort(error) || controller.signal.aborted) {
                     return;
@@ -1215,9 +1219,10 @@ export function CustomModelDialog({
     };
     loadRef.current = load;
     const cancelLoad = (): void => {
-        // A model shown while its pictures download goes with the load, as before it was shown.
+        // A model shown while its pictures download stays: only the pictures stop, and it waits
+        // for them (handed over in Files, or added without them).
         if (loading?.held === true) {
-            clear();
+            loading.pictures.abort();
             return;
         }
         if (loading !== null) {
@@ -1388,6 +1393,16 @@ export function CustomModelDialog({
                 .map((chip) => [chip.word, chip]),
         ).values(),
     ];
+    // Pictures not in yet: Details gives no size for them.
+    const missingPictures = (held?.record.problems ?? []).filter(
+        (p) =>
+            p.code === "E_MODEL_MISSING_FILE" &&
+            (held?.record.parts ?? []).some((part) => part.name === p.params.name && part.role === "texture"),
+    );
+    const picturesWaiting = {
+        count: missingPictures.length,
+        downloading: missingPictures.some((p) => p.params.downloading === true),
+    };
     const ignored = (held?.record.problems ?? [])
         .filter((p) => p.code === "W_MODEL_EXTENSION_IGNORED")
         .map((p) => String(p.params.extension));
@@ -1769,9 +1784,11 @@ export function CustomModelDialog({
                         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling box must take focus so the keyboard can scroll it
                         tabIndex={0} // NOSONAR(S6845): a scrolling table takes focus so the keyboard scrolls it (WCAG 2.1.1)
                     >
-                        {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored).map((row) => (
-                            <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
-                        ))}
+                        {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
+                            (row) => (
+                                <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
+                            ),
+                        )}
                     </section>
                 </Stack>
             )}

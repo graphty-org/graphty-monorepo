@@ -284,6 +284,28 @@ const car = await element.session.assets.accept(waiting.id, { without: "missing"
 // car.state === "accepted"; car.skipped lists wood.png; find(waiting.id) finds it too
 ```
 
+A model refused for anything other than a missing part (over a limit, unreadable) is never
+accepted: `accept` throws that problem's code, such as `E_MODEL_TOO_LARGE`, with its params in
+`details`.
+
+A part that drew in the model's own color picture and was left out takes the node's color
+(`node.color`) instead, in every format, so a model added without its textures can be colored by a
+style layer.
+
+### Taking a part back out
+
+A file handed over by mistake (the wrong picture, an `.mtl` the reader does not want) comes back
+out with `assets.dropPart(ref, name)`: the model is read again from its other files, so that part
+is missing again, and asked for or drawn without as any missing part. A model still waiting keeps
+its id; an accepted one gives a new record, and the model as it was stays until you `remove` it.
+The model's own file cannot be dropped (`E_BAD_COMMAND`):
+
+```ts
+const again = await element.session.assets.dropPart(car.id, "Textures/wrong.png");
+// again.parts lists Textures/wrong.png as "missing"
+element.session.assets.remove(car.id); // let go of the model as it was
+```
+
 ### Listing a model's files
 
 `record.parts` lists a model's files, accepted or waiting: the main file (`role: "model"`), each
@@ -527,6 +549,21 @@ const record = await element.session.assets.add(url, {
         // change.asset.stage: "downloading", "reading" or "unpacking"; change.fraction is null when the size is not known.
         bar.value = change.fraction ?? 0;
     },
+});
+```
+
+A model by address can be shown before its pictures arrive. `onWaiting` hears the model once
+everything but its pictures is in: its record waits for them (each picture an
+`E_MODEL_MISSING_FILE` with `downloading: true`), and `modelPreview` or `checkModel` with
+`standInMissing` draw it at once. `stopPictures` stops only those downloads: the model stays,
+waiting for the pictures as if they had not come, so the reader can hand them over with `supply` or
+take the model without them with `accept`. `signal` still stops everything:
+
+```ts
+const stopPictures = new AbortController();
+const record = await element.session.assets.add(url, {
+    onWaiting: (waiting) => showPreview(waiting.id), // shown while its pictures download
+    stopPictures: stopPictures.signal, // stopPictures.abort() keeps the model, without them
 });
 ```
 

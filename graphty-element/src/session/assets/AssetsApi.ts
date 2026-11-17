@@ -120,6 +120,13 @@ export interface AddAssetOptions {
      * downloads and takes it without them. The download otherwise goes on and `add` settles as usual.
      */
     readonly onWaiting?: (record: AssetRecord) => void;
+    /**
+     * A URL only: stops the pictures still downloading, and nothing else. The model settles waiting
+     * for them, each an `E_MODEL_MISSING_FILE` as if it had not come, so it can be handed them
+     * (`supply`) or taken without them (`accept`). For a "stop loading" button beside a model
+     * shown through `onWaiting`; `signal` stops the whole download.
+     */
+    readonly stopPictures?: AbortSignal;
 }
 
 /**
@@ -1521,7 +1528,15 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return () => undefined;
         }
 
-        const { onProgress, signal, onWaiting } = options;
+        const { onProgress, signal, onWaiting, stopPictures } = options;
+        const onStopPictures = (): void => {
+            fetch.pictures.abort(stopPictures?.reason);
+        };
+        if (stopPictures?.aborted === true) {
+            onStopPictures();
+        } else {
+            stopPictures?.addEventListener("abort", onStopPictures, { once: true });
+        }
         if (onWaiting !== undefined) {
             fetch.waiters.add(onWaiting);
             if (fetch.waiting !== undefined) {
@@ -1567,6 +1582,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             signal?.removeEventListener("abort", onAbort);
+            stopPictures?.removeEventListener("abort", onStopPictures);
         };
     };
 
@@ -1968,6 +1984,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         return record({
             ...settled,
             url,
+            // The files that have arrived, not the 0 of a record made before any did.
+            byteLength: byteLengthOf(held.given),
             ...(main === undefined ? {} : { path: main }),
             ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
         });

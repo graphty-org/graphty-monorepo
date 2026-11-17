@@ -1031,6 +1031,14 @@ describe("the Load custom model dialog, on the real element", () => {
         const files = within(dialog).getByRole("region", { name: "Files" });
         assert.isNotNull(within(files).getByText("Downloading"), "the picture is said to be downloading");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "and can still be stopped");
+        const details = within(dialog).getByRole("region", { name: "Details" });
+        const size = String(within(details).getByRole("group", { name: "File size" }).textContent);
+        assert.notMatch(size, /(^|[^\d.,])0 KB/, "the size of what has arrived, not 0");
+        assert.include(
+            within(details).getByRole("group", { name: "Textures" }).textContent,
+            "1 downloading",
+            "no size for a picture still on its way",
+        );
         const rows = await openSettings(dialog);
         await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
         const add = within(dialog).getByRole("button", { name: "Add to project" });
@@ -1042,6 +1050,46 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90, "with what the reader set meanwhile");
+    });
+
+    it("keeps a model by address when Cancel load stops only its pictures, and adds it without them", async () => {
+        const base = "https://models.example.com/stop/";
+        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+        const original = globalThis.fetch.bind(globalThis);
+        let stopped = false;
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            if (to === `${base}police.glb`) {
+                return Promise.resolve(new Response(police, { status: 200 }));
+            }
+            if (to === `${base}Textures/colormap.png`) {
+                init?.signal?.addEventListener("abort", () => {
+                    stopped = true;
+                });
+                return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
+            }
+            return original(input, init);
+        });
+        const { session, store } = await openShapes();
+        const dialog = await fromMenu();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.tab();
+        await previewOf(dialog, "police");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
+        await waitFor(() => {
+            assert.isTrue(stopped, "the picture's download stopped");
+            assert.isNull(within(dialog).queryByRole("button", { name: "Cancel load" }), "nothing loads now");
+        });
+        assert.match(String(store.get().announcement), /^Stopped loading/);
+        await previewOf(dialog, "police");
+        const files = within(dialog).getByRole("region", { name: "Files" });
+        assert.isNull(within(files).queryByText("Downloading"), "the picture is no longer downloading");
+        assert.isNotNull(within(dialog).getByRole("group", { name: "colormap.png" }), "and is asked for");
+        await addModel(dialog, "Add to project");
+        await waitFor(() => {
+            const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
+            assert.include(record?.skipped ?? [], "Textures/colormap.png", "added without its picture");
+        });
     });
 
     it("replaces a load still under way with a model chosen through Choose file, and tips Choose folder", async () => {

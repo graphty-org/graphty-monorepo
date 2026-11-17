@@ -2135,12 +2135,17 @@ export const CUSTOM_MODEL = {
      * @param summary - from graphty-element's `assets.inspect`.
      * @param fileBytes - the model's files, in bytes, if known.
      * @param ignored - the extensions graphty-element drew without (`W_MODEL_EXTENSION_IGNORED`).
+     * @param waiting - the pictures not in yet, and whether they still download: their size is not
+     *     known, so the Textures row gives none.
+     * @param waiting.count - how many.
+     * @param waiting.downloading - whether they still download.
      * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
      */
     detailRows: (
         summary: ModelSummary,
         fileBytes: number | undefined,
         ignored: readonly string[] = [],
+        waiting: { readonly count: number; readonly downloading: boolean } = { count: 0, downloading: false },
     ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
         const rows: { name: string; value: string; tip?: string }[] = [
             { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
@@ -2160,7 +2165,13 @@ export const CUSTOM_MODEL = {
             formatCount(summary.materials.length),
             summary.materials.filter((m) => m !== "").join(", ") || undefined,
         );
-        add(summary.textures > 0, "Textures", `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`);
+        add(
+            summary.textures > 0,
+            "Textures",
+            waiting.count > 0
+                ? `${formatCount(summary.textures)}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`
+                : `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`,
+        );
         add(
             summary.animations.length > 0,
             "Animations",

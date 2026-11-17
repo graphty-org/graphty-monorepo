@@ -258,8 +258,11 @@ interface EdgeRange {
     readonly records: (GraphRecord | number)[];
     /** The slice map that issued the places in `records`, or null. */
     readonly from: RecordMap<EdgeId> | null;
-    /** The file's own id per edge, or undefined. */
-    readonly fileIds: (string | number | undefined)[];
+    /**
+     * The file's own id per edge, or undefined; null while no edge of the run has one, which is
+     * every edge of most loads (8 MB a million edges).
+     */
+    fileIds: (string | number | undefined)[] | null;
     /** The endpoints an edge created, by its place in the run; most create none. */
     readonly created: Map<number, readonly NodeId[]>;
     /** The identity cells each edge was completed with, kept by the first undo for its redo. */
@@ -283,9 +286,20 @@ interface NodeRange {
      * (`readSeedPosition`), and three numbers in one array are not an array per node (53 MB at 1M).
      */
     readonly seeds: number[];
-    readonly existed: boolean[];
+    /** Whether node `at` existed before the add, one bit each (bit `at & 7` of byte `at >> 3`). */
+    existed: Uint8Array;
     /** The record the slice held before, by the node's place in the run; most had none. */
     readonly priors: Map<number, GraphRecord>;
+}
+
+/**
+ * Whether node `at` of a run existed before the add.
+ * @param range - The run.
+ * @param at - The node's place in it.
+ * @returns True when it did.
+ */
+function existedAt(range: NodeRange, at: number): boolean {
+    return (range.existed[at >> 3] & (1 << (at & 7))) !== 0;
 }
 
 /** One node added, as a node op holds it. */
@@ -314,7 +328,7 @@ function nodeAt(range: NodeRange, at: number): NodeOp {
         id: range.ids[at],
         record: recordIn(range, at),
         seed: seedAt(range.seeds, at),
-        existed: range.existed[at],
+        existed: existedAt(range, at),
         prior: range.priors.get(at),
     };
 }
@@ -908,7 +922,7 @@ function createdBy(op: GraphOp): readonly NodeId[] {
         case "edge":
             return op.created;
         case "nodes":
-            return op.ids.filter((_, at) => !op.existed[at]);
+            return op.ids.filter((_, at) => !existedAt(op, at));
         case "edges":
             return [...op.created.values()].flat();
         default:
@@ -931,7 +945,9 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
                     return !op.existed;
                 }
 
-                return op.kind === "nodes" ? op.existed.includes(false) : op.kind !== "record" && op.kind !== "value";
+                return op.kind === "nodes"
+                    ? op.ids.some((_, at) => !existedAt(op, at))
+                    : op.kind !== "record" && op.kind !== "value";
             }),
     );
 }
@@ -1274,7 +1290,15 @@ class GraphEntry implements OpLogEntry {
         if (last?.kind === "nodes" && last.from === from) {
             range = last;
         } else {
-            range = { kind: "nodes", ids: [], records: [], from, seeds: [], existed: [], priors: new Map() };
+            range = {
+                kind: "nodes",
+                ids: [],
+                records: [],
+                from,
+                seeds: [],
+                existed: new Uint8Array(16),
+                priors: new Map(),
+            };
             this.ops.push(range);
             this.retained += 48;
         }
@@ -1283,6 +1307,7 @@ class GraphEntry implements OpLogEntry {
             range.priors.set(range.ids.length, op.prior);
         }
 
+        const at = range.ids.length;
         range.ids.push(op.id);
         range.records.push(from?.stored(op.record) ?? op.record);
         if (op.seed === null) {
@@ -1291,9 +1316,17 @@ class GraphEntry implements OpLogEntry {
             range.seeds.push(op.seed[0], op.seed[1], op.seed[2]);
         }
 
-        range.existed.push(op.existed);
-        // Array slots and three seed numbers per node, not an op object or a seed array.
-        this.retained += 20 + recordBytes(op.record);
+        if (at >> 3 >= range.existed.length) {
+            const grown = new Uint8Array(2 * range.existed.length);
+            grown.set(range.existed);
+            range.existed = grown;
+        }
+
+        if (op.existed) {
+            range.existed[at >> 3] |= 1 << (at & 7);
+        }
+        // Array slots, three seed numbers and a bit per node, not an op object or a seed array.
+        this.retained += 16 + recordBytes(op.record);
     }
 
     /**
@@ -1316,7 +1349,7 @@ class GraphEntry implements OpLogEntry {
                 weights: [],
                 records: [],
                 from,
-                fileIds: [],
+                fileIds: null,
                 created: new Map(),
             };
             this.ops.push(range);
@@ -1331,9 +1364,19 @@ class GraphEntry implements OpLogEntry {
         range.targets.push(op.target);
         range.weights.push(op.weight);
         range.records.push(from?.stored(op.record) ?? op.record);
-        range.fileIds.push(op.fileId);
-        // Five array slots per edge, not an op object.
-        this.retained += 16 + recordBytes(op.record);
+        const at = range.records.length - 1;
+        if (op.fileId !== undefined && range.fileIds === null) {
+            range.fileIds = new Array<string | number | undefined>(at).fill(undefined);
+            this.retained += 4 * at;
+        }
+
+        if (range.fileIds !== null) {
+            range.fileIds[at] = op.fileId;
+            this.retained += 4;
+        }
+
+        // Four array slots per edge (five once a file id arrives), not an op object.
+        this.retained += 12 + recordBytes(op.record);
     }
 
     bytes(): number {
@@ -1601,7 +1644,7 @@ class GraphEntry implements OpLogEntry {
                             target: op.targets[at],
                             weight: op.weights[at],
                             record: recordIn(op, at),
-                            fileId: op.fileIds[at],
+                            fileId: op.fileIds?.[at],
                         };
                         this.redoEdge(edge, op.identities?.[at], edges, seen);
                     });

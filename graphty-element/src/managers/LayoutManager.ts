@@ -950,6 +950,10 @@ export class LayoutManager implements Manager {
             this.onRest?.();
         }
 
+        if (this.layoutEngine) {
+            layoutEngineInternals.rest(this.layoutEngine, !next);
+        }
+
         // The bridge closes its work span once a stopped layout's batches have landed, so a status
         // chip does not read "active" while nothing is being submitted.
         if (this.layoutEngine instanceof SimulationLayoutEngine) {
@@ -2680,6 +2684,9 @@ export class LayoutManager implements Manager {
                 remaining -= chunk;
             }
         } else {
+            // An engine stepped here publishes on every step, and a resting one lets its publish
+            // scratch go after each publish; so it is held through the loop and let go once, below.
+            layoutEngineInternals.rest(engine, false);
             for (let i = 0; i < preSteps; i++) {
                 // Stop if layout has settled
                 if (engine.isSettled) {
@@ -2695,6 +2702,7 @@ export class LayoutManager implements Manager {
         // publish the arrangement of the frame before for an accelerated simulation, and one that
         // published in a `then` would publish a frame late for every other engine.
         engine.publishPositions();
+        layoutEngineInternals.rest(engine, !this._running);
         return true;
     }
 

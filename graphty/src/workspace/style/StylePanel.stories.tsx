@@ -337,13 +337,20 @@ async function openLeidenFolder(): Promise<HTMLElement> {
             expect(seed.closest("[data-popout-id]")?.contains(document.activeElement)).toBe(true);
         });
     }
-    await userEvent.type(seed, "42");
+    // A number box applies what is typed only on Enter, Tab or blur, and Escape takes typing back:
+    // Enter commits 42 first, or the Escape below would discard it and Leiden would run unseeded.
+    await userEvent.type(seed, "42{Enter}");
     expect(seed).toHaveValue("42");
     if (settings !== null) {
         // Escape closes only the settings popover; Analyze stays open on Leiden.
         await userEvent.keyboard("{Escape}");
     }
     await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
+    // The run must carry the seed, or every capture draws its own groups.
+    const element = document.querySelector("graphty-element");
+    expect(element?.session.runs.list().find((r) => r.algorithm === "leiden")?.params).toMatchObject({
+        randomSeed: 42,
+    });
     const tree = await page().findByRole("tree", { name: "Style layers" });
     const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });
     await userEvent.click(folder);

@@ -52,6 +52,17 @@ export const OPEN_PROJECT_URLS = {
 } as const;
 
 /**
+ * Default timeline style (Settings > General): the look the
+ * Timeline Hidden row starts with when a new project gets it, as graphty-element's
+ * `timelineHiddenLook`. It never rewrites a row a project already has.
+ */
+export const TIMELINE_STYLE = {
+    key: "graphty.timelineStyle.v1",
+    values: ["hidden", "ghost"],
+    fallback: "hidden",
+} as const;
+
+/**
  * Map layout automatically enables depth-independent size (Settings > General): while the map
  * layout is drawn, every node keeps one size on screen (graphty-element's `node.sizeSpace: "screen"`).
  */
@@ -60,6 +71,40 @@ export const MAP_DEPTH_INDEPENDENT_SIZE = {
     values: ["on", "off"],
     fallback: "on",
 } as const;
+
+/**
+ * Your name (Settings > General): written on each project's author setting, which graphty-element
+ * stamps on every note added and never saves in a project file. Free text, so it is not a `Preference`.
+ */
+export const AUTHOR_KEY = "graphty.author.v1";
+
+/**
+ * Reads the reader's name.
+ * @returns the name, or "" when none is kept or storage is blocked.
+ */
+export function readAuthor(): string {
+    try {
+        return localStorage.getItem(AUTHOR_KEY) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+/**
+ * Keeps the reader's name; an empty or blank one removes it.
+ * @param name - the name.
+ */
+export function writeAuthor(name: string): void {
+    try {
+        if (name.trim() === "") {
+            localStorage.removeItem(AUTHOR_KEY);
+        } else {
+            localStorage.setItem(AUTHOR_KEY, name.trim());
+        }
+    } catch {
+        // Storage blocked: the name holds for this page view only.
+    }
+}
 
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {

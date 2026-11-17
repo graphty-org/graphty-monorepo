@@ -1,6 +1,6 @@
 /**
- * @file What attributes the graph's records carry, described as data -- and the one function that
- * writes them.
+ * @file What attributes the graph's records carry, described as data, and the counters that track
+ * writes to them.
  *
  * An options form, a filter builder, a colour encoding and a column picker all need the same
  * four facts about every attribute: what it is called, what type its values are, how many
@@ -8,11 +8,11 @@
  * over the graph, so each of them is the element's to do once rather than every consumer's to do
  * separately.
  *
- * The second half is the writer. A cache over a rule that reads `data.weight` is keyed on the
- * revision of `weight` (design/sets/sets-design.md 6.2), and a revision that some write path forgot
- * to bump is a cache that answers from values nobody holds any more. So every write into a
- * record's `data` goes through {@link writeAttributes} or {@link replaceAttributes}, and
- * `test/session/single-attribute-writer.test.ts` fails on any other.
+ * The second half is the revision counters. A cache over a rule that reads `data.weight` is keyed on
+ * the revision of `weight` (design/sets/sets-design.md 6.2), and a revision that some write path
+ * forgot to bump is a cache that answers from values nobody holds any more. So every write into a
+ * record goes through the graph primitives in `session/project/graphOps.ts`, whose `bumpFields`
+ * moves these counters, and `test/session/single-attribute-writer.test.ts` fails on any other.
  */
 
 import { type GraphSnapshot, maskTest, type U32 } from "@graphty/graph-format";
@@ -229,16 +229,9 @@ function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
  * @param kind - whether it was found on nodes or on edges
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptor
  */
-function describe(
-    name: string,
-    kind: "node" | "edge",
-    accumulator: Accumulator,
-    total: number,
-    readDates: boolean,
-): AttributeDescriptor {
+function describe(name: string, kind: "node" | "edge", accumulator: Accumulator, total: number): AttributeDescriptor {
     const settled = settleType(accumulator.types);
     const numeric = settled === "number" || settled === "integer";
     const type = settled === "string" && isCategorical(accumulator, total) ? "category" : settled;
@@ -254,7 +247,7 @@ function describe(
         ...(accumulator.present === 0
             ? {}
             : {
-                  measurement: inferMeasurement(settled, readDates ? accumulator : undefined),
+                  measurement: inferMeasurement(settled, accumulator),
                   measurementSource: "inferred" as const,
               }),
         origin: "imported",
@@ -294,18 +287,16 @@ function newAccumulator(): Accumulator {
  * @param rows - the rows
  * @param kind - whether they will be nodes or edges
  * @param order - column names to list first, in this order, even when no row carries a value
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors
  */
 export function describeRows(
     rows: readonly Readonly<Record<string, unknown>>[],
     kind: "node" | "edge",
     order: readonly string[] = [],
-    readDates = true,
 ): readonly AttributeDescriptor[] {
     const found = walk(rows.length, (index) => rows[index]);
     const names = new Set([...order, ...found.keys()]);
-    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length, readDates));
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
 }
 
 /**
@@ -351,13 +342,11 @@ function walk(
  * @param records - where to read the attributes a record arrived with; null means the element
  *     holds none, which is what a session with no view sees until the store carries attribute
  *     columns of its own
- * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors, node attributes first
  */
 export function describeAttributes(
     snapshot: GraphSnapshot,
     records: SessionRecordSource | null,
-    readDates = true,
 ): readonly AttributeDescriptor[] {
     if (records === null) {
         return Object.freeze([]);
@@ -372,11 +361,11 @@ export function describeAttributes(
 
     const described: AttributeDescriptor[] = [];
     for (const [name, accumulator] of nodes) {
-        described.push(describe(name, "node", accumulator, snapshot.nodeCount, readDates));
+        described.push(describe(name, "node", accumulator, snapshot.nodeCount));
     }
 
     for (const [name, accumulator] of edges) {
-        described.push(describe(name, "edge", accumulator, snapshot.edgeCount, readDates));
+        described.push(describe(name, "edge", accumulator, snapshot.edgeCount));
     }
 
     return Object.freeze(described);
@@ -393,7 +382,6 @@ export function describeAttributes(
  * @param shown - The rows the view shows, as bitmaps over the snapshot's rows.
  * @param shown.nodes - The shown node rows.
  * @param shown.edges - The shown edge rows.
- * @param readDates - Whether a text column of plain dates measures time.
  * @returns The columns, in the whole graph's order.
  */
 export function describeShownFigures(
@@ -401,7 +389,6 @@ export function describeShownFigures(
     snapshot: GraphSnapshot,
     records: SessionRecordSource,
     shown: { readonly nodes: U32; readonly edges: U32 },
-    readDates = true,
 ): readonly AttributeDescriptor[] {
     const count = (mask: U32, total: number): number => {
         let kept = 0;
@@ -430,7 +417,6 @@ export function describeShownFigures(
                 column.kind,
                 found[column.kind].get(column.name) ?? newAccumulator(),
                 totals[column.kind],
-                readDates,
             );
             const { min: _min, max: _max, uniqueCount: _unique, ...rest } = column;
             return Object.freeze({
@@ -608,77 +594,4 @@ export function inputCountersOf(owner: object): InputCounters {
     }
 
     return counters;
-}
-
-/**
- * Write fields into a record's attributes and bump each field's revision. With `fields` naming
- * only some keys of `update`, only those are written.
- * @param revisions - the revisions of the record's kind
- * @param data - the record's attribute object (`node.data`, `edge.data`)
- * @param update - where the values come from
- * @param fields - the keys to write; every own key of `update` when absent
- */
-export function writeAttributes(
-    revisions: AttributeRevisions,
-    data: Record<string, unknown>,
-    update: Readonly<Record<string, unknown>>,
-    fields: readonly string[] = Object.keys(update),
-): void {
-    for (const field of fields) {
-        data[field] = update[field];
-    }
-
-    revisions.bump(fields);
-}
-
-/**
- * Write a batch of updates, each into the attributes of the record its `id` names, through
- * {@link writeAttributes}, then announce the fields written once on the input tick, so a live set
- * re-resolves once per batch rather than once per record (design/sets 11). `id` is the address,
- * not an attribute, and is not written; an id with no record is skipped.
- * @param counters - the store owner's counters
- * @param element - which kind of record
- * @param updates - the updates
- * @param dataOf - a record's attribute object by id
- */
-export function writeUpdates(
-    counters: InputCounters,
-    element: "node" | "edge",
-    updates: readonly { readonly id: string | number; readonly [key: string]: unknown }[],
-    dataOf: (id: string | number) => Record<string, unknown> | undefined,
-): void {
-    const revisions = element === "node" ? counters.nodes : counters.edges;
-    const written = new Set<string>();
-    for (const update of updates) {
-        const data = dataOf(update.id);
-        if (data !== undefined) {
-            const fields = Object.keys(update).filter((key) => key !== "id");
-            writeAttributes(revisions, data, update, fields);
-            for (const field of fields) {
-                written.add(field);
-            }
-        }
-    }
-
-    if (written.size > 0) {
-        counters.tick.announce({ kind: "attributes", element, fields: [...written] });
-    }
-}
-
-/**
- * Replace a record's attributes wholesale (the `last` repeated-edge policy) and bump every field
- * the old or the new record carries, since a field that disappeared changed too.
- * @param revisions - the revisions of the record's kind
- * @param owner - the object holding `data`
- * @param owner.data - its current attributes
- * @param record - the new attributes, held by reference as the constructor holds the first
- */
-export function replaceAttributes<T extends object>(
-    revisions: AttributeRevisions,
-    owner: { data: T },
-    record: T,
-): void {
-    const fields = new Set([...Object.keys(owner.data), ...Object.keys(record)]);
-    owner.data = record;
-    revisions.bump(fields);
 }

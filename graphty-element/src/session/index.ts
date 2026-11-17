@@ -41,6 +41,8 @@ export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./groups";
+export type { KeymapRoot, KeymapSession } from "./keymap";
+export { attachKeymap } from "./keymap";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits, LimitsOption } from "./limits";

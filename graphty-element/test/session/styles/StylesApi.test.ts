@@ -901,6 +901,7 @@ describe("checking a layer before it is committed", () => {
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSCOPED_RUN_ENCODING"]);
+        assert.deepStrictEqual(result.errors[0]?.scope, { match: "has", path: "results.louvain.group" });
     });
 
     it("refuses a channel written twice, once as a literal and once as an encoding", () => {

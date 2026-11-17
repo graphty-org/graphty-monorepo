@@ -260,8 +260,8 @@ export class EdgeMesh {
     private static shadersRegistered = false;
 
     /**
-     * Feature flag: Use custom line renderer instead of GreasedLine
-     * Set to true to test the new custom rendering system
+     * Whether solid lines are drawn by CustomLineRenderer (true) or by Babylon.js's
+     * GreasedLine (false). Every line is drawn by CustomLineRenderer today.
      */
     private static readonly USE_CUSTOM_RENDERER = true;
 

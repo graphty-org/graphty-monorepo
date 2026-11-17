@@ -18,19 +18,7 @@ import { INVALID_INDEX } from "../../src/constants.js";
 import { GraphFormatError } from "../../src/errors.js";
 import { type Column, type ColumnDeclPatch } from "../../src/types/index.js";
 import { canViewAsPaddedU32 } from "../../src/util/typed-array.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 function values(name: string, entries: readonly unknown[], decl: ColumnDeclPatch = {}): Column {
     return columnFromValues("node", entries.length, name, entries, decl);

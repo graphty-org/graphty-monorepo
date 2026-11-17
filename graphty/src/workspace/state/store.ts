@@ -251,11 +251,6 @@ export interface WorkspaceState {
     readonly timelineOpen: boolean;
     /** Whether the phone's Time window sheet is up over its dock. */
     readonly timeSheetOpen: boolean;
-    /**
-     * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
-     * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
-     */
-    readonly timeWindowCard: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -318,6 +313,8 @@ export interface WorkspaceState {
      * showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "nodes" | "edges";
+    /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
+    readonly analyzeOn: string | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -329,9 +326,15 @@ export interface WorkspaceState {
     readonly notice: Notice | null;
     /**
      * The note being written in the Notes place: what it is about, fixed when its door opened
-     * it, and the text so far, kept until it is saved or cleared. Null when no editor is open.
+     * it, and the text and tags so far, kept until it is saved or cleared. Null when no editor is open.
      */
-    readonly noteDraft: { readonly targets: readonly NoteTargetInput[]; readonly text: string } | null;
+    readonly noteDraft: {
+        readonly targets: readonly NoteTargetInput[];
+        readonly text: string;
+        readonly tags?: readonly string[];
+    } | null;
+    /** The reader closed the "no author name" warning over the note editor, for this page view. */
+    readonly authorWarningClosed: boolean;
     /**
      * The one polite status line for the core path: a load finished with its size, a run
      * started, a run finished. Each replaces the last.
@@ -366,6 +369,115 @@ export interface WorkspaceState {
     readonly autosave: boolean;
     /** Work kept from an earlier visit that the start screen offers to restore, or null. */
     readonly recovered: AutosaveEntry | null;
+}
+
+/**
+ * What a reload of this tab does with each field of {@link WorkspaceState}: "kept" puts it back as
+ * the reader left it, and stashes it with the project's autosaved work so restoring that work in
+ * another tab or on a later visit puts it back too; "this tab: <why>" puts it back after a reload
+ * of this tab only; "fresh: <why>" starts it from its default. Every field is listed once, so a
+ * new field does not compile until someone decides. What the reader arranged on screen is kept;
+ * drafts, requests, in-flight work, notices and readings of the element are fresh. The graph itself
+ * is graphty-element's and comes back through its autosave.
+ */
+export const ON_RELOAD = {
+    project:
+        "fresh: reopened from graphty-element's autosave; its name, entry and opener are saved beside the kept fields",
+    page: "kept",
+    place: "kept",
+    dialog: "fresh: a dialog's form is not kept, so it would reopen empty",
+    renaming: "fresh: an edit in place, ended by the reload",
+    renamingRow: "fresh: an edit in place, ended by the reload",
+    inspected: "kept",
+    styleRow: "kept",
+    tabs: "kept",
+    styleSide: "kept",
+    leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
+    assistantWidth: "this tab: changes on every drag step, too often to write to autosaved work",
+    assistantFrom: "fresh: holds an element to focus, which the reload replaced",
+    composerCalls: "fresh: a count of requests, not a place",
+    assistantDraft:
+        "this tab: typed text changes on every key, and autosaved work is stored unencrypted beyond the tab",
+    assistantLinks: "fresh: counts this page's assistant set-ups",
+    assistantWaiting: "fresh: read from the element's assistant",
+    assistantTalkPress: "fresh: a press in flight",
+    assistantSpoken: "fresh: a spoken message in flight",
+    assistantScopeSelection: "fresh: about the selection, which a reload does not keep",
+    assistantRefused: "fresh: about the question that was open",
+    assistantEnded: "fresh: a notice about the last message",
+    rightWidth: "this tab: changes on every drag step, too often to write to autosaved work",
+    dockHeight: "this tab: changes on every drag step, too often to write to autosaved work",
+    dockOpen: "kept",
+    timeSpeed: "kept",
+    dockTab: "kept",
+    dockColumn: "fresh: a one-time request the dock clears",
+    dockIssue: "fresh: a one-time request the dock clears",
+    dockRows: "fresh: a one-time request the dock clears",
+    editingSelection: "fresh: an open editor's draft, owned by a component the reload replaced",
+    selectionWorkspace: "fresh: owned by an editor the reload replaced",
+    filterDraft: "fresh: a one-time request the Filters section clears",
+    fieldsEntry: "fresh: a one-time request Fields clears",
+    dockMaximized: "kept",
+    joining: "fresh: holds a read file that cannot be saved",
+    editingJoin: "fresh: an edit in progress on the join screen",
+    ends: "fresh: a half-made choice of edge ends",
+    pickedSource: "kept",
+    dataTab: "kept",
+    timelineOpen: "kept",
+    timeSheetOpen: "kept",
+    legendShown: "kept",
+    keyHasEntries: "fresh: read from the element's legend",
+    legendAsked: "kept",
+    allLabelsShown: "kept",
+    textNext: "fresh: a one-time request the Style tab clears",
+    shaderNext: "fresh: a one-time request the Style tab clears",
+    labelsAvoid: "kept",
+    layoutShownOnly: "kept",
+    sameSizeAtAnyDepth: "kept",
+    lighting: "kept",
+    autoRotate: "kept",
+    exportOn: "fresh: set when the Export dialog opens",
+    exportSource: "fresh: set when the Export dialog opens",
+    serverKind: "fresh: set when the server form opens",
+    analyzeOn: "fresh: set when a Quick actions row opens Analyze",
+    serverEdit: "fresh: set when the server form opens",
+    singleKeyShortcuts: "fresh: read from this browser's settings at start",
+    mapDepthIndependentSize: "fresh: read from this browser's settings at start",
+    notice: "fresh: a notice",
+    noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
+    authorWarningClosed: "fresh: closed for this page view only",
+    announcement: "fresh: a status line already spoken",
+    announced: "fresh: a count of status lines",
+    opening: "fresh: an open in flight",
+    opened: "fresh: an open in flight",
+    autosave: "fresh: set by the application at start",
+    recovered: "fresh: looked up again at start",
+} as const satisfies Record<keyof WorkspaceState, "kept" | `this tab: ${string}` | `fresh: ${string}`>;
+
+/** The fields a reload of this tab puts back. */
+type KeptKey = {
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | `this tab: ${string}` ? K : never;
+}[keyof WorkspaceState];
+
+/** The fields a reload of this tab puts back, in the order the table lists them. */
+export const KEPT_FIELDS = (Object.keys(ON_RELOAD) as (keyof WorkspaceState)[]).filter(
+    (key): key is KeptKey => !ON_RELOAD[key].startsWith("fresh:"),
+);
+
+/** The fields stashed with the project's autosaved work: the kept ones, not the this-tab ones. */
+export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key] === "kept");
+
+/** The part of the chrome a reload of this tab puts back. */
+export type KeptPlace = Pick<WorkspaceState, KeptKey>;
+
+/**
+ * The kept fields of a state, or of what was saved (fields since made fresh are left out).
+ * @param from - the state, or a saved snapshot.
+ * @param fields - the fields to take: every kept field, or only the stashed ones.
+ * @returns the kept fields it holds.
+ */
+function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
+    return Object.fromEntries(Object.entries(from).filter(([key]) => fields.includes(key)));
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -422,7 +534,6 @@ const INITIAL: WorkspaceState = {
     dataTab: "loaded",
     timelineOpen: false,
     timeSheetOpen: false,
-    timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,
@@ -438,10 +549,12 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
+    analyzeOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
+    authorWarningClosed: false,
     announcement: "",
     announced: 0,
     opening: null,
@@ -609,9 +722,6 @@ export function tabFor(
 /** The session storage item the reader's place is kept under, for a reload of this tab. */
 const PLACE_ITEM = "app.graphty.workspace.place";
 
-/** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
-type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide" | "dataTab">;
-
 /**
  * Keeps the reader's place in this tab's session storage while a project is open, so a reload
  * (or a tab the browser discarded and loaded again) can put it back; forgets it once no project
@@ -622,7 +732,8 @@ type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | 
 export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
-        const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const state = store.get();
+        const { project } = state;
         const blank = project?.blank === true ? { blank: true } : {};
         const opened = project?.opened === undefined ? {} : { opened: project.opened };
         const entry = project?.entry === undefined ? {} : { entry: project.entry };
@@ -630,12 +741,7 @@ export function keepPlace(store: WorkspaceStore): () => void {
             project === null
                 ? ""
                 : JSON.stringify({
-                      page,
-                      place,
-                      inspected,
-                      tabs,
-                      styleSide,
-                      dataTab,
+                      ...keptFields(state),
                       name: project.name,
                       ...blank,
                       ...opened,
@@ -678,8 +784,7 @@ export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () =
         if (!ready || element.autosaver.status.entry === null) {
             return;
         }
-        const { page, place, inspected, tabs, styleSide, dataTab } = store.get();
-        const kept: KeptPlace = { page, place, inspected, tabs, styleSide, dataTab };
+        const kept = keptFields(store.get(), STASHED_FIELDS);
         const text = JSON.stringify(kept);
         if (text !== last) {
             last = text;
@@ -707,7 +812,7 @@ export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () =
  */
 export function stashedPlace(element: GraphtyElement): Partial<KeptPlace> {
     const kept = element.autosaver.stashed(PLACE_STASH);
-    return typeof kept === "object" && kept !== null ? kept : {};
+    return typeof kept === "object" && kept !== null ? keptFields(kept, STASHED_FIELDS) : {};
 }
 
 /**
@@ -715,8 +820,7 @@ export function stashedPlace(element: GraphtyElement): Partial<KeptPlace> {
  * @returns the place, or an empty change when none was kept.
  */
 export function keptPlace(): Partial<KeptPlace> {
-    const { blank: _blank, opened: _opened, name: _name, entry: _entry, ...place } = readKept();
-    return place;
+    return keptFields(readKept());
 }
 
 /**

@@ -25,7 +25,7 @@ import {
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import { entryOfMeta, type PageSource } from "./recovery";
+import { entryOfMeta, navigationFacts, type PageSource } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
@@ -354,15 +354,6 @@ function takeLeaving(env: AutosaveEnvironment, key: string): string | null {
     } catch {
         return null;
     }
-}
-
-/**
- * How this page was reached, for the logs.
- * @returns `navigate`, `reload`, `back_forward`, or null where the browser does not say.
- */
-function navigationType(): string | null {
-    const [entry] = (globalThis.performance?.getEntriesByType?.("navigation") ?? []) as PerformanceNavigationTiming[];
-    return entry?.type ?? null;
 }
 
 /**
@@ -1342,7 +1333,7 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             waited,
             leavingMark: leaving !== null,
             entries: metas.length,
-            navigationType: navigationType(),
+            navigationType: navigationFacts().navigationType,
         });
         return metas.map((meta) => ({
             ...entryOfMeta(meta, held.has(lockName(key, meta.id))),

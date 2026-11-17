@@ -4,18 +4,19 @@
  *
  * A user interface has to decide how a button behaves BEFORE the click happens: whether it runs
  * at once, states its estimate, asks for confirmation, or refuses in place with "about 40 s --
- * run this at the desk". A promise cannot gate a click, so the estimate here is synchronous and
- * O(1) in the size of the graph. It reads the statistics the session already maintains and the
- * cost class the catalogue already declares, and it multiplies two numbers.
+ * run this at the desk". A promise cannot gate a click, so one estimate ({@link estimateCost}) is
+ * synchronous and O(1) in the size of the graph. It reads the statistics the session already
+ * maintains and the cost class the catalogue already declares, and it multiplies two numbers.
+ * The gate ({@link gateRun}) is synchronous too but not O(1): when a run does not fit, it bisects
+ * over the node count for the largest graph that would (`fitsUpTo`, O(log n) estimates) and
+ * estimates every kept set (`fittingScopes`). None of it walks the graph.
  *
- * Why this lives in the element rather than in the consumer, in one piece of evidence: the one
- * consumer carries 449 lines modelling the element's own performance
- * (`graphty/src/components/shell/analysis/metricCost.ts`), holding an iteration bound that is a
- * copy of a default declared in this package's own schema. Its own history records the model
- * being wrong by 6.9x at 200,000 nodes -- a 70,000-node graph was estimated at 2.10 seconds, so
- * the button showed no confirmation, and the frame then locked for 10.4 seconds. No consumer
- * should be able to compute a better estimate than the element can, because only the element
- * knows what it is about to do.
+ * Why this lives in the element rather than in the consumer: an application that modelled the
+ * element's performance itself, holding a copy of an iteration bound declared in this package's
+ * own schema, was wrong by 6.9x at 200,000 nodes -- a 70,000-node graph was estimated at 2.10
+ * seconds, so the button showed no confirmation, and the frame then locked for 10.4 seconds. No
+ * consumer should be able to compute a better estimate than the element can, because only the
+ * element knows what it is about to do.
  *
  * The rule the whole module is built to keep: an estimate that is confidently wrong is worse
  * than one that reports low confidence. Every path that cannot support a number degrades
@@ -299,8 +300,8 @@ export interface CostRates {
 /**
  * The rates that apply when this machine has never been measured.
  *
- * The first three come from timings taken against a built bundle of this element and recorded in
- * `graphty/src/components/shell/analysis/metricCost.ts`, and each is pinned to the FLOOR of its
+ * The first three come from timings taken against a built bundle of this element by the graphty
+ * app's old cost model, and each is pinned to the FLOOR of its
  * measured band rather than the band's mean, so the model stays cautious across everything that
  * was measured. The iterative rate is its own number and not the linear one: sharing the linear
  * rate for iterative work is the specific mistake that made the consumer's gate optimistic by up
@@ -313,8 +314,10 @@ export interface CostRates {
  * m = 5n, falling with size) and about 1.1M/s at n = 100,000 inside a vitest worker, so 20M was
  * optimistic by 5x to 18x. It is pinned at 1M, the floor of that band.
  *
- * The cubic rate has never been measured and is a placeholder at the consumer's old linear figure,
- * which makes a cubic estimate the most pessimistic of the four for any graph big enough to matter.
+ * The cubic rate has never been measured and is a placeholder at the consumer's old linear figure
+ * (20M operations/s, 20 times the linear rate). Calibration scales it by this machine's linear
+ * probe, like the linear rate. Because a cubic run's work grows with the cube of the node count,
+ * a cubic estimate still exceeds the other three for any graph big enough to matter.
  * If a cubic algorithm is ever timed, replace this constant; do not fit an exponent to hide it.
  *
  * `test/session/cost/estimate-against-measured-runs.test.ts` times real runs against these rates.

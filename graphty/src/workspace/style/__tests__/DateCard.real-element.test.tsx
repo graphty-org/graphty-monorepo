@@ -10,7 +10,7 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
-import { assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
@@ -64,7 +64,7 @@ const BEFORE_2005: RuleTree = { kind: "range", attribute: "data.installed", max:
  * The workspace on a place, with the small graph whose nodes carry `installed`, typed as dates and
  * set as the time.
  * @param place - where it opens.
- * @param timed - whether `installed` is set as the time; it needs the timeline experiment.
+ * @param timed - whether `installed` is set as the time.
  * @returns the session.
  */
 async function openWithDates(place: "data" | "graph", timed = true): Promise<GraphSession> {
@@ -119,12 +119,7 @@ describe("the date condition card", () => {
         await page.viewport(1366, 768);
     });
 
-    beforeEach(async () => {
-        await siteFeatures(["timeline"]);
-    });
-
-    it("with the timeline off: a typed date writes the filter", async () => {
-        await siteFeatures([]);
+    it("with no time field: a typed date writes the filter", async () => {
         const session = await openWithDates("data", false);
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
@@ -207,7 +202,7 @@ describe("the date condition card", () => {
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
     });
 
-    it.each([["the selection workspace", ["timeline"]]])(
+    it.each([["the selection workspace", []]])(
         "in %s: says how many have no date as a chip, and a typed non-date as a short field message",
         async (_where, features) => {
             await siteFeatures(features);

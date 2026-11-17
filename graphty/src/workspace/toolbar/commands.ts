@@ -4,8 +4,8 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
-import { noGraph, nothingDrawn } from "./useSessionVersion";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.

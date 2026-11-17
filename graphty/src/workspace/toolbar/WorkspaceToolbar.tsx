@@ -13,11 +13,11 @@ import { focusPathValuesNext } from "../inspector/reads";
 import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode, reducedMotion } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** Props for CommandTool. */
 interface CommandToolProps {
@@ -272,7 +272,7 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  */
 export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TOOLBAR_EVENTS);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.

@@ -1610,7 +1610,11 @@ function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | un
     }
     let at = byLine.get(run);
     if (at === undefined) {
-        at = leaveBox(run, boxOfNode(node), node.shape === "ellipse");
+        const { endBox } = node;
+        at =
+            endBox === undefined
+                ? leaveBox(run, boxOfNode(node), node.shape === "ellipse")
+                : leaveBox(run, boxOfNode({ ...node, ...endBox }));
         byLine.set(run, at);
     }
     return at;
@@ -1877,6 +1881,23 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd, reach = 1, n
     const across = Math.abs(((b[0] - a[0]) * (back[0] - q[0]) + (b[1] - a[1]) * (back[1] - q[1])) / (chord * dir));
     const middle = Math.hypot((a[0] + b[0]) / 2 - q[0], (a[1] + b[1]) / 2 - q[1]);
     return across < 0.3 && middle <= reach * chord;
+}
+
+/**
+ * The ends of an edge an open stroke caps across (`capsAcross`), as arrowhead ends.
+ * @param stroke - the stroke's points
+ * @param e - the edge
+ * @param nodes - the drawn nodes
+ * @returns each end it caps, with its edge
+ */
+function endsCapped(
+    stroke: readonly Pt[],
+    e: PEdge,
+    nodes: readonly PNode[],
+): { e: PEdge; end: "source" | "target" }[] {
+    return (["source", "target"] as const)
+        .filter((end) => capsAcross(stroke, e, end, 1, nodes))
+        .map((end) => ({ e, end }));
 }
 
 /**
@@ -2244,6 +2265,22 @@ function strokedHeads(
             (p) => !forked.includes(p) && p.points.length === 2 && capsAcross(p.points, e, end, BAR_REACH),
         );
         const heads = bars.map((p) => ({ e, end, outline: outlined(p, [...p.points, p.points[0]]), parts: [p] }));
+        // one stroke bent once, its bend nearer the end than either arm's end, is the two arms of an open head drawn
+        // as one (yEd Live's BPMN association: M 4,0 L 8,3 L 4,6), outlined as two arms from a fork are
+        const tip = endOf(e, end);
+        const reach = (q: Pt): number => Math.hypot(q[0] - tip[0], q[1] - tip[1]);
+        const bent = parts
+            .filter(
+                (p) =>
+                    !forked.includes(p) &&
+                    p.points.length === 3 &&
+                    reach(p.points[1]) < Math.min(reach(p.points[0]), reach(p.points[2])),
+            )
+            .map((p) => {
+                const [a, bend, b] = p.points;
+                return { e, end, parts: [p], outline: outlined(p, [bend, a, a, bend, bend, b, b, bend]) };
+            });
+        heads.push(...bent);
         if (fork === null) {
             return heads;
         }
@@ -2504,6 +2541,8 @@ export interface Association {
  */
 export interface DrawnNodes {
     nodes: { id: string; x: number; y: number; w: number; h: number; box?: PBox }[];
+    /** The view's scale: the SVG's pixels to one of the program's own (vis-network's `observed.scale`). */
+    scale?: number;
 }
 
 /**
@@ -2563,6 +2602,10 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
     });
 }
 
+/** vis-network's default node margin and border width, in its own pixels. */
+const VIS_MARGIN = 5;
+const VIS_BORDER = 1;
+
 /**
  * A node the program names but drew no body for (vis-network's text node, its words alone) takes its place and size
  * from where the program says it drew it, not from its words: vis-network runs each line to its center and ends the
@@ -2586,17 +2629,28 @@ function drawnBodyless(
             n.shape !== null ||
             n.fill !== null ||
             n.stroke !== null ||
-            (n.pictures?.length ?? 0) > 0 ||
-            // an icon node's glyph is its body (nodeFrom), its box also holding the label below it
-            n.faceless?.some(iconGlyph) === true
+            (n.pictures?.length ?? 0) > 0
         ) {
             continue;
         }
         const hw = Math.min(d.x - d.box.x0, d.box.x1 - d.x);
         const hh = Math.min(d.y - d.box.y0, d.box.y1 - d.y);
-        if (hw > 0 && hh > 0) {
-            nodes.set(id, { ...n, cx: d.x, cy: d.y, w: 2 * hw, h: 2 * hh, drawnBox: true });
+        if (!(hw > 0 && hh > 0)) {
+            continue;
         }
+        if (n.faceless?.some(iconGlyph) === true) {
+            // An icon node's glyph is its body (nodeFrom), its box holding the glyph alone; vis-network ends its lines
+            // and arrowheads at that box with the node's margin and border round it (Icon.resize, _distanceToBorder:
+            // json-vis-synth 13 -> 14 -> 15).
+            // ponytail: vis-network's default margin (5) and border (1); a file setting others would need them here
+            const k = drawn?.scale;
+            if (k !== undefined) {
+                const out = 2 * (VIS_MARGIN + VIS_BORDER) * k;
+                nodes.set(id, { ...n, endBox: { w: 2 * hw + out, h: 2 * hh + out } });
+            }
+            continue;
+        }
+        nodes.set(id, { ...n, cx: d.x, cy: d.y, w: 2 * hw, h: 2 * hh, drawnBox: true });
     }
 }
 
@@ -3952,6 +4006,22 @@ export function associate(
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [{ t: p.text, index: p.index }]));
+    // a shape over part of some words that another filled box, not inside it, fits more tightly is no box behind them:
+    // the words have their own (Cytoscape desktop's label background beside the square head of a line ending under the
+    // label, cx2-syn-mappings 408->423); a box round a smaller one (a table round its cells) still backs its words
+    const backedCloser = (p: Prim, t: PText, words: number): boolean => {
+        const fit = boxIoU(p.box, t.box);
+        return free().some(
+            (q) =>
+                q !== p &&
+                q.kind === "shape" &&
+                q.fill !== null &&
+                q.index < words &&
+                !within(q.box, p.box) &&
+                backsText(q, t) &&
+                boxIoU(q.box, t.box) > fit,
+        );
+    };
     // the annotations graphty draws, carried into the oracle's frame: a shape under one is that annotation, judged as
     // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
     const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
@@ -3987,7 +4057,8 @@ export function associate(
                     ({ t, index }) =>
                         t.sizePx > 0 &&
                         index > p.index &&
-                        (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))),
+                        (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))) &&
+                        !backedCloser(p, t, index),
                 ))
         ) {
             continue;
@@ -4022,9 +4093,14 @@ export function associate(
             continue;
         }
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
-        // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
+        // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead. A pointed cap is a head however
+        // narrow: yEd Live draws its 8 x 6 triangle unscaled on past the end of an 8 px line
+        // (yed-live-graphml-specimen-edges-lines width-8).
         const lineEnd = best.end === "source" ? best.e.points[0] : best.e.points[best.e.points.length - 1];
-        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) && !lineEndPiece(p, best.e, lineEnd)) {
+        if (
+            (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) || pointedAxis(p.points, lineEnd) !== null) &&
+            !lineEndPiece(p, best.e, lineEnd)
+        ) {
             const arrow = arrowFrom(p, best.e.points, best.end, canvas);
             // Cytoscape.js erases the canvas under a translucent edge's arrowhead before it paints it (cytoscape.js
             // 3.34.3 `drawArrowhead`: the same shape filled white under `destination-out`, which the SVG replay records
@@ -4066,12 +4142,20 @@ export function associate(
         if (forkedArms.has(p)) {
             continue;
         }
-        const best = arrowheadEdge(
+        const nearest = arrowheadEdge(
             p,
             withPieces.filter((e) => e !== piece),
             nodeList,
             centerLines,
         );
+        // vis-network stands its inv_curve's half circle 0.3 of its length back from where the line leaves the node,
+        // bulging away from it: too far from the end by its tip to be read as that end's, it is read as the middle
+        // arrow of its line, which it does not cross there; it caps the end it crosses (json-vis-synth 6 -> 7, at a
+        // star)
+        const best =
+            nearest?.end === "middle" && !capsAcross(p.points, nearest.e, "middle", 1, nodeList)
+                ? (endsCapped(p.points, nearest.e, nodeList)[0] ?? nearest)
+                : nearest;
         if (
             best !== null &&
             (best.end !== "middle" || piece === null) &&
@@ -4111,6 +4195,7 @@ export function associate(
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
     // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
+    const guideWords = new Set(guide.texts.map((t) => norm(t.content)).filter((t) => t !== ""));
     const wanting = nodeList
         .filter((n) => n.label === null)
         .map((n) => {
@@ -4193,12 +4278,17 @@ export function associate(
             // a label whose words differ is still this node's when it sits in the node's box, unless an edge of the
             // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
             // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
+            // nor are words graphty draws as a text of their own (a text-only node over a box, cx2-wp1449-tlr's
+            // "Peptidoglycan(G+)" over the unlabelled group box 136935)
             const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
                 .filter(
                     (p) =>
-                        p.text !== null && !endWords.has(norm(p.text.content)) && inside([cx(p.box), cy(p.box)], box),
+                        p.text !== null &&
+                        !endWords.has(norm(p.text.content)) &&
+                        !guideWords.has(norm(p.text.content)) &&
+                        inside([cx(p.box), cy(p.box)], box),
                 )
                 .sort((a, b) => a.index - b.index)[0];
             if (hit !== undefined) {

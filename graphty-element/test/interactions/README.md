@@ -25,7 +25,7 @@ These mount a `<graphty-element>` (`helpers/mounted-element.ts`), drive it with 
 
 ### XR Tests (`xr/`)
 
-These drive the XR gesture code with mock hands and controllers (`helpers/iwer-setup.ts`). The test that starts real VR and AR sessions, through IWER (Immersive Web Emulation Runtime), is `test/browser/xr-session.test.ts`.
+These enter VR on an emulated Meta Quest 3 and move its thumbsticks and hands (`helpers/xr-input-driver.ts`, over IWER in `helpers/iwer-setup.ts`). The test that starts real VR and AR sessions, through IWER (Immersive Web Emulation Runtime), is `test/browser/xr-session.test.ts`.
 
 | File                         | Description                                                      |
 | ---------------------------- | ---------------------------------------------------------------- |
@@ -160,12 +160,10 @@ Helpers over a `Graph` made directly with `new Graph(container)` (a real WebGL e
 - `teardownTestGraph(graph)` - Dispose it and remove its container
 - `waitForGraphReady(graph)` - Wait until the camera, scene and input handlers are set up
 - `getNodeScreenPosition(graph, nodeId)` - Where a node is drawn, in CSS pixels
-- `getCameraState(graph)` - Snapshot of the active camera
-- `getCameraPosition(graph)` / `getSceneScale(graph)` / `getSceneRotation(graph)` - Camera and XR pivot readings
 - `dragNode(graph, nodeId, delta)` - Drag a node with the real mouse
 - `clickAtPosition(graph, position)` / `clickOnNode(graph, nodeId)` / `clickOnBackground(graph)` - Real clicks
 
-To wait for a layout to come to rest, call `graph.waitForSettled()`.
+To read the camera, call the public `graph.getCameraState()`. To wait for a layout to come to rest, call `graph.waitForSettled()`.
 
 ### `test/helpers/real-input.ts`
 
@@ -184,18 +182,16 @@ A `<graphty-element>` with three nodes at fixed places, removed after each test,
 
 ### `iwer-setup.ts`
 
-WebXR emulation and XR input mocks:
+WebXR emulation:
 
 - `installIWER()` - Make `navigator.xr` an emulated Meta Quest 3 and record every session the page starts (mode, frames rendered, ended). Call it before the graph initializes; `uninstall()` restores `navigator.xr`. `test/browser/xr-session.test.ts` uses it to enter and leave real VR and AR sessions.
-- `createMockHand(hand)` / `createPinchingHand(hand)` / `createMockController(hand)` - Plain-data hand and controller states for the gesture tests
 
 ### `types.ts`
 
 TypeScript interfaces for test configuration:
 
 - `TestGraphOptions` - Graph setup configuration
-- `CameraState` - Camera state snapshot
-- `MockController` / `MockHand` - XR input mocks
+- `NodeData` / `EdgeData` / `ScreenPosition` / `DragDelta` - Shapes the helpers take and return
 
 ### `xr-input-driver.ts`
 

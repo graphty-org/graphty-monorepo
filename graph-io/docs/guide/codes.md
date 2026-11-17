@@ -420,6 +420,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_STYLE_BLOCK_IGNORED"></a>`W_STYLE_BLOCK_IGNORED`: A `graphty.styles` block was ignored, with a reason code; the file is read like any other. See [Styles](./styles.md).
 - <a id="W_STYLE_BUDGET"></a>`W_STYLE_BUDGET`: The counted work budget ran out; the values not yet explained are copied per element. See [Styles](./styles.md).
 - <a id="W_STYLE_COLOR_LIST"></a>`W_STYLE_COLOR_LIST`: A list of colors where one color is expected; the tool draws it its own way and the first is not taken. See [Styles](./styles.md).
+- <a id="W_STYLE_DRAWN_NEAREST"></a>`W_STYLE_DRAWN_NEAREST`: A program's own value graphty has no exact counterpart for, settled to the nearest graphty value. See [Styles](./styles.md).
 - <a id="W_STYLE_EXTRA_LABELS"></a>`W_STYLE_EXTRA_LABELS`: An element carries more than one label; the first is kept. See [Styles](./styles.md).
 - <a id="W_STYLE_GRADIENT"></a>`W_STYLE_GRADIENT`: A gradient fill; its first color is kept. See [Styles](./styles.md).
 - <a id="W_STYLE_HTML_LABEL"></a>`W_STYLE_HTML_LABEL`: An HTML-like label: its text is kept and its markup dropped. See [Styles](./styles.md).

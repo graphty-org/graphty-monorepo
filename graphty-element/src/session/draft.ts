@@ -231,7 +231,9 @@ function withIdText(
         const entries = Object.entries(row);
         return Object.fromEntries([
             ...entries.filter(([column]) => !named.has(column)),
-            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value, graph)]),
+            ...entries
+                .filter(([column]) => named.has(column))
+                .map(([column, value]): [string, unknown] => [column, idText(value, graph)]),
         ]);
     });
 }
@@ -502,13 +504,12 @@ export async function draftStyles(read: ReadSource, signal?: AbortSignal): Promi
         return null;
     }
 
-    const { rules, source } = styles.extracted.styles;
+    const { rules } = styles.extracted.styles;
     return Object.freeze({
         declared: rules.length > 0,
         summary: Object.freeze({
             nodeRules: rules.filter((rule) => rule.target === "node").length,
             edgeRules: rules.filter((rule) => rule.target === "edge").length,
-            tool: source.tool,
         }),
     });
 }

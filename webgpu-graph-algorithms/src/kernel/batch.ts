@@ -454,13 +454,7 @@ export class CommandBatch {
         }
         const { slot } = this;
         this.slot = null;
-        try {
-            this.host.readback.returnSlot(slot);
-        } catch (error) {
-            if (!isWebGpuGraphError(error) || error.code !== "E_DISPOSED") {
-                throw error;
-            }
-        }
+        this.host.readback.returnSlot(slot);
     }
 
     private countDispatches(pass: GPUComputePassEncoder): void {

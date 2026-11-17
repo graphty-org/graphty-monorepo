@@ -175,6 +175,12 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "groups.list()": "state",
     // The colours the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
+    "annotations.add()": "writes",
+    "annotations.clear()": "writes",
+    "annotations.list()": "not the graph",
+    "annotations.remove()": "writes",
+    "annotations.scale": "not the graph",
+    "annotations.update()": "writes",
     "assets.add()": "writes",
     "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",

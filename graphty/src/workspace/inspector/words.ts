@@ -275,6 +275,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",

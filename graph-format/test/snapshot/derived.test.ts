@@ -2,7 +2,8 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { INVALID_INDEX } from "../../src/constants.js";
-import { buildCore, renumberPartition } from "../../src/snapshot/derived.js";
+import { renumberPartition } from "../../src/snapshot/derive-contract.js";
+import { buildCore } from "../../src/snapshot/derived.js";
 import { equalsTopology, hasChecksums, peekView } from "../../src/snapshot/graph-snapshot.js";
 import { type DerivedGraph, type GraphSnapshot, type U32 } from "../../src/types/index.js";
 import { makeMask, maskSet } from "../../src/util/mask.js";

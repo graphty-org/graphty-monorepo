@@ -5,7 +5,7 @@
  * neutral about presentation"; the owner dropped `catalog.channelGroups` on 2026-10-03).
  */
 
-import { type AlignmentMatrixValue, colorWord } from "@graphty/compact-mantine";
+import { colorWord } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     EDGE_ARROW_DESCRIPTORS,
@@ -587,6 +587,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Size to image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -958,38 +959,6 @@ export function refusalWords(refusal: CodedFact): string {
         }
     }
     return "Cannot be drawn here";
-}
-
-/** The label positions a line can take, as the alignment grid's cells. */
-const LOCATION_BY_CELL: Readonly<Record<AlignmentMatrixValue, LabelLocation>> = {
-    "top-left": "top-left",
-    "top-center": "top",
-    "top-right": "top-right",
-    "middle-left": "left",
-    "middle-center": "center",
-    "middle-right": "right",
-    "bottom-left": "bottom-left",
-    "bottom-center": "bottom",
-    "bottom-right": "bottom-right",
-};
-
-/**
- * The element's label location for an alignment grid cell.
- * @param cell - the grid cell.
- * @returns the location.
- */
-export function locationOfCell(cell: AlignmentMatrixValue): LabelLocation {
-    return LOCATION_BY_CELL[cell];
-}
-
-/**
- * The alignment grid cell for a label location.
- * @param location - the element's location, or undefined for its default (above).
- * @returns the cell.
- */
-export function cellOfLocation(location: LabelLocation | undefined): AlignmentMatrixValue {
-    const cells = Object.keys(LOCATION_BY_CELL) as AlignmentMatrixValue[];
-    return cells.find((cell) => LOCATION_BY_CELL[cell] === location) ?? "top-center";
 }
 
 /** A position's word on the label line. */

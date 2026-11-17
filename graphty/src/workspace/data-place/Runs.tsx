@@ -4,7 +4,8 @@
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
  * over something other than what is showing or is out of date. A press opens it in the inspector;
- * its "..." (on hover or focus, or a right click) holds Apply style and Remove; removing a result
+ * its "..." (on hover or focus, or a right click) holds Apply style, Run again with changes..., the Copy
+ * items (JSON, command, methods text, TSV, member ids) and Remove; removing a result
  * something uses asks first, naming them, and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
  */
 
@@ -14,15 +15,15 @@ import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, Un
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { unitOf } from "../time/timeActions";
-import { namesOnce } from "./words";
+import { methodsWords, namesOnce } from "./words";
 
 /**
  * What a selection that reads a result goes by: its layer's name, or its filter's name or "Filter".
@@ -143,6 +144,97 @@ function ResultGlyph({ session, run }: Readonly<{ session: GraphSession; run: Ru
 }
 
 /**
+ * Puts a result's text on the clipboard and says so in the notice.
+ * @param store - the workspace store, whose notice says what happened.
+ * @param what - what was copied, as the notice names it.
+ * @param text - the text, or a reason it cannot be copied.
+ */
+function copyText(store: WorkspaceStore, what: string, text: string): void {
+    navigator.clipboard.writeText(text).then(
+        () => {
+            store.set({ notice: { message: `Copied ${what}` } });
+        },
+        () => {
+            store.set({ notice: { message: `Could not copy ${what}` } });
+        },
+    );
+}
+
+/**
+ * A result's Run again and Copy items: Run again with changes... opens Analyze on its algorithm
+ * with its settings, so running it adds a new result; each Copy item puts one form of the result
+ * on the clipboard, every form written by graphty-element or read from its record.
+ * @param session - the element's session.
+ * @param store - the workspace store.
+ * @param run - the result.
+ * @returns the items.
+ */
+function resultItems(session: GraphSession, store: WorkspaceStore, run: Run): SelectionMenuItem[] {
+    const { result } = run;
+    const noResult = result === undefined ? "Not finished" : null;
+    const command = run.journalId === null ? undefined : session.journal.get(run.journalId)?.command;
+    return [
+        {
+            id: "run-again",
+            label: "Run again with changes...",
+            icon: "settings",
+            group: "edit",
+            onRun: () => {
+                store.set({ dialog: "analyze", analyzeOn: run.algorithm, analyzeValues: run.params });
+            },
+        },
+        {
+            id: "copy-json",
+            label: "Copy as JSON",
+            icon: "copy",
+            group: "view",
+            onRun: () => {
+                copyText(store, "as JSON", JSON.stringify(run.record, null, 2));
+            },
+        },
+        {
+            id: "copy-command",
+            label: "Copy as command",
+            icon: "copy",
+            group: "view",
+            reason: command === undefined ? "Not finished" : null,
+            onRun: () => {
+                copyText(store, "as command", JSON.stringify(command, null, 2));
+            },
+        },
+        {
+            id: "copy-methods",
+            label: "Copy methods text",
+            icon: "copy",
+            group: "view",
+            onRun: () => {
+                copyText(store, "methods text", methodsWords(session, run));
+            },
+        },
+        {
+            id: "copy-tsv",
+            label: "Copy as TSV",
+            icon: "copy",
+            group: "view",
+            reason: noResult,
+            onRun: () => {
+                copyText(store, "as TSV", result?.toTsv() ?? "");
+            },
+        },
+        {
+            id: "copy-members",
+            label: "Copy member ids",
+            icon: "copy",
+            group: "view",
+            reason: noResult,
+            onRun: () => {
+                copyText(store, "member ids", (result?.memberIds() ?? []).map(String).join("\n"));
+            },
+        },
+    ];
+}
+
+/**
  * One result's row.
  * @param props - Component props
  * @param props.session - the element's session
@@ -192,6 +284,7 @@ function ResultRow({
                 again.then(undefined, () => undefined);
             },
         },
+        ...resultItems(session, store, run),
         {
             id: "remove",
             label: "Remove result",
@@ -303,7 +396,7 @@ function ResultRow({
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const analyze = useCommand("analyze.open");
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,

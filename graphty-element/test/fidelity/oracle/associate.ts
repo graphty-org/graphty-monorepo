@@ -1029,7 +1029,11 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
     // wide pen: 1.8 px on `dot-specimen-edges-lines-p11`)
     const behind = endBack(line, 0.75 * length) ?? end;
     const before = (behind[0] - end[0]) * axis[0] + (behind[1] - end[1]) * axis[1] < 0;
-    return Math.min(...along) >= -0.3 * length && before && !inPolygon(behind, outline) ? axis : dir;
+    // or stopped on one of its corners, its notch: yEd cuts a curved line where its standard head
+    // begins and aims the head from there at the node, its back corners well behind the cut and up to 10 degrees off
+    // the flattened curve's last run (yed-graphml-specimen-edges-lines arc-fixed-height-20, bezier)
+    const notched = outline.some(([x, y]) => Math.hypot(x - end[0], y - end[1]) <= ON_LINE_PX);
+    return (Math.min(...along) >= -0.3 * length || notched) && before && !inPolygon(behind, outline) ? axis : dir;
 }
 
 /**
@@ -2431,6 +2435,8 @@ type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
 interface EndsBy {
     own?: OwnHeads;
     slack?: number;
+    /** The line's own stroke width, which tells apart lines of one color between nodes drawn on one another. */
+    width?: number;
 }
 
 const strayOf = (p: Prim): PStray => ({
@@ -3226,13 +3232,21 @@ export function associate(
     const pairOf = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
     const guidePairs = new Map<string, number>();
     const guideColors = new Map<string, Set<string>>();
+    /** The widths graphty draws each pair's edges at, carried into the oracle's frame. */
+    const guideWidths = new Map<string, number[]>();
     const guideWays = new Set<string>();
     for (const e of guide.edges) {
         const k = pairOf(e.source, e.target);
         guideWays.add(`${e.source}\u0000${e.target}`);
         guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
         guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
+        if (frame !== null && e.stroke !== null && Number.isFinite(e.stroke.width)) {
+            guideWidths.set(k, [...(guideWidths.get(k) ?? []), e.stroke.width * frame.scale]);
+        }
     }
+    // whether graphty draws a line of this width between the pair: within 5 percent or 0.15 px
+    const widthDrawn = (k: string, width: number): boolean =>
+        guideWidths.get(k)?.some((w) => Math.abs(w - width) <= Math.max(0.15, 0.05 * width)) === true;
     // A line between two nodes drawn on one another runs between their outlines, which cross: which of its ends is
     // the source's its ends do not say (cx-radiation-bibliography 30 -> 44, a hexagon and a round rectangle that
     // overlap, drawn from 30's outline back to 44's, was read as 44 -> 30). The way graphty runs the edge does, where
@@ -3284,7 +3298,7 @@ export function associate(
     const endsBy = (
         path: readonly Pt[],
         color: string,
-        { own = [[], []], slack = 0 }: EndsBy = {},
+        { own = [[], []], slack = 0, width }: EndsBy = {},
     ): [PNode, PNode] | null => {
         // of two nodes an end lands on about as near, the one the line ran through to get there is not its node: a line
         // stops at its own node's near outline (xgmml-aracne-mycccnd1 -1->-151 runs through -165, which lies just
@@ -3362,9 +3376,6 @@ export function associate(
                 .sort((x, y) => x.d - y.d)[0];
             return stub === undefined ? nearest : [stub.a, stub.b];
         }
-        if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
-            return nearest;
-        }
         // nearest first; among pairs as near as each other (two lines' stations drawn one over another), the one
         // graphty draws in the path's color; a loop where graphty draws one, its end at a crowded spot as near another
         // node (cx2-signor-aml: five loops on JAK2, their heads' tips on BRAF's outline too, read as edges to DOT1L)
@@ -3372,6 +3383,33 @@ export function associate(
             .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d })))
             .filter(({ a, b }) => (a !== b || guideLoops.has(a.id)) && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
             .sort((x, y) => x.d - y.d);
+        // Lines of one color between nodes drawn on one another (json-cyjs-perf's haystack lines, whose ends lie inside
+        // several nodes) each reach several pairs graphty draws: where graphty draws the nearest at another width, a
+        // reachable pair it draws at this line's width is the line's edge, or two such lines swap edges (#8382)
+        // (only a line whose ends lie well inside both nodes, as a haystack line's do: one ending at outlines is read as
+        // before, so a width graphty draws wrong still fails as a width)
+        const deepIn = (q: Pt, n: PNode): boolean => {
+            const box = nodeBox(n);
+            const [dx, dy] = [(q[0] - cx(box)) / (bw(box) / 2), (q[1] - cy(box)) / (bh(box) / 2)];
+            return (n.shape === "ellipse" ? Math.hypot(dx, dy) : Math.max(Math.abs(dx), Math.abs(dy))) < 0.9;
+        };
+        const sized = (q: { a: PNode; b: PNode }): boolean =>
+            width !== undefined &&
+            q.a !== q.b &&
+            deepIn(path[0], q.a) &&
+            deepIn(path.at(-1) ?? path[0], q.b) &&
+            widthDrawn(pairOf(q.a.id, q.b.id), width);
+        const first = pairs.at(0);
+        const bySize =
+            first === undefined || width === undefined || widthDrawn(pairOf(first.a.id, first.b.id), width)
+                ? undefined
+                : pairs.find(sized);
+        if (bySize !== undefined) {
+            return [bySize.a, bySize.b];
+        }
+        if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
+            return nearest;
+        }
         const tied = pairs.filter((q) => q.d <= (pairs[0]?.d ?? 0) + 2);
         const known = tied.find((q) => guideColors.get(pairOf(q.a.id, q.b.id))?.has(color) === true) ?? pairs.at(0);
         return known === undefined ? nearest : [known.a, known.b];
@@ -3383,7 +3421,7 @@ export function associate(
         const carried = (by.own?.[0].length ?? 0) + (by.own?.[1].length ?? 0) > 0;
         return ends === null || !carried || guidePairs.has(pairOf(ends[0].id, ends[1].id))
             ? ends
-            : endsBy(path, color, { slack: by.slack });
+            : endsBy(path, color, { slack: by.slack, width: by.width });
     };
     // every edge found by geometry, the pieces that are no edge of the file among them, in the order found
     const withPieces: PEdge[] = [];
@@ -3548,7 +3586,9 @@ export function associate(
         const own = placed?.own ?? ownHeads(p, [p.points[0], p.points.at(-1) ?? p.points[0]], p.stroke.width);
         const box = outlinePiece(p);
         const ends: [PNode, PNode] | null =
-            box === undefined ? (placed?.ends ?? endsOf(p.points, p.stroke.color, { own })) : [box, box];
+            box === undefined
+                ? (placed?.ends ?? endsOf(p.points, p.stroke.color, { own, width: p.stroke.width }))
+                : [box, box];
         if (ends === null) {
             continue;
         }

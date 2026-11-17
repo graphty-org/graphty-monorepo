@@ -6,7 +6,7 @@
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
-import type { PositionColumnExtra } from "./types.js";
+import type { FilePositions, PositionColumnExtra } from "./types.js";
 
 /**
  * A y that grows downward as one that grows upward, and back: a negation that never yields -0.
@@ -229,4 +229,30 @@ export function median(values: number[]): number | null {
  */
 export function writtenPositions(_format: string, coords: Float64Array): Float64Array {
     return coords;
+}
+
+/**
+ * Write each placed node's position onto its record as `position: { x, y, z }`, in the neutral form. A record whose
+ * node the file did not place keeps what it holds, and unusable positions write nothing.
+ * @param records - the node records
+ * @param positions - the file's positions (`extractPositions()`), or null
+ * @param rowOf - a record's node row in the snapshot the positions were read from, or -1 for none
+ * @category Positions
+ */
+export function placeRecords(
+    records: readonly Record<string, unknown>[],
+    positions: FilePositions | null,
+    rowOf: (record: Record<string, unknown>, index: number) => number,
+): void {
+    if (positions?.usable !== true) {
+        return;
+    }
+    const { coords } = positions;
+    for (const [index, record] of records.entries()) {
+        const row = rowOf(record, index);
+        const x = row < 0 ? Number.NaN : coords[3 * row];
+        if (!Number.isNaN(x)) {
+            record.position = { x, y: coords[3 * row + 1], z: coords[3 * row + 2] };
+        }
+    }
 }

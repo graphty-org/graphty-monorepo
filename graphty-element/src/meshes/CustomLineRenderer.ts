@@ -127,8 +127,32 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
-    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
-    pulledLean?: boolean;
+    /**
+     * With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`);
+     * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
+     */
+    pulledLean?: boolean | "smooth";
+}
+
+/**
+ * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
+ * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
+ * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
+ * keeps the whole fringe.
+ * @param options - The line's options.
+ * @returns The defines.
+ */
+function leanDefines(options: JoinedLineOptions): string[] {
+    if (options.pulledLean === "smooth") {
+        return [
+            "#define EDGE_PULLED_LEAN",
+            "#define EDGE_LINE_AA",
+            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+        ];
+    }
+
+    return options.pulledLean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -146,9 +170,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
-            ? ["#define EDGE_PULLED_LEAN"]
-            : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }

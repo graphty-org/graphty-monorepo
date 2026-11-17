@@ -45,11 +45,12 @@ import {
     type NodeSizeSpace,
     shaderPartOf,
 } from "./managers/StylePainter";
+import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
-import { labelFitExtent } from "./meshes/labelFit";
+import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
@@ -125,7 +126,8 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
 /**
- * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), or takes the proportions of
+ * (`shape.imageAspect`), once its size is known.
  * @param o - The resolved style.
  * @param picture - A picture's own size, once read.
  * @returns Its size in pixels, or null when the node holds none or it is not known yet.
@@ -135,7 +137,18 @@ function heldPicture(
     picture: (src: string) => { width: number; height: number } | null,
 ): { width: number; height: number } | null {
     const src = o.image?.src ?? "";
-    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+    const held = (o.shape?.labelFitImage ?? 0) > 0 || o.shape?.imageAspect === true;
+    return held && src !== "" ? picture(src) : null;
+}
+
+/**
+ * Whether a node's size is fitted to what it holds: its label (`shape.labelFit`, a table) or its picture's proportions
+ * (`shape.imageAspect`).
+ * @param shape - The resolved shape block.
+ * @returns True when the node is fitted.
+ */
+function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
+    return shape?.labelFit !== undefined || shape?.labelTable !== undefined || shape?.imageAspect === true;
 }
 
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
@@ -262,6 +275,29 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 
 /** Reads a node's own mesh in this module, where the consumer's {@link Node.mesh} is not read. */
 let ownAnchor: (node: Node) => TransformNode;
+
+/**
+ * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
+ * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
+ * point exports it.
+ */
+export const nodeInternals = {} as {
+    /**
+     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * decoration meshes and the look it last drew.
+     */
+    drawn(node: Node): {
+        border: Node["border"];
+        outerBorder: Node["outerBorder"];
+        drawnStyle: Node["drawnStyle"];
+        tableTexts: Node["tableTexts"];
+        shadow: Node["shadow"];
+        underlay: Node["underlay"];
+        overlay: Node["overlay"];
+        halo: Node["halo"];
+        decorations: Node["decorations"];
+    };
+};
 
 /**
  * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
@@ -437,6 +473,17 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        nodeInternals.drawn = (node) => ({
+            border: node.border,
+            outerBorder: node.outerBorder,
+            drawnStyle: node.drawnStyle,
+            tableTexts: node.tableTexts,
+            shadow: node.shadow,
+            underlay: node.underlay,
+            overlay: node.overlay,
+            halo: node.halo,
+            decorations: node.decorations,
+        });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
                 return false;
@@ -1821,7 +1868,14 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
+        const mesh = this.#mesh;
+        if (mesh === null) {
+            return null;
+        }
+
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, not by a triangle search
+        const convex = convexRayHit(mesh, ray);
+        return convex === undefined ? (ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null) : convex;
     }
 
     /**
@@ -2654,7 +2708,7 @@ export class Node implements ModelUser {
      * @returns True when the mesh has to be fitted again.
      */
     private fitIsStale(o: NodeStyleConfig): boolean {
-        if ((o.shape?.labelFit === undefined && o.shape?.labelTable === undefined) || this.drawnAsGroup) {
+        if (!fitsNode(o.shape) || this.drawnAsGroup) {
             return false;
         }
 
@@ -2675,7 +2729,7 @@ export class Node implements ModelUser {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
-        if ((shape?.labelFit === undefined && table === null) || this.drawnAsGroup) {
+        if ((shape?.labelFit === undefined && table === null && shape?.imageAspect !== true) || this.drawnAsGroup) {
             this.fittedFor = null;
             this.fittedExtent = null;
             return { meshKey, style: o };
@@ -2700,7 +2754,8 @@ export class Node implements ModelUser {
         const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
         const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
+        const held = heldPicture(o, picture);
+        const extent = labelFitExtent(shape, box, held) ?? imageAspectExtent(shape, held);
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));

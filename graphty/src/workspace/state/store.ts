@@ -308,6 +308,11 @@ export interface WorkspaceState {
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
     /**
+     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
+     */
+    readonly followSelection: boolean;
+    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
      * showing whenever the dock is open (tier 4, R14).
@@ -315,6 +320,8 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
+    /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
+    readonly analyzeValues: Readonly<Record<string, unknown>> | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -436,10 +443,12 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
+    analyzeValues: "fresh: set when a result's Run again with changes... opens Analyze",
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
@@ -546,10 +555,12 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    followSelection: true,
     exportOn: "image",
     exportSource: null,
     serverKind: null,
     analyzeOn: null,
+    analyzeValues: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,

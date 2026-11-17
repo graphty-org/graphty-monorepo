@@ -516,7 +516,7 @@ describe("the graph the element then measures", () => {
         const metric = session.catalog.metrics().find((candidate) => candidate.key === "kruskal");
 
         assert.isFalse(metric?.available, "kruskal needs an undirected graph and fsm.gv is a digraph");
-        assert.include(metric?.reason ?? "", "undirected");
+        assert.strictEqual(metric?.refusal?.code, "algorithm.needs-undirected");
         session.dispose();
     });
 

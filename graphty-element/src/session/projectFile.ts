@@ -36,6 +36,7 @@ import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { ANNOTATIONS_VALUE, drawnAnnotationsOf } from "./annotations";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
     assetChoices,
@@ -69,12 +70,6 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
-import {
-    asFileStyleStore,
-    FILE_STYLES_VALUE,
-    type FileStyleLoadValues,
-    fileStyleValuesOf,
-} from "./styles/fileStyles/store";
 import type {
     DataSourceInput,
     GraphSession,
@@ -871,27 +866,11 @@ function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, key
  * was declared, what each declared column measures (a field with its own version, so a file
  * without it still opens).
  * @param sources - The session and its dispatcher.
- * @param ids - The graph's ids, or a function that reads them (called only when a file-style load
- * holds an edge column).
  * @returns The member.
  */
-export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+export function sessionMember(sources: ProjectSources): Record<string, unknown> {
     const { session, dispatcher } = sources;
-    // The file-style values, an edge named by its position in the data as a run's edges are. The
-    // edge ids are read only when a load holds an edge column, as for the view state.
-    let edgeAt: Map<EdgeId, number> | undefined;
-    const indexOf = (edge: EdgeId): number => {
-        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
-        return edgeAt.get(edge) ?? -1;
-    };
-    const fileStyles = fileStyleValuesOf(asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE))).map(
-        (load) => ({
-            ...load,
-            columns: load.columns.map((column) =>
-                column.kind === "node" ? column : { ...column, ids: column.ids.map((id) => indexOf(id as EdgeId)) },
-            ),
-        }),
-    );
+    const annotations = drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
     const { layout, visibility } = session;
     const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
     const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
@@ -941,8 +920,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                   })),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
-        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
-        ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // Additive: a project with no annotations writes nothing here.
+        ...(annotations === null
+            ? {}
+            : { [ANNOTATIONS_VALUE]: { scale: annotations.scale, annotations: annotations.annotations } }),
         // The hidden columns, the types columns were given and the renames, when any was made.
         ...(columnSettings === undefined
             ? {}
@@ -1176,7 +1157,7 @@ function write(
     const file = sourcesFileOf(session);
     const members = [
         dataMember(session, file),
-        sessionMember(sources, ids),
+        sessionMember(sources),
         arrangementMember(session, ids),
         resultsMember(
             session,
@@ -1435,7 +1416,6 @@ function readDocument(text: string): ReadDocument {
             positions.set(member, index);
         }
     });
-
     return {
         ...(typeof document.name === "string" ? { name: document.name } : {}),
         extensions: isObject(document.extensions) ? document.extensions : {},
@@ -1731,7 +1711,10 @@ function withHeldChoices(listed: unknown, held: unknown): unknown {
             return each;
         }
 
-        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name) => [name, saved[name]]);
+        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name): [string, unknown] => [
+            name,
+            saved[name],
+        ]);
         return { ...(each as Record<string, unknown>), ...Object.fromEntries(kept) };
     });
 }
@@ -2057,19 +2040,11 @@ async function readProject(
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
-    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
-    if (Array.isArray(state.fileStyles)) {
-        const loads = state.fileStyles as unknown[];
-        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
-        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
-        opening.services.restoringFileStyles = true;
-        try {
-            await attempt(opening, "graph", () =>
-                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-            );
-        } finally {
-            opening.services.restoringFileStyles = false;
-        }
+    const annotations = drawnAnnotationsOf(state[ANNOTATIONS_VALUE]);
+    if (annotations !== null && annotations.annotations.length > 0) {
+        await attempt(opening, "graph", () =>
+            tx.execute({ op: "annotations.set", annotations: annotations.annotations, scale: annotations.scale }),
+        );
     }
 
     const layout = state.layout as
@@ -2545,66 +2520,6 @@ async function readColumnSettings(opening: Opening, columns: unknown): Promise<v
             settings: { hidden, types, renamed } as unknown as ColumnSettings,
         }),
     );
-}
-
-/**
- * A project file's file-style values, rewritten onto this session's elements: a node by its id,
- * kept when the data holds it; an edge by its position in the data, given the id this session
- * gave it. Anything malformed is left for the command to refuse.
- * @param loads - The saved loads.
- * @param nodeIds - The nodes the session holds.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The loads, over this session's ids.
- */
-function fileStylesInto(
-    loads: readonly unknown[],
-    nodeIds: ReadonlySet<NodeId>,
-    edgeIds: readonly (EdgeId | undefined)[],
-): FileStyleLoadValues[] {
-    return loads.map((load) => {
-        if (!isObject(load) || !Array.isArray(load.columns)) {
-            return load as FileStyleLoadValues;
-        }
-
-        const columns = (load.columns as unknown[]).map((column) => {
-            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
-                return column;
-            }
-
-            const ids: (NodeId | EdgeId)[] = [];
-            const values: unknown[] = [];
-            const saved = column.values as unknown[];
-            (column.ids as unknown[]).forEach((id, at) => {
-                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
-                if (mapped !== undefined) {
-                    ids.push(mapped);
-                    values.push(saved[at]);
-                }
-            });
-            return { ...column, ids, values };
-        });
-        return { ...load, columns } as unknown as FileStyleLoadValues;
-    });
-}
-
-/**
- * The node a saved file-style id names, when the session holds it.
- * @param id - The saved id.
- * @param nodeIds - The nodes the session holds.
- * @returns The node id, or undefined.
- */
-function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
-    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
-}
-
-/**
- * The edge a saved file-style position names.
- * @param at - The saved position in the data.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The edge id, or undefined.
- */
-function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
-    return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
 /** What reading one saved run needs to know about the data it opens over. */

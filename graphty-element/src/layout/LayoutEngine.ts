@@ -342,6 +342,13 @@ export const layoutEngineInternals = {} as {
      * hands it to the engine. Undefined when an end has no position.
      */
     edgePositionOf(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
+    /**
+     * Tell the engine whether the element has stopped stepping it (settled, paused or stopped). A
+     * resting engine lets go of its publish scratch and allocates it again on its next publish.
+     */
+    rest(engine: LayoutEngine, resting: boolean): void;
+    /** How many doubles the engine's publish scratch holds. */
+    scratchHeld(engine: LayoutEngine): number;
 };
 
 /**
@@ -408,6 +415,13 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.rest = (engine, resting) => {
+            engine.resting = resting;
+            if (resting) {
+                engine.releasePublishScratch();
+            }
+        };
+        layoutEngineInternals.scratchHeld = (engine) => engine.scratchRows.length + engine.scratchCoords.length;
         // An edge the working graph hides is drawn and, by design, never held.
         layoutEngineInternals.edgeProblems = (engine, drawn) =>
             engine.edgeProblems(
@@ -549,6 +563,8 @@ export abstract class LayoutEngine {
 
     private scratchRows = new Float64Array(0);
     private scratchCoords = new Float64Array(0);
+    /** Whether the element has stopped stepping this engine; see `layoutEngineInternals.rest`. */
+    private resting = false;
 
     /**
      * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
@@ -1223,6 +1239,30 @@ export abstract class LayoutEngine {
         coords: Float64Array,
         count: number,
         firstPlacement = false,
+    ): void {
+        this.#publishColumn(n, rows, coords, count, firstPlacement);
+        // A settled or stopped simulation publishes seldom if ever again, so the scratch (42 MiB at
+        // a million nodes) is let go rather than kept for the life of the graph; a running one
+        // reuses it every frame.
+        if (rows === this.scratchRows && (this.resting || this.isSettled)) {
+            this.releasePublishScratch();
+        }
+    }
+
+    /**
+     * {@link LayoutEngine.publishColumn}, before the scratch is let go.
+     * @param n - see {@link LayoutEngine.publishColumn}
+     * @param rows - see {@link LayoutEngine.publishColumn}
+     * @param coords - see {@link LayoutEngine.publishColumn}
+     * @param count - see {@link LayoutEngine.publishColumn}
+     * @param firstPlacement - see {@link LayoutEngine.publishColumn}
+     */
+    #publishColumn(
+        n: Parameters<LayoutEngine["publishColumn"]>[0],
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement: boolean,
     ): void {
         if (n === undefined) {
             return;

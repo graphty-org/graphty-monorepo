@@ -42,13 +42,34 @@ export type StyleNodeShape =
     | "vee"
     | "polygon"
     | "none"
+    | "cross"
+    | "house"
+    | "man"
+    | "woman"
+    | "round-triangle"
+    | "round-diamond"
+    | "round-pentagon"
+    | "round-hexagon"
+    | "round-octagon"
+    | "round-polygon"
+    | "barrel"
+    | "top-round-rectangle"
+    | "bottom-round-rectangle"
+    | "database"
     | `other:${string}`;
 
 /**
  * Node border styles; unknown spellings are kept as `other:<raw>`.
  * @category Styles
  */
-export type StyleBorderStyle = "solid" | "dashed" | "dotted" | "dash-dot" | "double" | `other:${string}`;
+export type StyleBorderStyle =
+    "solid" | "dashed" | "dotted" | "dash-dot" | "double" | "zigzag" | "sinewave" | StyleStroke | `other:${string}`;
+
+/**
+ * The stroke patterns a line or a border may be drawn in besides dashes: slashes across it, or arrows along it.
+ * @category Styles
+ */
+export type StyleStroke = "forward-slash" | "backward-slash" | "vertical-slash" | "separate-arrow" | "contiguous-arrow";
 
 /**
  * Where a node's border sits against its `width` and `height`: `center` runs the border's middle along them, half
@@ -63,7 +84,16 @@ export type StyleBorderPosition = "inside" | "center" | "outside";
  * @category Styles
  */
 export type StyleLineStyle =
-    "solid" | "dashed" | "dotted" | "dash-dot" | "long-dash" | "double" | "zigzag" | "sinewave" | `other:${string}`;
+    | "solid"
+    | "dashed"
+    | "dotted"
+    | "dash-dot"
+    | "long-dash"
+    | "double"
+    | "zigzag"
+    | "sinewave"
+    | StyleStroke
+    | `other:${string}`;
 
 /**
  * Arrow shapes at either end of an edge; unknown spellings are kept as `other:<raw>`.
@@ -83,6 +113,33 @@ export type StyleArrowShape =
     | "crow"
     | "half"
     | "inverted"
+    /** A half arrow drawn as one thin barb on the line's left, and on its right. */
+    | "half-barb"
+    | "half-barb-flipped"
+    /** A vee turned round, its point back on the line. */
+    | "inverted-vee"
+    /** The half arrow on the line's other side. */
+    | "half-open-flipped"
+    | "half-circle"
+    | "open-half-circle"
+    | "curve"
+    | "triangle-tee"
+    | "triangle-cross"
+    | "circle-triangle"
+    | "open-box"
+    | "open-inverted"
+    | "cross-delta"
+    | "open-cross-delta"
+    /** A picture (`targetArrowImage`) standing on the line. */
+    | "image"
+    | "cross"
+    | "kite"
+    | "deltoid"
+    | "open-vee"
+    /** A short piece of line, the end cap of an arrow drawn in several pieces. */
+    | "stem"
+    /** A slanted bar across the line. */
+    | "slash"
     | `other:${string}`;
 
 /**
@@ -146,6 +203,18 @@ export type StyleLabelBox = "words" | "words-at-side" | "target-width";
  * @category Styles
  */
 export type StyleLabelFit = "inside" | "bounds";
+
+/**
+ * How a node's `width` and `height` are read against its shape; see `NodeStyleValues.sizeMode`.
+ * @category Styles
+ */
+export type StyleSizeMode = "uniform" | "scale";
+
+/**
+ * What a label is measured by when it is shifted or placed: the box round its words alone, or its whole box.
+ * @category Styles
+ */
+export type StyleLabelMeasure = "words" | "box";
 
 /**
  * The neutral node properties and the type of each value. Lengths are in the unit `FileStyles.units.length`
@@ -557,6 +626,13 @@ export interface NodeStyleValues {
     /** The image's opacity, 0..1. */
     readonly imageOpacity: number;
     /**
+     * Whether the node takes its image's proportions: its box grows the longer way until the image, at its own
+     * proportions, covers the node's width and height (vis-network's image nodes, sized to their picture with its
+     * shorter side across `2 * size`). The image's size is read when it loads; until then, and for an image that cannot
+     * be read, the node keeps its own box. Unset, false.
+     */
+    readonly imageAspect: boolean;
+    /**
      * A character or short text drawn over the node, centered on it (vis-network's icon nodes: an icon font's
      * glyph), in `glyphFont` (a CSS font family) at `glyphSize` (the font's size, in the units of `width`),
      * `glyphWeight` and `glyphColor`.
@@ -680,6 +756,47 @@ export interface NodeStyleValues {
     readonly groupMinHeightBiasTop: number;
     /** Whether the members' labels count in the members' box (Cytoscape.js `compound-sizing-wrt-labels`). */
     readonly groupIncludeLabels: boolean;
+    /**
+     * The largest corner radius a rounded shape is drawn with when no rule gives `cornerRadius` (a length): the corners
+     * are `cornerFraction` of the shorter side, at most this. Unset, no cap.
+     */
+    readonly cornerRadiusCap: number;
+    /**
+     * How far a rounded shape's corners are rounded when no rule gives `cornerRadius`, as a fraction of its shorter side
+     * (a quarter, a third, an eighth), before `cornerRadiusCap` caps it. Unset, the reader's own rounding.
+     */
+    readonly cornerFraction: number;
+    /**
+     * The border's width in screen pixels, the same at every zoom: a screen size, not a length, drawn in place of
+     * `borderWidth` once the drawing is framed. Unset, `borderWidth` alone.
+     */
+    readonly borderScreenWidth: number;
+    /**
+     * The label's font size in screen pixels, the same at every zoom: a screen size, not a length, so it is never
+     * scaled with the file's lengths. Drawn in place of `labelSize` where both are given.
+     */
+    readonly labelScreenSize: number;
+    /**
+     * How the node's `width` and `height` are read against its shape: `uniform` draws every shape of one size the same
+     * extent across (a diamond and an ellipse of size 10 are both 10 across); `scale` keeps each shape's own
+     * proportions. Unset, the reader's own.
+     */
+    readonly sizeMode: StyleSizeMode;
+    /**
+     * What `labelShiftX` and `labelShiftY` shift the label by: `words`, the box round its words alone; `box`, the
+     * label's whole box, margins included. Unset, `box`.
+     */
+    readonly labelShiftOf: StyleLabelMeasure;
+    /**
+     * What an outside label is placed against its node by: `words`, its words touching the node's outline; `box`, its
+     * whole box. Unset, `box`.
+     */
+    readonly labelGapOf: StyleLabelMeasure;
+    /**
+     * Where the node is drawn among overlapping nodes, 0 to 100: a higher one is drawn over a lower one. Unset, no
+     * order.
+     */
+    readonly drawOrder: number;
     /** Whether the node is drawn at all. */
     readonly visible: boolean;
 }
@@ -1058,6 +1175,59 @@ export interface EdgeStyleValues {
     readonly labelMinScreenSize: number;
     /** Whether the label is drawn over every node and edge; see the node's. */
     readonly labelOnTop: boolean;
+    /** The label's font size in screen pixels, the same at every zoom; see the node's `labelScreenSize`. */
+    readonly labelScreenSize: number;
+    /** The source end's label's font size in screen pixels; see `labelScreenSize`. */
+    readonly sourceLabelScreenSize: number;
+    /** The target end's label's font size in screen pixels; see `labelScreenSize`. */
+    readonly targetLabelScreenSize: number;
+    /** What `labelShiftX` and `labelShiftY` shift the label by; see the node's `labelShiftOf`. */
+    readonly labelShiftOf: StyleLabelMeasure;
+    /** The source end's label's font weight; unset, the label's (`labelWeight`). */
+    readonly sourceLabelWeight: StyleLabelWeight;
+    /** The target end's label's font weight; see `sourceLabelWeight`. */
+    readonly targetLabelWeight: StyleLabelWeight;
+    /** The opacity of the source end's label's words, 0..1; unset, the label's (`labelOpacity`). */
+    readonly sourceLabelOpacity: number;
+    /** The opacity of the target end's label's words; see `sourceLabelOpacity`. */
+    readonly targetLabelOpacity: number;
+    /**
+     * How long each dash of a dashed or dotted `lineStyle` is drawn, its caps included, as a multiple of the line's
+     * `width`. Unset, the reader's own pattern.
+     */
+    readonly dashLength: number;
+    /** The clear gap after each dash, as a multiple of the line's `width`; see `dashLength`. */
+    readonly dashGap: number;
+    /**
+     * How long the source arrowhead is drawn along its line, a length: its size settled from `arrowSize`, the line's
+     * width and its shape. With it, `sourceArrowSize`, `sourceArrowLength` and `sourceArrowWidth` are already folded in.
+     */
+    readonly sourceArrowExtent: number;
+    /** How long the target arrowhead is drawn; see `sourceArrowExtent`. */
+    readonly targetArrowExtent: number;
+    /** How long the middle arrow toward the source is drawn; see `sourceArrowExtent`. */
+    readonly midSourceArrowExtent: number;
+    /** How long the middle arrow toward the target is drawn; see `sourceArrowExtent`. */
+    readonly midTargetArrowExtent: number;
+    /** How wide the source arrowhead is drawn across its line, a length. Unset, its shape's own proportions. */
+    readonly sourceArrowBreadth: number;
+    /** How wide the target arrowhead is drawn; see `sourceArrowBreadth`. */
+    readonly targetArrowBreadth: number;
+    /** How wide the middle arrow toward the source is drawn; see `sourceArrowBreadth`. */
+    readonly midSourceArrowBreadth: number;
+    /** How wide the middle arrow toward the target is drawn; see `sourceArrowBreadth`. */
+    readonly midTargetArrowBreadth: number;
+    /**
+     * How thick the outline of an open (hollow) source arrowhead is drawn, a length: an arrowhead stroked with the
+     * line's own pen is as thick as the line. Unset, the reader's own thin outline.
+     */
+    readonly sourceArrowOutlineWidth: number;
+    /** How thick the outline of an open target arrowhead is drawn; see `sourceArrowOutlineWidth`. */
+    readonly targetArrowOutlineWidth: number;
+    /** How thick the outline of an open middle arrow toward the source is drawn; see `sourceArrowOutlineWidth`. */
+    readonly midSourceArrowOutlineWidth: number;
+    /** How thick the outline of an open middle arrow toward the target is drawn; see `sourceArrowOutlineWidth`. */
+    readonly midTargetArrowOutlineWidth: number;
     /** Whether the edge is drawn at all. */
     readonly visible: boolean;
 }
@@ -1194,6 +1364,8 @@ export type StyleTool =
     | "ogdf"
     /** NetworkX's matplotlib drawing (`draw_networkx`). */
     | "networkx"
+    /** The Tk canvas, which draws a plain GML file's graphics (the GML draft's, modelled after Tk's). */
+    | "tk"
     /** graphty itself, for a file holding a `graphty.styles` block. */
     | "graphty"
     | (string & {}); // an open union, so editors still offer its literal values
@@ -1390,6 +1562,11 @@ export interface StyleRuleFacts {
 export interface StyleRule {
     /** Stable within one extraction (`node.defaults`, `node.by.Modularity Class`). */
     readonly id: string;
+    /**
+     * A default name for the rule that says what it does (`Defaults`, `Hidden edges`, `By Modularity Class`), never
+     * what produced it; an application shows it or names the rule its own way.
+     */
+    readonly name?: string;
     /** Nodes or edges. */
     readonly target: StyleTarget;
     /** What the rule is. */
@@ -1460,7 +1637,11 @@ export interface StyleNote {
 export interface FileStyles {
     /** Changes only when the meaning of an existing construct changes. */
     readonly version: 1;
-    /** The format, the dialect of its values, and the program whose defaults were applied (null when unknown). */
+    /**
+     * The format, the dialect of its values, and the program whose defaults were applied (null when unknown). For
+     * graph-io's own report and checks only: every per-program decision is already settled in the rules, `units` and
+     * `lengths`, so a consumer draws the styles the same way whatever this says.
+     */
     readonly source: {
         /** The graph-io format id. */
         readonly format: string;
@@ -1474,12 +1655,31 @@ export interface FileStyles {
         /** Pixels, or the writing tool's relative size factor. */
         readonly length: "px" | "relative";
     };
+    /**
+     * How the lengths are meant to be drawn: `scene` when they are already in the drawing's own units (a file graphty
+     * wrote), `file` when they are the file's and a consumer scales them to its drawing. `spacing` is how far apart, in
+     * the file's lengths, the nodes of a file that stores no positions are laid out (the median distance from a node
+     * to its nearest neighbor), when that is known. Absent in styles made before it was recorded, which then means
+     * `file` with no spacing.
+     */
+    readonly lengths?: StyleLengths;
     /** The graph's own style. */
     readonly graph: GraphStyle;
     /** Bottom to top. */
     readonly rules: readonly StyleRule[];
     /** Everything approximated, dropped or malformed. */
     readonly notes: readonly StyleNote[];
+}
+
+/**
+ * How a description's lengths are meant to be drawn; see `FileStyles.lengths`.
+ * @category Styles
+ */
+export interface StyleLengths {
+    /** `scene` for lengths already in the drawing's units, `file` for the file's own. */
+    readonly units: "scene" | "file";
+    /** How far apart the nodes of a file that stores no positions are laid out, in the file's lengths. */
+    readonly spacing?: number;
 }
 
 /**

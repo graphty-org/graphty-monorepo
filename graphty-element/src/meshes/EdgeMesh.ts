@@ -757,7 +757,12 @@ void main() {
 
         // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
         const flat = this.drawsFlat(scene);
-        const leanLine: LeanLines = curve ? false : lean;
+        // An unblended line (blending false) is painted at full alpha, which would throw the smoothed
+        // edge away and leave the widened rectangle solid: it takes the plain lean program instead.
+        let leanLine: LeanLines = curve ? false : lean;
+        if (leanLine === "smooth" && pass === "unblended") {
+            leanLine = true;
+        }
         let kind: "curve" | "lean" | "smooth" | true = true;
         let suffix = "";
         if (curve) {

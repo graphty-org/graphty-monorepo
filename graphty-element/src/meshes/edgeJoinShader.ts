@@ -1005,7 +1005,15 @@ void main() {
     // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
     // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
     float hwAA = vAcross.y / vAcross.z;
-    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, abs(vAcross.x / vAcross.z));
+    float acrossAA = abs(vAcross.x / vAcross.z);
+#ifdef EDGE_LINE_AA_CUT
+    // In 3D the fringe outside the drawn width would write depth where the line barely shows, and
+    // a farther line drawn after it would fail the depth test there: drop it.
+    if (acrossAA > hwAA) {
+        discard;
+    }
+#endif
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
 #endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);

@@ -136,16 +136,22 @@ export interface JoinedLineOptions {
 
 /**
  * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
- * rectangle with shader-smoothed edges.
- * @param lean - The look's `pulledLean`.
+ * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * smoothed fringe outside its drawn width (`EDGE_LINE_AA_CUT`), so the fringe writes no depth and
+ * cuts no hole in a farther line it crosses; the 2D view has no such hole and keeps the whole fringe.
+ * @param options - The line's options.
  * @returns The defines.
  */
-function leanDefines(lean: JoinedLineOptions["pulledLean"]): string[] {
-    if (lean === "smooth") {
-        return ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"];
+function leanDefines(options: JoinedLineOptions): string[] {
+    if (options.pulledLean === "smooth") {
+        return [
+            "#define EDGE_PULLED_LEAN",
+            "#define EDGE_LINE_AA",
+            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+        ];
     }
 
-    return lean === true ? ["#define EDGE_PULLED_LEAN"] : [];
+    return options.pulledLean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -163,7 +169,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options.pulledLean) : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }

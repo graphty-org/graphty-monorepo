@@ -7210,8 +7210,10 @@ export class Graphty extends LitElement {
      *
      * `"shader"` builds the canvas without multisampling, as `false` does, and under renderPath
      * "batched" draws plain straight edges with the cheaper line program, their edges smoothed by
-     * the line shader itself: smooth lines, still or moving, at close to `false`'s cost. Node edges
-     * are not multisampled. On renderPath "objects" it draws as `false` does.
+     * the line shader itself: smooth lines, still or moving, at close to `false`'s cost. Everything
+     * else is drawn as `false` draws it, with hard edges: nodes, curved, looped, bent, arc, animated,
+     * dashed and capped lines, and lines with `blending` off. On renderPath "objects" it draws as
+     * `false` does.
      * @remarks
      * Set it as an attribute, in any position in the tag, or as a property before using any other
      * property or method of the element: the engine reads it once, when it is built. After that,

@@ -418,6 +418,8 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
                 assert.isTrue(key.endsWith(view === "2d" ? "|smooth|2d" : "|smooth"), key);
                 const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
                 assert.includeMembers(defines, ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"], key);
+                // In 3D the fringe outside the drawn width is dropped, so it writes no depth.
+                assert.strictEqual(defines.includes("#define EDGE_LINE_AA_CUT"), view === "3d", key);
                 assert.strictEqual(
                     batch.mesh.subMeshes[0]?.verticesCount,
                     batch.drawnCount * 6,
@@ -427,9 +429,41 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
 
             // The same lines, their edges smoothed: some pixels differ from the lean picture.
             assert.isAbove(overBar(leanRest, await readCanvas(smooth.graph)), 0);
-            // It cannot switch to multisampling on an engine built without it.
-            smooth.antialias = true;
-            assert.strictEqual(smooth.antialias, "shader");
+            // It cannot switch to any other setting on an engine built for it, and says so each time.
+            const warnings: unknown[] = [];
+            smooth.addEventListener("graphty-warning", (event) => warnings.push((event as CustomEvent).detail));
+            for (const other of [true, false, "at-rest"] as const) {
+                smooth.antialias = other;
+                assert.strictEqual(smooth.graph.antialias, "shader");
+            }
+
+            assert.lengthOf(warnings, 3);
+            assert.isTrue(
+                warnings.every((w) => JSON.stringify(w).includes("W_ANTIALIAS_LATE")),
+                JSON.stringify(warnings),
+            );
+
+            // An unblended line (blending false) is painted at full alpha: it keeps the plain lean
+            // program, not a widened rectangle painted solid.
+            await smooth.session.styles.add({
+                name: "unblended",
+                target: "edge",
+                selector: { match: "ids", edges: [edgeId(smooth, 2, 6)] },
+                set: { "edge.blending": false },
+            } as never);
+            await operationQueueOf(smooth.graph).waitForCompletion();
+            await smooth.waitForStableFrame();
+            const unblended = [...smooth.graph.getMeshCache().pulledBatchMap.entries()].filter(([key]) =>
+                key.includes("|unblended|"),
+            );
+            assert.lengthOf(unblended, 1, "the unblended line has its own batch");
+            for (const [key, batch] of unblended) {
+                assert.isTrue(key.endsWith(view === "2d" ? "|lean|2d" : "|lean"), key);
+                const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
+                assert.include(defines, "#define EDGE_PULLED_LEAN", key);
+                assert.notInclude(defines, "#define EDGE_LINE_AA", key);
+            }
+
             smooth.remove();
         },
     );

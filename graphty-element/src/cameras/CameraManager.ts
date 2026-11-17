@@ -8,8 +8,11 @@ import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
-/** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
-const GLIDE = 0.2;
+/**
+ * The share of the way to its target a gliding pivot covers each nominal 60 Hz frame: half of it
+ * in about 4 frames (1/15 s), most of it in 20.
+ */
+const GLIDE = 0.16;
 
 /**
  * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
@@ -17,7 +20,8 @@ const GLIDE = 0.2;
  * @param from - The point, moved in place.
  * @param to - The target.
  * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
- *   time however slowly frames are drawn; 1 by default.
+ *   time however fast or slowly frames are drawn (a 120 Hz pass stands for half a frame); 1 by
+ *   default, and a hand-pumped pass (0) counts as one frame.
  * @returns Whether the point moved.
  */
 export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
@@ -28,7 +32,7 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
     } else {
-        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** Math.max(1, frames), from);
+        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
     }
 
     return true;

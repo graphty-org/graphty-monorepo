@@ -135,7 +135,8 @@ interface LeasedOnce {
  * and the histogram do) while the stage's lease lives until dispose(): each distinct request is taken from the lease
  * once and handed back on every later one. Dispatches in a batch run in order, so iterations share them. Taking a
  * fresh buffer per request grew the pool by about 130 KB an iteration on the grid tier, held until the simulation
- * was disposed (issue #8545). Records of one bind() repeat the same requests, so the set stays one iteration's.
+ * was disposed (issue #8545). Records of one bind() repeat the same requests, so the set stays one iteration's. Every
+ * request checks the lease first, so a cached answer after dispose() still throws E_DISPOSED.
  * @param device - the device
  * @param box - the stage's lease
  * @returns the scope's scratch and params
@@ -145,19 +146,21 @@ export function leasedOnce(device: GPUDevice, box: LeaseBox): LeasedOnce {
     const taken = new Map<string, GPUBuffer>();
     return {
         scratch: (byteLength, label) => {
+            const lease = leaseOf(box);
             const id = `${label}:${byteLength}`;
             let buffer = taken.get(id);
             if (buffer === undefined) {
-                buffer = leaseOf(box).storage(byteLength, label);
+                buffer = lease.storage(byteLength, label);
                 taken.set(id, buffer);
             }
             return buffer;
         },
         params: (block, values) => {
+            const lease = leaseOf(box);
             const id = `${block.name}:${JSON.stringify(values)}`;
             let params = written.get(id);
             if (params === undefined) {
-                params = writeParams(device, leaseOf(box), block, values);
+                params = writeParams(device, lease, block, values);
                 written.set(id, params);
             }
             return params;
@@ -360,9 +363,10 @@ export class RepulsionGrid {
     /**
      * Builds every bind group once per load(): the build's and the pyramid's bind() (which take their scratch and
      * write their static params through the lease), then G6, G7 and K4 against the named buffers (the 3.10.1
-     * binding names). A second bind() takes fresh scratch from the same lease and the first bind()'s scratch stays
-     * held until dispose(): the one lease also holds the prepare-time allocations (the scan's block-sum levels), so
-     * it cannot be released on a rebind (the model creates one stage per bind(), so a rebind never happens).
+     * binding names). A second bind() at the same sizes gets the first bind()'s scratch back (leasedOnce caches each
+     * request); at other sizes it adds new scratch, and the first bind()'s stays held until dispose(): the one lease
+     * also holds the prepare-time allocations (the scan's block-sum levels), so it cannot be released on a rebind
+     * (the model creates one stage per bind(), so a rebind never happens).
      * @param resources - the buffers of spec 7.3 plus the grid's
      */
     bind(resources: RepulsionGridResources): void {

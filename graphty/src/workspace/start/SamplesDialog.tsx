@@ -188,14 +188,18 @@ function cardLabel(card: SampleCardData): string {
  * Samples..., from Sources "+": the start page's sample library in its order, drawn with the start page's own card (SampleCard), narrowed by a
  * search box and a group filter. Every sample goes into the project the way a dropped file does
  * (addSource); while the project holds data, each card also offers Open as a separate graph.
- * @returns the dialog, open while the workspace dialog is "samples"
+ * Generator... opens it on the generators (the workspace dialog "generators").
+ * @returns the dialog, open while the workspace dialog is "samples" or "generators"
  */
 export function SamplesDialog(): React.JSX.Element {
     const ctx = useWorkspace();
     useSessionEvents(ctx.session, TOOLBAR_EVENTS);
-    const opened = useWorkspaceState((state) => state.dialog === "samples");
+    const dialog = useWorkspaceState((state) => state.dialog);
+    const opened = dialog === "samples" || dialog === "generators";
     const [text, setText] = useState("");
-    const [group, setGroup] = useState("");
+    // Until the reader picks a group: all of them, or the generators when opened by Generator...
+    const [picked, setPicked] = useState<string | null>(null);
+    const group = picked ?? (dialog === "generators" ? GENERATED : "");
     const [asking, setAsking] = useState<{ dataset: DatasetMeta; target: Target } | null>(null);
     const [configuring, setConfiguring] = useState<{ generator: GeneratorDescriptor; target: Target } | null>(null);
     const close = (): void => {
@@ -223,14 +227,14 @@ export function SamplesDialog(): React.JSX.Element {
                 onClose={close}
                 onExitTransitionEnd={() => {
                     setText("");
-                    setGroup("");
+                    setPicked(null);
                 }}
                 title="Samples"
                 size={800}
             >
                 <Stack gap="sm">
                     <SearchInput aria-label="Search samples" placeholder="Search" value={text} onChange={setText} />
-                    <Chip.Group multiple={false} value={group} onChange={setGroup}>
+                    <Chip.Group multiple={false} value={group} onChange={setPicked}>
                         <Group gap={4} role="radiogroup" aria-label="Group">
                             {["", ...allGroups].map((each) => (
                                 <Chip key={each} value={each} size="xs" variant="light">

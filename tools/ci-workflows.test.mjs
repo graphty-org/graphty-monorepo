@@ -8686,7 +8686,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
     });
 
     it("a pull request touching no docs or cost files runs neither", () => {
-        assert.deepEqual(optional(["compact-mantine/src/a.ts"], { affected: ["compact-mantine"] }), {
+        assert.deepEqual(optional(["graphty/src/a.ts"], { affected: ["graphty"] }), {
             docs: "false",
             "cost-accuracy": "false",
         });
@@ -8697,7 +8697,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
             assert.equal(optional([f]).docs, "true", f);
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
-        assert.equal(optional(["compact-mantine/README.md"], { affected: ["compact-mantine"] }).docs, "false");
+        assert.equal(optional(["graphty/README.md"], { affected: ["graphty"] }).docs, "false");
     });
 
     it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {

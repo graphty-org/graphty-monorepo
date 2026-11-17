@@ -45,6 +45,7 @@ const PHRASES: ReadonlyMap<StyleNoteCode, string> = new Map<StyleNoteCode, strin
     ["W_STYLE_RAMP_ROUNDED", "continuous mappings match within the tool's rounding"],
     ["W_STYLE_LAYER_CAP", "rules were folded into per-element copies"],
     ["W_STYLE_BUDGET", "the work budget ran out; values were copied per element"],
+    ["W_STYLE_DRAWN_NEAREST", "drawn as the nearest graphty value"],
     ["W_STYLE_BLOCK_IGNORED", "the graphty.styles block was ignored"],
     ["W_STYLE_NOT_WRITTEN", "the format cannot hold this style"],
     ["W_STYLE_APPROXIMATED", "written as the nearest value the format allows"],

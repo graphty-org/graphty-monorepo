@@ -45,6 +45,7 @@ import {
     type NodeSizeSpace,
     shaderPartOf,
 } from "./managers/StylePainter";
+import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
@@ -269,7 +270,10 @@ let ownAnchor: (node: Node) => TransformNode;
  * point exports it.
  */
 export const nodeInternals = {} as {
-    /** The node's border, outer border, shadow, underlay and overlay meshes and the look it last drew. */
+    /**
+     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * decoration meshes and the look it last drew.
+     */
     drawn(node: Node): {
         border: Node["border"];
         outerBorder: Node["outerBorder"];
@@ -278,6 +282,8 @@ export const nodeInternals = {} as {
         shadow: Node["shadow"];
         underlay: Node["underlay"];
         overlay: Node["overlay"];
+        halo: Node["halo"];
+        decorations: Node["decorations"];
     };
 };
 
@@ -463,6 +469,8 @@ export class Node implements ModelUser {
             shadow: node.shadow,
             underlay: node.underlay,
             overlay: node.overlay,
+            halo: node.halo,
+            decorations: node.decorations,
         });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
@@ -1848,7 +1856,14 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
+        const mesh = this.#mesh;
+        if (mesh === null) {
+            return null;
+        }
+
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, not by a triangle search
+        const convex = convexRayHit(mesh, ray);
+        return convex === undefined ? (ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null) : convex;
     }
 
     /**

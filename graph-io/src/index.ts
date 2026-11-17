@@ -257,6 +257,8 @@ export {
     graphvizPosBends,
     RANK_COLUMN,
     RANK_SET_COLUMN,
+    type RequestedLayout,
+    requestedLayout,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,
@@ -301,8 +303,13 @@ export {
     type JsonImportDialect,
     jsonImporter,
     type JsonImportOptions,
+    type JsonRecords,
+    type JsonRecordsOptions,
     type JsonShapeMeta,
     jsonShapeOf,
+    readJsonRecords,
+    recordKey,
+    recordPaths,
     sniffJsonDialect,
 } from "./formats/json/index.js";
 export {

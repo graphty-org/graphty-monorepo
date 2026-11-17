@@ -932,6 +932,17 @@ const MORE: Record<string, Row[]> = {
                 text: 'graph [ node [ id 1 graphics [ fill "#ff0000" ] ] node [ id 2 ] edge [ source 1 target 2 ] ]',
             },
         },
+        // A replacing load of a file with an annotation (a DOT diagram's title) writes the annotations.
+        {
+            args: {
+                action: "import",
+                format: "dot",
+                mode: "replace",
+                styles: "file",
+                text: 'digraph { graph [bb="0,0,300,100", label="The title"]; a [pos="50,50"]; b [pos="250,50"]; a -> b; }',
+            },
+            gate: false,
+        },
     ],
     "results.cancel": [{ args: { action: "cancel", run: "degree" }, setup: withRun, gate: false }],
     "edit_data.delete_all": [{ args: { action: "delete_all" }, gate: false }],

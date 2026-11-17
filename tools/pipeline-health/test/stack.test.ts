@@ -31,7 +31,7 @@ describe("health stack", () => {
         });
     });
 
-    it("reserves concurrency 20 / 5 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
+    it("reserves concurrency 20 / 5 / 5 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
         const fns = Object.values(t.findResources("AWS::Lambda::Function")).map((r) => r.Properties);
         const shapes = fns
             .map((p) => [p.ReservedConcurrentExecutions, p.Timeout, p.Runtime, p.Architectures[0]])
@@ -39,6 +39,7 @@ describe("health stack", () => {
         expect(shapes).toEqual([
             [20, 28, "nodejs22.x", "arm64"],
             [5, 10, "nodejs22.x", "arm64"],
+            [5, 28, "nodejs22.x", "arm64"],
             [1, 240, "nodejs22.x", "arm64"],
             [1, 900, "nodejs22.x", "arm64"],
         ]);
@@ -46,15 +47,18 @@ describe("health stack", () => {
 
     it("keeps logs 14 days", () => {
         const groups = Object.values(t.findResources("AWS::Logs::LogGroup"));
-        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14]);
+        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14, 14]);
     });
 
     it("checks CI writes with the GitHub OIDC issuer and audience", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
             AuthorizerType: "JWT",
-            JwtConfiguration: { Issuer: "https://token.actions.githubusercontent.com", Audience: ["graphty-health"] },
+            JwtConfiguration: {
+                Issuer: "https://token.actions.githubusercontent.com",
+                Audience: ["graphty-health", "graphty-results"],
+            },
         });
-        for (const path of ["invocations", "failures", "durations", "verdicts"]) {
+        for (const path of ["invocations", "failures", "durations", "verdicts", "issues", "channel-moves"]) {
             t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
                 RouteKey: `POST /v1/${path}`,
                 AuthorizationType: "JWT",
@@ -64,7 +68,8 @@ describe("health stack", () => {
             RouteKey: "POST /v1/local/{kind}",
             AuthorizationType: "NONE",
         });
-        for (const key of ["GET /v1/health", "GET /v1/status", "GET /v1/page/{page}", "GET /v1/{proxy+}"]) {
+        const reads = ["GET /v1/health", "GET /v1/status", "GET /v1/page/{page}", "GET /v1/{proxy+}"];
+        for (const key of [...reads, "GET /v1/plan", "GET /v1/site"]) {
             t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key, AuthorizationType: "NONE" });
         }
     });
@@ -135,7 +140,7 @@ describe("health stack", () => {
         const action = Object.values(t.findResources("AWS::Budgets::BudgetsAction"))[0].Properties;
         expect(action.ActionType).toBe("APPLY_IAM_POLICY");
         expect(action.ActionThreshold).toEqual({ Type: "PERCENTAGE", Value: 100 });
-        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(4);
+        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(5);
         t.hasResourceProperties("AWS::IAM::ManagedPolicy", {
             PolicyDocument: { Statement: [{ Effect: "Deny", Action: "*", Resource: "*" }], Version: "2012-10-17" },
         });

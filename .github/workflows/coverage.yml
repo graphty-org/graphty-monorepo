@@ -124,6 +124,7 @@ jobs:
                   hosts="$RUNNER_TEMP/known_hosts"
                   printf '%s\n' "$DEPLOY_KEY" > "$key"
                   chmod 600 "$key"
+                  trap 'rm -f "$key"' EXIT
                   echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$hosts"
                   export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$hosts"
                   cd "$out"
@@ -133,7 +134,6 @@ jobs:
                   git add -A
                   git commit -q -m "coverage: ${REF}"
                   git push -q --no-verify --force "git@github.com:${GITHUB_REPOSITORY}.git" HEAD:refs/heads/coverage-badges
-                  rm -f "$key"
 
             - name: Publish to Coveralls
               if: hashFiles('coverage/lcov.info') != ''

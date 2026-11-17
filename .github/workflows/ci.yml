@@ -2246,6 +2246,12 @@ jobs:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
+            - name: Download Storybook build (babylonjs-models)
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-storybook-babylonjs-models
+                  path: babylonjs-models/storybook-static/
+
             - name: Download Storybook build (graph-io-fidelity)
               uses: actions/download-artifact@v8
               with:

@@ -21,6 +21,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editJsonNodeFill, replaceJsonBlock } from "../../styles/formats/json.js";
 
@@ -83,7 +84,9 @@ function rulesOf(ex: ExtractedStyles): unknown {
         }
         return v;
     };
-    return sort(JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[]);
+    // the rules as planned, before values are settled for drawing (which depends on the program, so not the same
+    // after a file graphty wrote is read back)
+    return sort(JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[]);
 }
 
 describe("JSON files graph-io read wrongly before", () => {
@@ -269,8 +272,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "label")).toEqual([null]);
         expect(values(r, "node", "label")).toEqual(["A", "B"]);
         expect(values(r, "node", "labelPosition")).toEqual(["right", "right"]);
-        // sigma keeps one label per 100 px cell of its first framing (labelGridCellSize) and avoids no overlap
-        expect(values(r, "node", "labelGridCellSize")).toEqual([100, 100]);
+        // sigma keeps one label per 100 px cell of its first framing, settled per node only when the canvas is known
+        // (the viewport option), and avoids no overlap
+        expect(values(r, "node", "labelGridCellSize")).toEqual([null, null]);
         expect(values(r, "node", "labelAvoidOverlap")).toEqual([null, null]);
         // sigma.js draws its labels after every node and edge
         expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
@@ -319,7 +323,7 @@ describe("JSON styles: reading", () => {
             expect(values(r, "edge", "label")).toEqual(["between labels", null, null]);
             // DEFAULT_EDGE_DISPLAY_DATA's labelColor, DEFAULT_EDGE_LABEL_SIZE, at the line's middle
             expect(values(r, "edge", "labelColor")).toEqual(["#666666", "#666666", "#666666"]);
-            expect(values(r, "edge", "labelSize")).toEqual([12, 12, 12]);
+            expect(values(r, "edge", "labelScreenSize")).toEqual([12, 12, 12]);
             expect(values(r, "edge", "labelPosition")).toEqual(["center", "center", "center"]);
         });
 
@@ -401,7 +405,8 @@ describe("JSON styles: reading", () => {
         // an edge without a color of its own takes its source node's border (its target's under inherit "to")
         expect(values(r, "edge", "color")).toEqual(["#cc0000", "#0000ff", "#2b7ce9"]);
         expect(values(r, "edge", "width")).toEqual([2, 2, 2]);
-        const { rules } = r.styles.styles;
+        // the rules as planned, before values are settled for drawing
+        const { rules } = unsettledStyles(r.styles).styles;
         expect(rules.find((x) => x.facts?.reason === "SOURCE_NODE_COLOR")).toMatchObject({ origin: "tool" });
         expect(rules.filter((x) => x.role === "group" && x.target === "node").map((x) => x.origin)).toEqual([
             "declared",
@@ -566,8 +571,8 @@ describe("JSON styles: reading", () => {
             ],
         });
         expect(values(r, "edge", "midTargetArrow")).toEqual(["tee", null, null, "triangle"]);
-        expect(values(r, "edge", "targetArrow")[1]).toBe("other:curve");
-        expect(values(r, "edge", "sourceArrow")[2]).toBe("other:inv-curve");
+        expect(values(r, "edge", "targetArrow")[1]).toBe("curve");
+        expect(values(r, "edge", "sourceArrow")[2]).toBe("open-half-circle");
         // the band under the line, its outline beyond the line's own width; none under a straight edge
         expect(values(r, "edge", "outlineWidth")).toEqual([null, null, 7, 0]);
         expect(values(r, "edge", "outlineColor")[2]).toBe("#ffd700");
@@ -655,7 +660,7 @@ describe("JSON styles: reading", () => {
                 },
             ],
         });
-        expect(values(r, "edge", "targetArrow")[0]).toBe("other:image");
+        expect(values(r, "edge", "targetArrow")[0]).toBe("image");
         expect(values(r, "edge", "targetArrowImage")).toEqual([src, null]);
         expect(values(r, "edge", "targetArrowImageWidth")).toEqual([28, null]);
         expect(values(r, "edge", "targetArrowImageHeight")).toEqual([12, null]);

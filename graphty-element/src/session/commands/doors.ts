@@ -32,6 +32,7 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { defineSource, registerSource, registry } from "@graphty/graph-io";
 
 import type { LayerSpec } from "../../catalog/types";
+import type { DrawnAnnotation } from "../annotations";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
@@ -962,6 +963,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    annotations: READ,
     layout: READ,
     positions: READ,
     hidden: READ,
@@ -1217,6 +1219,24 @@ const TIME_API: Readonly<Record<string, Door>> = {
     playing: READ,
     mode: READ,
     interval: READ,
+};
+
+/** An annotation the annotation doors add. */
+const DOOR_ANNOTATION: DrawnAnnotation = {
+    id: "door-note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "door note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
 };
 
 /** A layer the style doors add. */
@@ -3764,6 +3784,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "SessionAnnotations",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            scale: READ,
+            list: READ,
+            add: calls([DOOR_ANNOTATION], [{ op: "annotations.patch", action: "add", annotation: DOOR_ANNOTATION }]),
+            update: calls(
+                ["no-such-annotation", { text: "renamed" }],
+                [{ op: "annotations.patch", action: "update", id: "no-such-annotation", patch: { text: "renamed" } }],
+            ),
+            remove: calls(
+                ["no-such-annotation"],
+                [{ op: "annotations.patch", action: "remove", id: "no-such-annotation" }],
+            ),
+            clear: calls([], [{ op: "annotations.set", annotations: [], scale: 1 }]),
+        },
+    },
+    {
         name: "SessionViews",
         file: "src/session/types.ts",
         half: "session",
@@ -4381,9 +4420,6 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.collapse":
         "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
         "test/session/sources/expand.test.ts.",
-    "data.setFileStyles":
-        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
-        "checked by test/session/styles/file-style-store.test.ts.",
 };
 
 /**

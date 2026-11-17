@@ -179,14 +179,12 @@ describe("a label line the app adds", () => {
 });
 
 describe("the name a bound value goes by", () => {
-    it("is graphty-element's name for a degree or a file's style column, never the path", async () => {
+    it("is graphty-element's name for a degree, never the path", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await session.data.addEdges([{ source: "a", target: "b" }]);
 
         assert.equal(sourceName(session, { by: "graphty.degree" }), "Degree");
-        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.copy.width" }), "File style");
-        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.class" }), "Style class");
         assert.isNull(sourceName(session, { by: "data.nothing" }));
         session.dispose();
     });

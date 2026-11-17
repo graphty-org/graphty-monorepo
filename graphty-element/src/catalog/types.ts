@@ -26,7 +26,6 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { EstimateRefusalCode } from "../session/cost/estimate";
 import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
-import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
@@ -182,6 +181,7 @@ export const KNOWN_ALGORITHMS = [
     "hierarchical-clustering",
     "astar",
     "edge-betweenness",
+    "removal-impact",
 ] as const;
 
 /** One of the built-in algorithms. */
@@ -538,6 +538,8 @@ export const OPTION_TYPES = [
     "ordering",
     /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
     "color",
+    /** A list of edge ids. @since 3.40.0 */
+    "edge-set",
     "unknown",
 ] as const;
 
@@ -1383,13 +1385,6 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
-    /**
-     * Where a layer made from a file's styles came from: the element's facts about it, set when
-     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
-     * Absent on every other layer. An update that does not name it keeps it.
-     * @experimental file-styles
-     */
-    fileStyle?: FileStyleOrigin;
     /**
      * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
      * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and

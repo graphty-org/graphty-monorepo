@@ -1,18 +1,12 @@
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { isGraphtyError } from "../../src/errors";
-import { setDefaultFeatures } from "../../src/features/resolve";
+import { renderManagerOf } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 import { takeCaughtErrors } from "../helpers/caught-errors";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -134,7 +128,6 @@ describe("a play waiting for frames on a real element", () => {
 
     afterEach(() => {
         Reflect.deleteProperty(document, "hidden");
-        setDefaultFeatures(["timeline"]);
         if (mounted?.session.time.playing === true) {
             mounted.session.time.pause();
         }
@@ -172,7 +165,7 @@ describe("a play waiting for frames on a real element", () => {
         };
         await made.waitForSettled();
 
-        return { element: made, manager: Reflect.get(made.graph, "renderManager") as RenderManager };
+        return { element: made, manager: renderManagerOf(made.graph) };
     }
 
     /**
@@ -213,28 +206,6 @@ describe("a play waiting for frames on a real element", () => {
             });
         });
     }
-
-    it("adds no listener to the render loop with the experiment off", async () => {
-        setDefaultFeatures([]);
-        const { element: made, manager } = await loaded();
-        const asked = vi.spyOn(manager, "frameDrawn");
-        const listening = (): number =>
-            manager.scene.onAfterRenderObservable.observers.length +
-            manager.engine.onEndFrameObservable.observers.length;
-        const before = listening();
-
-        let refused: unknown = null;
-        try {
-            play(made);
-        } catch (error) {
-            refused = error;
-        }
-
-        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
-        await new Promise(requestAnimationFrame);
-        assert.strictEqual(asked.mock.calls.length, 0);
-        assert.strictEqual(listening(), before);
-    });
 
     it("asks the element's renderer for a frame before each step", async () => {
         const { element: made, manager } = await element();

@@ -383,6 +383,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model up axis",
@@ -2040,8 +2041,16 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
+    /** The address field's placeholder: it also says the dialog takes a dropped file. */
+    addressOrDrop: "Model address, or drop a file",
+    /** What the file row says over itself while files are dragged over the dialog. */
+    dropToLoad: "Drop to load model",
+    /** The empty preview, drawn as a drop area before any model is loaded. */
+    dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
+    /** The Animated chip's tip where the dialog has no Animation control (opened from the menu). */
+    animatedInLayer: "choose a clip under Animation in a layer's Model",
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.
@@ -2177,27 +2186,23 @@ export const CUSTOM_MODEL = {
         return rows;
     },
     /**
-     * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
-     * @param counts - how many parts are in each state.
-     * @param counts.substituted - found under another name.
-     * @param counts.skipped - left out.
-     * @param counts.unused - files nothing names.
-     * @returns the words, or "" for none.
-     */
-    filesNote: (counts: { readonly substituted: number; readonly skipped: number; readonly unused: number }): string =>
-        [
-            counts.substituted > 0 ? `${String(counts.substituted)} substituted` : "",
-            counts.skipped > 0 ? `${String(counts.skipped)} skipped` : "",
-            counts.unused > 0 ? `${String(counts.unused)} not used` : "",
-        ]
-            .filter((w) => w !== "")
-            .join(", "),
-    /**
      * A part row's address field: its placeholder and its name.
      * @param part - the part's file name.
      * @returns the words.
      */
     partAddress: (part: string): string => `${part} address`,
+    /**
+     * A missing part's field placeholder: it also says the row takes a dropped file.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    partAddressOrDrop: (part: string): string => `${part} address, or drop a file`,
+    /**
+     * What a missing part's row says over itself while a file is dragged over it.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    dropPart: (part: string): string => `Drop to use as ${part}`,
     useFile: "Use file",
     cancel: "Cancel",
     add: "Add model",
@@ -2214,7 +2219,9 @@ export const CUSTOM_MODEL = {
      * @param name - the model's name.
      * @returns the words.
      */
-    preview: (name: string): string => `${name} preview`,
+    preview: (name: string): string => `${name} preview, drag or use the arrow keys to turn it`,
+    /** The button that turns the preview back to its first view. */
+    resetView: "Reset view",
     /**
      * Said while a model loads.
      * @param name - its name, or "model".
@@ -2233,6 +2240,51 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     added: (name: string): string => `${name} added to the project`,
+    /**
+     * Said once the main menu's dialog added several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    addedMany: (count: number): string => `${count} models added to the project`,
+    /**
+     * Said once a folder, a .zip or a drop of several models is in the dialog.
+     * @param count - how many.
+     * @returns the words.
+     */
+    loadedMany: (count: number): string => `${count} models loaded`,
+    /**
+     * Add, for several models chosen from a set.
+     * @param count - how many are chosen.
+     * @returns the words.
+     */
+    addMany: (count: number): string => `Add ${count} models`,
+    /**
+     * The file loader's line for a set of several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    models: (count: number): string => `${count} models`,
+    /**
+     * Where the shown model sits among the set's: "2 of 5".
+     * @param at - its place, from 1.
+     * @param count - how many.
+     * @returns the words.
+     */
+    position: (at: number, count: number): string => `${at} of ${count}`,
+    previousModel: "Previous model",
+    nextModel: "Next model",
+    /** The checkbox under a set's preview: whether Add takes the model shown. */
+    loadThis: "Load this model",
+    /** Add's tooltip while no model of a set is chosen. */
+    noneChosen: "Choose a model to load",
+    /**
+     * One model of a set, by its file or its name, and what is wrong with it: a refusal, or why it
+     * cannot be drawn.
+     * @param name - the model's file or name.
+     * @param line - the refusal's sentence.
+     * @returns the words.
+     */
+    ofSet: (name: string, line: string): string => `${name}: ${line}`,
 } as const;
 
 /** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
@@ -2272,7 +2324,7 @@ export const MODEL_SETTING_ROWS: readonly {
             ["false", "Model's own"],
             ["true", "Node color on top"],
             ["untextured", "Node color on plain parts"],
-            ["replace", "Node color only"],
+            ["replace", "Node color only, no pictures"],
         ],
     },
     {
@@ -2310,6 +2362,14 @@ export const MODEL_SETTING_ROWS: readonly {
         choices: [
             ["false", "Lit"],
             ["true", "Unlit"],
+        ],
+    },
+    {
+        channel: "node.wireframe",
+        word: "Wireframe",
+        choices: [
+            ["false", "Off"],
+            ["true", "On"],
         ],
     },
 ];

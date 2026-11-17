@@ -7,9 +7,9 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, fileStylesOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { cosmographOn, fileStylesOn, nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
+import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -23,8 +23,8 @@ import {
     beneathOf,
     EVERYTHING_LAYER,
     everythingRow,
+    hiddenByOf,
     type NewLayer,
-    paintedOverOf,
     rowLayers,
     selectedLayerRow,
     sourceName,
@@ -429,12 +429,6 @@ export function RowStyle({
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
-    // Whether the row paints the kind, as its header says it ("Edge layer"): a part with no look and
-    // no condition while the other part has one reads as not styled, as a layer with no part of the
-    // kind does, however the layer was made. A row with neither yet reads as the kinds it is on.
-    const painted = below === undefined ? undefined : paintedTarget(session, below);
-    const paints = (side: Target): boolean =>
-        styled(side) && (painted === undefined || painted === "both" || painted === side);
     const [tab, setTab] = useState<Target>(() => {
         // A new layer (nothing set, nothing picked) opens on its first kind, whichever tab was last open.
         if (below !== undefined && isBlankRow(session, below) && styled("node")) {
@@ -459,7 +453,7 @@ export function RowStyle({
     // A selection's row not written yet paints the selection: read beneath over it.
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
-    const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
+    const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {
         const ctx: RowContext = {
@@ -469,7 +463,7 @@ export function RowStyle({
             layers: rowLayers(session, row, side),
             fresh,
             beneath,
-            paintedOver,
+            hiddenBy,
             documentColors: colors,
             ...many?.(side),
         };
@@ -537,18 +531,7 @@ export function RowStyle({
             >
                 <Tabs.List aria-label="Style for">
                     {tabs.map((side) => (
-                        <Tabs.Tab
-                            key={side}
-                            value={side}
-                            rightSection={
-                                paints(side) || selectionWorkspaceOn(session) ? undefined : (
-                                    // The words the kind's own line uses: the layer styles none of this kind.
-                                    <Text span size="xs" c="var(--cm-text-secondary)">
-                                        not styled
-                                    </Text>
-                                )
-                            }
-                        >
+                        <Tabs.Tab key={side} value={side}>
                             {KIND_WORDS[side].tab}
                         </Tabs.Tab>
                     ))}
@@ -698,7 +681,7 @@ export function SelectionStyle(): React.JSX.Element | null {
                     <Text size="xs" fw={600} pl={4}>
                         {part.title}
                     </Text>
-                    <div // NOSONAR(S6819): an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
                         role="group"
                         aria-label="Color"
                     >

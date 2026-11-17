@@ -19,6 +19,9 @@ export const HISTORY_INVOCATIONS = 1000;
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
+// The inputs placeholder a client sends when it knows no inputs key: every client does today (tools/results), and
+// no record carries it, so its pair clause and reuse lookup are skipped rather than run to match nothing (#7269)
+const NO_INPUTS = "-";
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");
 const all = async (db, sql, ...args) =>
@@ -122,7 +125,7 @@ export async function trackedIssues(db, family, now) {
 // in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
 // request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant at most: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
     for (let i = 0; i < pairs.length; i += 24)
         rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
@@ -135,7 +138,8 @@ async function failingOnBase(db, base, pairs, changed) {
 // half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
-    const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const keyed = pairs.filter(([, k]) => k !== NO_INPUTS);
+    const same = keyed.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
@@ -154,19 +158,22 @@ async function failingOnBaseChunk(db, base, pairs) {
          WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
-        ...pairs.flat(),
+        ...keyed.flat(),
         ...variants,
     );
 }
 
 async function variantFacts(db, variant, inputs, now) {
-    const passed = await db
-        .prepare(
-            `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
+    const passed =
+        inputs === NO_INPUTS
+            ? null
+            : await db
+                  .prepare(
+                      `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
              ORDER BY started_at DESC LIMIT 1`,
-        )
-        .bind(variant, inputs)
-        .first();
+                  )
+                  .bind(variant, inputs)
+                  .first();
     const order = await all(
         db,
         `SELECT f.file, max(i.started_at) AS at FROM failure f JOIN invocation i ON i.id = f.invocation
@@ -476,22 +483,33 @@ export async function getMedians(query, _who, db, now) {
     const workflows = list(query.get("workflows"));
     if (!workflows.length || workflows.length > 20) refuse(400, "workflows names 1 to 20 workflow files");
     const n = Math.min(Math.max(Number(query.get("n")) || 10, 1), 50);
-    const rows = await all(
+    // Each key's newest n samples, sought through duration_key from the key list duration_last keeps (#5597): a
+    // window over the kind's whole history scanned every master ci.yml row ever stored on each timings job, held the
+    // single-threaded D1 database for seconds, and the reads queued behind it answered HTTP 500. Ties on the start
+    // may seek a few extra rows, which the sort below drops.
+    const found = await all(
         db,
-        `SELECT workflow, job, step, task, ms FROM (SELECT d.*, row_number() OVER
-           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
-           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
-             AND coalesce(conclusion, '') != 'cancelled')
-         WHERE n <= ?`,
+        NEWEST_N,
         query.get("kind") || "full",
-        ...workflows,
+        JSON.stringify(workflows),
         now - 30 * DAY,
-        n,
+        n - 1,
+    );
+    const rows = [...Map.groupBy(found, (r) => JSON.stringify([r.workflow, r.job, r.step, r.task]))].flatMap(([, rs]) =>
+        rs.sort((a, b) => b.started_at - a.started_at).slice(0, n),
     );
     return Object.fromEntries(
         [...Map.groupBy(rows, keyOf)].map(([key, rs]) => [key, median(rs.map((r) => r.ms / 1000))]),
     );
 }
+
+const NEWEST_N = `WITH k AS (SELECT workflow, job, step, task FROM duration_last
+      WHERE kind = ?1 AND workflow IN (SELECT value FROM json_each(?2)) AND started_at >= ?3)
+    SELECT e.workflow, e.job, e.step, e.task, e.ms, e.started_at FROM k CROSS JOIN duration e INDEXED BY duration_key
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.job = k.job AND e.step = k.step AND e.task = k.task
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_key
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.job = k.job AND x.step = k.step AND x.task = k.task
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET ?4), ?3)`;
 
 /**
  * The trend alarms for the keys of one posted run (budgets 1.6): per key within the run's kind, `recent` =

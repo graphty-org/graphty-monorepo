@@ -287,8 +287,7 @@ export async function runImportBenchmarks(args: readonly string[]): Promise<void
     await benchImport("graphml", "200k edges, Uint8Array", [graphml200k], graphmlImporter, "bytes", 200_000);
     await benchImport("gexf", "200k edges, Uint8Array", [gexf200k], gexfImporter, "bytes", 200_000);
     await benchImport("neo4j", "1M relationships, Uint8Array", [neo4jRels1m], neo4jImporter, "bytes", 1_000_000);
-    // Pajek as a Uint8Array is left out on purpose: the LineReader scan is quadratic in the 4 MiB
-    // decode slice and the 1M-arc file takes over a minute (see test/audit/streaming-quadratic.test.ts)
+    await benchImport("pajek", "100k vertices + 1M arcs, Uint8Array", [pajek1m], pajekImporter, "bytes", 1_000_000);
 
     console.log("\n== string ids: 12 characters (copied cells) versus 15 (V8 sliced strings pinning the chunks) ==");
     await benchImport(

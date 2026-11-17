@@ -58,7 +58,6 @@
             "^\\.pt-config\\.json$",
             "^\\.secretlint(rc\\.json|ignore)$",
             "^\\.worktree-config\\.json$",
-            "^sonar-project\\.properties$",
             "^release-hold\\.json$",
             "^commitlint\\.config\\.js$",
             "^\\.gitattributes$",

@@ -310,9 +310,12 @@ for i in "${!findings[@]}"; do
 done
 # Each issue the pull request would close must be answered "addressed", and never also "not addressed". One that is
 # not gets a marker tools/pr-open.sh refuses even with --review-answered: merging would close it unfixed.
+# An answer may be written as a list item (-, * or +) and in bold: "- **Member #N:** addressed". The word right after
+# the colon decides, so "not addressed" never reads as "addressed".
 unaddressed=()
 for m in "${closing[@]}"; do
-    if ! grep -qE "^Member #$m: addressed\b" "$out" || grep -qE "^Member #$m: not addressed\b" "$out"; then
+    answer="^[[:space:]]*([-*+][[:space:]]+)?(\*\*)?Member #$m:(\*\*)?[[:space:]]+"
+    if ! grep -qE "${answer}addressed\b" "$out" || grep -qE "${answer}not addressed\b" "$out"; then
         uncleared=$((uncleared + 1))
         unaddressed+=("<!-- member-not-addressed $m -->")
     fi

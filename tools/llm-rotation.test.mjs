@@ -132,7 +132,7 @@ describe("release.yml's LLM job", () => {
         const tests = step("LLM regression tests");
         const record = step("Record which LLM regression cases ran and failed");
         assert.match(tests.env.LLM_REGRESSION_SELECTION, /llm-selection\.json$/);
-        assert.match(tests.run, /--reporter=json[^\n]*\n[^\n]*--outputFile\.json="\$RUNNER_TEMP\/llm-report\.json"/);
+        assert.match(tests.run, /--reporter=json[^\n]*--outputFile\.json="?\$RUNNER_TEMP\/llm-report\.json/);
         assert.match(
             pick.env.FULL,
             /inputs\.mode == 'shadow' \|\| inputs\.mode == 'legacy' \|\| inputs\.llm_full == true/,

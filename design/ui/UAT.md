@@ -1,5 +1,9 @@
 # Graphty app shell -- user acceptance tests
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 A manual acceptance suite for the **graphty** React app's progressive-disclosure
 shell. It is written to be driven by hand, by a person or by Claude, using the
 Playwright MCP tools and the Nanobanana MCP. Every step is a tool call that can be

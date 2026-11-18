@@ -1,6 +1,7 @@
 # Location map layout: nodes on a flat map or a globe
 
-Status: proposal, 2026-10-22, with a prototype on branch `feat/location-map-prototype`; section
+Status: implemented in graphty-element 3.31.0 (`graphty-element/src/layout/LocationMapLayoutEngine.ts`).
+Written 2026-10-22 as a proposal with a prototype on branch `feat/location-map-prototype`; section
 15.3 lists what the prototype's 2026-10-22 review changed.
 
 ## 1. Summary

@@ -160,7 +160,7 @@ path, never `everything`, which 2.x refuses:
 
 ```jsonc
 {
-    "name": "Colour by community",
+    "name": "Color by community",
     "selector": { "match": "has", "path": "results.groups.group" },
     "encode": { "node.color": { "by": "results.groups.group", "scale": "ordinal", "overflow": "other" } },
 }
@@ -300,7 +300,7 @@ registerPalette({
     plainName: "Acme brand",
     kind: "categorical",
     colors: ["#0b5fff", "#ff8800", "#00a86b"],
-    capacity: 3, // the number of colours, for a categorical palette
+    capacity: 3, // the number of colors, for a categorical palette
     colorblindSafe: [], // untested
 });
 ```
@@ -313,7 +313,7 @@ The same palette carried in a style, with `sales` pinned so it keeps its color a
     "version": 1,
     "layers": [
         {
-            "name": "Colour by team",
+            "name": "Color by team",
             "selector": { "match": "has", "path": "data.team" },
             "encode": {
                 "node.color": {

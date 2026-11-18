@@ -11,13 +11,16 @@ graphty documents that carry those things, and the one JSON file they travel in:
 - **notes**: what a person wrote about the graph, its nodes and edges, its kept sets and its
   results ([notes.md](notes.md)).
 
-Status: specification of version 1, not yet implemented; recipes need graphty-element 3.0.0. The
-owner's decisions are in
+Status: specification of version 1, partly implemented in graphty-element: it reads and writes
+styles (`session.styles`), notes (`session.notes`) and the project file, and writes a recipe from the
+session's current state (`session.recipe()`) but does not yet replay one (recipe.md, "Status"). No
+major version gates it: changes land in minor releases (CLAUDE.md, "Public API and breaking
+changes"). The owner's decisions are in
 [../decisions/2026-09-28-document-formats-first-version.md](../decisions/2026-09-28-document-formats-first-version.md).
 
 ## Your first style
 
-Save this as `team-colours.graphty.json`:
+Save this as `team-colors.graphty.json`:
 
 ```json
 {
@@ -25,7 +28,7 @@ Save this as `team-colours.graphty.json`:
     "version": 1,
     "layers": [
         {
-            "name": "Colour by team",
+            "name": "Color by team",
             "selector": { "match": "has", "path": "team" },
             "encode": { "node.color": { "by": "team", "scale": "ordinal" } }
         }

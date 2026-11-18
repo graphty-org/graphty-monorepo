@@ -1,6 +1,8 @@
 # Sets in graphty-element: implementation plan
 
-Status: plan, ready for execution. It implements `design/sets/sets-design.md` (called "the design"
+Status: executed; sets shipped in graphty-element 2.6.0 (`graphty-element/src/session/sets/`). The
+rows of the coverage table marked "not built" and live combinations (design section 24, row 11) are
+still open. It implements `design/sets/sets-design.md` (called "the design"
 below; "design 6.2" means its section 6.2). Baseline: master at `3e4e04ff`, graphty-element 2.4.1,
 graph-format 1.0.0. Packages changed: graph-format (five mask helpers) and graphty-element. The
 graphty app gets one consuming change, its style-layer panel naming the new `scope` selector kind

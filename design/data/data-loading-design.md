@@ -1,5 +1,9 @@
 # Graphty Data Loading System - Comprehensive Design
 
+Status: historical record (2025). Importers and exporters now live in graph-io
+(`@graphty/graph-io`, 13 formats, one subpath per format); graphty-element reads files through it,
+for example `graphty-element/src/data/GraphMLDataSource.ts` imports `@graphty/graph-io/graphml`.
+
 ## Executive Summary
 
 This document specifies a comprehensive data loading system for Graphty that supports 20+ popular graph data formats with robust error handling, streaming for large files (100+ MB), and automatic format detection.

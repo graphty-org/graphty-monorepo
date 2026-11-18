@@ -1,5 +1,8 @@
 # React UI Framework Evaluation Report
 
+Status: historical research (2025). The decision it informed is made: the graphty app uses Mantine,
+through `@graphty/compact-mantine`.
+
 ## Executive Summary
 
 This report evaluates leading React UI frameworks based on the following criteria (in priority order):

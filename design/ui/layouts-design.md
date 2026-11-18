@@ -1,5 +1,9 @@
 # Feature Design: Run Layouts Modal
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 - **User Value**: Users can easily switch between different graph layout algorithms and configure their parameters through an intuitive UI, enabling them to find the best visualization for their data without writing code.

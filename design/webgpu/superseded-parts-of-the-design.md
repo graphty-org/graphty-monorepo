@@ -2,11 +2,14 @@
 
 `webgpu-acceleration-plan.md` in this directory is the accepted design for
 `@graphty/webgpu-graph-algorithms`, approved on 2026-09-14. Since then, decision records under
-`design/decisions/` have reversed sixty-three passages of it. None of those passages were
-edited: the convention in this repository is that a decision record names the lines it
-overrules and the design keeps its original text, because deleting the argument that was
+`design/decisions/` have reversed sixty-three passages of it. Most of those passages were left as written: the
+convention in this repository is that a decision record names the lines it overrules and the
+design keeps its original text, because deleting the argument that was
 rejected is how a decision gets quietly reversed a year later. `design/decisions/README.md`
-sets out that rule and why it is worth its cost.
+sets out that rule and why it is worth its cost. Five passages are the exception: the first and
+last rows of the table in 2.4, the dependency diagram of 9.1, item 1 of 9.4, all of 9.5 and the
+W2 row of 9.8 were amended in place on 2026-09-20 (commit 70f33d97e3), before this index was
+written. Their entries below say so; the design text there is current.
 
 The cost is that the design reads as current everywhere, and the only way to know a given
 sentence is dead is to have read all of the records. This file pays that cost back once. Every
@@ -21,10 +24,10 @@ against is not listed. Where an entry says the record named the passage in an am
 record's original list did not reach that far and was completed later; the decision itself is the
 one the record always made.
 
-**Line numbers.** The numbers here are for the design as it stands today. The note added at the
-top of it on 2026-09-23 pushed the body down by eight lines, so a line number quoted inside a
-decision record -- all of which were written earlier -- is eight lower than the line that text
-sits on now.
+**Locations.** Each entry names a section of the design and quotes or describes the passage. Line
+numbers given inside an entry, and those quoted in the decision records, were right when they were
+written and have drifted since, because the design is still edited; search for the section and the
+wording instead.
 
 Sections with superseded text, in order: 1.4 (D16), 2.4, 3.3, 4.6, 5.4, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
 8.4, 8.5, 8.6, 8.7, 8.8, 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12, T-13 and T-15), 12.1, 12.2,
@@ -58,7 +61,7 @@ workflow diff of 12.5. Those are not repeated here; read that log too.
 
 ---
 
-## Section 1.4, decision D16 (line 221)
+## Section 1.4, decision D16
 
 **The design says:** D16 states the runtime-subgroup-size rule for "every subgroup kernel" and
 names none, so the rule reads as covering `exclusiveScan` along with the rest.
@@ -68,43 +71,38 @@ apply to it. The rule itself, and the four kernels that do have a subgroup twin,
 
 **Decided by:** [2026-09-20-scan-has-no-subgroup-variant.md](../decisions/2026-09-20-scan-has-no-subgroup-variant.md)
 
-## Section 2.4, the first and last rows of the who-answers table (lines 443 and 448)
+## Section 2.4, the first and last rows of the who-answers table
 
-**The design says:** the first row answers "Is WebGPU present, is the adapter hardware, is it
-worth using?" with "The APP (graphty) at start-up, or a Node script", which probes, creates and
-then calls `element.setAccelerator(gpu)`. The last row gives the app the decision whether to
-inject a software adapter such as lavapipe or SwiftShader.
+**Amended in place on 2026-09-20** (commit 70f33d97e3). The design text here now says what
+the decision says: graphty-element's `./webgpu` entry point answers "is WebGPU present, is the adapter hardware, is
+it worth using?", and graphty-element decides whether to attach a software adapter
+(`rejectSoftware`). Nothing in this passage needs to be read around.
 
-**What is true instead:** graphty-element answers both, once the `@graphty/graphty-element/webgpu`
-entry point is imported.
+**Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
-**Read the rest of the section anyway.** Every other row of that table is still exactly right, and
-together they are the no-silent-degradation rule: the dispatcher choosing the CPU only when no
-accelerator was injected, the missing-method branch, an error propagating rather than falling
-back, `E_TOO_LARGE` thrown before allocation. The root `CLAUDE.md` cites 2.4 for that rule. This
-section is half-live, not dead, which is the worse state -- a reader who is right to trust it for
-the rule gets no signal that its first and last rows are gone.
+The rest of the table is the no-silent-degradation rule that `graphty-element/CLAUDE.md` cites 2.4
+for.
 
-**Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
-
-## Section 3.3, the `bellmanFord` and `closenessCentrality` signatures (lines 809-810)
+## Section 3.3, the `bellmanFord` and `closenessCentrality` signatures
 
 **The design says:** `bellmanFord` takes `BellmanFordOptions & GpuRunOptions` and
 `closenessCentrality` takes `ClosenessOptions & GpuRunOptions`; section 9.2's accelerator
 interface (lines 2954-2955) repeats the two names. The design defines neither type.
 
 **What is true instead:** `bellmanFord` takes `SsspOptions` (`cutoff`, `weights`), the same type
-as `sssp`, and `closenessCentrality` takes `HitsOptionsLike` (`maxIterations`, `tolerance`,
-`weighted`), because those are the types the published seam in `@graphty/algorithms` declares
-and the GPU member must be assignable to it. `maxIterations` and `tolerance` are refused with
-`E_UNSUPPORTED { option }` when defined, never silently dropped; `weighted` is honored. The
+as `sssp`, because that is the type the published seam in `@graphty/algorithms` declares and the
+GPU member must be assignable to it. `closenessCentrality` takes `ClosenessAcceleratorOptions`
+(`weighted`, `sources`, `harmonic`), declared in `algorithms/src/indexed/accelerator.ts` and used
+by the GPU package's `src/types/accelerator.ts`; the record first gave it `HitsOptionsLike`, which
+the seam has since replaced. The GPU closeness still refuses a defined `maxIterations` or
+`tolerance` with `E_UNSUPPORTED { option }`, never silently dropping it. The
 `breadthFirstSearch` and `sssp` signatures on lines 807-808 stand, with one value decided
 against the CPU port: `cutoff: NaN` is `E_INVALID_ARGUMENT { argument: "cutoff" }` on the GPU,
 where the CPU port returns the source alone. The result types on lines 830-832 stand.
 
 **Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
 
-## Section 4.6, the per-row gather row of the dispatch-limits table (line 1298)
+## Section 4.6, the per-row gather row of the dispatch-limits table
 
 **The design says:** the row covers the family "attraction, SpMV, segmented reduce, degree" and
 gives all four "Windowed bindings (arc ranges): yes (v1)", meaning all four execute a host loop
@@ -118,7 +116,7 @@ still applies to all four.
 
 **Decided by:** [2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md](../decisions/2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md)
 
-## Section 4.6, the frontier row of the dispatch-limits table (line 1301) and the paragraph above the table (lines 1176-1180)
+## Section 4.6, the frontier row of the dispatch-limits table and the paragraph above the table
 
 **The design says:** the "frontier advance / compaction" row gives "Windowed bindings (arc
 ranges): no (v1: `E_TOO_LARGE`)" because the advance "needs the whole `colIdx` bound", and the
@@ -139,7 +137,7 @@ the forward core.
 
 **Decided by:** [2026-09-24-advance-is-window-aware.md](../decisions/2026-09-24-advance-is-window-aware.md)
 
-## Section 5.4, the selector paragraph (lines 1483-1493)
+## Section 5.4, the selector paragraph
 
 **The design says:** when a round has several candidate pipelines, every candidate is recorded
 for every round, one `INDIRECT | STORAGE | COPY_DST` buffer holds one 16-byte slot per (round,
@@ -156,7 +154,7 @@ pyramid's hub dispatch (`indirect-finalize`, once per iteration) is unchanged.
 
 **Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
-## Section 6, row 3, `segmentedReduce` (line 1578)
+## Section 6, row 3, `segmentedReduce`
 
 **The design says:** the "How" cell ends "Kahan compensation in the workgroup-per-row loop".
 
@@ -168,7 +166,7 @@ unchanged.
 
 **Decided by:** [2026-09-20-workgroup-row-tiers-fold-without-kahan.md](../decisions/2026-09-20-workgroup-row-tiers-fold-without-kahan.md)
 
-## Section 6, row 4, `compact` and `dedupe` (line 1579)
+## Section 6, row 4, `compact` and `dedupe`
 
 **The design says:** the phase cell reads "P4 (grid hub cells), P7 (WCC), P8", so the two
 primitives arrive with the grid work and are used by connected components.
@@ -182,7 +180,7 @@ signatures, same two-dispatch ownership trick -- only their first consumer moved
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
 and [2026-09-20-compact-lands-with-the-frontier-phase.md](../decisions/2026-09-20-compact-lands-with-the-frontier-phase.md)
 
-## Section 6, rows 4, 7 and 8, the API spellings of `compact` / `dedupe`, `Frontier` and `advance` (lines 1579, 1583, 1584)
+## Section 6, rows 4, 7 and 8, the API spellings of `compact` / `dedupe`, `Frontier` and `advance`
 
 **The design says:** the primitives are free functions over a batch: `compact(batch, flags,
 count, out, outCount)`, `dedupe(batch, queue, count, owner, out, outCount)`, `advance(batch,
@@ -200,7 +198,7 @@ The rows' "How", cost and oracle cells stand.
 
 **Decided by:** [2026-09-24-frontier-primitives-are-planners.md](../decisions/2026-09-24-frontier-primitives-are-planners.md)
 
-## Section 6, row 7, the overflow rule of the edge frontier (line 1583)
+## Section 6, row 7, the overflow rule of the edge frontier
 
 **The design says:** when the unclamped append total exceeds the capacity, `finalizeArgs`
 "records `chunkStart` on the device and re-dispatches `expand` for the remaining source range
@@ -220,7 +218,7 @@ is not a range. The faked-capacity gate test stands and passes.
 
 **Decided by:** [2026-09-24-edge-queue-overflow-is-a-fused-retry.md](../decisions/2026-09-24-edge-queue-overflow-is-a-fused-retry.md)
 
-## Section 6, row 9, how `spmvPull` is built (line 1584)
+## Section 6, row 9, how `spmvPull` is built
 
 **The design says:** the "How" cell opens "`segmentedReduce` specialised", meaning the pull is a
 value snippet composed into the segmented-reduce kernel.
@@ -233,7 +231,7 @@ pre-scaled `xNorm`, the `perm` slot -- stands.
 
 **Decided by:** [2026-09-19-spmv-pull-is-its-own-kernel.md](../decisions/2026-09-19-spmv-pull-is-its-own-kernel.md)
 
-## Section 6, row 9, which tiers `spmvPull` ships (line 1584)
+## Section 6, row 9, which tiers `spmvPull` ships
 
 **The design says:** the row describes the pull as "tiered by IN-degree
 (`degreeOrder({ of: "reverse" })`, whose `perm` occupies group 0 slot 3 even when identity)".
@@ -246,7 +244,7 @@ degree tiers.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
 
-## Section 6, the subgroup-variants paragraph after the primitive table (lines 1589-1591)
+## Section 6, the subgroup-variants paragraph after the primitive table
 
 **The design says:** "reduce, scan, segmentedReduce, advance and the FA2 repulsion / near-field
 epilogue have a `needs: ["subgroups"]` variant".
@@ -257,7 +255,7 @@ in workgroup memory, recursive block sums, an add-back pass -- with `needs: []`,
 
 **Decided by:** [2026-09-20-scan-has-no-subgroup-variant.md](../decisions/2026-09-20-scan-has-no-subgroup-variant.md)
 
-## Section 7.3, the memory table row "grid tier only: sort scratch" (line 1749)
+## Section 7.3, the memory table row "grid tier only: sort scratch"
 
 **The design says:** the ownership cell reads "pool lease per batch".
 
@@ -269,7 +267,7 @@ bytes per node resident on the grid tier.
 
 **Decided by:** [2026-09-20-sort-scratch-is-model-owned.md](../decisions/2026-09-20-sort-scratch-is-model-owned.md)
 
-## Section 7.7, grid kernel G3 (line 1980)
+## Section 7.7, grid kernel G3
 
 **The design says:** the row begins "after `encoder.clearBuffer(cellHist)` (no dispatch)".
 
@@ -281,7 +279,7 @@ gains no clear method. The histogram's atomic increment and the `exclusiveScan` 
 
 **Decided by:** [2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md](../decisions/2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md)
 
-## Section 7.7, grid kernel G6 (line 1985)
+## Section 7.7, grid kernel G6
 
 **The design says:** the row's last clause reads "loop bounds are compile-time per
 `override LEVELS`".
@@ -294,7 +292,7 @@ kernel's traversal -- the 3x3 exclusion, the 6x6 block per level, the outside ps
 
 **Decided by:** [2026-09-20-far-field-levels-are-a-uniform.md](../decisions/2026-09-20-far-field-levels-are-a-uniform.md)
 
-## Section 7.19, the `onReheat` comment in the `ForceModel` interface (line 2331)
+## Section 7.19, the `onReheat` comment in the `ForceModel` interface
 
 **The design says:** the trailing comment reads "FR: iteration = floor(0.7 \* iterations)".
 
@@ -304,7 +302,7 @@ and are two now. The hook's signature is unchanged.
 
 **Decided by:** [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](../decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md)
 
-## Section 7.20, the temperature row of the Fruchterman-Reingold table (line 2452)
+## Section 7.20, the temperature row of the Fruchterman-Reingold table
 
 **The design says:** "`reheat()` sets the iteration to `floor(0.7 * iterations)` so a drag gets
 a small temperature".
@@ -318,7 +316,7 @@ sets its own iteration counter and stops at the budget.
 
 **Decided by:** [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](../decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md)
 
-## Section 7.20, the spring-electrical integrator (line 2471)
+## Section 7.20, the spring-electrical integrator
 
 **The design says:** the preset uses "a `velocityVerlet` integrate variant with a 12n velocity
 buffer".
@@ -331,7 +329,7 @@ the force laws of that paragraph are unchanged.
 
 **Decided by:** [2026-09-20-spring-electrical-integrates-like-ngraph.md](../decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md)
 
-## Section 7.20, the spring-electrical settle rule (line 2474)
+## Section 7.20, the spring-electrical settle rule
 
 **The design says:** the preset uses "ngraph's settle rule (total kinetic energy below a
 threshold)".
@@ -344,7 +342,7 @@ read the number and stop the loop itself. ngraph's option names and defaults sta
 
 **Decided by:** [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](../decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md)
 
-## Section 8.2, the `outWeightSum` residency sentence (lines 2616-2617)
+## Section 8.2, the `outWeightSum` residency sentence
 
 **The design says:** "The `outWeightSum` buffer is registered against the snapshot in the
 residency so a second PageRank call on the same snapshot reuses it."
@@ -356,7 +354,7 @@ on the same snapshot recomputes it. `GraphResidency.array()` keeps its signature
 
 **Decided by:** [2026-09-19-outweightsum-is-call-scratch.md](../decisions/2026-09-19-outweightsum-is-call-scratch.md)
 
-## Section 8.4, the BFS dedupe sentence (lines 2647-2648), and section 16.2 (lines 5027-5044)
+## Section 8.4, the BFS dedupe sentence, and section 16.2
 
 **The design says:** BFS uses "Davidson's ownership dedupe (6 row 4: `atomicStore` in one
 dispatch, `atomicLoad` in the next) as the exact safety net behind any workgroup hash culling";
@@ -376,7 +374,7 @@ build serve the direction-optimizing path's unvisited list, not the contraction.
 
 **Decided by:** [2026-09-24-bfs-claims-instead-of-culling.md](../decisions/2026-09-24-bfs-claims-instead-of-culling.md)
 
-## Section 8.4, the BFS host loop (line 2667) and the near-empty SSSP test (line 2689)
+## Section 8.4, the BFS host loop and the near-empty SSSP test
 
 **The design says:** "Host loop: 32 levels per submit with indirect args (5.4), one 4-byte
 readback", and for the near-far loop "the near-empty test is a device flag turned into a zero
@@ -389,7 +387,7 @@ because a zero-workgroup indirect dispatch runs.
 
 **Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
-## Section 8.4, Bellman-Ford (lines 2690-2693)
+## Section 8.4, Bellman-Ford
 
 **The design says:** Bellman-Ford is an "edge-parallel relax over `edgeList()` both directions on
 undirected, `n - 1` rounds with a changed flag every 8, one more round for the negative-cycle
@@ -404,7 +402,7 @@ runs. The relax kernel and the negative-cycle flag are unchanged.
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.4, closeness (lines 2695-2698)
+## Section 8.4, closeness
 
 **The design says:** closeness is a "batched multi-source BFS (32 sources per `u32` word as a
 bit-parallel frontier ...), per-source distance rows reduced on the device", i.e. the all-source
@@ -420,7 +418,7 @@ must not route all-source closeness to the GPU above ~30k. The bit-parallel mach
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.5, in full (lines 2736-2750)
+## Section 8.5, in full
 
 **The design says:** k-core by peeling rounds, triangle counting by oriented merge intersection,
 k-truss peeling edges over an `EdgeMask` with per-edge support, and Boruvka's minimum spanning
@@ -439,7 +437,7 @@ The kernels as described are unchanged.
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.6, label propagation (lines 2754-2760)
+## Section 8.6, label propagation
 
 **The design says:** "synchronous updates with cuGraph's `up_down` swap-avoidance rule,
 changed-count reduce every k", with k unnamed.
@@ -451,7 +449,7 @@ a typed-array port, 6.9x at the pessimistic group-by rate); at one readback per 
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.6, Louvain's expectation (lines 2773-2778)
+## Section 8.6, Louvain's expectation
 
 **The design says:** "Expectation management: 2-10x over the CPU at 1M edges, not 100x", citing
 nu-Louvain at 1.03x over a 64-thread CPU, and "the caller chooses the CPU package for small
@@ -468,7 +466,7 @@ whenever it is built.
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.7, the windowed rows (lines 2789-2790)
+## Section 8.7, the windowed rows
 
 **The design says:** above the storage-binding bound "the rows are windowed through the 4.2
 planner, and `E_TOO_LARGE` when even `maxBufferSize` is exceeded".
@@ -482,7 +480,7 @@ are unchanged.
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.8, row 1, PageRank's new primitive (line 2797)
+## Section 8.8, row 1, PageRank's new primitive
 
 **The design says:** the primitive is "`spmvPull` (tiered segmented reduce by in-degree)".
 
@@ -492,7 +490,7 @@ else in the row changes.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
 
-## Section 8.8, row 3, connected components' new primitives (line 2799)
+## Section 8.8, row 3, connected components' new primitives
 
 **The design says:** the "New primitive it pulls in" cell ends with "`compact`".
 
@@ -504,7 +502,7 @@ the histogram sample stay in the cell.
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
 
-## Section 8.8, row 4, BFS's primitive list (line 2801)
+## Section 8.8, row 4, BFS's primitive list
 
 **The design says:** the row lists "`Frontier`, `advance`, `dedupe`, bitset, indirect dispatch"
 among what BFS builds on.
@@ -514,7 +512,7 @@ sentence, above) and neither is indirect dispatch: BFS dispatches directly.
 
 **Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
-## Section 8.8, rows 5, 6, 9 and 10 of the priority order (lines 2802-2803 and 2806-2807)
+## Section 8.8, rows 5, 6, 9 and 10 of the priority order
 
 **The design says:** row 5 schedules "Closeness / harmonic / eccentricity"; row 6 "SSSP near-far,
 Bellman-Ford"; row 9 "k-core, triangles / k-truss, label propagation, Boruvka MST" for P11 "as
@@ -531,7 +529,7 @@ propagation, Bellman-Ford for negative weights; then k-core and Louvain after th
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 8.10, the ping-pong sentence (line 2841)
+## Section 8.10, the ping-pong sentence
 
 **The design says:** "Ping-pong pairs are one buffer with two bind groups".
 
@@ -544,74 +542,42 @@ is unchanged.
 
 **Decided by:** [2026-09-19-pagerank-ping-pong-is-two-buffers.md](../decisions/2026-09-19-pagerank-ping-pong-is-two-buffers.md)
 
-## Section 9.1, the dependency diagram and the paragraph under it (lines 2878-2907)
+## Section 9.1, the dependency diagram and the paragraph under it
 
-**The design says:** the GPU package reaches graphty-element as an "injected object (no
-import)"; graphty-element imports nothing new at runtime and gains no devDependency; the app is
-the only importer of the GPU package; and a registry mechanism -- self-registration through a
-side-effect module -- is explicitly rejected as an inverted dependency with global state.
-
-**What is true instead:** `@graphty/webgpu-graph-algorithms` is an optional peer dependency of
-`@graphty/graphty-element`, and the rejected mechanism is the one that shipped. graphty-element
-publishes a second entry point, `@graphty/graphty-element/webgpu`, a side-effect module that
-statically imports the GPU package and registers an accelerator factory with a registry inside
-the element. A consumer writes one import line and no integration code. The core entry still
-references the GPU package nowhere, so a consumer who does not install the peer pays nothing and
-no bundler resolves it.
+**Amended in place on 2026-09-20** (commit 70f33d97e3). The design text here now says what
+the decision says: `@graphty/webgpu-graph-algorithms` is an optional peer of graphty-element, imported only by the
+`@graphty/graphty-element/webgpu` entry point, which registers an accelerator factory with the
+element; the app imports the GPU package nowhere. Nothing in this passage needs to be read around.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
-## Section 9.4, item 1 (lines 3083-3104)
+## Section 9.4, item 1
 
-**The design says:** the element's `accelerator` property is set from outside -- "an accelerator
-injected AFTER the layout was set (the app's `attachAccelerator` is async ...)" -- and
-`setAccelerator(null)` after a GPU failure is "the user's 'disable acceleration' action, which
-the element never takes by itself".
-
-**What is true instead:** graphty-element does the probing, the context request, the
-construction, the device-loss recovery and the `gpuMinNodes` policy itself, once the `./webgpu`
-entry point is imported. `Graph.setAccelerator()` stays public -- it is how tests inject a fake
-accelerator, which gate G6 is defined in terms of, and how a third party could supply a
-different implementation -- but it is no longer how acceleration normally arrives. Everything
-the item says about what happens WHEN the accelerator changes (the layout re-created through
-`createSimulation`, coordinates surviving on the element-owned array, the pin mask re-applied,
-algorithm runs reading `graph.accelerator` per call) is unchanged.
+**Amended in place on 2026-09-20** (commit 70f33d97e3). The design text here now says what
+the decision says: `setAccelerator` is the seam every accelerator arrives through -- the one the `./webgpu` entry
+point builds, a test's fake, a third party's own -- and a consumer switches acceleration on with
+the `acceleration` attribute, not by calling it. Nothing in this passage needs to be read around.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
-## Section 9.5, "The graphty app: detection", in full (lines 3240-3261)
+## Section 9.5, detection
 
-**The design says:** the app owns a `graphty/src/gpu/accelerator.ts` with an
-`attachAccelerator(element, prefs)` that imports `probeBrowserWebGpu` and `requestGpuContext`
-from the GPU package, applies an `"auto" | "off" | "required"` policy, calls `calibrateLayout`,
-constructs the accelerator with `createAccelerator` and hands it to the element, and registers
-the `ctx.lost` handler that takes the element off the GPU.
-
-**What is true instead:** none of that lives in the app. Probing, the context request,
-construction, the policy and device-loss recovery are all inside graphty-element, behind the
-`@graphty/graphty-element/webgpu` import. The app keeps only what is presentation: a Settings
-control that writes the element's acceleration policy into its config, and a status chip that
-renders the status the element publishes. The measured cost of the design's arrangement was
-several engineer-days of integration code that every third-party consumer would have had to
-rebuild or never discover, including two parts that are not obvious to rebuild: WebGPU needs a
-secure context, so a consumer on plain http gets a silent "off" with no diagnostic, and
-`gpuMinNodes` has no defensible default without the measurement harness gate G12 requires.
+**Amended in place on 2026-09-20** (commit 70f33d97e3). The design text here now says what
+the decision says: the section is now "Detection: graphty-element's `./webgpu` entry point": probing, construction,
+device-loss recovery and the policy are graphty-element's, and a consumer's whole integration is
+one import. The app's `attachAccelerator` it once described does not exist. Nothing in this passage needs to be read around.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
-## Section 9.8, the W2 row of the timeline table (line 3303)
+## Section 9.8, the W2 row of the timeline table
 
-**The design says:** the W2 step gives the graphty app "`attachAccelerator` with
-`createAccelerator` / `calibrateLayout` wiring (9.5)", the GPU indicator, the real-GPU stories
-and the measured `gpuMinNodes` default.
-
-**What is true instead:** the wiring half of that row belongs to graphty-element. What remains
-for the app is the Settings control, the status chip and the stories. The rest of the table --
-the W0, A2, L1, E1, W1 and D1 rows -- is unchanged.
+**Amended in place on 2026-09-20** (commit 70f33d97e3). The design text here now says what
+the decision says: the W2 row gives the app the Settings control, the status chip and the storage of the reader's
+choice, and says the GPU package is imported by graphty-element, never by the app. Nothing in this passage needs to be read around.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
-## Section 10.4, target T-12 (line 3425)
+## Section 10.4, target T-12
 
 **The design says:** T-12 holds the default CI lane to 15 minutes, and does it by excluding the
 1M-node, 200-iteration exact-versus-grid comparison of 11.4 from the lane: that run "runs in the
@@ -624,7 +590,7 @@ the top of this file. The 15-minute lane budget itself is unchanged.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 10.4, target T-13 (line 3426)
+## Section 10.4, target T-13
 
 **The design says:** T-13 ends "a nightly tracking issue is opened only after two consecutive
 failures (12.6)".
@@ -636,7 +602,7 @@ and `bench:compare` skips rather than fails when `nvidia-smi` shows the GPU is b
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 
-## Section 10.4, target T-15 (line 3473)
+## Section 10.4, target T-15
 
 **The design says:** "Louvain 1M / 10M and 100k / 1M end-to-end recorded with the CPU comparison
 (expected 2-10x)".
@@ -647,7 +613,7 @@ code, and is the only thing that narrows the 1,000x bracket on Louvain's per-arc
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 12.1, the "Runs" cell of the GPU lane row (line 3795)
+## Section 12.1, the "Runs" cell of the GPU lane row
 
 **The design says:** the GPU lane runs on "push to `master`, nightly (skipped when `master` has
 not moved since the last green run, 12.6), `workflow_dispatch`, and same-repo PRs labeled
@@ -661,7 +627,7 @@ stands.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 
-## Section 12.1, the cost model (lines 3804-3806)
+## Section 12.1, the cost model
 
 **The design says:** "a 20-minute nightly is ~$1.04, ~$32 per month, plus the labelled PR runs".
 
@@ -672,7 +638,7 @@ already blocks a publish on that commit's result.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 
-## Section 12.2, two of the cost and security controls (lines 3840-3844)
+## Section 12.2, two of the cost and security controls
 
 **The design says:** among the controls applied to the hosted GPU lane are "the nightly run is
 skipped when `master` has not moved since the last green GPU run" and, as the reason workflow
@@ -686,7 +652,7 @@ timeout, read-only workflow permissions and no secrets in the GPU job.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 12.3, the `gpu.yml` listing (lines 3949-4027)
+## Section 12.3, the `gpu.yml` listing
 
 **The design says:** the workflow is printed in full, and the listing contains
 `schedule: [{ cron: "17 6 * * *" }]`, the `changed` job that skips the cron when master has not
@@ -699,7 +665,7 @@ reading the listing rather than after.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 12.6, the nightly row of the budget table (line 4174)
+## Section 12.6, the nightly row of the budget table
 
 **The design says:** a row for "nightly `test-gpu` + `gpu-nightly-report`", 45 minutes, skipped
 by the `changed` job on a quiet master, with the report job opening or refreshing a tracking
@@ -710,7 +676,7 @@ job and the `test-gpu` job on `gpu.yml` -- are unchanged.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 
-## Section 12.6, the drift paragraph (lines 4178-4182)
+## Section 12.6, the drift paragraph
 
 **The design says:** environment drift is handled because "Playwright bumps change the bundled
 Chromium (139 today) -- the nightly GPU lane catches a broken flag set".
@@ -726,7 +692,7 @@ twice.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 
-## Section 13, the phase table, row P4 (line 4219)
+## Section 13, the phase table, row P4
 
 **The design says:** the deliverables cell lists `compact` among the phase's primitives.
 
@@ -738,7 +704,7 @@ kernels, the tier work -- is unchanged.
 
 **Decided by:** [2026-09-20-compact-lands-with-the-frontier-phase.md](../decisions/2026-09-20-compact-lands-with-the-frontier-phase.md)
 
-## Section 13, the phase table, row P5 (line 4220)
+## Section 13, the phase table, row P5
 
 **The design says:** `createSpringElectrical` delivers "ngraph's option names and settle rule".
 
@@ -749,7 +715,7 @@ the layouts are compared rather than the stop counters.
 
 **Decided by:** [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](../decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md)
 
-## Section 13, the phase table, row P6 (line 4221)
+## Section 13, the phase table, row P6
 
 **The design says:** the deliverables cell ends "app: 9.5 `attachAccelerator`", and the row's
 outcome column reads "the GPU layout 'detected' in the app".
@@ -761,7 +727,7 @@ G6 gate with its fake-accelerator tests -- is unchanged.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 13, the phase table, row P7, the connected-components deliverable (line 4222)
+## Section 13, the phase table, row P7, the connected-components deliverable
 
 **The design says:** the deliverables cell lists "Afforest WCC (with the two-dispatch atomic
 dedupe)".
@@ -772,7 +738,7 @@ which makes duplicate queue entries harmless.
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
 
-## Section 13, the phase table, row P7, the degree-tier deliverable (line 4222)
+## Section 13, the phase table, row P7, the degree-tier deliverable
 
 **The design says:** the deliverables cell lists "`degreeOrder({ of: "reverse" })` tiers".
 
@@ -783,16 +749,16 @@ degree tiers.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
 
-## Section 13, the phase table, row P8, the closeness deliverable (line 4268)
+## Section 13, the phase table, row P8, the closeness deliverable
 
 **The design says:** the deliverables cell lists "closeness / harmonic / eccentricity", and
 section 8.4's closeness paragraph (lines 2695-2698) reduces "(sum, sum of 1/d, max)" per source
 on the device.
 
-**What is true instead:** closeness alone. `closeness-reduce` accumulates the distance sum and
-the reached count per source and nothing else; no harmonic score, no eccentricity, no source
-list and no Wasserman-Faust switch ships, because neither the seam nor the element's capability
-list can call them. The score is the legacy default the element already publishes as
+**What is true instead:** closeness, and no eccentricity or Wasserman-Faust switch. The record
+first shipped closeness alone; the seam later gained `sources` (a sampled run, undirected
+snapshots only) and `harmonic` (exact runs only), and the GPU package implements both
+(`webgpu-graph-algorithms/src/algorithms/closeness.ts`). The score is the legacy default the element already publishes as
 `normalization: "none"`: `1 / sumOfDistances`, `0` when nothing is reached. The rest of the
 row -- the frontier machinery, BFS in its three forms, SSSP, Bellman-Ford, window-aware
 advance, the oracles, the benchmarks -- stands, with the overflow rule and the dedupe read
@@ -800,7 +766,7 @@ through the two entries above.
 
 **Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
 
-## Section 13, the phase table, row P11 (line 4271)
+## Section 13, the phase table, row P11
 
 **The design says:** the deliverables cell lists "k-core, triangle counting / k-truss, label
 propagation, Boruvka MST (two-pass min), `cooToCsr`, per-row group-by-key (workgroup sort /
@@ -815,7 +781,7 @@ are out. The gate items for what still ships are unchanged.
 
 **Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
-## Section 13, the phase table, row P12, the deliverables cell (line 4227)
+## Section 13, the phase table, row P12, the deliverables cell
 
 **The design says:** the app gets "`calibrateLayout()` + `createAccelerator` defaults wiring in
 the app" and "device-loss UX (toast + the CPU simulation taking over the running layout)".
@@ -828,7 +794,7 @@ element's setting, and gate G12 is the thing that measures it.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 13, the phase table, row P12, gate G12 -- this gate cannot be satisfied (line 4227)
+## Section 13, the phase table, row P12, gate G12 -- this gate cannot be satisfied
 
 **The design says:** gate G12, the gate on the final element-polish phase, is "stories green;
 nightly GPU lane green for a week; README numbers regenerated from `benchmarks/results/`".
@@ -855,7 +821,7 @@ has nowhere to run. Whatever replaces G12's clause should say where it goes.
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 removed the lane; no record addresses this gate.
 
-## Section 14.1, risk row R-5 (line 4272)
+## Section 14.1, risk row R-5
 
 **The design says:** the mitigation for lavapipe being slow enough to blow the default lane's
 budget ends with "the 1M 200-iteration exact-vs-grid run only in the nightly benchmark job".
@@ -867,7 +833,7 @@ budget, sharding the node project, heavy sizes only in the benchmarks and `node-
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 14.1, risk row R-6 (line 4273)
+## Section 14.1, risk row R-6
 
 **The design says:** among the mitigations for the hosted GPU lane becoming unavailable or drifting
 in cost is "nightly skipped on quiet days".
@@ -879,7 +845,7 @@ fork PRs never reaching it, `machine.dev` as the escape hatch.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 14.1, risk row R-25 (line 4292)
+## Section 14.1, risk row R-25
 
 **The design says:** the risk is that a shared-tenant T4 makes benchmark medians vary and "a
 nightly that opens tracking issues for noise trains people to ignore it"; one mitigation is "an
@@ -893,7 +859,7 @@ dev box rather than on the T4.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## The Review log's applied-findings table, row PERF-10 (line 4516)
+## The Review log's applied-findings table, row PERF-10
 
 **The design says:** the row records how finding PERF-10 was closed -- "1M runs only the
 one-iteration and unbiasedness checks in the lane; 200-iteration comparison at <= 262k; nightly
@@ -905,7 +871,7 @@ Where it runs is open, see the open questions at the top of this file.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## The Review log's applied-findings table, row VERIFY-14 (line 4615)
+## The Review log's applied-findings table, row VERIFY-14
 
 **The design says:** the row records the change that closed finding VERIFY-14 as a
 "`gpu-nightly-report` job with `issues: write` on `ubuntu-latest`".
@@ -915,7 +881,7 @@ is no longer in the repository.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## The Review log's applied-findings table, row VERIFY-20 (line 4621)
+## The Review log's applied-findings table, row VERIFY-20
 
 **The design says:** the row records three changes -- a utilization sample, a skip on a busy GPU,
 and "two nightly failures before an issue".
@@ -925,7 +891,7 @@ nothing runs nightly and no job opens an issue.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
-## Section 17, the Girvan-Newman row (line 5147)
+## Section 17, the Girvan-Newman row
 
 **The design says:** Girvan-Newman is "weak: repeated edge betweenness over a shrinking graph",
 placed as "dispatch each betweenness step through P9's kernel; no phase of its own".
@@ -949,9 +915,10 @@ is listed as a regression. The median alone no longer decides it: the minimum ha
 because the median of a shared-tenant run drifts.
 Decided by [2026-09-19-bench-compare-min-confirms-median.md](../decisions/2026-09-19-bench-compare-min-confirms-median.md).
 
-**`plans/2026-09-16-graphty-monorepo-integration.md`.** Two cells were overruled after it was
-written; the banner at the top of that file names them, and the whole document is otherwise
-still the plan of record.
+**`plans/2026-09-16-graphty-monorepo-integration.md`.** One cell, the Phase M8a entry criterion,
+was overruled after it was written and is left as written; the Phase M7 cells were amended in
+place on 2026-09-20. The banner at the top of that file says which, and the whole document is
+otherwise still the plan of record.
 
 **`plans/2026-09-19-webgpu-m6-graphty-element.md` and
 `plans/2026-09-19-webgpu-m7-graphty-app.md`.** Both were retired in full on 2026-09-21 and
@@ -968,9 +935,10 @@ Decided by [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26
 
 **`plans/2026-09-23-webgpu-p8-frontier.md`, task P8-T11 (closeness).** The task builds the
 all-source form only, with no `sources` option (its departure DEP-P8-F). The same record drops the
-all-source form above roughly 30,000 nodes and makes sampling the default there. That plan is
-executing on branch `feat/gpu-p8` and is not amended here; the sampled form needs a seam option
-the owner has not yet decided on.
+all-source form above roughly 30,000 nodes and makes sampling the default there. The P8 work has
+since merged into master, and the seam option it waited on is decided: `sources` on
+`ClosenessAcceleratorOptions`, which the GPU closeness runs as a sampled form
+(`webgpu-graph-algorithms/src/algorithms/closeness.ts`).
 
 One record also overrules text outside this directory: the landing-order rows for the A1 step in
 `design/graph-format/graph-format-design.md` section 14.6 (lines 4250, 4252, 4253), per
@@ -979,14 +947,15 @@ One record also overrules text outside this directory: the landing-order rows fo
 One record overrules nothing anywhere:
 [2026-09-19-pagerank-options-shadowing.md](../decisions/2026-09-19-pagerank-options-shadowing.md)
 records a fact about the code of `@graphty/algorithms` -- a duplicated `PageRankOptions` that
-stays until 2.0 -- so that the next reader who finds the duplicate does not "fix" it. That
-accounts for all twenty records.
+stays until 2.0 -- so that the next reader who finds the duplicate does not "fix" it. This
+index links twenty-eight records in all.
 
 ---
 
-## Outside the design: guidance that is narrower than the decision it points at
+## Outside the design: guidance that predates the amendment
 
-The root `CLAUDE.md` names design 9.1 as superseded by the ownership decision and does not
-mention 9.4, 9.5 or 9.8. The guidance written to warn people about that decision therefore covers
-one of the four places it reaches. Nothing here changes that file; it is noted so that a reader
-who arrives from `CLAUDE.md` knows the warning is partial.
+The root `CLAUDE.md` ("WebGPU") and `graphty-element/CLAUDE.md` ("WebGPU") say graphty-element's
+ownership of WebGPU overrules design 9.1. Since 2026-09-20, 9.1, 9.4, 9.5 and 9.8 say the same
+thing as the decision, so there is no longer a conflict to warn about; the rule in those files is
+right, only its reference to a superseded 9.1 is out of date. 2.4 is cited, by
+`graphty-element/CLAUDE.md`, for the no-silent-degradation rule, which stands.

@@ -2,8 +2,11 @@
 
 `kind: "graphty-recipe"`, version 1, a member of a graphty document ([container.md](container.md)).
 Schema: [recipe.schema.json](recipe.schema.json). The shortest working example is README, "Your
-first recipe"; edge-case rulings are rows of [conformance.md](conformance.md). Recipes need
-graphty-element 3.0.0.
+first recipe"; edge-case rulings are rows of [conformance.md](conformance.md).
+
+Status: partly implemented. graphty-element writes a recipe (`session.recipe()`,
+`graphty-element/src/session/recipe.ts`) from the session's current state, not from a replayed
+journal, and does not yet read or replay one.
 
 ## Purpose
 
@@ -77,9 +80,9 @@ interface GraphFilter {
 
 interface AlgoRun {
     op: "algo.run";
-    algorithm: string; // catalogue key: "pagerank", "louvain", ...
+    algorithm: string; // catalog key: "pagerank", "louvain", ...
     as: string; // this run's name in the recipe: ^[a-z][a-z0-9_]*$, at most 64, no "__", unique
-    params?: Record<string, unknown>; // option values by catalogue option name ("Commands" rule 4)
+    params?: Record<string, unknown>; // option values by catalog option name ("Commands" rule 4)
     scope?: "graph" | "largest-component" | { where: string; on?: "nodes" | "edges" }; // default "graph"
     seed?: number; // integer, 0 to 2147483647
     sample?: number; // integer, the sample size of an approximate method
@@ -92,8 +95,8 @@ interface AlgoRun {
 
 interface LayoutSet {
     op: "layout.set";
-    id: string; // catalogue layout id: "force", "circular", ...
-    engine?: string; // the engine that draws it; default the catalogue's
+    id: string; // catalog layout id: "force", "circular", ...
+    engine?: string; // the engine that draws it; default the catalog's
     options?: Record<string, unknown>; // the engine's options, the seed among them
     description?: string;
 }
@@ -375,7 +378,7 @@ interface RecipeApplication {
     /** Binds against the graph as it is now and runs the commands not yet run; after a cancel, resumes. */
     run(options?: { capSeconds?: number; budget?: { totalSeconds?: number } }): Run<RecipeReport>;
     cancel(): void;
-    /** Removes every run it made and their colouring, and restores the filter and layout it replaced. One undoable step. */
+    /** Removes every run it made and their coloring, and restores the filter and layout it replaced. One undoable step. */
     remove(): void;
 }
 ```
@@ -503,7 +506,7 @@ interface RecipeReport {
         readonly weight?: { readonly column: string; readonly readAs: "distance" | "strength" };
         readonly seed?: number; // absent when one will be drawn at run time
         readonly recordedPrecision?: "f32" | "f64";
-        readonly style: boolean; // whether it will paint its suggested colouring
+        readonly style: boolean; // whether it will paint its suggested coloring
         readonly paints: readonly {
             readonly channel: string;
             readonly by: string;

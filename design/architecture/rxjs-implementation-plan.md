@@ -1,5 +1,8 @@
 # RxJS Implementation Plan
 
+Status: historical record (2025-08). This plan was not carried out: rxjs is not a dependency of
+graphty-element.
+
 ## Date: August 5, 2025
 
 ## Overview

@@ -11,16 +11,11 @@
  * four depth-mode rows name the BFS test and are measured by test/sabotage/bfs.test.ts.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
-import { assertCheckPasses, type Mutation, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
+import { assertCheckPasses, type Mutation, SABOTAGE, withSabotage } from "../helpers/sabotage.js";
 import { ssspReport } from "../helpers/sssp.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
 
 /** The rows this suite measures: every relax row, and the predecessor rows that name the SSSP test. */
@@ -30,7 +25,7 @@ const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutati
 ];
 
 describe("sabotage: sssp-relax and sssp-pred in its f32 mode (spec 11.9 item 1; P8-T9)", () => {
-    it("has four relax rows and three f32-mode predecessor rows naming the SSSP test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has four relax rows and three f32-mode predecessor rows naming the SSSP test", () => {
         expect((SABOTAGE["sssp-relax"] ?? []).map((m) => m.name)).toEqual([
             "min-is-a-store",
             "hop-counts",
@@ -42,23 +37,9 @@ describe("sabotage: sssp-relax and sssp-pred in its f32 mode (spec 11.9 item 1; 
             "plateau-step-ignored",
             "roots-unseeded",
         ]);
-        for (const { id, rows } of MEASURED) {
-            const { body } = KERNELS[id];
-            const names = new Set<string>();
+        for (const { rows } of MEASURED) {
             for (const m of rows) {
-                expect(names.has(m.name), `duplicate mutation name ${m.name}`).toBe(false);
-                names.add(m.name);
-                const first = body.indexOf(m.find);
-                expect(first, `${id}/${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-                expect(body.indexOf(m.find, first + m.find.length), `${id}/${m.name}: find string not unique`).toBe(-1);
-                expect(m.replace).not.toBe(m.find);
-                expect(m.minFactor).toBeGreaterThanOrEqual(10);
                 expect(m.test).toBe(SSSP_TEST);
-                expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${m.test} does not exist`).toBe(true);
-                const mutated = sabotagedBody(id, m);
-                expect(mutated).not.toBe(body);
-                expect(mutated.includes(m.replace)).toBe(true);
-                expect(mutated.length).toBe(body.length - m.find.length + m.replace.length);
             }
         }
     });

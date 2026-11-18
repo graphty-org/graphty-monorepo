@@ -220,14 +220,15 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                     | Type                                  | Default                                                        |
-| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- |
-| [`part`](#export-part)                     | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        |
-| [`delimiter`](#export-delimiter)           | `string`                              | `","`                                                          |
-| [`arrayDelimiter`](#export-arraydelimiter) | `"," \| ";" \| "\|"`                  | `";"`                                                          |
-| [`quote`](#export-quote)                   | `string`                              | `'"'`                                                          |
-| [`weightColumn`](#export-weightcolumn)     | `null \| string`                      | "weight", or the property a Neo4j import read the weights from |
-| [`idColumn`](#export-idcolumn)             | `null \| string`                      | `null`                                                         |
+| Option                                       | Type                                  | Default                                                        |
+| -------------------------------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| [`part`](#export-part)                       | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        |
+| [`delimiter`](#export-delimiter)             | `string`                              | `","`                                                          |
+| [`arrayDelimiter`](#export-arraydelimiter)   | `"," \| ";" \| "\|"`                  | `";"`                                                          |
+| [`quote`](#export-quote)                     | `string`                              | `'"'`                                                          |
+| [`weightColumn`](#export-weightcolumn)       | `null \| string`                      | "weight", or the property a Neo4j import read the weights from |
+| [`idColumn`](#export-idcolumn)               | `null \| string`                      | `null`                                                         |
+| [`spreadsheetSafe`](#export-spreadsheetsafe) | `boolean`                             | `false`                                                        |
 
 - <a id="export-part"></a>`part`: Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter, one character. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
@@ -235,6 +236,7 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 - <a id="export-quote"></a>`quote`: The quote character, one character. Cells that hold the delimiter, the quote character or a line break are quoted with it. Pass the same value as the `quote` import option to read the file back.
 - <a id="export-weightcolumn"></a>`weightColumn`: The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). graph-io reads the "weight" property back as the weight; for any other name, pass the same name as the `weightFrom` import option to read the weights back (`weightColumn: "strength"` with `weightFrom: "strength"`), or they come back as a plain edge attribute. A graph read from Neo4j CSV with `weightFrom` writes its weights back under the property they were read from.
 - <a id="export-idcolumn"></a>`idColumn`: The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of their own; null writes a bare `:ID`.
+- <a id="export-spreadsheetsafe"></a>`spreadsheetSafe`: Whether to keep spreadsheets from running cells as formulas: a cell or property header starting with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source you do not trust: a value such as `=HYPERLINK("http://x","click")` otherwise runs as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
 
 ## Import issue codes
 

@@ -41,7 +41,7 @@ import { StyleApproximations } from "../../styles/io/approximations.js";
 import { parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -51,7 +51,6 @@ import type {
     NodeStyleProperty,
     Predicate,
     StyleColumn,
-    StyleNote,
     StyleReadContext,
     StyleRule,
     StyleTarget,
@@ -974,6 +973,12 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
         row.imageOpacity = opacity;
     }
     visImagePlace(row, layer, box);
+    // an image node's box is its picture's, the shorter side across 2 * size (CircleImageBase._resizeImage); a
+    // circularImage is cut to its square
+    // ponytail: not with imagePadding, whose picture size visImagePlace takes from the square; both when a file needs
+    if (!circular && layer.useImageSize !== true && row.imageFit === "cover") {
+        row.imageAspect = true;
+    }
     return row;
 }
 
@@ -1741,7 +1746,10 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
  */
 function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.edgeOpacity !== undefined) {
-        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+        // as on a node, only a hex or rgb() color takes it: a named color is drawn opaque (EdgeBase.getColor,
+        // overrideOpacity; json-vis-synth 42->52, "blue" at opacity 0.4)
+        const opacity = canonOpacity(layer.edgeOpacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.edgeColor) ? opacity : null);
     }
     if (layer.width !== undefined) {
         put("width", canonNumber(layer.width, site("width")));
@@ -2085,10 +2093,15 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
             visIcon(merged, site("glyphColor")),
         );
     }
-    // vis-network's triangleDown: its triangle turned over, a corner down
-    if (shape === "triangleDown") {
+    // vis-network's triangle is equilateral, not filling its 2 * size square (shapes.js triangle: its radius times 1.15,
+    // so 2.3 * size wide and sqrt(3) * 1.15 * size tall, its centroid 0.275 * 1.15 * size below the node's center): the
+    // apex 1.0117 * size above the center, the base 0.9802 * size below; triangleDown is it turned over, a corner down.
+    // The square stays the node's box, which places its label
+    if (shape === "triangle" || shape === "triangleDown") {
+        const [apex, base] = shape === "triangle" ? ["1.0117", "-0.9802"] : ["-1.0117", "0.9802"];
         row.shape = "polygon";
-        row.shapePoints = "-1,1 0,-1 1,1";
+        row.shapePoints = `0,${apex} 1.15,${base} -1.15,${base}`;
+        row.shapePointsStretch = false;
     }
     return row;
 }
@@ -3163,7 +3176,7 @@ const VIS_SHAPES: ReadonlyMap<string, readonly [string, boolean]> = new Map([
     ["ellipse", ["dot", true]],
     ["rectangle", ["square", true]],
     ["round-rectangle", ["box", true]],
-    ["triangle", ["triangle", true]],
+    ["triangle", ["triangle", false]],
     ["diamond", ["diamond", true]],
     ["star", ["star", true]],
     ["hexagon", ["hexagon", true]],
@@ -3283,22 +3296,24 @@ const visFitBack =
     };
 
 /**
- * How far down a written vis.js node's label is read back: the reader's own reading (visNodeRow) of what the writer
- * writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as the
- * block's offset.
- * @param want - the block's values of the element
- * @returns the offset read back
+ * A fact of a written vis.js node as the reader reads it back: the reader's own reading (visNodeRow) of what the
+ * writer writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as
+ * the block's offset, and a triangle as the block's triangle, not the equilateral polygon vis-network draws.
+ * @param property - the fact
+ * @returns the reading back of the element's values
  */
-const visOffsetBack = (want: (p: string) => StyleValue | null): StyleValue | null => {
-    const size = visSize(want);
-    const layer: VisLayer = {
-        label: want("label") ?? undefined,
-        fontSize: want("labelSize") ?? undefined,
-        size: typeof size === "number" ? size / 2 : undefined,
+const visRowBack =
+    (property: string) =>
+    (want: (p: string) => StyleValue | null): StyleValue | null => {
+        const size = visSize(want);
+        const layer: VisLayer = {
+            label: want("label") ?? undefined,
+            fontSize: want("labelSize") ?? undefined,
+            size: typeof size === "number" ? size / 2 : undefined,
+        };
+        const site = (p: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property: p });
+        return visNodeRow(layer, visShapeBack(want), null, site)[property] ?? null;
     };
-    const site = (property: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property });
-    return visNodeRow(layer, visShapeBack(want), null, site).labelOffsetY ?? null;
-};
 
 /**
  * What reading a file graphty wrote in vis.js gives back: VIS_WRITTEN, and for a self-loop the route the reader draws
@@ -3343,7 +3358,9 @@ const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
         height: (want) => visHexagonHeightBack(want) ?? visSize(want) ?? visFitBack("height")(want),
-        labelOffsetY: visOffsetBack,
+        labelOffsetY: visRowBack("labelOffsetY"),
+        shapePoints: visRowBack("shapePoints"),
+        shapePointsStretch: visRowBack("shapePointsStretch"),
         labelFit: visFitBack("labelFit"),
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
@@ -3359,7 +3376,7 @@ const VIS_WRITTEN: Written = {
                 return null;
             }
             const site = { notes: new StyleNotes(), target: "node" as const, property: "shape" };
-            return canonEnum("shape", visShapeBack(want), "vis", site);
+            return visRowBack("shape")(want) ?? canonEnum("shape", visShapeBack(want), "vis", site);
         },
         labelPosition: (want) => {
             if (typeof want("shape") !== "string") {
@@ -3809,24 +3826,6 @@ function notWritten(
         }
     }
     return out;
-}
-
-/**
- * A style note as a loss note.
- * @param n - the note
- * @returns the loss note
- */
-function lossOf(n: StyleNote): LossNote {
-    return Object.freeze({
-        code: n.code,
-        message: n.message,
-        column: null,
-        count: n.params.count,
-        style:
-            n.params.target === null || n.params.property === null
-                ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property as never }),
-    });
 }
 
 /** An editable attribute table of `snapshot.withColumns()`. */

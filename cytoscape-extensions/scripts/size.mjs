@@ -124,7 +124,7 @@ function lazyPartName(chunk) {
     if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
-    if (/graph-io\/dist\/(sources-|chunks\/sigv4-)/.test(id)) {
+    if (/graph-io\/dist\/(sources-|chunks\/(sigv4|url)-)/.test(id)) {
         return "network sources, all of them (on the first load from a server)";
     }
     return `other lazy chunk ${chunk.fileName}`;

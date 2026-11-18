@@ -559,15 +559,7 @@ function remember(seen, run) {
  * ponytail: fixed lists for this repository's two scoped lanes; move them into `lanes.<x>` of the
  * config when another repository uses githerd.
  */
-const ROOT_BUILD = [
-    "package.json",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    "nx.json",
-    "tsconfig.base.json",
-    "vite.shared.config.ts",
-    "vitest.shared.config.ts",
-];
+const ROOT_BUILD = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "nx.json", "tsconfig.base.json"];
 export const LANE_CODE = /** @type {Record<string, string[]>} */ ({
     GPU: [
         "webgpu-graph-algorithms/",

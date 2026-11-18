@@ -16,7 +16,6 @@ import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
@@ -175,12 +174,8 @@ describe("the Style tab's fields on the real element", () => {
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         assert.strictEqual(within(kinds).getByRole("tab", { name: /^Edge/ }).getAttribute("aria-selected"), "true");
         const nodeTab = within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "";
-        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
-        if (selectionWorkspaceOn(session)) {
-            assert.notInclude(nodeTab, "not styled");
-        } else {
-            assert.include(nodeTab, "not styled");
-        }
+        // The kind tabs say no "not styled" note (StylePanel.tsx).
+        assert.notInclude(nodeTab, "not styled");
         assert.isNotNull(tab.querySelector('[data-group="edge"]'));
         assert.isNull(tab.querySelector('[data-group="node"]'));
     });
@@ -588,7 +583,7 @@ describe("the Style tab's rows on the real element", () => {
         assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
     });
 
-    it("Everything's edge color goes to the Everything layer, and an edge's to its own row", async () => {
+    it("Everything's edge color goes to the Everything layer, and an edge's to the selected layer", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {});
@@ -609,12 +604,19 @@ describe("the Style tab's rows on the real element", () => {
         });
         await pickStyleTab();
         await typeColor("Edge color", "00FF00");
+        // No row opened since: the selected layer is the row that paints every element (#3409).
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#00FF00"]],
+                readerLayers(session)
+                    .filter((l) => l.name === "Everything")
+                    .map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
+                [
+                    ["edge", "#00FF00"],
+                    ["node", null],
+                ],
             );
         });
+        assert.lengthOf(idLayers(session), 0, "no row for the edge");
     });
 
     it("Everything's first edit adds an ordinary row, which stays when its last value is removed", async () => {
@@ -651,55 +653,6 @@ describe("the Style tab's rows on the real element", () => {
         });
         assert.lengthOf(everything(), 2, "the emptied row is kept");
         assert.isDefined(session.styles.tree().find((each) => each.id === row));
-    });
-
-    it("a node's first edit adds its row named for it and selects it; selecting it again edits that row", async () => {
-        await page.viewport(1366, 768);
-        const { session, store } = await openEverything();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
-        const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
-        await userEvent.tripleClick(size);
-        await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(idLayers(session).length, 1);
-        });
-        const [row] = idLayers(session);
-        assert.equal(row.name, "1");
-        assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
-        await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
-        });
-
-        session.selection.clear();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
-        await typeColor("Node color", "00FF00");
-        await waitFor(() => {
-            assert.equal(hexOf(session.styles.get(row.id)?.set?.["node.color"]), "#00FF00");
-        });
-        assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
-    });
-
-    it("several selected share one row, named by their count, and Undo takes it away", async () => {
-        await page.viewport(1366, 768);
-        const { session } = await openEverything();
-        await session.selection.apply({ nodes: ["2", "3", "4"] });
-        await pickStyleTab();
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Node id(,|$)/ }));
-        await waitFor(() => {
-            assert.deepEqual(
-                idLayers(session).map((l) => l.name),
-                ["3 nodes"],
-            );
-        });
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-        await waitFor(() => {
-            assert.equal(idLayers(session).length, 0);
-        });
     });
 
     it("a new Tooltip asks what it reads; Fixed text keeps typed words, and Undo takes them back", async () => {

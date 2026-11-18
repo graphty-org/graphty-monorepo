@@ -41,6 +41,8 @@ const RULE = { kind: "categories", attribute: "data.role", values: ["staff"] } a
  */
 async function mounted(causes?: ("user" | "api" | "command" | "history")[]): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // The working graph off: with it on, a filter change lays out what is shown, by design.
+    element.workingGraph = false;
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -200,7 +202,7 @@ describe("camera.pivotOnSelectionCauses", () => {
             const element = await mounted(["api"]);
             const { graph } = element;
             // Frames drawn by hand, so the test chooses the frame the hold lands on.
-            const pass = (graph as unknown as { updateManager: { update: (ms: number) => void } }).updateManager;
+            const pass = graph.getUpdateManager();
             graph.engine.stopRenderLoop();
             const state = (): string =>
                 JSON.stringify(graph.getCameraState(), (_, v: unknown) =>

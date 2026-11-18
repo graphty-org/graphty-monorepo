@@ -1,15 +1,17 @@
 # The simple tier
 
-Status: proposed, against graphty-element 2.6.1. The owner decided on 2026-09-28 that every
+Status: specification, first written against graphty-element 2.6.1; partly shipped (below). The owner decided on 2026-09-28 that every
 extension point has a simple tier ("easy things easy, hard things possible"); the names and shapes
 below are the recommendation of `README.md` section 12, item 33. Normative shapes:
 `simple.d.ts`. The budget every simple tier is held to: `README.md` section 8.1. The measurements
 that motivate it: `complexity-review.md`.
 
-**Nothing in this document runs in graphty-element 2.6.1.** Every `define*` function, the graph
-view and the consumer calls marked "proposed" below are design; an example here type-checks
-against `simple.d.ts` and fails at run time against 2.6.1 with "defineX is not a function". The
-release rule: a guide page under `graphty-element/docs/guide/extending/` leads with a simple-tier
+**What runs today.** `defineAlgorithm`, `defineLayout`, `defineLogDestination` and
+`definePalette` shipped in graphty-element 3.0.1 and are exported from
+`@graphty/graphty-element/extend`. `defineFormat`, `defineDataSource`, `defineCameraView` and
+`defineCameraMotion` are not built yet: an example for them type-checks against `simple.d.ts` and
+fails at run time with "defineX is not a function". The "On 2.6.1" lines and the rest of this
+paragraph record the state before 3.0.1. The release rule: a guide page under `graphty-element/docs/guide/extending/` leads with a simple-tier
 example only in the release that ships it, and its first line names that release ("Available from
 graphty-element 2.7"). Until then the guides lead with the advanced tier they describe today, and
 an author who must ship on 2.6.1 uses the form in the last column of the table in section 1:

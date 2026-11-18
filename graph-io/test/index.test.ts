@@ -69,6 +69,7 @@ const VALUE_EXPORTS = [
     "DOT_STYLE_CAPABILITIES",
     "dotExporter",
     "dotFileLayout",
+    "requestedLayout",
     "dotImporter",
     "graphvizFont",
     "graphvizPosBends",
@@ -100,6 +101,9 @@ const VALUE_EXPORTS = [
     "jsonExporter",
     "jsonImporter",
     "jsonShapeOf",
+    "readJsonRecords",
+    "recordKey",
+    "recordPaths",
     "exportNeo4jFiles",
     "ID_SPACE_COLUMN",
     "LABELS_COLUMN",
@@ -312,6 +316,7 @@ const VALUE_EXPORTS = [
     "replayFetch",
     "recordingFrom",
     "sha256Hex",
+    "sha256HexSync",
     "NDEX_SOURCE_ID",
     "CYPHER_SOURCE_ID",
     "NEO4J_SOURCE_ID",
@@ -327,6 +332,10 @@ const VALUE_EXPORTS = [
     "SOURCE_DEGREE_ATTR",
     "SOURCE_ENTITY_ATTR",
     "SOURCE_FORMAT_PREFIX",
+    "URL_SOURCE_ID",
+    "URL_DESCRIPTOR",
+    "sourceEndpoint",
+    "sourceFileName",
 ];
 
 describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {

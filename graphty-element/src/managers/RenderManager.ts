@@ -1,5 +1,6 @@
 import "./babylonEngineExtensions";
 
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
@@ -9,11 +10,13 @@ import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { FloatingOriginCurrentScene } from "@babylonjs/core/Materials/floatingOriginMatrixOverrides.js";
 import { Material } from "@babylonjs/core/Materials/material.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Logger } from "@babylonjs/core/Misc/logger.js";
 import { Tools } from "@babylonjs/core/Misc/tools.js";
+import { PassPostProcess } from "@babylonjs/core/PostProcesses/passPostProcess.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
@@ -35,6 +38,7 @@ import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
+import { drawLinesLean } from "../meshes/PulledLineBatch";
 import { isRowBatch } from "../meshes/RowPullPlugin";
 import { drawOnlyEnabledMeshes } from "../render/enabledMeshCandidates";
 import { reportCaught } from "../session/project/strict";
@@ -92,6 +96,18 @@ interface RenderManagerConfig {
     pixelRatio?: PixelRatio;
     /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
     antialias?: boolean;
+    /**
+     * Whether only the frame a still scene rests on is multisampled (`antialias: "at-rest"`): every
+     * other frame is drawn into a target with no multisampling, with straight lines on the lean
+     * program, and copied to the canvas. Asked each frame; it also turns on drawing on demand,
+     * which is what holds the frame. Left out, never.
+     */
+    antialiasAtRest?: () => boolean;
+    /**
+     * Whether the WebGL engine built when no `engine` is passed keeps each drawn frame's buffer
+     * (WebGL's `preserveDrawingBuffer`). Left out, true.
+     */
+    preserveDrawingBuffer?: boolean;
 }
 
 /**
@@ -288,14 +304,19 @@ export async function openWebGPUEngine(
  * missing, which the log reports as E_NO_WEBGL.
  * @param canvas - The element's canvas.
  * @param antialias - Whether the context multisamples; the element's `antialias`.
+ * @param preserveDrawingBuffer - Whether the context keeps each drawn frame; the element's
+ *     `preserveDrawingBuffer`. Screenshots work either way; a consumer's own read of the canvas
+ *     between frames needs it.
  * @returns The engine and the scene.
  */
-function openWebGL(canvas: HTMLCanvasElement, antialias: boolean): { engine: Engine; scene: Scene } {
+function openWebGL(
+    canvas: HTMLCanvasElement,
+    antialias: boolean,
+    preserveDrawingBuffer: boolean,
+): { engine: Engine; scene: Scene } {
     let engine: Engine | undefined;
     try {
-        engine = new Engine(canvas, antialias, {
-            preserveDrawingBuffer: true, // Required for screenshots
-        });
+        engine = new Engine(canvas, antialias, { preserveDrawingBuffer });
         return { engine, scene: new Scene(engine) };
     } catch (error) {
         try {
@@ -421,7 +442,7 @@ const READER_INPUT_EVENTS = [
  * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
  * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
  */
-const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+export const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
     studio: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
@@ -827,7 +848,35 @@ export class RenderManager implements Manager {
      * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
      * resize (`drawNow`) counts as drawn.
      */
-    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
+    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0, smooth: 0 };
+    /** See `RenderManagerConfig.antialiasAtRest`. */
+    private readonly antialiasAtRest: () => boolean;
+    /** Whether the canvas shows the multisampled frame `"at-rest"` rests on. */
+    private smoothShown = false;
+    /** How many {@link holdSmooth} holds are open: while any is, every frame is multisampled. */
+    private smoothHolds = 0;
+    /**
+     * Under `"at-rest"`, the pass a moving frame is drawn through: the scene into its target, which
+     * has no multisampling, then copied to the canvas. Attached to {@link fastCamera} while frames move.
+     */
+    private fastPass: PassPostProcess | null = null;
+    /**
+     * The pointers held down on the canvas. While any is, the reader is dragging, and a tick with
+     * nothing to draw between two moves is not the scene at rest: `"at-rest"` waits for the release.
+     */
+    private readonly pointersHeld = new Set<number>();
+    private readonly holdPointer = (event: PointerEvent): void => {
+        this.pointersHeld.add(event.pointerId);
+    };
+    private readonly releasePointer = (event: PointerEvent): void => {
+        this.pointersHeld.delete(event.pointerId);
+    };
+    /** The page lost focus (a context menu, another window): a release may never arrive. */
+    private readonly releaseAllPointers = (): void => {
+        this.pointersHeld.clear();
+        this.drawOwed = true;
+    };
+    private fastCamera: Camera | null = null;
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
@@ -897,6 +946,7 @@ export class RenderManager implements Manager {
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
         this.drawOwed = true;
+        this.smoothShown = false;
         this.shaderGuard.ignore();
         this.flashCheck = null;
         this.contextLost = event.type === "webglcontextlost";
@@ -970,12 +1020,19 @@ export class RenderManager implements Manager {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
-        this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
+        this.antialiasAtRest = this.config.antialiasAtRest ?? ((): boolean => false);
+        const onDemand = this.config.drawsOnDemand ?? ((): boolean => false);
+        // "at-rest" holds its multisampled frame by not drawing another: drawing on demand.
+        this.drawsOnDemand = (): boolean => this.antialiasAtRest() || onDemand();
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
         this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
-            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas, this.config.antialias ?? true));
+            ({ engine: this.engine, scene: this.scene } = openWebGL(
+                this.canvas,
+                this.config.antialias ?? true,
+                this.config.preserveDrawingBuffer ?? true,
+            ));
         } else {
             this.engine = this.config.engine;
             this.scene = new Scene(this.engine);
@@ -992,6 +1049,11 @@ export class RenderManager implements Manager {
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
+        this.canvas.addEventListener("pointerdown", this.holdPointer, { passive: true });
+        // On the window: a pointer can be released off the canvas.
+        globalThis.addEventListener("pointerup", this.releasePointer, { passive: true });
+        globalThis.addEventListener("pointercancel", this.releasePointer, { passive: true });
+        globalThis.addEventListener("blur", this.releaseAllPointers);
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.viewWatch?.observe(this.canvas);
@@ -1081,6 +1143,9 @@ export class RenderManager implements Manager {
     dispose(): void {
         // Stop render loop
         this.stopRenderLoop();
+        this.fastPass?.dispose(this.fastCamera ?? undefined);
+        this.fastPass = null;
+        this.fastCamera = null;
 
         // Remove resize listener
         window.removeEventListener("resize", this.resizeHandler);
@@ -1088,6 +1153,10 @@ export class RenderManager implements Manager {
         this.flashCheck?.readback.dispose();
         this.flashCheck = null;
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
+        this.canvas.removeEventListener("pointerdown", this.holdPointer);
+        globalThis.removeEventListener("pointerup", this.releasePointer);
+        globalThis.removeEventListener("pointercancel", this.releasePointer);
+        globalThis.removeEventListener("blur", this.releaseAllPointers);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);
@@ -1180,14 +1249,17 @@ export class RenderManager implements Manager {
                     return;
                 }
 
-                if (this.mayRest()) {
+                // Under "at-rest" the first tick that may rest draws the multisampled frame instead,
+                // and the ticks after it rest on it.
+                const rests = this.mayRest();
+                if (rests && (this.smoothShown || !this.antialiasAtRest() || this.pointersHeld.size > 0)) {
                     this.ticks.rested++;
                     return;
                 }
 
                 // The frame before this one, measured now that its GPU wait is known.
                 this.measureFrame(drawAt - drewBefore, waitMs, gpuWasBehind);
-                this.drawFrame(drawAt);
+                this.drawFrame(drawAt, rests);
                 this.lastDrawAt = drawAt;
                 this.workEndedAt = performance.now();
             } catch (error) {
@@ -1305,8 +1377,9 @@ export class RenderManager implements Manager {
     /**
      * Draws one frame, for the loop's tick and for {@link drawNow}.
      * @param at - When the frame was drawn, by `performance.now()`.
+     * @param still - Whether the scene is still: under `"at-rest"`, the frame is multisampled.
      */
-    private drawFrame(at: number): void {
+    private drawFrame(at: number, still = false): void {
         // Cleared BEFORE the frame, so anything the frame itself announces asks for the next one.
         const owed = this.drawOwed;
         this.drawOwed = false;
@@ -1317,11 +1390,77 @@ export class RenderManager implements Manager {
             this.recordView();
         }
 
+        const atRest = this.antialiasAtRest();
+        const smooth = atRest && (still || this.smoothHolds > 0);
+        this.drawFast(atRest && !smooth);
         this.scene.render();
         this.ticks.drawn++;
+        this.smoothShown = smooth;
+        if (smooth) {
+            this.ticks.smooth++;
+        }
+
         this.checkFlashing(at, owed);
         this.fenceFrame();
         this.noteDrawnFrom(drawnReady);
+    }
+
+    /**
+     * Draw the next frames fast or multisampled, for `"at-rest"`. Fast is the scene drawn into
+     * {@link fastPass}'s target, which has no multisampling, and copied to the canvas, with every
+     * straight line batch on the lean program: the frame `antialias: false` draws, plus the
+     * copy. Multisampled is the scene drawn straight to the canvas, which is the frame `true` draws.
+     * A camera that draws into a target of its own or through rig cameras (a headset's) is always
+     * drawn multisampled.
+     * @param fast - Whether to draw fast.
+     */
+    private drawFast(fast: boolean): void {
+        const camera = this.scene.activeCamera;
+        const usable =
+            fast &&
+            camera !== null &&
+            camera.outputRenderTarget === null &&
+            camera.rigCameras.length === 0 &&
+            this.scene.activeCameras !== null &&
+            this.scene.activeCameras.length <= 1;
+        drawLinesLean(this.scene, usable);
+        if (usable && this.fastCamera === camera) {
+            return;
+        }
+
+        if (this.fastPass !== null) {
+            this.fastCamera?.detachPostProcess(this.fastPass);
+        }
+
+        this.fastCamera = null;
+        if (!usable) {
+            return;
+        }
+
+        this.fastPass ??= new PassPostProcess("antialias-at-rest", 1, null, Texture.NEAREST_SAMPLINGMODE, this.engine);
+        camera.attachPostProcess(this.fastPass, 0);
+        this.fastCamera = camera;
+    }
+
+    /**
+     * Under `"at-rest"`, draw every frame multisampled until the hold is released, starting now:
+     * a screenshot taken while the scene moves is the multisampled picture too.
+     * @returns Releases the hold.
+     * @internal
+     */
+    holdSmooth(): () => void {
+        this.smoothHolds++;
+        if (this.antialiasAtRest()) {
+            this.drawFast(false);
+        }
+
+        let released = false;
+        return () => {
+            if (!released) {
+                released = true;
+                this.smoothHolds--;
+            }
+        };
     }
 
     /**

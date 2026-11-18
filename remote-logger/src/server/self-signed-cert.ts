@@ -7,8 +7,11 @@ import * as fs from "node:fs";
 
 import selfsigned from "selfsigned";
 
+/** A certificate and its private key, as generateSelfSignedCert() returns them. */
 export interface GeneratedCert {
+    /** The certificate, PEM-encoded. */
     cert: string;
+    /** The certificate's private key, PEM-encoded. */
     key: string;
 }
 

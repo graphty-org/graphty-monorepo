@@ -366,6 +366,13 @@ export interface RunnerUse {
      * later already holds a runner, so a runner was free. A matrix job held back by its `max-parallel` reads "queued".
      */
     heldByRun: number;
+    /**
+     * Runs queued with no jobs while a Linux or Windows job created over 2 minutes after them already holds a runner:
+     * runners were free, so GitHub has dropped them (CodeQL run 43448526218 sat queued 2 days, issue #8316). They
+     * count in neither `queuedOver2` nor `longestQueuedMs`.
+     */
+    stuck: number;
+    /** The age of the oldest Linux or Windows job, or run with no jobs, that is "queued" and really waits for a runner. */
     longestQueuedMs: number;
 }
 
@@ -394,16 +401,21 @@ function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: numbe
     if (p === "other") {
         return;
     } // machine.dev and self-hosted pools are outside GitHub's limit
-    const age = nowMs - Date.parse(j.created_at);
     use.queued++;
-    if (waitsForRunner(j, nowMs)) {
-        if (Date.parse(j.created_at) < newestRunning - 2 * MIN) {
+    if (j.status !== "queued" || p !== "linux_windows") {
+        return;
+    } // waiting, pending and macOS jobs wait on something other than GitHub's runners
+    const created = Date.parse(j.created_at);
+    if (created < newestRunning - 2 * MIN) {
+        if (waitsForRunner(j, nowMs)) {
             use.heldByRun++;
-        } else {
-            use.queuedOver2++;
         }
+        return;
     }
-    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+    if (waitsForRunner(j, nowMs)) {
+        use.queuedOver2++;
+    }
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, nowMs - created);
 }
 
 /**
@@ -419,6 +431,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         queued: 0,
         queuedOver2: 0,
         heldByRun: 0,
+        stuck: 0,
         longestQueuedMs: 0,
     };
     // ponytail: assumes GitHub hands Linux runners out roughly first come, first served; a job created over 2 minutes
@@ -441,10 +454,18 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         }
     }
     for (const r of runsWithoutJobs) {
-        const age = nowMs - Date.parse(r.created_at);
+        if (r.status !== "queued") {
+            continue;
+        }
+        const created = Date.parse(r.created_at);
+        if (created < newestRunning - 2 * MIN) {
+            use.stuck++;
+            continue;
+        }
+        const age = nowMs - created;
         use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
         // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
-        if (age > 2 * MIN && r.status === "queued") {
+        if (age > 2 * MIN) {
             use.queuedOver2++;
         }
     }
@@ -1479,7 +1500,7 @@ export function releaseTags(
 export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
 
 /** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
-export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map", "babylonjs-models"]);
 
 export const npmName = (project: string): string =>
     project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;

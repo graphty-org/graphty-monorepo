@@ -44,16 +44,19 @@ function selected(graph: Graph): { nodes: string[]; edges: string[] } {
 
 describe("the selection of a rendered graph across a compacting freeze", () => {
     // A repaint keeps a row-to-node lookup across its frames, and rebuilds it when this version moves.
-    test("a freeze that renumbers the nodes moves the node version", async () => {
+    test("a freeze that renumbers the nodes rebuilds the lookup of nodes by row", async () => {
         const graph = await makePath();
         const manager = graph.getDataManager();
+
+        manager.removeNodeAndIncidentEdges("n0");
+        // Read between the removal and the freeze it owes, as a repaint's frame can.
+        assert.strictEqual(manager.nodesByIndex[1]?.id, "n1", "before the freeze n1 is still on its old row");
         const before = manager.nodeVersion;
 
-        (manager as unknown as { walkNodeRemap: (remap: Uint32Array) => void }).walkNodeRemap(
-            Uint32Array.from({ length: NODE_COUNT }, (_, row) => row),
-        );
+        manager.getSnapshot();
 
-        assert.isAbove(manager.nodeVersion, before);
+        assert.isAbove(manager.nodeVersion, before, "the freeze renumbered the nodes without moving the version");
+        assert.strictEqual(manager.nodesByIndex[0]?.id, "n1", "the lookup still holds the rows from before the freeze");
         graph.dispose();
     });
 

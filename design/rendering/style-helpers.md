@@ -107,6 +107,7 @@ export namespace Sequential {
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.degree.degreePct"],
         output: "style.texture.color",
@@ -180,6 +181,7 @@ export namespace Categorical {
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.louvain.communityId != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.louvain.communityId"],
         output: "style.texture.color",
@@ -243,6 +245,7 @@ export namespace Diverging {
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.clustering.deviationFromAvg != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.clustering.deviationFromAvg"],
         output: "style.texture.color",
@@ -307,23 +310,25 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [
     {
       edge: {
+        selector: "algorithmResults.graphty.dijkstra.isInPath == `true`", // Only the edges carrying this result
         calculatedStyle: {
-          inputs: ["algorithmResults.graphty.dijkstra.inPath"],
+          inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
           output: "style.line.color",
           expr: `{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }`,
         },
       },
       metadata: {
         name: "Shortest Path - Edge Colors",
-        description: "Blue highlight for path, gray for others",
+        description: "Blue highlight for the path edges; other edges keep their style",
       },
     },
     {
       edge: {
+        selector: "algorithmResults.graphty.dijkstra.isInPath == `true`", // Only the edges carrying this result
         calculatedStyle: {
-          inputs: ["algorithmResults.graphty.dijkstra.inPath"],
+          inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
           output: "style.line.width",
-          expr: `{ return arguments[0] ? 3 : 1 }`,
+          expr: `{ return 3 }`,
         },
       },
     },
@@ -379,6 +384,7 @@ export namespace Size {
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.pagerank.rankPct != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.pagerank.rankPct"],
         output: "style.shape.size",
@@ -664,6 +670,7 @@ export namespace EdgeWidth {
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     edge: {
+      selector: "algorithmResults.graphty.maxflow.flowPct != `null`", // Only the edges carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.maxflow.flowPct"],
         output: "style.line.width",
@@ -926,6 +933,7 @@ For every palette:
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.degree.degreePct"],
         output: "style.texture.color",
@@ -943,6 +951,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.degree.degreePct"],
         output: "style.texture.color",

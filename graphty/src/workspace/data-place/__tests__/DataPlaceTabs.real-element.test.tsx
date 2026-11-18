@@ -3,7 +3,7 @@
  * driven by real clicks (the owner's review, 2026-11-07): the tabs come first; Sources holds the
  * sources with Filters directly under Data sources, and Calculated the results, with no "Runs"
  * heading; the tab chosen is kept; a result's row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
- * its "..." holds Apply style, greyed once it is styled, and Remove result; a filter's row says its
+ * its "..." holds Apply style, greyed once it is styled, Run again with changes..., Combine into a score..., the Copy items and Remove result; a filter's row says its
  * steps in one structured line.
  */
 
@@ -22,8 +22,8 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { sourceName } from "../words";
 
-// The tabs belong to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * Les Miserables in the workspace, on the Data place.
@@ -84,15 +84,12 @@ describe("the Data place's Sources and Calculated tabs", () => {
         const sources = within(panel).getByRole("group", { name: "Data sources" });
         const [load] = session.data.sources();
         const own = within(panel).getByRole("group", { name: sourceName(load) });
-        // With no filter yet, the load's Filters are one "Filter +" row, and no Filters header.
-        const row = within(own).getByRole("button", { name: "Add filter" });
-        assert.strictEqual(row.textContent, "Filter");
+        const filters = within(own).getByRole("group", { name: "Filters" });
         assert.isTrue(
-            Boolean(sources.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING),
-            "Filter + below Data sources",
+            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filters below Data sources",
         );
-        assert.lengthOf(within(place()).getAllByRole("button", { name: "Add filter" }), 1, "none above the tabs");
-        assert.isNull(within(place()).queryByText("Filters"), "no empty Filters header");
+        assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
         assert.isNull(within(place()).queryByText("Runs"), "no Runs heading");
         // And not in Calculated, even with a filter set.
         await session.visibility.addCondition({
@@ -105,14 +102,7 @@ describe("the Data place's Sources and Calculated tabs", () => {
                 branches: [{ start: "all", steps: [{ op: "keep", rule: { kind: "degree", min: 3 } }] }],
             },
         });
-        // Once there is a filter, the Filters header shows with it, below Data sources.
         await within(place()).findByRole("list", { name: "Filters" });
-        const filters = within(own).getByRole("group", { name: "Filters" });
-        assert.isTrue(
-            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
-            "Filters below Data sources",
-        );
-        assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
         await userEvent.click(within(list).getByRole("tab", { name: "Calculated" }));
         await waitFor(() => {
             assert.strictEqual(
@@ -165,8 +155,23 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
-            items.map((item) => /^(Apply style|Remove result)/u.exec(item.textContent ?? "")?.[1]),
-            ["Apply style", "Remove result"],
+            items.map(
+                (item) =>
+                    /^(Apply style|Run again with changes\.\.\.|Combine into a score\.\.\.|Copy [a-zA-Z ]+?|Remove result)(?=Not finished|Already styled|$)/u.exec(
+                        item.textContent ?? "",
+                    )?.[1],
+            ),
+            [
+                "Apply style",
+                "Run again with changes...",
+                "Combine into a score...",
+                "Copy as JSON",
+                "Copy as command",
+                "Copy methods text",
+                "Copy as TSV",
+                "Copy member ids",
+                "Remove result",
+            ],
         );
         assert.include(items[0].textContent ?? "", "Already styled");
         assert.isTrue(items[0].hasAttribute("data-disabled") || items[0].hasAttribute("disabled"), "greyed");

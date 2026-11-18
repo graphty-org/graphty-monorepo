@@ -60,7 +60,11 @@ export async function touchEnd(): Promise<void> {
     }
 }
 
-/** Cancel the touch, if a finger is down, as the system does when it takes the gesture over. */
+/**
+ * Cancel the touch, if a finger is down, as the system does when it takes the gesture over. A
+ * touchcancel cannot be cancelled, so the browser does not wait for the page before this returns:
+ * a test that checks the page's answer waits for the pointercancel itself.
+ */
 export async function touchCancel(): Promise<void> {
     if (down) {
         await touch("touchCancel");

@@ -5,12 +5,13 @@
  *
  * Two more stories show how a DOT file picks its own engine: loaded with `layout: "recommended"`,
  * a file with no coordinates is drawn by the engine its `layout` attribute names, and where the
- * package is missing the recommendation says so with `recommend.graphviz-unavailable` and uses the
- * arrangement the ordinary rules choose.
+ * package is missing the recommendation says so with `recommend.requested-layout-unavailable` and
+ * uses the arrangement the ordinary rules choose.
  */
 
 import "../index.ts";
 
+import { requestedLayout } from "@graphty/graph-io";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { recommendLayout } from "../src/session/layout";
@@ -113,7 +114,7 @@ export const DotFileRecommended: Story = {
 
 /**
  * What the recommendation says for the same file where `@hpcc-js/wasm-graphviz` is not installed:
- * the fact `recommend.graphviz-unavailable`, naming the engine the file asked for, and the
+ * the fact `recommend.requested-layout-unavailable`, naming the layout the file asked for, and the
  * arrangement the ordinary rules choose. The package is installed here, so the story asks the
  * recommendation as an element without it would, and draws what it answers.
  */
@@ -133,11 +134,11 @@ export const PeerMissing: Story = {
             const { session } = element;
             await session.data.import({ type: "dot", config: { data: NAMED_ENGINE_DOT } });
             const advice = recommendLayout(session.data.statistics(), {
-                file: { format: "dot", attributes: { layout: "dot", rankdir: "LR" } },
+                requested: requestedLayout("dot", { layout: "dot", rankdir: "LR" }) ?? undefined,
                 graphvizAvailable: false,
             });
             if (advice !== undefined) {
-                caption.textContent = `${advice.fact.code} (engine: ${String(advice.fact.params.engine)}) -> ${advice.layout.id}`;
+                caption.textContent = `${advice.fact.code} (layout: ${String(advice.fact.params.layout)}) -> ${advice.layout.id}`;
                 // Seeded, so the force drawing is the same picture on every capture.
                 await element.setLayout(advice.layout.id, { seed: 7 });
             }
@@ -148,7 +149,7 @@ export const PeerMissing: Story = {
         await waitForGraphSettled(canvasElement);
         const fact = canvasElement.querySelector("[data-testid=fact]")?.textContent ?? "";
         await holds(
-            fact.startsWith("recommend.graphviz-unavailable (engine: dot) -> force"),
+            fact.startsWith("recommend.requested-layout-unavailable (layout: graphviz-dot) -> force"),
             `PeerMissing: the caption reads "${fact}"`,
         );
     },

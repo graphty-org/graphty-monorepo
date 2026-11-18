@@ -1344,12 +1344,15 @@ function evaluateTarget(
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
     // a file read with Cytoscape.js's own defaults draws an edge no rule curves as a haystack (a file graphty wrote
     // is read with graphty's)
-    if (kind === "edge" && input.toolDefaults !== false) {
+    if (kind === "edge") {
         const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
         const curves = drawnColumn(read, "curve-style", CURVE_PART);
-        noArrowsOnHaystacks(curves, drawn);
-        if (env.nodes !== null) {
-            edgeRoutes(graph, read, curves, env.nodes, drawn);
+        taperTriangles(curves, drawn);
+        if (input.toolDefaults !== false) {
+            noArrowsOnHaystacks(curves, drawn);
+            if (env.nodes !== null) {
+                edgeRoutes(graph, read, curves, env.nodes, drawn);
+            }
         }
     }
     if (kind === "node") {
@@ -2326,37 +2329,34 @@ function combineLabelDress(
         }
         const border = bordered && labelBorder(kind, i, words, col, notes, at(whole[i]));
         if (box || border) {
-            labelBoxShape(kind, i, words, col, notes);
+            labelBoxShape(i, words, col);
         }
     }
 }
 
 /**
  * A label's box or line round it, sized and shaped: it reaches `text-background-padding` past the words on every
- * side (0 unset), one font size tall a line (cytoscape.js 3.34.3 `calculateLabelDimensions`), its corners rounded
- * 2px for round-rectangle (`drawText`); a circle is noted.
- * @param kind - the target
+ * side (0 unset), one font size tall a line, or its letters' ink tall with `text-metrics: glyph` (cytoscape.js 3.34.3
+ * `calculateLabelDimensions`), its corners rounded 2px for round-rectangle, a circle a disc as tall as the box
+ * (`drawText`).
  * @param i - the element
  * @param words - the parts by internal name
  * @param col - a property's values, created when absent
- * @param notes - where problems are noted
  */
 function labelBoxShape(
-    kind: StyleTarget,
     i: number,
     words: ReadonlyMap<string, (string | null)[]>,
     col: (p: string) => (StyleValue | null)[],
-    notes: StyleNotes,
 ): void {
     const padding = words.get("_backgroundPadding")?.[i];
     col("labelPadding")[i] = padding === null || padding === undefined ? 0 : Number(padding);
     col("labelLineHeight")[i] = 1;
+    col("labelLineBox")[i] = words.get("_textMetrics")?.[i] === "glyph" ? "glyphs" : "size";
     const shape = words.get("_backgroundShape")?.[i];
     if (shape === "round-rectangle" || shape === "roundrectangle") {
         col("labelCornerRadius")[i] = 2;
     } else if (shape === "circle") {
-        // a disc as tall as the box, centered on it: no neutral box has that shape
-        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: "circle", element: i });
+        col("labelBackgroundShape")[i] = "circle";
     }
 }
 
@@ -2389,6 +2389,8 @@ function labelBorder(
     const style = words.get("_textBorderStyle")?.[i] ?? "solid";
     col("labelBorderColor")[i] = words.get("_textBorderColor")?.[i] ?? "#000000";
     col("labelBorderWidth")[i] = style === "double" ? width / 4 : width;
+    // stroked centered on the box's edge
+    col("labelBorderAlign")[i] = "center";
     const drawn = Math.round(opacity * whole * 1e6) / 1e6;
     col("labelBorderOpacity")[i] = drawn < 1 ? drawn : null;
     if (style === "dotted" || style === "dashed" || style === "double") {
@@ -3114,6 +3116,23 @@ function noArrowsOnHaystacks(
             }
         }
     }
+}
+
+/**
+ * A `straight-triangle` edge is drawn as a triangle `width` wide at its source narrowing to a point at its target
+ * (cytoscape.js 3.34.3 `drawEdgeTrianglePath`): its taper is 0.
+ * @param curves - each edge's curve style, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function taperTriangles(
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    curves.forEach((curve, i) => {
+        if (curve === "straight-triangle") {
+            columnOf(values, "taper", curves.length)[i] = 0;
+        }
+    });
 }
 
 /**

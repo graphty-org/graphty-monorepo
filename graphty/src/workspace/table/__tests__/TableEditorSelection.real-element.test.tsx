@@ -21,7 +21,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the data table beside a selection editor", () => {
@@ -53,9 +53,6 @@ describe("the data table beside a selection editor", () => {
         const from = await screen.findByRole("textbox", { name: "value from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
-        await waitFor(() => {
-            assert.lengthOf(live.visibility.conditions, 2);
-        });
 
         // While the workspace is open the table keeps its place but is not drawn and takes no input.
         const ws = await waitFor(() => {
@@ -72,6 +69,10 @@ describe("the data table beside a selection editor", () => {
         await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
+        });
+        // The card is written on Done.
+        await waitFor(() => {
+            assert.lengthOf(live.visibility.conditions, 2);
         });
 
         // The card's matches over the whole graph are 4 edges; the canvas draws 3 of them.

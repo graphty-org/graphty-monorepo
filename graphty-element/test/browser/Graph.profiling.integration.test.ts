@@ -144,7 +144,7 @@ describe("Graph - Profiling Integration", () => {
 
         // Should have called console.group for Performance Report
         assert.isAbove(consoleGroupSpy.mock.calls.length, 0);
-        assert.include(consoleGroupSpy.mock.calls[0][0], "Performance Report");
+        assert.include(String(consoleGroupSpy.mock.calls[0][0]), "Performance Report");
 
         // Cleanup
         consoleGroupSpy.mockRestore();

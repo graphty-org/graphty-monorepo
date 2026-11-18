@@ -5806,7 +5806,7 @@ export class Graph implements GraphContext {
                 const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     this.handleBackgroundClick(pointerInfo.event);
@@ -8677,7 +8677,7 @@ export class Graph implements GraphContext {
             const dx = state.position.x - state.target.x;
             const dy = state.position.y - state.target.y;
             const dz = state.position.z - state.target.z;
-            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
         }
 
         // Update the pivot's world matrix and camera position
@@ -8978,7 +8978,7 @@ export class Graph implements GraphContext {
             const dx = targetState.position.x - targetState.target.x;
             const dy = targetState.position.y - targetState.target.y;
             const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const calculatedDistance = Math.hypot(dx, dy, dz);
             distanceAnimation = this.animateCameraDistance(
                 orbitController,
                 calculatedDistance,
@@ -9460,7 +9460,7 @@ export class Graph implements GraphContext {
         // Each id is looked up the way getNode looks it up, so either spelling of an integer id
         // frames the node, and the scope is handed the ids the graph itself holds.
         // A lone id is not iterated: a string is iterable, and its characters name no node.
-        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const ids = typeof nodeIds === "string" || typeof nodeIds === "number" ? [nodeIds] : nodeIds;
         const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
         if (nodes.length === 0) {
             return undefined;
@@ -11023,8 +11023,9 @@ export class Graph implements GraphContext {
         }
 
         // Remove render loop observer
-        if (this.scene.metadata?.xrUpdateObserver) {
-            this.scene.onBeforeRenderObservable.remove(this.scene.metadata.xrUpdateObserver);
+        const xrUpdateObserver = this.scene.metadata?.xrUpdateObserver as Nullable<Observer<Scene>> | undefined;
+        if (xrUpdateObserver) {
+            this.scene.onBeforeRenderObservable.remove(xrUpdateObserver);
             this.scene.metadata.xrUpdateObserver = null;
         }
 

@@ -29,6 +29,7 @@
  */
 
 import { GraphtyError } from "../errors";
+import { isArray } from "../utils/isArray";
 import { normalizeHexAnchor } from "./color";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
 import { KNOWN_PALETTE_IDS, type PaletteDescriptor, type PaletteId, type PaletteRegistration } from "./types";
@@ -107,7 +108,7 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
         );
     }
 
-    if (!Array.isArray(descriptor.colors) || descriptor.colors.length === 0) {
+    if (!isArray(descriptor.colors) || descriptor.colors.length === 0) {
         refuse(descriptor.id, "colors", `the palette "${String(descriptor.id)}" was registered with no colours`);
     }
 
@@ -115,11 +116,7 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
     for (const color of descriptor.colors) {
         const hex = normalizeHexAnchor(color);
         if (hex === null) {
-            refuse(
-                descriptor.id,
-                "colors",
-                `"${String(color)}" in the palette "${String(descriptor.id)}" is not a colour`,
-            );
+            refuse(descriptor.id, "colors", `"${color}" in the palette "${String(descriptor.id)}" is not a colour`);
         }
 
         colors.push(hex);

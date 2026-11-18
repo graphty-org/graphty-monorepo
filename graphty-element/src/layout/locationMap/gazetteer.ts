@@ -8,6 +8,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isArray } from "../../utils/isArray";
 
 /** Where graphty.app hosts the gazetteer; the location map layout's `gazetteer` option default. */
 export const GAZETTEER_URL = "https://graphty.app/data/gazetteer/v1/";
@@ -119,7 +120,7 @@ function placeKeys(name: string, alternates: readonly string[], code: string | n
  */
 function layerFromFile(file: unknown): GazetteerLayer {
     const f = file as Partial<GazetteerFile> | null;
-    if (f?.format !== "graphty-gazetteer" || f.version !== 1 || !Array.isArray(f.places) || f.layer === undefined) {
+    if (f?.format !== "graphty-gazetteer" || f.version !== 1 || !isArray(f.places) || f.layer === undefined) {
         throw new GraphtyError({
             code: "E_FETCH_FAILED",
             message: "not a graphty gazetteer layer (version 1)",

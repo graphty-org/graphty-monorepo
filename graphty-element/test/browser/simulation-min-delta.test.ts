@@ -133,7 +133,10 @@ test("an accelerated simulation with minDelta stops only once its landed batches
     );
 
     if (!engine.isSettled) {
-        const move = largestMove(drawn.get(previous) ?? new Map(), drawn.get(last) ?? new Map());
+        const move = largestMove(
+            drawn.get(previous) ?? new Map<string, [number, number, number]>(),
+            drawn.get(last) ?? new Map<string, [number, number, number]>(),
+        );
         assert.isBelow(move, MIN_DELTA, `stopped unsettled after ${last} landed batches while still moving ${move}`);
     }
 });

@@ -39,6 +39,10 @@ function sub(a: Vec3, b: Vec3): Vec3 {
     return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
 }
 
+function length(v: Vec3): number {
+    return Math.hypot(v.x, v.y, v.z);
+}
+
 function unit(v: Vec3): Vec3 {
     const length = Math.hypot(v.x, v.y, v.z);
     return { x: v.x / length, y: v.y / length, z: v.z / length };
@@ -84,7 +88,7 @@ describe("fitToGraph keepAngle", () => {
                     }
                 }
             }
-            assert.closeTo(Math.hypot(...Object.values(sub(position, BOUNDS.center))), state.cameraDistance ?? 0, 1e-9);
+            assert.closeTo(length(sub(position, BOUNDS.center)), state.cameraDistance ?? 0, 1e-9);
         }
     });
 
@@ -115,7 +119,7 @@ describe("fitToGraph keepAngle", () => {
             const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
             const tanY = Math.tan(FOV / 2);
             const tanX = tanY * aspect;
-            const distance = Math.hypot(...Object.values(sub(state.position, BOUNDS.center)));
+            const distance = length(sub(state.position, BOUNDS.center));
 
             let tightest = 0;
             for (const x of [BOUNDS.min.x, BOUNDS.max.x]) {

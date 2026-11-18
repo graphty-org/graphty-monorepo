@@ -5370,7 +5370,7 @@ export class Graphty extends LitElement {
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
+        const nodes = (typeof ids === "string" || typeof ids === "number" ? [ids] : ids).flatMap(
             (id) => this.#graph.getNode(id)?.id ?? [],
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });

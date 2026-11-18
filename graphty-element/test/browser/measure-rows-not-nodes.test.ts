@@ -82,8 +82,8 @@ function sameCamera(actual: CameraState, expected: CameraState, what: string): v
             }
 
             if (typeof value === "object" && value !== null) {
-                return Object.entries(value).flatMap(([axis, n]): [string, number][] =>
-                    typeof n === "number" ? [[`${key}.${axis}`, n]] : [],
+                return Object.entries<unknown>(value as Record<string, unknown>).flatMap(
+                    ([axis, n]): [string, number][] => (typeof n === "number" ? [[`${key}.${axis}`, n]] : []),
                 );
             }
 

@@ -5734,7 +5734,8 @@ function patchUses(beneath: readonly ShaderUse[], patch: unknown): readonly Shad
     const latest = (beneath as ResolvedUses)[LATEST] ?? new Set<ShaderUse>();
     const kept = new Set<ShaderUse>();
     const out = [...beneath];
-    for (const [id, params] of Object.entries(patch)) {
+    const entries: [string, unknown][] = Object.entries(patch);
+    for (const [id, params] of entries) {
         if (typeof params !== "object" || params === null) {
             continue;
         }
@@ -5843,7 +5844,8 @@ export function prototypeFreeMap(value: object): Record<string, unknown> {
     }
 
     const copy = Object.create(null) as Record<string, unknown>;
-    for (const [key, entry] of Object.entries(value)) {
+    const entries: [string, unknown][] = Object.entries(value);
+    for (const [key, entry] of entries) {
         copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;
     }
 

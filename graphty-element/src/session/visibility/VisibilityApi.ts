@@ -63,6 +63,7 @@ import type {
 } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { isArray } from "../../utils/isArray";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
 import type { VisibilityState } from "../project/state";
@@ -2091,7 +2092,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         inputs: readonly FilterConditionInput[],
         taken: readonly FilterCondition[] = [],
     ): readonly FilterCondition[] => {
-        if (!Array.isArray(inputs)) {
+        if (!isArray(inputs)) {
             assertConditions(inputs);
         }
 

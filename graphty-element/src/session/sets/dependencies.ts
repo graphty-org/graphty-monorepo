@@ -31,6 +31,7 @@ import { runIdOfRef } from "../../catalog/sets/canonical";
 import { readingOfScope } from "../../catalog/sets/parse";
 import type { Path, Query, ResultItem, RuleTree, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isArray } from "../../utils/isArray";
 import { isNotePath } from "../notes/paths";
 
 /** One thing a definition reads. */
@@ -557,7 +558,7 @@ function groupWalkChildren(node: Loose): unknown[] {
     if (node.kind === "rule") {
         children.push(node.where);
     } else if (node.kind === "all" || node.kind === "any") {
-        children.push(...(Array.isArray(node.of) ? node.of : []));
+        children.push(...(isArray(node.of) ? node.of : []));
     } else if (node.kind === "not") {
         children.push(node.of);
     } else if (node.kind === "member") {

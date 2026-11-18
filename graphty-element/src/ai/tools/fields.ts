@@ -219,11 +219,11 @@ const RESULT_REFERENCE = /(?<![\w.])results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([
 function resultReferences(session: Pick<GraphSession, "runs" | "results">, where: string): string {
     return where.replaceAll(
         RESULT_REFERENCE,
-        (match: string, double?: string, single?: string, tick?: string, bare?: string, field = ""): string => {
+        (match: string, double?: string, single?: string, tick?: string, bare?: string, field?: string): string => {
             // A run that is gone (an Undo took it back) refuses: its column would match nothing, quietly.
             const run = resolveRun(session, double ?? single ?? tick ?? bare ?? "");
             try {
-                return session.results.path(run, field);
+                return session.results.path(run, field ?? "");
             } catch {
                 return match;
             }

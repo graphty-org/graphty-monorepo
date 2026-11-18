@@ -100,9 +100,9 @@ describe("the id of an unnamed run", () => {
         const pagerank = runs.start("pagerank", { dampingFactor: 0.9 });
 
         assert.strictEqual(louvain.id, "louvain_resolution_1_5");
-        assert.strictEqual(louvain.label, "Communities (resolution 1.5)");
+        assert.strictEqual(runs.defaultLayerName(louvain.id), "Communities (resolution 1.5)");
         assert.strictEqual(pagerank.id, "pagerank_damping_0_9");
-        assert.strictEqual(pagerank.label, "Influence (damping 0.9)");
+        assert.strictEqual(runs.defaultLayerName(pagerank.id), "Influence (damping 0.9)");
     });
 
     it("states the setting a built-in's name was suggested by, and null at the defaults (#866)", () => {
@@ -127,7 +127,7 @@ describe("the id of an unnamed run", () => {
         const run = runs.start("acme-reach", { hops: 3 });
 
         assert.strictEqual(run.id, "acme_reach_3");
-        assert.strictEqual(run.label, "Reach in 3 hops");
+        assert.strictEqual(runs.defaultLayerName(run.id), "Reach in 3 hops");
         assert.isNull(run.distinguishedBy, "an extension's own name names no option");
         assert.isTrue(runs.isDerivedId(run.id));
     });

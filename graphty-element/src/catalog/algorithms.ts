@@ -20,9 +20,6 @@
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
- *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
- *   catalogue that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -209,6 +206,33 @@ const MODULARITY_INTERPRETATION: FieldInterpretation = {
             id: "barely",
             plainName: "Barely separated",
             description: "The groups are hardly denser inside than a random split; the grouping may not be meaningful.",
+        },
+    ],
+};
+
+/**
+ * How severe a removal is, by the share of the surviving nodes it cuts off from their piece.
+ */
+const REMOVAL_SEVERITY: FieldInterpretation = {
+    summary: "The share of the remaining nodes cut off from the rest of their piece. Above 0.1 counts as severe.",
+    source: "graphty-element's convention: a tenth of the graph cut off is severe, any node cut off is minor.",
+    bands: [
+        {
+            id: "severe",
+            plainName: "Severe",
+            description: "More than a tenth of the remaining nodes are cut off.",
+            above: 0.1,
+        },
+        {
+            id: "minor",
+            plainName: "Minor",
+            description: "Some nodes are cut off, but no more than a tenth.",
+            above: 0,
+        },
+        {
+            id: "none",
+            plainName: "None",
+            description: "Every remaining node stays connected to the rest of its piece.",
         },
     ],
 };
@@ -1090,12 +1114,78 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n^2 * d)",
         legacyKeys: [{ key: "link-prediction" }],
     },
+    {
+        key: "removal-impact",
+        plainName: "What breaks if removed",
+        technicalName: "Removal impact",
+        description:
+            "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
+        category: "structure",
+        keywords: ["simulate removing", "what if", "cut off", "resilience", "vulnerability"],
+        shape: "node-set",
+        fields: [
+            ...setFields("node", "Cut off", {
+                name: "componentsAfter",
+                plainName: "Pieces after",
+                technicalName: "componentsAfter",
+                type: "integer",
+            }),
+            field({
+                name: "componentsBefore",
+                plainName: "Pieces before",
+                technicalName: "componentsBefore",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "largestBefore",
+                plainName: "Largest piece before",
+                technicalName: "largestBefore",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "largestAfter",
+                plainName: "Largest piece after",
+                technicalName: "largestAfter",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "removedNodes",
+                plainName: "Nodes removed",
+                technicalName: "removedNodes",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "removedEdges",
+                plainName: "Edges removed",
+                technicalName: "removedEdges",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "cutOffShare",
+                plainName: "Share cut off",
+                technicalName: "cutOffShare",
+                kind: "graph",
+                type: "number",
+                domain: { min: 0, max: 1 },
+                interpretation: REMOVAL_SEVERITY,
+            }),
+        ],
+        options: optionsOf("removal-impact", { nodes: { type: "node-set" }, edges: { type: "edge-set" } }),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "removal-impact" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Twenty-nine descriptors for thirty-one registered algorithms: the two single-source
+ * Thirty descriptors for thirty-two registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

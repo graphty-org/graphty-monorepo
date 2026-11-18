@@ -3,7 +3,7 @@ import "../../src/graphty-element";
 import type { Engine } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 
@@ -156,8 +156,12 @@ describe("render loop pacing", () => {
         try {
             await element.updateComplete;
             await operationQueueOf(element.graph).waitForCompletion();
-            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            // Named, not the default: the forced-batched project makes "batched" the default.
+            element.graph.setRenderPath("objects");
+            const renderManager = renderManagerOf(element.graph);
             const fenced = recordFences((renderManager.engine as Engine)._gl);
+            await frames(2);
+            fenced();
 
             await frames(5);
             const objects = fenced();

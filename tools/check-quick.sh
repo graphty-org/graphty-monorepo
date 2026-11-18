@@ -100,8 +100,9 @@ step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint
 step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
 step "Duplicate code" pnpm run check:duplicates
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
-# GPU step, and a failing nx must not read as "not affected".
-AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
+# GPU step, and a failing nx must not read as "not affected". --json=false: nx 22 otherwise prints one
+# JSON array, which matches no project name, so every "when affected" step below was silently skipped.
+AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE" --json=false)" || FAILED+=("Affected projects (nx show projects)")
 affected() { grep -qx "$1" <<<"$AFFECTED"; }
 # graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
 # graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them

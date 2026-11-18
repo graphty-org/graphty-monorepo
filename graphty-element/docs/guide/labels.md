@@ -172,9 +172,11 @@ their tops line up, or on their middles.
 ## Long labels
 
 A long name drawn on one line covers its neighbors. `wrapWidth` breaks it onto more lines at the
-spaces between words, and `maxLines` keeps at most that many lines, ending the last one with an
-ellipsis where the rest was cut. `maxLines` also cuts a label that has more lines of its own, with
-no `wrapWidth`. Markup runs keep their style across the breaks.
+spaces between words, and `maxLines` keeps at most that many lines. The last line kept runs on with
+the rest of the text and is cut at the wrap width with an ellipsis, so it is as full as the lines above
+it ("this t..." rather than "this..."). Set `maxLinesEllipsis` to false (`node.labelMaxLinesEllipsis`)
+to drop the lines past `maxLines` as they are, with no ellipsis. `maxLines` also cuts a label that has
+more lines of its own, with no `wrapWidth`. Markup runs keep their style across the breaks.
 
 ```typescript
 await element.session.styles.add({

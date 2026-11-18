@@ -1,9 +1,8 @@
 /**
- * @file Every built-in algorithm states its caveats as coded facts, and the English it still
- * publishes in `notes` is worded from those facts, word for word as before the facts existed.
+ * @file Every built-in algorithm states its caveats as coded facts, and writes no notes.
  *
- * `caveat-notes.golden.json` holds the sentences each case published before `Caveats.facts` was
- * added (issue #866). A run that words a fact differently, drops one or adds one fails here.
+ * `caveat-facts.golden.json` holds the facts each case states (issue #866). A run that drops a
+ * fact, adds one or changes its parameters fails here; `RECORD_CAVEAT_GOLDEN=1` rewrites it.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -44,11 +43,10 @@ import { type DeclaredAlgorithm, detachedRunContext } from "../../../src/algorit
 import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import type { Graph } from "../../../src/Graph";
-import { caveatSentence } from "../../../src/session/runs/caveatFacts";
 import type { Caveats } from "../../../src/session/runs/types";
 import { createMockGraph } from "../../helpers/mockGraph";
 
-const GOLDEN_PATH = new URL("caveat-notes.golden.json", import.meta.url);
+const GOLDEN_PATH = new URL("caveat-facts.golden.json", import.meta.url);
 
 /** A connected, weighted graph with a triangle, so every method has something to find. */
 const FIXTURE = {
@@ -207,22 +205,22 @@ async function runAll(): Promise<Map<string, Caveats>> {
 }
 
 describe("a built-in algorithm's caveats", () => {
-    it("words its English notes from its facts, word for word as before (#866)", async () => {
+    it("states its caveats as coded facts, and writes no notes (#866, #7097)", async () => {
         const said = await runAll();
 
         if (process.env.RECORD_CAVEAT_GOLDEN === "1") {
-            const golden = Object.fromEntries([...said].map(([name, caveats]) => [name, caveats.notes]));
+            const golden = Object.fromEntries([...said].map(([name, caveats]) => [name, caveats.facts]));
             writeFileSync(GOLDEN_PATH, `${JSON.stringify(golden, null, 4)}\n`);
         }
 
-        const golden = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as Record<string, string[]>;
+        const golden = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as Record<string, unknown>;
         for (const [name, caveats] of said) {
-            assert.deepStrictEqual([...caveats.notes], golden[name], `${name}: the English changed`);
             assert.deepStrictEqual(
-                caveats.facts.map(caveatSentence),
-                [...caveats.notes],
-                `${name}: a note is not worded from a fact`,
+                JSON.parse(JSON.stringify(caveats.facts)),
+                golden[name],
+                `${name}: the facts changed`,
             );
+            assert.deepStrictEqual([...caveats.notes], [], `${name}: a built-in algorithm writes no notes`);
         }
     });
 });

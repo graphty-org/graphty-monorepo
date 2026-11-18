@@ -12,8 +12,8 @@ import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { writeCondition } from "../data-place/filterCards";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { focusInspectorTitle } from "../frame/focus";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
@@ -303,7 +303,7 @@ export function NeighborList({
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     // Filter to neighbors reads the steps, so it follows each change to them.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const heading = useRef<HTMLElement>(null);
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     // The list takes focus as it opens. A Hops or Follow change keeps focus on the control that

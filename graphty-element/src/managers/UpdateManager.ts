@@ -66,6 +66,9 @@ interface FramingBox {
     spots: FramingSpot[];
 }
 
+/** A framing box's corners alone, kept after a fit to tell whether the extent moved. */
+type FittedBox = Pick<FramingBox, "min" | "max">;
+
 /**
  * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
@@ -276,7 +279,7 @@ const MAX_LABEL_FIT_ROUNDS = 32;
  * @param b - The other.
  * @returns True when no corner moved by more than that.
  */
-function sameBox(a: FramingBox, b: FramingBox): boolean {
+function sameBox(a: FittedBox, b: FittedBox): boolean {
     const tolerance = Math.max(Vector3.Distance(a.min, a.max), Vector3.Distance(b.min, b.max)) * 1e-9;
     return Vector3.Distance(a.min, b.min) <= tolerance && Vector3.Distance(a.max, b.max) <= tolerance;
 }
@@ -368,27 +371,21 @@ export interface ViewMasks {
      */
     readonly showContext?: () => boolean;
     /**
-     * Whether `visibility` is drawing ghosts now (elements outside the time window kept on screen).
+     * Whether `visibility` draws more than is visible now: what lies outside a time window, for
+     * the style layers to hide or ghost, or what a held filter condition would remove.
      * Read on every pass: switching it swaps which mask `visibility` answers with, so the next pass
      * walks everything rather than trusting a version from the other mask.
      * @returns True while ghosts are drawn.
      */
     readonly ghost?: () => boolean;
     /**
-     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
-     * changed rows; off, every pass is the walk it always was.
-     * @returns True while the experiment is on.
-     */
-    readonly timeline?: () => boolean;
-    /**
-     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
-     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * Whether a time window is in force. While one is, the batches upload the slots a step wrote
+     * rather than whole buffers.
      * @returns True while a window is in force.
      */
     readonly timeWindow?: () => boolean;
     /**
-     * What edges fade by age with (the timeline's `ageFade`), read only while
-     * {@link ViewMasks.timeline} is on, once a frame.
+     * What edges fade by age with (the timeline's `ageFade`), read once a frame.
      * @returns The ages and the window, or null while nothing fades.
      */
     readonly ageFade?: () => EdgeAgeFade | null;
@@ -595,7 +592,7 @@ export class UpdateManager implements Manager {
     private lastLanding: {
         engine: SimulationLayoutEngine;
         landed: number;
-        positions: Map<NodeIdType, { x: number; y: number; z: number }>;
+        positions: Map<number, { x: number; y: number; z: number }>;
     } | null = null;
 
     /** Where the two masks are read from, or null while nothing has been bound. */
@@ -919,11 +916,11 @@ export class UpdateManager implements Manager {
 
     /**
      * Switch the scene's batches to uploading only what they wrote while a time window is in force.
-     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * With no window, the switch was never touched and this writes nothing.
      * @param masks - What the renderer reads.
      */
     private followTimeWindow(masks: ViewMasks): void {
-        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        const ranged = masks.timeWindow?.() === true;
         if (ranged !== this.rangedUploads) {
             this.rangedUploads = ranged;
             batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
@@ -932,12 +929,12 @@ export class UpdateManager implements Manager {
 
     /**
      * Hand the scene's lines the fade by age the session asks for: whether it is on, the edges'
-     * ages and the window the uniform carries. With the timeline off or the setting at 1 the
-     * state is never touched and every line keeps today's program.
+     * ages and the window the uniform carries. With the setting at 1 the state is never touched
+     * and every line keeps today's program.
      * @param masks - What the renderer reads.
      */
     private followAgeFade(masks: ViewMasks): void {
-        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = masks.timeline?.() === true;
+        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = true;
         if (!this.ageFadeOwed(masks)) {
             return;
         }
@@ -981,7 +978,7 @@ export class UpdateManager implements Manager {
      * @returns The fade, or null for none.
      */
     private static ageFadeOf(masks: ViewMasks): EdgeAgeFade | null {
-        return masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+        return masks.ageFade?.() ?? null;
     }
 
     /**
@@ -1075,11 +1072,7 @@ export class UpdateManager implements Manager {
 
         // A time window's slide says which rows it moved, so a step costs those rows and not the
         // graph. Anything else that moved a mask answers null here and walks, as below.
-        const sameLook =
-            masks.timeline?.() === true &&
-            this.appliedAnything &&
-            showContext === this.appliedShowContext &&
-            ghost === this.appliedGhost;
+        const sameLook = this.appliedAnything && showContext === this.appliedShowContext && ghost === this.appliedGhost;
         const nodeRows = sameLook ? inRowOrder(nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
         const edgeRows = sameLook ? inRowOrder(edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
 
@@ -1199,7 +1192,7 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(rows, nodeVisibility);
+        this.applyColumnRows(rows, nodeVisibility, showContext);
     }
 
     /**
@@ -1327,7 +1320,15 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(null, nodeVisibility);
+        // A selected row stored with no `Node` gets one, as the selection's own pass gives it (`applyNodeSelection`):
+        // its halo is the `Node`'s. Built, it takes the masks (`adoptBuiltNode`).
+        for (const id of nodeSelection?.ids() ?? []) {
+            if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
+                this.dataManager.nodes.get(id);
+            }
+        }
+
+        this.applyColumnRows(null, nodeVisibility, showContext);
     }
 
     /**
@@ -1626,8 +1627,11 @@ export class UpdateManager implements Manager {
     /** {@link UpdateManager.labelPasses} as the last fit measured them. */
     private fitLabelPasses = 0;
 
-    /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
-    private fittedBox: FramingBox | undefined;
+    /**
+     * The corners of the box the last fit framed, before any map grew it; see
+     * {@link UpdateManager.noteRepaintedExtent}. Only the corners: the box's spots are one per node.
+     */
+    private fittedBox: FittedBox | undefined;
 
     /** Whether a node repaint was applied since the last fit, before its picture was final. */
     private repaintedSinceFit = false;
@@ -1669,8 +1673,10 @@ export class UpdateManager implements Manager {
         // A repainted edge's own appearance changed, so this frame places the edges it painted (in the
         // edge pass, after every batch: a fanned edge is placed from its siblings' paint), and the
         // frame that finishes the repaint visits every edge. A frame paints at least a
-        // REPAINT_FRAMES-th of the graph's edges, whatever the budget.
-        this.sceneChanged = true;
+        // REPAINT_FRAMES-th of the graph's edges, whatever the budget. A time window's slide says for
+        // itself: only an edge's own meshes shown, hidden or rebuilt reach the list of what is drawn,
+        // as a mask's rows do (`applyEdgeRows`); a batch's slot is written in place.
+        this.sceneChanged ||= !painter.edgesFromRowsOnly;
         let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
         // A paint run's first frame tells the edge pools how many edges it will paint, so a pool that
@@ -1718,7 +1724,9 @@ export class UpdateManager implements Manager {
             const paint = edge === undefined ? null : painter.edgePaint(index);
 
             if (edge !== undefined && paint !== null) {
+                const own = edge.togglesOwnMeshes();
                 edge.applySessionPaint(paint);
+                this.sceneChanged ||= own || edge.togglesOwnMeshes();
                 this.edgesToPlace.push(edge);
                 this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 painted++;
@@ -1745,6 +1753,11 @@ export class UpdateManager implements Manager {
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         const paint = painter.edgePaint(index);
         const [source, target] = ends;
+        // An edge a style hides (what lies outside a time window) draws nothing, and needs no `Edge` to hide it.
+        if (paint?.style.visible === false) {
+            lines?.unpaintRow(index);
+            return undefined;
+        }
         const lineable =
             lines !== null &&
             paint !== null &&
@@ -1832,11 +1845,19 @@ export class UpdateManager implements Manager {
      * @returns The `Edge`, or undefined when no edge is stored there.
      */
     private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
-        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
-        if (edge === undefined) {
-            return undefined;
-        }
+        // The build adopts it (`adoptBuiltEdge`), which draws it as the masks say.
+        return dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
+    }
 
+    /**
+     * Draw an `Edge` just built from a row stored with no `Edge` as the edge masks the last pass read
+     * say, however it was asked for (a pass, or a read of the edge map): no pass walks it before its
+     * row's masks move.
+     * @param edge - The edge.
+     * @internal
+     */
+    adoptBuiltEdge(edge: Edge): void {
+        const { index } = edge;
         const hidden = edge.setRenderVisible(this.edgeVisibilityMask?.has(index) !== false);
         const selected = this.edgeSelectionMask?.has(index) === true;
         edge.setSelected(selected);
@@ -1847,8 +1868,6 @@ export class UpdateManager implements Manager {
         if (hidden || selected) {
             this.forceEdgeWalk();
         }
-
-        return edge;
     }
 
     /**
@@ -1922,7 +1941,23 @@ export class UpdateManager implements Manager {
         // painted again below through `nodePaint`, so the Node never holds a shared style
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
-        if (id === undefined || paint === null || batches?.paintRow(index, paint) === true) {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const filtered = (): boolean => this.viewMasks?.visibility?.nodes()?.has(index) === false;
+        // A row a style hides (what lies outside a time window) draws nothing, and needs no `Node` to hide it.
+        // Its bound goes to 0 as a hidden `Node`'s does, so a pick or a region skips it.
+        if (paint?.style.visible === false) {
+            batches?.unpaintRow(index);
+            table?.hide(index, true);
+            return undefined;
+        }
+
+        if (id === undefined || paint === null) {
+            return undefined;
+        }
+
+        if (batches?.paintRow(index, paint) === true) {
+            // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
+            table?.hide(index, filtered());
             return undefined;
         }
 
@@ -1932,6 +1967,7 @@ export class UpdateManager implements Manager {
         const plain =
             batches === null || dataManagerInternals.nodesLive(this.dataManager) < cap ? null : plainNodePaint(paint);
         if (plain !== null && batches?.paintRow(index, plain) === true) {
+            table?.hide(index, filtered());
             if (plain.labelled === true) {
                 // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
                 LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);
@@ -2062,7 +2098,11 @@ export class UpdateManager implements Manager {
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
         // A rebuilt mesh leaves the scene's mesh count as it was, and a frozen scene draws the old one.
-        this.sceneChanged = true;
+        // A time window's slide says for itself: only a rebuilt mesh or a node's own meshes shown or
+        // hidden reach the list of what is drawn, as a mask's rows do (`applyNodeRows`).
+        const slide = painter.nodesFromRowsOnly;
+        this.sceneChanged ||= !slide;
+        this.ownMeshesPainted = false;
         const rows = this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
@@ -2088,6 +2128,7 @@ export class UpdateManager implements Manager {
             return { resized: new Set(painted.resized), rebuilt: painted.rebuilt };
         });
 
+        this.sceneChanged ||= rebuilt || this.ownMeshesPainted;
         if (rebuilt || resized.size > 0) {
             for (const group of this.redrawGroups()) {
                 resized.add(group);
@@ -2264,7 +2305,9 @@ export class UpdateManager implements Manager {
         });
         const resized = collectResizedNodes(() => {
             for (const [node, paint] of painted) {
+                const own = node.togglesOwnMeshes();
                 node.applySessionPaint(paint);
+                this.ownMeshesPainted ||= own || node.togglesOwnMeshes();
             }
         });
 
@@ -2655,6 +2698,23 @@ export class UpdateManager implements Manager {
      * source's shader, so it is answered by the source rather than one by one.
      * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
      */
+    /**
+     * Whether a mesh can be drawn whole, its outline included. `Mesh.isReady` leaves the outline
+     * out, and the outline renderer skips the mesh while its shader compiles, which on WebGPU
+     * outlasts the frame first called final (#8734).
+     * @param scene - The scene.
+     * @param mesh - The mesh.
+     * @param instanced - Whether it draws instances.
+     * @returns True when the mesh and any outline it draws are ready.
+     */
+    private static meshIsReady(scene: Scene, mesh: Mesh, instanced: boolean): boolean {
+        if (!mesh.isReady(true, instanced)) {
+            return false;
+        }
+
+        return !mesh.renderOutline || mesh.subMeshes.every((sub) => scene.getOutlineRenderer().isReady(sub, instanced));
+    }
+
     private everyDrawnMeshIsReady(): boolean {
         const scene = this.graphContext.getScene();
         const layers = scene.effectLayers.filter((layer) => layer.shouldRender());
@@ -2674,7 +2734,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (!(mesh as Mesh).isReady(true, instanced)) {
+            if (!UpdateManager.meshIsReady(scene, mesh as Mesh, instanced)) {
                 return false;
             }
 
@@ -2704,8 +2764,12 @@ export class UpdateManager implements Manager {
 
         engine.currentRenderPassId = layer.mainTexture.renderPassId;
 
+        // Babylon leaves subMeshes unset on a mesh with no geometry (a model's root), which a layer
+        // draws nothing of.
+        const { subMeshes }: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+
         try {
-            return mesh.subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
+            return subMeshes === undefined || subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
         } finally {
             engine.currentRenderPassId = pass;
         }
@@ -3219,22 +3283,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Where the layout engine currently has every node.
-     * @returns One position per node, by node id.
+     * Where the layout has every placed node: read by row from the shared positions every engine writes, so a row
+     * stored with no `Node` under "batched" counts too (the engine's `nodes` lists only `Node`s).
+     * @returns One position per placed row, by row.
      */
-    private enginePositions(): Map<NodeIdType, { x: number; y: number; z: number }> {
-        const engine = this.layoutManager.layoutEngine;
-        const positions = new Map<NodeIdType, { x: number; y: number; z: number }>();
+    private enginePositions(): Map<number, { x: number; y: number; z: number }> {
+        const positions = new Map<number, { x: number; y: number; z: number }>();
 
-        if (!engine) {
+        if (!this.layoutManager.layoutEngine) {
             return positions;
         }
 
-        for (const node of this.layoutManager.nodes) {
-            const at = engine.getNodePosition(node);
-
-            if (at) {
-                positions.set(node.id, { x: at.x, y: at.y, z: at.z ?? 0 });
+        const shared = this.dataManager.positions;
+        for (let row = 0; row < shared.count; row++) {
+            if (shared.isPlaced(row)) {
+                const at = { x: 0, y: 0, z: 0 };
+                shared.read(row, at);
+                positions.set(row, at);
             }
         }
 
@@ -3249,7 +3314,7 @@ export class UpdateManager implements Manager {
      *     no placed nodes has not settled, it has not started.
      */
     private largestMove(
-        before: Map<NodeIdType, { x: number; y: number; z: number }>,
+        before: Map<number, { x: number; y: number; z: number }>,
         now = this.enginePositions(),
     ): number {
         if (before.size === 0 || now.size === 0) {
@@ -3484,22 +3549,36 @@ export class UpdateManager implements Manager {
     /**
      * Show or hide the rows drawn with no `Node`, which no walk of the nodes reaches. Their batch
      * draws them from the row table, so the table's hidden flag is all there is to write. A row
-     * drawn faintly in context, or ringed as selected, needs a `Node`: none of these is.
+     * drawn faintly in context needs a `Node`, so a hidden row gets one built while `showContext` is on.
      * @param rows - The rows to bring into line, or null for every one.
      * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
      */
-    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null): void {
+    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null, showContext: boolean): void {
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
         if (batches === null || table === null) {
             return;
         }
 
+        // A faint context point is a `Node`'s overlay: a hidden row with none gets one, which draws it.
+        const faint: number[] = [];
         // A slide's rows are looked up one by one: a set of every drawn row cost about 6 ms a jump at
         // 100,000 nodes (#6025).
         for (const row of rows ?? batches.columnRowIndices()) {
             if (rows === null || batches.columnRowOf(row) !== undefined) {
-                table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
+                const hidden = nodeVisibility !== null && !nodeVisibility.has(row);
+                table.hide(row, hidden);
+                if (hidden && showContext) {
+                    faint.push(row);
+                }
+            }
+        }
+
+        for (const row of faint) {
+            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (id !== undefined) {
+                dataManagerInternals.buildRow(this.dataManager, id);
             }
         }
     }
@@ -3530,6 +3609,8 @@ export class UpdateManager implements Manager {
 
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
+    /** Whether the node paint running now showed, hid or rebuilt a node's own meshes. */
+    private ownMeshesPainted = false;
 
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
@@ -4676,7 +4757,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
-        this.fittedBox = framed;
+        this.fittedBox = { min: framed.min, max: framed.max };
         this.fitLabelPasses = this.labelPasses();
         this.fitExtentMoved = false;
         this.repaintedSinceFit = false;

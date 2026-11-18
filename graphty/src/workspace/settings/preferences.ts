@@ -52,6 +52,17 @@ export const OPEN_PROJECT_URLS = {
 } as const;
 
 /**
+ * Default timeline style (Settings > General): the look the
+ * Timeline Hidden row starts with when a project's timeline first turns on, as graphty-element's
+ * `timelineHiddenLook`. It never rewrites a row a project already has.
+ */
+export const TIMELINE_STYLE = {
+    key: "graphty.timelineStyle.v1",
+    values: ["hidden", "ghost"],
+    fallback: "hidden",
+} as const;
+
+/**
  * Map layout automatically enables depth-independent size (Settings > General): while the map
  * layout is drawn, every node keeps one size on screen (graphty-element's `node.sizeSpace: "screen"`).
  */

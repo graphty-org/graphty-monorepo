@@ -168,6 +168,15 @@ export function start(a, git) {
         t.shard ? t : { ...t, shard: lane.shard ?? null },
     );
     const s = { ...a, targets, failedBefore: a.failedBefore ?? [], candidates, parents, results: {}, t4Minutes: 0 };
+    // a provider that refused the account (no credit, a rejected key) fails every case on every commit: no merge
+    // caused it, and confirming it would only send more refused calls
+    if (a.lane === "llm" && a.accountRefused)
+        return finish(s, {
+            status: "account-refused",
+            culprit: null,
+            noLanding:
+                "the LLM lane's red was the provider refusing the account (a key or billing problem), not a commit",
+        });
     if (a.lane === "gpu" && !a.afterLocalCard)
         return finish(s, {
             status: "local",
@@ -455,6 +464,7 @@ async function main() {
                       targets: JSON.parse(env.TARGETS || "[]"),
                       failedBefore: JSON.parse(env.FAILED_BEFORE || "[]"),
                       afterLocalCard: env.AFTER_LOCAL_CARD === "true",
+                      accountRefused: env.ACCOUNT_REFUSED === "true",
                   },
                   realGit(),
               );

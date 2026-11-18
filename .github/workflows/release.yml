@@ -167,6 +167,11 @@ on:
                 required: false
                 default: ""
                 type: string
+            llm_full:
+                description: "Run every LLM regression case, not this run's rotating slice (shadow and legacy runs always do)"
+                required: false
+                default: false
+                type: boolean
             fix_pr:
                 description: "candidate: the fix pull requests (comma-separated) whose merges started this run (ci.yml's release-due job); each merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
                 required: false
@@ -779,6 +784,17 @@ jobs:
     # day"): modes full (each scheduled slot), restart and candidate, and the owner-only shadow and legacy runs,
     # whose gates need it. Never promote-nightly, which tests nothing, and never a pull request or a master push.
     # tools/llm-spend.mjs warns as spend:llm at $60 in a calendar month; it never stops the run.
+    #
+    # How many cases a run executes (owner, 2026-11-17: "is there a way that we can run a random set of LLM tests
+    # instead of the full suite? so we get coverage over multiple runs and reduce our costs?"): a rotating slice, not
+    # all of them. The cases are split by a hash of their names into LLM_REGRESSION_SLICES slices (a repository
+    # variable, default 4) and each run takes the slice after the last run's, so every case runs at least once every
+    # 4 runs (about once a day) at about a quarter of the cost. A run also executes every case that failed the last
+    # time it ran, and every case when graphty-element/src/ai/ or the LLM tests changed since the last run that
+    # executed them all. Shadow and legacy runs, and a dispatch with llm_full, run every case. The record of the last
+    # run is this job's llm-regression-state artifact; the job summary names the slice, the case count and every
+    # case added and why. Rules and reasons: tools/llm-rotation.mjs. This changes how many cases run, not when the job
+    # runs.
     llm:
         name: LLM regression
         needs: [pick, ci]
@@ -827,11 +843,31 @@ jobs:
             - name: Build graphty-element and its dependencies
               run: pnpm exec nx run graphty-element:build
 
+            # This run's slice and the cases added to it (tools/llm-rotation.mjs), from the newest record: two API calls.
+            # No record (the first run, an expired artifact, a failed read) runs every case.
+            - name: Pick this run's LLM regression cases
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SLICES: ${{ vars.LLM_REGRESSION_SLICES || '4' }}
+                  FULL: ${{ inputs.mode == 'shadow' || inputs.mode == 'legacy' || inputs.llm_full == true }}
+                  RUN_NUMBER: ${{ github.run_number }}
+              run: |
+                  set -uo pipefail
+                  mkdir -p "$RUNNER_TEMP/llm-state"
+                  url=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=llm-regression-state&per_page=10" \
+                      --jq '[.artifacts[] | select(.expired | not)][0].archive_download_url // empty') || url=""
+                  if [ -n "$url" ] && gh api "$url" > "$RUNNER_TEMP/llm-state.zip"; then
+                      unzip -oq "$RUNNER_TEMP/llm-state.zip" -d "$RUNNER_TEMP/llm-state" || true
+                  fi
+                  node tools/llm-rotation.mjs plan --state "$RUNNER_TEMP/llm-state/state.json" --out "$RUNNER_TEMP/llm-selection.json"
+
             - name: LLM regression tests
               id: llm
               working-directory: graphty-element
               env:
                   LLM_REGRESSION_PROVIDER: google
+                  # the cases this run executes (test/helpers/llm-regression-rotation.ts)
+                  LLM_REGRESSION_SELECTION: ${{ runner.temp }}/llm-selection.json
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
                   # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
                   LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
@@ -844,7 +880,9 @@ jobs:
                       echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
                       exit 1
                   fi
-                  npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
+                  # the JSON report names each case that ran and failed, for the next run's record
+                  npx vitest run --project llm-regression --reporter=default --reporter=json \
+                      --outputFile.json="$RUNNER_TEMP/llm-report.json" 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
@@ -865,6 +903,37 @@ jobs:
             - name: "LLM regression cost: ${{ steps.cost.outputs.usd }} USD"
               if: ${{ always() && steps.cost.outputs.usd != '' }}
               run: echo "::notice::the LLM regression tests cost ${{ steps.cost.outputs.usd }} USD"
+
+            # Its name in this run's jobs list tells bisect.yml the red was the account's, not a commit's: it then
+            # bisects nothing and sends no confirming calls.
+            - name: LLM account refused
+              if: ${{ always() && steps.llm.outputs.owner_item != '' }}
+              run: echo "::notice::the LLM lane's red is the account's (an owner item); no bisect can name a commit for it"
+
+            # The next run's record: this run's slice, and the cases still failing. Not after a refused account (it ran
+            # nothing) or a run cut off before its report: the next run then repeats this run's slice.
+            - name: Record which LLM regression cases ran and failed
+              id: record
+              if: ${{ always() && steps.llm.outcome != 'skipped' && steps.llm.outputs.owner_item == '' }}
+              working-directory: graphty-element
+              env:
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  [ -f "$RUNNER_TEMP/llm-report.json" ] || { echo "::notice::the tests wrote no report, so the next run repeats this slice"; exit 0; }
+                  mkdir -p "$RUNNER_TEMP/llm-record"
+                  node ../tools/llm-rotation.mjs record --state "$RUNNER_TEMP/llm-state/state.json" \
+                      --selection "$RUNNER_TEMP/llm-selection.json" --report "$RUNNER_TEMP/llm-report.json" \
+                      --out "$RUNNER_TEMP/llm-record/state.json"
+
+            - uses: actions/upload-artifact@v7
+              if: ${{ always() && steps.record.outcome == 'success' }}
+              with:
+                  name: llm-regression-state
+                  path: ${{ runner.temp }}/llm-record/state.json
+                  retention-days: 90
+                  if-no-files-found: ignore
+                  overwrite: true # a re-run's attempt replaces its first attempt's record
 
     # The version and major-bump dry run, a lane like the others (design/ci/channels-pipeline/channels.md, "A planned
     # major or a first publish"; #3455): versions the candidate locally as the version job will, then fails when

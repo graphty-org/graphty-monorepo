@@ -53,7 +53,7 @@ export const registration = defineRegistration({
             keywords: ["record", "recording", "movie", "tour", "webm", "mp4", "download"],
             disabled: exportDisabled,
             run: ({ workspace }) => {
-                workspace.set({ dialog: "export", exportOn: "video", exportSource: null });
+                workspace.set({ dialog: "export", exportOn: "video", exportSource: null, exportTour: null });
             },
         },
         {

@@ -4,6 +4,7 @@ import { type CommandContext, defineRegistration, type PaletteRow } from "../com
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { panelsInView } from "../time/timeActions";
 import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
 import { cameraViewName, tourProblemWords, viewProblemWords } from "./viewWords";
@@ -102,17 +103,18 @@ function enterImmersive(mode: "vr" | "ar"): {
 }
 
 /**
- * The name Save view gives the camera: the first "View N" not saved yet. The reader's views are
- * the element's (`session.views`), saved with the project.
+ * The name a new view or tour gets: the first "View N" (or "Tour N") not saved yet. The reader's
+ * views and tours are the element's (`session.views`, `session.tours`), saved with the project.
  * @param saved - the names already saved.
+ * @param word - what it is, "View" or "Tour".
  * @returns the name.
  */
-function nextViewName(saved: ReadonlyMap<string, unknown>): string {
+export function nextName(saved: ReadonlyMap<string, unknown>, word: "View" | "Tour" = "View"): string {
     let n = 1;
-    while (saved.has(`View ${String(n)}`)) {
+    while (saved.has(`${word} ${String(n)}`)) {
         n += 1;
     }
-    return `View ${String(n)}`;
+    return `${word} ${String(n)}`;
 }
 
 /**
@@ -132,7 +134,7 @@ function cameraViewReason(ctx: CommandContext, id: string): string | null {
  * @param name - the saved view's name.
  * @returns the reason, or null.
  */
-function savedViewReason(ctx: CommandContext, name: string): string | null {
+export function savedViewReason(ctx: CommandContext, name: string): string | null {
     const { session, element } = ctx;
     return nothingDrawn(session) ?? viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true);
 }
@@ -142,7 +144,7 @@ function savedViewReason(ctx: CommandContext, name: string): string | null {
  * @param ctx - the command context.
  * @param name - the saved view's name.
  */
-async function goToSavedView(ctx: CommandContext, name: string): Promise<void> {
+export async function goToSavedView(ctx: CommandContext, name: string): Promise<void> {
     const { element, workspace } = ctx;
     workspace.set({ lastView: name });
     await element?.applyCameraView(name, { animate: true });
@@ -313,7 +315,7 @@ export const registration = defineRegistration({
                 if (session === null) {
                     return;
                 }
-                const name = nextViewName(session.views);
+                const name = nextName(session.views);
                 await session.views.save([{ name }]);
                 workspace.set({ announcement: `Saved ${name}` });
             },
@@ -330,6 +332,24 @@ export const registration = defineRegistration({
             shown: ({ workspace }) => workspace.get().tourProgress !== null,
             run: ({ element }) => {
                 element?.cancelCameraAnimation();
+            },
+        },
+        {
+            // Opens the Graph place's Views section, where views are renamed, ordered and deleted
+            // and tours are made; focus goes to its first list.
+            id: "view.views-section",
+            label: "Views and tours...",
+            group: "View",
+            keywords: ["tour", "saved views", "rename view", "delete view"],
+            disabled: ({ session }) => (session === null ? "Nothing is open" : null),
+            run: ({ workspace }) => {
+                workspace.set({
+                    page: "panels",
+                    place: "graph",
+                    viewsOpen: true,
+                    viewsFocusNext: true,
+                    ...panelsInView(),
+                });
             },
         },
         {

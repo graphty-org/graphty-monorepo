@@ -327,6 +327,12 @@ export interface WorkspaceState {
     readonly lastView: string | null;
     /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */
     readonly tourProgress: { readonly tour: string | null; readonly stop: number; readonly stops: number } | null;
+    /** Whether the Graph place's Views section is expanded. Collapsed by default. */
+    readonly viewsOpen: boolean;
+    /** Views and tours... asked for focus on the Views section's first list; the section clears it. */
+    readonly viewsFocusNext: boolean;
+    /** The saved tour the Export dialog's Video opens on (a tour's Record...), else null. */
+    readonly exportTour: string | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
@@ -458,6 +464,9 @@ export const ON_RELOAD = {
     exportOn: "fresh: set when the Export dialog opens",
     lastView: "fresh: the camera itself is not kept across a reload",
     tourProgress: "fresh: a tour ends when the page reloads",
+    viewsOpen: "kept",
+    viewsFocusNext: "fresh: a one-time request the Views section clears",
+    exportTour: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
@@ -573,6 +582,9 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     lastView: null,
     tourProgress: null,
+    viewsOpen: false,
+    viewsFocusNext: false,
+    exportTour: null,
     exportSource: null,
     serverKind: null,
     analyzeOn: null,

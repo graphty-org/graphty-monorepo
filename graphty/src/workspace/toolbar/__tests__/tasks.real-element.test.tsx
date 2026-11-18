@@ -430,7 +430,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
-    it("saves the camera as a view, goes back to it, removes it, and turns Follow selection off", async () => {
+    it("saves the camera as a view, goes back to it, deletes it in the Views section, and turns Follow selection off", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -473,14 +473,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             }
         });
 
-        // Remove view forgets it.
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Remove view/ }));
-        const removeMenu = (await screen.findAllByRole("menu")).at(-1);
-        assert.isDefined(removeMenu);
-        if (removeMenu === undefined) {
-            return;
-        }
-        await userEvent.click(within(removeMenu).getByRole("menuitem", { name: /^View 1$/ }));
+        // Views and tours... opens the Graph place's Views section on its first view; Delete forgets it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: "Views and tours..." }));
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("data-view-row"), "View 1");
+        });
+        await userEvent.keyboard("{Delete}");
         await waitFor(() => {
             assert.deepEqual([...session.views.keys()], ["View 2"]);
         });

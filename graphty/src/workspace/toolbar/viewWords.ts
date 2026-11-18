@@ -64,6 +64,9 @@ export function viewProblemWords(problem: CodedFact | null, saved = false): stri
             if (params.reason === "no-stops") {
                 return "No stops";
             }
+            if (params.reason === "name-taken") {
+                return "That name is taken";
+            }
             return params.missing === undefined ? "No name" : "Tour not found";
         case "E_OPTION_RANGE":
             return "A time is not valid";

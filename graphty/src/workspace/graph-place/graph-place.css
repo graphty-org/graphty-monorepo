@@ -101,7 +101,8 @@
    list never runs under Graph settings. */
 .ws-graph-place > .cm-tree {
     flex: 1 1 auto;
-    min-height: 0;
+    /* The Views section below never squeezes the tree out of sight. */
+    min-height: 120px;
     overflow-y: auto;
 }
 
@@ -199,4 +200,112 @@
     margin: 0;
     padding: 0;
     border: 0;
+}
+
+/* The Views section (design/ui/camera-views-tours-and-capture.md, section 3.2): its 40px header
+   collapsed; expanded, its body scrolls inside itself and the section takes at most half the
+   column, so the style tree above keeps the rest. Two scrollers, never one long page. */
+.ws-views {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    max-height: 50%;
+    min-height: 0;
+}
+
+.ws-views > .cm-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-views .cm-section-header {
+    flex: none;
+}
+
+.ws-views .cm-section-content {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.ws-views-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 24px;
+    margin-top: 4px;
+}
+
+.ws-views-title {
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    font-weight: 550;
+}
+
+.ws-views-list,
+.ws-tour-stops {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-views-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-height: 28px;
+}
+
+.ws-views-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 4px 0;
+    font-size: 11px;
+}
+
+.ws-views-name:hover {
+    background: var(--cm-bg-hover);
+}
+
+.ws-views-row[data-disabled] .ws-views-name {
+    color: var(--cm-text-disabled);
+    cursor: default;
+}
+
+.ws-tour-length {
+    font-variant-numeric: tabular-nums;
+}
+
+.ws-tour-stop + .ws-tour-stop {
+    margin-top: 4px;
+}
+
+.ws-tour-stop-line {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.ws-tour-stop-number {
+    flex: none;
+    width: 20px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ws-tour-stop[aria-current] .ws-tour-stop-number {
+    font-weight: 700;
+}
+
+.ws-tour-stop-view {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ws-views-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

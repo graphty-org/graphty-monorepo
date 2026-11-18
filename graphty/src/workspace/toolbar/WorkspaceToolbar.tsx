@@ -21,6 +21,7 @@ import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceC
 import { immersiveMode, savedViewRows, tourRows } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
+import { cameraViewName } from "./viewWords";
 
 /** Props for CommandTool. */
 interface CommandToolProps {
@@ -236,18 +237,15 @@ function RowItem({ row }: Readonly<{ row: PaletteRow }>): React.JSX.Element {
 
 /**
  * The reader's saved views and tours on the Camera menu: the first ten saved views, Previous view,
- * Next view and Save view, a Play tour submenu (one row per tour), Stop tour while one plays, and a
- * Remove view submenu naming the saved views. Rows for views and tours are not drawn while none
- * is saved.
- * @param props - Component props
- * @param props.session - The element's session
+ * Next view and Save view, a Play tour submenu (one row per tour), Stop tour while one plays, and
+ * Views and tours..., which opens the Graph place's Views section where views are managed. Rows
+ * for views and tours are not drawn while none is saved.
  * @returns The rows
  */
-function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+function SavedViewRows(): React.JSX.Element {
     const workspace = useWorkspace();
     const views = savedViewRows(workspace);
     const tours = tourRows(workspace);
-    const names = [...session.views.keys()];
     return (
         <>
             {views.slice(0, MENU_VIEWS).map((row) => (
@@ -266,26 +264,7 @@ function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.
                     </Menu.Sub.Dropdown>
                 </Menu.Sub>
             )}
-            <Sections sections={[["tour.stop"]]} />
-            {names.length === 0 ? null : (
-                <Menu.Sub>
-                    <Menu.Sub.Target>
-                        <Menu.Sub.Item>Remove view</Menu.Sub.Item>
-                    </Menu.Sub.Target>
-                    <Menu.Sub.Dropdown>
-                        {names.map((name) => (
-                            <Menu.Item
-                                key={name}
-                                onClick={() => {
-                                    void session.views.remove([name]);
-                                }}
-                            >
-                                {name}
-                            </Menu.Item>
-                        ))}
-                    </Menu.Sub.Dropdown>
-                </Menu.Sub>
-            )}
+            <Sections sections={[["tour.stop", "view.views-section"]]} />
         </>
     );
 }
@@ -312,7 +291,7 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
                 ]}
             />
             <Menu.Divider />
-            {session === null ? null : <SavedViewRows session={session} />}
+            {session === null ? null : <SavedViewRows />}
             {flat ? (
                 <>
                     <Menu.Divider />
@@ -337,6 +316,23 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
 }
 
 /**
+ * A tour's stop as the status line says it: "Stop 3 of 4, Port nodes".
+ * @param session - The element's session.
+ * @param tour - The saved tour's name, or null for a tour given inline.
+ * @param stop - The stop, 0-based.
+ * @param stops - How many stops it has.
+ * @returns The words.
+ */
+function stopWords(session: GraphSession, tour: string | null, stop: number, stops: number): string {
+    const lead = `Stop ${String(stop + 1)} of ${String(stops)}`;
+    const view = tour === null ? undefined : session.tours.get(tour)?.stops[stop]?.view;
+    if (view === undefined) {
+        return lead;
+    }
+    return `${lead}, ${cameraViewName(view, session.catalog.cameras().find(({ id }) => id === view)?.plainName)}`;
+}
+
+/**
  * Follows graphty-element's camera facts the toolbar draws from: the tour playing (`tour-progress`,
  * `tour-ended`, kept in the store for the Stop tour doors) and a redraw whenever what
  * `viewProblem` and `planTour` read changes (`views-changed`) or motion is reduced or no longer.
@@ -350,7 +346,13 @@ function useCameraFacts(element: ReturnType<typeof useWorkspace>["element"]): vo
             return undefined;
         }
         const progress = ({ detail: { tour, stop, stops } }: CustomEvent<TourProgressEvent>): void => {
-            store.set({ tourProgress: { tour, stop, stops } });
+            const before = store.get().tourProgress;
+            const moved = before?.tour !== tour || before.stop !== stop;
+            store.set({
+                tourProgress: { tour, stop, stops },
+                // The polite status line says each stop once, as it is reached, never a phase or a tick.
+                ...(moved ? { announcement: stopWords(element.session, tour, stop, stops) } : {}),
+            });
         };
         const ended = (): void => {
             store.set({ tourProgress: null });

@@ -453,6 +453,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "runs.remove()": "writes",
     "runs.rename()": "writes",
     "runs.start()": "writes",
+    "runs.stability()": "writes",
     "runs.sweep()": "writes",
     "scope.allowRun()": "writes",
     "scope.asUnion()": "names its target",

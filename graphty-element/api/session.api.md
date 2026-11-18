@@ -4334,6 +4334,7 @@ export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partia
 
 // @public
 export interface PartitionComparison extends ComparisonBase {
+    readonly adjustedMutualInformation: number | undefined;
     readonly agreement: number | undefined;
     readonly groups: {
         readonly a: number;
@@ -5641,6 +5642,7 @@ export interface RunsApi {
     readers(id: RunId): readonly RunReader[];
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     sweep(algorithm: AlgorithmKey, option: OptionDescriptor["name"], values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
@@ -7088,6 +7090,20 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 };
 
 export { SourceValidators }
+
+// @public
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    readonly field?: string;
+}
+
+// @public
+export interface StabilityResult extends BatchResult {
+    readonly adjustedMutualInformation: number | undefined;
+    readonly agreement: number | undefined;
+    readonly correlation: number | undefined;
+    readonly pairs: readonly ResultComparison[];
+    readonly rows: readonly SweepRow[];
+}
 
 // @public
 export interface StaleNote {

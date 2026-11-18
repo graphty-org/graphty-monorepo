@@ -32,6 +32,7 @@ import type {
 import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
+import type { ResultComparison } from "../results/compare";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { ResolvedScope } from "../scope/ScopeApi";
 import type { CodedFact, CodedFactParam } from "../shared";
@@ -687,6 +688,41 @@ export interface SweepResult extends BatchResult {
     readonly rows: readonly SweepRow[];
 }
 
+/**
+ * What a stability run takes besides the seeds: the parameters, the field to compare, and the rest
+ * as `sweep()` takes them.
+ * @since 3.58.0
+ */
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    /** The result field to compare between seeds; the result's primary field when absent. */
+    readonly field?: string;
+}
+
+/**
+ * What a stability run produced: one row per seed, every pair of seeds that both finished
+ * compared, and the means over those pairs.
+ * @since 3.58.0
+ */
+export interface StabilityResult extends BatchResult {
+    /** One row per seed, in the order given; a row's `value` is its seed. */
+    readonly rows: readonly SweepRow[];
+    /** Every pair of finished seeds compared, as `results.compare()` compares two runs, in seed order. */
+    readonly pairs: readonly ResultComparison[];
+    /**
+     * The mean adjusted Rand index over the pairs (`agreement` of each partition comparison): 1 when
+     * every seed found the same grouping. Undefined for a field that is not a grouping, or with no
+     * pair that has one.
+     */
+    readonly agreement: number | undefined;
+    /** The mean adjusted mutual information over the pairs; undefined as `agreement` is. */
+    readonly adjustedMutualInformation: number | undefined;
+    /**
+     * The mean Spearman correlation over the pairs, for a field that is a measurement (a ranking);
+     * undefined for a grouping, or with no pair that has one.
+     */
+    readonly correlation: number | undefined;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------------------------
@@ -1091,6 +1127,26 @@ export interface RunsApi {
         values: readonly unknown[],
         options?: SweepOptions,
     ): Run<SweepResult>;
+    /**
+     * Run one algorithm once per seed, as one batch, and compare what the seeds found: how much a
+     * randomized algorithm's answer depends on its seed. Every pair of seeds that finished is
+     * compared as `results.compare()` compares two runs, and the result carries the means: the
+     * agreement of a grouping (adjusted Rand index and adjusted mutual information), or the
+     * correlation of a ranking. Each seed is its own listed run, with the id
+     * `<algorithm>_seed_<seed>`, and one undo takes them all away.
+     * @example
+     * ```ts
+     * const stability = await session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+     * console.log(stability.agreement, stability.adjustedMutualInformation);
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param seeds - The seeds to run it with, in order.
+     * @param options - Its parameters, the field to compare, the scope, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to the rows, the pairs and their means.
+     * @since 3.58.0
+     */
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
     /**
      * One run, by id.
      * @param id - The run id.

@@ -3475,6 +3475,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+            stability: calls(["degree", [1]], [{ op: "algo.run", algorithm: "degree", as: "degree_seed_1", seed: 1 }]),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),

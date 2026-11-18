@@ -210,6 +210,33 @@ from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label
 undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
 say so.
 
+#### How much the seed matters
+
+A randomized algorithm, such as Louvain, can find a different answer with a different seed.
+`runs.stability()` runs it once per seed, as one batch, and compares every pair of seeds:
+
+```typescript
+const stability = await element.session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+
+console.log(stability.agreement); // 1 = every seed found the same groups
+console.log(stability.adjustedMutualInformation);
+for (const pair of stability.pairs) {
+    console.log(pair.a.runId, pair.b.runId, pair.kind === "partition" ? pair.agreement : pair.correlation);
+}
+```
+
+`agreement` and `adjustedMutualInformation` are the means of each pair's adjusted Rand index and
+adjusted mutual information, as `results.compare()` reports them; an algorithm whose result is a
+ranking gives `correlation`, the mean Spearman correlation, instead. `pairs` holds
+each comparison in full, and `rows` one row per seed, as a sweep's rows (`value` is the seed). Each
+seed is a listed run with the id `<algorithm>_seed_<seed>` (`louvain_seed_1`); `params`, `field` (the
+result field to compare), `scope`, `style`, `label`, `signal` and `onProgress` are as `sweep()`
+takes them.
+
+A rerun of the same algorithm keeps its groups' numbers: each new group takes the number of the old
+group it shares most members with, so a layer or a saved view that names "group 3" still means the
+same members.
+
 ### Component Analysis
 
 Find connected subgraphs:

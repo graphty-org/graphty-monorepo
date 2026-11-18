@@ -396,6 +396,22 @@ const CASES: readonly Case[] = [
                 },
             }),
     },
+    {
+        methods: ["RunsApi.stability"],
+        prepare: (element, size) =>
+            Promise.resolve({
+                call: async () => {
+                    const stability = await element.graph.getSession().runs.stability("components", [1, 2]);
+                    assert.strictEqual(stability.completed, 2, "both seeds finished");
+                    assert.strictEqual(stability.agreement, 1, "a deterministic grouping agrees with itself");
+                },
+                check: () => {
+                    const { runs } = element.graph.getSession();
+                    assertMeasuredAll(runs.get("components_seed_1")?.result, size);
+                    assertMeasuredAll(runs.get("components_seed_2")?.result, size);
+                },
+            }),
+    },
 ];
 
 /**

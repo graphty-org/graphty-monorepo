@@ -17,10 +17,12 @@
  * the expectation and turns red the moment a fix lands without the marker being removed.
  *
  * GRAPH_IO_PROPERTY_RUNS (default 300 graphs per exporter configuration) and
- * GRAPH_IO_PROPERTY_SEED set the size and the seed of the property runs; a nightly sweep raises
- * the first and varies the second. GRAPH_IO_SCHEMA_PYTHON names the Python for layer 4 (default
- * python3; the layer is skipped when it lacks lxml or jsonschema, and required when
- * GRAPH_IO_REQUIRE_SCHEMAS is set).
+ * GRAPH_IO_PROPERTY_SEED (default 20260923) set the size and the seed of the property runs. Every
+ * CI run uses the defaults, so a sweep with more runs or another seed is run by hand, and a failure
+ * it finds is committed as a minimal case. GRAPH_IO_SCHEMA_PYTHON names the Python for layer 4
+ * (default python3; the layer is skipped when it lacks lxml or jsonschema, and required when
+ * GRAPH_IO_REQUIRE_SCHEMAS is set, as CI's graph-io shard and tools/run-tests.sh set it, with the
+ * Python tools/schema-python.sh installs).
  *
  * `CONFORMANCE_REPORT=1 pnpm exec vitest run test/conformance` also writes REPORT.md next to this
  * file: per format, the fixture count, how many conform, and the known failures grouped by cause,

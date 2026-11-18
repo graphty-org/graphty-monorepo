@@ -8,7 +8,7 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
-import { PULLED_ORDER_GLSL } from "./edgeJoinShader";
+import { PULLED_ORDER_GLSL, PULLED_TRIM_GLSL } from "./edgeJoinShader";
 
 /**
  * @file A straight animated line (`line.animationSpeed`) pulled from the row table: the object path's greased line,
@@ -35,6 +35,7 @@ uniform float scroll;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
 ${PULLED_ORDER_GLSL}
+${PULLED_TRIM_GLSL}
 flat varying vec3 vColor;
 varying vec2 vUV;
 
@@ -74,10 +75,14 @@ void main(void) {
         return;
     }
 
+    // stopped at a translucent end's outline, as a pulled plain line is (#8281)
+    vec3 lineStart = a.xyz;
+    vec3 lineEnd = b.xyz;
+    pulledTrim(int(head.x + 0.5), int(head.y + 0.5), a.w, b.w, lineStart, lineEnd);
     bool end = corner >= 2;
     float side = (corner & 1) == 0 ? 1.0 : -1.0;
-    vec3 p = end ? b.xyz : a.xyz;
-    vec3 nearPosition = p + (b.xyz - a.xyz) * 0.01;
+    vec3 p = end ? lineEnd : lineStart;
+    vec3 nearPosition = p + (lineEnd - lineStart) * 0.01;
     mat4 grlMatrix = viewProjection * world;
     vec4 grlFinalPosition = grlMatrix * vec4(p, 1.0);
     vec4 screenNearPos = grlMatrix * vec4(nearPosition, 1.0);
@@ -178,7 +183,7 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
                 "baseColor",
                 "edgeOrdered",
             ],
-            samplers: ["rowPosition", "edgeRows", "movingMask", "edgeOrder"],
+            samplers: ["rowPosition", "edgeRows", "movingMask", "edgeOrder", "rowExtent", "rowOutline"],
         },
     );
     // (base, moving), sampled nearest and wrapped, as the greased line's moving texture is

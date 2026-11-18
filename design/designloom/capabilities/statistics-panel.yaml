@@ -14,6 +14,8 @@ used_by_workflows:
     - W11
     - W16
     - W19
+    - W20
+    - W24
 implemented_by_components:
     - statistics-panel
 requirements:

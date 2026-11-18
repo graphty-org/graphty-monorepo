@@ -8364,6 +8364,23 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. A camera tour being recorded stops where it is.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * // Record until the reader stops it: a long duration as the limit, then stop.
+     * const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+     * stopButton.onclick = () => graph.stopAnimationCapture();
+     * const { blob, metadata } = await recording; // metadata.duration is how long it ran
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.activeCapture?.stop() ?? false;
+    }
+
+    /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, and
      * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
      * awaiting one of them resolves; a cancelled move is not an error.

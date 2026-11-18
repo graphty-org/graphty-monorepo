@@ -41,6 +41,7 @@ import {
     seStageReport,
     seTolerance,
 } from "../helpers/se-parity.js";
+import { noSubgroupsPass } from "../setup/env.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const GRAPHS: readonly ParityGraph[] = ["karate", "grid10", "star200", "path10", "random1k"];
@@ -52,7 +53,7 @@ const PARTIALS_KE_AT = 13;
 /** The index of the kinetic energy in the k1 stage's values. */
 const K1_KE_AT = 8;
 /** Spec 12.2's second pass: both contexts are the workgroup twin (a policy skip, not a wrong-result skip). */
-const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
+const NO_SUBGROUPS_PASS = noSubgroupsPass();
 const TWIN_GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 /** The tolerance each stage's twin comparison is held to (file header). */
 const TWIN_TOLERANCE: Readonly<Record<SeStageKey, string>> = {

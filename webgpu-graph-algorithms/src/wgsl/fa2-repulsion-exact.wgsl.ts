@@ -1,13 +1,13 @@
 /**
- * The `fa2-repulsion-exact` kernel body (K3; contract 4.5; spec 7.6, 7.9, 7.10): the tiled all-pairs repulsion
- * `|F| = k m_i m_j / d` with the 0.01 distance floor and the antisymmetric coincident kick (`LAW` 0; P5's `LAW` 1
- * is Fruchterman-Reingold `k^2 / d` and `LAW` 2 ngraph's Coulomb `-g m_i m_j / d^2`, both unfloored, spec 7.20,
- * with the kick's magnitude taken from the law at d = 0.01, PD-10), the gravity epilogue
+ * The `fa2-repulsion-exact` kernel body (K3): the tiled all-pairs repulsion
+ * `|F| = k m_i m_j / d` with the 0.01 distance floor and the antisymmetric coincident kick (`LAW` 0; `LAW` 1
+ * is Fruchterman-Reingold `k^2 / d` and `LAW` 2 ngraph's Coulomb `-g m_i m_j / d^2`, both unfloored,
+ * with the kick's magnitude taken from the law at d = 0.01), the gravity epilogue
  * (GRAVITY_CENTER 0 = centroid, 1 = origin; STRONG_GRAVITY) added under the `valid` guard, `force += f`, and the
  * swing / traction workgroup reduction in uniform control flow (SWING_MODE 0 = paper: free nodes only against
  * `oldForce`; 1 = NetworkX: positions and forces mixed, free nodes only too) whose lane 0 writes
  * `partials[group].swingTraction`. `pos` is `array<vec4f>` with the mass in `.w`; `force` / `oldForce` are stride-3
- * `array<f32>` read through the per-body helpers (4.4 rule 6). Normative text, copied verbatim: the P1-T5 sabotage
+ * `array<f32>` read through the per-body helpers. Normative text: the sabotage
  * rows (gravity sign, `k / d2`, the `jj != i` guard, the `.w` mass lane) are textual edits of this string.
  * The j range is split into passes of at most EXACT_TILES_PER_PASS tiles (issue #87: llvmpipe's per-invocation loop
  * budget); an earlier pass adds its partial sum into `force`, the last one runs gravity and the epilogue. A graph of
@@ -23,12 +23,12 @@ fn store_force(i: u32, f: vec3f) {
     force[3u * i + 2u] = f.z;
 }
 fn load_old(i: u32) -> vec3f { return vec3f(oldForce[3u * i], oldForce[3u * i + 1u], oldForce[3u * i + 2u]); }
-fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magnitude at d = FA2_DIST_FLOOR (PD-10)
+fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magnitude at d = FA2_DIST_FLOOR
     if (LAW == 1u) { return P.frK * P.frK / FA2_DIST_FLOOR; }
     if (LAW == 2u) { return -P.coulomb * mi * mj / FA2_DIST_FLOOR_SQ; }
     return P.scalingRatio * mi * mj / FA2_DIST_FLOOR;
 }
-fn gravity_force(pi: vec4f) -> vec3f {                         // spec 7.9: centroid (GRAVITY_CENTER 0) or origin (1); regular or strong
+fn gravity_force(pi: vec4f) -> vec3f {                         // centroid (GRAVITY_CENTER 0) or origin (1); regular or strong
     var q = pi.xyz;
     if (GRAVITY_CENTER == 0u) { q = pi.xyz - S.centroid.xyz; }
     if (STRONG_GRAVITY) { return -P.gravity * pi.w * q; }
@@ -64,11 +64,11 @@ fn repulsion(
             if (o.w > 0.0 && jj != i) {                                           // mass > 0 for every real node, 0 for the pad
                 let d = pi.xyz - o.xyz;
                 var d2 = dot(d, d);
-                if (d2 < FA2_COINCIDENT_SQ) {                                     // coincident: antisymmetric unit kick of the law's magnitude at d = 0.01 (7.2; PD-10)
+                if (d2 < FA2_COINCIDENT_SQ) {                                     // coincident: antisymmetric unit kick of the law's magnitude at d = 0.01
                     f = f + kick_dir(i, jj, P.dim) * kick_magnitude(pi.w, o.w);
                     continue;
                 }
-                if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }               // FA2 alone floors d >= 0.01 (7.2); FR and coulomb are unfloored (7.20)
+                if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }               // FA2 alone floors d >= 0.01; FR and coulomb are unfloored
                 let k = P.scalingRatio * pi.w * o.w;
                 if (LAW == 0u) { f = f + d * (k / d2); }                          // LAW 0 (FA2): |F| = k m_i m_j / d along d / d
                 if (LAW == 1u) { f = f + d * (P.frK * P.frK / d2); }              // LAW 1 (FR, 7.20): |F| = k^2 / d, mass ignored
@@ -89,7 +89,7 @@ fn repulsion(
         let fnew = load_force(i) + f;
         store_force(i, fnew);
         let free = !mask_bit(fixedMask[i >> 5u], i);                               // a pinned node says nothing about the speed (#3255)
-        if (SWING_MODE == 1u && free) {                                           // NetworkX: positions and forces mixed, every free node (7.2)
+        if (SWING_MODE == 1u && free) {                                           // NetworkX: positions and forces mixed, every free node
             sw = pi.w * length(pi.xyz - fnew);
             tr = 0.5 * pi.w * length(pi.xyz + fnew);
         } else if (free) {                            // paper: free nodes only (Gephi ForceAtlas2.java 283-293)

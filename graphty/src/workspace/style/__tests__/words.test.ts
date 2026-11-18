@@ -5,7 +5,6 @@ import { assert, describe, it, vi } from "vitest";
 import { modelChip } from "../modelWords";
 import {
     bindLabel,
-    cellOfLocation,
     channelPhrase,
     channelWord,
     clockWords,
@@ -15,7 +14,6 @@ import {
     failureWords,
     hiddenByWords,
     isShaderParam,
-    locationOfCell,
     logUnexpected,
     madeWords,
     matchesWordStart,
@@ -108,11 +106,7 @@ describe("the Style tab's words and arrangement", () => {
         );
     });
 
-    it("maps the position grid to the element's label locations and back", () => {
-        assert.equal(locationOfCell("top-center"), "top");
-        assert.equal(locationOfCell("bottom-center"), "bottom");
-        assert.equal(cellOfLocation(undefined), "top-center");
-        assert.equal(cellOfLocation("right"), "middle-right");
+    it("names a label position in words", () => {
         assert.equal(positionWord(undefined), "Above");
         assert.equal(positionWord("bottom"), "Below");
     });

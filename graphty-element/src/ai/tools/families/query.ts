@@ -330,7 +330,9 @@ export const queryTool: ToolDefinition = {
         },
         {
             name: "statistics",
-            summary: "density, degrees, components",
+            // The component count answers "is it connected?" as a read: a model that saw only the
+            // word "components" ran the components algorithm, a step the reader must undo (#8736).
+            summary: "density, degrees, component count",
             fields: {},
             effect: "read",
             reaches: [{ door: "SessionDataApi.statistics" }],
@@ -342,6 +344,10 @@ export const queryTool: ToolDefinition = {
                         edges: stats.edgeCount,
                         density: stats.density,
                         directedness: stats.directedness,
+                        // The catalog entry (as catalog describe takes it) that changes directedness:
+                        // "analyze it as undirected" is a setting, not an algorithm option, and a model
+                        // that read only this result ran the algorithms on the directed graph (#8520).
+                        directednessSetting: { kind: "setting", name: "data" },
                         weighted: stats.weighted,
                         selfLoops: stats.selfLoopCount,
                         repeatedEdges: stats.repeatedEdgeCount,

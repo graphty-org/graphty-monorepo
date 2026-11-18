@@ -38,6 +38,7 @@ import {
     readCorpusText,
     readMalformedBytes,
 } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 import { ACCENTED, BARE, DYNAMIC_1_3, MIXED_UNDIRECTED_HEADER, OPEN_1_2, SLOPPY } from "./fixtures.js";
 
 /** Node 119 of airlines-sample.gexf carries a double-encoded accent in the source file; it is read as written. */
@@ -75,21 +76,9 @@ function codes(report: ImportReport): string[] {
     return report.issues.map((i) => i.code);
 }
 
-async function expectImportError(
-    input: Parameters<typeof gexfImporter.import>[0],
-    options?: Options,
-): Promise<ImportError> {
+async function importError(input: Parameters<typeof gexfImporter.import>[0], options?: Options): Promise<ImportError> {
     const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
-    try {
-        await gexfImporter.import(input, builder, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        const error = err as ImportError;
-        expect(error.code).toBe("E_IMPORT");
-        expect(error.report.format).toBe("gexf");
-        return error;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => gexfImporter.import(input, builder, options), { format: "gexf" });
 }
 
 describe("gexfImporter: identity", () => {
@@ -497,7 +486,7 @@ describe("gexfImporter: a 1.3 dynamic document", () => {
     });
 
     it("refuses a mixed file under onMixedDirection error", async () => {
-        const error = await expectImportError(DYNAMIC_1_3, { onMixedDirection: "error" });
+        const error = await importError(DYNAMIC_1_3, { onMixedDirection: "error" });
         expect(codes(error.report)).toContain(MIXED_DIRECTION_CODE);
         expect(error.report.counts.nodes).toBe(5);
     });
@@ -856,11 +845,11 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
     });
 
     it("aborts with the partial report once the error limit is exceeded", async () => {
-        const error = await expectImportError(SLOPPY, { errorLimit: 2 });
+        const error = await importError(SLOPPY, { errorLimit: 2 });
         expect(error.report.truncated).toBe(true);
         expect(error.report.errorCount).toBe(3);
         expect(error.message).toContain("error limit");
-        const zero = await expectImportError(SLOPPY, { errorLimit: 0 });
+        const zero = await importError(SLOPPY, { errorLimit: 0 });
         expect(zero.report.errorCount).toBe(1);
         expect(zero.report.issues.filter((i) => i.severity === "error")).toHaveLength(1);
     });
@@ -871,13 +860,13 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
             0xff,
             0xfe,
         ]);
-        const error = await expectImportError(bytes, { encoding: "utf-8" });
+        const error = await importError(bytes, { encoding: "utf-8" });
         expect(codes(error.report)).toEqual([INVALID_UTF8_CODE]);
         expect(error.report.issues[0].category).toBe("parse-error");
     });
 
     it("aborts on a document whose root is not gexf", async () => {
-        const error = await expectImportError(`<graphml><graph/></graphml>`);
+        const error = await importError(`<graphml><graph/></graphml>`);
         expect(codes(error.report)).toEqual([NOT_GEXF_CODE]);
     });
 });
@@ -902,7 +891,7 @@ describe("gexfImporter: malformed corpus", () => {
     for (const name of malformedFiles("gexf")) {
         it(`${name}: ImportError with the report under errorLimit 0, and the error recorded under the default limit`, async () => {
             const bytes = readMalformedBytes("gexf", name);
-            const error = await expectImportError(bytes, { errorLimit: 0 });
+            const error = await importError(bytes, { errorLimit: 0 });
             expect(error.report.errorCount).toBeGreaterThan(0);
             // the single pass may record a warning (an element GEXF does not define) before the
             // error that aborts; the first ERROR is the expected one
@@ -922,7 +911,7 @@ describe("gexfImporter: malformed corpus", () => {
     }
 
     it("locates the syntax error of invalid-xml.gexf on its line", async () => {
-        const error = await expectImportError(readMalformedBytes("gexf", "invalid-xml.gexf"));
+        const error = await importError(readMalformedBytes("gexf", "invalid-xml.gexf"));
         const syntax = error.report.issues.find((i) => i.code === XML_SYNTAX_CODE);
         expect(syntax).toMatchObject({ code: XML_SYNTAX_CODE, category: "parse-error", line: 8 });
         expect(syntax?.message).toContain("<node>");
@@ -967,7 +956,7 @@ describe("gexf xml layer (the shared streaming tokenizer of src/common/xml.ts)",
             ['<gexf><graph a="1" b=x/></gexf>', "not quoted"],
             ["<gexf><graph></graph", "end of input"],
         ] as const) {
-            const error = await expectImportError(text);
+            const error = await importError(text);
             expect(error.report.issues[0].code, text).toBe(XML_SYNTAX_CODE);
             expect(error.report.issues[0].message, text).toContain(fragment);
         }
@@ -983,7 +972,7 @@ describe("gexf xml layer (the shared streaming tokenizer of src/common/xml.ts)",
     it("refuses unknown named entities and invalid character references (XML 1.0 well-formedness)", async () => {
         for (const value of ["&x;", "&#xD800;", "&#99999999;"]) {
             const doc = `<gexf version="1.3"><graph><nodes><node id="a" label="${value}"/></nodes></graph></gexf>`;
-            const error = await expectImportError(doc);
+            const error = await importError(doc);
             expect(error.report.issues[0].code, value).toBe(XML_SYNTAX_CODE);
         }
     });

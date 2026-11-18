@@ -20,7 +20,7 @@ import { userEvent } from "vitest/browser";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -459,37 +459,31 @@ describe("Workspace autosave with the real graphty-element", () => {
     });
 
     it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(MARVEL.name));
-            const { element, session } = openedElement();
-            // The reader times the films by release, which brings the Ghost row: a time field read
-            // back on reopening once brought every starting row back beside the saved ones (issue
-            // #7843).
-            await session.time.setField({ edges: { start: "released" } });
-            assert.include(
-                session.styles.tree().map((row) => row.name),
-                "Ghost",
-            );
-            const rows = session.styles.tree().map((row) => row.name);
-            const layers = JSON.stringify(session.styles.list());
-            await leave(element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(MARVEL.name));
+        const { element, session } = openedElement();
+        // The timeline gives the project its Timeline Hidden row, and the reader times the films
+        // by release: a time field read back on reopening once brought every starting row back
+        // beside the saved ones (issue #7843).
+        await session.time.setField({ edges: { start: "released" } });
+        assert.include(
+            session.styles.tree().map((row) => row.name),
+            "Timeline Hidden",
+        );
+        const rows = session.styles.tree().map((row) => row.name);
+        const layers = JSON.stringify(session.styles.list());
+        await leave(element, first.view);
 
-            const second = mountWorkspace();
-            await openBy(second.store, () => Promise.resolve());
-            const reopened = openedElement();
-            assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
-            assert.deepEqual(
-                reopened.session.styles.tree().map((row) => row.name),
-                rows,
-            );
-            assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        const second = mountWorkspace();
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
+        assert.deepEqual(
+            reopened.session.styles.tree().map((row) => row.name),
+            rows,
+        );
+        assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
+        second.view.unmount();
     });
 
     it("keeps a rail click made while this tab's work reopens after a reload", async () => {
@@ -795,8 +789,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(FLORENTINE.name));
         const { element, session } = openedElement();
-        const inspector = (): ReturnType<typeof within> =>
-            within(screen.getByRole("complementary", { name: "Inspector" }));
+        const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
         // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
         await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });

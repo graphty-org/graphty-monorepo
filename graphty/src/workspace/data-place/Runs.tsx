@@ -4,7 +4,8 @@
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
  * over something other than what is showing or is out of date. A press opens it in the inspector;
- * its "..." (on hover or focus, or a right click) holds Apply style and Remove; removing a result
+ * its "..." (on hover or focus, or a right click) holds Apply style, Run again with changes..., the Copy
+ * items (JSON, command, methods text, TSV, member ids) and Remove; removing a result
  * something uses asks first, naming them, and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
  */
 
@@ -14,14 +15,15 @@ import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, Un
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { unitOf } from "../time/timeActions";
+import { resultItems } from "./resultItems";
 import { namesOnce } from "./words";
 
 /**
@@ -192,6 +194,7 @@ function ResultRow({
                 again.then(undefined, () => undefined);
             },
         },
+        ...resultItems(session, store, run),
         {
             id: "remove",
             label: "Remove result",
@@ -303,7 +306,7 @@ function ResultRow({
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const analyze = useCommand("analyze.open");
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,

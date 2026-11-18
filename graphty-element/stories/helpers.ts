@@ -5,7 +5,7 @@
 
 import type { AbstractMesh } from "@babylonjs/core";
 import { RemoteLogClient } from "@graphty/remote-logger";
-import type { Meta } from "@storybook/web-components-vite";
+import type { Meta, WebComponentsRenderer } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -81,8 +81,9 @@ let storyObserver: MutationObserver | undefined;
  * Enhanced decorator that sets up event listeners before elements are rendered
  * This decorator should be added to the meta configuration
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const eventWaitingDecorator = (story: any): any => {
+export const eventWaitingDecorator = (
+    story: () => WebComponentsRenderer["storyResult"],
+): WebComponentsRenderer["storyResult"] => {
     // One observer at a time: the previous story's stops when the next one renders. It is not
     // stopped on a timer, because an element added after that timer would have no listeners, and
     // its play function would wait for an event that had already fired.

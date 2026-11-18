@@ -206,7 +206,7 @@ async function countWork(engine: RepaintEngine, edit: () => PromiseLike<unknown>
     let passes = 0;
     let searches = 0;
     const { search } = jmespath;
-    jmespath.search = (data, expression) => {
+    jmespath.search = (data, expression): unknown => {
         searches++;
         return search(data, expression);
     };
@@ -412,7 +412,7 @@ describe("a single-layer edit stays inside one frame", () => {
         // pass makes a search() per element, so a count of zero during an edit means something.
         const { search } = jmespath;
         let searches = 0;
-        jmespath.search = (data, expression) => {
+        jmespath.search = (data, expression): unknown => {
             searches++;
             return search(data, expression);
         };

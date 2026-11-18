@@ -34,6 +34,7 @@ import {
 } from "../../../src/formats/neo4j/importer.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import { inputShapes } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 import { expectSameSnapshot } from "../../helpers/roundtrip.js";
 import { neo4jText } from "./fixtures.js";
 
@@ -58,13 +59,7 @@ async function importError(
     options?: Neo4jImportOptions & CommonImportOptions,
 ): Promise<ImportError> {
     const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
-    try {
-        await neo4jImporter.import(input, builder, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => neo4jImporter.import(input, builder, options), { format: "neo4j" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -644,18 +639,20 @@ describe("neo4jImporter (design 8.4)", () => {
                 builder.lockDirected();
                 return builder;
             };
-            await expect(neo4jImporter.import(RELS, locked())).rejects.toThrow(ImportError);
-            try {
-                await neo4jImporter.import(RELS, locked());
-            } catch (err) {
-                const { report } = err as ImportError;
-                expect(report.issues[0]).toMatchObject({
-                    code: DIRECTION_REFUSED_CODE,
-                    category: "coercion",
-                    severity: "warning",
-                });
-                expect(report.issues[1]).toMatchObject({ code: DIRECTION_REFUSED_CODE, severity: "error", line: 2 });
-            }
+            const refused = await expectImportError(() => neo4jImporter.import(RELS, locked()), {
+                format: "neo4j",
+                code: DIRECTION_REFUSED_CODE,
+            });
+            expect(refused.report.issues[0]).toMatchObject({
+                code: DIRECTION_REFUSED_CODE,
+                category: "coercion",
+                severity: "warning",
+            });
+            expect(refused.report.issues[1]).toMatchObject({
+                code: DIRECTION_REFUSED_CODE,
+                severity: "error",
+                line: 2,
+            });
             const builder = locked();
             const report = await neo4jImporter.import(RELS, builder, { onMixedDirection: "undirected" });
             expect(builder.directed).toBe(false);
@@ -904,12 +901,9 @@ describe("neo4jImporter (design 8.4)", () => {
             [{ delimiter: ";", arrayDelimiter: ";" as const }],
             [{ delimiter: '"' }],
         ])("rejects the syntax options %j", async (options) => {
-            await expect(importText(":ID\n1\n", options)).rejects.toThrow(GraphFormatError);
-            try {
-                await importText(":ID\n1\n", options);
-            } catch (err) {
-                expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
-            }
+            const rejected = expect(importText(":ID\n1\n", options)).rejects;
+            await rejected.toThrow(GraphFormatError);
+            await rejected.toMatchObject({ code: "E_UNSUPPORTED" });
         });
     });
 

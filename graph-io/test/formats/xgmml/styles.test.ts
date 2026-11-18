@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { XML_NESTING_CODE } from "../../../src/common/codes.js";
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/internal.js";
+import { type ExtractedStyles, resolveStyles, type StyleRule, unsettledStyles } from "../../../src/styles/internal.js";
 import { ImportError } from "../../../src/types.js";
 
 const registry = createRegistry();
@@ -145,7 +145,9 @@ describe("writing XGMML styles", () => {
         const written = await registry.exportGraphToBytes(first.snapshot, "xgmml", { styles: ex });
         const back = await load(written);
         const rules = (x: ExtractedStyles | null | undefined): StyleRule[] =>
-            JSON.parse(JSON.stringify(x?.styles.rules ?? [])) as StyleRule[];
+            JSON.parse(
+                JSON.stringify(x === null || x === undefined ? [] : unsettledStyles(x).styles.rules),
+            ) as StyleRule[];
         expect(back.styles?.styles.source.tool).toBe("graphty");
         expect(rules(back.styles)).toEqual(rules(ex));
         for (const property of ["fill", "shape", "width", "label", "borderWidth"] as const) {

@@ -9,14 +9,14 @@ import { findNodes, getSchema, queryGraph } from "../../../src/ai/commands/Query
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraphContext } from "../../helpers/mock-graph-context";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("QueryCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({ nodes: 25, edges: 40 });
+        graph = createMockTestGraph({ nodes: 25, edges: 40 });
         context = createMockContext(graph);
     });
 
@@ -85,7 +85,7 @@ describe("QueryCommands", () => {
         }
 
         it("caps an unlimited query at the default and reports the total", async () => {
-            const big = createTestGraph({ nodes: 1000, edges: 0 });
+            const big = createMockTestGraph({ nodes: 1000, edges: 0 });
             const result = await findNodes.execute(big, { selector: "" }, createMockContext(big));
             assert.strictEqual(result.success, true);
 
@@ -100,7 +100,7 @@ describe("QueryCommands", () => {
         });
 
         it("reports the total when a limit is passed", async () => {
-            const big = createTestGraph({ nodes: 1000, edges: 0 });
+            const big = createMockTestGraph({ nodes: 1000, edges: 0 });
             const result = await findNodes.execute(big, { selector: "*", limit: 10 }, createMockContext(big));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.returned, 10);
@@ -109,7 +109,7 @@ describe("QueryCommands", () => {
         });
 
         it("is not truncated when every match fits", async () => {
-            const small = createTestGraph({ nodes: 5, edges: 0 });
+            const small = createMockTestGraph({ nodes: 5, edges: 0 });
             const result = await findNodes.execute(small, { selector: "" }, createMockContext(small));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.total, 5);

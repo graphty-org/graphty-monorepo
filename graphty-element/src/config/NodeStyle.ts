@@ -354,6 +354,11 @@ export const NodeStyle = z.strictObject({
             // read. Unset, the picture does not size the node.
             labelFitImage: z.number().nonnegative().optional(),
             labelFitImagePadding: z.number().nonnegative().optional(),
+            // The node takes its picture's (`image.src`) proportions: its box grows the longer way until the picture,
+            // at its own proportions, covers its `width` and `height` (else `size`), as vis-network sizes an image
+            // node. The node is fitted again once the picture's size is read; until then, and for a picture that
+            // cannot be read, it keeps its own box. `labelFit` sizes the node instead when it is set.
+            imageAspect: z.boolean().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).

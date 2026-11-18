@@ -1,5 +1,5 @@
 /**
- * What the style harness's test files share: every format it runs, the checks known not to hold yet, and the round
+ * What the style harness's test files share: every format it runs, and the round
  * trip and hostile-block checks of each format with a style writer, which run in slices (harness-writes-*.test.ts) so
  * that vitest spreads them over its workers. In one file they were 1,225 tests in one worker, most of the graph-io
  * shard's time, and on a slow runner the shard ran out of time waiting for that one file (issue #4525).
@@ -8,7 +8,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { extractStyles } from "../../src/styles/internal.js";
+import { readFileStyles } from "../../src/styles/internal.js";
 import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import {
     checkHostileBlocks,
@@ -33,36 +33,6 @@ const unregistered: StyleFormat[] = readdirSync(STYLE_CORPUS)
     .sort()
     .map((name) => ({ name, mutantsPerFile: 1 }));
 export const FORMATS = [...registered, ...unregistered];
-
-/**
- * Checks that do not hold yet, by `<input> plans` or `<input> writes`, with the defect: each runs as an expected
- * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
- */
-const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
-    [
-        "json/generated/cytoscape-graphty-written.json plans",
-        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
-    ],
-    [
-        "json/generated/cytoscape-tamper-native-edited.json plans",
-        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
-    ],
-]);
-
-/**
- * The inputs a check runs on, each with whether it is a known failure.
- * @param inputs - the inputs
- * @param check - the check
- * @returns the inputs that should pass and the known failures
- */
-export function split<T extends { readonly name: string }>(
-    inputs: readonly T[],
-    check: "plans" | "writes",
-): { readonly pass: (readonly [string, T])[]; readonly fail: (readonly [string, T])[] } {
-    const rows = inputs.map((input) => [input.name, input] as const);
-    const isKnown = ([name]: readonly [string, T]): boolean => KNOWN_FAILURES.has(`${name} ${check}`);
-    return { pass: rows.filter((r) => !isKnown(r)), fail: rows.filter(isKnown) };
-}
 
 /**
  * The largest member of a generated series, by the smaller member whose rules are the same kinds: its round trip
@@ -93,8 +63,6 @@ export function sharedInputs(format: StyleFormat): StyleInput[] {
 interface WriteSlice {
     /** The inputs whose round trip should hold. */
     readonly pass: (readonly [string, StyleInput])[];
-    /** The inputs whose round trip is a known failure (KNOWN_FAILURES). */
-    readonly fail: (readonly [string, StyleInput])[];
     /** The inputs the hostile-block check runs on: every one but a scale point's large member. */
     readonly hostile: (readonly [string, StyleInput])[];
 }
@@ -113,7 +81,8 @@ export function writeSlice(slice: number): (readonly [string, StyleWriter, Write
         const hostile = inputs
             .filter((input) => !SCALE_POINTS.has(input.name))
             .map((input) => [input.name, input] as const);
-        return [[format.name, format.writer, { ...split(inputs, "writes"), hostile }] as const];
+        const pass = inputs.map((input) => [input.name, input] as const);
+        return [[format.name, format.writer, { pass, hostile }] as const];
     });
 }
 
@@ -125,7 +94,7 @@ export function writeSlice(slice: number): (readonly [string, StyleWriter, Write
  */
 export async function writeProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : roundTrip(writer, loaded, ex, !SCALE_POINTS.has(input.name));
 }
 
@@ -138,6 +107,6 @@ export async function writeProblems(writer: StyleWriter, input: StyleInput): Pro
  */
 export async function hostileProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : checkHostileBlocks(writer, loaded, ex);
 }

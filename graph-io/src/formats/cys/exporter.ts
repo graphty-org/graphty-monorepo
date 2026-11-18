@@ -29,6 +29,7 @@ import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { escapeXmlAttribute, quoteCsvCell } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64 } from "../../common/format.js";
+import { ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { itemAt, jsonText } from "../../common/text.js";
@@ -39,11 +40,10 @@ import { neutralPositions } from "../../positions/convert.js";
 import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import type { StyleValue, StyleWriteCapabilities } from "../../styles/types.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { lossOf, snapshotBlock } from "../cx/styles.js";
-import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
+import { snapshotBlock } from "../cx/styles.js";
 import {
     CY_NAMESPACE,
     EDGE_ID_COLUMN,

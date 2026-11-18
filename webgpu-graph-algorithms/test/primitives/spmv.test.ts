@@ -8,7 +8,6 @@
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { algorithmScope } from "../../src/algorithms/scope.js";
 import { UNIFORM_SLOT_BYTES } from "../../src/constants.js";
@@ -33,7 +32,7 @@ import {
 import { maxAbsError, SR_ABS_FLOOR, weightedRandom } from "../helpers/segmented-reduce.js";
 import { reverseCore, runSpmvPull, seededVector, spmvTolerance, weightedDirected } from "../helpers/spmv.js";
 import { type SpmvOracleCoefficients, spmvPullOracle } from "../oracle/spmv.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 /** The PageRank-shaped coefficients of the plain runs (alpha the damping, beta 1 - alpha, the uniform mass 1 / n). */
 function pageRankCoefficients(n: number): SpmvCoefficients {
@@ -127,14 +126,7 @@ describe("spmvPullOracle (pure)", () => {
 });
 
 describe("spmvPull thread-per-row (GPU)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "spmv" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "spmv" });
 
     /** Twice bitwise, then against the f64 oracle within the analytic tolerance; returns the first run. */
     async function checkAgainstOracle(ctx: GpuContext, s: GraphSnapshot, label: string): Promise<F32> {

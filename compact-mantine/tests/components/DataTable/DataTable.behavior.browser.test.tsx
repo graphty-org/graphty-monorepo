@@ -1016,3 +1016,83 @@ describe("DataTable row headers", () => {
         expect(within(row).getAllByRole("gridcell", { hidden: true })).toHaveLength(2);
     });
 });
+
+describe("DataTable caller options", () => {
+    it("draws the caller's own empty content in place of the rows", () => {
+        renderTable(<DataTable columns={COLUMNS} data={[]} empty={<span>Load a graph first</span>} />);
+        expect(screen.getByTestId("data-table-empty")).toHaveTextContent("Load a graph first");
+    });
+
+    it("tints each row the caller colors, and leaves the others plain", () => {
+        renderTable(
+            <DataTable
+                columns={COLUMNS}
+                data={CATS}
+                getRowId={(cat) => cat.id}
+                rowColor={(cat) => (cat.group === "A" ? "rgb(255, 0, 0)" : undefined)}
+            />,
+        );
+        expect(rowNamed("Chonky")).toHaveAttribute("data-row-color");
+        expect(rowNamed("Chonky").style.getPropertyValue("--cm-dt-row-color")).toBe("rgb(255, 0, 0)");
+        expect(rowNamed("Whiskers")).not.toHaveAttribute("data-row-color");
+    });
+
+    it("writes numbers with the caller's formatter", () => {
+        renderTable(
+            <DataTable
+                columns={COLUMNS}
+                data={CATS}
+                getRowId={(cat) => cat.id}
+                formatNumber={(value) => `${String(value)} links`}
+            />,
+        );
+        expect(cellIn("Chonky", 1)).toHaveTextContent("12 links");
+    });
+
+    it("scrolls a row into the drawing from outside, and ignores a row that does not exist", async () => {
+        const user = userEvent.setup();
+        const many: Cat[] = Array.from({ length: 500 }, (_, i) => ({
+            id: `m${String(i)}`,
+            name: `Cat ${String(i)}`,
+            links: i,
+            group: "A",
+        }));
+
+        /**
+         * A long table with controls that scroll it.
+         * @returns The example
+         */
+        function Example(): React.JSX.Element {
+            const handle = useRef<DataTableHandle>(null);
+            return (
+                <MantineProvider theme={compactTheme}>
+                    <DataTable ref={handle} columns={COLUMNS} data={many} getRowId={(cat) => cat.id} height={300} />
+                    <button type="button" onClick={() => handle.current?.scrollToRow(450)}>
+                        Go to 450
+                    </button>
+                    <button type="button" onClick={() => handle.current?.scrollToRow(9999)}>
+                        Go past the end
+                    </button>
+                    <button type="button" onClick={() => handle.current?.moveColumn("nonexistent", 0)}>
+                        Move nothing
+                    </button>
+                </MantineProvider>
+            );
+        }
+
+        render(<Example />);
+        expect(drawnNames()).not.toContain("Cat 450");
+        await user.click(screen.getByRole("button", { name: "Go past the end" }));
+        expect(drawnNames()).toContain("Cat 0");
+        await user.click(screen.getByRole("button", { name: "Move nothing" }));
+        expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+            "Name",
+            "Links",
+            "Group",
+        ]);
+        await user.click(screen.getByRole("button", { name: "Go to 450" }));
+        await vi.waitFor(() => {
+            expect(drawnNames()).toContain("Cat 450");
+        });
+    });
+});

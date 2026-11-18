@@ -74,6 +74,20 @@ function isColumn(data: unknown): data is Column {
     );
 }
 
+/** Column-set change counts, kept outside the class so the module helpers need no private access. */
+const columnSetVersions = new WeakMap<AttributeTable, number>();
+
+/** Tables sealed by sealTable(): set / remove / rename throw E_FROZEN for them. */
+const sealedTables = new WeakSet<AttributeTable>();
+
+/**
+ * Count one change of a table's column set (set / remove / rename).
+ * @param table - the table that changed
+ */
+function bumpColumnSetVersion(table: AttributeTable): void {
+    columnSetVersions.set(table, columnSetVersion(table) + 1);
+}
+
 /**
  * The number of column-set changes a table has seen (set / remove / rename), so a cached role or name
  * lookup can be reused while the set is unchanged.
@@ -81,7 +95,7 @@ function isColumn(data: unknown): data is Column {
  * @returns the change count
  */
 export function columnSetVersion(table: AttributeTable): number {
-    return (table as unknown as { mutations: number }).mutations;
+    return columnSetVersions.get(table) ?? 0;
 }
 
 /**
@@ -90,7 +104,7 @@ export function columnSetVersion(table: AttributeTable): number {
  * @param table - the table
  */
 export function sealTable(table: AttributeTable): void {
-    (table as unknown as { sealed: boolean }).sealed = true;
+    sealedTables.add(table);
 }
 
 /**
@@ -117,12 +131,6 @@ export class AttributeTable implements AttributeTableContract {
     readonly rowCount: number;
 
     private readonly columns: Map<string, Column>;
-
-    /** Bumped on every change of the column set (set / remove / rename), for callers that cache a lookup. */
-    private mutations = 0;
-
-    /** Set by sealTable(): set / remove / rename throw E_FROZEN from then on. */
-    private readonly sealed: boolean = false;
 
     /**
      * Create a table from wrapped columns (the constructor the freeze pipeline, fromCsr and the wire
@@ -324,7 +332,7 @@ export class AttributeTable implements AttributeTableContract {
         }
         // Map.set on an existing key keeps its position, so a replacement keeps the declaration order
         this.columns.set(name, column);
-        this.mutations++;
+        bumpColumnSetVersion(this);
         return column;
     }
 
@@ -337,7 +345,7 @@ export class AttributeTable implements AttributeTableContract {
         this.assertWritable(name);
         const removed = this.columns.delete(name);
         if (removed) {
-            this.mutations++;
+            bumpColumnSetVersion(this);
         }
         return removed;
     }
@@ -374,7 +382,7 @@ export class AttributeTable implements AttributeTableContract {
                 this.columns.set(name, existing);
             }
         }
-        this.mutations++;
+        bumpColumnSetVersion(this);
     }
 
     /**
@@ -435,7 +443,7 @@ export class AttributeTable implements AttributeTableContract {
      * @param name - the column the refused change names
      */
     private assertWritable(name: string): void {
-        if (this.sealed) {
+        if (sealedTables.has(this)) {
             throw new GraphFormatError(
                 "E_FROZEN",
                 `the ${this.domain} table is sealed: its column set cannot change (column "${name}")`,

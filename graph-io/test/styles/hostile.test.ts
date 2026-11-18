@@ -16,7 +16,7 @@ import { createRegistry } from "../../src/registry.js";
 import {
     cytoscapeRules,
     cytoscapeStyleFromCx2,
-    extractStyles,
+    readFileStyles,
     resolveCytoscape,
     StyleBudget,
     StyleNotes,
@@ -41,7 +41,7 @@ interface Spent {
  */
 function extractCounted(loaded: LoadedGraph): Spent {
     const budget = new StyleBudget();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report, { budget });
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report, { budget });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     expect(Object.prototype).not.toHaveProperty("data");
     if (ex === null) {
@@ -244,7 +244,7 @@ describe("a 5,000-character value", () => {
         const truth = styleTruth(loaded);
         expect(truth?.node?.fill?.slice(0, 4)).toEqual([null, null, null, "#ff0000"]);
         const budget = new StyleBudget();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report, { budget });
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report, { budget });
         const note = ex?.styles.notes.find((x) => x.code === "W_STYLE_VALUE_TOO_LONG");
         expect(note?.elements).toEqual([0, 1, 2]);
         expect(extractCounted(loaded)).toMatchInlineSnapshot(`

@@ -10,6 +10,7 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.j
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
+import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -577,7 +578,7 @@ export class NodeDragHandler {
 
             // Disable camera input handler during node drag
             // This prevents OrbitInputController from rotating camera while dragging nodes
-            const cameraManager = this.scene.metadata?.cameraManager;
+            const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
             if (cameraManager) {
                 // Debug: console.log("📷 Disabling camera input during node drag");
                 cameraManager.temporarilyDisableInput();
@@ -893,7 +894,7 @@ export class NodeDragHandler {
 
     /** Give the camera its input back after a drag. */
     private releaseCamera(): void {
-        const cameraManager = this.scene.metadata?.cameraManager;
+        const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
         if (cameraManager) {
             cameraManager.temporarilyEnableInput();
         }

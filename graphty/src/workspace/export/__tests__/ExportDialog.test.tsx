@@ -31,7 +31,7 @@ describe("the Export dialog", () => {
         const list = within(dialog).getByRole("grid", { name: "What to export" });
         for (const name of ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"]) {
             await userEvent.click(within(list).getByText(name));
-            assert.isNotNull(within(dialog).getByRole("heading", { name }));
+            assert.isNotNull(await within(dialog).findByRole("heading", { name }));
         }
     });
 

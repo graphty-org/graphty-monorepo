@@ -459,3 +459,35 @@ export interface RecentExport {
     readonly name: string;
     readonly choices?: ImageChoices | VideoChoices | DataChoices;
 }
+
+/** A section the reader can put in the report or leave out. */
+export type ReportSection = "notes" | "validation" | "changes" | "methods" | "tables";
+
+/** The sections, in the report's order, with the checklist's names. */
+export const REPORT_SECTIONS: readonly { readonly id: ReportSection; readonly name: string }[] = [
+    { id: "notes", name: "Notes" },
+    { id: "validation", name: "Validation report" },
+    { id: "changes", name: "Data changes" },
+    { id: "methods", name: "Methods" },
+    { id: "tables", name: "Data tables" },
+];
+
+/** The Report output's choices. */
+export interface ReportChoices {
+    readonly title: string;
+    /** The most rows each data table shows. */
+    readonly rowCap: number;
+    readonly sections: readonly ReportSection[];
+    /** The reader's own words, put in as written; left out when blank. */
+    readonly summary: string;
+    readonly findings: string;
+}
+
+/** Every section, the first 20 rows of each table, and no prose yet. */
+export const DEFAULT_REPORT: ReportChoices = {
+    title: "",
+    rowCap: 20,
+    sections: REPORT_SECTIONS.map((section) => section.id),
+    summary: "",
+    findings: "",
+};

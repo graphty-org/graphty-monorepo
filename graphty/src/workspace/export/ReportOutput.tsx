@@ -4,17 +4,8 @@ import { Button, Checkbox, Menu, NumberInput, Text, Textarea, TextInput } from "
 import React, { useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { fileName, saveBlob } from "./choices";
-import {
-    cleaningSteps,
-    issuesCsv,
-    REPORT_SECTIONS,
-    type ReportChoices,
-    reportMarkdown,
-    type ReportSection,
-    sectionCounts,
-    validationIssues,
-} from "./report";
+import { fileName, REPORT_SECTIONS, type ReportChoices, type ReportSection, saveBlob } from "./choices";
+import { cleaningSteps, issuesCsv, reportMarkdown, sectionCounts, validationIssues } from "./report";
 
 /** Props for ReportOutput. */
 interface ReportOutputProps {

@@ -323,7 +323,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
 
         const dialog = await openExport();
         await pick(dialog, "Report");
-        const sections = within(dialog).getByRole("group", { name: "Sections" });
+        const sections = await within(dialog).findByRole("group", { name: "Sections" });
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Notes (1)" }));
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Methods (1)" }));
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Data changes (1)" }));
@@ -349,7 +349,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // The choices stay while the workspace is mounted; tables back on, capped at 2 rows.
         const again = await openExport();
         await pick(again, "Report");
-        assert.equal(within(again).getByRole<HTMLInputElement>("textbox", { name: "Title" }).value, "Ring study");
+        assert.equal(
+            (await within(again).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value,
+            "Ring study",
+        );
         await userEvent.click(within(again).getByRole("checkbox", { name: /^Data tables/ }));
         const cap = within(again).getByRole("textbox", { name: "Row cap" });
         await userEvent.tripleClick(cap);
@@ -372,7 +375,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         ] as const) {
             const export_ = await openExport();
             await pick(export_, "Report");
-            await userEvent.click(within(export_).getByRole("button", { name: "Save issues" }));
+            await userEvent.click(await within(export_).findByRole("button", { name: "Save issues" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: item }));
             await screen.findByText(`Exported ${file}`, TOAST);
         }

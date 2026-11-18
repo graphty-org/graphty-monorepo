@@ -2,25 +2,28 @@ import "./export.css";
 
 import { PageList } from "@graphty/compact-mantine";
 import { Modal, Text } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
     DEFAULT_DATA,
     DEFAULT_IMAGE,
+    DEFAULT_REPORT,
     DEFAULT_VIDEO,
     type ImageChoices,
     type OutputId,
     type RecentExport,
+    type ReportChoices,
     type VideoChoices,
 } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { DocumentOutput } from "./DocumentOutput";
 import { ImageOutput } from "./ImageOutput";
-import { DEFAULT_REPORT, type ReportChoices } from "./report";
-import { ReportOutput } from "./ReportOutput";
 import { VideoOutput } from "./VideoOutput";
+
+/** The Report's own chunk: its table and notes words are loaded when Report is chosen, not with the start page. */
+const ReportOutput = lazy(() => import("./ReportOutput").then((module) => ({ default: module.ReportOutput })));
 
 /** The outputs, in the list's order. */
 const OUTPUTS: readonly { id: OutputId; name: string }[] = [
@@ -135,7 +138,11 @@ export function ExportDialog(): React.JSX.Element {
                     />
                 );
             case "report":
-                return <ReportOutput choices={report} onChange={setReport} onCancel={close} onDone={done} />;
+                return (
+                    <Suspense fallback={null}>
+                        <ReportOutput choices={report} onChange={setReport} onCancel={close} onDone={done} />
+                    </Suspense>
+                );
             default:
                 return <DocumentOutput key={output} kind={output} onCancel={close} onDone={done} />;
         }

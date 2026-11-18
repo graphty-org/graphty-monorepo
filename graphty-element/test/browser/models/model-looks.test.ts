@@ -212,6 +212,45 @@ describe("a model by address whose pictures are still downloading", () => {
     });
 });
 
+describe("a model by address shown while its pictures download, then refused for one", () => {
+    it("settles refused and is no longer waiting for parts", async () => {
+        const files = await filesOf("gltf-transmission-required");
+        const base = "https://models.example.com/damaged/";
+        stubFetch(new Map([...files].filter(([name]) => !name.endsWith(".webp")).map(([n, b]) => [base + n, b])));
+        const spy = vi.spyOn(globalThis, "fetch");
+        const plain = spy.getMockImplementation();
+        // The pictures answer only once the model has been shown waiting for them, and are not pictures.
+        let release = (): void => undefined;
+        const shown = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        spy.mockImplementation(async (input, init) => {
+            const url = input instanceof Request ? input.url : String(input);
+            if (!url.endsWith(".webp")) {
+                return (plain as typeof fetch)(input, init);
+            }
+            await shown;
+            return new Response(new TextEncoder().encode("not a picture"), { status: 200 });
+        });
+        const element = await mount();
+        const { assets } = element.session;
+        let heard = false;
+        const settled = await assets.add(`${base}cube.gltf`, {
+            onWaiting: () => {
+                heard = true;
+                release();
+            },
+        });
+        assert.isTrue(heard, "shown while its pictures downloaded");
+        assert.strictEqual(settled.state, "rejected");
+        assert.deepInclude(settled.problems[0], { code: "E_MODEL_STRUCTURE" });
+        assert.isFalse(
+            assets.waiting().some((w) => w.id === settled.id),
+            "refused outright, not held for a part",
+        );
+    });
+});
+
 describe("a picture taken back out while it downloads", () => {
     it("stops that download alone, and the model waits for that picture (#8609)", async () => {
         const files = await filesOf("gltf-transmission-required");

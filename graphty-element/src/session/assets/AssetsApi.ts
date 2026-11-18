@@ -1571,6 +1571,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 }
 
                 settled = early(error.facts, provisional);
+                // Held while the pictures downloaded, then refused outright: no longer waiting for parts.
+                delete entry.held;
                 if (error.held !== undefined) {
                     // Missing parts only: held, so the reader can supply them (design 12.4).
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };

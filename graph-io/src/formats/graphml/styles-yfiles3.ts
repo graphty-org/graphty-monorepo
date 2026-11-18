@@ -1636,6 +1636,7 @@ function readEdgeArrow(
         hollow = open !== null && open !== NULL;
         putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
         readArrowSize(refs, a.e, type.toUpperCase(), end, put, at);
+        readArrowCrop(a.e, end, put, at);
     } else if (typeof a === "string") {
         type = a;
     }
@@ -1690,6 +1691,20 @@ function readArrowSize(
         (type === "CHEVRON" ? CHEVRON_WIDTH : 1);
     put(`${end}ArrowLength`, along === 1 ? null : along);
     put(`${end}ArrowWidth`, across === 1 ? null : across);
+}
+
+/**
+ * Reads an arrow element's `cropLength`: yEd Live moves the arrow and the line's end that far back from the node
+ * (yed-live-graphml-specimen-arrows arrow-crop-length-6: its tip sits 6 further off the outline than a plain head's).
+ * @param arrow - the arrow element
+ * @param end - which end
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readArrowCrop(arrow: unknown, end: "source" | "target", put: PutValue, at: SiteOf): void {
+    const crop = treeAttr(arrow, "cropLength");
+    const gap = crop === undefined ? null : canonNumber(crop, at(`${end}NodeGap`));
+    put(`${end}NodeGap`, gap !== null && gap > 0 ? gap : null);
 }
 
 /**

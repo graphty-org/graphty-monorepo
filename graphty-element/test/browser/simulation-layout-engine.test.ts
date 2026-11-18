@@ -743,6 +743,41 @@ describe("the simulation layout bridge", () => {
         assert.isFalse(rig.engine.isSettled, "so the layout has work to do again");
     });
 
+    it("session.layout.motion follows a pause, a resume, coming to rest and a re-run, and publishes each change", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ settleAfter: 2 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph);
+        const session = graph.getSession();
+        const heard: string[] = [];
+        session.on("layout:motion-changed", ({ motion }) => heard.push(motion));
+        assert.strictEqual(session.layout.motion, "running", "a layout just set runs");
+        assert.isTrue(graph.isRunning(), "as isRunning() says");
+
+        graph.setRunning(false);
+        assert.strictEqual(session.layout.motion, "paused", "stopped before it came to rest");
+        assert.isFalse(graph.isRunning());
+
+        graph.setRunning(true);
+        assert.strictEqual(session.layout.motion, "running");
+
+        rig.step();
+        rig.step();
+        await drain(fake);
+        assert.isTrue(rig.engine.isSettled, "two landed batches settle this fake");
+        // What the frame loop does on the first frame that finds the layout settled; the loop is
+        // stopped in this fixture.
+        graph.getLayoutManager().running = false;
+        assert.strictEqual(session.layout.motion, "settled");
+
+        await session.layout.rerun();
+        assert.strictEqual(session.layout.motion, "running", "a re-run starts it again");
+        assert.strictEqual(session.history.steps.at(-1)?.fact.code, "layout.rerun");
+
+        assert.deepStrictEqual(heard, ["paused", "running", "settled", "running"], "one event per change");
+    });
+
     it("a consumer pause holds through a load, a freeze and an accelerator attaching: nothing is submitted or reheated", async () => {
         const graph = await pathGraph(5);
         const fake = createFakeAccelerator({ settleAfter: 1 });
@@ -969,6 +1004,30 @@ describe("the simulation layout bridge", () => {
         );
     });
 
+    it("a 3D layout over a flat arrangement spreads along z, and a pinned node keeps its z (issue #7965)", async () => {
+        // A FLAT START: laid out in 2D first, every node sits at one z. With no z in any
+        // difference no force has a z component, so a 3D run that kept that z stayed on the plane.
+        const graph = await pathGraph(20);
+        const flat = await bridge(graph, "forceatlas2", { dim: 2, seed: 3 });
+        for (let frame = 0; frame < 20; frame += 1) {
+            flat.step();
+        }
+
+        const pinned = graph.getDataManager().getNode("n0");
+        assert.isDefined(pinned);
+        pinned.pin();
+        const pinnedZ = flat.at(pinned.index).z;
+
+        const rig = await bridge(graph, "forceatlas2", { dim: 3, seed: 3 });
+        for (let frame = 0; frame < 200 && !rig.engine.isSettled; frame += 1) {
+            rig.step();
+        }
+
+        const zs = Array.from({ length: 20 }, (_value, row) => rig.at(row).z);
+        assert.isAbove(Math.max(...zs) - Math.min(...zs), 1, "the arrangement left the plane");
+        assert.closeTo(rig.at(pinned.index).z, pinnedZ, 1e-3, "the pinned node was not moved off it");
+    });
+
     it("publishes a settled ForceAtlas2 inside the scene-unit radius the layout was configured with", async () => {
         // THE DEFECT THIS PINS. ForceAtlas2's equilibrium grows with the graph and the simulation
         // never rescales what it computes, so a settled graph used to reach tens of thousands of
@@ -1167,6 +1226,9 @@ describe("the simulation layout bridge", () => {
         // published picture would not say so: the refit normalises it either way, which is why
         // this is read off the simulation's own array and not off a node's position.
         const graph = await pathGraph(8);
+        // The working graph off: with it on, the seeded restart the add sets off lands after the
+        // freeze below instead of before it, so the count holds that build's load too.
+        graph.getSession().workingGraph = false;
         const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 3 });
         graph.acceleration.setAccelerator(fake);
 

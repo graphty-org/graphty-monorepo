@@ -4,8 +4,7 @@
  * @module ai/AiManager
  */
 
-import type { Scene } from "@babylonjs/core";
-import debounce from "lodash/debounce.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
@@ -59,8 +58,8 @@ import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/V
 // Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
 export { loadEncryptStorage } from "./keys";
 
-/** Default debounce delay for schema updates in milliseconds */
-const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
+/** The graph events after which the schema is read again: the data it describes changed. */
+const SCHEMA_STALE_EVENTS = ["data-added", "data-cleared", "snapshot-replaced", "snapshot-dropped"] as const;
 
 /**
  * Configuration for enabling encrypted key persistence.
@@ -275,7 +274,7 @@ export interface AiManagerConfig {
      * `providerInstance`.
      */
     provider: ProviderType;
-    /** Optional API key for the provider */
+    /** Optional API key for the provider, kept in the key store (`getApiKeyManager()`) even beside `providerInstance` */
     apiKey?: string;
     /** Optional model name override */
     model?: string;
@@ -333,6 +332,11 @@ export interface AiManagerConfig {
      * approval). Absent, the assistant imports only URLs that appear in the reader's own message.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /**
+     * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `AI_ARG_OUT_OF_RANGE`.
+     */
+    datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
@@ -452,8 +456,7 @@ export class AiManager {
     private readonly keysSeen = new Set<string>();
     private readonly statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null = null;
-    private dataAddedListenerId: symbol | null = null;
-    private debouncedSchemaUpdate: ReturnType<typeof debounce> | null = null;
+    private schemaListenerIds: symbol[] = [];
     private disposed = false;
     private initialized = false;
     /** The assistant's `voice`, absent for none. */
@@ -519,6 +522,12 @@ export class AiManager {
 
         // Before the API key is set, so it is persisted.
         this.persistKeys(config.keyPersistence);
+        // A given key is kept whatever builds the provider, so it is in the key store before the
+        // assistant reports itself enabled.
+        if (config.apiKey) {
+            this.keysSeen.add(config.apiKey);
+            this.apiKeyManager.setKey(config.provider, config.apiKey);
+        }
         this.provider = config.providerInstance ?? this.configuredProvider(config);
 
         const toolset = config.toolset ?? "commands";
@@ -587,12 +596,6 @@ export class AiManager {
             reasoningEffort: config.reasoningEffort,
             thinkingBudgetTokens: config.thinkingBudgetTokens,
         };
-        // Configure the provider with API key if provided (will be persisted if persistence enabled)
-        if (config.apiKey) {
-            this.keysSeen.add(config.apiKey);
-            this.apiKeyManager.setKey(config.provider, config.apiKey);
-        }
-
         // A key given here wins; with none, the one storage brought back is the provider's key.
         provider.configure({
             ...this.providerOptions,
@@ -642,6 +645,7 @@ export class AiManager {
             ...(toolset === "generated" ? { toolProfile } : {}),
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: config.datasetBaseUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
@@ -720,7 +724,7 @@ export class AiManager {
                 };
             },
         });
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
@@ -947,23 +951,13 @@ export class AiManager {
         // Extract initial schema
         this.schemaManager.extract();
 
-        // Set up debounced schema update
-        this.debouncedSchemaUpdate = debounce(() => {
-            if (this.schemaManager) {
-                this.schemaManager.invalidateCache();
-            }
-        }, SCHEMA_UPDATE_DEBOUNCE_MS);
-
-        // Listen for data-added events to update schema
-        try {
-            const { eventManager } = this.graph;
-            this.dataAddedListenerId = eventManager.addListener("data-added", () => {
-                this.debouncedSchemaUpdate?.();
-            });
-        } catch {
-            // EventManager may not be available in all contexts (e.g., tests)
-            // Schema will still work, just won't auto-update
-        }
+        // Dropping the cache is cheap and the next prompt extracts again, so there is nothing to debounce.
+        const { eventManager } = this.graph;
+        this.schemaListenerIds = SCHEMA_STALE_EVENTS.map((type) =>
+            eventManager.addListener(type, () => {
+                this.schemaManager?.invalidateCache();
+            }),
+        );
     }
 
     /**
@@ -1114,7 +1108,7 @@ export class AiManager {
      * @param act - What to do with it.
      */
     private withVoice(act: (session: VoiceSession) => void): void {
-        void this.voiceSession?.then(act); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
@@ -1283,7 +1277,7 @@ export class AiManager {
         }
 
         // A key can make provider transcription or speech usable.
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /**
@@ -1318,22 +1312,23 @@ export class AiManager {
     /**
      * Retry the last AI command that was executed.
      * Useful for retrying after transient errors.
-     * @returns Promise resolving to the execution result
-     * @throws Error if no previous command exists or AI is not initialized
+     * @returns Promise resolving to the execution result: `AI_DISPOSED` and `AI_NOT_ENABLED` as
+     *     from `execute()`, and `AI_NO_PREVIOUS_COMMAND` when no command has run yet
      */
     async retry(): Promise<ExecutionResult> {
-        if (this.disposed) {
-            throw new Error("AI Manager has been disposed.");
-        }
-
-        if (!this.controller) {
-            throw new Error("AI not enabled. Call enableAiControl() first.");
+        if (this.disposed || !this.controller) {
+            // The same coded result execute() gives in either state.
+            return this.execute("");
         }
 
         const lastInput = this.controller.getLastInput();
-
         if (!lastInput) {
-            throw new Error("No previous command to retry.");
+            return {
+                success: false,
+                message: "No previous command to retry.",
+                code: "AI_NO_PREVIOUS_COMMAND",
+                params: {},
+            };
         }
 
         return this.controller.execute(lastInput);
@@ -1404,22 +1399,11 @@ export class AiManager {
         this.talkAsked = false;
         this.voiceOptions = undefined;
 
-        // Cancel any pending debounced updates
-        if (this.debouncedSchemaUpdate) {
-            this.debouncedSchemaUpdate.cancel();
-            this.debouncedSchemaUpdate = null;
+        for (const id of this.schemaListenerIds) {
+            this.graph?.eventManager.removeListener(id);
         }
 
-        // Remove event listener
-        if (this.dataAddedListenerId && this.graph) {
-            try {
-                const { eventManager } = this.graph;
-                eventManager.removeListener(this.dataAddedListenerId);
-            } catch {
-                // EventManager may not be available
-            }
-            this.dataAddedListenerId = null;
-        }
+        this.schemaListenerIds = [];
 
         // Clean up schema manager
         this.schemaManager = null;

@@ -14,11 +14,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { DEFAULT_NAME_KEY } from "../../style/cards";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Six volunteers: hours 30 to 52, a kind that groups them, an email only some have. */
 const VOLUNTEERS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -112,29 +117,6 @@ describe("summaries and cards that say true, complete things", () => {
         // Playwright refuses a click on a control marked disabled unless forced; a reader's click lands.
         await userEvent.click(columns, { force: true });
         assert.isNull(screen.queryByRole("menu"));
-    });
-
-    it("says on a Size line added to a selection that the first size picked makes the layer", async () => {
-        const session = await open((s) =>
-            s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
-        );
-        assert.equal(session.data.statistics().nodeCount, 6);
-        await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const note = await waitFor(() => {
-            const found = document.querySelector('.ws-row[data-line="node.size"] [data-first-value]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.equal(note?.textContent, "Not set yet: the first size you pick makes the layer");
-        const before = session.styles.list().length;
-        await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 1, "the first size made the layer");
-            assert.isNull(document.querySelector("[data-first-value]"), "and the line no longer says it waits");
-        });
     });
 
     it("wraps the Node tab's way to an edge attribute inside the list, with no sideways scroll", async () => {

@@ -9,7 +9,7 @@ import { CommandRegistry } from "../../../src/ai/commands/CommandRegistry";
 import { describeProperty, sampleData } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
 
 /**
  * Create a command registry with schema commands registered.
@@ -116,16 +116,16 @@ describe("SchemaCommands integration", () => {
         let graph: Graph;
 
         function createTestGraph(): Graph {
-            return createMockGraphWithCustomData({
+            return createMockGraphContext({
                 nodeCount: 10,
                 edgeCount: 15,
-                nodeDataGenerator: (i) => ({
+                nodeData: (i) => ({
                     type: ["server", "client", "router"][i % 3],
                     count: i * 10,
                     active: i % 2 === 0,
                 }),
-                edgeDataGenerator: () => ({
-                    weight: Math.random() * 100,
+                edgeData: (i) => ({
+                    weight: (i % 10) * 10,
                     relation: "connects",
                 }),
             });

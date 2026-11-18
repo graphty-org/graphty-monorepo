@@ -8,7 +8,7 @@ import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
-import type { SourceLoadRecord } from "./types";
+import type { ExpandOptions, SourceLoadRecord } from "./types";
 
 /** One edge as the expand code reads it. */
 export interface HostEdge {
@@ -114,24 +114,27 @@ export interface SourceHost {
      */
     labelPath(): string | null;
     /**
-     * Whether a text column of plain dates measures time: the timeline experiment is on.
-     * @returns true when it does
-     */
-    readDates(): boolean;
-    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */
     positionScale(): number;
 }
 
+/** An expansion running for some seeds, and the options it was asked with. */
+export interface RunningExpansion {
+    /** Settles with what it added. */
+    readonly run: Promise<{ readonly nodes: number; readonly edges: number; readonly partial: boolean }>;
+    /** What its caller asked. */
+    readonly options: ExpandOptions;
+}
+
 /** What one session's expansions keep beside the graph. */
 export class ExpansionState {
-    /** The expansion running for each seed, by `String(id)`, so a second click joins it. */
-    readonly running = new Map<
-        string,
-        Promise<{ readonly nodes: number; readonly edges: number; readonly partial: boolean }>
-    >();
+    /**
+     * The expansion running for each seed, by `String(id)`, and the options it was asked with: a
+     * second click asking the same joins it.
+     */
+    readonly running = new Map<string, RunningExpansion>();
     /** Each expansion's rows as it wrote them, by key then `String(node id)`: what tells an edit. */
     readonly written = new Map<string, Map<string, string>>();
 }

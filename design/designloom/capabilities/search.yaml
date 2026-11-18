@@ -10,6 +10,8 @@ used_by_workflows:
     - W06
     - W07
     - W13
+    - W20
+    - W22
 implemented_by_components:
     - search-input
     - search-result-item

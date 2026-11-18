@@ -20,7 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /** The three layers every test starts from, by name. */
@@ -115,13 +115,15 @@ describe("folders, several rows and the draft on the real element", () => {
         }
         await userEvent.click(await row("Annotations"));
 
-        // The tree lists the folder's rows; the panel says what an edit of the folder reaches.
-        await screen.findByText("2 layers in Annotations. Layers added later are not changed.");
+        // The tree lists the folder's rows; the panel draws no line about what an edit reaches (#8739).
+        await screen.findByRole("heading", { level: 2, name: "Annotations" });
+        await screen.findByTestId("style-tab");
+        assert.isNull(screen.queryByText(/layers in Annotations/));
         assert.isNull(screen.queryByRole("list", { name: "In Annotations" }));
         assert.isNull(screen.queryByRole("heading", { name: "Selection colors" }));
     });
 
-    it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
+    it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is left out", async () => {
         const { session, key, degree, ring } = await openProject();
         // The line shows what each layer paints now, and Degree over every node would paint over
         // all of Key people's size: on the other two nodes, each row's size is drawn somewhere.
@@ -135,22 +137,20 @@ describe("folders, several rows and the draft on the real element", () => {
         await userEvent.click(await row("Ring"));
         await userEvent.keyboard("{/Control}");
         await screen.findByRole("heading", { level: 2, name: "3 layers" });
-        await screen.findByText("3 layers: 1 locked and skipped.");
 
         const tab = await screen.findByTestId("style-tab");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
-        assert.include(
-            within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "",
-            "not styled",
-            "Ring is left out, so no layer styles edges",
-        );
+        // The kind tabs say no "not styled" note (StylePanel.tsx).
+        assert.notInclude(within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "", "not styled");
         const size = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found);
             return found;
         });
-        const values = (size.querySelector("[data-varied-line]")?.textContent ?? "").split(", ");
-        assert.sameMembers(values, ["3", "1"], "each row's own size, none borrowed");
+        // Each row's own size, none borrowed, named in the pill (no line under it, #8739).
+        const pill = within(size).getByRole("button", { name: /^Node size: / });
+        assert.match(pill.getAttribute("aria-label") ?? "", /\b3\b/);
+        assert.match(pill.getAttribute("aria-label") ?? "", /\b1\b/);
 
         await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));
         await waitFor(() => {
@@ -186,7 +186,10 @@ describe("folders, several rows and the draft on the real element", () => {
         });
         const shape = within(tab).getByRole("group", { name: "Shape" });
         const glow = shape.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
-        assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer sets glow; not set: Degree");
+        assert.equal(
+            glow?.querySelector("[data-notes]")?.getAttribute("data-notes"),
+            "1 layer sets glow; not set: Degree",
+        );
 
         await userEvent.click(within(shape).getByRole("button", { name: "Remove node glow from every layer" }));
         await waitFor(() => {
@@ -211,7 +214,7 @@ describe("folders, several rows and the draft on the real element", () => {
             );
         }
         // A new layer draws its selection outline, Which nodes, with its Edit button.
-        await within(tab).findByRole("button", { name: /^Edit Which nodes/ });
+        await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });
         assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

@@ -1,15 +1,31 @@
 # babylonjs-map
 
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![npm version](https://img.shields.io/npm/v/babylonjs-map.svg)](https://www.npmjs.com/package/babylonjs-map)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/babylonjs-map/)
+
 Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: a flat map or a globe drawn
 from a bundled world picture or from web map tiles, sharper tiles loaded as the camera comes closer,
 and parsers for the common ways of writing a location.
+
+<!-- #region install -->
 
 ```bash
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is a peer dependency. `babylonjs-map/location` and `babylonjs-map/projection`
-never load Babylon.js, so they work in Node, a Web Worker or a page without a 3D scene.
+`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
+so they work in Node, a Web Worker or a page without a 3D scene, with only:
+
+```bash
+npm install babylonjs-map
+```
+
+<!-- #endregion install -->
+<!-- #region globe -->
 
 ## A globe
 
@@ -46,7 +62,11 @@ globe.sun = null; // every side lit alike again
 The glow is added onto what is behind the globe, so it shows on a dark background and fades into a
 light one.
 
+<!-- #endregion globe -->
+
 ## A flat map
+
+<!-- #region flat-map -->
 
 ```ts
 import { FlatMap, mapSources } from "babylonjs-map";
@@ -73,7 +93,11 @@ is drawn on past the box, one world wide and centered on it, so panning or zoomi
 still shows map; the world is drawn once, never repeated to the east or west. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
 gives) is drawn from both sides of the line.
 
+<!-- #endregion flat-map -->
+
 ## Map sources
+
+<!-- #region sources -->
 
 | Source                             | What it shows                                       | Deepest zoom |
 | ---------------------------------- | --------------------------------------------------- | ------------ |
@@ -94,7 +118,9 @@ new Globe(scene, { sources: [mapSources["natural-earth"], mapSources.openstreetm
 ```
 
 Street tiles stop at 85 degrees north and south; on a globe the poles past that are filled from the
-source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`.
+source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`;
+the gray picture is made on a DOM canvas, so without one (Node, a worker) its tiles fail with the
+code `no-canvas` instead of drawing in color.
 
 Your own tile server or picture:
 
@@ -118,23 +144,26 @@ for tiles and `equirectangular` for pictures. A picture in the other projection 
 
 ## Credits
 
-Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
-the credits of the sources that drew a tile; `map.credits` gives each with the page it links to
-(`attributionUrl` on a source of your own). Show them over the canvas.
+The map draws nothing but the map. `map.attribution` lists the credits of the sources that drew a
+tile; `map.credits` gives each with the page it links to (`attributionUrl` on a source of your
+own). Show them wherever your page chooses, for example in an About dialog.
 
 ```ts
-creditElement.textContent = map.attribution.join(" | ");
+aboutCredits.textContent = map.attribution.join(" | ");
 ```
 
 ## Loading and level of detail
 
-- `map.status` counts tiles `loading`, `ready` and `failed` (a failed tile is a CORS, 403, 404 or
-  429 answer), in all and per source (`status.layers`).
+- `map.status` counts tiles `loading`, `ready` and `failed`, in all and per source
+  (`status.layers`). `status.errors` says why each failed tile failed: its source's index, URL, a
+  `code` (`load`: the loader rejected or threw, `cause` is what it gave -- a browser reports a CORS,
+  403, 404 or 429 answer alike; `no-canvas`: a gray source with no DOM canvas) and the `cause`.
 - The level is chosen from the size of a texel on screen. A failed tile is asked for again after 1 s,
   doubling to a minute, and at once when the browser comes back online; meanwhile its parent is drawn
   in place of it and its siblings, so an area is never drawn from two levels once loading settles.
 - `setSources` keeps the pictures of a source that stays (the base under a changed tile service).
-- `map.onChangedObservable` fires when a tile arrives or fails. If your scene renders only on demand,
+- `map.onChangedObservable` fires when a tile arrives or fails, and when `setSources`, `frame`,
+  `beyond`, `radius`, `sun` or `atmosphere` change the map. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
   screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
@@ -143,10 +172,14 @@ creditElement.textContent = map.attribution.join(" | ");
   are not pickable.
 - `map.dispose()` frees every mesh, material and texture.
 
+<!-- #endregion sources -->
+
 ## Projections
 
+<!-- #region projections -->
+
 ```ts
-import { boundsOf, createMapFrame, latLonToSphere, webMercator } from "babylonjs-map/projection";
+import { boundsOf, createMapFrame, latLonToSphere, raySphere, webMercator } from "babylonjs-map/projection";
 
 webMercator.forward({ lat: 40.64, lon: -73.78 }); // { x, y } on a map one unit wide
 const box = boundsOf(points, { margin: 0.1 }); // the box around some points, or null
@@ -162,7 +195,11 @@ degree across.
 
 `webMercator` (tiles z/x/y cover x in [x, x + 1] / 2^z) and `equirectangular` (a 2:1 map).
 
+<!-- #endregion projections -->
+
 ## Read a location
+
+<!-- #region locations -->
 
 ```ts
 import { detectLocationFormat, isLocationError, parseLocation } from "babylonjs-map/location";
@@ -215,6 +252,8 @@ an alternative when a decimal pair reads as well longitude first.
 
 `latLonFromColumns(lat, lon)` reads separate latitude and longitude values: numbers, or text with a
 hemisphere letter (`"51.5074 N"`) or a decimal comma (`"48,8566"`).
+
+<!-- #endregion locations -->
 
 ## License
 

@@ -10,7 +10,7 @@ import { appendFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { Color3 } from "@babylonjs/core";
-import { assert, expect } from "vitest";
+import { assert, expect, inject } from "vitest";
 
 import type { GraphSession } from "../../session";
 import {
@@ -26,6 +26,7 @@ import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
 import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../src/ai/tools/install";
+import { isAssistantTool } from "../../src/ai/tools/toolset";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
 import type { AiEvent, AiQuestionRequest } from "../../src/events";
 import type { Graph } from "../../src/Graph";
@@ -36,6 +37,7 @@ import {
     getLlmRegressionGeminiTier,
     getLlmRegressionModel,
     getLlmRegressionProvider,
+    getLlmRegressionReasoningEffort,
     getSkipReason,
 } from "./llm-regression-env";
 import {
@@ -213,6 +215,8 @@ function geminiTransport(apiKey: string): GeminiTransport {
     shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({
         apiKey,
         tier: getLlmRegressionGeminiTier(),
+        // The run's shared cache directory (global-setup.ts): a prefix is cached once per run, not once per file.
+        cacheDir: inject("llmRegressionCacheDir"),
         usageFile: process.env.LLM_REGRESSION_USAGE_FILE || undefined,
     });
     return shared.__LLM_REGRESSION_GEMINI__;
@@ -257,8 +261,15 @@ export interface LlmRegressionTestHarnessOptions {
  * Captured tool call information from the provider
  */
 export interface CapturedToolCall {
+    /** The provider's id for the call, which its tool result carries as `callId`. */
+    id?: string;
     name: string;
     arguments: Record<string, unknown>;
+    /**
+     * The action the tool ran the call as, when the call named none: a tool takes a call without
+     * `action` when its fields fit one action only (`view {dimension}` is `view.dimension`).
+     */
+    resolvedAction?: string;
 }
 
 /** One model turn as the transcript records it: what the model wrote and called, and how it ended. */
@@ -369,7 +380,7 @@ export class RecordingEngine implements AiEngine {
                 turn.end = event.code;
             } else if (event.type === "tool-call") {
                 // Every turn's tool calls, in order: one prompt may ask the model several times.
-                this.capturedToolCalls.push({ name: event.name, arguments: { ...event.arguments } });
+                this.capturedToolCalls.push({ id: event.id, name: event.name, arguments: { ...event.arguments } });
                 turn.toolCalls.push({
                     name: event.name,
                     arguments: { ...event.arguments },
@@ -422,7 +433,12 @@ export class LlmRegressionTestHarness {
     private graph: Graph;
     private disposed = false;
 
-    private constructor(controller: AiController, engine: RecordingEngine, graph: Graph) {
+    private constructor(
+        controller: AiController,
+        engine: RecordingEngine,
+        graph: Graph,
+        private readonly registry: CommandRegistry,
+    ) {
         this.controller = controller;
         this.engine = engine;
         this.graph = graph;
@@ -452,6 +468,8 @@ export class LlmRegressionTestHarness {
             apiKey,
             model,
             temperature: options.temperature ?? 0,
+            // Gemini's thinking capped (low by default): thinking tokens are billed as output.
+            ...(providerType === "google" && { reasoningEffort: getLlmRegressionReasoningEffort() }),
             // Google's requests go through the run's one transport: the cached prefix, the tier, the deadline, the cost.
             fetch: providerType === "google" ? geminiTransport(apiKey).fetch : undefined,
         });
@@ -494,7 +512,7 @@ export class LlmRegressionTestHarness {
         const controller = new AiController(controllerOptions);
         await controller.ready();
 
-        return new LlmRegressionTestHarness(controller, engine, graph);
+        return new LlmRegressionTestHarness(controller, engine, graph, commandRegistry);
     }
 
     /**
@@ -597,7 +615,7 @@ export class LlmRegressionTestHarness {
                 });
             }
 
-            const toolCalls = [...this.engine.capturedToolCalls];
+            const toolCalls = this.engine.capturedToolCalls.map((call) => this.resolve(call));
             const lastToolCall = toolCalls.at(-1) ?? null;
             const result: LlmRegressionResult = {
                 prompt,
@@ -627,6 +645,25 @@ export class LlmRegressionTestHarness {
             }
 
             return result;
+        }
+    }
+
+    /**
+     * A call with the action its tool resolved it to, when the model named none.
+     * @param call - The call as the model sent it.
+     * @returns The call, with `resolvedAction` when the tool's own check settles one.
+     */
+    private resolve(call: CapturedToolCall): CapturedToolCall {
+        const tool = this.registry.get(call.name);
+        if (typeof call.arguments.action === "string" || !isAssistantTool(tool)) {
+            return call;
+        }
+
+        try {
+            return { ...call, resolvedAction: tool.check(call.arguments).action.name };
+        } catch {
+            // A call its tool refuses ran as no action.
+            return call;
         }
     }
 
@@ -779,12 +816,12 @@ export class LlmRegressionTestHarness {
  * @returns The first call to it.
  */
 /**
- * A call's action, or "" when it names none.
+ * A call's action: the one it named, or the one its tool ran it as; "" when neither.
  * @param call - The call.
  * @returns The action.
  */
 export function actionOf(call: CapturedToolCall): string {
-    return typeof call.arguments.action === "string" ? call.arguments.action : "";
+    return typeof call.arguments.action === "string" ? call.arguments.action : (call.resolvedAction ?? "");
 }
 
 /**
@@ -803,8 +840,10 @@ export function reachedCalls(result: LlmRegressionResult): CapturedToolCall[] {
                 ? (JSON.parse(call.arguments.args) as Record<string, unknown>)
                 : ((call.arguments.args ?? {}) as Record<string, unknown>);
         return {
+            ...(call.id === undefined ? {} : { id: call.id }),
             name: String(call.arguments.tool),
             arguments: { ...inner, ...(call.arguments.action === undefined ? {} : { action: call.arguments.action }) },
+            ...(call.resolvedAction === undefined ? {} : { resolvedAction: call.resolvedAction }),
         };
     });
 }
@@ -847,6 +886,44 @@ export function assertAction(
 }
 
 /**
+ * How a call ended -- its tool result's code (`AI_COMPLETED` when it ran) -- as the message's
+ * last request to the model carried it.
+ * @param result - The prompt's result.
+ * @param call - One of its calls.
+ * @returns The code, or undefined when no later request carried the call's result.
+ */
+export function outcomeOf(result: LlmRegressionResult, call: CapturedToolCall): string | undefined {
+    const parts = (result.lastRequest?.messages ?? []).flatMap((message) => message.parts);
+    const part = parts.find((each) => each.type === "tool-result" && each.callId === call.id);
+    return part?.type === "tool-result" ? part.code : undefined;
+}
+
+/**
+ * Every call of a prompt with its arguments and how it ended, one line each, for a failure message.
+ * @param result - The prompt's result.
+ * @returns The lines.
+ */
+export function callLines(result: LlmRegressionResult): string[] {
+    return result.toolCalls.map(
+        (call) => `${call.name} ${JSON.stringify(call.arguments)} -> ${outcomeOf(result, call) ?? "no result"}`,
+    );
+}
+
+/**
+ * Assert a call was not refused: a refused call the model never corrected changed nothing.
+ * @param result - The prompt's result.
+ * @param call - The call, as `assertAction` found it.
+ */
+export function assertNotRefused(result: LlmRegressionResult, call: CapturedToolCall): void {
+    const outcome = outcomeOf(result, call);
+    // No later request carried its result when the message ended on this call; the checks of
+    // what it painted judge it then.
+    if (outcome !== undefined) {
+        assert.strictEqual(outcome, "AI_COMPLETED", `${call.name} ${JSON.stringify(call.arguments)} was refused`);
+    }
+}
+
+/**
  * Assert a question was answered: by a call of one of the tools, or in the answer itself, which
  * the facts the model is handed may already hold.
  * @param result - The prompt's result.
@@ -873,6 +950,33 @@ export function assertCalled(result: LlmRegressionResult, name: string | readonl
     }
 
     return call;
+}
+
+/**
+ * What a message's requests show of web content: whether a tool result read on the web (a research
+ * helper's answer) reached the model -- which marks the conversation, so every later write is
+ * refused for web content -- and the calls refused for it, each counted once though every later
+ * request repeats it. A model told its changes would be refused may make none (#7871), so a test
+ * judges the mark, which the element guarantees, and counts the refusals.
+ * @param requests - The message's requests.
+ * @returns The mark and the refused calls.
+ */
+export function webContentOf(requests: readonly TurnRequest[]): { marked: boolean; refused: number } {
+    const parts = requests.flatMap((request) => request.messages.flatMap((message) => message.parts));
+    const refused = new Set(
+        parts.flatMap((part) =>
+            part.type === "tool-result" &&
+            part.code === "AI_TOOL_DENIED_BY_POLICY" &&
+            part.params.reason === "web-content"
+                ? [part.callId]
+                : [],
+        ),
+    );
+
+    return {
+        marked: parts.some((part) => part.type === "tool-result" && part.origin === "web"),
+        refused: refused.size,
+    };
 }
 
 /**

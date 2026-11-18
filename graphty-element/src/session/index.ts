@@ -11,6 +11,7 @@
  */
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
+export type { DrawnAnnotation, DrawnAnnotations } from "./annotations";
 export type {
     AddAssetOptions,
     AssetId,
@@ -20,7 +21,10 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
     ModelPart,
     ModelPartRole,
@@ -30,11 +34,16 @@ export type {
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./groups";
+export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./keymap";
+export { attachKeymap } from "./keymap";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits, LimitsOption } from "./limits";
@@ -45,30 +54,19 @@ export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
+    ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
     FileStyleNoteCode,
     FileStyleTranslationCode,
 } from "./styles/fileStyles/codes";
 export {
+    EXPORT_FLATTEN_REASONS,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./styles/fileStyles/codes";
-export type {
-    FileStyleMappingKind,
-    FileStyleMeaning,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-} from "./styles/fileStyles/origin";
-export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
-export type { FileStyleKind } from "./styles/fileStyles/path";
-export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
-export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
-export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,
@@ -77,21 +75,25 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     ElementSession,
     Endpoint,
     FileStyleSummary,
-    FileStyleTool,
     FindAtLeastRow,
     FindContainsRow,
     FindEnd,
@@ -108,6 +110,10 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -115,15 +121,23 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinKey,
+    JoinLink,
+    JoinLookup,
+    JoinMapping,
     JoinRecord,
+    JoinReduce,
+    JoinRegion,
     JoinReport,
     JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -136,14 +150,20 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
+    MultipleTestingCorrection,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
     PageColumn,
     PendingId,
     PendingStep,
@@ -155,6 +175,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -163,8 +184,12 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
+    ScoreTerm,
+    SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
     SessionCatalogApi,
@@ -173,6 +198,7 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,

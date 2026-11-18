@@ -72,7 +72,7 @@ describe("the fidelity reader's border width is the ring as drawn", () => {
 
             // a fault in the renderer, never in the style: the ring drawn twice as large round the node
             const ring = (node as unknown as { border: AbstractMesh | null }).border;
-            assert.isNotNull(ring);
+            assert.exists(ring);
             ring.scaling = ring.scaling.multiply(new Vector3(2, 2, 1));
             assert.approximately(
                 readNode(node, p, []).border?.widthPx ?? 0,

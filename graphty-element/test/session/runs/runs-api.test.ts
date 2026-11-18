@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { type AlgorithmDescriptor, DEPRECATED_ALGORITHMS, type LayerId, type RunId } from "../../../src/catalog/types";
+import type { AlgorithmDescriptor, LayerId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     createRunsApi,
@@ -136,22 +136,6 @@ describe("starting a run", () => {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNKNOWN_ALGORITHM");
             assert.deepStrictEqual(isGraphtyError(error) ? error.details.available : [], ["degree", "k-core"]);
         }
-    });
-
-    it("refuses a deprecated built-in name as unsupported, not as unknown", () => {
-        const { runs, calls } = harness();
-
-        for (const algorithm of DEPRECATED_ALGORITHMS) {
-            try {
-                runs.start(algorithm);
-                assert.fail(`the deprecated "${algorithm}" must not start`);
-            } catch (error) {
-                assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNSUPPORTED", algorithm);
-                assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "deprecated", algorithm);
-            }
-        }
-
-        assert.strictEqual(calls(), 0);
     });
 
     it("refuses an option the algorithm does not declare", () => {
@@ -486,23 +470,23 @@ describe("the queue a consumer shows", () => {
     });
 });
 
-describe("labels", () => {
+describe("the name a run's layers are given by default", () => {
     it("is the algorithm's plain name while it is the only run of that algorithm", () => {
         const { runs } = harness();
 
-        assert.strictEqual(runs.start("degree").label, "Connections");
+        assert.strictEqual(runs.defaultLayerName(runs.start("degree").id), "Connections");
     });
 
     it("gains the parameter that differs the moment a sibling exists", () => {
         const { runs } = harness();
         const two = runs.start("k-core", { k: 2 }, { as: "k2" });
 
-        assert.strictEqual(two.label, "Core");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core");
 
         const three = runs.start("k-core", { k: 3 }, { as: "k3" });
 
-        assert.strictEqual(two.label, "Core (k 2)");
-        assert.strictEqual(three.label, "Core (k 3)");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core (k 2)");
+        assert.strictEqual(runs.defaultLayerName(three.id), "Core (k 3)");
     });
 
     it("states what tells siblings apart as the differing options, and null for none (#866)", () => {
@@ -524,7 +508,7 @@ describe("labels", () => {
         runs.start("degree");
         const other = runs.start("degree", {}, { scope: "largest-component" });
 
-        assert.strictEqual(other.label, "Connections (largest component)");
+        assert.strictEqual(runs.defaultLayerName(other.id), "Connections (largest component)");
         assert.deepStrictEqual(other.siblingsDifferBy, [], "only the scope differs");
     });
 });
@@ -607,6 +591,18 @@ describe("batches", () => {
         assert.isAbove(seen.length, 0, "a batch publishes one progress stream");
     });
 
+    it("takes members whose style names groups with a function (issue #195)", async () => {
+        const { runs } = harness();
+        const groupName = ({ rank }: { readonly rank: number }): string => `Group ${String(rank)}`;
+
+        const result = await runs.batch([
+            { algorithm: "k-core", params: { k: 1 }, style: { name: "Cores", groupName } },
+            { algorithm: "degree", style: { name: "Degree", groupName } },
+        ]);
+
+        assert.strictEqual(result.completed, 2);
+    });
+
     it("keeps a member that failed from taking the batch down", async () => {
         const { runs } = harness((context) => {
             if (context.params.k === 2) {
@@ -625,7 +621,9 @@ describe("batches", () => {
         assert.strictEqual(result.completed, 2);
         assert.strictEqual(result.partial, true);
         assert.strictEqual(result.steps[1].ok, false);
-        assert.strictEqual(result.steps[1].reason, "this member failed");
+        assert.strictEqual(result.steps[1].failure?.code, "E_INTERNAL", "a plain throw is wrapped, never a sentence");
+        assert.isUndefined(result.steps[0].failure);
+        assert.isNull(result.label, "an unnamed batch is not given words of the element's");
     });
 
     it("keeps the members that finished when it is cancelled", async () => {
@@ -651,7 +649,10 @@ describe("batches", () => {
             code: "partial.batch-incomplete",
             params: { completed: 1, total: 3 },
         });
-        assert.strictEqual(batch.caveats.partialReason, "1 of 3 members finished.");
+        assert.deepStrictEqual(
+            result.steps.map((step) => step.failure?.code),
+            [undefined, "canceled", "not-started"],
+        );
 
         const finished = runs.list().filter((run) => run.status === "succeeded");
         assert.strictEqual(finished.length, 1);
@@ -665,6 +666,77 @@ describe("batches", () => {
         assert.deepStrictEqual(
             runs.list().map((run) => run.algorithm),
             ["degree"],
+        );
+    });
+});
+
+describe("sweeps", () => {
+    it("runs one algorithm once per value and returns one row per value", async () => {
+        const { runs } = harness((context) =>
+            Promise.resolve({
+                result: { ...stubResult(context.runId), graph: { k: context.params.k } },
+            }),
+        );
+
+        const sweep = await runs.sweep("k-core", "k", [1, 2, 3], { label: "Cores" });
+
+        assert.strictEqual(sweep.option, "k");
+        assert.strictEqual(sweep.label, "Cores");
+        assert.strictEqual(sweep.completed, 3);
+        assert.deepStrictEqual(
+            sweep.rows.map((row) => [row.value, row.ok, row.graph?.k]),
+            [
+                [1, true, 1],
+                [2, true, 2],
+                [3, true, 3],
+            ],
+        );
+        assert.isTrue(sweep.rows.every((row) => row.summary !== undefined));
+        assert.deepStrictEqual(
+            runs.list().map((run) => run.params.k),
+            [1, 2, 3],
+            "each value is its own listed run",
+        );
+    });
+
+    it("keeps a value that failed from taking the sweep down", async () => {
+        const { runs } = harness((context) => {
+            if (context.params.k === 2) {
+                throw new Error("this value failed");
+            }
+
+            return Promise.resolve({ result: stubResult(context.runId) });
+        });
+
+        const sweep = await runs.sweep("k-core", "k", [1, 2]);
+
+        assert.strictEqual(sweep.rows[1].ok, false);
+        assert.strictEqual(sweep.rows[1].failure?.code, "E_INTERNAL");
+        assert.isUndefined(sweep.rows[1].summary);
+        assert.isDefined(sweep.rows[0].summary);
+        assert.isNull(sweep.label);
+    });
+
+    it("is cancelled as one unit and keeps the values that finished", async () => {
+        const held = heldExecutor();
+        const { runs } = harness(held.execute);
+        const sweep = runs.sweep("k-core", "k", [1, 2, 3]);
+
+        await held.started(1);
+        held.release(0);
+        await held.started(2);
+        sweep.cancel("the reader pressed Cancel");
+
+        const result = await sweep;
+
+        assert.strictEqual(sweep.status, "canceled");
+        assert.deepStrictEqual(
+            result.rows.map((row) => [row.value, row.ok, row.failure?.code]),
+            [
+                [1, true, undefined],
+                [2, false, "canceled"],
+                [3, false, "not-started"],
+            ],
         );
     });
 });

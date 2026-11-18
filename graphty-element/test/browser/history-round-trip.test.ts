@@ -18,20 +18,14 @@ import "../helpers/legacyPlugins";
 
 import { PhotoDome } from "@babylonjs/core";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
-import { afterEach, assert, beforeAll, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const cleanups: (() => void)[] = [];
 
@@ -44,11 +38,20 @@ afterEach(() => {
 /**
  * Settles once the graph's layout has come to rest and a frame has been drawn since, with the
  * render loop running: an edge's length is drawn from where its ends are at each frame.
+ *
+ * An emptied graph has nothing to settle, so the frame loop never stops a layout left running over
+ * it: waiting for it to stop would wait for good. Every graph here is loaded before its command, so
+ * an empty one was emptied, and a layout still running over it is the defect itself (#8360, fixed
+ * by f900c480e6) -- asserted at once rather than waited on until the job's deadline.
  * @param graph - The graph.
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    if (graph.getDataManager().nodes.size === 0) {
+        assert.isFalse(graph.getLayoutManager().running, "emptying the graph left its layout stopped");
+    }
+
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -67,6 +70,10 @@ async function loadedGraph(): Promise<Graph> {
     document.body.appendChild(container);
     const graph = new Graph(container);
     await graph.init();
+    // The working graph off: with it on, a filter change lays out what is shown outside any history
+    // step, so an undo brings the filter back but not the places the layout gave the nodes it then
+    // hides (design/working-graph/design.md, section 7), and the digests could not match.
+    graph.getSession().workingGraph = false;
     await graph.setLayout("circular");
     await graph.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
     await graph.addEdges([

@@ -1026,8 +1026,8 @@ function utf8Length(text: string): number {
     let bytes = 0;
     let i = 0;
     while (i < text.length) {
-        const c = text.charCodeAt(i); // NOSONAR(S7758): reads UTF-16 code units on purpose
-        const pair = c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00; // NOSONAR(S7758): reads UTF-16 code units on purpose
+        const c = text.charCodeAt(i); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
+        const pair = c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00; // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
         if (c < 0x80) {
             bytes++;
         } else if (c < 0x800) {
@@ -1058,7 +1058,7 @@ export function throwIfAborted(signal: AbortSignal | null | undefined): void {
         throw abortError();
     }
     // the platform contract: the reason itself, whatever its type
-    throw cause as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+    throw cause as Error; // rethrows the abort signal's reason, as the platform does
 }
 
 /**
@@ -1323,7 +1323,7 @@ export async function* textChunks(
  */
 function stringSliceEnd(input: string, start: number): number {
     const end = Math.min(start + DECODE_SLICE, input.length);
-    const highSurrogate = (input.charCodeAt(end - 1) & 0xfc00) === 0xd800; // NOSONAR(S7758): reads UTF-16 code units on purpose
+    const highSurrogate = (input.charCodeAt(end - 1) & 0xfc00) === 0xd800; // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
     return end < input.length && highSurrogate ? end + 1 : end;
 }
 
@@ -1528,7 +1528,7 @@ class StreamText {
  * @param input - a non-string, non-Uint8Array input
  * @returns true for a ReadableStream
  */
-function isReadableStream(
+export function isReadableStream(
     input: ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>,
 ): input is ReadableStream<Uint8Array> {
     return typeof (input as { getReader?: unknown }).getReader === "function";
@@ -1542,7 +1542,7 @@ function isReadableStream(
  * @yields the stream's chunks
  * @returns nothing
  */
-async function* streamChunks(
+export async function* streamChunks(
     stream: ReadableStream<Uint8Array>,
     signal: AbortSignal | null,
 ): AsyncGenerator<Uint8Array, void, undefined> {

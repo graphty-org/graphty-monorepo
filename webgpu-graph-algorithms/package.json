@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.6.68",
+    "version": "0.6.69",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -48,7 +48,7 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json && node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json && node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
@@ -69,6 +69,7 @@
         "bench:readme": "node scripts/bench-readme-tables.js",
         "benchmark": "tsx benchmarks/run.ts",
         "gpu:report": "node scripts/gpu-report.js",
+        "demo": "vite demo",
         "ready:commit": "npm run build:all && npm run lint && npm run test:node"
     },
     "repository": {
@@ -94,7 +95,7 @@
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/webgpu-graph-algorithms#readme",
     "dependencies": {
         "@graphty/graph-format": "workspace:^",
-        "@webgpu/types": "^0.1.72"
+        "@webgpu/types": "^0.1.74"
     },
     "peerDependencies": {
         "@graphty/algorithms": "^1.0.0 || ^2.0.0 || ^3.0.0",
@@ -116,18 +117,19 @@
     "devDependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/layout": "workspace:^",
+        "@graphty/remote-logger": "workspace:^",
         "@vitest/browser-playwright": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "eslint": "^9.29.0",
-        "fast-check": "^4.2.0",
+        "eslint": "^9.39.5",
+        "fast-check": "^4.10.2",
         "ngraph.forcelayout": "^3.3.1",
-        "ngraph.graph": "^20.0.1",
-        "playwright": "^1.54.1",
-        "tsx": "^4.20.3",
+        "ngraph.graph": "^20.1.2",
+        "playwright": "1.57.0",
+        "tsx": "^4.23.15",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.71.1",
-        "vite": "^8.1.6",
+        "typescript-eslint": "^8.72.2",
+        "vite": "^8.3.8",
         "vitest": "catalog:",
         "webgpu": "0.6.1"
     }

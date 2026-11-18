@@ -31,6 +31,7 @@ export default {
         "LayoutManager.updatePositions",
         "Node.pin",
         "Node.unpin",
+        "SessionLayout.rerun",
         "SessionLayout.set",
         "SessionLayout.setDimension",
         "SessionPositions.pin",

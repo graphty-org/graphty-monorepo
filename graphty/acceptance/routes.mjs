@@ -11,8 +11,9 @@
  *  - `checks`: what the user would see when the walk is done, read through graphty-element's public
  *    API (`g`, README.md, "Reading the outcome") or the page's accessibility tree. A branch may not
  *    remove or change an existing check except on a branch of its own
- *    (tools/dry-run-check-guard.mjs). Each check is retried until it passes or 15 seconds pass, so it
- *    waits on its condition, never on a clock.
+ *    (tools/dry-run-check-guard.mjs). Each check is retried after every page frame until it passes, so
+ *    it waits on its condition, never on a clock; only the repository's one hang guard
+ *    (tools/test-wait-guard.mjs) ends a check that never passes.
  *
  * tools/dry-run-check-guard.mjs reads this file without running it: every route's `checks` and
  * other properties, every import, and every top-level declaration a check uses (directly or through
@@ -33,7 +34,7 @@ async function opened(u) {
 }
 
 /**
- * Samples, then the sample's card: the graph opens on the Graph's Values tab.
+ * Samples, then the sample's card: the graph opens with the Everything layer row on its Style tab.
  * @param u the user's hands (README.md)
  * @param sample the sample as its card names it ("Les Miserables")
  */
@@ -43,6 +44,19 @@ async function openSample(u, sample) {
     const name = sample.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await u.click(u.button(new RegExp(`^Open the ${name} sample: `)));
     await opened(u);
+}
+
+/**
+ * The graph's title in the Graph place, then the Graph inspector's Values tab.
+ * @param u the user's hands (README.md)
+ */
+async function graphValues(u) {
+    await u.page
+        .getByRole("region", { name: "Graph place" })
+        .getByRole("button", { name: /^Graph / })
+        .first()
+        .click();
+    await u.page.getByRole("tab", { name: "Values", exact: true }).click();
 }
 
 /**
@@ -72,7 +86,7 @@ async function newLayer(u) {
  * @param u the user's hands (README.md)
  */
 async function openWhich(u) {
-    const edit = u.page.getByRole("button", { name: /^Edit Which (nodes|edges)/ });
+    const edit = u.page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ });
     const line = u.page.getByRole("button", { name: /^Which (nodes|edges),/ });
     await edit.or(line).first().waitFor();
     if (await edit.isVisible()) {
@@ -84,9 +98,9 @@ async function openWhich(u) {
 }
 
 /**
- * A condition on the column. In the selection workspace: the new step's Value (or And...
- * for a further step), the column typed into the value picker and Enter; focus lands on the
- * step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
+ * A condition on the column. In the selection workspace: the new card's Value (or the card's
+ * Keep for a further condition), the column typed into the value picker and Enter; focus lands on
+ * the step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
  * @param u the user's hands (README.md)
  * @param column the column, as the pickers name it
  */
@@ -105,7 +119,7 @@ async function addCondition(u, column) {
         return;
     }
     const value = ws.getByRole("button", { name: "Value", exact: true });
-    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: /^(And|Add)\.\.\.$/ })).click();
+    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: "Keep", exact: true })).click();
     await u.page.getByRole("combobox", { name: "Find attributes, results" }).waitFor();
     await u.type(column);
     await u.key("Enter");
@@ -333,6 +347,7 @@ export const routes = [
         from: "T37 A",
         async walk(u) {
             await openSample(u, "Les Miserables");
+            await graphValues(u);
         },
         checks: {
             "Les Miserables opens with 77 nodes and 254 edges": sizeIs(77, 254),
@@ -346,6 +361,7 @@ export const routes = [
         from: "T37 B",
         async walk(u) {
             await openSample(u, "Zachary's karate club");
+            await graphValues(u);
         },
         checks: {
             "the karate club opens with 34 nodes and 78 edges": sizeIs(34, 78),

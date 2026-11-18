@@ -8,6 +8,9 @@ algorithms: []
 used_by_workflows:
     - W02
     - W15
+    - W20
+    - W22
+    - W24
 implemented_by_components:
     - color-picker
     - legend-panel

@@ -122,7 +122,7 @@ result of the call on the same row. Where the name is unchanged, the arguments a
 | `isStronglyConnected(graph)`                     | `stronglyConnectedComponents(s).count === 1`                                                                        |
 | `isWeaklyConnected(graph)`                       | `weaklyConnectedComponents(s).count === 1`                                                                          |
 | `kCoreDecomposition(graph)`                      | `kCoreDecomposition(s)`: `r.coreness`, `r.maxCore`, `r.cores()`                                                     |
-| `kargerMinCut(graph, iterations)`                | `kargerMinCut(s, { iterations, randomSeed })`: `r.cutValue`, `r.side`, `r.cutEdges`                                 |
+| `kargerMinCut(graph, iterations)`                | `kargerMinCut(s, { iterations, seed })`: `r.cutValue`, `r.side`, `r.cutEdges`                                       |
 | `katzCentrality(graph, options)`                 | `katzCentrality(s, options)`: `r.scores`                                                                            |
 | `kruskalMST(graph)`                              | `kruskalMST(s)`: `r.edges` (edge indices), `r.totalWeight`                                                          |
 | `labelPropagation(graph, options)`               | `labelPropagation(s, options)`: `r.labels`, `r.count`                                                               |
@@ -197,7 +197,7 @@ graphs named:
   not from the largest score).
 - **Louvain and Leiden** visit nodes in another seeded order and stop at other partitions (on the karate club, Louvain
   now reaches modularity 0.4188 against 0.3404).
-- **Label propagation.** For the same `randomSeed`, communities differ on any graph with more than one valid partition
+- **Label propagation.** For the same `seed`, communities differ on any graph with more than one valid partition
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
   graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
   throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels, and since the fix of
@@ -213,12 +213,17 @@ graphs named:
   distance is NaN and no path is returned; a negative undirected edge is a negative cycle; a NaN or infinite weight
   throws. `allPairsShortestPath` refuses more than 5,792 nodes unless `maxNodes` is raised.
 - **Link prediction.** Adamic-Adar scores agree with 2.x within 1e-9, but tied pairs rank in another order, so a `topK`
-  cut can keep other pairs and the evaluation metrics can differ where a held-out edge ties a non-edge.
+  cut can keep other pairs. The evaluation metrics (`evaluateCommonNeighbors`, `evaluateAdamicAdar`,
+  `compareAdamicAdarWithCommonNeighbors`) treat ties as ties: a held-out edge tied with a non-edge counts half in the
+  `auc`, where 2.x and 3.x before the fix for issue #6882 counted it as a win, and the best-F1 threshold never splits
+  pairs with equal scores. So `auc`, `precision`, `recall` and `f1Score` are lower wherever a held-out edge ties a
+  non-edge, and a predictor that gives every pair the same score reports an `auc` of 0.5 rather than 1.
   With `directed: true`, `commonNeighborsPrediction` and `adamicAdarPrediction` score every ordered pair (u, v), where
   2.x scored only the pairs whose u was added before v, so they list the pairs 2.x missed too.
 - **Clustering.** `modularity` is Newman's modularity over weighted degrees, where `calculateMCLModularity` ignored
   weights and summed the null model over the edges only. `spectralClustering` solves the Laplacian to a tolerance and
-  gives other clusters on most graphs. `teraHAC` indexes its distances by node, where 2.x looked them up by
+  gives other clusters on most graphs (2.x used fixed placeholder eigenvalues for k <= 3 and drew its k-means seeds from
+  `Math.random` unless given a seed). `teraHAC` indexes its distances by node, where 2.x looked them up by
   `parseInt(nodeId)` and merged arbitrarily after the first merge on most graphs. `markovClustering` throws a
   `RangeError` on options and weights 2.x ran with: an `expansion` that is not a whole number of at least 1, an
   `inflation` that is not finite and above 0, a `maxIterations` that is not a whole number, and a negative, NaN or
@@ -226,6 +231,9 @@ graphs named:
 - **Self-loops in community detection.** On an undirected graph with a self-loop, `girvanNewman` counts the loop twice
   in its node's degree where 2.x counted it once, so each level's modularity differs and the best level can be another
   one; `grsbm` gives another root modularity (on one small graph with a loop, 0 where 2.x gave 0.0586).
+- **One seed option.** Every seeded algorithm takes `seed`, an integer, default 42. `leiden`, `labelPropagation`,
+  `labelPropagationSemiSupervised` and `kargerMinCut` took `randomSeed`, which they still read when `seed` is not given;
+  `grsbm` and `syncClustering` now refuse a seed that is not an integer, as the others always did.
 - **Seeded `grsbm` and `syncClustering`.** Both draw from mulberry32 in every release after 3.1.2. 2.x and 3.0.0
   through 3.1.2 drew from a linear congruential generator whose float64 product lost its low bits above 2^53 and which could return exactly 1, so
   the same `seed` now gives other bisections, clusters and embeddings.

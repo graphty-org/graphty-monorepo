@@ -388,7 +388,14 @@ describe("D12 JSON exporter: the recorded d3 / graphology shape is not written b
 describe("D13 position columns skip the dtype check: an f32 position comes back f64 with different values and no note", () => {
     it("GML: graphics x/y/z of an f32 position column re-import as f64 (GML reals are doubles), which check() predicts", async () => {
         const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
-        b.declareNodeColumn({ name: "position", dtype: "f32", components: 3, role: "position" });
+        // spelled as GML spells it (y down), so the writer writes the stored values
+        b.declareNodeColumn({
+            name: "position",
+            dtype: "f32",
+            components: 3,
+            role: "position",
+            extra: { yAxis: "down" },
+        });
         b.addNode(1);
         b.addNode(2);
         b.addEdge(1, 2);

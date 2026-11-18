@@ -30,8 +30,7 @@ graph-format/
 +-- tsconfig.build.json           # emit config: graph-format.ts + src/, rootDir ".", outDir dist (-> dist/src/ + dist/graph-format.*)
 +-- tsconfig.strict-consumer.json # public d.ts under noUncheckedIndexedAccess + exactOptionalPropertyTypes
 +-- vitest.config.ts              # single project, environment node, pool forks, thresholds 80/80/75/80
-+-- scripts/build-bundle.js       # programmatic vite lib build -> dist/graph-format.js (+ map)
-+-- scripts/bundle-types.js       # writes dist/graph-format.d.ts = export * from "./src/index.js"
++-- scripts/build-bundle.js       # programmatic vite lib build -> dist/graph-format.js (+ map) and dist/graph-format.d.ts = export * from "./src/index.js" (tools/build-bundle.mjs)
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; every 12.2 name listed explicitly (no star re-exports)
 |   +-- constants.ts              # INVALID_INDEX, MAX_COUNT, FORMAT_VERSION, SNAPSHOT_BRAND (public) + ALIGNMENT, WIRE_* (internal)
@@ -110,7 +109,6 @@ pnpm exec knip --workspace graph-format   # from packages/: dead exports (un-exp
 # Benchmarks (design section 15.5)
 npm run benchmark                          # every group, appends benchmarks/results/<host>-node<version>.json
 npx tsx benchmarks/run.ts freeze --no-save # one group, no results file
-node --expose-gc --import tsx benchmarks/run.ts   # exact memory deltas
 
 # Everything before a commit
 npm run ready:commit

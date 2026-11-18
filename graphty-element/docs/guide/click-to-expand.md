@@ -39,7 +39,9 @@ const result = await element.session.data.collapse("2680");
 parameters, and merges what comes back: new nodes are added, nodes already in the graph take the
 incoming attributes. Pass `credential` to use a credential for this call. A node with more to
 fetch continues from where its last expansion stopped, and a second expansion of a node that is
-still running joins it instead of fetching twice.
+still running joins it instead of fetching twice when it asks the same (`depth`, `direction`,
+`limit`, `relationshipTypes`, `layout`, `credential` and `fetch`); one that asks something else
+runs after the first settles. A joined call's `signal` cancels only that call's wait.
 
 A node loaded from a file has no source to ask: `expand` rejects with a `GraphtyError` whose code
 is `E_SOURCE_UNSUPPORTED` and whose `details.feature` is `"expand"`.

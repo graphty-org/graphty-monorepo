@@ -133,7 +133,7 @@ function CommitField({
 /**
  * The Map layout's map: which map lies under the graph (the element's named sources by kind, None,
  * or the reader's own tiles or image with its credit), written as the layout's `map` option. The
- * element draws the map's credits on the canvas.
+ * credit is data in the element's `basemapStatus`; nothing draws it over the canvas.
  * @param props - Component props
  * @param props.value - The `map` option, or null or undefined for the bundled world
  * @param props.onChange - Writes a new map

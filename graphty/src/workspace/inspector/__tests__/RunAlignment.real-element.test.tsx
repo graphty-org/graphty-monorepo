@@ -11,7 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -30,7 +30,7 @@ const EDGES = [
  * @param options - Its options
  * @returns The inspector, queried
  */
-async function inspectRun(algorithm: string, options: Record<string, unknown>): Promise<ReturnType<typeof within>> {
+async function inspectRun(algorithm: string, options: Record<string, unknown>): Promise<Within> {
     const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
     const view = render(<Workspace store={store} />);
     let session: GraphSession | undefined;

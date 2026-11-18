@@ -84,18 +84,19 @@ describe("a value's name", () => {
         session.dispose();
     });
 
-    it("follows its group when the run is computed again and renumbers the groups", async () => {
+    it("stays on its group when the run is computed again and its algorithm renumbers the groups", async () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
         const path = `results.${run.runId}.group`;
         await session.data.setValueLabel(path, 0, "First two");
 
-        // A data change makes the same run compute again; the a-and-b group is now numbered 1.
+        // A data change makes the same run compute again; the algorithm numbers the a-and-b group
+        // 1 this time, and the element keeps the number the group had.
         await session.data.addNodes([{ id: "e" }]);
         await session.runs.start("louvain", {});
         await session.styles.settled();
-        assert.strictEqual(session.runs.get(run.runId)?.result?.node("a")?.group, 1);
-        assert.deepStrictEqual([...session.data.valueLabels(path)], [["1", "First two"]]);
+        assert.strictEqual(session.runs.get(run.runId)?.result?.node("a")?.group, 0);
+        assert.deepStrictEqual([...session.data.valueLabels(path)], [["0", "First two"]]);
         session.dispose();
     });
 
@@ -112,4 +113,45 @@ describe("a value's name", () => {
         assert.strictEqual(reopened.data.valueLabels(path).get("1"), "Last two");
         reopened.dispose();
     });
+
+    it("is written once, right after the views, so a save matches files saved before", async () => {
+        const session = await communities();
+        const run = await session.runs.start("louvain", {});
+        const path = `results.${run.runId}.group`;
+        await session.data.setValueLabel(path, 1, "Last two");
+        const saved = await session.project.save();
+        session.dispose();
+
+        assert.strictEqual(saved.text.split('"valueLabels"').length - 1, 1, "the field is written once");
+        const member = findWith(JSON.parse(saved.text) as unknown, "valueLabels");
+        assert.isDefined(member, "the saved file carries the names");
+        const keys = Object.keys(member);
+        assert.strictEqual(keys[keys.indexOf("valueLabels") - 1], "views", "the field keeps its place in the file");
+        assert.deepStrictEqual(member.valueLabels, [{ path, value: "1", label: "Last two" }]);
+    });
 });
+
+/**
+ * The first object, however deep, that has the key.
+ * @param value - The parsed file.
+ * @param key - The key.
+ * @returns The object, or undefined.
+ */
+function findWith(value: unknown, key: string): Record<string, unknown> | undefined {
+    if (typeof value !== "object" || value === null) {
+        return undefined;
+    }
+
+    if (!Array.isArray(value) && key in value) {
+        return value as Record<string, unknown>;
+    }
+
+    for (const child of Object.values(value)) {
+        const found = findWith(child, key);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+
+    return undefined;
+}

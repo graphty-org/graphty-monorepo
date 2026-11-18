@@ -7,8 +7,13 @@
  *
  * - caches each prefix the second time it is sent (Gemini explicit context caching: POST cachedContents), and
  *   sends later requests with that prefix as `cachedContent` with the prefix's fields left out, as the API
- *   requires. A prefix the API refuses to cache (too small: 3.8 Flash caches 4,096 tokens or more) is sent whole.
- *   `close()` deletes the caches; each lives at most `ttlSeconds` and is replaced before it expires;
+ *   requires. A prefix the API refuses to cache (too small: 3.8 Flash caches 1,024 tokens or more) is sent whole.
+ *   The caches are kept in `cacheDir`, one file per prefix, so every test file of a run -- each in its own
+ *   process -- counts its sightings and uses its cache: a prefix is created once per run, not once per file, and
+ *   a tool set one file loads (a catalog result adds tools to the turn, a new prefix) is cached for the next file
+ *   too. The run's global setup (test/ai/llm-regression/global-setup.ts) deletes them at the end; a transport
+ *   given no directory keeps its own and `close()` deletes its caches. Each lives at most `ttlSeconds` and is
+ *   replaced before it expires;
  * - asks for the Flex tier when told to (`serviceTier: "flex"`, half the Standard price, best effort). Flex
  *   answers a request it has no capacity for with 429 or 503; the transport retries it as Google documents (3
  *   attempts, 5 s doubling), then throws {@link FLEX_CAPACITY_CODE}. A 429 that refuses the account (quota,
@@ -24,7 +29,21 @@
  */
 
 import { createHash } from "node:crypto";
-import { appendFileSync } from "node:fs";
+import {
+    appendFileSync,
+    closeSync,
+    mkdtempSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    statSync,
+    unlinkSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as sleepFor } from "node:timers/promises";
 
 /** The tier the transport asks for: flex, or standard (the API's default, the field left out). */
@@ -92,11 +111,50 @@ export interface GeminiRunUsage {
     usd: number | undefined;
 }
 
+/** One prefix's cache as its file in the cache directory holds it; `{}` while a process is creating it. */
 interface CacheEntry {
-    seen: number;
     name?: string;
+    apiBase?: string;
     createdAt?: number;
     refused?: string;
+}
+
+/**
+ * A prefix's cache file: undefined when no process has claimed the prefix, `{}` while one creates its cache.
+ * @param file - The file.
+ * @returns Its entry.
+ */
+function readEntry(file: string): CacheEntry | undefined {
+    try {
+        const text = readFileSync(file, "utf8");
+        return text === "" ? {} : (JSON.parse(text) as CacheEntry);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Delete every cache a cache directory names, retired ones included.
+ * @param dir - The directory.
+ * @param apiKey - The Google key.
+ * @param fetch - The fetch to send with.
+ */
+export async function deleteCaches(dir: string, apiKey: string, fetch: typeof globalThis.fetch): Promise<void> {
+    const files = readdirSync(dir).filter((file) => file.endsWith(".json") || file.endsWith(".retired"));
+    for (const { name, apiBase } of files.flatMap((file) => readEntry(join(dir, file)) ?? [])) {
+        if (name === undefined || apiBase === undefined) {
+            continue;
+        }
+
+        const response = await fetch(`${apiBase}/${name}`, {
+            method: "DELETE",
+            headers: { "x-goog-api-key": apiKey },
+        }).catch((error: unknown) => error as Error);
+        if (response instanceof Error || !response.ok) {
+            const why = response instanceof Error ? response.message : `HTTP ${response.status}`;
+            console.log(`[llm-regression] could not delete ${name} (${why}); it expires on its own`);
+        }
+    }
 }
 
 /** Options for {@link GeminiTransport}. */
@@ -107,6 +165,11 @@ export interface GeminiTransportOptions {
     cache?: boolean;
     /** Longest a cache lives (default 1200 s: the release job's 20 minute limit). */
     ttlSeconds?: number;
+    /**
+     * The directory the run's transports share their caches in (default one of the transport's own, which
+     * `close()` deletes with its caches).
+     */
+    cacheDir?: string;
     /** The fetch underneath (default the global one). */
     fetch?: typeof globalThis.fetch;
     /** Waits between Flex attempts (default a real, abortable timer). */
@@ -144,8 +207,7 @@ const defaultSleep = async (ms: number, signal?: AbortSignal | null): Promise<vo
 
 /** The fetch the LLM regression harness hands the Google provider. */
 export class GeminiTransport {
-    private readonly caches = new Map<string, CacheEntry>();
-    private readonly retired: string[] = [];
+    private ownCacheDir?: string;
     private readonly base: typeof globalThis.fetch;
     private readonly sleep: NonNullable<GeminiTransportOptions["sleep"]>;
     private readonly now: () => number;
@@ -175,6 +237,11 @@ export class GeminiTransport {
         this.now = options.now ?? Date.now;
         this.deadline = options.deadline ?? (() => AbortSignal.timeout(REQUEST_DEADLINE_MS));
         this.ttlSeconds = options.ttlSeconds ?? 1200;
+    }
+
+    /** The shared cache directory, or the transport's own, made on first use. */
+    private get cacheDir(): string {
+        return this.options.cacheDir ?? (this.ownCacheDir ??= mkdtempSync(join(tmpdir(), "llm-regression-caches-")));
     }
 
     /** The fetch to hand the SDK. */
@@ -233,22 +300,13 @@ export class GeminiTransport {
     }
 
     /**
-     * Delete every cache this transport made.
+     * Delete every cache in the transport's own directory; a shared directory's are the run's to delete.
      * @returns The run's usage
      */
     async close(): Promise<GeminiRunUsage> {
-        const names = [...this.retired, ...[...this.caches.values()].flatMap((c) => (c.name ? [c.name] : []))];
-        this.caches.clear();
-        this.retired.length = 0;
-        for (const name of names) {
-            const response = await this.base(`${this.apiBase}/${name}`, {
-                method: "DELETE",
-                headers: { "x-goog-api-key": this.options.apiKey },
-            }).catch((error: unknown) => error as Error);
-            if (response instanceof Error || !response.ok) {
-                const why = response instanceof Error ? response.message : `HTTP ${response.status}`;
-                console.log(`[llm-regression] could not delete ${name} (${why}); it expires on its own`);
-            }
+        if (this.ownCacheDir !== undefined) {
+            await deleteCaches(this.ownCacheDir, this.options.apiKey, this.base);
+            rmSync(this.ownCacheDir, { recursive: true, force: true });
         }
 
         return this.usage;
@@ -271,25 +329,30 @@ export class GeminiTransport {
     private async useCache(body: Record<string, unknown>, signal?: AbortSignal | null): Promise<void> {
         const prefix = { systemInstruction: body.systemInstruction, tools: body.tools, toolConfig: body.toolConfig };
         const key = createHash("sha256").update(JSON.stringify(prefix)).digest("hex");
-        const entry = this.caches.get(key) ?? { seen: 0 };
-        this.caches.set(key, entry);
-        entry.seen++;
+        const file = join(this.cacheDir, `${key}.json`);
+        // One byte per sighting, from any process: an append this small is atomic.
+        const seen = join(this.cacheDir, `${key}.seen`);
+        appendFileSync(seen, ".");
         // Once is not worth a cache: a prefix pays its creation back from its second use on.
-        if (entry.seen < 2 || entry.refused !== undefined) {
+        if (statSync(seen).size < 2) {
             return;
         }
 
-        // Replace a cache two minutes before it expires, so no request names an expired one.
-        if (entry.name && this.now() - (entry.createdAt ?? 0) > (this.ttlSeconds - 120) * 1000) {
-            this.retired.push(entry.name);
-            entry.name = undefined;
+        let entry = readEntry(file);
+        // Retire a cache two minutes before it expires, so no request names an expired one. Only one process
+        // wins the rename; the retired cache is deleted with the rest, after the requests naming it.
+        if (entry?.name && this.now() - (entry.createdAt ?? 0) > (this.ttlSeconds - 120) * 1000) {
+            try {
+                renameSync(file, join(this.cacheDir, `${key}.${String(entry.createdAt)}.retired`));
+            } catch {
+                // Another process retired it first.
+            }
+
+            entry = readEntry(file);
         }
 
-        if (!entry.name) {
-            await this.create(entry, prefix, signal);
-        }
-
-        if (entry.name) {
+        entry ??= await this.create(file, prefix, signal);
+        if (entry?.name) {
             delete body.systemInstruction;
             delete body.tools;
             delete body.toolConfig;
@@ -297,24 +360,64 @@ export class GeminiTransport {
         }
     }
 
-    private async create(entry: CacheEntry, prefix: Record<string, unknown>, signal?: AbortSignal | null) {
-        const response = await this.base(`${this.apiBase}/cachedContents`, {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-goog-api-key": this.options.apiKey },
-            body: JSON.stringify({ model: `models/${this.model}`, ...prefix, ttl: `${this.ttlSeconds}s` }),
-            signal,
-        });
-        if (!response.ok) {
-            // Not a test failure: the prefix is sent whole, as before caching. A refused key fails the request itself.
-            entry.refused = `HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`;
-            console.log(`[llm-regression] prefix sent uncached, the cache was refused (${entry.refused})`);
-            return;
+    /**
+     * Create a prefix's cache, unless another process claimed it first (that request is sent whole).
+     * @param file - The prefix's cache file.
+     * @param prefix - The prefix.
+     * @param signal - The request's signal.
+     * @returns The entry, or undefined when another process is creating it
+     */
+    private async create(
+        file: string,
+        prefix: Record<string, unknown>,
+        signal?: AbortSignal | null,
+    ): Promise<CacheEntry | undefined> {
+        try {
+            closeSync(openSync(file, "wx"));
+        } catch {
+            return undefined;
         }
 
-        const cache = (await response.json()) as { name: string; usageMetadata?: { totalTokenCount?: number } };
+        let entry: CacheEntry;
+        try {
+            const response = await this.base(`${this.apiBase}/cachedContents`, {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-goog-api-key": this.options.apiKey },
+                body: JSON.stringify({ model: `models/${this.model}`, ...prefix, ttl: `${this.ttlSeconds}s` }),
+                signal,
+            });
+            entry = response.ok
+                ? this.created(
+                      (await response.json()) as { name: string; usageMetadata?: { totalTokenCount?: number } },
+                  )
+                : // Not a test failure: the prefix is sent whole, as before caching. A refused key fails the request itself.
+                  { refused: `HTTP ${response.status}: ${(await response.text()).slice(0, 200)}` };
+        } catch (error) {
+            // Unclaimed again, so a later request may try.
+            unlinkSync(file);
+            throw error;
+        }
+
+        if (entry.refused !== undefined) {
+            console.log(`[llm-regression] prefix sent uncached, the cache was refused (${entry.refused})`);
+        }
+
+        // Written whole, then renamed over the claim: no process reads half an entry.
+        writeFileSync(`${file}.tmp`, JSON.stringify(entry));
+        renameSync(`${file}.tmp`, file);
+        return entry;
+    }
+
+    /**
+     * Count and price a cache the API made.
+     * @param cache - The API's answer.
+     * @param cache.name - The cache's name.
+     * @param cache.usageMetadata - Its size.
+     * @param cache.usageMetadata.totalTokenCount - Its tokens.
+     * @returns Its entry
+     */
+    private created(cache: { name: string; usageMetadata?: { totalTokenCount?: number } }): CacheEntry {
         const tokens = cache.usageMetadata?.totalTokenCount ?? 0;
-        entry.name = cache.name;
-        entry.createdAt = this.now();
         this.usage.caches++;
         this.usage.cacheTokens += tokens;
         const prices = this.prices();
@@ -322,6 +425,7 @@ export class GeminiTransport {
             ? (tokens / 1e6) * (prices.standard.input + (STORAGE_PER_HOUR * this.ttlSeconds) / 3600) * this.rise()
             : 0;
         this.updateUsd();
+        return { name: cache.name, apiBase: this.apiBase, createdAt: this.now() };
     }
 
     private async send(url: string, init: RequestInit): Promise<Response> {

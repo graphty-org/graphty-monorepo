@@ -129,23 +129,27 @@ export {
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
-export { defineSource } from "./sources/define.js";
+export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
     NEPTUNE_SOURCE_ID,
     OPENALEX_SOURCE_ID,
     REST_SOURCE_ID,
+    S3_SOURCE_ID,
     SOURCE_ATTR_PREFIX,
     SOURCE_DEGREE_ATTR,
     SOURCE_ENTITY_ATTR,
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
     SPARQL_SOURCE_ID,
+    URL_SOURCE_ID,
+    ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
-export { sha256Hex } from "./sources/sigv4.js";
+export { sha256Hex, sha256HexSync } from "./sources/sha256.js";
 export {
     type Recording,
     recordingFrom,
@@ -197,6 +201,7 @@ export {
     type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
+export { URL_DESCRIPTOR, type UrlParams } from "./sources/url/descriptor.js";
 
 // ============================================================ formats (8.4, 8.5)
 export {
@@ -252,6 +257,8 @@ export {
     graphvizPosBends,
     RANK_COLUMN,
     RANK_SET_COLUMN,
+    type RequestedLayout,
+    requestedLayout,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,
@@ -296,8 +303,13 @@ export {
     type JsonImportDialect,
     jsonImporter,
     type JsonImportOptions,
+    type JsonRecords,
+    type JsonRecordsOptions,
     type JsonShapeMeta,
     jsonShapeOf,
+    readJsonRecords,
+    recordKey,
+    recordPaths,
     sniffJsonDialect,
 } from "./formats/json/index.js";
 export {

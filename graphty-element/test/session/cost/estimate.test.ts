@@ -124,7 +124,7 @@ describe("estimateCost: the synchronous answer", () => {
 
         assert.equal(estimate.costClass, "heavy");
         assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
-        assert.include(estimate.basis, "n * m");
+        assert.strictEqual(estimate.basisFacts.term, "class");
     });
 
     it("charges Girvan-Newman a betweenness pass per round, up to its round bound", () => {
@@ -157,7 +157,7 @@ describe("estimateCost: the synchronous answer", () => {
 
         assert.equal(estimate.costClass, "heavy");
         assert.closeTo(estimate.seconds, (1000 * 5000) / (11 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
-        assert.include(estimate.basis, "n(n + m)");
+        assert.strictEqual(estimate.basisFacts.term, "algorithm");
     });
 
     it("charges closeness one BFS per source rather than the class' pair term, and scales with calibration", () => {
@@ -166,7 +166,7 @@ describe("estimateCost: the synchronous answer", () => {
 
         assert.equal(estimate.costClass, "heavy");
         assert.closeTo(estimate.seconds, (1000 * 5000) / (24 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
-        assert.include(estimate.basis, "n(n + m)");
+        assert.strictEqual(estimate.basisFacts.term, "algorithm");
 
         const halfSpeed = Object.fromEntries(
             Object.entries(DEFAULT_COST_RATES).map(([key, rate]) => [key, rate / 2]),
@@ -188,21 +188,24 @@ describe("estimateCost: the synchronous answer", () => {
         const exact = estimateCost(input);
         const sampled = estimateCost({ ...input, params: { k: 100 } });
         assert.closeTo(sampled.seconds, exact.seconds / 100, 1e-9);
-        assert.include(sampled.basis, "sampled at 100 of 10,000 nodes");
+        assert.strictEqual(sampled.basisFacts.sample, 100);
         assert.equal(estimateCost({ ...input, params: { k: null } }).seconds, exact.seconds);
     });
 
-    it("says in words where the number came from", () => {
+    it("says where the number came from, as facts", () => {
         const estimate = estimateCost({
             algorithm: "degree",
             descriptor: algorithmByKey("degree"),
             statistics: statistics({ nodeCount: 70000, edgeCount: 350000 }),
         });
 
-        assert.include(estimate.basis, "n=70,000");
-        assert.include(estimate.basis, "m=350,000");
-        assert.include(estimate.basis, "n + m");
-        assert.include(estimate.basis, "has not been calibrated");
+        assert.strictEqual(estimate.basisFacts.nodes, 70000);
+        assert.strictEqual(estimate.basisFacts.edges, 350000);
+        assert.strictEqual(estimate.basisFacts.term, "algorithm");
+        assert.deepStrictEqual(estimate.basisFacts.provenance, {
+            code: "cost.built-in",
+            params: { calibratedAt: null },
+        });
     });
 
     it("gives the same basis as facts with no words", () => {
@@ -256,7 +259,7 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
             1e-12,
             "the estimate must be the schema's bound times the work, not a copied number",
         );
-        assert.include(estimate.basis, `k=${bound}`);
+        assert.strictEqual(estimate.basisFacts.iterations, bound);
     });
 
     it("lets a caller's parameter override the declared bound", () => {
@@ -270,7 +273,7 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
         });
 
         assert.isBelow(fewer.seconds, base.seconds);
-        assert.include(fewer.basis, "k=10");
+        assert.strictEqual(fewer.basisFacts.iterations, 10);
     });
 
     it("degrades to modelled when no bound is declared anywhere, however well calibrated", () => {
@@ -282,8 +285,8 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
         });
 
         assert.equal(estimate.confidence, "modelled", "an assumed iteration count is a guess, whatever the rate is");
-        assert.include(estimate.basis, "no iteration bound is declared");
-        assert.include(estimate.basis, String(ASSUMED_ITERATION_BOUND));
+        assert.isTrue(estimate.basisFacts.iterationsAssumed);
+        assert.strictEqual(estimate.basisFacts.iterations, ASSUMED_ITERATION_BOUND);
     });
 });
 
@@ -307,7 +310,7 @@ describe("estimateCost: the confidence ladder", () => {
         });
 
         assert.equal(estimate.confidence, "calibrated");
-        assert.include(estimate.basis, "on this device");
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.calibrated");
     });
 
     it("stays modelled when the probe could not run", () => {
@@ -319,7 +322,7 @@ describe("estimateCost: the confidence ladder", () => {
         });
 
         assert.equal(estimate.confidence, "modelled", "a calibration that fell back to defaults measured nothing");
-        assert.include(estimate.basis, "could not measure this device");
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.built-in");
     });
 
     it("reports measured, and scales, when this algorithm has run here at a comparable size", () => {
@@ -333,7 +336,10 @@ describe("estimateCost: the confidence ladder", () => {
 
         assert.equal(estimate.confidence, "measured");
         assert.closeTo(estimate.seconds, 0.02, 1e-12, "5,000 units against a 2,500-unit run that took 0.01 s");
-        assert.include(estimate.basis, "measured 2026-09-19");
+        assert.deepStrictEqual(estimate.basisFacts.provenance, {
+            code: "cost.measured",
+            params: { at: "2026-09-19T00:00:00.000Z" },
+        });
     });
 
     it("degrades when the timing has to be stretched past the band it is trusted over", () => {
@@ -345,8 +351,8 @@ describe("estimateCost: the confidence ladder", () => {
         });
 
         assert.equal(estimate.confidence, "modelled");
-        assert.include(estimate.basis, "extrapolated");
-        assert.include(estimate.basis, `${MEASUREMENT_EXTRAPOLATION_LIMIT}x band`);
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.extrapolated");
+        assert.strictEqual(estimate.basisFacts.provenance.params.limit, MEASUREMENT_EXTRAPOLATION_LIMIT);
     });
 
     it("ignores a timing taken on another machine", () => {
@@ -359,7 +365,7 @@ describe("estimateCost: the confidence ladder", () => {
         });
 
         assert.equal(estimate.confidence, "calibrated", "a timing from elsewhere is not a measurement of this machine");
-        assert.notInclude(estimate.basis, "somewhere-else");
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.calibrated");
     });
 
     it("keeps a plugin's own cost model at modelled, calibration or not", () => {
@@ -372,7 +378,7 @@ describe("estimateCost: the confidence ladder", () => {
 
         assert.equal(estimate.confidence, "modelled");
         assert.closeTo(estimate.seconds, 5, 1e-12);
-        assert.include(estimate.basis, "declared cost model");
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.declared-model");
     });
 });
 
@@ -442,7 +448,7 @@ describe("estimateCost: a plugin's cost in work units", () => {
         });
 
         assert.equal(estimate.confidence, "calibrated");
-        assert.notInclude(estimate.basis, "no iteration bound is declared");
+        assert.isFalse(estimate.basisFacts.iterationsAssumed);
     });
 
     it("wins over a seconds model declared beside it", () => {
@@ -491,7 +497,7 @@ describe("estimateCost: inputs that cannot support a number", () => {
 
         assert.equal(estimate.confidence, "unknown");
         assert.equal(estimate.seconds, Number.POSITIVE_INFINITY);
-        assert.include(estimate.basis, "not known yet");
+        assert.strictEqual(estimate.basisFacts.provenance.code, "cost.size-unknown");
     });
 
     it("reports unknown and unavailable for an algorithm nothing registers", () => {
@@ -499,7 +505,7 @@ describe("estimateCost: inputs that cannot support a number", () => {
 
         assert.equal(estimate.confidence, "unknown");
         assert.isFalse(estimate.available);
-        assert.include(estimate.reason ?? "", "acme:nope");
+        assert.deepStrictEqual(estimate.refusal, { code: "algorithm.unknown", params: { algorithm: "acme:nope" } });
     });
 });
 
@@ -512,8 +518,6 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         });
 
         assert.isFalse(estimate.available);
-        assert.include(estimate.reason ?? "", "undirected");
-        assert.include(estimate.basis, estimate.reason ?? "");
         assert.deepStrictEqual(estimate.refusal, {
             code: "algorithm.needs-undirected",
             params: { algorithm: "kruskal" },
@@ -541,7 +545,7 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         });
 
         assert.isTrue(estimate.available);
-        assert.isUndefined(estimate.reason);
+        assert.isUndefined(estimate.refusal);
     });
 
     it("says nothing about direction for a graph whose direction nothing has settled", () => {
@@ -562,7 +566,6 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         });
 
         assert.isFalse(estimate.available);
-        assert.include(estimate.reason ?? "", "weights");
         assert.deepStrictEqual(estimate.refusal, {
             code: "algorithm.needs-weighted",
             params: { algorithm: "acme:test" },
@@ -586,7 +589,6 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         });
 
         assert.isFalse(estimate.available);
-        assert.include(estimate.reason ?? "", "4,000 pieces");
         assert.deepStrictEqual(estimate.refusal, {
             code: "algorithm.needs-connected",
             params: { algorithm: "acme:test", pieces: 4000 },
@@ -604,7 +606,6 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         });
 
         assert.isFalse(without.available);
-        assert.include(without.reason ?? "", "accelerator");
         assert.deepStrictEqual(without.refusal, {
             code: "algorithm.needs-accelerator",
             params: { algorithm: "acme:test" },
@@ -665,7 +666,7 @@ describe("estimateCost: scope and sampling", () => {
         });
 
         assert.isBelow(part.seconds, whole.seconds);
-        assert.include(part.basis, "n=1,000");
+        assert.strictEqual(part.basisFacts.nodes, 1000);
     });
 
     it("says when the scope's sizes were scaled rather than counted", () => {
@@ -676,7 +677,7 @@ describe("estimateCost: scope and sampling", () => {
             scope: { nodes: 500, edges: 2000, exact: false },
         });
 
-        assert.include(estimate.basis, "scaled from the whole graph");
+        assert.isTrue(estimate.basisFacts.sizesScaled);
     });
 
     it("scales the work by the share of the graph a sample covers", () => {
@@ -693,7 +694,7 @@ describe("estimateCost: scope and sampling", () => {
         });
 
         assert.closeTo(sampled.seconds, exact.seconds / 100, 1e-9);
-        assert.include(sampled.basis, "sampled at 100 of 10,000 nodes");
+        assert.strictEqual(sampled.basisFacts.sample, 100);
     });
 
     it("never scales a sample above the whole graph", () => {

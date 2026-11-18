@@ -65,6 +65,9 @@ function optionField(option: OptionDescriptor): z.ZodType | undefined {
         case "node-set":
             field = z.union([z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS), z.string().max(MAX_SELECTOR)]);
             break;
+        case "edge-set":
+            field = z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS);
+            break;
         default:
             return undefined;
     }
@@ -80,11 +83,14 @@ function optionField(option: OptionDescriptor): z.ZodType | undefined {
  * @returns The description.
  */
 function describeOption(option: OptionDescriptor): string {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the model reads English; the app words options from descriptionId
     const parts = [option.description ?? option.plainName];
     if (option.type === "node-id") {
         parts.push("A node id or unique label.");
     } else if (option.type === "node-set") {
         parts.push("Node ids or unique labels, or a selector.");
+    } else if (option.type === "edge-set") {
+        parts.push("Edge ids.");
     } else if (option.type === "attribute" || option.type === "partition") {
         parts.push(`An ${option.on ?? "node"} attribute name.`);
     }

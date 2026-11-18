@@ -127,7 +127,6 @@ export interface OpenArrangement {
 /** A step as the history publishes it. Frozen. */
 interface HistoryStepView {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the last record or merge. */
     readonly at: string;
@@ -141,7 +140,6 @@ interface HistoryStepView {
 /** A step as the history keeps it. */
 interface Step<P> {
     readonly id: string;
-    label: string;
     fact: CodedFact<HistoryCode>;
     readonly key: string | null;
     patch: P;
@@ -326,9 +324,8 @@ export class History<P> {
             time - top.lastMerge < this.coalesceMs &&
             time - top.started < COALESCE_SPAN_MS
         ) {
-            // The step now ends where the newest edit left it, so it is named for that edit.
-            top.label = input.label;
-            top.fact = factOf(input);
+            // The step's fact now names every channel it changed: undo reverts them all.
+            top.fact = mergedFact(top.fact, factOf(input));
             this.mergeInto(top, input, time, at);
             return top.id;
         }
@@ -338,7 +335,6 @@ export class History<P> {
         const id = `step-${this.nextId++}`;
         this.entries.push({
             id,
-            label: input.label,
             fact: factOf(input),
             key,
             patch: input.patch,
@@ -1166,7 +1162,6 @@ export class History<P> {
     private view(step: Step<P>, index: number): HistoryStepView {
         step.view ??= Object.freeze({
             id: step.id,
-            label: step.label,
             fact: step.fact,
             at: step.at,
             ops: Object.freeze([...step.ops]),
@@ -1234,6 +1229,23 @@ function copyCapture(capture: ArrangementCapture): ArrangementCapture {
  */
 function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
     return frozenFact(input.fact ?? { code: "transaction", params: { label: input.label } });
+}
+
+/**
+ * The fact of a step an edit merged into: the newer edit's, with the `channels` both name when
+ * they share a code, so a color edit and a size edit merged into one step name both channels.
+ * @param older - The step's fact so far.
+ * @param newer - The merged edit's fact.
+ * @returns The merged fact.
+ */
+function mergedFact(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
+    const before = older.params.channels;
+    const after = newer.params.channels;
+    if (older.code !== newer.code || !Array.isArray(before) || !Array.isArray(after)) {
+        return newer;
+    }
+
+    return frozenFact({ code: newer.code, params: { ...newer.params, channels: [...new Set([...before, ...after])] } });
 }
 
 /**

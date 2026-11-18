@@ -4,6 +4,7 @@
  * Nothing here reads what is in a file.
  */
 
+import { pickFiles } from "@graphty/compact-mantine";
 import { PROJECT_FILE } from "@graphty/graphty-element/session";
 
 /** The file type a project is saved as, for the pickers: graphty-element's project file. */
@@ -19,8 +20,8 @@ interface FileAccessWindow {
 
 /** A handle's permission calls, also missing from TypeScript's DOM library. */
 interface PermissionHandle {
-    queryPermission?: (options: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
-    requestPermission?: (options: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
+    queryPermission?: (options: { mode: "read" }) => Promise<PermissionState>;
+    requestPermission?: (options: { mode: "read" }) => Promise<PermissionState>;
 }
 
 /**
@@ -41,7 +42,8 @@ function isCancel(error: unknown): boolean {
 }
 
 /**
- * Reads a remembered file, asking the reader's permission again where the browser wants it. Must
+ * Reads a remembered file, asking the reader's permission to read it again where the browser wants
+ * it -- read only, since nothing writes through a handle, so Chromium never asks to edit it. Must
  * run inside the click that asked for it, because asking for permission needs one.
  * @param handle - the file.
  * @returns the file, or null when the browser can no longer read it (moved, deleted, refused).
@@ -49,8 +51,8 @@ function isCancel(error: unknown): boolean {
 export async function readHandle(handle: FileSystemFileHandle): Promise<File | null> {
     const permission = handle as unknown as PermissionHandle;
     try {
-        const state = (await permission.queryPermission?.({ mode: "readwrite" })) ?? "granted";
-        if (state !== "granted" && (await permission.requestPermission?.({ mode: "readwrite" })) !== "granted") {
+        const state = (await permission.queryPermission?.({ mode: "read" })) ?? "granted";
+        if (state !== "granted" && (await permission.requestPermission?.({ mode: "read" })) !== "granted") {
             return null;
         }
         return await handle.getFile();
@@ -77,17 +79,7 @@ export async function locateFile(): Promise<{ file: File; handle?: FileSystemFil
             throw error;
         }
     }
-    return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".json,application/json";
-        input.addEventListener("change", () => {
-            const file = input.files?.[0];
-            resolve(file === undefined ? undefined : { file });
-        });
-        input.addEventListener("cancel", () => {
-            resolve(undefined);
-        });
-        input.click();
-    });
+    // compact-mantine's picker keeps its input alive while Safari's file panel is open.
+    const [file] = await pickFiles({ accept: ".json,application/json" });
+    return file === undefined ? undefined : { file };
 }

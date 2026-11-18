@@ -135,11 +135,15 @@ describe("gateRun: above the cap with an approximate method", () => {
         assert.equal(decision.sampleSize, 200);
         assert.isTrue(decision.seeded);
         assert.isBelow(decision.estimate.seconds, decision.exactEstimate.seconds);
-        assert.isTrue(
-            decision.notes.some((note) => note.includes("Sampled rather than exact")),
+        assert.include(
+            decision.facts.map((fact) => fact.code),
+            "sampled.instead-of-exact",
             "the caveats have to say the number is a sample, not merely be a sample",
         );
-        assert.isTrue(decision.notes.some((note) => note.includes("past the")));
+        assert.include(
+            decision.facts.map((fact) => fact.code),
+            "sampled.exact-past-cap",
+        );
     });
 
     it("says so when the sampled run is itself still past the cap", () => {
@@ -150,7 +154,7 @@ describe("gateRun: above the cap with an approximate method", () => {
 
         assert.equal(decision.kind, "approximate");
         assert.isTrue(
-            decision.kind === "approximate" && decision.notes.some((note) => note.includes("still past the cap")),
+            decision.kind === "approximate" && decision.facts.some((fact) => fact.code === "sampled.still-past-cap"),
         );
     });
 
@@ -213,7 +217,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         assert.equal(details.capSeconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isAbove(details.estimateSeconds as number, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.equal(details.confidence, "modelled");
-        assert.isString(details.basis);
+        assert.isObject(details.basisFacts);
         assert.deepEqual(details.graph, { nodes: 70000, edges: 350000 });
         assert.isFalse(details.approximable);
     });
@@ -261,6 +265,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         const scopes = details.scopes as readonly { scope: unknown; seconds: number; exact: boolean }[];
         assert.lengthOf(scopes, 1);
         assert.equal(scopes[0].scope, "largest-component");
+        assert.notProperty(scopes[0], "label", "the scope names the kind; an application words it");
         assert.isAtMost(scopes[0].seconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isFalse(scopes[0].exact, "the edge count of a component is scaled, and must not read as counted");
     });
@@ -393,10 +398,10 @@ describe("gateRun: the structural cases, which are not the cap", () => {
         assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
     });
 
-    it("reports a deprecated built-in name as E_UNSUPPORTED", () => {
+    it("reports the removed all-paths name as E_UNKNOWN_ALGORITHM, like any name nothing registers", () => {
         const decision = gateRun({ algorithm: "all-paths", statistics: statistics() });
 
-        assert.equal(refusal(decision).code, "E_UNSUPPORTED");
+        assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
     });
 
     it("reports a requirement this graph does not meet as E_UNSUPPORTED", () => {
@@ -451,8 +456,13 @@ describe("gateRun: the policy holds for every algorithm the element ships", () =
     });
 
     it("returns its refusals instead of throwing them, so a button can be drawn from one", () => {
+        let decision: CostGateDecision | undefined;
         assert.doesNotThrow(() => {
-            gateRun({ algorithm: "acme:nope", statistics: statistics({ nodeCount: Number.NaN }) });
+            decision = gateRun({ algorithm: "acme:nope", statistics: statistics({ nodeCount: Number.NaN }) });
         });
+        assert.isDefined(decision);
+        if (decision !== undefined) {
+            assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
+        }
     });
 });

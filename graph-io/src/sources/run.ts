@@ -10,13 +10,14 @@ import { type GraphSink, INVALID_INDEX, type NodeId, type U32 } from "@graphty/g
 import { MISSING_ID_CODE } from "../common/codes.js";
 import { readBytes, throwIfAborted } from "../common/input.js";
 import { ImportReportBuilder } from "../common/report.js";
-import { readZipDirectory, readZipEntry } from "../common/zip.js";
+import { readZipDirectory, readZipEntry, ZipError } from "../common/zip.js";
+import { DEFAULT_MAX_UNCOMPRESSED, MAX_RATIO } from "../formats/cys/constants.js";
 import { type FormatRegistry } from "../registry.js";
 import { SNIFF_HEAD_BYTES } from "../sniff.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../types.js";
 import { type CreatedContext, createSourceContext, detectRuntime, LimitStop } from "./context.js";
 import { credentialQuery, endpointOrigin } from "./credentials.js";
-import { checkParams } from "./define.js";
+import { checkParams, sourceEndpoint } from "./define.js";
 import { failOn, warnOn } from "./fail.js";
 import { SOURCE_FORMAT_PREFIX } from "./ids.js";
 import {
@@ -110,7 +111,7 @@ function prepare(
     }
     Object.assign(params, rawParams);
 
-    const endpoint = resolveEndpoint(options.endpoint ?? descriptor?.defaultEndpoint ?? null, report);
+    const endpoint = resolveEndpoint(sourceEndpoint(descriptor, params, options.endpoint), report);
     if (options.credential?.origins.length === 0 && endpoint === null) {
         failOn(report, "E_SOURCE_PARAM", "a credential needs an endpoint or its own origins", {
             name: "credential",
@@ -510,7 +511,17 @@ async function runRecords(
             }
             writeBatch(step.value, sink, source, prepared, page === 0);
             page++;
+            const readWith = next;
             next = step.value.next ?? null;
+            if (next !== null && readWith !== null && sameCursor(next, readWith)) {
+                // a server repeating its cursor would be read forever, a duplicate page each time
+                stopped = true;
+                failOn(prepared.report, "E_SOURCE_RESPONSE", "the source returned the cursor it was read with", {
+                    origin: endpointOrigin(ctx.endpoint),
+                    expected: "advancing-cursor",
+                    contentType: null,
+                });
+            }
             ctx.progress(prepared.report.counts.nodes + prepared.report.counts.edges, undefined, "items");
             if (ctx.limits.reached()) {
                 stopped = true;
@@ -525,17 +536,32 @@ async function runRecords(
 }
 
 /**
- * The importer input of a file source's body, gunzipped or unzipped when its name says so.
+ * Whether two cursors hold the same values.
+ * @param a - one cursor
+ * @param b - the other
+ * @returns true when every key has the same value in both
+ */
+function sameCursor(a: SourceCursor, b: SourceCursor): boolean {
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every((k) => Object.hasOwn(b, k) && a[k] === b[k]);
+}
+
+/**
+ * The importer input of a file source's body, gunzipped or unzipped when its name says so. What a
+ * .gz or .zip inflates to is held to `maxBytes`, or to 2 GiB when it is unset, so a small bomb
+ * cannot fill memory.
  * @param file - what the source returned
  * @param formats - the registry, for choosing a zip entry
- * @param signal - the signal
+ * @param prepared - the call
  * @returns the input and its hints
  */
 async function fileInput(
     file: SourceFile,
     formats: FormatRegistry,
-    signal: AbortSignal,
+    prepared: Prepared,
 ): Promise<{ input: ImportInput; filename: string | undefined; mimeType: string | undefined }> {
+    const { signal, limits, endpoint } = prepared.created.ctx;
+    const budget = limits.maxBytes ?? DEFAULT_MAX_UNCOMPRESSED;
     let input: ImportInput = file.body instanceof Response ? (file.body.body ?? new Uint8Array(0)) : file.body;
     let { filename } = file;
     let mimeType =
@@ -548,20 +574,49 @@ async function fileInput(
             input instanceof ReadableStream
                 ? input
                 : new Response((await bytesOf(input, signal)) as Uint8Array<ArrayBuffer>).body;
-        input = (stream ?? new Response("").body ?? new ReadableStream()).pipeThrough(
-            new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
-        );
+        let inflated = 0;
+        input = (stream ?? new Response("").body ?? new ReadableStream())
+            .pipeThrough(new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>)
+            .pipeThrough(
+                new TransformStream<Uint8Array, Uint8Array>({
+                    transform: (chunk, ctrl): void => {
+                        inflated += chunk.byteLength;
+                        if (inflated > budget) {
+                            throw new LimitStop("maxBytes", inflated);
+                        }
+                        ctrl.enqueue(chunk);
+                    },
+                }),
+            );
         filename = filename?.replace(/\.gz$/i, "");
         mimeType = undefined;
     } else if (zip) {
         const bytes = await bytesOf(input, signal);
-        const entry = readZipDirectory(bytes).find((e) => !e.directory && formats.sniff({ filename: e.name }) !== null);
-        if (entry === undefined) {
-            throw new ImportError("the zip holds no graph file", new ImportReportBuilder("zip", 0).finish());
+        const zipFailed = (message: string): never =>
+            failOn(prepared.report, "E_SOURCE_RESPONSE", message, {
+                origin: endpointOrigin(endpoint),
+                expected: "graph-file",
+                contentType: mimeType ?? null,
+            });
+        try {
+            const entry = readZipDirectory(bytes).find(
+                (e) => !e.directory && formats.sniff({ filename: e.name }) !== null,
+            );
+            if (entry === undefined) {
+                return zipFailed("the zip holds no graph file");
+            }
+            if (entry.size > budget) {
+                throw new LimitStop("maxBytes", entry.size);
+            }
+            input = await readZipEntry(bytes, entry, { signal, maxBytes: budget, maxRatio: MAX_RATIO });
+            filename = entry.name;
+            mimeType = undefined;
+        } catch (err) {
+            if (err instanceof ZipError) {
+                zipFailed(err.message);
+            }
+            throw err;
         }
-        input = await readZipEntry(bytes, entry, { signal, maxBytes: Number.MAX_SAFE_INTEGER, maxRatio: 1000 });
-        filename = entry.name;
-        mimeType = undefined;
     }
     return { input, filename, mimeType };
 }
@@ -583,7 +638,7 @@ async function bytesOf(input: ImportInput, signal: AbortSignal): Promise<Uint8Ar
  * @param prepared - the call
  * @param formats - the registry
  * @param options - the caller's options
- * @returns the format the file was read as
+ * @returns the format the file was read as, and the params its `settle` gave
  */
 async function runFile(
     source: GraphSource<never>,
@@ -591,11 +646,11 @@ async function runFile(
     prepared: Prepared,
     formats: FormatRegistry,
     options: LoadFromSourceOptions,
-): Promise<string> {
+): Promise<{ format: string; params: Readonly<Record<string, unknown>> | undefined }> {
     const { ctx } = prepared.created;
     const read = source.file as (p: unknown, c: typeof ctx) => Promise<SourceFile>;
     const file = await read(prepared.params, ctx);
-    const { input, filename, mimeType } = await fileInput(file, formats, ctx.signal);
+    const { input, filename, mimeType } = await fileInput(file, formats, prepared);
     let { format } = file;
     let body: ImportInput = input;
     if (format === undefined) {
@@ -611,9 +666,11 @@ async function runFile(
         }
     }
     const importer = formats.importer(format);
-    prepared.report.include(await importer.import(body, sink, importerOptions(options, ctx.signal)));
+    const own = { ...file.importOptions, ...file.formatOptions?.[format] };
+    const report = await importer.import(body, sink, { ...own, ...importerOptions(options, ctx.signal) });
+    prepared.report.include(report);
     writeMeta(sink, file.meta ?? {});
-    return format;
+    return { format, params: file.settle?.(report.resolved ?? {}) };
 }
 
 /** What a run into a sink produced. */
@@ -654,8 +711,15 @@ export async function runIntoSink(
             };
         }
         if (typeof source.file === "function") {
-            const format = await runFile(source, wrapped, prepared, formats, options);
-            return { report: withSource(prepared.report.finish(), prepared, null), format };
+            const { format, params } = await runFile(source, wrapped, prepared, formats, options);
+            const report = withSource(prepared.report.finish(), prepared, null);
+            return {
+                report:
+                    params === undefined || report.source === undefined
+                        ? report
+                        : Object.freeze({ ...report, source: Object.freeze({ ...report.source, params }) }),
+                format,
+            };
         }
         const run = source.import as (p: unknown, s: GraphSink, c: typeof ctx) => Promise<ImportReport>;
         const report = await stopAtLimit(run(prepared.params, wrapped, ctx), prepared);

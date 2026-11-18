@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
 import { aliases, elementSourcePlugins } from "./vite.aliases";
+import { bootFilesPlugin } from "./vite.boot-files";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -39,6 +40,30 @@ function unversionedDepsNotImmutable(): Plugin {
 }
 
 /**
+ * Serves the https dev server over HTTP/1.1 instead of HTTP/2.
+ *
+ * Vite always serves https over HTTP/2. Its dev server sends the app as roughly 1,400 separate
+ * modules, and on that connection iPad Safari (27.2) fails a few module requests at random without
+ * telling the page: the server finishes every stream, the file re-fetches fine, yet the import fails
+ * ("Importing a module script failed.") and the app cannot start (#6223). Over HTTP/1.1 it loads.
+ * Offering only `http/1.1` in the TLS handshake keeps https and makes every browser use HTTP/1.1.
+ * @returns The dev-server plugin.
+ */
+function http1DevServer(): Plugin {
+    return {
+        name: "graphty:http1-dev-server",
+        apply: "serve",
+        configureServer(server) {
+            // The TLS server reads this wire-format ALPN list for each new connection.
+            const tlsServer = server.httpServer as { ALPNProtocols?: Buffer } | null;
+            if (server.config.server.https && tlsServer) {
+                tlsServer.ALPNProtocols = Buffer.from("\x08http/1.1", "latin1");
+            }
+        },
+    };
+}
+
+/**
  * Loads the remote logger's browser script ahead of everything else in the dev server's page.
  * @param server - the log server's address.
  * @returns the Vite plugin.
@@ -63,8 +88,11 @@ export default defineConfig(({ mode }) => {
         react(),
         ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
+        http1DevServer(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
+        // The files each loading step waits for, so the loading screen's log can measure them.
+        bootFilesPlugin(),
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
         // The remote logger's script, first in the page so it hears a load that fails before the
@@ -92,10 +120,16 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
-        // graphty-element's credential store loads encrypt-storage on its first use. Found that late,
-        // the dev server optimizes it then and reloads the page under the reader; listed here, it
-        // is optimized at startup. Dev server only.
-        optimizeDeps: { include: ["encrypt-storage"] },
+        // A dependency the dev server first meets after the page is up -- graphty-element's
+        // credential store loading encrypt-storage, or the model loaders, fflate and the PBR material
+        // loaded with the first model -- is optimized then, and the page reloads under the reader:
+        // a chosen model file seemed to do nothing. graphty-element is reached through an import
+        // the scan does not follow, so its entry points and babylonjs-models are scanned too, and
+        // everything they can load is optimized at startup. Dev server only.
+        optimizeDeps: {
+            entries: ["index.html", "../graphty-element/src/**/*.ts", "!**/*.d.ts", "!**/*.test.ts"],
+            include: ["encrypt-storage"],
+        },
         server: {
             host: true,
             fs: {
@@ -108,26 +142,26 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
-            rollupOptions: {
+            rolldownOptions: {
                 output: {
                     // Babylon.js in a chunk of its own. In one entry chunk with the app it made an
                     // 11 MB chunk whose 44 MB sourcemap took the build past Node's default heap
                     // (#2563). graphty-element (bundled from source, see vite.aliases.ts) is not
                     // named here: the app loads its renderer with a dynamic import
-                    // (src/elementLoader.ts), so Rollup puts it in a chunk of its own, and the
-                    // Node-safe entries the start page imports (session types, schema, catalog)
-                    // stay with the app instead of pulling Babylon.js into the first load.
-                    manualChunks(id) {
-                        // Vite's dynamic-import helper in a chunk of its own: left to Rollup it
-                        // lands in the Babylon.js chunk, and the first load then fetches all of
-                        // Babylon.js to get one small function.
-                        if (id.includes("vite/preload-helper")) {
-                            return "preload-helper";
-                        }
-                        if (id.includes("/node_modules/@babylonjs/")) {
-                            return "babylon";
-                        }
-                        return undefined;
+                    // (src/elementLoader.ts), so it gets a chunk of its own, and the Node-safe
+                    // entries the start page imports (session types, schema, catalog) stay with
+                    // the app instead of pulling Babylon.js into the first load.
+                    //
+                    // Vite's dynamic-import helper gets a chunk of its own, listed first so it
+                    // wins: left to the bundler it lands in the Babylon.js chunk, and every
+                    // import() in the first load then fetches all of Babylon.js before the start
+                    // page shows (issue #8225). Rolldown never passes the helper to a
+                    // `manualChunks` function, so this is a `codeSplitting` group.
+                    codeSplitting: {
+                        groups: [
+                            { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
+                            { name: "babylon", test: /\/node_modules\/@babylonjs\//, priority: 1 },
+                        ],
                     },
                 },
             },

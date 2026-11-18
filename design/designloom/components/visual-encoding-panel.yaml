@@ -16,6 +16,9 @@ used_in_workflows:
     - W11
     - W17
     - W12
+    - W20
+    - W23
+    - W24
 dependencies:
     - select
     - color-picker

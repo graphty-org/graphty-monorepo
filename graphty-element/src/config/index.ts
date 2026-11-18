@@ -28,8 +28,15 @@ export {
 } from "./GraphStyle";
 export type { Lighting } from "./Lighting";
 export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
-export type { NodeStyleConfig } from "./NodeStyle";
-export { defaultNodeStyle, FLAT_NODE_SHAPES, NodeBorderStyles, NodeShapes, NodeStyle } from "./NodeStyle";
+export type { NodeSizeSpace, NodeStyleConfig } from "./NodeStyle";
+export {
+    defaultNodeStyle,
+    FLAT_NODE_SHAPES,
+    NodeBorderStyles,
+    NodeShapes,
+    NodeSizeSpaces,
+    NodeStyle,
+} from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
 export type { StyleSchemaV1 } from "./StyleTemplate";
@@ -43,7 +50,6 @@ export type {
     XRControllerButton,
     XRInputConfig,
     XRModeConfig,
-    XRTeleportationConfig,
     XRUIConfig,
 } from "./XRConfig";
 export { defaultXRConfig } from "./XRConfig";

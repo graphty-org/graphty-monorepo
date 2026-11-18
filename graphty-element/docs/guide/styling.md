@@ -159,7 +159,7 @@ selection never disagree about which elements are the top `n`.
 
 An expression is a declared **subset of JMESPath**, compiled once when the layer is added and
 then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), `&&`,
-`||`, `!` and parentheses.
+`||`, `!`, arithmetic (`+`, `-`, `*`, `/` and a leading minus) and parentheses.
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
@@ -179,6 +179,19 @@ Two spelling rules catch everyone once:
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
 `data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
 matches every edge.
+
+**Arithmetic** is the one addition to JMESPath. It binds tighter than the comparisons, `*` and `/`
+tighter than `+` and `-`, each left to right, so `` data.in / data.out >= `2` `` compares the
+ratio, and parentheses group as usual. A leading minus takes the whole path after it:
+`-data.change` is minus `data.change`.
+
+- It works on **numbers only**, with no conversion: if either side is not a number (a string such
+  as `'3'`, `true`, a list, or no value at all), the answer is `null`.
+- **Dividing by zero gives `null`**, as does any answer that is not a finite number. `null` is no
+  value: a selector does not match the element, and a computed column leaves it without one.
+- A `-` written between two names with no space (`results.min-cut.x`) is refused with
+  `reason: "minus-needs-spaces"` rather than read as a subtraction: quote a hyphenated name
+  (`results."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
 
 The same expression works outside a style layer, and matches the same elements there:
 `session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
@@ -251,6 +264,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.gradientRadius`         | how far a radial gradient reaches from its middle, in halves of the node's side; 1 (its edge) by default                                         |
 | `node.size`                   | 0 or more; what it measures is `node.sizeMode`'s                                                                                                 |
 | `node.sizeMode`               | `scale` (the default), `diameter` or `uniform`: what `node.size` measures                                                                        |
+| `node.sizeSpace`              | `scene` (the default), `pivot` or `screen`: how a node's drawn size follows the camera                                                           |
 | `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |
 | `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
 | `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
@@ -279,6 +293,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelItalic`            | true or false                                                                                                                                    |
 | `node.labelWrapWidth`         | a number: how wide a line may be before its words wrap, in scene units                                                                           |
 | `node.labelWrapTrailingSpace` | true or false: a word must fit with the space after it, as Cytoscape wraps                                                                       |
+| `node.labelWrapSkipEndSpace`  | true or false: with the above, a line's last word is measured without a space after it, as Cytoscape.js wraps                                    |
 | `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
 | `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
 | `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
@@ -291,12 +306,13 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
 | `node.outline`                | a colour                                                                                                                                         |
+| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (gold)                                                                                            |
+| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
-| `node.haloOpacity`            | 0 to 1 (0.4)                                                                                                                                     |
+| `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
@@ -347,6 +363,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelItalic`            | as `node.labelItalic`                                                                                            |
 | `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                         |
 | `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                                 |
+| `edge.labelWrapSkipEndSpace`  | as `node.labelWrapSkipEndSpace`                                                                                  |
 | `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                      |
 | `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                      |
 | `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                    |
@@ -408,7 +425,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
-`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+`node.labelWrapTrailingSpace`, `node.labelWrapSkipEndSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
@@ -472,6 +489,17 @@ every node without one; a node without one is drawn as before. Loading a file wi
 as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
 
+The numbers behind the default look -- the default edge width
+(`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
+proportions (`SHAPE_CONSTANTS`) -- are exported from `@graphty/graphty-element/schema`, which loads
+no 3D engine, so a settings panel, a test or a Node script can read them:
+
+```typescript
+import { EDGE_CONSTANTS } from "@graphty/graphty-element/schema";
+
+const defaultEdgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+```
+
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
 
@@ -491,7 +519,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+A border is not `node.outline`: an outline is a ring around the node, drawn for
 emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
 shared by every node drawn with it.
 
@@ -544,6 +572,38 @@ Under `scale`, any other node's largest extent is its size times:
 | `icosahedron`                                            | 2.35   |
 | `elongated_square_dipyramid`                             | 2.43   |
 | `tetrahedron`, `octahedron`                              | 2.83   |
+
+### Node size and the camera
+
+`node.sizeSpace` says how a node's drawn size follows the camera:
+
+- `scene`, the default: plain perspective. A nearer node looks bigger, and zooming in grows every node.
+- `pivot`: every node is drawn as if it stood at the depth of the point the camera turns about, so
+  near and far nodes compare as their sizes; zooming still scales them. Only in a 3D view with the
+  orbit camera.
+- `screen`: a node keeps one size on screen at any depth and any zoom. A node of size `s` covers
+  `s / L` of the view's height, where `L` is 50 unless the layout supplies its own
+  (`LayoutEngine.nodeScreenReference`; the location map supplies one from the map's size, so its
+  nodes keep their size against the map as drawn).
+
+Set it on a layer for some nodes:
+
+```typescript
+await element.session.styles.add({
+    name: "Hubs stay readable",
+    target: "node",
+    selector: { match: "expression", where: "graphty.degree > `20`" },
+    set: { "node.size": 2, "node.sizeSpace": "screen" },
+});
+```
+
+Or for every node whose style sets none:
+
+```typescript
+element.layoutBehavior = { node: { sizeSpace: "screen" } };
+```
+
+An XR session draws every node at its scene size, whatever the value.
 
 ### Drawing a style editor
 
@@ -708,9 +768,17 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+When every value in the column is the same (a regular graph where every node has degree 3), a
+numeric scale has no spread to place anything in, so it paints the **middle** of its range or
+palette rather than either end, and the binding's legend block carries the fact
+`{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
+legend's swatch shows the same middle colour the canvas paints.
+
 ### A table of values, and what it leaves alone
 
-`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+`map` gives a value per key. A binding with a `map` and no `scale` reads through `"passthrough"`
+on every channel, and its legend block is categorical: one row per value it paints. With
+`scale: "passthrough"`, a key the table does not hold goes on
 through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
 an element whose key the table does not hold is left exactly as the layers beneath paint it:
 
@@ -821,10 +889,15 @@ pins, a reader's lock and hidden rows. The tree is the paint order. See
 
 ## Layers the element owns
 
-Every graph starts with two layers the element owns: the defaults every node and edge is drawn
-from, and the one that paints the selection. They are `locked`: removing, editing or moving one is
-refused with `E_PROTECTED`, and `add()` will not mint an element source at all. You paint over
-them by adding your own layer on top, which is what a layer on top is for.
+Every graph starts with two layers the element owns, with `source: { by: "element" }`: the
+defaults every node and edge is drawn from (`reason: "default"`), and the one that paints the
+selection. How elements outside a time window look is never one of them: that is an ordinary
+layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden row the
+timeline adds. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
+
+They are `locked`: removing, editing or moving one is refused with `E_PROTECTED`, and `add()` will
+not mint an element source at all. You paint over them by adding your own layer on top, which is
+what a layer on top is for.
 
 ## What is not a style
 
@@ -859,6 +932,29 @@ element.session.styles.counts(layerId); // how many elements one layer covers an
 
 See [Counting What a Layer Paints](./layer-counts) for `counts()`.
 
+### A legend on the graph
+
+The `legend` attribute draws `styles.legend()` over the graph: a color chip per value for a
+categorical encoding, a ramp between the domain's ends for a continuous one. It follows every
+change to the layers and the data, and hides while no layer binds a value. It is off by default.
+
+```html
+<graphty-element legend legend-position="bottom-left" legend-label="Leyenda"></graphty-element>
+<style>
+    graphty-element::part(legend) {
+        font-size: 14px; /* sizes are in em, so this scales the whole key */
+        max-width: 240px;
+    }
+</style>
+```
+
+`legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
+`legend-label` is the name a screen reader announces, in your page's language; unset, the
+legend has no name of its own and each field in it is named by the field's name. The overlay is HTML,
+so a screen reader reads each field's name and each value. Its words are the data's: the field's
+name, the values, and the names readers gave them. A screenshot draws the same key with
+`captureScreenshot({ legend: { position: element.legendPosition } })`.
+
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.
 
@@ -884,8 +980,7 @@ for (const entry of channels) {
 `styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
 `layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
 answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
-with). New codes may be added in a minor release: word an unknown one generically. The English
-`reason` on both is deprecated and goes in the next major release.
+with). New codes may be added in a minor release: word an unknown one generically.
 
 ### Several elements at once
 

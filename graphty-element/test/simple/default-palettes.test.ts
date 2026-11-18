@@ -1,6 +1,6 @@
 /**
  * @file `setDefaultPalettes` resolves a colour binding that names no palette when the layer is
- * written, so the layer (and a saved document) names the default; a late call warns, or with
+ * written, so the layer (and a saved document) names the default; a late call logs, or with
  * `reapply` re-resolves, and never touches a layer that named its palette
  * (design/extensions/simple-tier.md section 4.5).
  */
@@ -9,7 +9,13 @@ import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import { clearRegisteredPalettesForTesting, definePalette, isGraphtyError } from "../../extend";
 import type { LayerSpec } from "../../session";
+import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
+import { LogLevel, type LogRecord } from "../../src/logging/types.js";
 import { createGraphSession } from "../../src/session";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 definePalette({ id: "acme-groups", kind: "categorical", colors: ["#0B1D51", "#1B7F79", "#F2A65A"] });
 definePalette({ id: "acme-ramp", kind: "sequential", colors: ["#E8F1FA", "#0B1D51"] });
@@ -19,7 +25,24 @@ afterAll(() => {
     clearRegisteredPalettesForTesting();
 });
 
+const SINK = "default-palettes-test";
+
+/**
+ * Collect the element's warnings.
+ * @returns The records, filled as they are logged.
+ */
+async function listen(): Promise<LogRecord[]> {
+    resetLoggingConfig();
+    await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN });
+    const records: LogRecord[] = [];
+    GraphtyLogger.addSink({ name: SINK, write: (record) => records.push(record) });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    return records;
+}
+
 afterEach(() => {
+    GraphtyLogger.removeSink(SINK);
+    resetLoggingConfig();
     vi.restoreAllMocks();
 });
 
@@ -60,7 +83,7 @@ function palettes(session: ReturnType<typeof createGraphSession>): Record<string
  * @param call - The call.
  * @returns The code, or null when nothing was thrown.
  */
-function refusal(call: () => void): string | null {
+function refusal(call: () => unknown): string | null {
     try {
         call();
     } catch (error) {
@@ -72,8 +95,8 @@ function refusal(call: () => void): string | null {
 
 describe("setDefaultPalettes", () => {
     it("names the default of each kind in a binding that names none, when the layer is written", async () => {
-        const session = createGraphSession();
-        session.styles.setDefaultPalettes({
+        const session = owned(createGraphSession());
+        await session.styles.setDefaultPalettes({
             categorical: "acme-groups",
             sequential: "acme-ramp",
             diverging: "acme-split",
@@ -96,40 +119,40 @@ describe("setDefaultPalettes", () => {
     });
 
     it("leaves a binding naming no palette as it was when no default is set", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("groups", { scale: "ordinal" }));
 
         assert.deepStrictEqual(palettes(session), { groups: undefined });
     });
 
-    it("warns, naming the layers, when called after layers took the previous default", async () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-        const session = createGraphSession();
+    it("logs a warning naming the layers, when called after layers took the previous default", async () => {
+        const records = await listen();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("early", { scale: "ordinal" }));
         await session.styles.add(colour("named", { scale: "ordinal", palette: "okabe-ito" }));
+        const ids = Object.fromEntries(session.styles.list().map((layer) => [layer.name, layer.id]));
 
-        session.styles.setDefaultPalettes({ categorical: "acme-groups" });
+        await session.styles.setDefaultPalettes({ categorical: "acme-groups" });
 
-        assert.strictEqual(warn.mock.calls.length, 1);
-        assert.include(String(warn.mock.calls[0][0]), '"early"');
-        assert.notInclude(String(warn.mock.calls[0][0]), '"named"');
+        const warnings = records.filter((record) => record.level === LogLevel.WARN);
+        assert.strictEqual(warnings.length, 1);
+        assert.deepStrictEqual(warnings[0].data, { layerIds: [ids.early] });
         assert.deepStrictEqual(palettes(session), { early: undefined, named: "okabe-ito" }, "nothing is repainted");
     });
 
     it("re-resolves the layers that took the previous default with reapply, and no other", async () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-        const session = createGraphSession();
+        const records = await listen();
+        const session = owned(createGraphSession());
         await session.styles.add(colour("early", { scale: "ordinal" }));
-        session.styles.setDefaultPalettes({ categorical: "okabe-ito" });
-        warn.mockClear();
+        await session.styles.setDefaultPalettes({ categorical: "okabe-ito" });
+        records.length = 0;
         await session.styles.add(colour("defaulted", { scale: "ordinal" }));
         await session.styles.add(colour("named", { scale: "ordinal", palette: "okabe-ito" }));
         await session.styles.add(colour("amounts", { scale: "linear" }));
 
-        session.styles.setDefaultPalettes({ categorical: "acme-groups" }, { reapply: true });
-        await session.styles.settled();
+        await session.styles.setDefaultPalettes({ categorical: "acme-groups" }, { reapply: true });
 
-        assert.strictEqual(warn.mock.calls.length, 0);
+        assert.strictEqual(records.length, 0);
         assert.deepStrictEqual(palettes(session), {
             early: "acme-groups",
             defaulted: "acme-groups",
@@ -138,8 +161,35 @@ describe("setDefaultPalettes", () => {
         });
     });
 
+    it("rejects when a reapplied layer cannot be updated, and retries that layer on the next call", async () => {
+        const session = owned(createGraphSession());
+        await session.styles.setDefaultPalettes({ categorical: "okabe-ito" });
+        await session.styles.add(colour("defaulted", { scale: "ordinal" }));
+        const refused = new Error("refused");
+        const update = vi.spyOn(session.styles, "update").mockRejectedValueOnce(refused);
+
+        let rejected: unknown = null;
+        await session.styles
+            .setDefaultPalettes({ categorical: "acme-groups" }, { reapply: true })
+            .catch((error: unknown) => {
+                rejected = error;
+            });
+
+        assert.strictEqual(rejected, refused);
+        assert.deepStrictEqual(palettes(session), { defaulted: "okabe-ito" }, "the failed layer kept the old default");
+
+        update.mockRestore();
+        await session.styles.setDefaultPalettes({ categorical: "acme-groups" }, { reapply: true });
+
+        assert.deepStrictEqual(
+            palettes(session),
+            { defaulted: "acme-groups" },
+            "a later call still treats it as stale",
+        );
+    });
+
     it("refuses a palette it cannot use as the default of that kind", () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
 
         assert.strictEqual(
             refusal(() => session.styles.setDefaultPalettes({ categorical: "acme-missing" })),

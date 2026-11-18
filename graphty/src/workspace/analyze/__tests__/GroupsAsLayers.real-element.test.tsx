@@ -52,8 +52,7 @@ function groupOf(layer: Layer | undefined): { path: string; value: string } | un
     return where?.kind === "categories" ? { path: where.attribute, value: where.values[0] } : undefined;
 }
 
-// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
-// (covered by its own tests): the experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("a grouping run from Analyze", () => {
@@ -125,18 +124,7 @@ describe("a grouping run from Analyze", () => {
         assert.lengthOf(new Set(names), names.length, `a re-run names its new groups apart: ${names.join(", ")}`);
     });
 
-    it("draws every Leiden setting in the Analyze popover, with nothing further to open", async () => {
-        await openScene();
-        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
-        await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
-        await screen.findByRole("spinbutton", { name: /^Random seed/ });
-        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Threshold/ }));
-        assert.isNull(screen.queryByRole("button", { name: /^Advanced/ }));
-    });
-
-    it("runs on Enter in a setting, says what it made, and drops no tooltip on Analyze", async () => {
+    it("runs with a setting changed, says what it made, and drops no tooltip on Analyze", async () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
         const session = await openScene(store);
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
@@ -144,9 +132,13 @@ describe("a grouping run from Analyze", () => {
         await userEvent.click(analyze);
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.keyboard("{Enter}");
+        await userEvent.click(await screen.findByRole("button", { name: "Settings for Louvain" }));
         const resolution = await screen.findByRole("spinbutton", { name: /^Resolution/ });
         await userEvent.tripleClick(resolution);
         await userEvent.keyboard("1.2{Enter}");
+        // Escape closes only the settings; Analyze stays open with its Run.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(await screen.findByRole("button", { name: /^(Run|Add) Louvain/ }));
 
         const runId = await waitFor(() => {
             const found = session.runs.list().find((r) => r.algorithm === "louvain");
@@ -154,7 +146,7 @@ describe("a grouping run from Analyze", () => {
             return found?.id ?? "";
         });
         const run = session.runs.get(runId);
-        assert.equal(run?.params.resolution, 1.2, "the run used the value typed before Enter");
+        assert.equal(run?.params.resolution, 1.2, "the run used the value typed");
         const groups = run?.result?.summary().groups?.length ?? 0;
         assert.isAbove(groups, 1);
         await waitFor(() => {

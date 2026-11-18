@@ -9,19 +9,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
-import {
-    codes,
-    column,
-    edgePairs,
-    fatalCode,
-    GZIP_BYTES,
-    HTML_404,
-    ids,
-    issue,
-    latin1,
-    rejects,
-    utf16le,
-} from "./text-helpers.js";
+import { codes, ids } from "./helpers.js";
+import { column, edgePairs, fatalCode, GZIP_BYTES, HTML_404, issue, latin1, rejects, utf16le } from "./text-helpers.js";
 
 async function pajek(
     input: Parameters<typeof importGraph>[0],

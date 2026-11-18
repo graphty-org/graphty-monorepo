@@ -30,6 +30,7 @@ import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
+import { edgeRecordMap, nodeRecordMap } from "./recordMap";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -59,7 +60,13 @@ export interface GraphSlice {
  * @returns The slice, frozen; its maps are its own.
  */
 export function emptyGraphSlice(token = 0, epoch = 0): GraphSlice {
-    return Object.freeze({ token, epoch, nodes: new Map(), edges: new Map(), values: new Map() });
+    return Object.freeze({
+        token,
+        epoch,
+        nodes: nodeRecordMap(),
+        edges: edgeRecordMap(),
+        values: new Map(),
+    });
 }
 
 /** The `layout` slice: which layout draws the graph, with what, and in how many dimensions. */
@@ -121,6 +128,8 @@ export interface RunEntry {
     readonly painting?: RunPainting;
     /** Whether its id was derived rather than author-assigned. */
     readonly derived: boolean;
+    /** The reader's own name for it (`runs.rename`); absent while it has none. */
+    readonly name?: string;
     /** Whether the graph changed while it computed. */
     readonly stale: boolean;
 }
@@ -137,6 +146,11 @@ export interface VisibilityState {
     readonly conditions: readonly FilterCondition[];
     /** How `session.time` moves windows, or null for every default. */
     readonly playback?: TimePlayback | null;
+    /**
+     * The nodes hidden from the drawing only (`session.hidden`), sorted; absent or empty when none.
+     * Nothing else reads it: they stay in the data, the results, layout and every count.
+     */
+    readonly hidden?: readonly NodeId[];
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */

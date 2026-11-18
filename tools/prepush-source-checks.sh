@@ -1,30 +1,30 @@
 #!/bin/bash
-# The pre-push gate's source-only checks: formatting, the offline link check, the CI workflow tests,
-# the config and tool checks and the SonarQube changed-lines scan. They read only the source -- no
+# The source-only checks: formatting, the offline link check, the CI workflow tests,
+# the config and tool checks and the duplicate code check. They read only the source -- no
 # build, no affected list -- and take about two minutes together, so they run before anything slow:
-#  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
-#  - tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
-#    instead of after the queue.
+# tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
+# instead of after the queue. (The old full pre-push gate, tools/prepush.sh, which also sourced this file,
+# was removed on 2026-11-02; the pre-push hook no longer runs it.)
 # A pass is recorded under the checkout's gate key (tools/prepush-inputs.mjs: the content of every
 # file git does not ignore, the installed lockfile, the gate's own scripts, the Node version and the
 # lane environment, and the parent branch when this one is stacked on an unlanded branch -- not the
 # branch's own name, not HEAD) in <main checkout>/tmp/prepush-passes/source/. When a
 # pass is recorded under the key the checkout has now, on any branch, the checks are skipped: they
 # already passed on exactly these inputs. So a commit that changes no file (a merge that brings
-# nothing new, golden's land commit of a branch that merged golden first) does not run them again;
-# any edit, new file, lockfile install or gate change does, and so does PREPUSH_RERUN_ALL=1. GATE_KEY is left set for tools/prepush.sh.
+# nothing new) does not run them again; any edit, new file, lockfile install or gate change does, and so
+# does PREPUSH_RERUN_ALL=1.
 #
 # Run by hand: ./tools/prepush-source-checks.sh
 
 # The gate's scripts are beside this file; the checkout they check is PREPUSH_ROOT when the push queue
-# runs this from the gate's live copy (tools/prepush.sh says more), else this file's own checkout.
+# runs this from the gate's live copy, else this file's own checkout.
 GATE_TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${PREPUSH_ROOT:-$GATE_TOOLS/..}" && pwd)" || exit 1
 unset PREPUSH_ROOT
 cd "$ROOT_DIR" || exit 1
 
 # A git hook exports GIT_DIR and friends; a test that builds a throwaway repository would act on this
-# one with them set (tools/prepush.sh says more).
+# one with them set.
 unset $(git rev-parse --local-env-vars)
 
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
@@ -154,12 +154,8 @@ bg_kill() {
 }
 trap bg_kill EXIT
 
-# The SonarQube step's output, which tools/prepush.sh reads again under its summary.
-SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
-mkdir -p "$(dirname "$SONAR_LOG")"
-
-# The branch this push is measured from (tools/push-base.mjs), asked once: the SonarQube step, the gate
-# key and tools/prepush.sh's affected packages all use it.
+# The branch this push is measured from (tools/push-base.mjs), asked once: the duplicate code step and the
+# gate key use it.
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_TOOLS/push-base.mjs")} && export PUSH_BASE_REF
 
 GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
@@ -174,35 +170,21 @@ unset PREPUSH_EXPECTED_KEY
 if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] && SOURCE_PASS="$(node "$GATE_TOOLS/prepush-inputs.mjs" passed source "$GATE_KEY" 2>/dev/null)"; then
     echo -e "${GREEN}[SKIP] Source-only checks: they already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$SOURCE_PASS" 2>/dev/null); key ${GATE_KEY:0:12})${NC}"
     echo ""
-    # Only a pass SonarQube checked is recorded, so there is no warning to repeat under the summary.
-    : >"$SONAR_LOG"
-    # These inputs were scanned: say so in SonarQube's gate log, which tools/sonar-gate.mjs reads to
-    # find commits that reached the push base without a scan (a push with --no-verify).
-    echo "$(date -u +%Y-%m-%dT%H:%M:%S.000Z) $(git symbolic-ref --short -q HEAD || echo '(detached)') $(git rev-parse --short=12 HEAD) reused left-out:0" >>"$(dirname "$SONAR_LOG")/gate.log"
 else
-    # SonarQube (changed lines): tools/sonar-gate.mjs scans the files this push changes on the owner's
-    # SonarQube server and fails the push on a NEW issue or security hotspot on a line the push adds or
-    # changes; issues master already has never block. It passes with a boxed warning when the server
-    # cannot be reached (off the owner's network), and blocks on any other setup problem (no token, an
-    # admin token, no Java), saying how to fix it. It never runs in CI: the server is not reachable from
-    # GitHub Actions. It needs no build: it scans the changed files by name, with no coverage report.
-    # First, in the background beside the checks below: it is the step that fails pushes most often
-    # (116 of about 1,200 gates in the 14 days to 2026-10-24) and the slowest of these checks (45-60 s,
-    # one scan per machine at a time); last in the list, it reported about 7 minutes in. To push past a
-    # false positive: `// NOSONAR(<rule>): <reason>` on the line, a reasoned path entry in sonar-project.properties, or
-    # -- emergencies only -- a `Sonar-Bypass: <reason>` trailer on the HEAD commit. See
-    # design/sonarqube/design.md.
-    bg_step "SonarQube (changed lines)" "node $(printf %q "$GATE_TOOLS/sonar-gate.mjs")" "$SONAR_LOG"
-
     # The CI shape: the test matrix's shard groups, what ci.yml and pr-title.yml run on a draft, a pull
     # request and a merge-queue branch, and the gate's own tools' tests. The second commonest failure of
-    # these checks (38 gates), so it starts at once too, beside SonarQube.
+    # these checks (38 gates), so it starts at once.
     # The tests build their own gates and push queues, so they must not inherit this gate's settings
     # (PREPUSH_*, PUSH_QUEUE_*, VISUAL_PREVIEW_*, the slot lanes): each leak failed a landing on
     # 2026-10-23/24 (a light gate key, a gate snapshot, a pending-push preview, a low browser lane).
     bg_step "CI workflow tests" \
         "env -u PUSH_BASE_REF -u BROWSER_SLOT_PRIORITY -u GRAPHTY_SLOT_PRIORITY \$(compgen -e | grep -E '^(PREPUSH_|PUSH_QUEUE_|PUSH_REMOTE_|VISUAL_PREVIEW_)' | sed 's/^/-u /') pnpm run test:ci-workflows" \
         "$ROOT_DIR/tmp/prepush-steps/ci-workflow-tests.log"
+
+    # Duplicate code: jscpd on the checkout and the push base; a new exact clone between two pieces of
+    # non-test code, overlapping a line this push adds, fails (tools/duplicates-check.mjs). About
+    # 15 s, so in the background beside the checks below.
+    bg_step "Duplicate code" "pnpm run check:duplicates" "$ROOT_DIR/tmp/prepush-steps/duplicates.log"
 
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
     # touches. The [s] and [-] keep the patterns from matching this line itself.
@@ -218,7 +200,8 @@ else
 
     # Every package that has its own eslint.config.js is linted with that file alone, so it must spread
     # the root config; a stale copy silently drops every rule the root gained since. Run for every push,
-    # not per affected package: the check is about the configs, and it takes about a second.
+    # not per affected package: the check is about the configs. It also lints tools/, benchmarks/ and the
+    # root scripts, which no package lints (tools/lint-root-scripts.mjs), about 15 s in all.
     run_step "ESLint root config" "pnpm run lint:eslint-root"
 
     # Every tool a package's scripts run or its *.config.* files import is declared by that package,
@@ -238,8 +221,21 @@ else
     run_step "Peer dependencies stable" "pnpm run check:peer-deps"
     # When the push adds or changes a package.json, a project.json, nx.json or release-hold.json:
     # `nx release --dry-run --skip-publish`, so a project the release train cannot version fails this
-    # push instead of holding every release (#3318). See tools/release-dry-run.mjs.
-    run_step "Release dry run" "node \"$GATE_TOOLS/release-dry-run.mjs\""
+    # push instead of holding every release (#3318). See tools/release-dry-run.mjs. Exit 3: GitHub refused
+    # nx (this machine's request budget), so the push goes on unchecked and no source pass is recorded.
+    bg_poll
+    echo -e "${YELLOW}> Release dry run${NC}"
+    release_rc=0
+    node "$GATE_TOOLS/release-dry-run.mjs" || release_rc=$?
+    if [ "$release_rc" = 0 ]; then
+        echo -e "${GREEN}[PASS] Release dry run passed${NC}"
+    elif [ "$release_rc" = 3 ]; then
+        echo -e "${YELLOW}[NOT CHECKED] Release dry run: GitHub refused nx (above); this push was not checked${NC}"
+        RELEASE_UNCHECKED=1
+    else
+        step_failed "Release dry run"
+    fi
+    echo ""
 
     # graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
     # fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
@@ -284,19 +280,17 @@ else
     # downloads the pinned lychee binary. See tools/check-links.sh.
     run_step "Links" "./tools/check-links.sh --offline"
 
-    # The SonarQube step's decisions (server down, no token, a new problem, only old problems, the
-    # bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
-    # Needs no server. A few seconds.
-    run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
+    # How tools/push-base.mjs picks the branch a push is measured from, against throwaway repositories.
+    # A few seconds.
+    run_step "Push base tests" "pnpm run test:push-base"
 
     # The two background steps started first (above) must pass too.
     bg_wait
 
     # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares), and
-    # only when SonarQube checked the push: a pass it did not check would let the next push of these
-    # files, golden's landing push included, skip the scan. An empty GATE_KEY also keeps tools/prepush.sh
-    # from recording or reusing a whole-gate pass.
-    if grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
+    # only when the release dry run checked the push: a pass it did not check would let the next push of these
+    # files skip it.
+    if [ -n "${RELEASE_UNCHECKED:-}" ]; then
         GATE_KEY=""
     elif [ -n "$GATE_KEY" ]; then
         node "$GATE_TOOLS/prepush-inputs.mjs" record source "$GATE_KEY" || GATE_KEY=""

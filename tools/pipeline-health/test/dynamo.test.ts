@@ -28,6 +28,19 @@ describe("dynamoStore.transact", () => {
         expect(items[1].Delete).toEqual({ TableName: "t", Key: { pk: "b", sk: "1" } });
     });
 
+    it("conditions a delete as it does a put", async () => {
+        const send = vi.fn().mockResolvedValue({});
+        const del = { delete: { pk: "b", sk: "1" }, condition: { field: "claim", op: "=" as const, value: "7.1" } };
+        expect(await storeWith(send).transact([del])).toBe(true);
+        expect(send.mock.calls[0][0].input.TransactItems[0].Delete).toEqual({
+            TableName: "t",
+            Key: { pk: "b", sk: "1" },
+            ConditionExpression: "#c = :c",
+            ExpressionAttributeNames: { "#c": "claim" },
+            ExpressionAttributeValues: { ":c": "7.1" },
+        });
+    });
+
     it("answers false when a condition failed, and retries a conflict with a concurrent write", async () => {
         expect(
             await storeWith(vi.fn().mockRejectedValue(cancelled("None", "ConditionalCheckFailed"))).transact(ops),

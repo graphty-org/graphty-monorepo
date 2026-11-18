@@ -1,8 +1,8 @@
 /**
- * G4, the `grid-centroid` kernel body (spec 7.7; P4-T9): thread per finest cell, the 2^dim outside pseudo-cells
+ * G4, the `grid-centroid` kernel body: thread per finest cell, the 2^dim outside pseudo-cells
  * included (issue #90); the
  * mass-weighted position sum of a cell's sorted range in index order (no atomics: deterministic), the largest
- * occupancy into hubCounters[1], and cells above GRID_HUB_CELL entries appended to hubList for G4b (PD-13). Body
+ * occupancy into hubCounters[1], and cells above GRID_HUB_CELL entries appended to hubList for G4b. Body
  * only; normative text.
  */
 export const gridCentroidWgsl = /* wgsl */ `
@@ -15,7 +15,7 @@ fn grid_centroid(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocatio
     let start = cellStart[c];
     let count = cellStart[c + 1u] - start;
     atomicMax(&hubCounters[1], count);                             // maxCellOccupancy, read by K1 next iteration
-    if (count > GRID_HUB_CELL) {                                   // a hub cell: G4b sums it (PD-13)
+    if (count > GRID_HUB_CELL) {                                   // a hub cell: G4b sums it
         hubList[atomicAdd(&hubCounters[0], 1u)] = c;
         return;
     }

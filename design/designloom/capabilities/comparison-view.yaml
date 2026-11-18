@@ -10,8 +10,11 @@ used_by_workflows:
     - W11
     - W19
     - W04
+    - W24
 implemented_by_components:
     - comparison-view
+    - network-list-panel
+    - network-merge-dialog
 requirements:
     - Display two graph views in vertical split-screen (50/50 by default)
     - Display two graph views in horizontal split-screen as alternative option

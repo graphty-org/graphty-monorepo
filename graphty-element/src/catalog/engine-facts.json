@@ -1,0 +1,3308 @@
+{
+    "algorithms": {
+        "astar": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Starting node for the route (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Destination node for the route (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "heuristic",
+                    "plainName": "Heuristic",
+                    "technicalName": "heuristic",
+                    "type": "enum",
+                    "description": "How the search guesses the distance still to go. None always finds the shortest route. Layout distance uses the straight-line distance between the nodes' current positions: faster on a laid-out graph, but the route may not be the shortest when edge weights are smaller than the distances they span",
+                    "default": "none",
+                    "values": [
+                        {
+                            "value": "none",
+                            "label": "None"
+                        },
+                        {
+                            "value": "layout-distance",
+                            "label": "Layout Distance"
+                        }
+                    ]
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "bellman-ford": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Starting node for shortest path (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Destination node for shortest path (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "direction",
+                    "plainName": "Follow Edges",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+                    "default": "all",
+                    "values": [
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "all",
+                            "label": "All"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "betweenness": {
+            "options": [
+                {
+                    "name": "k",
+                    "plainName": "Sampled sources",
+                    "technicalName": "k",
+                    "type": "integer",
+                    "description": "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
+                    "default": null,
+                    "min": 1,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "bfs": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Starting node for BFS traversal (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "targetNode",
+                    "plainName": "Target Node",
+                    "technicalName": "targetNode",
+                    "type": "node-id",
+                    "description": "Target node for early termination (optional - searches all nodes if not set)",
+                    "default": null,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "bipartite-matching": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "closeness": {
+            "options": [
+                {
+                    "name": "k",
+                    "plainName": "Sampled sources",
+                    "technicalName": "k",
+                    "type": "integer",
+                    "description": "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
+                    "default": null,
+                    "min": 1,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": false
+        },
+        "clustering-coefficient": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "connected-components": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "degree": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "dfs": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Starting node for DFS traversal (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "targetNode",
+                    "plainName": "Target Node",
+                    "technicalName": "targetNode",
+                    "type": "node-id",
+                    "description": "Target node for early termination (optional - searches all nodes if not set)",
+                    "default": null,
+                    "advanced": true
+                },
+                {
+                    "name": "recursive",
+                    "plainName": "Recursive",
+                    "technicalName": "recursive",
+                    "type": "boolean",
+                    "description": "Walk recursively: with a pre-order target, the walk skips only the target's subtree and goes on instead of stopping",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "preOrder",
+                    "plainName": "Pre-Order",
+                    "technicalName": "preOrder",
+                    "type": "boolean",
+                    "description": "Visit nodes before their children (pre-order) vs after (post-order)",
+                    "default": true,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "dijkstra": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Starting node for shortest path (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Destination node for shortest path (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "bidirectional",
+                    "plainName": "Bidirectional Search",
+                    "technicalName": "bidirectional",
+                    "type": "boolean",
+                    "description": "Accepted and ignored: the shortest-path search relaxes outwards from the source in one direction, and the route it finds is the same one either way",
+                    "default": true,
+                    "advanced": true
+                },
+                {
+                    "name": "direction",
+                    "plainName": "Follow Edges",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+                    "default": "all",
+                    "values": [
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "all",
+                            "label": "All"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "edge-betweenness": {
+            "options": [
+                {
+                    "name": "k",
+                    "plainName": "Sampled sources",
+                    "technicalName": "k",
+                    "type": "integer",
+                    "description": "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
+                    "default": null,
+                    "min": 1,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "eigenvector": {
+            "options": [
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum power iterations",
+                    "default": 1000,
+                    "min": 1,
+                    "max": 10000,
+                    "advanced": true
+                },
+                {
+                    "name": "tolerance",
+                    "plainName": "Tolerance",
+                    "technicalName": "tolerance",
+                    "type": "number",
+                    "description": "Convergence threshold",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "normalized",
+                    "plainName": "Normalized",
+                    "technicalName": "normalized",
+                    "type": "boolean",
+                    "description": "Whether to normalize the final scores",
+                    "default": true,
+                    "advanced": true
+                },
+                {
+                    "name": "mode",
+                    "plainName": "Direction Mode",
+                    "technicalName": "mode",
+                    "type": "enum",
+                    "description": "On a directed graph, score a node by the nodes pointing at it (in), the nodes it points at (out), or ignore direction (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "endpoints",
+                    "plainName": "Include Endpoints",
+                    "technicalName": "endpoints",
+                    "type": "boolean",
+                    "description": "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
+                    "default": false,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "floyd-warshall": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "girvan-newman": {
+            "options": [
+                {
+                    "name": "maxCommunities",
+                    "plainName": "Max Communities",
+                    "technicalName": "maxCommunities",
+                    "type": "integer",
+                    "description": "Stop when this many communities reached (0 = find optimal)",
+                    "default": 0,
+                    "min": 0,
+                    "max": 100
+                },
+                {
+                    "name": "minCommunitySize",
+                    "plainName": "Min Community Size",
+                    "technicalName": "minCommunitySize",
+                    "type": "integer",
+                    "description": "Minimum nodes per community",
+                    "default": 1,
+                    "min": 1,
+                    "max": 100,
+                    "advanced": true
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum edge removal iterations before stopping",
+                    "default": 1000,
+                    "min": 1,
+                    "max": 10000,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "hierarchical-clustering": {
+            "options": [
+                {
+                    "name": "clusters",
+                    "plainName": "Clusters",
+                    "technicalName": "clusters",
+                    "type": "integer",
+                    "description": "How many clusters to stop merging at",
+                    "default": 2,
+                    "min": 1,
+                    "max": 1000
+                },
+                {
+                    "name": "linkage",
+                    "plainName": "Linkage",
+                    "technicalName": "linkage",
+                    "type": "enum",
+                    "description": "How far apart two clusters are: their closest members (single), their furthest (complete), the mean (average) or Ward's scaled mean",
+                    "default": "single",
+                    "values": [
+                        {
+                            "value": "single",
+                            "label": "Single"
+                        },
+                        {
+                            "value": "complete",
+                            "label": "Complete"
+                        },
+                        {
+                            "value": "average",
+                            "label": "Average"
+                        },
+                        {
+                            "value": "ward",
+                            "label": "Ward"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "hits": {
+            "options": [
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum iterations for hub/authority computation",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "tolerance",
+                    "plainName": "Tolerance",
+                    "technicalName": "tolerance",
+                    "type": "number",
+                    "description": "Convergence threshold",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "normalized",
+                    "plainName": "Normalized",
+                    "technicalName": "normalized",
+                    "type": "boolean",
+                    "description": "Whether to normalize the final hub/authority scores",
+                    "default": true,
+                    "advanced": true
+                },
+                {
+                    "name": "mode",
+                    "plainName": "Direction Mode",
+                    "technicalName": "mode",
+                    "type": "enum",
+                    "description": "Which score is the published value: authority (in), hub (out) or their average (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "endpoints",
+                    "plainName": "Include Endpoints",
+                    "technicalName": "endpoints",
+                    "type": "boolean",
+                    "description": "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
+                    "default": false,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": false
+        },
+        "katz": {
+            "options": [
+                {
+                    "name": "alpha",
+                    "plainName": "Alpha (Attenuation)",
+                    "technicalName": "alpha",
+                    "type": "number",
+                    "description": "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
+                    "default": null,
+                    "min": 0.01,
+                    "max": 0.5,
+                    "step": 0.01
+                },
+                {
+                    "name": "beta",
+                    "plainName": "Beta (Base Weight)",
+                    "technicalName": "beta",
+                    "type": "number",
+                    "description": "Base centrality added to each node",
+                    "default": 1,
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum iterations",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "tolerance",
+                    "plainName": "Tolerance",
+                    "technicalName": "tolerance",
+                    "type": "number",
+                    "description": "Convergence threshold",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "normalized",
+                    "plainName": "Normalized",
+                    "technicalName": "normalized",
+                    "type": "boolean",
+                    "description": "Whether to normalize the final scores",
+                    "default": true,
+                    "advanced": true
+                },
+                {
+                    "name": "mode",
+                    "plainName": "Direction Mode",
+                    "technicalName": "mode",
+                    "type": "enum",
+                    "description": "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "endpoints",
+                    "plainName": "Include Endpoints",
+                    "technicalName": "endpoints",
+                    "type": "boolean",
+                    "description": "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
+                    "default": false,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "k-core": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "kruskal": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "label-propagation": {
+            "options": [
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum label propagation rounds",
+                    "default": 100,
+                    "min": 1,
+                    "max": 500
+                },
+                {
+                    "name": "randomSeed",
+                    "plainName": "Random Seed",
+                    "technicalName": "randomSeed",
+                    "type": "integer",
+                    "description": "Visit the nodes in an order drawn from this seed, one at a time (empty = synchronous passes, which a GPU can run)",
+                    "default": null,
+                    "min": 0,
+                    "max": 2147483647,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "leiden": {
+            "options": [
+                {
+                    "name": "resolution",
+                    "plainName": "Resolution",
+                    "technicalName": "resolution",
+                    "type": "number",
+                    "description": "Controls community granularity",
+                    "default": 1,
+                    "min": 0.1,
+                    "max": 5,
+                    "step": 0.1
+                },
+                {
+                    "name": "randomSeed",
+                    "plainName": "Random Seed",
+                    "technicalName": "randomSeed",
+                    "type": "integer",
+                    "description": "Seed for reproducible results; empty draws a new one every run",
+                    "default": null,
+                    "min": 0,
+                    "max": 2147483647,
+                    "advanced": true
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum refinement iterations",
+                    "default": 100,
+                    "min": 1,
+                    "max": 500,
+                    "advanced": true
+                },
+                {
+                    "name": "threshold",
+                    "plainName": "Threshold",
+                    "technicalName": "threshold",
+                    "type": "number",
+                    "description": "Convergence threshold",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.01,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "link-prediction": {
+            "options": [
+                {
+                    "name": "method",
+                    "plainName": "Method",
+                    "technicalName": "method",
+                    "type": "enum",
+                    "description": "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
+                    "default": "adamic-adar",
+                    "values": [
+                        {
+                            "value": "adamic-adar",
+                            "label": "Adamic Adar"
+                        },
+                        {
+                            "value": "common-neighbors",
+                            "label": "Common Neighbors"
+                        }
+                    ]
+                },
+                {
+                    "name": "topK",
+                    "plainName": "Pairs",
+                    "technicalName": "topK",
+                    "type": "integer",
+                    "description": "How many of the best-scoring pairs to keep.",
+                    "default": 10,
+                    "min": 1,
+                    "max": 1000
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "louvain": {
+            "options": [
+                {
+                    "name": "resolution",
+                    "plainName": "Resolution",
+                    "technicalName": "resolution",
+                    "type": "number",
+                    "description": "Higher = more communities, lower = fewer larger communities",
+                    "default": 1,
+                    "min": 0.1,
+                    "max": 5,
+                    "step": 0.1
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum optimization iterations",
+                    "default": 100,
+                    "min": 1,
+                    "max": 500,
+                    "advanced": true
+                },
+                {
+                    "name": "tolerance",
+                    "plainName": "Tolerance",
+                    "technicalName": "tolerance",
+                    "type": "number",
+                    "description": "Minimum modularity improvement to continue",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "useOptimized",
+                    "plainName": "Use Optimized",
+                    "technicalName": "useOptimized",
+                    "type": "boolean",
+                    "description": "Only the optimized implementation remains, so a run with this switched off is refused. Leave it on",
+                    "default": true,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "markov-clustering": {
+            "options": [
+                {
+                    "name": "inflation",
+                    "plainName": "Inflation",
+                    "technicalName": "inflation",
+                    "type": "number",
+                    "description": "How sharply flow is concentrated each round: higher gives more, smaller clusters",
+                    "default": 2,
+                    "min": 1.1,
+                    "max": 10,
+                    "step": 0.1
+                },
+                {
+                    "name": "expansion",
+                    "plainName": "Expansion",
+                    "technicalName": "expansion",
+                    "type": "integer",
+                    "description": "How many steps flow spreads each round",
+                    "default": 2,
+                    "min": 2,
+                    "max": 10,
+                    "advanced": true
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum expansion and inflation rounds",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "selfLoops",
+                    "plainName": "Self Loops",
+                    "technicalName": "selfLoops",
+                    "type": "boolean",
+                    "description": "Let every node keep some of its own flow, which steadies the result",
+                    "default": true,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "max-flow": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Source node for flow network (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "sink",
+                    "plainName": "Sink Node",
+                    "technicalName": "sink",
+                    "type": "node-id",
+                    "description": "Sink node for flow network (uses last node if not set)",
+                    "default": null
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "capacity",
+            "loadedWeightByDefault": true
+        },
+        "min-cut": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Source node for s-t cut (uses global min cut if not set)",
+                    "default": null
+                },
+                {
+                    "name": "sink",
+                    "plainName": "Sink Node",
+                    "technicalName": "sink",
+                    "type": "node-id",
+                    "description": "Sink node for s-t cut (uses global min cut if not set)",
+                    "default": null
+                },
+                {
+                    "name": "useGlobalMinCut",
+                    "plainName": "Use Global Min Cut",
+                    "technicalName": "useGlobalMinCut",
+                    "type": "boolean",
+                    "description": "Use global minimum cut algorithm instead of s-t cut",
+                    "default": false
+                },
+                {
+                    "name": "useKarger",
+                    "plainName": "Use Karger Algorithm",
+                    "technicalName": "useKarger",
+                    "type": "boolean",
+                    "description": "Use Karger's randomized algorithm instead of Stoer-Wagner for global min cut",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "kargerIterations",
+                    "plainName": "Karger Iterations",
+                    "technicalName": "kargerIterations",
+                    "type": "integer",
+                    "description": "Number of iterations for Karger's algorithm (higher = better accuracy but slower)",
+                    "default": 100,
+                    "min": 1,
+                    "max": 10000,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "pagerank": {
+            "options": [
+                {
+                    "name": "dampingFactor",
+                    "plainName": "Damping Factor",
+                    "technicalName": "dampingFactor",
+                    "type": "number",
+                    "description": "Probability of following a link (0.85 is standard for web graphs)",
+                    "default": 0.85,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.05
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum power iterations before stopping",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "tolerance",
+                    "plainName": "Tolerance",
+                    "technicalName": "tolerance",
+                    "type": "number",
+                    "description": "Convergence threshold for early stopping",
+                    "default": 0.000001,
+                    "min": 1e-10,
+                    "max": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "directed",
+                    "plainName": "Follow Edge Direction",
+                    "technicalName": "directed",
+                    "type": "boolean",
+                    "description": "Rank flows along each edge's direction as the graph was loaded. Off: every edge carries rank both ways, as on an undirected graph",
+                    "default": true
+                },
+                {
+                    "name": "useDelta",
+                    "plainName": "Use Delta Optimization",
+                    "technicalName": "useDelta",
+                    "type": "boolean",
+                    "description": "Accepted and ignored: every run is a plain power iteration",
+                    "default": true,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "prim": {
+            "options": [
+                {
+                    "name": "startNode",
+                    "plainName": "Start Node",
+                    "technicalName": "startNode",
+                    "type": "node-id",
+                    "description": "Starting node for MST growth (uses first node if not set)",
+                    "default": null
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "removal-impact": {
+            "options": [
+                {
+                    "name": "nodes",
+                    "plainName": "Nodes to remove",
+                    "technicalName": "nodes",
+                    "type": "unknown",
+                    "description": "The nodes to imagine removed, with their edges",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                },
+                {
+                    "name": "edges",
+                    "plainName": "Edges to remove",
+                    "technicalName": "edges",
+                    "type": "unknown",
+                    "description": "The edges to imagine removed",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "spectral-clustering": {
+            "options": [
+                {
+                    "name": "clusters",
+                    "plainName": "Clusters",
+                    "technicalName": "clusters",
+                    "type": "integer",
+                    "description": "How many clusters to split the nodes into, at most",
+                    "default": 2,
+                    "min": 1,
+                    "max": 100
+                },
+                {
+                    "name": "laplacian",
+                    "plainName": "Laplacian",
+                    "technicalName": "laplacian",
+                    "type": "enum",
+                    "description": "Which graph Laplacian the embedding comes from",
+                    "default": "normalized",
+                    "values": [
+                        {
+                            "value": "normalized",
+                            "label": "Normalized"
+                        },
+                        {
+                            "value": "unnormalized",
+                            "label": "Unnormalized"
+                        },
+                        {
+                            "value": "randomWalk",
+                            "label": "Random Walk"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "maxIterations",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIterations",
+                    "type": "integer",
+                    "description": "Maximum k-means rounds",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed of the k-means start: one seed gives one result; empty draws a new one every run",
+                    "default": null,
+                    "min": 0,
+                    "max": 2147483647,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "strength",
+            "loadedWeightByDefault": true
+        },
+        "scc": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        }
+    },
+    "layouts": {
+        "arf": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 50,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scaling",
+                    "plainName": "Scaling",
+                    "technicalName": "scaling",
+                    "type": "number",
+                    "description": "Scale factor for the attractive force",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Distance of the farthest node from the center, as in the other one-shot layouts",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "a",
+                    "plainName": "Attraction Ratio",
+                    "technicalName": "a",
+                    "type": "number",
+                    "description": "Ratio of attraction to repulsion",
+                    "default": 1.1,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "maxIter",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIter",
+                    "type": "integer",
+                    "description": "Maximum number of iterations",
+                    "default": 1000,
+                    "min": 0
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "bfs": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 20,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "start",
+                    "plainName": "Start Node",
+                    "technicalName": "start",
+                    "type": "node-id",
+                    "description": "Starting node for BFS traversal"
+                },
+                {
+                    "name": "align",
+                    "plainName": "Alignment",
+                    "technicalName": "align",
+                    "type": "enum",
+                    "description": "Direction of BFS tree expansion",
+                    "default": "vertical",
+                    "values": [
+                        {
+                            "value": "vertical",
+                            "label": "Vertical"
+                        },
+                        {
+                            "value": "horizontal",
+                            "label": "Horizontal"
+                        }
+                    ]
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "bipartite": {
+            "options": [
+                {
+                    "name": "groupBy",
+                    "plainName": "Group By",
+                    "technicalName": "groupBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's group",
+                    "default": null
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 40,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "align",
+                    "plainName": "Alignment",
+                    "technicalName": "align",
+                    "type": "enum",
+                    "description": "Direction of bipartite partitions",
+                    "default": "vertical",
+                    "values": [
+                        {
+                            "value": "vertical",
+                            "label": "Vertical"
+                        },
+                        {
+                            "value": "horizontal",
+                            "label": "Horizontal"
+                        }
+                    ]
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "aspectRatio",
+                    "plainName": "Aspect Ratio",
+                    "technicalName": "aspectRatio",
+                    "type": "number",
+                    "description": "Width to height ratio",
+                    "default": 1.3333333333333333,
+                    "min": 0,
+                    "step": 0.1
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "circular": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 80,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the circular layout radius",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 3
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "d3": {
+            "options": [
+                {
+                    "name": "clusterBy",
+                    "plainName": "Cluster By",
+                    "technicalName": "clusterBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's community; unset, no pull",
+                    "default": null
+                },
+                {
+                    "name": "clusterStrength",
+                    "plainName": "Cluster Strength",
+                    "technicalName": "clusterStrength",
+                    "type": "number",
+                    "description": "How hard a node is pulled toward its community's centroid: 1 is about one more edge",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "nodeGap",
+                    "plainName": "Node Gap",
+                    "technicalName": "nodeGap",
+                    "type": "number",
+                    "description": "Keep at least this much space between two nodes' drawn surfaces, measured from each node's drawn size. Unset (null), nodes may be drawn over each other",
+                    "default": null,
+                    "min": 0,
+                    "step": 0.5,
+                    "advanced": true
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "alphaMin",
+                    "plainName": "Alpha Min",
+                    "technicalName": "alphaMin",
+                    "type": "number",
+                    "description": "Minimum alpha before simulation stops",
+                    "default": 0.1,
+                    "min": 0,
+                    "step": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "alphaTarget",
+                    "plainName": "Alpha Target",
+                    "technicalName": "alphaTarget",
+                    "type": "number",
+                    "description": "Target alpha value",
+                    "default": 0,
+                    "min": 0,
+                    "step": 0.01,
+                    "advanced": true
+                },
+                {
+                    "name": "alphaDecay",
+                    "plainName": "Alpha Decay",
+                    "technicalName": "alphaDecay",
+                    "type": "number",
+                    "description": "Rate of alpha decay per tick",
+                    "default": 0.0228,
+                    "min": 0,
+                    "step": 0.001,
+                    "advanced": true
+                },
+                {
+                    "name": "velocityDecay",
+                    "plainName": "Velocity Decay",
+                    "technicalName": "velocityDecay",
+                    "type": "number",
+                    "description": "Velocity damping factor",
+                    "default": 0.4,
+                    "min": 0,
+                    "step": 0.05
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": true
+        },
+        "fixed": {
+            "options": [
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "What every data position is multiplied by, on top of the element's positionScale",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "edgeRoutes",
+                    "plainName": "Edge routes",
+                    "technicalName": "edgeRoutes",
+                    "type": "enum",
+                    "description": "Who routes the edges the data stores no route for: the element, or Graphviz round the placed nodes (neato -n2), which needs the optional package @hpcc-js/wasm-graphviz",
+                    "default": "element",
+                    "values": [
+                        {
+                            "value": "element",
+                            "label": "Element"
+                        },
+                        {
+                            "value": "graphviz",
+                            "label": "Graphviz"
+                        }
+                    ]
+                },
+                {
+                    "name": "graphvizAttributes",
+                    "plainName": "Graphviz attributes",
+                    "technicalName": "graphvizAttributes",
+                    "type": "unknown",
+                    "description": "Graphviz graph attributes the routes follow, such as { splines: \"curved\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "forceatlas2": {
+            "options": [
+                {
+                    "name": "clusterBy",
+                    "plainName": "Cluster By",
+                    "technicalName": "clusterBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's community; unset, no pull",
+                    "default": null
+                },
+                {
+                    "name": "clusterStrength",
+                    "plainName": "Cluster Strength",
+                    "technicalName": "clusterStrength",
+                    "type": "number",
+                    "description": "How hard a node is pulled toward its community's centroid: 1 is about one more edge",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000
+                },
+                {
+                    "name": "maxIter",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIter",
+                    "type": "integer",
+                    "description": "Maximum number of simulation iterations",
+                    "default": 100,
+                    "min": 0
+                },
+                {
+                    "name": "jitterTolerance",
+                    "plainName": "Jitter Tolerance",
+                    "technicalName": "jitterTolerance",
+                    "type": "number",
+                    "description": "Tolerance for position jitter",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "scalingRatio",
+                    "plainName": "Scaling Ratio",
+                    "technicalName": "scalingRatio",
+                    "type": "number",
+                    "description": "Ratio for force scaling",
+                    "default": 2,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "gravity",
+                    "plainName": "Gravity",
+                    "technicalName": "gravity",
+                    "type": "number",
+                    "description": "Strength of center gravity",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "distributedAction",
+                    "plainName": "Distributed Action",
+                    "technicalName": "distributedAction",
+                    "type": "boolean",
+                    "description": "Use distributed attraction for hubs",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "strongGravity",
+                    "plainName": "Strong Gravity",
+                    "technicalName": "strongGravity",
+                    "type": "boolean",
+                    "description": "Use stronger gravity to prevent escape",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "dissuadeHubs",
+                    "plainName": "Dissuade Hubs",
+                    "technicalName": "dissuadeHubs",
+                    "type": "boolean",
+                    "description": "Push hubs away from each other",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "linlog",
+                    "plainName": "LinLog Mode",
+                    "technicalName": "linlog",
+                    "type": "boolean",
+                    "description": "Use logarithmic attraction",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGap",
+                    "plainName": "Node Gap",
+                    "technicalName": "nodeGap",
+                    "type": "number",
+                    "description": "Keep at least this much space between two nodes' drawn surfaces, measured from each node's drawn size. Unset (null), nodes may be drawn over each other",
+                    "default": null,
+                    "min": 0,
+                    "step": 0.5,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGapFront",
+                    "plainName": "Node Gap From the Front",
+                    "technicalName": "nodeGapFront",
+                    "type": "boolean",
+                    "description": "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node is drawn over another in the starting view even when one is behind the other",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "weighted",
+                    "plainName": "Use Edge Weights",
+                    "technicalName": "weighted",
+                    "type": "boolean",
+                    "description": "Pull strongly connected nodes closer together",
+                    "default": true
+                },
+                {
+                    "name": "nodeMass",
+                    "plainName": "Node Mass",
+                    "technicalName": "nodeMass",
+                    "type": "unknown",
+                    "description": "How hard each node is to move, in one of three forms: a mass per node id, the name of a numeric node attribute to read it from, or nothing at all -- which gives every node a mass of one more than its degree, so a hub holds its ground.",
+                    "default": null,
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.union",
+                        "params": {
+                            "types": [
+                                "object",
+                                "string"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "honoursWeights": true,
+            "scoped": true
+        },
+        "grid": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "columns",
+                    "plainName": "Columns",
+                    "technicalName": "columns",
+                    "type": "integer",
+                    "description": "Number of columns; empty makes the grid as close to square as it can",
+                    "default": null,
+                    "min": 0
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Half the length of the grid's longer side",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "kamada-kawai": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 50,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "weighted",
+                    "plainName": "Use Edge Weights",
+                    "technicalName": "weighted",
+                    "type": "boolean",
+                    "description": "Place strongly connected nodes closer together",
+                    "default": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed of the random 3D start, for a reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": true,
+            "scoped": false
+        },
+        "location-map": {
+            "options": [
+                {
+                    "name": "location",
+                    "plainName": "Location",
+                    "technicalName": "location",
+                    "type": "string",
+                    "description": "The node attribute holding each node's whole location",
+                    "default": null
+                },
+                {
+                    "name": "latitude",
+                    "plainName": "Latitude",
+                    "technicalName": "latitude",
+                    "type": "string",
+                    "description": "The node attribute holding each node's latitude, used with Longitude",
+                    "default": null
+                },
+                {
+                    "name": "longitude",
+                    "plainName": "Longitude",
+                    "technicalName": "longitude",
+                    "type": "string",
+                    "description": "The node attribute holding each node's longitude, used with Latitude",
+                    "default": null
+                },
+                {
+                    "name": "format",
+                    "plainName": "Format",
+                    "technicalName": "format",
+                    "type": "enum",
+                    "description": "How the location is written; auto reads the column to decide",
+                    "default": "auto",
+                    "values": [
+                        {
+                            "value": "auto",
+                            "label": "Auto"
+                        },
+                        {
+                            "value": "decimal",
+                            "label": "Decimal"
+                        },
+                        {
+                            "value": "lon-lat",
+                            "label": "Lon Lat"
+                        },
+                        {
+                            "value": "geojson",
+                            "label": "Geojson"
+                        },
+                        {
+                            "value": "wkt",
+                            "label": "Wkt"
+                        },
+                        {
+                            "value": "iso6709",
+                            "label": "Iso6709"
+                        },
+                        {
+                            "value": "dms",
+                            "label": "Dms"
+                        },
+                        {
+                            "value": "geohash",
+                            "label": "Geohash"
+                        },
+                        {
+                            "value": "plus-code",
+                            "label": "Plus Code"
+                        },
+                        {
+                            "value": "mgrs",
+                            "label": "Mgrs"
+                        },
+                        {
+                            "value": "utm",
+                            "label": "Utm"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "mapDimension",
+                    "plainName": "Map Dimension",
+                    "technicalName": "mapDimension",
+                    "type": "enum",
+                    "description": "In the 3D view, a 3D map (the globe) or a 2D map (a flat map, edges arced above it); the 2D view always draws the 2D map",
+                    "default": "3d",
+                    "values": [
+                        {
+                            "value": "2d",
+                            "label": "2d"
+                        },
+                        {
+                            "value": "3d",
+                            "label": "3d"
+                        }
+                    ]
+                },
+                {
+                    "name": "projection",
+                    "plainName": "Projection",
+                    "technicalName": "projection",
+                    "type": "enum",
+                    "description": "The flat map's projection; auto is Web Mercator, which matches every tile source",
+                    "default": "auto",
+                    "values": [
+                        {
+                            "value": "auto",
+                            "label": "Auto"
+                        },
+                        {
+                            "value": "web-mercator",
+                            "label": "Web Mercator"
+                        },
+                        {
+                            "value": "equirectangular",
+                            "label": "Equirectangular"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "extent",
+                    "plainName": "Extent",
+                    "technicalName": "extent",
+                    "type": "enum",
+                    "description": "Fit the map to the located nodes, or show the whole world",
+                    "default": "data",
+                    "values": [
+                        {
+                            "value": "data",
+                            "label": "Data"
+                        },
+                        {
+                            "value": "world",
+                            "label": "World"
+                        }
+                    ]
+                },
+                {
+                    "name": "size",
+                    "plainName": "Size",
+                    "technicalName": "size",
+                    "type": "number",
+                    "description": "Scene units across the shown map, or the globe's radius",
+                    "default": 100,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "mapScale",
+                    "plainName": "Map Scale",
+                    "technicalName": "mapScale",
+                    "type": "number",
+                    "description": "How many times larger the map (flat or globe) is drawn than Size makes it, with nodes and edges kept their size, so nodes close together draw further apart; on a flat map a node kept to one size on screen is drawn that many times smaller against the view",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "unplaced",
+                    "plainName": "Unplaced Nodes",
+                    "technicalName": "unplaced",
+                    "type": "enum",
+                    "description": "Nodes with no usable location: in a row beside the map, or left where they were",
+                    "default": "tray",
+                    "values": [
+                        {
+                            "value": "tray",
+                            "label": "Tray"
+                        },
+                        {
+                            "value": "leave",
+                            "label": "Leave"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "overlap",
+                    "plainName": "Overlap",
+                    "technicalName": "overlap",
+                    "type": "enum",
+                    "description": "Nodes at the same place: spread around it, or stacked on it",
+                    "default": "spread",
+                    "values": [
+                        {
+                            "value": "spread",
+                            "label": "Spread"
+                        },
+                        {
+                            "value": "stack",
+                            "label": "Stack"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "map",
+                    "plainName": "Map",
+                    "technicalName": "map",
+                    "type": "unknown",
+                    "description": "The map drawn under the graph: a named source ({ source: id }), a tile service ({ tiles, attribution }) or one picture ({ image, bounds }); null for the bundled world image",
+                    "default": null,
+                    "unsupported": {
+                        "code": "option.union",
+                        "params": {
+                            "types": [
+                                "object",
+                                "object",
+                                "object"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "gazetteer",
+                    "plainName": "Gazetteer",
+                    "technicalName": "gazetteer",
+                    "type": "unknown",
+                    "description": "Where place names (countries, regions, cities) are looked up: the address of the gazetteer files, fetched on first use; false to read no place names",
+                    "default": "https://graphty.app/data/gazetteer/v1/",
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.union",
+                        "params": {
+                            "types": [
+                                "string",
+                                "boolean"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "flatNodeScale",
+                    "plainName": "Flat Node Scale",
+                    "technicalName": "flatNodeScale",
+                    "type": "number",
+                    "description": "How many times larger a flat map's nodes are drawn when their size space is screen, so a map drawn large leaves them big enough to see; a globe's nodes keep their size",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "multipartite": {
+            "options": [
+                {
+                    "name": "groupBy",
+                    "plainName": "Group By",
+                    "technicalName": "groupBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's group",
+                    "default": null
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 40,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "align",
+                    "plainName": "Alignment",
+                    "technicalName": "align",
+                    "type": "enum",
+                    "description": "Direction of multipartite partitions",
+                    "default": "vertical",
+                    "values": [
+                        {
+                            "value": "vertical",
+                            "label": "Vertical"
+                        },
+                        {
+                            "value": "horizontal",
+                            "label": "Horizontal"
+                        }
+                    ]
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "ngraph": {
+            "options": [
+                {
+                    "name": "clusterBy",
+                    "plainName": "Cluster By",
+                    "technicalName": "clusterBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's community; unset, no pull",
+                    "default": null
+                },
+                {
+                    "name": "clusterStrength",
+                    "plainName": "Cluster Strength",
+                    "technicalName": "clusterStrength",
+                    "type": "number",
+                    "description": "How hard a node is pulled toward its community's centroid: 1 is about one more edge",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "springLength",
+                    "plainName": "Spring Length",
+                    "technicalName": "springLength",
+                    "type": "number",
+                    "description": "Ideal spring length between connected nodes",
+                    "default": 10,
+                    "min": 0
+                },
+                {
+                    "name": "springCoefficient",
+                    "plainName": "Spring Coefficient",
+                    "technicalName": "springCoefficient",
+                    "type": "number",
+                    "description": "Spring stiffness coefficient",
+                    "default": 0.8,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "gravity",
+                    "plainName": "Gravity",
+                    "technicalName": "gravity",
+                    "type": "number",
+                    "description": "Gravity strength (negative for repulsion)",
+                    "default": -12,
+                    "step": 1
+                },
+                {
+                    "name": "theta",
+                    "plainName": "Theta",
+                    "technicalName": "theta",
+                    "type": "number",
+                    "description": "Barnes-Hut approximation parameter",
+                    "default": 0.8,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "dragCoefficient",
+                    "plainName": "Drag Coefficient",
+                    "technicalName": "dragCoefficient",
+                    "type": "number",
+                    "description": "Velocity damping coefficient",
+                    "default": 0.9,
+                    "min": 0,
+                    "step": 0.05,
+                    "advanced": true
+                },
+                {
+                    "name": "timeStep",
+                    "plainName": "Time Step",
+                    "technicalName": "timeStep",
+                    "type": "number",
+                    "description": "Simulation time step size",
+                    "default": 0.5,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGap",
+                    "plainName": "Node Gap",
+                    "technicalName": "nodeGap",
+                    "type": "number",
+                    "description": "Keep at least this much space between two nodes' drawn surfaces, measured from each node's drawn size. Unset (null), nodes may be drawn over each other",
+                    "default": null,
+                    "min": 0,
+                    "step": 0.5,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGapFront",
+                    "plainName": "Node Gap From the Front",
+                    "technicalName": "nodeGapFront",
+                    "type": "boolean",
+                    "description": "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node is drawn over another in the starting view even when one is behind the other",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": true
+        },
+        "planar": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 70,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the planar layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D only for planar)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 2
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "radial": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "root",
+                    "plainName": "Root Node",
+                    "technicalName": "root",
+                    "type": "node-id",
+                    "description": "The node at the center; empty picks the node with the most edges",
+                    "default": null
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Radius of the outermost ring",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "random": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible random positions",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "shell": {
+            "options": [
+                {
+                    "name": "groupBy",
+                    "plainName": "Group By",
+                    "technicalName": "groupBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's group",
+                    "default": null
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the shell layout radius",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D only for shell)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 2
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "spectral": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the spectral layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D only for spectral)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 2
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "spiral": {
+            "options": [
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 80,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the spiral layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D only for spiral)",
+                    "default": 2,
+                    "min": 2,
+                    "max": 2
+                },
+                {
+                    "name": "resolution",
+                    "plainName": "Resolution",
+                    "technicalName": "resolution",
+                    "type": "number",
+                    "description": "Controls spacing between spiral turns",
+                    "default": 0.35,
+                    "min": 0,
+                    "step": 0.05,
+                    "advanced": true
+                },
+                {
+                    "name": "equidistant",
+                    "plainName": "Equidistant",
+                    "technicalName": "equidistant",
+                    "type": "boolean",
+                    "description": "Place nodes at equal distances along the spiral",
+                    "default": false,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "spring-electrical": {
+            "options": [
+                {
+                    "name": "clusterBy",
+                    "plainName": "Cluster By",
+                    "technicalName": "clusterBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's community; unset, no pull",
+                    "default": null
+                },
+                {
+                    "name": "clusterStrength",
+                    "plainName": "Cluster Strength",
+                    "technicalName": "clusterStrength",
+                    "type": "number",
+                    "description": "How hard a node is pulled toward its community's centroid: 1 is about one more edge",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "maxIter",
+                    "plainName": "Max Iterations",
+                    "technicalName": "maxIter",
+                    "type": "integer",
+                    "description": "Iteration cap; null runs until the layout settles",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "springLength",
+                    "plainName": "Spring Length",
+                    "technicalName": "springLength",
+                    "type": "number",
+                    "description": "The distance an edge pulls its two nodes towards",
+                    "default": 10,
+                    "min": 0,
+                    "step": 1
+                },
+                {
+                    "name": "springCoefficient",
+                    "plainName": "Spring Strength",
+                    "technicalName": "springCoefficient",
+                    "type": "number",
+                    "description": "How hard an edge pulls; Hooke's constant",
+                    "default": 0.8,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "gravity",
+                    "plainName": "Repulsion",
+                    "technicalName": "gravity",
+                    "type": "number",
+                    "description": "How hard two nodes push each other apart; negative repels",
+                    "default": -12,
+                    "step": 1
+                },
+                {
+                    "name": "dragCoefficient",
+                    "plainName": "Drag",
+                    "technicalName": "dragCoefficient",
+                    "type": "number",
+                    "description": "How quickly motion bleeds away, which is what lets the shape settle",
+                    "default": 0.9,
+                    "min": 0,
+                    "step": 0.05,
+                    "advanced": true
+                },
+                {
+                    "name": "timeStep",
+                    "plainName": "Time Step",
+                    "technicalName": "timeStep",
+                    "type": "number",
+                    "description": "How far one iteration integrates; larger is faster and less stable",
+                    "default": 0.5,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "nodeGap",
+                    "plainName": "Node Gap",
+                    "technicalName": "nodeGap",
+                    "type": "number",
+                    "description": "Keep at least this much space between two nodes' drawn surfaces, measured from each node's drawn size. Unset (null), nodes may be drawn over each other",
+                    "default": null,
+                    "min": 0,
+                    "step": 0.5,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGapFront",
+                    "plainName": "Node Gap From the Front",
+                    "technicalName": "nodeGapFront",
+                    "type": "boolean",
+                    "description": "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node is drawn over another in the starting view even when one is behind the other",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": true
+        },
+        "spring": {
+            "options": [
+                {
+                    "name": "clusterBy",
+                    "plainName": "Cluster By",
+                    "technicalName": "clusterBy",
+                    "type": "string",
+                    "description": "The node attribute or result field whose values name each node's community; unset, no pull",
+                    "default": null
+                },
+                {
+                    "name": "clusterStrength",
+                    "plainName": "Cluster Strength",
+                    "technicalName": "clusterStrength",
+                    "type": "number",
+                    "description": "How hard a node is pulled toward its community's centroid: 1 is about one more edge",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "Multiplier for node positions",
+                    "default": 100,
+                    "min": 1,
+                    "max": 1000,
+                    "advanced": true
+                },
+                {
+                    "name": "k",
+                    "plainName": "Spring Constant",
+                    "technicalName": "k",
+                    "type": "number",
+                    "description": "Optimal distance between nodes (auto-calculated if null)",
+                    "default": null,
+                    "advanced": true
+                },
+                {
+                    "name": "iterations",
+                    "plainName": "Iterations",
+                    "technicalName": "iterations",
+                    "type": "number",
+                    "description": "Number of spring simulation iterations",
+                    "default": 50,
+                    "min": 0
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "Scale factor for the layout",
+                    "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "dim",
+                    "plainName": "Dimensions",
+                    "technicalName": "dim",
+                    "type": "integer",
+                    "description": "Layout dimensionality (2D or 3D)",
+                    "default": 3,
+                    "min": 2,
+                    "max": 3
+                },
+                {
+                    "name": "nodeGap",
+                    "plainName": "Node Gap",
+                    "technicalName": "nodeGap",
+                    "type": "number",
+                    "description": "Keep at least this much space between two nodes' drawn surfaces, measured from each node's drawn size. Unset (null), nodes may be drawn over each other",
+                    "default": null,
+                    "min": 0,
+                    "step": 0.5,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeGapFront",
+                    "plainName": "Node Gap From the Front",
+                    "technicalName": "nodeGapFront",
+                    "type": "boolean",
+                    "description": "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node is drawn over another in the starting view even when one is behind the other",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "seed",
+                    "plainName": "Random Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "Seed for reproducible layout",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": true
+        },
+        "graphviz-dot": {
+            "options": [
+                {
+                    "name": "rankdir",
+                    "plainName": "Rank direction",
+                    "technicalName": "rankdir",
+                    "type": "enum",
+                    "description": "Which way the ranks run",
+                    "values": [
+                        {
+                            "value": "TB",
+                            "label": "TB"
+                        },
+                        {
+                            "value": "LR",
+                            "label": "LR"
+                        },
+                        {
+                            "value": "BT",
+                            "label": "BT"
+                        },
+                        {
+                            "value": "RL",
+                            "label": "RL"
+                        }
+                    ]
+                },
+                {
+                    "name": "nodesep",
+                    "plainName": "Node separation",
+                    "technicalName": "nodesep",
+                    "type": "number",
+                    "description": "Space between nodes in one rank, in scene units",
+                    "min": 0
+                },
+                {
+                    "name": "ranksep",
+                    "plainName": "Rank separation",
+                    "technicalName": "ranksep",
+                    "type": "number",
+                    "description": "Space between ranks, in scene units",
+                    "min": 0
+                },
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 1500,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-neato": {
+            "options": [
+                {
+                    "name": "seed",
+                    "plainName": "Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "The start seed; the same seed gives the same drawing",
+                    "default": null,
+                    "min": 0
+                },
+                {
+                    "name": "overlap",
+                    "plainName": "Overlap",
+                    "technicalName": "overlap",
+                    "type": "enum",
+                    "description": "Whether nodes may overlap, or how overlaps are removed",
+                    "values": [
+                        {
+                            "value": "true",
+                            "label": "True"
+                        },
+                        {
+                            "value": "false",
+                            "label": "False"
+                        },
+                        {
+                            "value": "scale",
+                            "label": "Scale"
+                        }
+                    ]
+                },
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 2000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-fdp": {
+            "options": [
+                {
+                    "name": "seed",
+                    "plainName": "Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "The start seed; the same seed gives the same drawing",
+                    "default": null,
+                    "min": 0
+                },
+                {
+                    "name": "overlap",
+                    "plainName": "Overlap",
+                    "technicalName": "overlap",
+                    "type": "enum",
+                    "description": "Whether nodes may overlap, or how overlaps are removed",
+                    "values": [
+                        {
+                            "value": "true",
+                            "label": "True"
+                        },
+                        {
+                            "value": "false",
+                            "label": "False"
+                        },
+                        {
+                            "value": "scale",
+                            "label": "Scale"
+                        }
+                    ]
+                },
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 1000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-sfdp": {
+            "options": [
+                {
+                    "name": "seed",
+                    "plainName": "Seed",
+                    "technicalName": "seed",
+                    "type": "integer",
+                    "description": "The start seed; the same seed gives the same drawing",
+                    "default": null,
+                    "min": 0
+                },
+                {
+                    "name": "overlap",
+                    "plainName": "Overlap",
+                    "technicalName": "overlap",
+                    "type": "enum",
+                    "description": "Whether nodes may overlap, or how overlaps are removed",
+                    "values": [
+                        {
+                            "value": "true",
+                            "label": "True"
+                        },
+                        {
+                            "value": "false",
+                            "label": "False"
+                        },
+                        {
+                            "value": "scale",
+                            "label": "Scale"
+                        }
+                    ]
+                },
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 20000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-circo": {
+            "options": [
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 500,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-twopi": {
+            "options": [
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 20000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-osage": {
+            "options": [
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 20000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        },
+        "graphviz-patchwork": {
+            "options": [
+                {
+                    "name": "maxNodes",
+                    "plainName": "Node budget",
+                    "technicalName": "maxNodes",
+                    "type": "integer",
+                    "description": "The largest graph handed to Graphviz; a larger one fails instead of running",
+                    "default": 20000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "timeoutMs",
+                    "plainName": "Time budget (ms)",
+                    "technicalName": "timeoutMs",
+                    "type": "integer",
+                    "description": "How long one layout may run before it is stopped and fails",
+                    "default": 60000,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scale",
+                    "plainName": "Scale",
+                    "technicalName": "scale",
+                    "type": "number",
+                    "description": "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                    "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "nodeSize",
+                    "plainName": "Node size",
+                    "technicalName": "nodeSize",
+                    "type": "enum",
+                    "description": "What size Graphviz lays each node out at: \"drawn\", the size the element draws it; \"label\", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file",
+                    "default": "drawn",
+                    "values": [
+                        {
+                            "value": "drawn",
+                            "label": "Drawn"
+                        },
+                        {
+                            "value": "label",
+                            "label": "Label"
+                        }
+                    ],
+                    "advanced": true
+                },
+                {
+                    "name": "attributes",
+                    "plainName": "Graph attributes",
+                    "technicalName": "attributes",
+                    "type": "unknown",
+                    "description": "Raw Graphviz graph attributes, such as { splines: \"ortho\" }",
+                    "default": {},
+                    "advanced": true,
+                    "unsupported": {
+                        "code": "option.object",
+                        "params": {}
+                    }
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
+        }
+    }
+}

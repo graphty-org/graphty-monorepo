@@ -49,7 +49,10 @@ function addedLayers(session: GraphSession): string[] {
     ];
 }
 
-/** What the app starts every project it opens with: the four starting rows, and nothing else. */
+/**
+ * What the app starts every project it opens with: the starting rows, and nothing else (Timeline
+ * Hidden comes only when the timeline turns on).
+ */
 const STARTING_ROWS = ["Everything", "Selected", "Pinned", "Hovered"];
 
 afterEach(() => {
@@ -62,7 +65,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
 
-        // T1: the card is at the foot of the start screen until it is answered.
+        // T1: the question is pinned over the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
         assert.isNotNull(

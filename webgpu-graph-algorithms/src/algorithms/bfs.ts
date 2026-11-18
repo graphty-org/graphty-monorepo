@@ -1,14 +1,13 @@
 /**
- * Breadth-first search on the device (design 8.4, 3.3 line 807, 9.7; P8-T6 / P8-T7 / P8-T8, the P8 plan's PD-5 /
- * PD-6 / PD-7 / PD-14 / PD-18 / PD-21 / PD-23 / PD-24 / PD-26 / DEP-P8-B): the direction-optimizing traversal over
- * the `Frontier` of P8-T4, every per-level choice made ON THE DEVICE. Every level is nine recorded dispatches, all
- * DIRECT (2026-09-25, docs/decisions/G8.md G8-F5: Dawn validates every `dispatchWorkgroupsIndirect` with an internal
+ * Breadth-first search on the device: the direction-optimizing traversal over
+ * the `Frontier` primitive, every per-level choice made ON THE DEVICE. Every level is nine recorded dispatches, all
+ * DIRECT (2026-09-25, docs/decisions/G8.md: Dawn validates every `dispatchWorkgroupsIndirect` with an internal
  * clamp pass costing about 0.4 ms of device time whether or not it dispatches anything, in Node and in Chromium
  * alike, and that was 97 % of a traversal's wall time) -- `frontier-finalize` role 0 (the level boundary: rotates
  * the counts, advances `level`, decides `done`, evaluates Beamer's test and CHOOSES, writing the choice into the
  * block's `path` word: 3 bottom-up, 2 fused for a top-down frontier below `fusedMax` entries, 1 two-phase for any
  * other, 0 done), `advance-expand` (the frontier's rows into the edge queue), `frontier-finalize` role 1 (clamps
- * `edgeCount`, or, when the edge queue overflowed, sets `path` 4 for the fused retry, PD-23), `bfs-contract` (the
+ * `edgeCount`, or, when the edge queue overflowed, sets `path` 4 for the fused retry), `bfs-contract` (the
  * claim `atomicMin(&depth[v], level + 1)`, the winners packed into the next vertex queue), `bfs-fused` (one workgroup
  * per frontier entry with the same claim inline and no edge queue; the fused level and the retry alike), then the
  * bottom-up trio: a `fill` zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and
@@ -19,10 +18,10 @@
  * expanded, one level stale and missing the switch at the level holding two thirds of the 1M / 10M R-MAT's arcs).
  * Every kernel is a grid-stride dispatch of a host-planned grid (`planGridStride`) that loops to its count word and
  * reads the path word first, so exactly one path does the level's work and the others cost one uniform load per
- * workgroup. The unvisited set Beamer's test is against (PD-18) is rebuilt exactly once per submit, before the
+ * workgroup. The unvisited set Beamer's test is against is rebuilt exactly once per submit, before the
  * levels, by `bfs-unvisited-flags` plus `compact` over an iota queue, and maintained between rebuilds by subtraction
  * inside the selector (whose JSDoc states the boundary rule; both words are exact at every boundary). The host records `MAX_LEVELS_PER_SUBMIT`
- * levels into ONE command buffer, submits, and reads four bytes, the `done` word (PD-7): a road network has
+ * levels into ONE command buffer, submits, and reads four bytes, the `done` word: a road network has
  * thousands of levels and a per-level `mapAsync` would be slower than the CPU. A level recorded past the end is a
  * no-op (its boundary finds `done` set, writes path 0 and moves no counter), so the loop needs no diameter and
  * ends on `done`; a traversal has at most `n` levels, so more submits than that is E_VALIDATION, never a hang. The
@@ -31,12 +30,12 @@
  * without recompiling; the block's `fusedLevels` / `twoPhaseLevels` / `bottomUpLevels` / `overflowLevels` /
  * `switches` words record which path each level took.
  *
- * There is no dedupe (DEP-P8-B, PD-5): the edge queue holds duplicates -- a vertex with three frontier neighbours
+ * There is no dedupe: the edge queue holds duplicates -- a vertex with three frontier neighbours
  * appears three times -- but for one level exactly one invocation observes `INVALID_INDEX` at `depth[v]` and
  * exactly that one appends `v`, so the next vertex frontier is duplicate-free by construction and an ownership
- * dedupe would have nothing to remove. `parent` is not written by the claim (PD-24): `sssp-pred` in `MODE 1` runs
+ * dedupe would have nothing to remove. `parent` is not written by the claim: `sssp-pred` in `MODE 1` runs
  * once over the settled depths and writes the SMALLEST `u` with `depth[u] + 1 == depth[v]` and an arc `u -> v`, so
- * it is bitwise reproducible where a claim-time parent would be a scheduling accident. `order` (PD-14) is one
+ * it is bitwise reproducible where a claim-time parent would be a scheduling accident. `order` is one
  * stable radix sort of the node indices by `depth`: grouped by level, ascending by index within a level,
  * `INVALID_INDEX` last, and the first `visitedCount` values are the result. The result batch stages every array
  * into one staging slot, so a traversal maps `ceil(levels / 32) + 1` buffers in all.
@@ -44,10 +43,10 @@
  * `maxDepth` reaches the device as a `u32` field of `FrontierParams`, and the uniform writer refuses anything that
  * is not an integer in `[0, 2^32 - 1]`; the host therefore normalises it first, to exactly the CPU port's rule
  * (`algorithms/src/indexed/bfs.ts`: a node at depth `d >= maxDepth` is reached and not expanded, unbounded when
- * absent). The tuning entry `bfsWithTuning` (PD-26) is what the tests drive; nothing public exposes it.
+ * absent). The tuning entry `bfsWithTuning` is what the tests drive; nothing public exposes it.
  *
- * A core whose `colIdx` exceeds `maxStorageBufferBindingSize` is bound as arc windows and EXECUTED (P8-T12, DEP-P8-E
- * lifted for the frontier family): `advance-expand`, `bfs-fused` and `sssp-pred` run once per window of the
+ * A core whose `colIdx` exceeds `maxStorageBufferBindingSize` is bound as arc windows and EXECUTED (the frontier
+ * family runs windows): `advance-expand`, `bfs-fused` and `sssp-pred` run once per window of the
  * forward core and `bfs-bottom-up` once per window of the reverse core, every window its own dispatch with its own
  * `FrontierParams` record carrying the window's owned arc range (`coreWindows`), and the claims, being `atomicMin`s
  * and an `INVALID_INDEX` entry test, are idempotent across windows. The ring is sized per run by `bfsRingSlots`.
@@ -69,6 +68,7 @@ import {
     graphOverrides,
     kernelSpec,
 } from "../kernels.js";
+import { type CoreBinding } from "../memory/residency.js";
 import { prepareAdvance } from "../primitives/advance.js";
 import { prepareCompact } from "../primitives/compact.js";
 import { coreOfView, coreWindows } from "../primitives/core-shape.js";
@@ -87,16 +87,16 @@ const ALGORITHM = "breadthFirstSearch";
 const NEXT_DEGREE_MAX_GROUPS = 128;
 
 /**
- * Params slots of the ring, COUNTED per run (P8-T12), because `UniformRing.reserve` wraps to slot 0 when a submit's
+ * Params slots of the ring, COUNTED per run, because `UniformRing.reserve` wraps to slot 0 when a submit's
  * records outrun the ring and silently overwrites a record the submit still reads; the ring's `overruns` counts
  * exactly that reuse, `AlgorithmScope.ringOverruns()` exposes it, and the faked-limit test holds it at 0 for the
  * whole run. The bound per level is `5 + 4 x windows`: five recorded once per level (`frontier-finalize` twice,
  * `bfs-contract`, the bits `fill`, `bfs-bitset-build`) and four re-issued once per arc window (`advance-expand`,
  * `bfs-fused`, the fused retry, `bfs-bottom-up`). The driver as built writes fewer -- the contract and the bitset
  * build share one window-free record, a window's two fused dispatches share one, the bits fill has one record per
- * submit, `bfs-next-degree` has one window-free record of its own (issue #391), and a directed snapshot's reverse
- * view is one window whatever the forward core's count -- so at most `4 + 3 x windows` per level, and the bound
- * holds with room. The 16 covers the per-submit rebuild
+ * submit, `bfs-next-degree` has one window-free record of its own (issue #391), and the sweep has one record per window
+ * of the reverse core, which a directed snapshot windows on its own (issue #471) -- so with `windows` the larger of
+ * the two cores' counts, at most `4 + 3 x windows` per level, and the bound holds with room. The 16 covers the per-submit rebuild
  * (`bfs-unvisited-flags` and `compact`, whose scan is at most 9 dispatches for any n below 2^32, so 10, plus the
  * bits fill). The result batch flushes in its own submit, so the ring must hold IT too, and its size grows with `n`,
  * not with the cadence: the iota `fill`, the radix sort's four passes of one record plus its scan's `2 x levels - 1`
@@ -104,11 +104,11 @@ const NEXT_DEGREE_MAX_GROUPS = 128;
  * the package's WG of 256), the `pred` `fill` and `sssp-pred` once per window -- `2 + 4 x 8 + windows = 34 + windows`
  * at most, which a small cadence undercuts (built 2026-09-25: `(5 + 4) x 1 + 16 = 25` slots against the 27 a
  * 262,143-node result batch records wrapped over the radix sort's own records and returned a wrong `order`, silently
- * -- the plan's `19 + windows` count had no scan level in it). The slot count is therefore the larger of the two
- * batches. At one window and `MAX_LEVELS_PER_SUBMIT` it is P8-T6's 304; test/device/constants.test.ts pins the
+ * -- an earlier `19 + windows` count had no scan level in it). The slot count is therefore the larger of the two
+ * batches. At one window and `MAX_LEVELS_PER_SUBMIT` it is 304; test/device/constants.test.ts pins the
  * arithmetic.
  * @internal
- * @param windows - the forward core's arc windows (1 when it is not windowed)
+ * @param windows - the larger of the forward and the reverse core's arc window counts (1 when neither is windowed)
  * @param levelsPerSubmit - the levels recorded per submit
  * @returns the ring's slot count
  */
@@ -120,7 +120,7 @@ export function bfsRingSlots(windows: number, levelsPerSubmit: number): number {
 const RESULT_BATCH_SLOTS = 2 + 4 * 8;
 
 /**
- * The knobs the tests need and nothing public offers (PD-26): the per-level candidate rule, the edge queue's size,
+ * The knobs the tests need and nothing public offers: the per-level candidate rule, the edge queue's size,
  * the submit cadence, the predecessor kind, and the two inspect seams.
  * @internal
  */
@@ -133,13 +133,13 @@ export interface BfsTuning {
     readonly beta?: number | undefined;
     /** The fused expand-contract threshold (`FUSED_FRONTIER_MAX` when absent): a level whose frontier is below it takes the fused path; 0 never fuses, `U32_MAX` always does. */
     readonly fusedMax?: number | undefined;
-    /** The edge queue's entry count; a test fakes a small one to force the overflow path (PD-23). */
+    /** The edge queue's entry count; a test fakes a small one to force the overflow path. */
     readonly edgeCapacity?: number | undefined;
     /** Levels recorded per submit (default `MAX_LEVELS_PER_SUBMIT`); 1 hands `onLevel` the block after every level. */
     readonly levelsPerSubmit?: number | undefined;
-    /** What the post-pass writes into `parent`: 1 (default) the node index, 0 the arc index (P8-T9's unit-weight route). */
+    /** What the post-pass writes into `parent`: 1 (default) the node index, 0 the arc index (the unit-weight route of `sssp`). */
     readonly predKind?: 0 | 1 | undefined;
-    /** The inspect seam (design 11.9 item 2): after every SUBMIT, the index of the last level recorded, the whole counters block as the submit left it, the vertices the submit's last level claimed (the next level's input queue, `nextFrontierCount` long), and the total `compact` wrote when it rebuilt the unvisited list at the top of the submit (the independent count the block's `unvisitedListLen` must equal, P8-T8). */
+    /** The inspect seam: after every SUBMIT, the index of the last level recorded, the whole counters block as the submit left it, the vertices the submit's last level claimed (the next level's input queue, `nextFrontierCount` long), and the total `compact` wrote when it rebuilt the unvisited list at the top of the submit (the independent count the block's `unvisitedListLen` must equal). */
     readonly onLevel?:
         ((level: number, counters: UniformValues, frontier: U32, compactCount: number) => void) | undefined;
     /** Fires once, right after `algorithmScope(...)`, so a test can hold the scope and read its ring counters after the run. */
@@ -275,24 +275,20 @@ function checkBfsArgs(source: number, n: number, tuning: BfsTuning): number {
 }
 
 /**
- * Refuses a directed snapshot whose reverse adjacency exceeds one binding: the bottom-up sweep binds the reverse
- * VIEW whole, which spec 4.3 never windows.
+ * The core the bottom-up sweep walks in-neighbours over: on an undirected snapshot the forward core itself
+ * (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the reverse's), on a
+ * directed one the reverse view, bound whole while its colIdx fits one binding and as a windowed core above that
+ * (issue #471), so the sweep runs once per reverse window.
  * @param ctx - the context
  * @param s - the snapshot
+ * @param core - the forward core
+ * @returns the reverse core
  */
-function assertReverseFits(ctx: GpuContext, s: GraphSnapshot): void {
-    if (s.directed && 4 * s.arcCount > ctx.caps.limits.maxStorageBufferBindingSize) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: the reverse adjacency of a directed snapshot (${4 * s.arcCount} bytes) needs arc windows, which no view executes (spec 4.3); the bottom-up sweep binds it whole`,
-            {
-                needed: 4 * s.arcCount,
-                limit: ctx.caps.limits.maxStorageBufferBindingSize,
-                path: "windowed",
-                algorithm: ALGORITHM,
-            },
-        );
+function reverseCore(ctx: GpuContext, s: GraphSnapshot, core: CoreBinding): CoreBinding {
+    if (!s.directed) {
+        return core;
     }
+    return ctx.residency.reverseWindowed(s) ?? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount);
 }
 
 /** The readbacks `onLevel` reads after a submit. */
@@ -404,7 +400,7 @@ function levelCount(block: UniformValues): number {
 }
 
 /**
- * Breadth-first search with the test knobs of PD-26; `breadthFirstSearch` is this with an empty tuning.
+ * Breadth-first search with the test knobs; `breadthFirstSearch` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
@@ -429,21 +425,20 @@ export async function bfsWithTuning(
     const predKind = tuning.predKind ?? 1;
     throwIfAborted(options);
     const core = ctx.residency.core(s);
-    // a windowed core (colIdx above the binding limit) is executed, not refused (P8-T12 lifts DEP-P8-E): every
+    // a windowed core (colIdx above the binding limit) is executed, not refused: every
     // frontier-walking kernel is dispatched once per arc window with the window's owned range in its record
     const forward = coreWindows(core);
-    // the bottom-up sweep walks in-neighbours over the reverse core: on an undirected snapshot the forward arrays
-    // themselves (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the
-    // reverse's), on a directed one the reverse VIEW, which spec 4.3 never windows -- so a directed snapshot whose
-    // reverse adjacency exceeds one binding is refused here, as the residency refuses the undirected view, instead
-    // of failing at the device's bind-group validation
-    assertReverseFits(ctx, s);
-    const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
+    // the bottom-up sweep walks in-neighbours over the reverse core, windowed like the forward one when it must be
+    const reverse = reverseCore(ctx, s, core);
     const backward = coreWindows(reverse);
-    // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (P8-T8, issue #1358)
+    // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (issue #1358)
     const outDegree = degreeView(ctx, s, "outDegree");
     const inDegree = degreeView(ctx, s, "inDegree");
-    const scope = algorithmScope(ctx, ALGORITHM, bfsRingSlots(forward.length, levelsPerSubmit));
+    const scope = algorithmScope(
+        ctx,
+        ALGORITHM,
+        bfsRingSlots(Math.max(forward.length, backward.length), levelsPerSubmit),
+    );
     tuning.onScope?.(scope);
     try {
         const bytes = 4 * n;
@@ -501,7 +496,7 @@ export async function bfsWithTuning(
         };
         const flagsPlan: DispatchPlan = planGridStride(n, wg, ctx.caps);
         /**
-         * The rebuild of the unvisited set (PD-18), recorded at the top of every submit before its levels.
+         * The rebuild of the unvisited set, recorded at the top of every submit before its levels.
          * @param pass - the compute pass
          */
         const recordRebuild = (pass: GPUComputePassEncoder): void => {
@@ -524,7 +519,7 @@ export async function bfsWithTuning(
 
         // setup: depth = INVALID_INDEX everywhere and the iota queue compact reads; then the source at 0 and the
         // seeded block, both queue writes ordered before the first level submit (the seed is rotated in by the
-        // first boundary, P8-T4)
+        // first boundary)
         const setup = new CommandBatch(ctx, `${ALGORITHM}/setup`);
         const setupPass = setup.pass("fill");
         recordFill(setupPass, depth, INVALID_INDEX, 0);
@@ -535,8 +530,8 @@ export async function bfsWithTuning(
         queue.writeBuffer(depth.buffer, depth.offset + 4 * source, Uint32Array.of(0));
         frontier.reset(queue, source, { nextFrontierCount: 1, level: U32_MAX });
 
-        // the levels: MAX_LEVELS_PER_SUBMIT per submit, four bytes back (PD-7); Beamer's test chooses the direction
-        // per level (mode 0; mode 1 pins top-down), with the fused path below fusedMax (P8-T7)
+        // the levels: MAX_LEVELS_PER_SUBMIT per submit, four bytes back; Beamer's test chooses the direction
+        // per level (mode 0; mode 1 pins top-down), with the fused path below fusedMax
         const fields: FrontierFinalizeFields = {
             mode: { auto: 0, "top-down": 1, "bottom-up": 2 }[tuning.direction ?? "auto"],
             alpha: tuning.alpha ?? BEAMER_ALPHA,
@@ -547,7 +542,7 @@ export async function bfsWithTuning(
         let levelsRecorded = 0;
         let submits = 0;
         for (;;) {
-            // the rebuild (PD-18): the three unvisited words zeroed by a queue write ordered before this submit,
+            // the rebuild: the three unvisited words zeroed by a queue write ordered before this submit,
             // then the flags kernel and compact at the top of the pass, unconditionally, never per level
             queue.writeBuffer(counters.buffer, counters.offset + 4 * W.unvisitedCount, new Uint32Array(3));
             const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
@@ -560,7 +555,7 @@ export async function bfsWithTuning(
                 advance.record(pass, frontier);
                 planner.recordFinalize(pass, 1, level, fields);
                 // one window-free record serves the contract and the bitset build, which read no arc; the kernels that
-                // walk arcs (the fused dispatch, the sweep) get one record per window below (P8-T12)
+                // walk arcs (the fused dispatch, the sweep) get one record per window below
                 const params = scope.params(FRONTIER_PARAMS, {
                     wg,
                     n,
@@ -578,7 +573,7 @@ export async function bfsWithTuning(
                     P: params.binding,
                 });
                 contract.dispatch(pass, boundContract, levelPlan, [params.offset]);
-                // the fused path (role 0's choice) and the overflow retry (role 1's, PD-23): ONE dispatch per window that
+                // the fused path (role 0's choice) and the overflow retry (role 1's): ONE dispatch per window that
                 // the path word turns into the level's work or into nothing (the claim is idempotent across windows)
                 for (const w of forward) {
                     const fusedParams = scope.params(FRONTIER_PARAMS, {
@@ -599,7 +594,7 @@ export async function bfsWithTuning(
                     });
                     fused.dispatch(pass, boundFused, fusedPlan, [fusedParams.offset]);
                 }
-                // the bottom-up level (role 0's choice under Beamer's test, P8-T8): the bitset zeroed (every level: a
+                // the bottom-up level (role 0's choice under Beamer's test): the bitset zeroed (every level: a
                 // top-down level zeroes bits nobody reads, cheaper than a gate), the frontier's bits set, the unvisited
                 // list swept over the reverse core
                 fill.dispatch(pass, boundBitsFill, bitsPlan, [bitsParams.offset]);
@@ -660,8 +655,8 @@ export async function bfsWithTuning(
             }
         }
 
-        // the result batch: order by one stable radix sort of the node indices by depth (PD-14), parent by the
-        // post-pass in depth mode (PD-24), then every array through ONE staging slot
+        // the result batch: order by one stable radix sort of the node indices by depth, parent by the
+        // post-pass in depth mode, then every array through ONE staging slot
         const keys = bindingOf(scope.scratch(bytes, "order/keys"), bytes);
         const vals = bindingOf(scope.scratch(bytes, "order/vals"), bytes);
         const histBytes = radixHistBytes(n, wg);
@@ -725,8 +720,8 @@ export async function bfsWithTuning(
 }
 
 /**
- * Breadth-first search on the device (spec 3.3 line 807, design 8.4, 9.7): `depth` exact, `parent` the smallest
- * predecessor one depth down (PD-24), `order` grouped by depth and ascending by index within a depth (PD-14), all
+ * Breadth-first search on the device: `depth` exact, `parent` the smallest
+ * predecessor one depth down, `order` grouped by depth and ascending by index within a depth, all
  * bitwise reproducible; `maxDepth` as the CPU port reads it (a node at the cap is reached and not expanded).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)

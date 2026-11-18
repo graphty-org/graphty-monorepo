@@ -22,10 +22,14 @@
  *   skips or adds frames, so a count of frames is a sleep (#2398, #2446, #2466). An awaited frame is
  *   `new Promise((r) => requestAnimationFrame(r))`, a function that returns only that, or an
  *   imported `nextFrame()`. A single frame is a yield and is not reported, nor is a loop that does
- *   work besides waiting (`render(); await nextFrame();`);
+ *   work besides waiting (`render(); await nextFrame();`). A count that bounds a condition wait
+ *   (`for (let f = 0; f < 900 && !ready(); f++) await nextFrame();`) is reported too: it fails a
+ *   correct test on a machine that draws fewer frames (#7241);
  * - a timer in code handed to the page: `setTimeout(fn, n)` with a delay inside a function passed
  *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
  *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
+ *   A page script written as a template string (a fixture's served HTML) is test code too: a
+ *   `new Promise((r) => setTimeout(r, n))` in its text is reported as a fixed sleep (#6958);
  *
  * - a time budget on a wait: a `timeout` or `interval` option (or a number in its place) on `waitFor`,
  *   `waitForElementToBeRemoved`, `vi.waitFor`, `vi.waitUntil`, `expect.poll`, `expect.element`,
@@ -34,6 +38,11 @@
  *   (`storyWaitOptions(n)`). A wait's deadline decides pass or fail on a busy machine while the work
  *   it waits on still finishes; one global hang guard (tools/test-wait-guard.mjs) ends every wait
  *   that hangs. Fixable: `--fix` removes the option.
+ * - a timer that settles a wait: a `setTimeout` with a delay whose callback rejects, resolves, fails
+ *   or throws (`setTimeout(() => reject(new Error("never framed")), 5000)`), the settling names being
+ *   `reject`, `resolve`, `fail` and the parameters of each enclosing Promise executor. It races the
+ *   awaited event against the clock, so a busy machine fails or skips a wait that would have
+ *   finished (#6986, #7241).
  * - any other local deadline: a timeout or interval option on a call that waits (`waitForStableFrame({
  *   timeoutMs })`, `untilIdle(x, { intervalMs })`) or runs a process or a request (`execFile(cmd, {
  *   timeout })`, `fetch`), a helper parameter that defaults to one, a
@@ -68,6 +77,9 @@ const DISABLE_HINT =
     "Fix the test instead. A timing exception that must stay is an entry in eslint.config.js, where it is reviewed.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
+
+// A sleep in page code written as text: `new Promise((r) => setTimeout(r, n))` with a delay other than 0.
+const PAGE_TEXT_SLEEP = /new Promise\(\(?([\w$]+)\)? ?=> ?(?:window\.|globalThis\.)?setTimeout\(\1, ?([^)]+)\)/g;
 
 const TEST_NAMES = new Set(["it", "test", "describe", "suite"]);
 const HOOK_NAMES = new Set(["beforeAll", "beforeEach", "afterAll", "afterEach"]);
@@ -506,7 +518,14 @@ const rule = {
         // A `for` loop whose only statement awaits one frame: its counter and bound, else undefined.
         const frameLoop = (loop) => {
             const body = loop.body.type === "BlockStatement" ? loop.body.body : [loop.body];
-            const { test, init } = loop;
+            const { init } = loop;
+            // A counter that bounds a condition wait, `i < 900 && !ready()`, is a frame deadline too.
+            let test = loop.test;
+            while (test?.type === "LogicalExpression" && test.operator === "&&") {
+                test = [test.left, test.right].find(
+                    (t) => t.type === "BinaryExpression" || t.type === "LogicalExpression",
+                );
+            }
             if (body.length !== 1 || awaitedFrames(body[0]) !== 1 || test?.type !== "BinaryExpression") {
                 return undefined;
             }
@@ -605,10 +624,41 @@ const rule = {
             }
             return false;
         };
+        // A timer whose callback settles the wait: it rejects, resolves, fails or throws (`setTimeout(() =>
+        // reject(new Error("never framed")), 5000)`). The names it settles with are GIVE_UP_CALLS and the
+        // parameters of each enclosing Promise executor.
+        const settlesWait = (call) => {
+            const names = new Set(GIVE_UP_CALLS);
+            for (let p = call.parent; p; p = p.parent) {
+                if (isFunction(p) && p.parent?.type === "NewExpression" && p.parent.callee.name === "Promise") {
+                    p.params.forEach((q) => q.type === "Identifier" && names.add(q.name));
+                }
+            }
+            const settles = (n) => {
+                if (!n || typeof n !== "object" || isFunction(n)) {
+                    return false;
+                }
+                if (n.type === "ThrowStatement" || (n.type === "CallExpression" && names.has(n.callee.name))) {
+                    return true;
+                }
+                return Object.entries(n).some(
+                    ([k, v]) => k !== "parent" && (Array.isArray(v) ? v.some(settles) : v?.type && settles(v)),
+                );
+            };
+            const [cb] = call.arguments;
+            if (cb?.type === "Identifier") {
+                return names.has(cb.name);
+            }
+            return isFunction(cb) && settles(cb.body);
+        };
         const checkTimers = () => {
-            timers
-                .filter((call) => !isPromiseSleep(call) && inPageCode(call))
-                .forEach((node) => context.report({ node, messageId: "pageTimer" }));
+            for (const call of timers.filter((c) => !isPromiseSleep(c))) {
+                if (inPageCode(call)) {
+                    context.report({ node: call, messageId: "pageTimer" });
+                } else if (settlesWait(call) && !inSimulatedWork(call)) {
+                    context.report({ node: call, messageId: "deadline" });
+                }
+            }
         };
         // Calls the frame and page-timer checks judge at the end of the file.
         const collectCall = (node, name) => {
@@ -931,6 +981,21 @@ const rule = {
                     context.report({ node, messageId: "timeout" });
                 } else {
                     checkTimeoutArgs(node);
+                }
+            },
+            TemplateLiteral(node) {
+                // A page script served as text: no AST to visit, so its sleeps are found by their
+                // spelling. A zero delay is a yield, as in code; a timer that stands in for a late
+                // event is not a wait.
+                for (const quasi of node.quasis) {
+                    const text = sourceCode.text.slice(quasi.range[0], quasi.range[1]);
+                    for (const m of text.matchAll(PAGE_TEXT_SLEEP)) {
+                        if (m[2].trim() === "0") {
+                            continue;
+                        }
+                        const loc = sourceCode.getLocFromIndex(quasi.range[0] + m.index);
+                        context.report({ loc, messageId: "sleep" });
+                    }
                 }
             },
             NewExpression(node) {

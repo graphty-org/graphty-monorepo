@@ -190,6 +190,10 @@ function cleanEvent<T extends Event>(event: T): T {
 /** The hooks handed to `Sentry.init`. */
 export const privacyFilters: Pick<BrowserOptions, "beforeSend" | "beforeSendTransaction" | "beforeBreadcrumb"> = {
     beforeSend: cleanEvent,
+    // Deprecated by Sentry for span streaming, which sentry.ts turns off (traceLifecycle "static") so
+    // that spans are sent inside their transaction, through this filter. Moves to beforeSendSpan
+    // before Sentry 12 removes it.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     beforeSendTransaction: cleanEvent,
     beforeBreadcrumb: cleanBreadcrumb,
 };

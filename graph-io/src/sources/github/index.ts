@@ -6,6 +6,10 @@
  *   graph-io's format detection (by its file name and its first bytes).
  * - list: every file of the repository at a branch, tag or commit (one request for the whole tree),
  *   narrowed by a folder and a search text, paged by the caller's `size`.
+ * - a release: with `release` (a tag, or "latest"), `path` names one of the release's assets, and a
+ *   listing lists them. The asset is downloaded from its public address, without the token, which
+ *   GitHub would not let follow its redirect: a private repository's assets cannot be read, and a
+ *   browser cannot read any, since the host GitHub redirects to sends no CORS headers (Node only).
  *
  * Every request goes to the API endpoint (`https://api.github.com/`), which answers browsers with
  * CORS headers, so a token given as `credentials.bearer(token)` goes with each request: it raises the
@@ -18,6 +22,7 @@ import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failAlone, failOn } from "../fail.js";
 import { GITHUB_SOURCE_ID } from "../ids.js";
+import { pageNames } from "../page.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { GITHUB_DESCRIPTOR } from "./descriptor.js";
 import { type GithubParams } from "./params.js";
@@ -31,13 +36,16 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 /** The statuses this source classifies itself: GitHub's 403 is a rate limit or a refusal. */
 const READ_STATUSES = [403, 404] as const;
 
-/** Files a listing returns when the caller gives no size. */
-const DEFAULT_PAGE = 100;
-
 /** One entry of a git tree answer. */
 interface TreeEntry {
     readonly path?: unknown;
     readonly type?: unknown;
+}
+
+/** One asset of a release answer. */
+interface ReleaseAsset {
+    readonly name?: unknown;
+    readonly browser_download_url?: unknown;
 }
 
 /**
@@ -107,7 +115,7 @@ function waitMs(response: Response): number | null {
 async function githubFetch(
     ctx: SourceContext,
     path: string,
-    what: "repository" | "file",
+    what: "repository" | "release" | "file",
     value: string,
     init: RequestInit = {},
 ): Promise<Response> {
@@ -135,11 +143,17 @@ async function githubFetch(
  * Fetch from the GitHub API and parse the body as JSON.
  * @param ctx - the context
  * @param path - the API path
- * @param repository - the repository, for E_SOURCE_NOT_FOUND
+ * @param value - the repository (or release) looked up, for E_SOURCE_NOT_FOUND
+ * @param what - what a 404 means was not found
  * @returns the parsed body
  */
-async function githubJson(ctx: SourceContext, path: string, repository: string): Promise<unknown> {
-    const response = await githubFetch(ctx, path, "repository", repository, {
+async function githubJson(
+    ctx: SourceContext,
+    path: string,
+    value: string,
+    what: "repository" | "release" = "repository",
+): Promise<unknown> {
+    const response = await githubFetch(ctx, path, what, value, {
         headers: { Accept: "application/vnd.github+json" },
     });
     try {
@@ -169,6 +183,39 @@ async function listedRef(repository: string, ref: unknown, ctx: SourceContext): 
 }
 
 /**
+ * A release's assets, by name: the tag's release, or the latest one for "latest".
+ * @param repository - the checked repository
+ * @param release - the tag, or "latest"
+ * @param ctx - the context
+ * @returns each asset's name and download address
+ */
+async function releaseAssets(
+    repository: string,
+    release: string,
+    ctx: SourceContext,
+): Promise<{ name: string; url: string }[]> {
+    const route =
+        release === "latest" ? "releases/latest" : `releases/tags/${checkedSegments(release, "release", ctx).encoded}`;
+    const body = (await githubJson(ctx, `repos/${repository}/${route}`, `${repository}@${release}`, "release")) as {
+        assets?: unknown;
+    };
+    if (!Array.isArray(body.assets)) {
+        failOn(ctx.report, "E_SOURCE_RESPONSE", "the GitHub release answer has no assets", {
+            origin: endpointOrigin(ctx.endpoint),
+            expected: "github-release",
+            contentType: "application/json",
+        });
+    }
+    return (body.assets as readonly ReleaseAsset[]).flatMap((asset) =>
+        typeof asset.name === "string" &&
+        typeof asset.browser_download_url === "string" &&
+        asset.browser_download_url.startsWith("https://")
+            ? [{ name: asset.name, url: asset.browser_download_url }]
+            : [],
+    );
+}
+
+/**
  * The GitHub source. Experimental.
  * @category Network sources
  */
@@ -178,6 +225,19 @@ export const githubSource: GraphSource<GithubParams> = defineSource<GithubParams
     async file(params, ctx) {
         const repository = checkedRepository(params.repository, ctx);
         const path = checkedSegments(params.path, "path", ctx);
+        if (params.release !== undefined && params.release !== "") {
+            const assets = await releaseAssets(repository, params.release, ctx);
+            const asset = assets.find((each) => each.name === path.plain);
+            if (asset === undefined) {
+                failOn(ctx.report, "E_SOURCE_NOT_FOUND", "the GitHub release has no such asset", {
+                    origin: endpointOrigin(ctx.endpoint),
+                    what: "file",
+                    value: `${repository}@${params.release}/${path.plain}`,
+                });
+            }
+            // another origin than the API's, so the token stays behind
+            return { body: await ctx.fetch(asset.url), filename: asset.name };
+        }
         const query =
             params.ref === undefined || params.ref === ""
                 ? ""
@@ -195,6 +255,15 @@ export const githubSource: GraphSource<GithubParams> = defineSource<GithubParams
     async list(query: SourceListQuery<GithubParams>, ctx): Promise<SourceListing> {
         const { params } = query;
         const repository = checkedRepository(params.repository, ctx);
+        const { release } = params;
+        if (release !== undefined && release !== "") {
+            const assets = await releaseAssets(repository, release, ctx);
+            return pageNames(
+                assets.map((asset) => asset.name),
+                query,
+                (path) => ({ repository, release, path }),
+            );
+        }
         const ref = await listedRef(repository, params.ref, ctx);
         const folder =
             params.path === undefined || params.path === ""
@@ -212,23 +281,14 @@ export const githubSource: GraphSource<GithubParams> = defineSource<GithubParams
         }
         // ponytail: one tree request; GitHub truncates a tree past 100,000 entries, so a repository
         // that large lists only part of its files. Walk the contents API folder by folder if that matters.
-        const search = query.search?.toLowerCase() ?? "";
         const files = (body.tree as readonly TreeEntry[]).flatMap((entry) =>
-            entry.type === "blob" &&
-            typeof entry.path === "string" &&
-            entry.path.startsWith(folder) &&
-            entry.path.toLowerCase().includes(search)
+            entry.type === "blob" && typeof entry.path === "string" && entry.path.startsWith(folder)
                 ? [entry.path]
                 : [],
         );
-        const start = Number(query.cursor?.start ?? 0);
-        const size = query.size ?? DEFAULT_PAGE;
-        const items = files.slice(start, start + size).map((path) => ({
-            params: params.ref === undefined ? { repository, path } : { repository, path, ref: params.ref },
-            name: path,
-        }));
-        const end = start + items.length;
-        return { items, next: end < files.length ? { start: end } : null, total: files.length };
+        return pageNames(files, query, (path) =>
+            params.ref === undefined ? { repository, path } : { repository, path, ref: params.ref },
+        );
     },
 });
 
@@ -241,14 +301,18 @@ export interface GithubLink {
     readonly repository: string;
     /** The branch, tag or commit in the link (only its first path segment), when it names one. */
     readonly ref?: string | undefined;
-    /** The file or folder path in the link, when it names one. */
+    /** The file or folder path in the link, when it names one; for a release link, the asset's name. */
     readonly path?: string | undefined;
+    /** The release's tag (or "latest") in a release link. */
+    readonly release?: string | undefined;
 }
 
 /**
  * Read a GitHub link: a repository page (`https://github.com/<owner>/<name>`), a file or folder page
  * (`.../blob/<ref>/<path>`, `.../tree/<ref>/<path>`) or a raw file
- * (`https://raw.githubusercontent.com/<owner>/<name>/<ref>/<path>`). The result is the params of the
+ * (`https://raw.githubusercontent.com/<owner>/<name>/<ref>/<path>`), a release page
+ * (`.../releases/tag/<tag>`, `.../releases/latest`) or a release asset
+ * (`.../releases/download/<tag>/<asset>`, `.../releases/latest/download/<asset>`). The result is the params of the
  * `github` source: a file link loads as it is; a repository or folder link is a listing's params.
  * A ref holding a slash is read as its first segment. Rejects with `E_SOURCE_PARAM`
  * (`name: "url"`): `reason: "format"` when the text is not such a link, `"credentials-in-url"`
@@ -291,6 +355,9 @@ export function parseGithubUrl(url: string | URL): GithubLink {
         if (parts.length === 2) {
             return { repository };
         }
+        if (parts[2] === "releases") {
+            return releaseLink(repository, parts.slice(3));
+        }
         if ((parts[2] !== "blob" && parts[2] !== "tree") || parts.length < 4) {
             return refuse("format");
         }
@@ -300,6 +367,30 @@ export function parseGithubUrl(url: string | URL): GithubLink {
     }
     const [ref, ...path] = rest;
     return path.length === 0 ? { repository, ref } : { repository, ref, path: path.join("/") };
+}
+
+/**
+ * Read the part of a release link after `releases/`.
+ * @param repository - the link's repository
+ * @param rest - the path parts after `releases`
+ * @returns the repository, release and asset the link names
+ */
+function releaseLink(repository: string, rest: readonly string[]): GithubLink {
+    const [first, ...more] = rest;
+    if (first === "latest") {
+        if (more.length === 0) {
+            return { repository, release: "latest" };
+        }
+        return more.length === 2 && more[0] === "download"
+            ? { repository, release: "latest", path: more[1] }
+            : refuse("format");
+    }
+    if (first === "tag" && more.length > 0) {
+        return { repository, release: more.join("/") };
+    }
+    return first === "download" && more.length > 1
+        ? { repository, release: more.slice(0, -1).join("/"), path: more.at(-1) }
+        : refuse("format");
 }
 
 /**

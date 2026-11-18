@@ -909,7 +909,9 @@ function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberForma
             return (scaled): EncodedValue | undefined => {
                 const value = typeof scaled === "number" ? scaled : readNumber(scaled);
 
-                return Number.isFinite(value) ? clamp(value, low, high) : undefined;
+                return Number.isFinite(value)
+                    ? clamp(descriptor.integer === true ? Math.round(value) : value, low, high)
+                    : undefined;
             };
         }
         case "enum":
@@ -1244,12 +1246,15 @@ function combineFactor(value: ChannelValue, what: string): number {
  *
  * A channel that carries a measurement reads one; a channel that carries a name, a word or a
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
- * interpolate.
+ * interpolate. A binding that names its values with `map` takes them as they are on every
+ * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
+ * painted the map's colours while the legend described a ramp nobody drew.
  * @param kind - The kind of value the channel accepts.
+ * @param binding - The binding, read for `map`.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind): string {
-    return kind === "color" || kind === "number" ? "linear" : "passthrough";
+export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
+    return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
 }
 
 /**
@@ -1971,7 +1976,7 @@ function prepareRule(
         return prepareStops(descriptor, binding, options);
     }
 
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {
@@ -2894,9 +2899,12 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     const descriptor = requireChannel(channel);
     const count = Math.max(0, Math.floor(options.count));
     const numeric = descriptor.accepts === "number";
-    // Items are groups for a colour or a list value, amounts for a number.
+    // Items are groups for a colour or a list value, amounts for a number. The scale is named here
+    // because a map keyed by item position would otherwise default a number to "passthrough".
     const binding: RuleBinding =
-        options.binding.scale === undefined && !numeric ? { ...options.binding, scale: "ordinal" } : options.binding;
+        options.binding.scale === undefined
+            ? { ...options.binding, scale: numeric ? "linear" : "ordinal" }
+            : options.binding;
     if (count === 0) {
         return { channel: descriptor.channel, values: [], cue: null, palette: null };
     }

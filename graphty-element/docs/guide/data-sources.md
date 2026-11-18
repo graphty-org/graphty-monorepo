@@ -206,6 +206,43 @@ A load aborted before its turn comes rejects and changes nothing, even when its 
 already finished. A replacing `addDataFromSource`, `loadFromFile` or `loadFromUrl`
 does not wait for the element's own earlier loads: those reject with `E_SUPERSEDED`.
 
+## Sample Datasets and Generated Graphs
+
+graphty-element lists every sample dataset and every graph generator that `@graphty/graph-samples`
+ships, and loads any of them by name. The lists come from the `@graphty/graphty-element/catalog`
+entry, which loads no Babylon.js, Lit or DOM code, so a page can draw a picker before any element
+exists; a session gives the same lists as `session.catalog.datasets()` and
+`session.catalog.generators()`. A dataset or generator added to graph-samples shows up in both
+with no change to your code.
+
+```typescript
+import { DATASET_DESCRIPTORS, DEFAULT_DATASET_BASE_URL, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+
+// Each dataset: name, title, description, citation, source, license, nodes, edges, and `bytes`
+// (its download size) when it is known.
+for (const dataset of DATASET_DESCRIPTORS) {
+    console.log(dataset.title, dataset.nodes, dataset.edges);
+}
+// Each generator: name, plainName, description, and its params, each with a type ("integer",
+// "number", "boolean" or "choice"), a default, and min, max or choices.
+for (const generator of GENERATOR_DESCRIPTORS) {
+    console.log(
+        generator.plainName,
+        generator.params.map((param) => `${param.name}=${param.default}`),
+    );
+}
+
+const session = document.querySelector("graphty-element")!.session;
+// Downloads it from where the dataset files are published: graph-samples' address or your copy.
+await session.data.loadDataset("karate", { baseUrl: DEFAULT_DATASET_BASE_URL });
+// Builds it in the page. A parameter left out takes its default, so `generate("cycle")` works too.
+await session.data.generate("watts-strogatz", { n: 24 });
+```
+
+Each is one undoable step, like any other load. `generate` rejects an unknown name with
+`E_UNKNOWN_GENERATOR`, an unknown parameter with `E_UNKNOWN_OPTION` and a value outside the
+parameter's range with `E_OPTION_RANGE`.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
@@ -946,8 +983,28 @@ words for it:
   no place for), or none (self-loops).
 - `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
 
-`lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
-release.
+### Exporting part of the graph
+
+Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope
+names, and only the edges whose two ends are both written:
+
+```typescript
+// What the visibility filter and the time window leave showing
+const shown = await element.exportGraph("graphml", { scope: "shown" });
+// The selected nodes and the edges between them
+const picked = await element.exportGraph("csv", { scope: "selection" });
+// A kept set's members
+const members = await element.exportGraph("gexf", { scope: { set: "core-team" } });
+// These nodes, by id
+const pair = await element.exportGraph("json", { scope: { nodes: ["alice", "bob"] } });
+// A rule, read as the visibility filter reads it
+const busy = await element.exportGraph("csv", {
+    scope: { kind: "range", attribute: "data.degree", min: 10 },
+});
+```
+
+Each node keeps its own position, values and styles. `columns` (a list of column names) narrows
+which attribute columns are written in the same way.
 
 ### Exporting styles
 

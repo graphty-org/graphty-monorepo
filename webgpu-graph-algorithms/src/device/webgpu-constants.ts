@@ -1,11 +1,11 @@
 /**
- * GPUBufferUsage / GPUMapMode / GPUShaderStage as numbers (spec 2.1 rule 1; contract 3.4): under Dawn-node the
+ * GPUBufferUsage / GPUMapMode / GPUShaderStage as numbers: under Dawn-node the
  * global namespaces do not exist until `Object.assign(globalThis, dawn.globals)` has run, so the core never reads
  * them at module top level and keeps its own copies here. Each field names the WebGPU spec constant it mirrors;
  * test/device/constants.test.ts compares every field with the runtime globals so a drift is caught.
  */
 
-/** GPUBufferUsage bits as numbers so the core never reads the global at module top level (spec 2.1 rule 1). */
+/** GPUBufferUsage bits as numbers so the core never reads the global at module top level. */
 export const BufferUsage: Readonly<{
     MAP_READ: 0x0001;
     MAP_WRITE: 0x0002;

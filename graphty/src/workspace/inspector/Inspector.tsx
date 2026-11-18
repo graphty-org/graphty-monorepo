@@ -6,14 +6,12 @@ import React, { useEffect, useState } from "react";
 import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
+import { resultItems } from "../data-place/resultItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
-import { TimeCard } from "../data-place/TimeCard";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -21,11 +19,22 @@ import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { orNotice } from "../graph-place/actions";
 import { KindGlyph } from "../graph-place/KindGlyph";
 import { RowMenuItems } from "../graph-place/RowMenu";
-import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
+import {
+    findTreeRow,
+    layerKindWords,
+    paintsOf,
+    paintsWords,
+    placeOf,
+    rowName,
+    rowsHeading,
+    runRowKind,
+} from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
 import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -34,7 +43,6 @@ import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
 import { AttributeValues, Overview } from "./GraphValues";
-import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
@@ -44,7 +52,7 @@ import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
 
-/** A kind's two tab bodies, or its one body when it has no tabs. */
+/** A kind's two tab bodies (`style` null when it has nothing to style: no Style tab), or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
 
 /** The header's two lines. */
@@ -213,7 +221,7 @@ function kindIdOf(run: Run | undefined, resolved: Resolved): InspectedKindId {
 
 /**
  * Whether a run row opens on Values whatever was last chosen: a path, whose answer is its nodes in
- * order, as a single node does, and a finished run with no layer, whose Style tab is empty.
+ * order, as a single node does, and a finished run with no layer, which has no Style tab.
  * @param session - the session.
  * @param run - its run.
  * @param resolved - what is inspected.
@@ -321,6 +329,25 @@ function dataActionsOf(
 }
 
 /**
+ * A result's Run again and Copy items, the same as its Data place row's.
+ * @param session - the session.
+ * @param store - the workspace store.
+ * @param run - the inspected run, if any.
+ * @param resolved - what is inspected.
+ * @returns the items, none unless a result (not one of its groups) is inspected.
+ */
+function resultActionsOf(
+    session: GraphSession,
+    store: Workspace["store"],
+    run: Run | undefined,
+    resolved: Resolved,
+): SelectionMenuItem[] {
+    return run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
+        ? resultItems(session, store, run)
+        : [];
+}
+
+/**
  * The inspector's body: the Style and Values tabs, and Notes when the item has notes, or one body
  * for a kind with no tabs.
  * @param props - Component props
@@ -347,6 +374,8 @@ function InspectorBody({
     if (tab === null) {
         return body.values;
     }
+    // Nothing to style (a run with no layer): no Style tab, rather than an empty one.
+    const styled = body.style !== null;
     return (
         // The underline tabs: the pill form drew the chosen tab as a filled button beside a
         // plain word, which read as a label ("Style:") and a button that did nothing.
@@ -354,7 +383,7 @@ function InspectorBody({
         <Tabs
             variant="default"
             keepMounted={false}
-            value={tab}
+            value={tab === "style" && !styled ? "values" : tab}
             onChange={(next) => {
                 if (next === "style" || next === "values" || (next === "notes" && notes !== null)) {
                     onPick(next);
@@ -362,11 +391,11 @@ function InspectorBody({
             }}
         >
             <Tabs.List>
-                <Tabs.Tab value="style">Style</Tabs.Tab>
+                {styled && <Tabs.Tab value="style">Style</Tabs.Tab>}
                 <Tabs.Tab value="values">Values</Tabs.Tab>
                 {notes !== null && <Tabs.Tab value="notes">Notes</Tabs.Tab>}
             </Tabs.List>
-            <Tabs.Panel value="style">{body.style}</Tabs.Panel>
+            {styled && <Tabs.Panel value="style">{body.style}</Tabs.Panel>}
             <Tabs.Panel value="values">{body.values}</Tabs.Panel>
             {notes !== null && <Tabs.Panel value="notes">{notes}</Tabs.Panel>}
         </Tabs>
@@ -435,13 +464,14 @@ function HeaderFrom({ from }: Readonly<{ from: Header["from"] }>): React.ReactNo
 
 /**
  * The header's actions menu: the style tree's row menu for a style tree row, else the kind's
- * commands, then the Data place's verbs.
+ * commands, then a result's Run again and Copy items, then the Data place's verbs.
  * @param props - Component props
  * @param props.kindWord - the kind in words.
  * @param props.selectsPaints - whether Select what it paints sits before it.
  * @param props.tree - the style tree.
  * @param props.treeRow - the style tree row, if it is one.
  * @param props.menu - the kind's commands.
+ * @param props.resultActions - a result's Run again and Copy items, the same as its Data place row's.
  * @param props.attributeActions - the Data place's verbs.
  * @param props.moveTo - moves a style tree row into a folder.
  * @returns the menu.
@@ -452,6 +482,7 @@ function HeaderMenu({
     tree,
     treeRow,
     menu,
+    resultActions,
     attributeActions,
     moveTo,
 }: Readonly<{
@@ -460,6 +491,7 @@ function HeaderMenu({
     tree: HeaderTree["tree"];
     treeRow: HeaderTree["treeRow"];
     menu: readonly { id: string }[];
+    resultActions: readonly SelectionMenuItem[];
     attributeActions: ReturnType<typeof dataActionsOf>;
     moveTo: (row: { id: string; name: string }, folderId: string | null) => void;
 }>): React.JSX.Element {
@@ -492,6 +524,7 @@ function HeaderMenu({
                         }}
                     />
                 )}
+                <SelectionMenuItems items={resultActions} />
                 <AttributeMenuItems actions={attributeActions} />
             </Menu.Dropdown>
         </Menu>
@@ -507,11 +540,11 @@ function HeaderMenu({
  */
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, INSPECTOR_EVENTS);
     // The reader's Number format respells every value the inspector draws.
     useNumberFormats();
     // A filter step turned on or off changes its editor's header.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
@@ -586,9 +619,10 @@ export function Inspector(): React.JSX.Element {
                       runCommand("analyze.open");
                   },
     });
-    const body = bodyOf(resolved, run, runDraft, onDraft, version);
+    const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
+    const resultActions = resultActionsOf(session, store, run, resolved);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // ... and draws the tree's own glyph and menu for the row.
@@ -671,13 +705,14 @@ export function Inspector(): React.JSX.Element {
                                 </ActionIcon>
                             </Tooltip>
                         )}
-                        {menu.length + attributeActions.length > 0 && (
+                        {menu.length + resultActions.length + attributeActions.length > 0 && (
                             <HeaderMenu
                                 kindWord={kindWord}
                                 selectsPaints={selectsPaints}
                                 tree={tree}
                                 treeRow={treeRow}
                                 menu={menu}
+                                resultActions={resultActions}
                                 attributeActions={attributeActions}
                                 moveTo={moveTo}
                             />
@@ -814,7 +849,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 // A node is called by its label, else its id.
                 name: nodeName(session, resolved.node),
                 swatch: swatchOf(session, { node: resolved.node }),
-                // A node a filter hides is still selected; the header says why it is not drawn.
+                // A node inspected while hidden (one the time window hides stays selected); the
+                // header says why it is not drawn.
                 ...(session.visibility.isVisible(resolved.node) ? {} : { kind: "Node, hidden by a filter" }),
             };
         // The center node's own header: its name and the color it is drawn in.
@@ -845,15 +881,25 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Everything" };
         case "selection-row":
             return { name: "Selection" };
-        case "layer-row":
-            return { name: rowName(session, resolved.layer), kind: layerKindWords(session, resolved.layer) };
+        case "layer-row": {
+            const name = rowName(session, resolved.layer);
+            const kind = layerKindWords(session, resolved.layer);
+            const row = findTreeRow(session.styles.tree(), resolved.layer)?.row;
+            // Spoken as its tree row says it, with how many it paints: where focus lands as a
+            // project opens on its Everything row.
+            const spoken =
+                row === undefined
+                    ? undefined
+                    : `${name}, ${(kind ?? "Layer").toLowerCase()}, ${paintsWords(paintsOf(session, row))}`;
+            return { name, kind, spoken };
+        }
         case "folder-row":
             return { name: rowName(session, resolved.row) };
         case "rows":
             return { name: rowsHeading(session, resolved.rows) };
         case "filter-step":
-            // Only the time window's card opens here: a filter card is edited in the Filters section.
-            return { name: resolved.step === TIME_ROW ? "Time window" : "Filter" };
+            // A filter card is edited in the Filters section; nothing opens one here.
+            return { name: "Filter" };
         case "source":
             return sourceHeader(session, resolved.row);
         default:
@@ -863,6 +909,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
 
 /**
  * The tabs' bodies for what is inspected, or the one body of a kind with no tabs.
+ * @param session - the session.
  * @param resolved - what is inspected.
  * @param run - its run, for a run or group row.
  * @param draft - the reader's changes to the run's settings.
@@ -871,6 +918,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
  * @returns the bodies.
  */
 function bodyOf(
+    session: GraphSession,
     resolved: Resolved,
     run: Run | undefined,
     draft: Draft,
@@ -913,7 +961,11 @@ function bodyOf(
         case "run-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : { style: <StylePanel />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
+                : {
+                      // A run that paints nothing (queued, failed, its layers removed) has nothing to style.
+                      style: session.runs.bindings(run.id).length === 0 ? null : <StylePanel />,
+                      values: <RunValues run={run} draft={draft} onDraft={onDraft} />,
+                  };
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
@@ -941,8 +993,8 @@ function bodyOf(
             // Keyed by the rows, so another selection starts with no receipt of the last one's edit.
             return { only: <MultiRowPanel key={resolved.rows.join(" ")} ids={resolved.rows} /> };
         case "filter-step":
-            // The time window's card; a filter card is edited in place in the Filters section.
-            return { only: resolved.step === TIME_ROW ? <TimeCard /> : <Gone /> };
+            // A filter card is edited in place in the Filters section.
+            return { only: <Gone /> };
         case "source":
             return { only: <SourceValues row={resolved.row} /> };
         default:

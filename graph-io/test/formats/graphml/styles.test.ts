@@ -22,6 +22,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
@@ -59,7 +60,10 @@ async function load(doc: string | Uint8Array, toolDefaults = true) {
     return { ...result, styles: result.styles };
 }
 
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 
 const YED_HEAD = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -216,6 +220,24 @@ describe("GraphML styles: yEd", () => {
             null,
         ]);
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
+    });
+
+    it("lines up a label's lines by its alignment, in a box sized to its words too", async () => {
+        // yed-graphml-specimen-labels.svg: `alignment-left` draws "ab" under the start of "Wide line", `alignment-right`
+        // under its end, in a label box yEd sized to the words (autoSizePolicy="content")
+        const node = (id: string, align: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="40" width="60" x="0" y="0"/>` +
+            `<y:NodeLabel alignment="${align}" autoSizePolicy="content" modelName="internal" modelPosition="c" ` +
+            `x="0.1" y="5" width="59.8" height="30">Wide line\nab</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("left", "left"),
+            node("center", "center"),
+            node("right", "right"),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelTextAlign", snapshot)).toEqual(["left", "center", "right"]);
     });
 
     it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
@@ -552,7 +574,7 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
             "polygon",
             "polygon",
-            "other:database",
+            "database",
             "diamond",
             "hexagon",
             "polygon",
@@ -588,7 +610,7 @@ describe("GraphML styles: yEd", () => {
             `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
         const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
         const { snapshot, styles } = await load(doc, false);
-        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "other:database", "rectangle"]);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "database", "rectangle"]);
         // the top right corner (y up) is cut
         expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
             "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
@@ -1041,7 +1063,7 @@ describe("GraphML styles: yFiles 3", () => {
             ),
         );
         const shape = resolveStyles(styles, "node", "shape", snapshot);
-        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("top-round-rectangle");
         expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
     });
 

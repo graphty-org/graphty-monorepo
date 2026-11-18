@@ -1193,7 +1193,8 @@ Sections, in file order. Everything not marked as a value is a type-only export.
 - value `communityFieldSpecs`, `LAYERED_GROUPING_FIELD_SPECS`, `metricFieldSpecs`,
   `PATH_FIELD_SPECS`, `setFieldSpecs` from `./src/algorithms/results/fields`
 - value `metricField`, `nodeMetricFields` from `./src/algorithms/metrics/fields`
-- `type AlgorithmGraphMode`, `AlgorithmGraphView` from `./src/algorithms/utils/snapshotGraph`
+- `type AlgorithmGraphMode` from `./src/algorithms/input/ScopedInput`; `type AlgorithmGraphView`
+  declared in `extend.ts` itself (the deprecated `./src/algorithms/utils/legacyGraph` `Graph`)
 - `type AlgorithmDescriptor`, `AlgorithmKey`, `FieldDescriptor`, `ResultShape` from
   `./src/catalog/types`
 - value `checkShapeContract` from `./src/session/results/types`

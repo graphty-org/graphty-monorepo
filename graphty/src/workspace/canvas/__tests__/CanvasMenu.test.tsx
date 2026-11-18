@@ -51,6 +51,8 @@ function standIn(
         layout: { dimension: "3d" },
         // No experiment switched on, as a real session carries.
         features: { enabled: [] },
+        // No algorithm to offer, so an Analyze command that runs one is drawn disabled.
+        catalog: { algorithms: () => [] },
     } as unknown as GraphSession;
     const element = {
         renderQuality: { level: "high", motion, heavy: "on" },
@@ -100,6 +102,7 @@ describe("the canvas context menu", () => {
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Neighborhood")));
         assert.isTrue(labels.some((label) => label.startsWith("Frame selection")));
+        assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
         assert.isFalse(labels.some((label) => label.startsWith("Fit")));
     });
 
@@ -108,6 +111,7 @@ describe("the canvas context menu", () => {
         assert.deepEqual(apply.mock.calls, [[{ edges: ["e1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Select endpoints")));
+        assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
         assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));
         assert.isFalse(labels.some((label) => label.startsWith("Fit")));
     });

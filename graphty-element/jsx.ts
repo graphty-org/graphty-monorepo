@@ -41,6 +41,18 @@ export interface GraphtyElementJSXProps {
      */
     accessibleNodeList?: Graphty["accessibleNodeList"];
     /**
+     * Shows or hides the legend.
+     */
+    legend?: Graphty["legend"];
+    /**
+     * Moves the legend to another corner.
+     */
+    legendPosition?: Graphty["legendPosition"];
+    /**
+     * Sets the legend's accessible name.
+     */
+    legendLabel?: Graphty["legendLabel"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -105,27 +117,27 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -163,6 +175,14 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     labelDeclutter?: Graphty["labelDeclutter"];
+    /**
+     * Shows or hides the minimap.
+     */
+    minimap?: Graphty["minimap"];
+    /**
+     * Sets the minimap's accessible name.
+     */
+    minimapLabel?: Graphty["minimapLabel"];
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
@@ -211,10 +231,6 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Moves the map's credits up from the corner.
-     */
-    attributionOffset?: Graphty["attributionOffset"];
-    /**
      * Sets how the globe looks.
      */
     globeLook?: Graphty["globeLook"];
@@ -222,6 +238,10 @@ export interface GraphtyElementJSXProps {
      * Sets how long camera moves take.
      */
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    reducedMotion?: Graphty["reducedMotion"];
     /**
      * Sets the starting camera distance.
      */
@@ -273,6 +293,10 @@ export interface GraphtyElementJSXProps {
      */
     acceleration?: Graphty["acceleration"];
     /**
+     * Switches the working graph on or off.
+     */
+    workingGraph?: Graphty["workingGraph"];
+    /**
      * Sets the renderer the element opens when it is first drawn.
      *
      * An unrecognised value, or a change once the element is drawing, is reported and ignored
@@ -285,10 +309,15 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
-     * Sets whether the canvas multisamples. Once the engine is built a different value changes
-     * nothing and raises `W_ANTIALIAS_LATE`.
+     * Sets how the canvas multisamples. Once the engine is built, a change it cannot make raises
+     * `W_ANTIALIAS_LATE` and changes nothing.
      */
     antialias?: Graphty["antialias"];
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     /**
      * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
      */
@@ -306,6 +335,14 @@ export interface GraphtyElementJSXProps {
      * Adds or removes the node list.
      */
     "accessible-node-list"?: boolean;
+    /**
+     * Moves the legend to another corner.
+     */
+    "legend-position"?: string;
+    /**
+     * Sets the legend's accessible name.
+     */
+    "legend-label"?: string;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
@@ -359,27 +396,27 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     "node-time-path"?: string;
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     "edge-time-end-path"?: string;
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     "node-time-end-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     "node-time-unit"?: string;
     /**
@@ -400,6 +437,10 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Sets the minimap's accessible name.
+     */
+    "minimap-label"?: string;
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
@@ -423,13 +464,13 @@ export interface GraphtyElementJSXProps {
      */
     "layout-2d"?: boolean;
     /**
-     * Moves the map's credits up from the corner.
-     */
-    "attribution-offset"?: string;
-    /**
      * Sets how long camera moves take.
      */
     "camera-transition-duration"?: string;
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    "reduced-motion"?: string;
     /**
      * Sets the starting camera distance.
      */
@@ -455,9 +496,18 @@ export interface GraphtyElementJSXProps {
      */
     "enable-detailed-profiling"?: boolean;
     /**
+     * Switches the working graph on or off.
+     */
+    "working-graph"?: boolean;
+    /**
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */
     "render-path"?: string;
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    "preserve-drawing-buffer"?: boolean;
     /**
      * Sets the threshold and applies it immediately.
      *
@@ -699,6 +749,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    /**
+     * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
+     */
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     /**
      * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.

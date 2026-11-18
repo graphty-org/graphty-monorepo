@@ -2,8 +2,8 @@
 
 A layers panel usually starts with three rows: one at the bottom for the whole graph, and two at
 the top for what the reader has selected and what the pointer is over. Turn on the project setting
-`startingRows` and the element adds them for you, as ordinary rows you can edit, hide, delete and
-bring back.
+`startingRows` and the element writes them once, in that step, as ordinary rows you can edit,
+hide, delete or rename like any other.
 
 ```ts
 import "@graphty/graphty-element";
@@ -32,10 +32,19 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 | Hovered    | the node under the pointer   | top    | nothing                                     |
 
 The Selected ring is a solid halo and the band a solid band, both in the `selectionStyle` colors
-and sizes (a gold ring and a blue band by default). The gold ring stands out on the dark
-backgrounds and on dark node colors; on the light default background and light node colors it is
-faint, so set `selectionStyle` (or edit the Selected row) to a darker color, or add a glow to the
-row, if your graph needs more contrast there.
+and sizes (blue, `#0077BB`, by default). That blue stands at least 3:1 off the light default
+background and off dark ones such as `#202020`, the contrast WCAG 1.4.11 asks of a state
+indicator. On a mid-gray background, or for a ring that also stands off the node it surrounds, set
+`selectionStyle` (or edit the Selected row) to a color of your own, or add a glow or border to the
+row.
+
+To stop drawing the selection, delete the Selected row (or hide it); the selection itself is
+unchanged:
+
+```ts
+const selected = session.styles.tree().find((row) => row.name === "Selected")!;
+await session.styles.deleteRow(selected.id);
+```
 
 Selected and Hovered use the selector `{ match: "state", state: "selected" }` (or `"hovered"`),
 which you can use in any layer of your own. They follow the selection and the pointer as they
@@ -50,20 +59,34 @@ draws nothing itself. With it off (the default), nothing changes: there are no s
 
 A layer you add lands between them: above Everything, below Selected and Hovered.
 
-## Deleting and restoring
+## Deleting and changing
 
-The three rows are deleted like any other row, with `styles.deleteRow`. `styles.restoreStartingRows()`
-adds back whichever of them are missing, in their places, as one undo step, and returns the rows it
-added.
+The rows are data from the moment they are written. Delete one with `styles.deleteRow`, rename or
+rewrite it, and it stays that way: no setting adds, removes or rewrites a starting row afterwards,
+and writing `startingRows: true` while it is already on writes nothing. To get a row back, add it
+with `styles.addRow` like any other row.
+
+## A Timeline Hidden row
+
+With `startingRows` on, the timeline adds one more row the first time it turns on (a time field is
+set with `session.time.setField`, data that declares one is loaded, or `startingRows` turns on
+while a field is set): Timeline Hidden, pinned to the top below Pinned, Selected and Hovered. It
+paints the nodes and edges outside the time window, with the selector
+`{ match: "state", state: "outsideWindow" }`: hidden by default, or grey and faint with
+`timelineHiddenLook: "ghost"`. A project without a timeline never gets it.
+
+The row is added once. The project setting `timelineHiddenAdded` records that it was, so turning
+the timeline off and on again, or deleting the row, does not bring it back; set it to `true`
+beforehand and the row is never added.
 
 ## A Pinned row
 
 Set `pinnedStyle` (the same shape as `selectionStyle`; its `color`, `scale` and `opacity` are read)
-and the starting rows gain a Pinned row, directly below Selected. It paints a halo on every node
-pinned in place, by a drag or by `session.positions.pin`, and follows each pin and unpin with no
-undo step of its own. Clearing the setting takes the row away, and `restoreStartingRows()` brings
-it back while the setting is set. It is unset by default, so a pinned node looks like any other
-until you choose a look:
+when `startingRows` turns on -- in the same `config.set`, or before it -- and the starting rows
+include a Pinned row, directly below Selected. It paints a halo on every node pinned in place, by
+a drag or by `session.positions.pin`, and follows each pin and unpin with no undo step of its own.
+Setting, changing or clearing `pinnedStyle` later adds, removes or rewrites no row. It is unset by
+default, so a pinned node looks like any other until you choose a look:
 
 ```ts
 await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
@@ -87,8 +110,8 @@ await session.styles.writeRow(everything.id, { set: { "node.color": "#2266cc" } 
 
 With it on, an element that no shown row paints is not drawn. Hiding Everything then hides the
 whole graph, except the elements another shown row paints, which stay drawn in that row's look.
-Turning it on fills an Everything row that writes nothing, and `restoreStartingRows()` brings
-Everything back holding the base look.
+Set it with `startingRows`, as above: turning it on after the rows were written leaves Everything
+as it is, so write the values with `styles.writeRow` instead.
 
 ## Where a run's layer lands
 

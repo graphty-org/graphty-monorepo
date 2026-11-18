@@ -28,7 +28,7 @@ import type { AlgorithmDescriptor, OptionDescriptor, ResultShape, SuggestedName 
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
-import { caveat, type CaveatCode, caveatSentence } from "../session/runs/caveatFacts";
+import { caveat, type CaveatCode } from "../session/runs/caveatFacts";
 import type { CodedFact } from "../session/shared";
 import { quoteEach } from "../utils/quote-each";
 import {
@@ -438,11 +438,15 @@ function closingFacts(
 
     notes.push(...viewWarnings(view));
     if (counts.longest > LONG_TASK_MS) {
-        const fact = caveat("defined.long-task", { algorithm: id, member, ms: LONG_TASK_MS });
-        facts.push(fact);
+        facts.push(caveat("defined.long-task", { algorithm: id, member, ms: LONG_TASK_MS }));
         if (!warnedLongTask.has(id)) {
             warnedLongTask.add(id);
-            console.warn(caveatSentence(fact));
+            // A console warning for the author who wrote the function, not words for a reader.
+            const fix =
+                member === "node" || member === "edge"
+                    ? "each call should take a moment, with the slow work moved to a whole-graph function."
+                    : "await context.progress(i / n) inside its loop.";
+            console.warn(`${id}: ${member}() held the page for over ${String(LONG_TASK_MS)} ms at a time; ${fix}`);
         }
     }
 
@@ -706,7 +710,10 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
             // ponytail: the view reads the session's snapshot and records directly -- the minimum
             // internal adapter until the advanced contract's snapshot layout, `input.column` and
             // `input.edgeId` (algorithm.md section 3) are built on master and replace it.
-            const view = createGraphView(viewSourceOf(this.graph.getSession()), {
+            // The run's input and nothing else: its scope's induced graph (the working graph's view
+            // of what is shown, or the whole graph only when the run named it), typed so the whole
+            // graph cannot be handed in its place.
+            const view = createGraphView(viewSourceOf(this.graph.getSession(), this.input("declared").subgraph()), {
                 id,
                 directed: algorithm.directed,
             });

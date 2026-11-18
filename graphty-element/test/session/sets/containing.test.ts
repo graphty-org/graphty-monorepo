@@ -82,8 +82,6 @@ describe("sets.containing", () => {
             found.sets.map((id) => h.session.sets.get(id)?.name),
             ["Pair", "Light"],
         );
-        const pieces = h.session.runs.get("pieces");
-        const steps = h.session.runs.get("steps");
         assert.deepStrictEqual(found.items, [
             {
                 item: {
@@ -91,7 +89,7 @@ describe("sets.containing", () => {
                     key: { field: "group", value: 0 },
                     run: resultExecutionOf(h.session.results, "pieces"),
                 },
-                label: `${pieces?.label ?? ""}: community 0 of 3`,
+                label: "Separate pieces: community 0 of 3",
                 of: 3,
             },
             {
@@ -100,7 +98,7 @@ describe("sets.containing", () => {
                     key: { field: "level", value: 1 },
                     run: resultExecutionOf(h.session.results, "steps"),
                 },
-                label: `${steps?.label ?? ""}: level 1 of 4`,
+                label: "Steps away: level 1 of 4",
                 of: 4,
             },
         ]);

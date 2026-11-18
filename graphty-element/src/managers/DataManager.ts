@@ -53,6 +53,7 @@ import {
     isStorableId,
     type StoredEdge,
 } from "../session/project/ingest";
+import { fromColumns } from "../session/project/recordMap";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
 import type { ImportOutcome } from "../session/styles/fileStyles/apply";
@@ -65,6 +66,12 @@ import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StyleP
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
+
+/**
+ * Kept for a row whose record the graph slice holds as columns (row-renderer.md 4.6, "Records into
+ * columns"), so this manager holds no second reference to it and reads it from the slice when needed.
+ */
+const IN_SLICE: Record<string | number, unknown> = Object.freeze({});
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
@@ -342,6 +349,10 @@ interface ExistingEdge {
  * read-only to everything else, and nodes and edges arrive through the data doors.
  */
 export const dataManagerInternals = {} as {
+    /** The styles the manager reads now; see `DataManager.updateStyles`. */
+    styles(manager: DataManager): Styles;
+    /** The load id each data source's configuration was read under; see `DataManager.loadIds`. */
+    loadIds(manager: DataManager): WeakMap<object, number>;
     /** Register a node under its id. */
     adoptNode(manager: DataManager, node: Node): void;
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
@@ -410,6 +421,11 @@ export const dataManagerInternals = {} as {
     /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
+     * Every node as an array, building none until its element is read (see `Graph.getNodes`), in
+     * the order `nodes` walks them.
+     */
+    nodeList(manager: DataManager): Node[];
+    /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
      * ids of each arrival's such rows (a no-op for an engine that reads every row of the
      * snapshot), or null for an engine that lays out only `Node`s, for which every row gets one.
@@ -437,8 +453,11 @@ export const dataManagerInternals = {} as {
      * null for an engine that lays out only `Edge`s, for which every edge gets one.
      */
     setLayoutEdgeRows(manager: DataManager, rows: LayoutEdgeRows | null): void;
-    /** The edge rows of the edges stored with no `Edge` (each one's id and its two node ids). */
-    unbuiltEdgeRows(manager: DataManager): EdgeRow[];
+    /**
+     * The edge rows of the edges stored with no `Edge` (each one's id and its two node ids), only
+     * those whose row `keep` keeps when it is given.
+     */
+    unbuiltEdgeRows(manager: DataManager, keep?: (row: number) => boolean): EdgeRow[];
 };
 
 /** How a layout engine takes and lets go of the edges stored with no `Edge`. See `dataManagerInternals.setLayoutEdgeRows`. */
@@ -488,6 +507,45 @@ interface UnbuiltRows<K, V> {
     /** Their ids, as a fresh array. */
     ids(): K[];
     build(id: K): V | undefined;
+}
+
+/**
+ * An array of `built` followed by one element per id in `ids`, each made by `make` the first time it
+ * is read (by index, a walk, an array method or a property check) and kept in the array after.
+ * @param built - The elements there already.
+ * @param ids - The ids of the elements made on demand, in order after `built`.
+ * @param make - Makes an id's element; undefined for an id gone since.
+ * @returns The array.
+ */
+function lazyArray<K, V>(built: V[], ids: readonly K[], make: (id: K) => V | undefined): V[] {
+    const offset = built.length;
+    const target = built;
+    target.length = offset + ids.length;
+    const fill = (key: string | symbol): void => {
+        if (typeof key !== "string") {
+            return;
+        }
+
+        const index = Number(key);
+        if (Number.isInteger(index) && index >= offset && index < offset + ids.length && !Object.hasOwn(target, key)) {
+            // An id removed since the array was made reads as undefined, as it would after removal.
+            target[index] = make(ids[index - offset]) as V;
+        }
+    };
+    return new Proxy(target, {
+        get(t, key, receiver) {
+            fill(key);
+            return Reflect.get(t, key, receiver) as unknown;
+        },
+        has(t, key) {
+            fill(key);
+            return Reflect.has(t, key);
+        },
+        getOwnPropertyDescriptor(t, key) {
+            fill(key);
+            return Reflect.getOwnPropertyDescriptor(t, key);
+        },
+    });
 }
 
 /**
@@ -574,9 +632,27 @@ class LazyView<K, V> extends Map<K, V> {
         }
     }
 
+    /**
+     * Every id, building nothing: the built objects' ids, then the unbuilt rows' in row order, the
+     * order a walk that built them would give.
+     * @returns They.
+     */
     override keys(): MapIterator<K> {
-        this.#buildAll();
-        return super.keys();
+        const ids = this.#rows?.ids() ?? [];
+        return ids.length === 0 ? super.keys() : [...super.keys(), ...ids].values();
+    }
+
+    /**
+     * Every object as an array, building none now: an unbuilt row's object is built the first time
+     * its element is read, so the array of a million rows stored with none costs its ids, not a
+     * million objects. Walking the whole array still builds every one. The order is that of
+     * {@link LazyView.values}.
+     * @returns The array.
+     */
+    lazyValues(): V[] {
+        const built = [...super.values()];
+        const ids = this.#rows?.ids() ?? [];
+        return ids.length === 0 ? built : lazyArray(built, ids, (id) => this.get(id));
     }
 
     override values(): MapIterator<V> {
@@ -672,6 +748,8 @@ export class DataManager implements Manager {
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.loadIds = (manager) => manager.loadIds;
+        dataManagerInternals.styles = (manager) => manager.styles;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
@@ -693,8 +771,12 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
-        dataManagerInternals.unbuiltRecord = (manager, index) => manager.unbuilt.get(index)?.record;
+        dataManagerInternals.unbuiltRecord = (manager, index) => {
+            const row = manager.unbuilt.get(index);
+            return row === undefined ? undefined : manager.recordOf(row.id, row.record);
+        };
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
+        dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
                 manager.buildRow(id);
@@ -729,8 +811,10 @@ export class DataManager implements Manager {
         dataManagerInternals.setLayoutEdgeRows = (manager, rows) => {
             manager.layoutEdgeRows = rows;
         };
-        dataManagerInternals.unbuiltEdgeRows = (manager) =>
-            [...manager.unbuiltEdges.values()].map((stored) => edgeRowOf(stored));
+        dataManagerInternals.unbuiltEdgeRows = (manager, keep) =>
+            [...manager.unbuiltEdges]
+                .filter(([row]) => keep === undefined || keep(row))
+                .map(([, stored]) => edgeRowOf(stored));
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -1012,6 +1096,17 @@ export class DataManager implements Manager {
      */
     get directed(): boolean {
         return this.store.directed;
+    }
+
+    /**
+     * Whether the edge on a snapshot row is directed: its own direction in a graph whose edges
+     * state one (a GraphML or GEXF file that mixes both), the graph's otherwise.
+     * @param row - The edge's row.
+     * @returns true when the edge is directed
+     * @internal
+     */
+    edgeDirected(row: number): boolean {
+        return this.store.edgeDirected(row);
     }
 
     /**
@@ -1438,8 +1533,12 @@ export class DataManager implements Manager {
      * @returns 1 when the node was built or stored, else 0.
      */
     private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>, moves: UnbuiltMove[]): number {
-        const record = slice.nodes.get(id);
         const unbuilt = this.unbuiltRowOf(id);
+        // A row kept with its record in the slice's columns keeps reading it there: reading it
+        // here would build every record of a load on the pass after it.
+        const inSlice =
+            unbuilt !== INVALID_INDEX && this.unbuilt.get(unbuilt)?.record === IN_SLICE && slice.nodes.has(id);
+        const record = inSlice ? IN_SLICE : slice.nodes.get(id);
         if (unbuilt !== INVALID_INDEX) {
             // A row drawn with no `Node` takes its record and keeps no `Node`.
             const index = record === undefined ? INVALID_INDEX : this.store.builder.indexOf(id);
@@ -1995,7 +2094,6 @@ export class DataManager implements Manager {
                 }
             },
             progress: (change) => this.dispatcher?.services.progress?.(change),
-            timeline: () => this.dispatcher?.services.timeline?.() === true,
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;
@@ -2307,6 +2405,9 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        // Rows stored under "batched" with no `Node`: the node map counts them, so a disposed graph held them.
+        this.unbuilt.clear();
+        this.unbuiltIds.clear();
         this.unbuiltEdges.clear();
         this.unbuiltEdgeIds.clear();
         this.nodeVersion++;
@@ -2635,7 +2736,7 @@ export class DataManager implements Manager {
      */
     private storeUnbuilt(id: NodeIdType, record: Record<string | number, unknown>, index: number): void {
         this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
-        this.unbuilt.set(index, { id, record });
+        this.unbuilt.set(index, { id, record: fromColumns(record) ? IN_SLICE : record });
         this.unbuiltIds.set(id, index);
         this.arrivedRows.push(id);
         this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
@@ -2670,6 +2771,17 @@ export class DataManager implements Manager {
     }
 
     /**
+     * A row's record as this manager keeps it, read from the graph slice when the slice holds it as
+     * columns ({@link IN_SLICE}).
+     * @param id - The node.
+     * @param record - What this manager keeps.
+     * @returns The record.
+     */
+    private recordOf(id: NodeIdType, record: Record<string | number, unknown>): Record<string | number, unknown> {
+        return record === IN_SLICE ? (this.graph.slice.nodes.get(id) ?? record) : record;
+    }
+
+    /**
      * Build the `Node` of a row stored with no `Node`, which then draws the row in its place.
      * @param id - The id.
      * @returns The `Node`, or undefined for an id with no such row.
@@ -2687,7 +2799,7 @@ export class DataManager implements Manager {
         const look = batches?.lookOf(index) ?? null;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;
-        const node = this.buildNode(id, row.record, index, false, look);
+        const node = this.buildNode(id, this.recordOf(id, row.record), index, false, look);
         this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;
@@ -3094,7 +3206,7 @@ export class DataManager implements Manager {
      */
     private storeUnbuiltEdge(stored: StoredEdge): void {
         const { edgeIndex, edgeId } = stored;
-        this.unbuiltEdges.set(edgeIndex, stored);
+        this.unbuiltEdges.set(edgeIndex, fromColumns(stored.record) ? { ...stored, record: IN_SLICE } : stored);
         this.unbuiltEdgeIds.set(edgeId, edgeIndex);
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
@@ -3179,12 +3291,18 @@ export class DataManager implements Manager {
         const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
         // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
         this.forgetUnbuiltEdge(row, false);
-        const edge = this.makeEdge(stored, false, queue);
-        const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
-        if (paint !== null) {
+        const record =
+            stored.record === IN_SLICE
+                ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
+                : stored.record;
+        const edge = this.makeEdge({ ...stored, record }, false, queue);
+        const paint = queue ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
+        if (paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 
+        this.graphContext?.getUpdateManager?.().adoptBuiltEdge(edge);
         return edge;
     }
 

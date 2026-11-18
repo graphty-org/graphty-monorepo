@@ -47,7 +47,8 @@ import "./src/graphty-element";
 export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
-export type { NodeScreenPosition } from "./src/Graph";
+export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
+export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
@@ -97,6 +98,8 @@ export type {
     Lighting,
     LocationSourceFact,
     MapFrameFact,
+    // How a node's drawn size follows the camera, as `node.sizeSpace` takes it
+    NodeSizeSpace,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -133,6 +136,7 @@ export {
     isViewMode,
     LIGHTING_VALUES,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,
@@ -340,6 +344,7 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    OverviewChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
     StatsUpdateEvent,
@@ -384,6 +389,7 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // Screenshot exports
 // =============================================================================
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
+export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
     CameraAnimationOptions,
     CameraState,
@@ -397,6 +403,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
@@ -421,6 +428,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * array of five cannot.
  */
 export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================
 // Errors
@@ -456,6 +464,7 @@ export type {
     RendererStatus,
 } from "./src/managers/RenderManager";
 export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
+export type { Antialias } from "./src/meshes/PulledLineBatch";
 
 // =============================================================================
 // Acceleration

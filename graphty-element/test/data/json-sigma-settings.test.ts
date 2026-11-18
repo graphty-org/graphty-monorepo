@@ -1,5 +1,5 @@
 /**
- * A graphology document drawn under the sigma.js settings given as `sigmaSettings`: sigma draws edge labels only with
+ * A graphology document drawn under the sigma.js settings handed to graph-io through `importOptions`: sigma draws edge labels only with
  * `renderEdgeLabels` on, a setting of the application's that no file carries.
  */
 import { assert, test } from "vitest";
@@ -31,7 +31,7 @@ async function edgeStyle(config: Record<string, unknown>): Promise<string> {
     return JSON.stringify(session.styles.explain({ edge: edge.id }).merged);
 }
 
-test("draws a graphology edge's label only under sigmaSettings' renderEdgeLabels", async () => {
+test("draws a graphology edge's label only under the importOptions' renderEdgeLabels", async () => {
     assert.notInclude(await edgeStyle({}), '"Text"');
-    assert.include(await edgeStyle({ sigmaSettings: { renderEdgeLabels: true } }), '"Text"');
+    assert.include(await edgeStyle({ importOptions: { sigmaSettings: { renderEdgeLabels: true } } }), '"Text"');
 });

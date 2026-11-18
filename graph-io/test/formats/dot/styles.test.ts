@@ -26,6 +26,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import type { ExporterStyleOptions } from "../../../src/styles/io/writer.js";
 import { charactersExamined } from "../../helpers/work-meter.js";
@@ -75,7 +76,10 @@ function byId(ex: ExtractedStyles, snapshot: GraphSnapshot, property: string): M
 }
 
 const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENERATED, name)));
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 const codes = (ex: ExtractedStyles): string[] => ex.styles.notes.map((n) => n.code);
 
 describe("DOT styles: Graphviz's rules", () => {
@@ -227,6 +231,17 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(byId(styles, snapshot, "shape").get("r")).toBe("round-rectangle");
         expect(drawn(styles, snapshot, "edge", "width")).toEqual([4, 2]);
         expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["dashed", "solid"]);
+    });
+
+    it("narrows a forward tapered line to a point at its head, as Graphviz's taperfun does by direction", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a -> b [style=tapered, penwidth=7]; c -> d [style=tapered, dir=back];
+            e -> f [style=tapered, dir=both]; g -> h [style=tapered, dir=none]; i -> j;
+        }`);
+        expect(drawn(styles, snapshot, "edge", "taper")).toEqual([0, null, null, null, null]);
+        expect(drawn(styles, snapshot, "edge", "width")[0]).toBe(7);
+        const undirected = await load("graph { a -- b [style=tapered] }");
+        expect(drawn(undirected.styles, undirected.snapshot, "edge", "taper")).toEqual([null]);
     });
 
     it("reads sizes exact with fixedsize, an empty label or a point, and as minimums otherwise", async () => {

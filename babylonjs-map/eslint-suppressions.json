@@ -1,0 +1,12 @@
+{
+  "src/location/formats.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/sources.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  }
+}

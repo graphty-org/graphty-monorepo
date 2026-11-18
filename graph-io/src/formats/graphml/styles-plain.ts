@@ -11,19 +11,13 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import { canonText } from "../../styles/canon/text.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, StyleReadContext, StyleTarget, StyleValue } from "../../styles/types.js";
 import { gephiRules } from "../gexf/styles.js";
-import {
-    exactFromBlock,
-    readYedStyles,
-    type ValueColumns,
-    valueColumns,
-    type YedRead,
-    yfilesColumns,
-} from "./styles-yed.js";
+import { exactFromBlock, readYedStyles, type YedRead, yfilesColumns } from "./styles-yed.js";
 import { readYfiles3Styles } from "./styles-yfiles3.js";
 
 /** Gephi's color and size keys. */

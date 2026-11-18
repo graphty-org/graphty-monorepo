@@ -59,7 +59,12 @@ export interface RowMeasure {
 /** Where a layout on the drawing device fills `rowPosition` (design/rendering/row-renderer.md 4.5). */
 export interface DrawnTarget {
     readonly table: RowTable;
-    readonly device: GPUDevice;
+    /**
+     * The device the texture lives on when the layout shares it, so a landing is copied on the card; null when
+     * the renderer draws elsewhere (WebGL, or WebGPU on its own device), so a landing's drawn rows come back in
+     * the batch's readback and go up as they came ({@link RowTable.uploadLanded}).
+     */
+    readonly device: GPUDevice | null;
     /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
     readonly suspended?: boolean;
 }
@@ -158,6 +163,43 @@ class RowTexture {
         this.last = -1;
     }
 
+    /**
+     * Send the first `rows` rows from `from`, laid out as `floats` is, without touching `floats`.
+     * @param from - The rows, `floatsPerRow` floats each.
+     * @param rows - Rows to send.
+     * @returns The bytes sent, 0 when the texture is not on the card yet.
+     */
+    uploadFrom(from: Float32Array, rows: number): number {
+        const internal = this.texture.getInternalTexture();
+        if (internal === null || rows <= 0) {
+            return 0;
+        }
+
+        const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
+        const lineRows = lineFloats / this.floatsPerRow;
+        const lines = Math.floor(rows / lineRows);
+        const rest = rows % lineRows;
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        if (lines > 0) {
+            engine.updateTextureData(internal, from.subarray(0, lines * lineFloats), 0, 0, ROW_TEXTURE_WIDTH, lines);
+        }
+
+        if (rest > 0) {
+            const start = lines * lineFloats;
+            const texels = (rest * this.floatsPerRow) / FLOATS_PER_TEXEL;
+            engine.updateTextureData(
+                internal,
+                from.subarray(start, start + rest * this.floatsPerRow),
+                0,
+                lines,
+                texels,
+                1,
+            );
+        }
+
+        return rows * this.floatsPerRow * 4;
+    }
+
     upload(whole: boolean): number {
         const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
         const firstLine = whole ? 0 : Math.floor((this.first * this.floatsPerRow) / lineFloats);
@@ -229,6 +271,8 @@ export class RowTable {
     moves = 0;
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
+    /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
+    landedUploads = 0;
     /** Landings copied into the `rowPosition` texture on the card, with no upload. */
     copies = 0;
     /**
@@ -416,6 +460,29 @@ export class RowTable {
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
         this.copies++;
+        return true;
+    }
+
+    /**
+     * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn rows read back from its own
+     * device (design/rendering/row-renderer.md 4.5): the bytes go up as they came, with no row written on the
+     * CPU. The CPU copy follows at the next repack, which then sends none of its rows, as after a copy.
+     * @param from - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param rows - Rows to send.
+     * @returns False when the texture is not on the card yet, so nothing was sent.
+     */
+    uploadLanded(from: Float32Array, rows: number): boolean {
+        const bytes = this.positions.uploadFrom(from, Math.min(rows, from.length / POSITION_FLOATS));
+        if (bytes === 0) {
+            return false;
+        }
+
+        this.positions.clean();
+        this.copiedAt = this.lane().changes;
+        this.moves++;
+        this.landedUploads++;
+        this.uploads++;
+        this.uploadedBytes += bytes;
         return true;
     }
 

@@ -48,7 +48,7 @@ export interface ImportReport {
         /** Edges the graph holds after the load. */
         readonly edges: number;
         /**
-         * Node records handed over, which is fewer than {@link nodes} when an edge named an
+         * Node records handed over, which is fewer than `nodes` when an edge named an
          * endpoint the file never declared as a node of its own.
          */
         readonly nodeRecords: number;
@@ -125,10 +125,29 @@ export interface TooLargeDetails {
 }
 
 /**
+ * Why a load took the records path rather than the column path: the first condition it failed.
+ * `"objects"` is the render path itself; the rest name a choice or a record the column path has no
+ * form for.
+ */
+export type LoadPathReason = "objects" | "duplicateIds" | "repeatedEdges" | "endpoints" | "weights" | "records";
+
+/** Which path a load took, as a neutral fact: the column path, or the records path and why. */
+export type LoadPath =
+    | { readonly code: "PATH_COLUMNS"; readonly params: Readonly<Record<string, never>> }
+    | { readonly code: "PATH_RECORDS"; readonly params: { readonly reason: LoadPathReason } };
+
+/**
  * An {@link ImportReport} plus two facts a reader checks before and after a load:
  * `session.data.lastImport()` and `LoadDraft.report()` both return it.
  */
 export interface LoadReport extends ImportReport {
+    /**
+     * Which path the load's rows took, under `render-path="batched"`: an `addEdges` (or an
+     * `importColumns`) whose records qualify is read into columns and keeps no record object
+     * per row. Absent under `"objects"`, and for a load from a data source.
+     * @experimental cosmograph
+     */
+    readonly path?: LoadPath;
     /** Edge rows naming a node no node row (nor the graph, for a merge) held, and how many distinct such names. */
     readonly unmatched: { readonly rows: number; readonly values: number };
     /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */

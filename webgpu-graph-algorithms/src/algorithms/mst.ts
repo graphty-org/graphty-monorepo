@@ -1,15 +1,15 @@
 /**
- * Boruvka's minimum spanning forest (design 8.5, 3.3 line 808; the P11 plan's P11-T4) over the snapshot's edge list,
+ * Boruvka's minimum spanning forest over the snapshot's edge list,
  * each logical edge once, so a directed snapshot is spanned as its underlying undirected multigraph -- what
  * `@graphty/algorithms`' `kruskalMST` does. Every vertex starts as its own component (`comp[v] = v`); each round:
  *
  * 1. `fill` resets every component's `bestKey` and `bestEdge` to `U32_MAX`;
- * 2. `mst-best` twice (PD-7): the per-component minimum of the TOTAL edge order -- the order-preserving key of the
- *    weight first (PD-6: negative weights order below positive ones, -0 equals +0), the edge index among ties -- over
+ * 2. `mst-best` twice: the per-component minimum of the TOTAL edge order -- the order-preserving key of the
+ *    weight first (negative weights order below positive ones, -0 equals +0), the edge index among ties -- over
  *    the edges whose endpoints lie in different components, so self-loops and edges inside a component never compete;
  * 3. `mst-link`: each root with a best edge hooks onto the component at its other end and records the edge, the lower
  *    root of a two-cycle keeping its label so the edge is recorded once;
- * 4. `wcc-compress` (PD-7: the Afforest kernel, unchanged) until every vertex points at its root: a walk of at most
+ * 4. `wcc-compress` (the Afforest kernel, unchanged) until every vertex points at its root: a walk of at most
  *    COMPRESS_STEPS per dispatch divides every depth by COMPRESS_STEPS, so `compressPasses(n)` dispatches suffice.
  *
  * Because the order is total the forest is unique: it is the one Kruskal accepts when its sort breaks ties by edge
@@ -21,7 +21,7 @@
  * most ceil(log2 n) + 1, because every round at least halves the components that still have an outgoing edge;
  * MAX_ROUNDS is the bound a device bug cannot pass, never a fallback. The forest is read back once at the end.
  *
- * PLAN DECISION (P11-T4 Step 3 appends each edge through an `atomicAdd` on the counters block): a root records its
+ * Rather than appending each edge through an `atomicAdd` on the counters block, a root records its
  * edge in its own word of `treeEdge`, because a root hooks at most once in a run. The result is then deterministic
  * (the edges in root order, round by round) with no host sort, where an atomic append is ordered by the schedule.
  *

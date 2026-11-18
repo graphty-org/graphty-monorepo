@@ -26,14 +26,15 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { englishPartialReason } from "../english";
+import { algorithmLog } from "../../logging/algorithmLog";
 import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
 import { bindResultPath, type ResultSummary, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact, CodedFactParam } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
-import { type PartialCode, partialSentence } from "./caveatFacts";
+import type { PartialCode } from "./caveatFacts";
+import { keepGroupNumbers } from "./groupNumbers";
 import {
     type Caveats,
     type EngineVersions,
@@ -191,11 +192,8 @@ export interface RunOutcome<T = RunResult> {
     readonly summary?: ResultSummary;
     /** Whether the work stopped before it finished. Taken from the time box when absent. */
     readonly partial?: boolean;
-    /** Why it stopped early, in a sentence of the work's own. */
-    readonly partialReason?: string;
     /**
-     * Why it stopped early, as a code and its values; the run words `caveats.partialReason` from it
-     * when no sentence is given.
+     * Why it stopped early, as a code and its values.
      * @since 3.18.0
      */
     readonly partialCause?: CodedFact<PartialCode>;
@@ -282,11 +280,6 @@ export interface RunSurroundings {
      */
     queuePosition(): number | null;
     /**
-     * Whether the timeline experiment is on; absent reads on.
-     * @returns True when it is on.
-     */
-    timeline?(): boolean;
-    /**
      * Why this run's numbers no longer describe what is on screen.
      * @returns The note, or null when they still do.
      */
@@ -341,6 +334,13 @@ export interface RunSurroundings {
      * @returns The captures the run keeps from now on.
      */
     captureHeld?(prior: HeldCaptures): HeldCaptures;
+    /**
+     * The result of another run of this algorithm over the same scope (other settings, or a run
+     * removed and started again), whose group numbers a first execution keeps for the same groups.
+     * Optional: absent, a first execution numbers its groups as its algorithm did.
+     * @returns The result, or undefined when there is none.
+     */
+    numberedAfter?(): unknown;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -422,7 +422,7 @@ function nowMs(): number {
  * @param error - The thrown value.
  * @returns True when it is an `AbortError` or a `TimeoutError`.
  */
-function isAbortLike(error: unknown): error is Error {
+export function isAbortLike(error: unknown): error is Error {
     return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
@@ -617,8 +617,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
-     * What to call this run, computed by the element rather than by the consumer.
-     * @returns The label.
+     * The name the layers this run paints are given by default, unless the caller names them.
+     * Internal: no public type carries it, and an application words a run itself.
+     * @returns The name.
      */
     get label(): string {
         return this.surroundings.label();
@@ -771,7 +772,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The caveats.
      */
     get caveats(): Caveats {
-        return this.windowForReaders(this.savedCaveats);
+        return this.savedCaveats;
     }
 
     /**
@@ -780,21 +781,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     private get savedCaveats(): Caveats {
         return this.heldRecord()?.caveats ?? this.caveatsValue;
-    }
-
-    /**
-     * Caveats as a reader gets them: a saved run keeps its window with the timeline off, which
-     * then has no unit to read it in, so only the project file holds it.
-     * @param caveats - The caveats.
-     * @returns The caveats, without the window while the timeline is off.
-     */
-    private windowForReaders(caveats: Caveats): Caveats {
-        if (caveats.window === undefined || this.surroundings.timeline?.() !== false) {
-            return caveats;
-        }
-
-        const { window: _kept, ...rest } = caveats;
-        return rest;
     }
 
     /**
@@ -867,9 +853,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The record.
      */
     get record(): RunRecord {
-        const record = this.savedRecord;
-        const caveats = this.windowForReaders(record.caveats);
-        return caveats === record.caveats ? record : Object.freeze({ ...record, caveats });
+        return this.savedRecord;
     }
 
     /**
@@ -891,7 +875,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const record: RunRecord = {
             id: this.id,
-            label: this.label,
             distinguishedBy: this.distinguishedBy,
             siblingsDifferBy: this.siblingsDifferBy,
             name: this.surroundings.entry?.()?.name ?? null,
@@ -1132,6 +1115,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
+        algorithmLog.info("run started", { algorithm: this.algorithm, id: this.id });
         this.surroundings.notify?.("start");
         this.report({ phase: "running", completed: 0 });
 
@@ -1244,14 +1228,11 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const timedOut = timeBox?.aborted === true;
         // A result whose caveats say why it stopped early is partial whatever stopped it -- an
         // iteration cap as much as a time box -- so `partial` and the caveats never disagree.
-        const statesReason =
-            outcome.partialReason !== undefined ||
-            outcome.partialCause !== undefined ||
-            englishPartialReason(outcome.caveats ?? {}) !== undefined ||
-            outcome.caveats?.partialCause !== undefined;
+        const statesReason = outcome.partialCause !== undefined || outcome.caveats?.partialCause !== undefined;
         const partial = (outcome.partial ?? (timedOut || canceled)) || statesReason;
 
-        this.resultValue = outcome.result;
+        // What readers hold now, which a re-run's group numbers follow.
+        const before = this.result ?? this.surroundings.numberedAfter?.();
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
         // What the run published, with the facts the catalogue declares of each field (that a
@@ -1263,7 +1244,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                   this.id,
               )
             : this.fieldsValue;
-        this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
+        const unstable = new Set(
+            [...declared.values(), ...this.fieldsValue]
+                .filter((field) => field.kind === "node" && field.unstable === true)
+                .map((field) => field.name),
+        );
+        const kept = keepGroupNumbers(before, outcome.result, unstable, this.mergeCaveats(outcome, partial, timedOut));
+        this.resultValue = kept.result;
+        this.caveatsValue = kept.caveats;
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);
         this.statusValue = canceled ? "canceled" : "succeeded";
@@ -1340,21 +1328,10 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return Object.freeze(merged);
         }
 
-        // The first of the outcome, what it reported and what the run started with that says why,
-        // so a cause and its sentence always come from the same place.
-        const said = [
-            { cause: outcome.partialCause, reason: outcome.partialReason },
-            { cause: reported.partialCause, reason: englishPartialReason(reported) },
-            { cause: merged.partialCause, reason: englishPartialReason(merged) },
-        ].find(({ cause, reason }) => cause !== undefined || reason !== undefined);
-        const cause = said === undefined ? this.defaultPartialCause(timedOut) : said.cause;
-        const reason = said?.reason ?? (cause === undefined ? undefined : partialSentence(cause));
-        const caveats: Caveats = {
-            ...merged,
-            ...(cause === undefined ? {} : { partialCause: cause }),
-            ...(reason === undefined ? {} : { partialReason: reason }),
-        };
-        return Object.freeze(caveats);
+        // The first of the outcome, what it reported and what the run started with that says why.
+        const cause =
+            outcome.partialCause ?? reported.partialCause ?? merged.partialCause ?? this.defaultPartialCause(timedOut);
+        return Object.freeze({ ...merged, partialCause: cause });
     }
 
     /**
@@ -1504,6 +1481,13 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param action - Resolve or reject.
      */
     private settle(action: () => void): void {
+        algorithmLog.info(`run ${this.statusValue}`, {
+            algorithm: this.algorithm,
+            id: this.id,
+            ms: this.durationValue,
+            partial: this.partialValue,
+            ...(this.errorValue === undefined ? {} : { code: this.errorValue.code, message: this.errorValue.message }),
+        });
         this.settledFlag = true;
         this.clearTimeBox();
         this.detachSignal?.();

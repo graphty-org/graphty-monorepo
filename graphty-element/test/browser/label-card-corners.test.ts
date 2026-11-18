@@ -33,7 +33,7 @@
 import { Camera, Color4, Engine, FreeCamera, Mesh, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { labelInternals, RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 /** The card look: a white panel with a light gray border and a large radius. */
 const CARD = {
@@ -137,10 +137,6 @@ function ringInk(
 }
 
 /** The panel's dimensions on its own canvas, which the label does not publish. */
-interface Internals {
-    actualDimensions: { width: number; height: number };
-}
-
 describe("a rounded label border (#3158)", () => {
     let engine: Engine | undefined;
     let canvas: HTMLCanvasElement | undefined;
@@ -160,7 +156,7 @@ describe("a rounded label border (#3158)", () => {
         const ctx = texture.getContext();
         const { width, height } = ctx.canvas;
         const image = ctx.getImageData(0, 0, width, height);
-        const actual = (label as unknown as Internals).actualDimensions;
+        const actual = labelInternals.drawn(label).actualDimensions;
         const scale = height / actual.height;
         const sx = width / actual.width;
 
@@ -217,7 +213,7 @@ describe("a rounded label border (#3158)", () => {
             flipped.set(pixels.subarray(y * row, (y + 1) * row), (canvas.height - 1 - y) * row);
         }
 
-        const actual = (label as unknown as Internals).actualDimensions;
+        const actual = labelInternals.drawn(label).actualDimensions;
         const screenWidth = extent.x * 2 * pxPerUnit;
         const box = {
             x: canvas.width / 2 - screenWidth / 2,

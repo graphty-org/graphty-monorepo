@@ -22,14 +22,14 @@ function knownFieldsOf(prefix: "node" | "edge", source: TimeSource | undefined):
 }
 
 /**
- * Designate the time field a load's file declared, in the load's step: only with the timeline
- * experiment on, and only when no time field is set already (saved in the project, or set by an
+ * Designate the time field a load's file declared, in the load's step: only when no time field
+ * is set already (saved in the project, or set by an
  * attribute), which then wins.
  * @param field - What the file declared, or null/undefined for nothing.
  * @param ctx - The load's context.
  */
 export async function designateDeclaredTime(field: TimeField | null | undefined, ctx: UndoableContext): Promise<void> {
-    if (field === null || field === undefined || ctx.services.timeline?.() !== true) {
+    if (field === null || field === undefined) {
         return;
     }
 

@@ -7,13 +7,7 @@ import {
     BUILT_IN_ALGORITHMS,
     type BuiltInAlgorithmDescriptor,
 } from "../../src/catalog/algorithms";
-import {
-    COST_CLASSES,
-    DEPRECATED_ALGORITHMS,
-    KNOWN_ALGORITHMS,
-    type OptionDescriptor,
-    RESULT_SHAPES,
-} from "../../src/catalog/types";
+import { COST_CLASSES, KNOWN_ALGORITHMS, type OptionDescriptor, RESULT_SHAPES } from "../../src/catalog/types";
 
 /** The namespace every algorithm this package registers is registered under. */
 const NAMESPACE = "graphty";
@@ -103,12 +97,12 @@ describe("built-in algorithm catalogue", () => {
             );
         });
 
-        it("folds thirty-one registered algorithms into twenty-nine keys", () => {
+        it("folds thirty-two registered algorithms into thirty keys", () => {
             const legacyCount = BUILT_IN_ALGORITHMS.reduce((total, d) => total + d.legacyKeys.length, 0);
 
-            assert.lengthOf(registeredTypes(), 31);
-            assert.lengthOf(BUILT_IN_ALGORITHMS, 29);
-            assert.strictEqual(legacyCount, 31);
+            assert.lengthOf(registeredTypes(), 32);
+            assert.lengthOf(BUILT_IN_ALGORITHMS, 30);
+            assert.strictEqual(legacyCount, 32);
         });
 
         it("uses a unique key for every descriptor", () => {
@@ -117,7 +111,7 @@ describe("built-in algorithm catalogue", () => {
             assert.strictEqual(new Set(keys).size, keys.length);
         });
 
-        it("uses only published keys, and describes every published key that is not deprecated", () => {
+        it("uses only published keys, and describes every published key", () => {
             const described = BUILT_IN_ALGORITHMS.map((descriptor) => descriptor.key);
             const published = [...KNOWN_ALGORITHMS];
 
@@ -127,14 +121,8 @@ describe("built-in algorithm catalogue", () => {
             );
             assert.deepEqual(
                 published.filter((key) => !described.includes(key)),
-                [...DEPRECATED_ALGORITHMS],
+                [],
             );
-        });
-
-        it("describes none of the deprecated algorithms, which are not implemented", () => {
-            for (const key of DEPRECATED_ALGORITHMS) {
-                assert.isUndefined(algorithmByKey(key));
-            }
         });
     });
 
@@ -276,7 +264,7 @@ describe("built-in algorithm catalogue", () => {
         it("classifies every built-in option, leaving none unknown", () => {
             const unclassified = everyOption()
                 .filter(({ option }) => option.type === "unknown")
-                .map(({ key, option }) => `${key}.${option.name}: ${option.unsupportedReason ?? ""}`);
+                .map(({ key, option }) => `${key}.${option.name}: ${option.unsupported?.code ?? ""}`);
 
             assert.deepEqual(unclassified, []);
         });
@@ -388,12 +376,12 @@ describe("built-in algorithm catalogue", () => {
             });
         });
 
-        it("maps the twenty-six unchanged keys to themselves with no parameters", () => {
+        it("maps the twenty-seven unchanged keys to themselves with no parameters", () => {
             const unchanged = BUILT_IN_ALGORITHMS.filter((descriptor) => descriptor.legacyKeys.length === 1).filter(
                 (descriptor) => descriptor.legacyKeys[0].key === descriptor.key,
             );
 
-            assert.lengthOf(unchanged, 26);
+            assert.lengthOf(unchanged, 27);
             for (const descriptor of unchanged) {
                 assert.deepEqual(algorithmByLegacyKey(descriptor.key)?.params, {}, descriptor.key);
             }

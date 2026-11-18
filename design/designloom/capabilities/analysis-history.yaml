@@ -8,8 +8,14 @@ algorithms: []
 used_by_workflows:
     - W03
     - W07
+    - W21
+    - W22
+    - W23
+    - W24
+    - W25
 implemented_by_components:
     - analysis-history-panel
+    - session-save-dialog
 requirements:
     - Record each analysis action with timestamp (ISO 8601 format)
     - "Store action type: algorithm execution, filter change, selection change, view change"

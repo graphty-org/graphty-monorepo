@@ -7,6 +7,8 @@ status: planned
 algorithms: []
 used_by_workflows:
     - W15
+    - W20
+    - W25
 implemented_by_components:
     - visual-encoding-panel
 requirements:

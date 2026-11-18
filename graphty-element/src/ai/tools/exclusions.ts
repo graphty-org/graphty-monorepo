@@ -14,7 +14,7 @@ type ExclusionReason =
     | "internal-handle"
     /** The assistant's own connection, keys, voice or status. */
     | "assistant-config"
-    /** Acceleration, renderer, input, profiling, label decluttering, render on demand. */
+    /** Acceleration, machine calibration, renderer, input, profiling, label decluttering, render on demand. */
     | "machine-preference"
     /**
      * A default the application chooses for every later call, saved in no project: the palette a
@@ -93,6 +93,7 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraState",
         "setCameraPosition",
         "setCameraTarget",
+        "centerOnOverview",
         "setCameraZoom",
         "setCameraPan",
         "zoomStep",
@@ -183,6 +184,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         expires: "2027-01-11",
     },
 
+    // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
+    // assistant reaches the annotations only through a load that writes a file's own.
+    ...[
+        { op: "annotations.patch" },
+        { root: "SessionAnnotations", members: ["list", "scale", "add", "update", "remove", "clear"] },
+    ].map((row): Exclusion => ({
+        ...row,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
+
     // The surface added beside the tools: each member is reached, or left out here for its reason.
     ...[
         "location-map/map",
@@ -193,7 +207,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         ),
     ].map((option): Exclusion => ({ option: `layouts/${option}`, reason: "unoffered-type", kind: BY_DESIGN })),
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["assets", "network", "time", "shaders", "features"], reason: "namespace", kind: BY_DESIGN },
+        {
+            root,
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
+            reason: "namespace",
+            kind: BY_DESIGN,
+        },
         { root, members: ["recipe"], reason: "whole-document", kind: BY_DESIGN },
         { root, members: ["recommendLayout"], reason: "raw-data", kind: BY_DESIGN },
     ]),
@@ -204,16 +223,20 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
         // A tour is a run of camera moves; the assistant makes each with view.camera.
         { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
+    // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
+    { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
+    // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.
+    { root: "ModelPreview", reason: "internal-handle", kind: BY_DESIGN },
     {
         root: "Graph",
         members: [
-            "setAttributionOffset",
             "setCameraTransitionDuration",
+            "setReducedMotion",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -230,9 +253,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "autoRotate",
             "fitInsets",
             "pixelRatio",
-            "attributionOffset",
             "globeLook",
             "cameraTransitionDuration",
+            "reducedMotion",
             "zoomToPointer",
             "viewInsets",
             "autosave",
@@ -252,12 +275,38 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "Graphty", members: ["renderPath"], reason: "machine-preference", kind: BY_DESIGN },
-    { root: "Graphty", members: ["antialias", "limits"], reason: "machine-preference", kind: BY_DESIGN },
+    // The working graph: a setting the application chooses for its readers, saved in no project.
+    { root: "Graphty", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    { root: "GraphSession", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    { root: "ElementSession", members: ["workingGraph"], reason: "app-default", kind: BY_DESIGN },
+    // A filter editor's live preview: what the panel shows while a reader edits a condition.
+    {
+        root: "FilterDraft",
+        members: ["commit", "update", "cancel", "counts", "condition", "open"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
+    { root: "VisibilityApi", members: ["draft", "notDrawn"], reason: "panel-state", kind: BY_DESIGN },
+    {
+        root: "SessionVisibilityApi",
+        members: ["draft", "openDrafts", "notDrawn"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionVisibilityApi", members: ["drawsContext"], reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionVisibilityApi", members: ["workingGraphChanged"], reason: "internal-handle", kind: BY_DESIGN },
+    {
+        root: "Graphty",
+        members: ["antialias", "preserveDrawingBuffer", "limits"],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
     { root: "Graph", members: ["setLimits"], reason: "machine-preference", kind: BY_DESIGN },
     { root: "Graphty", members: ["shaderSettings"], reason: "reader-trust", kind: BY_DESIGN },
     { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },
     { root: "Graphty", members: ["loadFromSource"], reason: "network", kind: BY_DESIGN },
     { root: "LayoutManager", members: ["placeGroups"], reason: "in-flight", kind: BY_DESIGN },
+    { root: "LayoutManager", members: ["reducedMotion"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "CredentialStore", reason: "assistant-config", kind: BY_DESIGN },
     { root: "AssetsApi", reason: "needs-host", kind: BY_DESIGN },
     { root: "NetworkApi", reason: "reader-trust", kind: BY_DESIGN },
@@ -315,10 +364,11 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SessionLayout",
-        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion"],
+        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion", "step"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },
+    { root: "SessionLayout", members: ["play", "pause", "tick", "settle"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "SessionConfig",
         members: ["backgroundColor"],
@@ -351,7 +401,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "SelectionOwner",
-        members: ["edgeRemovalChangesNothing", "endPeek"],
+        members: ["edgeRemovalChangesNothing", "endPeek", "hoverAt"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },
@@ -365,7 +415,17 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
-        members: ["drawnMasks", "ghosted", "ghosts"],
+        members: [
+            "drawnMasks",
+            "keptMasks",
+            "ghosted",
+            "ghosts",
+            "outsideWindow",
+            "outsideWindowBytes",
+            "windowMasks",
+            "windowCounts",
+            "insideMasks",
+        ],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
@@ -388,13 +448,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionVisibilityApi", members: ["filterBytes", "passingBytes"], reason: "raw-data", kind: BY_DESIGN },
     { root: "SessionVisibilityApi", members: ["hold"], reason: "panel-state", kind: BY_DESIGN },
-    {
-        root: "SessionVisibilityApi",
-        members: ["holdsInstants"],
-        reason: "covered-by",
-        by: "time.status",
-        kind: BY_DESIGN,
-    },
     { root: "TimeApi", members: ["commit"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "TimeApi",
@@ -412,7 +465,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionShaders", members: ["fromCatalog"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "BasemapManager",
-        members: ["attributionOffset", "globeLook"],
+        members: ["globeLook"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -435,7 +488,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "style.highlight": ["mark"],
             "style.get": ["parts", "valueAt"],
             "style.list": ["tree"],
-            "style.legend": ["colors", "categories", "groups"],
+            "style.legend": ["colors", "grayCollisions", "categories", "groups"],
         }),
         {
             root,
@@ -443,7 +496,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "addFolder",
                 "pinRow",
                 "lockRow",
-                "restoreStartingRows",
                 "layersUnder",
                 "layerGroups",
                 "highlightStyle",
@@ -490,7 +542,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "GraphSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -526,7 +578,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "ElementSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -538,7 +590,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
         root: "Run",
-        members: ["label", "distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
+        members: ["distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
@@ -585,6 +637,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
+    // The column a role would pick: `columns.list` gives each column's facts to choose from.
+    {
+        root: "SessionDataApi",
+        members: ["roleCandidate"],
+        reason: "covered-by",
+        by: "columns.list",
+        kind: BY_DESIGN,
+    },
     {
         root: "SessionDataApi",
         members: ["structureValue"],
@@ -615,7 +675,20 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionHistory", members: ["cancel"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "SessionPositions",
-        members: ["capacity", "count", "placedCount", "pinnedCount", "generation", "isPlaced", "isPinned", "read"],
+        members: [
+            "capacity",
+            "count",
+            "placedCount",
+            "pinnedCount",
+            "generation",
+            "isPlaced",
+            "isPinned",
+            "read",
+            "get",
+            "pinnedMask",
+            "snapshot",
+            "restore",
+        ],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
@@ -667,13 +740,25 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         by: "filter.context",
         kind: BY_DESIGN,
     },
-    { root: "StylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
+    {
+        root: "StylesApi",
+        members: ["agreement", "drawnValues"],
+        reason: "covered-by",
+        by: "style.explain",
+        kind: BY_DESIGN,
+    },
     { root: "StylesApi", members: ["drawnCount"], reason: "covered-by", by: "style.get", kind: BY_DESIGN },
     { root: "StylesApi", members: ["resolveToStatic"], reason: "covered-by", by: "style.update", kind: BY_DESIGN },
     { root: "StylesApi", members: ["settled"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "StylesApi", members: ["applyTemplate", "toDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "StylesApi", members: ["setDefaultPalettes"], reason: "app-default", kind: BY_DESIGN },
-    { root: "SessionStylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
+    {
+        root: "SessionStylesApi",
+        members: ["agreement", "drawnValues"],
+        reason: "covered-by",
+        by: "style.explain",
+        kind: BY_DESIGN,
+    },
     { root: "SessionStylesApi", members: ["drawnCount"], reason: "covered-by", by: "style.get", kind: BY_DESIGN },
     {
         root: "SessionStylesApi",
@@ -805,6 +890,11 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         root: "Graphty",
         members: [
             "labelDeclutter",
+            "legend",
+            "legendPosition",
+            "legendLabel",
+            "minimap",
+            "minimapLabel",
             "renderOnDemand",
             "startingCameraDistance",
             "autoFrame",
@@ -859,6 +949,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setStartingCameraDistance",
             "setAutoFrame",
             "setRenderPath",
+            "setAntialias",
             "startInputRecording",
             "stopInputRecording",
         ],
@@ -983,7 +1074,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setScopeSource",
             "releaseDetachedScope",
             "clustersChanged",
-            "relayoutForVisibility",
+            "followView",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

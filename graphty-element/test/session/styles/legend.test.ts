@@ -145,7 +145,7 @@ function harness(specs: readonly LayerSpec[], rows: readonly Row[] = NODES, path
     return {
         layers,
         compiled,
-        legend: { layers: () => layers, encoding, scales },
+        legend: { layers: () => layers, encoding },
         explain: {
             stack: () => compiled,
             encoding,
@@ -220,23 +220,12 @@ describe("a legend block names everything the picture does not say for itself", 
         assert.strictEqual(block.runId, "betweenness");
         assert.strictEqual(block.kind, "sequential");
         assert.deepEqual(block.field, {
-            plainName: "Value",
             technicalName: "results.betweenness.value",
             path: "results.betweenness.value",
         });
-        assert.deepEqual(block.scale, { kind: "linear", label: "Even Steps" });
+        assert.deepEqual(block.scale, { kind: "linear" });
         assert.deepEqual(block.domain, { min: 0, max: 100 });
         assert.deepEqual(block.palette, { name: "viridis", reversed: false });
-    });
-
-    it("says the scale in the words the scale catalogue uses, never the name a binding spells", () => {
-        const block = onlyBlock([
-            betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", scale: "sqrt", palette: "viridis" } },
-            }),
-        ]);
-
-        assert.deepEqual(block.scale, { kind: "sqrt", label: "By Area" });
     });
 
     it("takes the field's words from the session when the session has them", () => {
@@ -247,7 +236,6 @@ describe("a legend block names everything the picture does not say for itself", 
         });
 
         assert.deepEqual(blocks[0].field, {
-            plainName: "Betweenness",
             technicalName: "betweenness_centrality",
             path: "results.betweenness.value",
         });
@@ -282,13 +270,12 @@ describe("the departures are what stop a legend implying something the picture d
         ]);
 
         assert.deepEqual(block.domain?.clamped, { from: "p2", to: "p98" });
-        assert.include(block.departures, "clamped at p2/p98");
     });
 
     it("counts the elements the run never measured", () => {
         const block = onlyBlock([betweennessColor()]);
 
-        assert.include(block.departures, "not measured (1)");
+        assert.deepInclude(block.facts, { code: "legend.not-measured", params: { count: 1 } });
     });
 
     it("says how many values a logarithmic scale has no place for", () => {
@@ -298,7 +285,7 @@ describe("the departures are what stop a legend implying something the picture d
             }),
         ]);
 
-        assert.include(block.departures, "1 not plottable on a log scale");
+        assert.deepInclude(block.facts, { code: "legend.not-plottable", params: { count: 1, scale: "log" } });
     });
 
     it("says when a layer above paints the same channel over everything", () => {
@@ -314,8 +301,11 @@ describe("the departures are what stop a legend implying something the picture d
             ]).legend,
         );
 
-        assert.include(blocks[0].departures, 'painted over by "Washout"');
-        assert.deepEqual(blocks[1].departures, []);
+        assert.include(
+            blocks[0].facts.map((fact) => fact.code),
+            "legend.painted-over",
+        );
+        assert.deepEqual(blocks[1].facts, []);
     });
 
     it("says nothing about a layer above that paints the same channel over only some elements", () => {
@@ -331,7 +321,7 @@ describe("the departures are what stop a legend implying something the picture d
             ]).legend,
         );
 
-        assert.deepEqual(blocks[0].departures, ["not measured (1)"]);
+        assert.deepEqual(blocks[0].facts, [{ code: "legend.not-measured", params: { count: 1 } }]);
     });
 });
 
@@ -349,7 +339,6 @@ describe("a column with no spread", () => {
         assert.strictEqual(block.swatches.length, 1);
         assert.strictEqual(block.swatches[0].color, asColorValue(painted)?.hex);
         assert.deepInclude(block.facts, { code: "legend.no-spread", params: { value: 3 } });
-        assert.include(block.departures, "no spread");
     });
 });
 
@@ -358,8 +347,8 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
         const block = onlyBlock([betweennessColor()]);
 
         assert.strictEqual(block.swatches.length, 7);
-        assert.strictEqual(swatchAt(block, 0).label, "0");
-        assert.strictEqual(swatchAt(block, 6).label, "100");
+        assert.strictEqual(swatchAt(block, 0).value, 0);
+        assert.strictEqual(swatchAt(block, 6).value, 100);
         assert.notStrictEqual(swatchAt(block, 0).color, swatchAt(block, 6).color);
 
         for (const swatch of block.swatches) {
@@ -375,7 +364,7 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
         ]);
 
         assert.strictEqual(block.swatches.length, 4);
-        assert.strictEqual(block.swatches[0].label.startsWith("0 - "), true);
+        assert.strictEqual(block.swatches[0].extent?.min, 0);
         assert.strictEqual(new Set(block.swatches.map((swatch) => swatch.color)).size, 4);
     });
 
@@ -603,7 +592,7 @@ describe("what a legend leaves out, and why", () => {
         assert.isUndefined(block.field);
         assert.isUndefined(block.scale);
         assert.isUndefined(block.domain);
-        assert.deepEqual(block.swatches, [{ label: "Selected", value: "#ff9900", color: "#ff9900" }]);
+        assert.deepEqual(block.swatches, [{ value: "#ff9900", color: "#ff9900" }]);
     });
 
     it("gives one block per channel a layer paints, fixed values first and rules second", () => {
@@ -733,7 +722,7 @@ describe("explain says whether a channel can be edited where it is, and why not"
 
         assert.strictEqual(outline.mode, "static");
         assert.strictEqual(outline.editable, true);
-        assert.isUndefined(outline.reason);
+        assert.isUndefined(outline.fact);
     });
 
     it("refuses a control for a channel the layer works out from the data, and names the path", () => {
@@ -742,8 +731,8 @@ describe("explain says whether a channel can be edited where it is, and why not"
 
         assert.strictEqual(color.mode, "encoded");
         assert.strictEqual(color.editable, false);
-        assert.include(color.reason, "results.betweenness.value");
-        assert.include(color.reason, "would be replaced");
+        assert.strictEqual(color.fact?.code, "channel.encoded");
+        assert.strictEqual(color.fact?.params.path, "results.betweenness.value");
     });
 
     it("refuses a control on an element-owned layer, whatever the channel is", () => {
@@ -752,7 +741,7 @@ describe("explain says whether a channel can be edited where it is, and why not"
 
         assert.strictEqual(size.mode, "static");
         assert.strictEqual(size.editable, false);
-        assert.include(size.reason, "belongs to the element");
+        assert.strictEqual(size.fact?.code, "layer.locked");
     });
 
     it("lists the channels in the channel table's order, not in paint order", () => {
@@ -863,7 +852,7 @@ describe("a layer that reads what this session cannot answer is reported, never 
         assert.strictEqual(unbound.length, 1);
         assert.strictEqual(unbound[0].layerId, "l1");
         assert.deepEqual(unbound[0].needs, ["data.logFC"]);
-        assert.include(unbound[0].reason, "nothing in this session answers");
+        assert.strictEqual(unbound[0].fact.code, "layer.unanswered");
     });
 
     it("reports nothing at all when the session has no directory, rather than reporting everything", () => {
@@ -884,7 +873,7 @@ describe("a layer that reads what this session cannot answer is reported, never 
 });
 
 describe("the legend's facts are codes and values, worded by the application", () => {
-    it("carries every departure as a coded fact beside the deprecated sentence", () => {
+    it("carries every departure as a coded fact", () => {
         const block = onlyBlock([
             betweennessColor({
                 encode: { "node.color": { by: "results.betweenness.value", clamp: [2, 98], palette: "viridis" } },
@@ -893,7 +882,6 @@ describe("the legend's facts are codes and values, worded by the application", (
 
         assert.deepInclude(block.facts, { code: "legend.clamped", params: { from: 2, to: 98 } });
         assert.deepInclude(block.facts, { code: "legend.not-measured", params: { count: 1 } });
-        assert.strictEqual(block.facts.length, block.departures.length, "one fact per sentence");
     });
 
     it("names the scale and the count a logarithmic scale cannot place", () => {
@@ -970,5 +958,77 @@ describe("the legend's facts are codes and values, worded by the application", (
         assert.strictEqual(first.value, first.extent?.min);
         assert.isAbove(first.extent?.max ?? 0, 0);
         assert.isUndefined(onlyBlock([betweennessColor()]).swatches[0].extent, "a ramp stop is one value");
+    });
+});
+
+describe("a binding that names its values with a map", () => {
+    const COLORS = { a: "#ff0000", b: "#00ff00", c: "#0000ff" } as const;
+
+    /** A layer that paints the louvain groups through `map`, with the scale given or left out. */
+    function mapped(channel: Channel, map: Record<string, unknown>, scale?: string): LayerSpec {
+        const by = "results.louvain.group";
+        return {
+            name: "Communities",
+            kind: "encoding",
+            selector: { match: "has", path: by },
+            encode: { [channel]: { by, map, ...(scale === undefined ? {} : { scale }) } },
+        } as LayerSpec;
+    }
+
+    /** What the canvas paints one value, through the same preparation a repaint takes. */
+    function canvasOf(spec: LayerSpec, channel: Channel, value: unknown): unknown {
+        const fixture = harness([spec]);
+        const [prepared] = fixture.legend.encoding(fixture.layers[0].id);
+        assert.strictEqual(prepared.channel, channel);
+        const painted = prepared.paint(value);
+        return painted === undefined ? undefined : (asColorValue(painted)?.hex ?? painted);
+    }
+
+    for (const scale of [undefined, "ordinal", "passthrough"]) {
+        it(`lists each mapped colour, as the canvas paints it, with scale ${String(scale)}`, () => {
+            const spec = mapped("node.color", COLORS, scale);
+            const block = onlyBlock([spec]);
+
+            assert.strictEqual(block.kind, "categorical");
+            assert.deepEqual(
+                block.swatches.map((swatch) => [swatch.value, swatch.color]),
+                Object.entries(COLORS),
+            );
+            for (const swatch of block.swatches) {
+                assert.strictEqual(canvasOf(spec, "node.color", swatch.value), swatch.color, String(swatch.value));
+            }
+        });
+
+        it(`lists each mapped size, as the canvas paints it, with scale ${String(scale)}`, () => {
+            const spec = mapped("node.size", { a: 5, b: 10, c: 20 }, scale);
+            const block = onlyBlock([spec]);
+
+            assert.strictEqual(block.kind, "categorical");
+            assert.deepEqual(
+                block.swatches.map((swatch) => [swatch.value, swatch.size]),
+                [
+                    ["a", 5],
+                    ["b", 10],
+                    ["c", 20],
+                ],
+            );
+            for (const swatch of block.swatches) {
+                assert.strictEqual(canvasOf(spec, "node.size", swatch.value), swatch.size, String(swatch.value));
+            }
+        });
+    }
+
+    it("gives no row to a value the map leaves out and the canvas does not paint", () => {
+        const spec = mapped("node.color", { a: COLORS.a, b: COLORS.b });
+        const block = onlyBlock([spec]);
+
+        assert.strictEqual(canvasOf(spec, "node.color", "c"), undefined);
+        assert.deepEqual(
+            block.swatches.map((swatch) => [swatch.value, swatch.color]),
+            [
+                ["a", COLORS.a],
+                ["b", COLORS.b],
+            ],
+        );
     });
 });

@@ -82,6 +82,9 @@ async function mounted(viewMode: "2d" | "3d", shader: boolean): Promise<Graphty>
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    // The halo is read by its gold, which neither the red edge nor the blue node is; the default
+    // halo is blue (#811), so the gold is set.
+    element.selectionStyle = { color: "#FFD700", opacity: 0.4 };
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     await element.session.styles.add({

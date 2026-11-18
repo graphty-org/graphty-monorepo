@@ -1,7 +1,6 @@
 /**
  * The layer panel on the REAL graphty-element and Les Miserables, driven by real clicks and keys:
- * a node's "+" makes no layer until a value is picked, and the pick makes one and says so; a "+"
- * with one thing to add adds it, and its value makes a layer named by default; removing a layer's
+ * removing a layer's
  * last condition is said, with Undo, and Done stays; a card with no value shows no count and is
  * dropped with a word; a layer named by default follows its rule; a bare column name reads as a
  * "Has a value" card; a new layer opens on its Node tab, and the Node tab starts with node lines;
@@ -16,12 +15,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { withoutFeatures } from "../../../test/features";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
-import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -70,15 +73,6 @@ async function noticeSays(words: RegExp): Promise<void> {
 }
 
 /**
- * The reader's layers that name ids: the selections' own rows.
- * @param session - the element's session.
- * @returns the layers.
- */
-function idLayers(session: GraphSession): Layer[] {
-    return session.styles.list().filter((l) => l.source.by === "user" && l.selector.match === "ids");
-}
-
-/**
  * A layer on every node, colored, opened in the inspector.
  * @param session - the element's session.
  * @param spec - its name and selector.
@@ -111,31 +105,6 @@ async function openCards(
 }
 
 describe("the layer panel", () => {
-    it("a node's '+' makes no layer until a value is picked; the pick makes it and says so", async () => {
-        const { session, store, idOf } = await openScene();
-        await act(async () => {
-            await session.selection.apply({ nodes: [idOf("Cosette")] });
-        });
-        const tab = await screen.findByRole("tab", { name: "Style" });
-        await userEvent.click(tab);
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await waitFor(() => {
-            assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus on the new line");
-        });
-        assert.lengthOf(idLayers(session), 0, "nothing is made before a value");
-        await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
-        await waitFor(() => {
-            assert.lengthOf(idLayers(session), 1);
-        });
-        const [made] = idLayers(session);
-        assert.strictEqual(made.set?.["node.size"], 3);
-        await noticeSays(new RegExp(`^Made layer ${made.name} for 1 node`));
-        await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: made.id });
-        });
-    });
-
     it("says so, with Undo, when a layer's last condition goes, and keeps Done", async () => {
         const { session, idOf } = await openScene();
         // Nodes picked by hand: one layer of them still edits its cards (a rule opens the selection editor).
@@ -156,7 +125,7 @@ describe("the layer panel", () => {
         });
     });
 
-    it("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
+    it("keeps a text condition that matches no node on Enter, and says so in the Which row's name", async () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
         // The cards of a layer and its twin: one rule layer alone opens the selection editor.
@@ -166,11 +135,10 @@ describe("the layer panel", () => {
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(box);
         await userEvent.type(box, "missing{Enter}");
-        // Kept as the reader wrote it, and flagged on the condition's chip: a 0 badge, no sentence.
-        const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        const badge = await within(row).findByLabelText("No node matches");
-        assert.equal(badge.textContent, "0");
-        assert.isNotNull(badge.closest("[data-chip]"), "the badge sits on the condition");
+        // Kept as the reader wrote it, its count of 0 said in the row's name and tooltip, never
+        // drawn in the sidebar as a badge (#8739).
+        const row = await screen.findByRole("button", { name: /^Which nodes, .*, 0 nodes(,|$)/ });
+        assert.isNull(row.querySelector(".mantine-Badge-root"), "no badge");
         assert.equal(session.styles.counts(layer.id).matched, 0);
         assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "the cards closed");
     });
@@ -192,31 +160,6 @@ describe("the layer panel", () => {
         assert.strictEqual(card.getAttribute("aria-label"), "name", "no count before a value");
         await userEvent.click(within(region).getByRole("button", { name: "Done" }));
         await noticeSays(/^Dropped the name condition: it was not finished/);
-    });
-
-    it("a node's Fill '+' adds its one property with no menu, and its value makes a layer named by default", async () => {
-        const { session, idOf } = await openScene();
-        await act(async () => {
-            await session.selection.apply({ nodes: [idOf("Cosette")] });
-        });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        // Fill holds one property: its "+" adds it, with no menu of one item. With the node-models
-        // experiment on it also offers Picture, so the "+" opens a menu.
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        if (nodeModelsOn(session)) {
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
-        } else {
-            assert.isNull(screen.queryByRole("menu"), "no menu");
-        }
-        await waitFor(() => {
-            assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
-        });
-        await userEvent.keyboard("red{Enter}");
-        await waitFor(() => {
-            assert.lengthOf(idLayers(session), 1);
-        });
-        const [made] = idLayers(session);
-        assert.strictEqual(made.userData?.[DEFAULT_NAME_KEY], made.name, "its name is a default");
     });
 
     it("a layer named by default follows its rule until the reader renames it", async () => {

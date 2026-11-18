@@ -16,7 +16,7 @@ import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-elem
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -106,7 +106,7 @@ const rowButtons = (section: HTMLElement): HTMLElement[] =>
  * The inspector region.
  * @returns queries scoped to it.
  */
-const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
+const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
  * The run's status bar: the inspector's one status line drawn on screen. The others are spoken

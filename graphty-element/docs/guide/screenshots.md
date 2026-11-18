@@ -23,18 +23,31 @@ const dataUrl = await graph.captureScreenshot({
 
 ## Screenshot Options
 
-| Option        | Type              | Default       | Description             |
-| ------------- | ----------------- | ------------- | ----------------------- |
-| `width`       | `number`          | canvas width  | Output width in pixels  |
-| `height`      | `number`          | canvas height | Output height in pixels |
-| `format`      | `'png' \| 'jpeg'` | `'png'`       | Image format            |
-| `quality`     | `number`          | `0.9`         | JPEG quality (0-1)      |
-| `transparent` | `boolean`         | `false`       | Transparent background  |
+| Option                  | Type                        | Default       | Description                                       |
+| ----------------------- | --------------------------- | ------------- | ------------------------------------------------- |
+| `width`                 | `number`                    | canvas width  | Output width in pixels                            |
+| `height`                | `number`                    | canvas height | Output height in pixels                           |
+| `format`                | `'png' \| 'jpeg' \| 'webp'` | `'png'`       | Image format                                      |
+| `quality`               | `number`                    | `0.9`         | JPEG quality (0-1)                                |
+| `transparentBackground` | `boolean`                   | `false`       | Transparent background (PNG and WebP)             |
+| `backgroundColor`       | `string`                    | canvas color  | A solid background in any CSS color, every format |
+| `signal`                | `AbortSignal`               | none          | Cancels a capture that is still waiting           |
 
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
 before the capture fails with the `E_NOT_SETTLED` error code.
+
+A capture that is waiting can be cancelled, or told to stop waiting and take the frame on screen:
+
+```typescript
+const cancel = new AbortController();
+const now = new AbortController();
+const shot = graph.captureScreenshot({
+    signal: cancel.signal, // cancel.abort() rejects with the signal's reason, an AbortError
+    timing: { captureNow: now.signal }, // now.abort() captures the current frame at once
+});
+```
 
 ### Examples
 
@@ -54,8 +67,14 @@ const compressed = await graph.captureScreenshot({
 
 // Transparent background
 const transparent = await graph.captureScreenshot({
-    transparent: true,
+    transparentBackground: true,
     format: "png",
+});
+
+// White background, whatever the canvas color
+const white = await graph.captureScreenshot({
+    backgroundColor: "#ffffff",
+    format: "jpeg",
 });
 ```
 
@@ -95,9 +114,9 @@ await graph.captureScreenshot({
 });
 ```
 
-## Vector Figures (SVG)
+## Vector Figures (SVG and PDF)
 
-`exportFigure()` writes the graph as it is drawn now as an SVG file, for a paper or a slide that
+`exportFigure()` writes the graph as it is drawn now as an SVG or a PDF file, for a paper or a slide that
 needs to scale without blurring. Every visible node is a filled shape in its color, every visible
 edge a line, and every label on screen is text you can edit and search. `legend` takes the same
 values as a screenshot's and draws the same key, as text too. The figure is the canvas's size and
@@ -119,26 +138,39 @@ console.log(svg.length, figure.width, figure.height);
 
 | Option                  | Default       | What it does                                        |
 | ----------------------- | ------------- | --------------------------------------------------- |
-| `format`                | `"svg"`       | The file format; SVG is the only one today          |
+| `format`                | `"svg"`       | The file format: `"svg"` or `"pdf"`                 |
 | `legend`                | no key        | The key, as `captureScreenshot`'s `legend` takes it |
 | `transparentBackground` | `false`       | Leave the canvas background out                     |
 | `download`              | `false`       | Also start a download                               |
-| `downloadFilename`      | `"graph.svg"` | The download's name                                 |
+| `downloadFilename`      | `"graph.svg"` | The download's name (`"graph.pdf"` for a PDF)       |
 
-The result holds the file (`blob`, type `image/svg+xml`), its `width` and `height` in CSS pixels,
-and whether it was `downloaded`. It waits for the finished picture first, as `waitForStableFrame()`
-does. A format other than `"svg"` fails with `E_BAD_COMMAND` (`details.field` is `"format"`).
+The result holds the file (`blob`, type `image/svg+xml` or `application/pdf`), its `width` and
+`height` in CSS pixels, and whether it was `downloaded`. It waits for the finished picture first, as
+`waitForStableFrame()` does. Any other format fails with `E_BAD_COMMAND` (`details.field` is
+`"format"`).
 
-A figure draws each node's flat color, without the canvas's lighting, and draws edges straight,
-without arrowheads; curved edges, arrowheads, borders and label backgrounds are not in it yet.
+```ts
+// A one-page PDF the canvas's size, one CSS pixel to a point
+await element.exportFigure({ format: "pdf", legend: true, download: true });
+```
+
+A PDF needs no extra package: its text is set in the fonts every PDF reader has (Helvetica, Times
+or Courier, whichever is nearest each label's font), so characters outside Western European
+alphabets print as `?`; use SVG for those.
+
+A figure draws each node's flat color, without the canvas's lighting, draws edges straight, without
+arrowheads, and draws a label's solid background as a box behind its text; curved edges,
+arrowheads, node borders and gradient label backgrounds are not in it yet.
 
 ## Checking Capabilities
 
-Before capturing, verify support:
+Before capturing, check that the options can be captured and how large the image will be:
 
 ```typescript
-const check = await graph.canCaptureScreenshot({ width: 7680, height: 4320 });
-if (!check.supported) {
+const check = await graph.canCaptureScreenshot({ multiplier: 2 });
+if (check.supported) {
+    console.log(`${check.width} x ${check.height} pixels`);
+} else {
     // A code and its values, such as { code: "E_TOO_LARGE", params: { of: "pixels", limit: 33177600, ... } }
     console.log(check.reason?.code, check.reason?.params);
 }
@@ -156,15 +188,15 @@ A screenshot, a video or a clipboard copy that fails throws (or, for a copy, rep
 `clipboardError`) a `GraphtyError` like every other failure of the element. Switch on its `code`
 and read its `details`:
 
-| Code               | When                                                                                       | `details`                                                                                                                                    |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                    | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                                                      |
-| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, or an unknown preset | `option` (`"size"`, `"strictAspectRatio"` or `"preset"`) and the values                                                                      |
-| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                           | `fields`, `format`                                                                                                                           |
-| `E_UNSUPPORTED`    | The browser cannot do it                                                                   | `reason`: `"format"` (with `format`), `"preserve-drawing-buffer"`, `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
-| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                          | `of: "canvas"`                                                                                                                               |
-| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                   | `timeoutMs`                                                                                                                                  |
-| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                               | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                                                          |
+| Code               | When                                                                                                                                | `details`                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                                                             | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                         |
+| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, an unknown preset, or a `backgroundColor` that is not a color | `option` (`"size"`, `"strictAspectRatio"`, `"preset"` or `"backgroundColor"`) and the values                    |
+| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                                                                    | `fields`, `format`                                                                                              |
+| `E_UNSUPPORTED`    | The browser cannot do it                                                                                                            | `reason`: `"format"` (with `format`), `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
+| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                                                                   | `of: "canvas"`                                                                                                  |
+| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                                                            | `timeoutMs`                                                                                                     |
+| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                                                                        | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                             |
 
 ## Downloading Screenshots
 

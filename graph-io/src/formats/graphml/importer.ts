@@ -41,7 +41,7 @@ import {
 import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "../../common/declared-types.js";
 import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
 import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
-import { IdCoercer } from "../../common/ids.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import { setOwn } from "../../common/json-elements.js";
 import { type ListSyntax } from "../../common/lists.js";
@@ -80,7 +80,6 @@ import {
     LABEL_COLUMN,
     META_KEY,
     MIME_TYPES,
-    ORIGINAL_ID_ATTRIBUTE,
     ORIGINAL_ID_COLUMN,
     PARENT_COLUMN,
     PORT_KEYS_EXTRA,

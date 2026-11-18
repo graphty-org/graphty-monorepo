@@ -1,5 +1,5 @@
 /**
- * The `bc-edge-gather` kernel body (design 8.4 "edge BC accumulates per arc from the same n x k deltas"): the per-arc
+ * The `bc-edge-gather` kernel body (edge BC accumulates per arc from the same n x k deltas): the per-arc
  * twin of `bc-gather`, run once per batch after the backward sweep. One invocation per ARC (`P.count` arcs,
  * grid-stride): it finds the row `w` that owns the arc by an upper-bound search over `rowPtr`, then adds over the
  * batch's sources in order the term the backward pass summed -- `sigma[s][w] / sigma[s][v] * (1 + delta[s][v])`

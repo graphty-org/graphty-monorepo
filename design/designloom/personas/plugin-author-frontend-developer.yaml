@@ -1,13 +1,13 @@
 id: plugin-author-frontend-developer
 name: Front-End Developer Integrating the Element
 role: Front-End Web Developer Adding a Palette, Camera or Logger for a Product Team
-quote: I don't need to know what betweenness is. I need our brand colours on it and our logs in Datadog by Thursday.
+quote: I don't need to know what betweenness is. I need our brand colors on it and our logs in Datadog by Thursday.
 bio: >-
     Sofia Marquez is a senior front-end developer at a SaaS company that is embedding graphty-element in its product. She
     writes TypeScript every day, knows React, Vite, npm workspaces and the browser DevTools well, and has shipped design
     systems and analytics integrations before. She knows nothing about graph theory and does not want to: to her the
     element is a component with props, events and slots. Her tickets are integration work: make the graph use the
-    company's colour tokens, give product a "fit to selection" camera button, and send the element's warnings and
+    company's color tokens, give product a "fit to selection" camera button, and send the element's warnings and
     errors to the company's telemetry service with the user's session id attached. She judges a library by how quickly
     its types and docs let her do that, and she reads the `.d.ts` before she reads the guide.
 characteristics:
@@ -35,7 +35,7 @@ goals:
 frustrations:
     - Graph jargon (layout engine, centrality, snapshot, CSR) in docs for a task that has nothing to do with graphs
     - Having to import from a deep path or an entry point that drags in Babylon.js just to get a type
-    - Registration APIs that need a namespace, a type and a version for something as small as a list of colours
+    - Registration APIs that need a namespace, a type and a version for something as small as a list of colors
     - Global registries with no way to scope a plugin to one element instance on a page
     - Options schemas duplicated in three places (types, JSON schema, runtime validation)
     - Errors thrown at render time instead of at registration time
@@ -48,7 +48,7 @@ refuses_to_learn:
     - Babylon.js, scene graphs or 3D camera maths beyond a bounding box and a direction
     - Anything the element's docs describe only in its own design documents
 first_plugin: >-
-    A palette built from the company's design-token colours, then a telemetry logger that forwards warnings and errors
+    A palette built from the company's design-token colors, then a telemetry logger that forwards warnings and errors
     with the session id, then a "fit to selection" camera view.
 context:
     frequency: daily

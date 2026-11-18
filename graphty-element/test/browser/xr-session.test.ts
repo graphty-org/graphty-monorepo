@@ -424,7 +424,10 @@ describe("session.capabilities.xr", () => {
         await element.session.execute({ op: "view.immersive", mode: "vr" });
         assert.strictEqual(graph.getViewMode(), "vr");
         assert.strictEqual(element.session.capabilities.xr.active, "vr");
-        assert.strictEqual(element.session.history.steps.at(-1)?.label, "Switched to 3D for VR");
+        assert.deepEqual(element.session.history.steps.at(-1)?.fact, {
+            code: "view.immersive",
+            params: { mode: "vr" },
+        });
 
         await element.session.undo();
         await vi.waitFor(() => {

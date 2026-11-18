@@ -4,7 +4,8 @@ category: control
 description: Numeric slider for selecting a value within a range. Supports single value and range selection modes.
 status: planned
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W22
 dependencies: []
 props:
     value: number | [number, number] - Current value(s)

@@ -163,6 +163,21 @@ describe("model animation", () => {
         assert.strictEqual(pixelsChanged(half(posed, "right"), half(alike, "right")), 0, "b is unchanged");
     });
 
+    it("lists a file's clips, and plays one named with nothing else set", async () => {
+        const element = await mount();
+        const record = await element.session.assets.add({ files: await filesOf("gltf-skinned-animated") });
+        assert.deepEqual(
+            element.session.assets.inspect(record.id).animations.map((clip) => clip.name),
+            ["turn", "tip"],
+        );
+        const { layer, asset } = await drawModel(element, "gltf-skinned-animated", [{ id: "a", x: 0 }]);
+        const still = await readFrame(element);
+        const moving = await hold(element, layer, { "node.model": asset, "node.modelAnimation": "turn" });
+        assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "the clip plays at the file's speed");
+        assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
+        assert.isAbove(pixelsChanged(still, await readFrame(element, false)), 100, "away from the still pose");
+    });
+
     it("draws a thumbnail in the pose its clip reaches at its start time", async () => {
         const element = await mount();
         const record = await element.session.assets.add({ files: await filesOf("gltf-animated") });

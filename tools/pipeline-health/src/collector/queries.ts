@@ -36,7 +36,7 @@ const openList = (after: string): string =>
 export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String, $withOpen: Boolean!) {
   repository(owner: $owner, name: $name) {
     ${openList("null")} @include(if: $withOpen) {
-      pageInfo { hasNextPage endCursor } nodes { id ${PR_BASE} } }
+      pageInfo { hasNextPage endCursor } nodes { id mergeable ${PR_BASE} } }
     recent: pullRequests(first: 50, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor } nodes { ${PR_BASE} } }
   }
@@ -45,7 +45,7 @@ export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String,
 /** The later pages of open pull requests, when more than OPEN_PAGE are open. */
 export const OPEN_QUERY = `query($owner: String!, $name: String!, $after: String!) {
   repository(owner: $owner, name: $name) {
-    ${openList("$after")} { pageInfo { hasNextPage endCursor } nodes { id ${PR_BASE} } }
+    ${openList("$after")} { pageInfo { hasNextPage endCursor } nodes { id mergeable ${PR_BASE} } }
   }
 }`;
 

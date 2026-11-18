@@ -265,6 +265,8 @@ export const projectTool: ToolDefinition = {
                 { door: "ProjectApi.name" },
                 { door: "ProjectApi.dirty" },
                 { door: "SessionConfig.editableBase" },
+                { door: "SessionConfig.timelineHiddenLook" },
+                { door: "SessionConfig.timelineHiddenAdded" },
                 ...Object.keys(SETTING_GROUPS).map((group) => ({ door: `SessionConfig.${group}` })),
             ],
             run: ({ tx, session }) =>
@@ -275,6 +277,8 @@ export const projectTool: ToolDefinition = {
                         dirty: tx.project.dirty,
                         undoable: session.history.position,
                         editableBase: tx.config.editableBase,
+                        timelineHiddenLook: tx.config.timelineHiddenLook,
+                        timelineHiddenAdded: tx.config.timelineHiddenAdded,
                         // Every setting group, as it reads now.
                         settings: Object.fromEntries(
                             Object.keys(SETTING_GROUPS).map((group) => [

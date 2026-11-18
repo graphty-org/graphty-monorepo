@@ -1,5 +1,5 @@
 /**
- * All-pairs shortest paths on the device (design 8.7, 3.3 lines 813 and 835, 9.7): blocked Floyd-Warshall over
+ * All-pairs shortest paths on the device: blocked Floyd-Warshall over
  * `APSP_TILE x APSP_TILE` tiles of ONE `n x n` f32 matrix. `fill` sets the matrix to `+Infinity`, `apsp-init` writes
  * the arcs (the cheapest of parallel arcs) and the diagonal zero, then `B = ceil(n / APSP_TILE)` rounds each run the
  * three `apsp-fw` phases in order: the pivot block, the pivot row and column, everything else. The whole sweep --
@@ -57,7 +57,7 @@ export interface AllPairsTuning {
 }
 
 /**
- * The largest node count whose `n x n` f32 matrix fits the device (design 8.7): `floor(sqrt(limit / 4))` over the
+ * The largest node count whose `n x n` f32 matrix fits the device: `floor(sqrt(limit / 4))` over the
  * smaller of `maxStorageBufferBindingSize` and `maxBufferSize`, corrected so the float square root can never
  * overshoot by one.
  * @internal
@@ -239,7 +239,7 @@ export async function allPairsWithTuning(
 }
 
 /**
- * All-pairs shortest paths on the device (design 8.7, 3.3 line 813): blocked Floyd-Warshall over 32 x 32 tiles of one
+ * All-pairs shortest paths on the device: blocked Floyd-Warshall over 32 x 32 tiles of one
  * `n x n` f32 matrix. `dist[i * n + j]` is the distance from `i` to `j`, `+Infinity` when unreachable, `0` on the
  * diagonal. `E_TOO_LARGE` above `floor(sqrt(maxStorageBufferBindingSize / 4))` nodes (23,170 at a 2 GiB binding, the
  * usual hardware adapter under the context's default `limits: "raise"`; 5,792 at the 128 MiB spec default);

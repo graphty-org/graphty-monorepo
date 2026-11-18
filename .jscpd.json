@@ -1,0 +1,30 @@
+{
+    "format": ["typescript", "tsx", "javascript"],
+    "minTokens": 50,
+    "similarity": 0.85,
+    "mode": "weak",
+    "gitignore": true,
+    "ignore": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/dist-*/**",
+        "**/build/**",
+        "**/coverage/**",
+        "**/storybook-static/**",
+        "**/.nx/**",
+        ".worktrees/**",
+        "**/tmp/**",
+        "design/**",
+        "visual-baselines/**",
+        "graph-samples/src/datasets/**",
+        "**/*.d.ts",
+        "**/*.min.js",
+        "**/vitest*.config.*",
+        "**/vite.config.*",
+        "**/.vitepress/config.*",
+        "**/.storybook/**",
+        "**/commitlint.config.*",
+        "**/eslint.config.*",
+        "graphty-element/session.ts"
+    ]
+}

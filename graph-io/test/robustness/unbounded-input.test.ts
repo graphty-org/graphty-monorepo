@@ -10,7 +10,8 @@ import { recordDepth } from "../../src/formats/dot/record.js";
 import { treeProblem, writeXmlTree } from "../../src/formats/graphml/tree.js";
 import { createRegistry, importGraph } from "../../src/registry.js";
 import { importForStyles } from "../styles/harness.js";
-import { codes, graphml, load } from "./xml-helpers.js";
+import { codes } from "./helpers.js";
+import { graphml, load } from "./xml-helpers.js";
 
 const text = (s: string): Uint8Array => new TextEncoder().encode(s);
 

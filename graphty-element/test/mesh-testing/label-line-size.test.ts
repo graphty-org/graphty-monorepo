@@ -11,7 +11,7 @@
 import { NullEngine, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { labelInternals, RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 describe("RichTextLabel size with several lines", () => {
     let scene: Scene;
@@ -92,35 +92,113 @@ describe("RichTextLabel size with an outline", () => {
     });
 
     /**
-     * How wide a label's words and their outline are in the world.
+     * Build a label on a white panel with no margins and read its measured boxes.
      * @param outlineWidth - The outline's width in canvas pixels; 0 draws none.
-     * @returns The width in world units.
+     * @returns The words' box, the panel's box and the canvas, in canvas pixels, and the plane's height in the world.
      */
-    const wordsWidth = (outlineWidth: number): number => {
+    const measured = (
+        outlineWidth: number,
+    ): {
+        words: { width: number; height: number };
+        panel: { x: number; y: number; width: number; height: number };
+        canvas: { width: number; height: number };
+        perPixel: number;
+    } => {
         const label = RichTextLabel.createLabel(scene, {
             text: "XRCC2",
             fontSize: 48,
+            backgroundColor: "white",
+            backgroundPadding: 2,
+            marginLeft: 0,
+            marginRight: 0,
+            marginTop: 0,
+            marginBottom: 0,
             textOutline: outlineWidth > 0,
             textOutlineWidth: outlineWidth,
         });
         const mesh = label.labelMesh;
         assert.isNotNull(mesh);
         const box = mesh.getBoundingInfo().boundingBox;
-        const { left, right } = label.textBounds;
+        const { textSize, contentArea, actualDimensions } = labelInternals.drawn(label);
 
-        return (right - left) * (box.maximum.x - box.minimum.x);
+        return {
+            words: { ...textSize },
+            panel: { ...contentArea },
+            canvas: { ...actualDimensions },
+            perPixel: (box.maximum.y - box.minimum.y) / actualDimensions.height,
+        };
     };
 
-    test("an outline grows the label around the letters instead of shrinking them", () => {
-        // The words measure their advance plus the outline on both sides. With every canvas pixel
-        // the same size in the world, each 10 px of outline adds the same width. Sizing one line
-        // from its outlined line box shrank the pixels as the outline grew, so a 0.2 em outline
-        // drew the letters at three quarters of their size.
-        const none = wordsWidth(0);
-        const ten = wordsWidth(10);
-        const twenty = wordsWidth(20);
+    test("an outline leaves the words' box and the background box as they are (#8746)", () => {
+        // The outline was measured into the words' box on every side, so an outlined label's background was the
+        // outline's width bigger all round than the words plus padding (14.1 px tall where vis-network draws 11.1).
+        const none = measured(0);
+        const outlined = measured(10);
 
-        assert.closeTo(twenty - ten, ten - none, 1e-6);
-        assert.isAbove(ten, none);
+        assert.deepEqual(outlined.words, none.words);
+        assert.closeTo(outlined.panel.width, none.panel.width, 1e-9);
+        assert.closeTo(outlined.panel.height, none.panel.height, 1e-9);
+    });
+
+    test("the canvas makes room round the panel for the outline past the padding, so it is not cut off", () => {
+        const none = measured(0);
+        const outlined = measured(10);
+
+        // 10 px of outline past 2 px of padding reaches 8 px past the panel on every side
+        assert.closeTo(outlined.canvas.width - none.canvas.width, 16, 1e-9);
+        assert.closeTo(outlined.canvas.height - none.canvas.height, 16, 1e-9);
+        assert.closeTo(outlined.panel.x, 8, 1e-9);
+        assert.closeTo(outlined.panel.y, 8, 1e-9);
+        // an outline within the padding needs no room
+        assert.deepEqual(measured(2).canvas, none.canvas);
+    });
+
+    test("an outline grows the label around the letters instead of shrinking them", () => {
+        // every canvas pixel is the same size in the world, outlined or not
+        assert.closeTo(measured(10).perPixel, measured(0).perPixel, 1e-9);
+        assert.closeTo(measured(20).perPixel, measured(0).perPixel, 1e-9);
+    });
+});
+
+describe("RichTextLabel panel measured as Cytoscape.js measures it", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.dispose();
+    });
+
+    /**
+     * The panel's height, without the room round it, and its words' height.
+     * @param more - The label's options past its words, size, line height and border.
+     * @returns The two heights, in label units.
+     */
+    const heights = (more: Record<string, unknown>): { panel: number; words: number } => {
+        const label = RichTextLabel.createLabel(scene, {
+            text: "Label",
+            fontSize: 48,
+            lineHeight: 1,
+            boxPadding: 0,
+            borderWidth: 4,
+            ...more,
+        });
+        const { actualDimensions, textSize, shadowMargin } = labelInternals.drawn(label);
+        return { panel: actualDimensions.height - shadowMargin * 2, words: textSize.height };
+    };
+
+    test("a line one font size tall, with the border centered on the panel's edge, makes the panel a font size tall at the border's middle", () => {
+        const { panel, words } = heights({ lineBox: "size", borderAlign: "center" });
+        assert.closeTo(words, 48, 1e-9);
+        // the border reaches half its width past the words' box on each side
+        assert.closeTo(panel, 48 + 4, 1e-9);
+    });
+
+    test("unset, a line is its font box tall and the border lies wholly outside it", () => {
+        const { panel, words } = heights({});
+        assert.isAbove(words, 48);
+        assert.closeTo(panel, words + 8, 1e-9);
     });
 });

@@ -133,11 +133,12 @@ import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
 import type { HiddenNotDrawn, SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
- * What `session.capabilities` reports: acceleration and XR, and the limits a load is refused above
- * on this element's render path (`limits`, honored under `render-path="batched"`; the shipped
- * `DEFAULT_LIMITS` otherwise). `graphMemoryBudgetBytes` is absent: nothing can report it.
+ * What `session.capabilities` reports: acceleration and XR, the last calibration of this machine
+ * (`calibration`, null until `session.calibrate()` has run on the page), and the limits a load is
+ * refused above on this element's render path (`limits`, honored under `render-path="batched"`;
+ * the shipped `DEFAULT_LIMITS` otherwise).
  */
-export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "calibration"> & {
     /**
      * The limits in force.
      * @experimental cosmograph
@@ -923,8 +924,28 @@ export interface OverRepresentedGroup {
     readonly values: readonly OverRepresentedValue[];
 }
 
-/** The multiple-testing correction applied to an {@link OverRepresentedValues} table. */
-export type MultipleTestingCorrection = "benjamini-hochberg";
+/**
+ * The multiple-testing correction applied to an {@link OverRepresentedValues} table.
+ *
+ * - `"benjamini-hochberg"`: controls the false discovery rate, the share of reported values that
+ *   are chance. The default.
+ * - `"bonferroni"`: controls the chance of any false finding; each p times the number of tests.
+ * - `"holm"`: controls the same as Bonferroni, step-down, never larger than Bonferroni's.
+ *
+ * OPEN UNION: methods may be added in a minor release; handle unknown ones.
+ */
+export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "holm";
+
+/** What `session.data.overRepresented(groupBy, options)` tests and how it corrects. */
+export interface OverRepresentedOptions {
+    /**
+     * The node columns to test, by path; by default every categorical node column except
+     * `groupBy` and a column that holds the node ids.
+     */
+    readonly columns?: readonly Path[];
+    /** How the p values are corrected for the number of tests; `"benjamini-hochberg"` by default. */
+    readonly correction?: MultipleTestingCorrection;
+}
 
 /**
  * What `session.data.overRepresented(groupBy)` returns: per group, the values of the node's
@@ -1965,21 +1986,21 @@ export interface SessionDataApi {
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
      * more often than chance: count in the group against the expected count, with the
-     * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
-     * value tested. Group by a community run's `group` field or any node path. Reads what is shown
-     * while `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
+     * hypergeometric p and that p corrected (Benjamini-Hochberg unless `options.correction` names
+     * another method) over every group, column and value tested. Group by a community run's `group`
+     * field or any node path. Reads what is shown while `workingGraph` is on, the whole graph while
+     * it is off. Walks the nodes on every call.
      *
      * ```ts
      * const profile = session.data.overRepresented(session.results.path("louvain", "group"));
      * const strong = profile.groups[0].values.filter((row) => row.adjustedP < 0.05);
      * ```
      * @param groupBy - The path holding each node's group; a node with no value there is left out.
-     * @param options - What to test.
-     * @param options.columns - The node columns to test, by path; by default every categorical
-     *     node column except `groupBy` and a column that holds the node ids.
+     * @param options - What to test and how to correct; see {@link OverRepresentedOptions}.
      * @returns Every group, largest first, with its over-represented values.
+     * @throws {GraphtyError} `E_OPTION_RANGE` when `options.correction` names no method.
      */
-    overRepresented(groupBy: Path, options?: { readonly columns?: readonly Path[] }): OverRepresentedValues;
+    overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     /**
      * One row per group of the nodes -- a community run's `group`, a component, any node path --
      * with its size and the summaries of numeric columns the caller asks for. Write it as a file
@@ -5453,6 +5474,21 @@ export interface GraphSession {
      * @param accelerator - The accelerator to attach, or null to detach.
      */
     setAccelerator(accelerator: GraphAccelerator | null): void;
+    /**
+     * Measure how fast this machine runs the element's work, once per page, so that later
+     * estimates report `confidence: "calibrated"` instead of `"modelled"`.
+     *
+     * The probe takes about a quarter of a second and hands the thread back between its pieces.
+     * Every session on the page shares one measurement: a second call, from this session or
+     * another, resolves with the first one's answer. When it resolves, `capabilities.calibration`
+     * says when it ran and whether it measured (`basis: "probe"`) or could not and kept the
+     * shipped rates (`"defaults"`), and `capabilities:changed` reports the change.
+     * @param options - `signal` stops waiting: the call rejects with the signal's reason (an
+     *     `AbortError` unless it says otherwise). The shared measurement still finishes and is kept.
+     * @returns The limits in force, the same document `capabilities.limits` returns.
+     * @since 3.40.0
+     */
+    calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;
     /**
      * The current snapshot. Its structure, id map and attribute columns are the graph's own,
      * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken

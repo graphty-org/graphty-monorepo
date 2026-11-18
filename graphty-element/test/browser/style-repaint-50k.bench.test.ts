@@ -9,7 +9,8 @@
  * drawn in between, the longest of them, and the longest task the page reported.
  *
  * WHAT IS ASSERTED IS COUNTED WORK: the repaint ends with nothing pending, and no frame makes more
- * than one teardown (a pass over every scene list) however many nodes it rebuilt.
+ * than one teardown (a pass over every scene list) however many nodes it rebuilt, and the nodes of
+ * one look share one style object (#7966).
  *
  * Run it on a real GPU (GRAPHTY_BROWSER_GPU=nvidia): on the software renderer a frame of this
  * graph takes about 9 s and the run takes minutes. Measured on the development machine (i9-14900,
@@ -34,6 +35,8 @@ interface Step {
     longestFrameMs: number;
     longestTaskMs: number;
     mostTeardownsInAFrame: number;
+    /** The time spent in `StylePainter.nodePaint`, summed over every call. */
+    nodePaintMs: number;
 }
 
 describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
@@ -108,6 +111,16 @@ describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
         });
         tasks.observe({ type: "longtask" });
 
+        const painter = graph.getStylePainter();
+        const nodePaint = painter.nodePaint.bind(painter);
+        let nodePaintMs = 0;
+        painter.nodePaint = (index: number): ReturnType<typeof nodePaint> => {
+            const at = performance.now();
+            const paint = nodePaint(index);
+            nodePaintMs += performance.now() - at;
+            return paint;
+        };
+
         const start = performance.now();
         last = start;
         try {
@@ -116,8 +129,9 @@ describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
             const settledMs = performance.now() - start;
             await graph.waitForPainted();
             const paintedMs = performance.now() - start;
-            return { settledMs, paintedMs, frames, longestFrameMs, longestTaskMs, mostTeardownsInAFrame };
+            return { settledMs, paintedMs, frames, longestFrameMs, longestTaskMs, mostTeardownsInAFrame, nodePaintMs };
         } finally {
+            delete (painter as { nodePaint?: unknown }).nodePaint;
             tasks.disconnect();
             graph.scene.onAfterRenderObservable.remove(observer);
             delete (meshes as { splice?: unknown }).splice;
@@ -134,7 +148,8 @@ describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
         console.log(
             `[style-repaint-50k] ${what}: settled ${ms(step.settledMs)}, painted ${ms(step.paintedMs)}, ` +
                 `${String(step.frames)} frames, longest frame ${ms(step.longestFrameMs)}, ` +
-                `longest task ${ms(step.longestTaskMs)}, most teardowns in a frame ${String(step.mostTeardownsInAFrame)}`,
+                `longest task ${ms(step.longestTaskMs)}, most teardowns in a frame ${String(step.mostTeardownsInAFrame)}, ` +
+                `nodePaint ${ms(step.nodePaintMs)}`,
         );
     }
 
@@ -184,6 +199,17 @@ describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
         report("preview on", step);
         assert.isFalse(graph.getStylePainter().hasPending, "every batch was applied");
         assert.isAtMost(step.mostTeardownsInAFrame, 1, "at most one teardown a frame");
+    });
+
+    it("hands nodes of one look one style, not a style each (#7966)", () => {
+        const painter = graph.getStylePainter();
+        const styles = new Set<unknown>();
+        for (let index = 0; index < NODES; index++) {
+            styles.add(painter.nodePaint(index)?.style);
+        }
+
+        // Two looks: faint, and the one group at full strength.
+        assert.isAtMost(styles.size, 2, "one style per look");
     });
 
     it("takes the preview away again", async () => {

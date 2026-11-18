@@ -10,6 +10,7 @@ used_by_workflows:
     - W05
     - W09
     - W17
+    - W23
 implemented_by_components:
     - context-menu
     - ego-network-dialog

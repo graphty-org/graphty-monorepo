@@ -80,15 +80,15 @@ const white = await graph.captureScreenshot({
 
 ### A legend in the image
 
-`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
-still says what its colours mean once it leaves the page. It is drawn from the element's legend
+`legend` draws a key into the image, at the capture's resolution, so a color-encoded picture
+still says what its colors mean once it leaves the page. It is drawn from the element's legend
 model (`session.styles.legend()`), not copied from the page.
 
 ```typescript
 // The element's own legend, in the bottom-right corner
 await graph.captureScreenshot({ legend: true });
 
-// Only when a layer binds a value (a colour by degree, a size by betweenness)
+// Only when a layer binds a value (a color by degree, a size by betweenness)
 await graph.captureScreenshot({ legend: "auto" });
 
 // Another corner, and a heading in your own words
@@ -104,7 +104,7 @@ await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" 
 | an array of sections    | Exactly the sections you pass, top left, every word yours            |
 
 The element's legend writes no words of its own: each section is headed by the field's name, and
-lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+lists the data's values (or the names readers gave them) beside their colors, or a ramp between
 the lowest and highest value. To word the key yourself, build the sections from
 `session.styles.legend()` and pass the array:
 
@@ -114,9 +114,9 @@ await graph.captureScreenshot({
 });
 ```
 
-## Vector Figures (SVG)
+## Vector Figures (SVG and PDF)
 
-`exportFigure()` writes the graph as it is drawn now as an SVG file, for a paper or a slide that
+`exportFigure()` writes the graph as it is drawn now as an SVG or a PDF file, for a paper or a slide that
 needs to scale without blurring. Every visible node is a filled shape in its color, every visible
 edge a line, and every label on screen is text you can edit and search. `legend` takes the same
 values as a screenshot's and draws the same key, as text too. The figure is the canvas's size and
@@ -138,18 +138,29 @@ console.log(svg.length, figure.width, figure.height);
 
 | Option                  | Default       | What it does                                        |
 | ----------------------- | ------------- | --------------------------------------------------- |
-| `format`                | `"svg"`       | The file format; SVG is the only one today          |
+| `format`                | `"svg"`       | The file format: `"svg"` or `"pdf"`                 |
 | `legend`                | no key        | The key, as `captureScreenshot`'s `legend` takes it |
 | `transparentBackground` | `false`       | Leave the canvas background out                     |
 | `download`              | `false`       | Also start a download                               |
-| `downloadFilename`      | `"graph.svg"` | The download's name                                 |
+| `downloadFilename`      | `"graph.svg"` | The download's name (`"graph.pdf"` for a PDF)       |
 
-The result holds the file (`blob`, type `image/svg+xml`), its `width` and `height` in CSS pixels,
-and whether it was `downloaded`. It waits for the finished picture first, as `waitForStableFrame()`
-does. A format other than `"svg"` fails with `E_BAD_COMMAND` (`details.field` is `"format"`).
+The result holds the file (`blob`, type `image/svg+xml` or `application/pdf`), its `width` and
+`height` in CSS pixels, and whether it was `downloaded`. It waits for the finished picture first, as
+`waitForStableFrame()` does. Any other format fails with `E_BAD_COMMAND` (`details.field` is
+`"format"`).
 
-A figure draws each node's flat color, without the canvas's lighting, and draws edges straight,
-without arrowheads; curved edges, arrowheads, borders and label backgrounds are not in it yet.
+```ts
+// A one-page PDF the canvas's size, one CSS pixel to a point
+await element.exportFigure({ format: "pdf", legend: true, download: true });
+```
+
+A PDF needs no extra package: its text is set in the fonts every PDF reader has (Helvetica, Times
+or Courier, whichever is nearest each label's font), so characters outside Western European
+alphabets print as `?`; use SVG for those.
+
+A figure draws each node's flat color, without the canvas's lighting, draws edges straight, without
+arrowheads, and draws a label's solid background as a box behind its text; curved edges,
+arrowheads, node borders and gradient label backgrounds are not in it yet.
 
 ## Checking Capabilities
 
@@ -277,6 +288,15 @@ Cancel an ongoing recording:
 
 ```typescript
 graph.cancelAnimationCapture();
+```
+
+Stop a recording early and keep what was recorded -- the `captureAnimation` promise resolves with
+the video so far, so a long `duration` records until the reader stops:
+
+```typescript
+const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+stopButton.onclick = () => graph.stopAnimationCapture();
+const { blob } = await recording;
 ```
 
 ## Downloading Video

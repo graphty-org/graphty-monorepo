@@ -10,6 +10,7 @@
  */
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
@@ -650,6 +651,32 @@ async function finish(
     } else if (format === "usd" || format === "usdz") {
         takeOffUsdPictures(container, gone);
     }
+
+    faceAsGltf(container, format);
+}
+
+/**
+ * Turn a model that comes out in Babylon's own convention (front toward -Z: a `.babylon` file, and
+ * Babylon's USD loader, which only mirrors Z) half a turn about +Y, under a new root, so every
+ * format comes out as Babylon's glTF and FBX loaders give it: the file's right-handed +Z front at
+ * +Z, its +X at -X. A consumer then turns every model the same way to face its camera.
+ * @param container - The loaded model, not in the scene.
+ * @param format - Its format: only `babylon`, `usd` and `usdz` are turned.
+ */
+function faceAsGltf(container: AssetContainer, format: ModelFormat): void {
+    if (format !== "babylon" && format !== "usd" && format !== "usdz") {
+        return;
+    }
+
+    const { scene } = container;
+    const root = new TransformNode("__front__", scene);
+    scene.removeTransformNode(root);
+    root.rotation.y = Math.PI;
+    for (const node of [...container.meshes, ...container.transformNodes, ...container.cameras, ...container.lights]) {
+        node.parent ??= root;
+    }
+    container.transformNodes.push(root);
+    container.rootNodes.splice(0, container.rootNodes.length, root);
 }
 
 /** Options for {@link loadModelFiles}. */
@@ -764,6 +791,7 @@ async function loadModelFilesNow(
         const folder = root + main.slice(0, slash + 1);
         if (!reader.startsWith(".")) {
             const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder, new Set(hidden));
+            faceAsGltf(own, format);
             // Their pictures are named by their paths in the set: taken off once loaded, as a skip's are.
             markWithoutPictures(own, root, [...skipped, ...hidden], lostPicture);
             return own;

@@ -40,8 +40,9 @@ import type { ModelTemplate, TemplateOptions } from "./ModelCache";
 
 /**
  * The rotation that turns the file's up axis to +Y, then turns the model about +Y. A turn of 0 faces
- * the model's front (+Z in a glTF file, after the loader's change of handedness) toward -Z, where
- * the element's default camera stands, so a model shows its front rather than its back.
+ * the model's front (+Z in a glTF file, after the loader's change of handedness; babylonjs-models
+ * gives every format in that convention) toward -Z, where the element's default camera stands, so a
+ * model shows its front rather than its back.
  * @param up - The file's up axis.
  * @param turnDegrees - The turn about the up axis, in degrees.
  * @returns The matrix.

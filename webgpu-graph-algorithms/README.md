@@ -4,6 +4,9 @@
 
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fwebgpu-graph-algorithms.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/webgpu-graph-algorithms.md)
 
+**[Read the documentation ->](https://graphty.app/docs/webgpu-graph-algorithms/)** -- getting started, Node and
+browser setup, a guide to every algorithm and layout, the errors, and the API reference.
+
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node
 (Dawn, through the `webgpu` npm package) and browsers (Chromium). One code base, four entry points:
 

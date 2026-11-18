@@ -83,7 +83,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-map#readme",
+    "homepage": "https://graphty.app/docs/babylonjs-map/",
     "dependencies": {
         "coordinate-parser": "1.0.7",
         "mgrs": "2.2.0",

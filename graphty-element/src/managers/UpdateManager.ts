@@ -592,7 +592,7 @@ export class UpdateManager implements Manager {
     private lastLanding: {
         engine: SimulationLayoutEngine;
         landed: number;
-        positions: Map<NodeIdType, { x: number; y: number; z: number }>;
+        positions: Map<number, { x: number; y: number; z: number }>;
     } | null = null;
 
     /** Where the two masks are read from, or null while nothing has been bound. */
@@ -1192,7 +1192,7 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(rows, nodeVisibility);
+        this.applyColumnRows(rows, nodeVisibility, showContext);
     }
 
     /**
@@ -1320,7 +1320,15 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(null, nodeVisibility);
+        // A selected row stored with no `Node` gets one, as the selection's own pass gives it (`applyNodeSelection`):
+        // its halo is the `Node`'s. Built, it takes the masks (`adoptBuiltNode`).
+        for (const id of nodeSelection?.ids() ?? []) {
+            if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
+                this.dataManager.nodes.get(id);
+            }
+        }
+
+        this.applyColumnRows(null, nodeVisibility, showContext);
     }
 
     /**
@@ -1757,6 +1765,8 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
+            !this.endInvisible(source) &&
+            !this.endInvisible(target) &&
             !this.rowSelected(index);
         if (lineable && lines.paintRow(index, source, target, paint)) {
             lines.setHidden(index, this.rowHidden(index));
@@ -1837,11 +1847,19 @@ export class UpdateManager implements Manager {
      * @returns The `Edge`, or undefined when no edge is stored there.
      */
     private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
-        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
-        if (edge === undefined) {
-            return undefined;
-        }
+        // The build adopts it (`adoptBuiltEdge`), which draws it as the masks say.
+        return dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
+    }
 
+    /**
+     * Draw an `Edge` just built from a row stored with no `Edge` as the edge masks the last pass read
+     * say, however it was asked for (a pass, or a read of the edge map): no pass walks it before its
+     * row's masks move.
+     * @param edge - The edge.
+     * @internal
+     */
+    adoptBuiltEdge(edge: Edge): void {
+        const { index } = edge;
         const hidden = edge.setRenderVisible(this.edgeVisibilityMask?.has(index) !== false);
         const selected = this.edgeSelectionMask?.has(index) === true;
         edge.setSelected(selected);
@@ -1852,8 +1870,6 @@ export class UpdateManager implements Manager {
         if (hidden || selected) {
             this.forceEdgeWalk();
         }
-
-        return edge;
     }
 
     /**
@@ -1885,6 +1901,23 @@ export class UpdateManager implements Manager {
 
         const look = batches.lookOf(row);
         return (look?.paint.style.shape?.zIndex ?? 0) < 0;
+    }
+
+    /**
+     * Whether a node row is drawn at opacity 0 (`Node.drawnOpacity`), so an edge ends at its outline (`Edge.bareEnd`),
+     * which a row line, drawn center to center, does not: read from the row's batch when no `Node` draws it.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endInvisible(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.drawnOpacity <= 0;
+        }
+
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const column = batches?.columnRowOf(row);
+        return column !== undefined && batches !== null && batches.columnOpacityOf(column) <= 0;
     }
 
     /**
@@ -1923,8 +1956,7 @@ export class UpdateManager implements Manager {
      */
     private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
         const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
-        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
-        // painted again below through `nodePaint`, so the Node never holds a shared style
+        // one style per look, not per row (`StylePainter.rowPaint`)
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
@@ -2484,6 +2516,20 @@ export class UpdateManager implements Manager {
      */
     operationsPending: (() => boolean) | null = null;
 
+    /**
+     * The renderer's count of fenced WebGL frames and whether the GPU has finished one, so a wait
+     * for the final picture ends only once the GPU has finished the frame that drew it; see
+     * `RenderManager.gpuFinishedFrame`. Null when nothing fences frames.
+     * @internal
+     */
+    gpuFrames: { fenced: () => number; finished: (frame: number) => boolean } | null = null;
+
+    /**
+     * The renderer's fenced-frame count when the frame that drew the finished picture was drawn,
+     * so its own fence is this plus one; null when no such fence is owed.
+     */
+    private finishedFrameFencedAfter: number | null = null;
+
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
 
@@ -2496,7 +2542,25 @@ export class UpdateManager implements Manager {
         // `wait` work (a queued operation, issue #3528) too: the frame on screen is final about
         // the graph it shows, so `frameIsStable`, the frame announcement and the on-demand loop's
         // rest do not ask it, but a wait for the final picture does.
-        return this.pending.firstPending("wait") === null && this.frameIsStable;
+        return this.pending.firstPending("wait") === null && this.frameIsStable && this.gpuFinishedPicture();
+    }
+
+    /**
+     * Whether the GPU has finished drawing the frame that drew the finished picture. The render
+     * loop lets two WebGL frames be in flight, so the frame called final can still be queued on
+     * the GPU behind an older one, and a screenshot or readback taken then can read the older
+     * frame (issues #8344, #8346). Only that frame is waited for, not every frame since: a picture
+     * that keeps drawing (a moving shader) on a GPU slower than the loop always has one in flight.
+     * @returns True once that frame is done, or when no fence was owed.
+     */
+    private gpuFinishedPicture(): boolean {
+        const before = this.finishedFrameFencedAfter;
+        if (before === null || this.gpuFrames === null) {
+            return true;
+        }
+
+        // Asked while the frame is still being drawn, its fence is not made yet.
+        return this.gpuFrames.fenced() > before && this.gpuFrames.finished(before + 1);
     }
 
     /**
@@ -2684,6 +2748,23 @@ export class UpdateManager implements Manager {
      * source's shader, so it is answered by the source rather than one by one.
      * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
      */
+    /**
+     * Whether a mesh can be drawn whole, its outline included. `Mesh.isReady` leaves the outline
+     * out, and the outline renderer skips the mesh while its shader compiles, which on WebGPU
+     * outlasts the frame first called final (#8734).
+     * @param scene - The scene.
+     * @param mesh - The mesh.
+     * @param instanced - Whether it draws instances.
+     * @returns True when the mesh and any outline it draws are ready.
+     */
+    private static meshIsReady(scene: Scene, mesh: Mesh, instanced: boolean): boolean {
+        if (!mesh.isReady(true, instanced)) {
+            return false;
+        }
+
+        return !mesh.renderOutline || mesh.subMeshes.every((sub) => scene.getOutlineRenderer().isReady(sub, instanced));
+    }
+
     private everyDrawnMeshIsReady(): boolean {
         const scene = this.graphContext.getScene();
         const layers = scene.effectLayers.filter((layer) => layer.shouldRender());
@@ -2703,7 +2784,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (!(mesh as Mesh).isReady(true, instanced)) {
+            if (!UpdateManager.meshIsReady(scene, mesh as Mesh, instanced)) {
                 return false;
             }
 
@@ -2722,6 +2803,9 @@ export class UpdateManager implements Manager {
      *
      * Asked under the layer's render pass, because that is where the layer keeps the mesh's
      * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * A mesh with no geometry -- a model's root, an empty mesh -- has no submeshes and nothing to
+     * draw into the layer, so it is ready, as `Mesh.isReady` answers for it; one still loading was
+     * already answered not ready by `isReady` before the layers are asked.
      * @param layer - The layer drawing the mesh.
      * @param mesh - The mesh.
      * @param instanced - Whether the mesh is drawn through instances.
@@ -2733,8 +2817,12 @@ export class UpdateManager implements Manager {
 
         engine.currentRenderPassId = layer.mainTexture.renderPassId;
 
+        // Babylon leaves subMeshes unset on a mesh with no geometry (a model's root), which a layer
+        // draws nothing of.
+        const { subMeshes }: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+
         try {
-            return mesh.subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
+            return subMeshes === undefined || subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
         } finally {
             engine.currentRenderPassId = pass;
         }
@@ -2768,6 +2856,7 @@ export class UpdateManager implements Manager {
 
         this.finishedEpoch = this.pending.epoch;
         this.finishedMeshCount = this.graphContext.getScene().meshes.length;
+        this.finishedFrameFencedAfter = this.gpuFrames?.fenced() ?? null;
         // The picture the last fit framed is final: a later input change moves nothing.
         this.fitRead = null;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
@@ -2814,6 +2903,11 @@ export class UpdateManager implements Manager {
      *     frames are drawn. Omitted or 0 -- every hand-pumped pass -- it takes one step.
      */
     update(frameMs = 0): void {
+        // A finished frame drawn without a fence (by hand, outside the loop) owes the GPU nothing.
+        if (this.finishedFrameFencedAfter !== null && this.gpuFrames?.fenced() === this.finishedFrameFencedAfter) {
+            this.finishedFrameFencedAfter = null;
+        }
+
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
@@ -3248,22 +3342,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Where the layout engine currently has every node.
-     * @returns One position per node, by node id.
+     * Where the layout has every placed node: read by row from the shared positions every engine writes, so a row
+     * stored with no `Node` under "batched" counts too (the engine's `nodes` lists only `Node`s).
+     * @returns One position per placed row, by row.
      */
-    private enginePositions(): Map<NodeIdType, { x: number; y: number; z: number }> {
-        const engine = this.layoutManager.layoutEngine;
-        const positions = new Map<NodeIdType, { x: number; y: number; z: number }>();
+    private enginePositions(): Map<number, { x: number; y: number; z: number }> {
+        const positions = new Map<number, { x: number; y: number; z: number }>();
 
-        if (!engine) {
+        if (!this.layoutManager.layoutEngine) {
             return positions;
         }
 
-        for (const node of this.layoutManager.nodes) {
-            const at = engine.getNodePosition(node);
-
-            if (at) {
-                positions.set(node.id, { x: at.x, y: at.y, z: at.z ?? 0 });
+        const shared = this.dataManager.positions;
+        for (let row = 0; row < shared.count; row++) {
+            if (shared.isPlaced(row)) {
+                const at = { x: 0, y: 0, z: 0 };
+                shared.read(row, at);
+                positions.set(row, at);
             }
         }
 
@@ -3278,7 +3373,7 @@ export class UpdateManager implements Manager {
      *     no placed nodes has not settled, it has not started.
      */
     private largestMove(
-        before: Map<NodeIdType, { x: number; y: number; z: number }>,
+        before: Map<number, { x: number; y: number; z: number }>,
         now = this.enginePositions(),
     ): number {
         if (before.size === 0 || now.size === 0) {
@@ -3513,22 +3608,36 @@ export class UpdateManager implements Manager {
     /**
      * Show or hide the rows drawn with no `Node`, which no walk of the nodes reaches. Their batch
      * draws them from the row table, so the table's hidden flag is all there is to write. A row
-     * drawn faintly in context, or ringed as selected, needs a `Node`: none of these is.
+     * drawn faintly in context needs a `Node`, so a hidden row gets one built while `showContext` is on.
      * @param rows - The rows to bring into line, or null for every one.
      * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
      */
-    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null): void {
+    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null, showContext: boolean): void {
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
         if (batches === null || table === null) {
             return;
         }
 
+        // A faint context point is a `Node`'s overlay: a hidden row with none gets one, which draws it.
+        const faint: number[] = [];
         // A slide's rows are looked up one by one: a set of every drawn row cost about 6 ms a jump at
         // 100,000 nodes (#6025).
         for (const row of rows ?? batches.columnRowIndices()) {
             if (rows === null || batches.columnRowOf(row) !== undefined) {
-                table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
+                const hidden = nodeVisibility !== null && !nodeVisibility.has(row);
+                table.hide(row, hidden);
+                if (hidden && showContext) {
+                    faint.push(row);
+                }
+            }
+        }
+
+        for (const row of faint) {
+            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (id !== undefined) {
+                dataManagerInternals.buildRow(this.dataManager, id);
             }
         }
     }

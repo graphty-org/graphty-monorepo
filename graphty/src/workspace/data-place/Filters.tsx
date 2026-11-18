@@ -38,6 +38,7 @@ import { type SelectionMenuItem, SelectionMenuItems } from "../selection/Selecti
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, ruleOfField, sideOf } from "../selection/values";
 import { cardsWords, rowTest, rowWords, shownWords, stepWords, VERB_WORDS } from "../selection/words";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -52,7 +53,6 @@ import {
     writeCondition,
 } from "./filterCards";
 import { chipName, chipWords, statusWords } from "./filterWords";
-import { useVisibilityVersion } from "./useVisibilityVersion";
 import { filterFailureWords } from "./words";
 
 /** Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+". */
@@ -149,7 +149,7 @@ export function FiltersSection({
     headingLevel?: 2 | 3;
 }> = {}): React.JSX.Element {
     const { session, store } = useWorkspace();
-    const version = useVisibilityVersion(session);
+    const version = useSessionEvents(session, VISIBILITY_EVENTS);
     const asked = useWorkspaceState((state) => state.filterDraft);
     const [drafts, setDrafts] = useState<readonly Draft[]>([]);
     const [openId, setOpenId] = useState<string | null>(null);
@@ -911,7 +911,7 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
  */
 export function FilterChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
 
     useEffect(() => {
         if (session === null) {

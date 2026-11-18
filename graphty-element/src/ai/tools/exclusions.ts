@@ -14,7 +14,7 @@ type ExclusionReason =
     | "internal-handle"
     /** The assistant's own connection, keys, voice or status. */
     | "assistant-config"
-    /** Acceleration, renderer, input, profiling, label decluttering, render on demand. */
+    /** Acceleration, machine calibration, renderer, input, profiling, label decluttering, render on demand. */
     | "machine-preference"
     /**
      * A default the application chooses for every later call, saved in no project: the palette a
@@ -184,6 +184,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         expires: "2027-01-11",
     },
 
+    // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
+    // assistant reaches the annotations only through a load that writes a file's own.
+    ...[
+        { op: "annotations.patch" },
+        { root: "SessionAnnotations", members: ["list", "scale", "add", "update", "remove", "clear"] },
+    ].map((row): Exclusion => ({
+        ...row,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
+
     // The surface added beside the tools: each member is reached, or left out here for its reason.
     ...[
         "location-map/map",
@@ -196,7 +209,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -529,7 +542,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "GraphSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -565,7 +578,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "ElementSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -577,7 +590,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
         root: "Run",
-        members: ["label", "distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
+        members: ["distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

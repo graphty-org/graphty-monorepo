@@ -326,11 +326,6 @@
       "count": 3
     }
   },
-  "vite.shared.config.ts": {
-    "unicorn/prefer-node-protocol": {
-      "count": 1
-    }
-  },
   "vitest.babylon-compilers.mjs": {
     "unicorn/no-array-callback-reference": {
       "count": 2

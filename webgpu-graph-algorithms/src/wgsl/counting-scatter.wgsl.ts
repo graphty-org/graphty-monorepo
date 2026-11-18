@@ -1,7 +1,7 @@
 /**
- * The `counting-scatter` kernel body (spec 6 row 5; P4-T3): the scatter of a counting sort. `start[k]` is the
+ * The `counting-scatter` kernel body: the scatter of a counting sort. `start[k]` is the
  * exclusive scan of the histogram, `cursor[k]` a zeroed per-bin atomic; an element takes the slot `start[k] +
- * atomicAdd(&cursor[k], 1u)`. The order inside a bin depends on the schedule (set-deterministic, design 6). Body
+ * atomicAdd(&cursor[k], 1u)`. The order inside a bin depends on the schedule (set-deterministic). Body
  * only; normative text.
  */
 export const countingScatterWgsl = /* wgsl */ `

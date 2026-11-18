@@ -767,7 +767,7 @@ describe("usedBy", () => {
 
         assert.deepStrictEqual(f.harness.session.sets.usedBy(base), [
             { kind: "set", id: reader, label: "Reader" },
-            { kind: "run", id: "pr", label: f.harness.session.runs.get("pr")?.label ?? "" },
+            { kind: "run", id: "pr", label: "Connections (Base)" },
         ]);
         assert.deepStrictEqual(f.harness.session.sets.usedBy("set_never"), []);
     });

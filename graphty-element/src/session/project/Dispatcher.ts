@@ -29,6 +29,7 @@
 import type { ShaderProblem } from "../../catalog/shaders";
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService, EdgeIdentityService } from "../commands/data";
@@ -127,8 +128,6 @@ interface CommandServices {
      * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
      */
     legacyShaderText?: (id: string) => Promise<string | undefined>;
-    /** True while a project open restores the style values its file saved, which it does with the experiment off. */
-    restoringFileStyles?: boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
@@ -148,6 +147,9 @@ interface SlotContext {
     /** The queue's id for the slot. */
     readonly id?: string;
 }
+
+/** Each step a command recorded and each command that failed, for whoever reads the log afterwards. */
+const commandLog = GraphtyLogger.getLogger(["graphty", "command"]);
 
 /** How one dispatch is made, beyond the command itself. */
 interface DispatchOptions {
@@ -523,7 +525,6 @@ const NO_SCHEDULER: Scheduler = {
 /** Pending undoable work, as the history lists it. Frozen. */
 interface PendingStep {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
@@ -2311,6 +2312,12 @@ export class Dispatcher {
         }
 
         job.status = "done";
+        // Info, not warn: the caller already gets the rejection, and an unconfigured page prints warnings.
+        commandLog.info("command failed", {
+            op: job.command.op,
+            message: error instanceof Error ? error.message : String(error),
+            ...(error instanceof GraphtyError ? { code: error.code } : {}),
+        });
         const { group } = job;
         group.jobs.delete(job);
         this.waiters.delete(job);
@@ -2520,6 +2527,8 @@ export class Dispatcher {
         const meta = this.steps.get(id);
         const recorded = this.tick++;
         if (meta === undefined) {
+            // A new step only: an edit coalescing into the step on top (a slider drag) is not logged again.
+            commandLog.info("step", { id, label: group.label, ...group.fact, ops: group.ops });
             this.steps.set(id, { recorded, undone: -1, oplog, removedInFlight });
         } else {
             meta.recorded = recorded;
@@ -3268,7 +3277,6 @@ export class Dispatcher {
     private view(group: Group): PendingStep {
         group.view ??= Object.freeze({
             id: group.id,
-            label: group.label,
             fact: frozenFact(group.fact),
             since: group.since,
             runIds: Object.freeze([]),

@@ -93,7 +93,8 @@ export interface ControlSectionProps extends DisclosureProps {
      * `"les miserables . 77 nodes"`, `"12 attributes"`.
      *
      * It is drawn after the name in the secondary ink, cut with an ellipsis before the name is,
-     * and it becomes the expand button's accessible description, so a reader moving through
+     * and it follows the name in the expand button's accessible name (WCAG 2.5.3: the button's
+     * name holds the text it shows), so a reader moving through
      * closed sections hears what each holds without opening it. An open section shows its rows
      * instead, so the summary is hidden there. Keep it to text.
      */
@@ -241,6 +242,7 @@ function SectionLead({
     onToggle,
     onTitleAdd,
 }: Readonly<SectionLeadProps>): React.JSX.Element {
+    const toggleId = useId();
     if (!toggles) {
         // An empty section's title adds, as Figma's does. The
         // pointer route only: the "+" is the keyboard route and
@@ -258,10 +260,13 @@ function SectionLead({
             data-testid="control-section-toggle"
             data-collapsible="true"
             className="cm-section-lead cm-focus-inside"
+            id={toggleId}
             aria-label={toggleName}
+            // While the summary shows, the name is the toggle's own label, then the summary. The
+            // button itself is the first id: accname reads its aria-label there.
+            aria-labelledby={summaryShown ? `${toggleId} ${summaryId}` : undefined}
             aria-expanded={isOpen}
             aria-controls={contentId}
-            aria-describedby={summaryShown ? summaryId : undefined}
             onClick={onToggle}
         >
             {/* The 16px slot in the gutter at x 0..16. A closed
@@ -270,6 +275,9 @@ function SectionLead({
                 <Caret open={isOpen} rtl={rtl} />
             </Box>
             {name}
+            {/* A space between the name and the summary, so their words do not run together in
+                the button's text. Flex layout draws no whitespace between items. */}
+            {summaryShown && " "}
             {summaryShown && (
                 <Box
                     component="span"

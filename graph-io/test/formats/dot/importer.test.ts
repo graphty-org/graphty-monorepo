@@ -271,6 +271,19 @@ describe("dot importer: malformed corpus", () => {
         "missing-arrow.gv": { nodes: 4, edges: 0 },
     };
 
+    const FAILING = [
+        "empty-file.gv",
+        "garbage-content.gv",
+        "invalid-attributes.gv",
+        "nested-unclosed.gv",
+        "unclosed-brace.gv",
+        "unclosed-string.gv",
+    ];
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("dot")]).toEqual([...FAILING, ...Object.keys(VALID_FOR_GRAPHVIZ)].sort());
+    });
+
     for (const name of malformedFiles("dot")) {
         const valid = VALID_FOR_GRAPHVIZ[name];
         if (valid !== undefined) {

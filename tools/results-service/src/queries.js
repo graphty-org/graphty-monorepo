@@ -10,6 +10,10 @@ const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may 
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
 const PLAN_VARIANTS_MAX = 100;
+// Variants a plan read asks D1 about at once. D1 runs one query at a time and refuses a call whose queue grows too
+// long: a light check's ~47 variants at once (about 100 queries) answered HTTP 500 (#8208). Each variant's two or
+// three queries run in turn, so at most this many queries wait.
+export const PLAN_PARALLEL = 4;
 // A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
 // whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
 // history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
@@ -19,6 +23,9 @@ export const HISTORY_INVOCATIONS = 1000;
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
+// The inputs placeholder a client sends when it knows no inputs key: every client does today (tools/results), and
+// no record carries it, so its pair clause and reuse lookup are skipped rather than run to match nothing (#7269)
+const NO_INPUTS = "-";
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");
 const all = async (db, sql, ...args) =>
@@ -122,7 +129,7 @@ export async function trackedIssues(db, family, now) {
 // in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
 // request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant at most: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
     for (let i = 0; i < pairs.length; i += 24)
         rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
@@ -135,7 +142,8 @@ async function failingOnBase(db, base, pairs, changed) {
 // half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
-    const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const keyed = pairs.filter(([, k]) => k !== NO_INPUTS);
+    const same = keyed.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
@@ -154,19 +162,22 @@ async function failingOnBaseChunk(db, base, pairs) {
          WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
-        ...pairs.flat(),
+        ...keyed.flat(),
         ...variants,
     );
 }
 
 async function variantFacts(db, variant, inputs, now) {
-    const passed = await db
-        .prepare(
-            `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
+    const passed =
+        inputs === NO_INPUTS
+            ? null
+            : await db
+                  .prepare(
+                      `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
              ORDER BY started_at DESC LIMIT 1`,
-        )
-        .bind(variant, inputs)
-        .first();
+                  )
+                  .bind(variant, inputs)
+                  .first();
     const order = await all(
         db,
         `SELECT f.file, max(i.started_at) AS at FROM failure f JOIN invocation i ON i.id = f.invocation
@@ -241,17 +252,24 @@ export async function getPlan(q, who, db, now) {
     if (variants.length > PLAN_VARIANTS_MAX) refuse(400, `a plan reads at most ${PLAN_VARIANTS_MAX} variants`);
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
-    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
-    const facts = Object.fromEntries(
-        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
-    );
+    // a few variants at a time: one after another, an everything run's ~55 variants took past the client's wait
+    // (bins packed without history, about eight times too many test jobs); all at once, their ~100 queries queued in
+    // D1 together and it refused the read with HTTP 500 from about 30 variants up (#8208)
+    const facts = new Array(pairs.length);
+    let next = 0;
+    const worker = async () => {
+        while (next < pairs.length) {
+            const i = next++;
+            facts[i] = await variantFacts(db, pairs[i][0], pairs[i][1], now);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(PLAN_PARALLEL, pairs.length) }, worker));
     const files = list(q.get("files"));
     if (files.length > ROWS_MAX) refuse(400, `a plan reads at most ${ROWS_MAX} files`);
     return {
         quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
-        variants: facts,
+        variants: Object.fromEntries(pairs.map(([v], i) => [v, facts[i]])),
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),
     };
 }

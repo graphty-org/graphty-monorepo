@@ -285,6 +285,7 @@ interface BuilderState {
     readonly builder: GraphBuilder;
     readonly handles: readonly ColumnHandle[];
     readonly edgeIdByIndex: number[];
+    readonly denseRows: number;
     readonly indexByEdgeId: Map<number, number>;
     readonly denseOffset: number | null;
     readonly pairsOrdered: boolean | null;
@@ -597,8 +598,17 @@ export class GraphStore {
     } | null = null;
     /** Moved by {@link GraphStore.recordsChanged}: record writes the builder cannot count. */
     private records = 0;
-    /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
+    /**
+     * The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. Empty
+     * while {@link GraphStore.denseRows} stands in for it.
+     */
     private edgeIdByIndex: number[] = [];
+    /**
+     * While every edge was stamped in row order from the first (`denseEdgeIds`), how many rows
+     * were: row `i` below it holds id `i + denseOffset`, and no array is kept (8 MB a million
+     * edges). Zero once {@link GraphStore.edgeIdByIndex} holds the ids.
+     */
+    private denseRows = 0;
     /**
      * Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. A map, not an array, as
      * counters only grow; every compacting freeze rebuilds it from the live rows, so it holds the
@@ -1053,10 +1063,18 @@ export class GraphStore {
      */
     stampEdgeId(edgeIndex: number, edgeId: number): void {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
-        if (this.edgeIdByIndex.length === 0 && this.options.denseEdgeIds?.() === true) {
+        const unstamped = this.edgeIdByIndex.length === 0;
+        if (unstamped && this.denseRows === 0 && this.options.denseEdgeIds?.() === true) {
             this.denseOffset = edgeId - edgeIndex;
         }
 
+        // In row order, as a load stamps: the rows' ids need no array.
+        if (unstamped && edgeId - edgeIndex === this.denseOffset && edgeIndex <= this.denseRows) {
+            this.denseRows = Math.max(this.denseRows, edgeIndex + 1);
+            return;
+        }
+
+        this.materializeEdgeIds();
         this.edgeIdByIndex[edgeIndex] = edgeId;
         if (edgeId - edgeIndex !== this.denseOffset) {
             this.indexByEdgeId.set(edgeId, edgeIndex);
@@ -1129,7 +1147,29 @@ export class GraphStore {
      * @returns true when it does
      */
     private liveEdgeAt(index: number, edgeId: number): boolean {
-        return this.edgeIdByIndex[index] === edgeId && this.current.hasEdge(index);
+        return this.stampedIdAt(index) === edgeId && this.current.hasEdge(index);
+    }
+
+    /**
+     * The id stamped into a builder row, live or not.
+     * @param index - the row
+     * @returns the id, or undefined when none was stamped there
+     */
+    private stampedIdAt(index: number): number | undefined {
+        if (this.denseRows === 0) {
+            return this.edgeIdByIndex[index];
+        }
+
+        return index >= 0 && index < this.denseRows ? index + (this.denseOffset ?? 0) : undefined;
+    }
+
+    /** Write the rows {@link GraphStore.denseRows} stands in for into {@link GraphStore.edgeIdByIndex}. */
+    private materializeEdgeIds(): void {
+        if (this.denseRows > 0) {
+            const offset = this.denseOffset ?? 0;
+            this.edgeIdByIndex = Array.from({ length: this.denseRows }, (_, row) => row + offset);
+            this.denseRows = 0;
+        }
     }
 
     /**
@@ -1139,7 +1179,7 @@ export class GraphStore {
      */
     edgeIdAt(edgeIndex: number): number {
         this.settle();
-        const edgeId = this.edgeIdByIndex[edgeIndex];
+        const edgeId = this.stampedIdAt(edgeIndex);
         return edgeId !== undefined && this.builder.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
     }
 
@@ -1802,6 +1842,7 @@ export class GraphStore {
                     this.edgeAmongColumn,
                 ],
                 edgeIdByIndex: this.edgeIdByIndex,
+                denseRows: this.denseRows,
                 indexByEdgeId: this.indexByEdgeId,
                 denseOffset: this.denseOffset,
                 pairsOrdered: this.pairsOrdered,
@@ -1828,7 +1869,7 @@ export class GraphStore {
         this.setAside.delete(kept);
         this.setAsideKey = null;
         const old = this.current;
-        const { builder, handles, edgeIdByIndex, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
+        const { builder, handles, edgeIdByIndex, denseRows, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
         this.current = builder;
         [
             this.seedHandle,
@@ -1840,6 +1881,7 @@ export class GraphStore {
             this.edgeAmongColumn,
         ] = handles;
         this.edgeIdByIndex = edgeIdByIndex;
+        this.denseRows = denseRows;
         this.indexByEdgeId = indexByEdgeId;
         this.denseOffset = denseOffset;
         this.pairsOrdered = pairsOrdered;
@@ -1916,6 +1958,7 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = [];
+        this.denseRows = 0;
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
         this.denseOffset = null;
@@ -2223,6 +2266,7 @@ export class GraphStore {
             return;
         }
 
+        this.materializeEdgeIds();
         const moved: number[] = [];
         // Rebuilt from the surviving rows: the entries of removed edges go with their rows.
         this.indexByEdgeId.clear();

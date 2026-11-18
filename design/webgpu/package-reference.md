@@ -648,7 +648,10 @@ A further model follows the same steps:
 - `webgpu` is IMPORTED by exactly one file, `src/node/index.ts`, only inside `await import("webgpu")` within a
   function body; `test/layers.test.ts` asserts it at the source level and `test/build-output.test.ts` asserts no `webgpu` import specifier in the root and browser bundles and a dynamic one only in
   `dist/node.js`, hard-failing when the bundle is absent under `CI`.
-- No `"browser"` field, no `"node"` export condition: an explicit subpath is unambiguous.
+- Subpath `@graphty/webgpu-graph-algorithms/acquire`: one import for either platform, chosen by export
+  condition -- `browser` and `default` resolve to `dist/browser.js`, `node` to `dist/node.js`, types
+  `dist/acquire.d.ts`. These are the only export conditions in the map; the root, `/browser` and `/node` have
+  none, and there is no `"browser"` field.
 - `stripInternal: true`: members tagged `@internal` (`GpuContext.residency`, the `loadModule` test seam and the other internal members the contract marks)
   are absent from the published d.ts; the strict-consumer compile proves the published surface under
   `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`.

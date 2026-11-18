@@ -1,5 +1,5 @@
 /**
- * The per-row group-by-key primitive (design 8.6; the P11 plan's PD-8): for every row `v` of a CSR graph, group the
+ * The per-row group-by-key primitive: for every row `v` of a CSR graph, group the
  * row's arcs by the key of their target (`keyIn[colIdx[a]]`), sum the weights per key, and write the key with the
  * largest sum to `bestKey[v]` -- on a tie the row's own key `keyIn[v]` when it is among the tied, else the LOWEST,
  * which makes the answer independent of the visiting order -- and its summed weight to `bestScore[v]`. An empty row gets `INVALID_INDEX` and 0. Label propagation's step
@@ -14,10 +14,12 @@
  * - TIER 1, a workgroup per row, for the rest: the row's keys are hashed into its own region of
  *   `GROUP_HASH_LOAD_FACTOR x length` slots of `hashRegion`, then the workgroup reduces the slots to the best one.
  *
- * PLAN DECISION (the P11 plan, PD-8): the plan's small tier sorted a row of up to 256 arcs in workgroup memory with a
+ * Why a thread per row: the design's small tier sorted a row of up to 256 arcs in workgroup memory with a
  * bitonic sort, one workgroup per row; this tier is a thread per row instead, because a workgroup of 256 lanes spent
  * on a row of ten arcs -- the typical row -- idles 246 of them, and the pairwise scan needs no barrier at all. Rows
- * above GROUP_ROW_THREAD_MAX take the workgroup hash tier, which is the plan's large tier unchanged.
+ * above GROUP_ROW_THREAD_MAX take the workgroup hash tier, which is the design's large tier unchanged.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "8.6 Community: label propagation (A8), Louvain (A14)".
  */
 
 import { GROUP_HASH_LOAD_FACTOR, GROUP_ROW_THREAD_LIMIT, GROUP_ROW_THREAD_MAX } from "../constants.js";

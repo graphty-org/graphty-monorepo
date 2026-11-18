@@ -11,6 +11,7 @@ import type { GraphSession, TimeField, TimeResultsPolicy, TimeStep, TimeUnit } f
 import { Stack } from "@mantine/core";
 import React from "react";
 
+import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { designate, reportTimeError, unitOf } from "../time/timeActions";
@@ -28,7 +29,6 @@ import {
     UNTIMED_CHOICES,
     zoneChoices,
 } from "../time/timeWords";
-import { useTimeFieldVersion } from "../time/useTimeVersion";
 
 /** The Field menu's value for "no time field". */
 const NONE = "none";
@@ -72,7 +72,7 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
  */
 export function TimeCard(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useTimeFieldVersion(session);
+    useSessionEvents(session, TIME_FIELD_EVENTS);
     if (session === null) {
         return null;
     }

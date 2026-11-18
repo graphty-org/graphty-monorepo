@@ -1,12 +1,12 @@
 /**
  * The start page's sample library and the Samples dialog show one list with one card: the same
- * samples in the same order, with the same titles, words and pictures. Reached as a reader
+ * samples in the same order and no others, with the same titles, words and pictures. Reached as a reader
  * reaches each: the start page with no project open, and the dialog from a project's Sources "+".
  */
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { render, screen, within } from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -26,7 +26,7 @@ function seen(cards: readonly HTMLElement[]): string[] {
 }
 
 describe("the sample card", () => {
-    it("shows the same samples, in the same order and with the same pictures, on the start page and in Samples", async () => {
+    it("shows the same samples and no others, in the same order and with the same pictures, on the start page and in Samples", async () => {
         const start = render(<Workspace store={createWorkspaceStore()} />);
         const library = await screen.findByRole("region", { name: "Sample library" });
         const onStart = seen([...library.querySelectorAll<HTMLElement>("button.ws-land-sample")]);
@@ -36,13 +36,9 @@ describe("the sample card", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
         const dialog = await screen.findByRole("dialog", { name: "Samples" });
-        const inDialog = seen(
-            ["Samples", "Network", "Generated"].flatMap((group) => [
-                ...within(dialog)
-                    .getByRole("region", { name: group })
-                    .querySelectorAll<HTMLElement>("button.ws-land-sample"),
-            ]),
-        );
+        // Every card in the dialog, whatever its group: the dialog lists the start page's samples and
+        // no others.
+        const inDialog = seen([...dialog.querySelectorAll<HTMLElement>("button.ws-land-sample")]);
 
         assert.isAbove(onStart.length, 20);
         assert.deepEqual(inDialog, onStart);

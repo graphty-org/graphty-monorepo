@@ -5,7 +5,7 @@ import { assert, describe, it, vi } from "vitest";
 import { modelChip } from "../modelWords";
 import {
     bindLabel,
-    cellOfLocation,
+    channelPhrase,
     channelWord,
     clockWords,
     colorName,
@@ -13,7 +13,7 @@ import {
     enumWords,
     failureWords,
     hiddenByWords,
-    locationOfCell,
+    isShaderParam,
     logUnexpected,
     madeWords,
     matchesWordStart,
@@ -106,11 +106,7 @@ describe("the Style tab's words and arrangement", () => {
         );
     });
 
-    it("maps the position grid to the element's label locations and back", () => {
-        assert.equal(locationOfCell("top-center"), "top");
-        assert.equal(locationOfCell("bottom-center"), "bottom");
-        assert.equal(cellOfLocation(undefined), "top-center");
-        assert.equal(cellOfLocation("right"), "middle-right");
+    it("names a label position in words", () => {
         assert.equal(positionWord(undefined), "Above");
         assert.equal(positionWord("bottom"), "Below");
     });
@@ -313,5 +309,16 @@ describe("model variant words", () => {
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
+    });
+});
+
+describe("a shader parameter's address in history words", () => {
+    it("tells an address from a channel and names it as the element does", () => {
+        assert.isTrue(isShaderParam("node.shaders.glass-marble.spin"));
+        assert.isFalse(isShaderParam("node.shaders"));
+        assert.isFalse(isShaderParam("node.color"));
+        assert.strictEqual(channelPhrase("node.color"), "node color");
+        // Several rows binding a parameter name the undo step by it, never by a channel word it lacks.
+        assert.match(channelPhrase("node.shaders.glass-marble.spin"), /^[a-z].* spin$/i);
     });
 });

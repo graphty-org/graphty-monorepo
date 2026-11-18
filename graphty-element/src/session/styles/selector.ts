@@ -45,10 +45,12 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { pathsRead } from "../sets/dependencies";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
+    expressionPaths,
     expressionRule,
     hasPredicate,
     hoverPredicate,
@@ -290,6 +292,19 @@ function assertSelector(selector: Selector): void {
                 match: kind,
                 kinds: SELECTOR_KINDS,
             });
+    }
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (its own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return EMPTY_PATHS;
     }
 }
 
@@ -615,13 +630,15 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 });
             }
 
-            const live = source.scope(parseScope(selectorScope(selector)));
+            const scope = selectorScope(selector);
+            const live = source.scope(parseScope(scope));
 
             return {
                 match: selector.match,
                 target,
                 test: scopePredicate(live, target),
-                paths: EMPTY_PATHS,
+                // What the rule reads ("results.louvain.group"), so the layer's reads name it.
+                paths: scope === null ? EMPTY_PATHS : Object.freeze(pathsRead(scope, queryPaths)),
                 problem: () => live.problem(),
             };
         }

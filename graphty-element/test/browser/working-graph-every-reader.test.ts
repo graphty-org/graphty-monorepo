@@ -140,6 +140,8 @@ function slots(graph: Graph, fake: FakeAccelerator | null): number | undefined {
         return fake.simulations.at(-1)?.snapshot?.nodeCount;
     }
 
+    // An engine lists `Node`s, and under renderPath "batched" a row has none until one is asked for: ask for each.
+    Array.from(graph.getDataManager().nodes.values());
     return Array.from(graph.getLayoutManager().layoutEngine?.nodes ?? []).length;
 }
 

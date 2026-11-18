@@ -15,9 +15,6 @@ import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
-// Re-export theme for tests and other modules
-export { theme } from "./theme";
-
 // Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.
@@ -76,7 +73,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace", "view", "algorithm", "acceleration"],
+        modules: ["autosave", "workspace", "view", "algorithm", "acceleration", "layout", "data", "style", "command"],
     });
     logUncaught();
     void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger

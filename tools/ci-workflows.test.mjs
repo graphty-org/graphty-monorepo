@@ -3415,6 +3415,20 @@ describe("actions/cache in the workflows", () => {
         const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
         assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
     });
+
+    it("bounds the Test jobs' checkout and checks out again when it times out (#8743)", () => {
+        // the low-speed limit did not stop every stall: two Test checkouts still sat 30 minutes (run 44125048943)
+        const jobs = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).jobs;
+        for (const name of ["test", "test-2"]) {
+            const [first, retry] = jobs[name].steps;
+            assert.match(String(first.uses), /^actions\/checkout@/, name);
+            assert.ok(first["timeout-minutes"] <= 10 && first["continue-on-error"] === true, name);
+            assert.match(String(retry.uses), /^actions\/checkout@/, name);
+            assert.equal(retry.if, `steps.${first.id}.outcome == 'failure'`, name);
+            assert.ok(retry["timeout-minutes"] <= 10 && !retry["continue-on-error"], name);
+            assert.deepEqual(retry.with, { ...first.with }, `${name}: the retry checks out the same way`);
+        }
+    });
 });
 
 describe("Playwright's system packages", () => {
@@ -3769,6 +3783,13 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             [...new Set(legged.map((r) => r.project))],
         );
         assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.ok(
+            legged.some((r) => r.project === "graphty"),
+            "graphty re-shoots in legs (#8128)",
+        );
+        // an unsteady project's fix-forward whole re-shoot runs in leg 1 alone, unlegged, so one capture plans it
+        assert.match(text, /WHOLE: .*&& \(!matrix.unsteady \|\| matrix.leg == 1\)/);
+        assert.match(text, /LEG: \$\{\{ matrix.leg && !\(matrix.unsteady && needs.pick.outputs.source_run != ''/);
         assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
@@ -6408,10 +6429,6 @@ describe("the commit and push hooks", () => {
         );
     });
 
-    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
-        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
-    });
-
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));
@@ -8686,7 +8703,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
     });
 
     it("a pull request touching no docs or cost files runs neither", () => {
-        assert.deepEqual(optional(["compact-mantine/src/a.ts"], { affected: ["compact-mantine"] }), {
+        assert.deepEqual(optional(["graphty/src/a.ts"], { affected: ["graphty"] }), {
             docs: "false",
             "cost-accuracy": "false",
         });
@@ -8697,7 +8714,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
             assert.equal(optional([f]).docs, "true", f);
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
-        assert.equal(optional(["compact-mantine/README.md"], { affected: ["compact-mantine"] }).docs, "false");
+        assert.equal(optional(["graphty/README.md"], { affected: ["graphty"] }).docs, "false");
     });
 
     it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {

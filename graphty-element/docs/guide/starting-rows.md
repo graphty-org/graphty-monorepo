@@ -13,7 +13,7 @@ await session.data.addNodes([{ id: "a" }, { id: "b" }]);
 
 await session.config.set({ startingRows: true });
 for (const row of session.styles.tree()) console.log(row.name, row.pin);
-// Everything bottom, Timeline Hidden top, Selected top, Hovered top
+// Everything bottom, Selected top, Hovered top
 
 // Hovered is an ordinary row: give it a glow, and it follows the pointer.
 const hovered = session.styles.tree().find((row) => row.name === "Hovered")!;
@@ -68,10 +68,16 @@ with `styles.addRow` like any other row.
 
 ## A Timeline Hidden row
 
-The starting rows include a Timeline Hidden row, pinned to the top below Pinned, Selected and
-Hovered. It paints the nodes and edges outside the time window, with the selector
+With `startingRows` on, the timeline adds one more row the first time it turns on (a time field is
+set with `session.time.setField`, data that declares one is loaded, or `startingRows` turns on
+while a field is set): Timeline Hidden, pinned to the top below Pinned, Selected and Hovered. It
+paints the nodes and edges outside the time window, with the selector
 `{ match: "state", state: "outsideWindow" }`: hidden by default, or grey and faint with
-`timelineHiddenLook: "ghost"`. With no time window nothing is outside one, so it paints nothing.
+`timelineHiddenLook: "ghost"`. A project without a timeline never gets it.
+
+The row is added once. The project setting `timelineHiddenAdded` records that it was, so turning
+the timeline off and on again, or deleting the row, does not bring it back; set it to `true`
+beforehand and the row is never added.
 
 ## A Pinned row
 

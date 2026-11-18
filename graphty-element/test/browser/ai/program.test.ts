@@ -164,4 +164,30 @@ describe("in-page code sandbox (built chunk)", () => {
         assert.strictEqual(result.params.cause, "program-memory");
         assert.strictEqual(openProgramContexts(), 0);
     });
+
+    it("counts large arrays against the memory limit", async () => {
+        const { runProgram, openProgramContexts } = await sandbox();
+        // QuickJS's own limit charges each allocation 8 bytes whatever its size, so 4 MB once held
+        // about 138,000 arrays of 1,000 numbers (about 1 GB). Each array is 8,000 bytes or more, so
+        // 4 MB holds at most 524; the program reports how many it holds every 50.
+        let held = 0;
+        const result = await runProgram(
+            "const a = [];\nwhile (true) {\n  a.push(new Array(1000).fill(a.length));\n  if (a.length % 50 === 0) await tools.held(a.length);\n}",
+            {
+                held: (n) => {
+                    held = n as number;
+                    return Promise.resolve(true);
+                },
+            },
+            { ...LIMITS, memoryMb: 4, maxCalls: 100_000, timeoutMs: Infinity },
+            never,
+        );
+        assert.strictEqual(result.params.cause, "program-memory");
+        assert.isAbove(held, 0);
+        // The limit is checked each time QuickJS polls for interrupts (every 10,000 of its ticks, a
+        // count it fixes), so the program passes it by what it allocates between two polls: about
+        // 2,300 arrays in all, not 138,000.
+        assert.isBelow(held, 4000);
+        assert.strictEqual(openProgramContexts(), 0);
+    });
 });

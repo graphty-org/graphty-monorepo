@@ -1,5 +1,5 @@
 /**
- * The `bfs-next-degree` kernel body (design 8.4; issue #391, the amendment to P8-T8's PD-21): Beamer's m_f measured
+ * The `bfs-next-degree` kernel body (issue #391, the amendment to Beamer's test): Beamer's m_f measured
  * EXACTLY, at the end of every level, as the out-degree sum of the vertices the level just claimed -- the next
  * frontier, which is what the next boundary decides the direction FOR. It grid-strides over the output vertex
  * queue (`nextFrontierCount`, word 1, the claim kernels' append span; `P.stride` the plan's stride), reads each
@@ -19,9 +19,9 @@
  * that misses the switch at the level that matters: the frontier of 46,524 hubs at level 1 has 13.6M out-arcs, the
  * unvisited set 7.3M, and the boundary saw the source's 86,405 instead -- top-down wrote 13.6M edge-queue entries
  * where the bottom-up sweep reads 0.6M. Measuring the next frontier's degree at claim time is Beamer's own m_f, and
- * the same word makes `unvisitedDegreeSum` exact after a bottom-up level too. Uniformity (spec 3.5 rule 1): the
- * loop holds no barrier (its trip count is per lane), and the reduction runs unconditionally after it. Body only
- * (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits of it.
+ * the same word makes `unvisitedDegreeSum` exact after a bottom-up level too. Uniformity: the
+ * loop holds no barrier (its trip count is per lane), and the reduction runs unconditionally after it. Body only;
+ * the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
 export const bfsNextDegreeWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

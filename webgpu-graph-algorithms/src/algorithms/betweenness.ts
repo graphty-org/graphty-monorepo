@@ -1,5 +1,5 @@
 /**
- * Betweenness and edge betweenness on the device (design 8.4 "Betweenness (A7)", 3.3 lines 811-812, 9.7): Brandes'
+ * Betweenness and edge betweenness on the device: Brandes'
  * algorithm as McLaughlin-Bader run it, k sources at a time.
  *
  * A source batch keeps four `n x k` arrays -- `depthK`, `sigmaK` (u32 shortest-path counts, or the f32 bits of the
@@ -28,12 +28,12 @@
  * grid, 235 x 235 raises it and 230 x 230 does not); the `@graphty/algorithms` dispatcher then throws instead of
  * returning the scores.
  *
- * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays design 4.7
+ * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays the design
  * counts plus the 4-byte log entry it omits -- as `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x
  * maxBufferSize / 16n), BC_MAX_BATCH)` (256), at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
- * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
+ * figure the host has, which over-estimates the median of the design's rule and so errs toward the frontier form --
  * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`, on a snapshot of at least `BC_EDGE_PARALLEL_MIN_NODES` nodes whose
  * degrees are not skewed (`edgeParallelEligible`, issue #776); anywhere else the frontier form was faster.
  *
@@ -155,7 +155,7 @@ interface RawBetweenness {
 }
 
 /**
- * The source batch size (design 8.4, 10.1): `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
+ * The source batch size: `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
  * 16n), BC_MAX_BATCH, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
  * four together stay inside a quarter of the largest buffer.
  * @internal
@@ -979,7 +979,7 @@ export async function edgeBetweennessWithTuning(
 }
 
 /**
- * Betweenness centrality on the device (spec 3.3 line 811, design 8.4): Brandes' algorithm, k sources per batch.
+ * Betweenness centrality on the device: Brandes' algorithm, k sources per batch.
  * Exact over every vertex by default; `sources` or `k` gives the SAMPLED form, whose scores are the unscaled sum over
  * the sources run (`sourcesUsed` beside them; multiply by `n / sourcesUsed` for the estimator of the full sum). The
  * CPU package's convention: halved on an undirected snapshot, `normalized` divides by `(n - 1)(n - 2)` directed or
@@ -1001,7 +1001,7 @@ export function betweennessCentrality(
 }
 
 /**
- * Edge betweenness centrality on the device (spec 3.3 line 812, design 8.4): the per-arc terms of the same batches,
+ * Edge betweenness centrality on the device: the per-arc terms of the same batches,
  * folded to one score per edge with `foldArcs(s, perArc, "sum")` and halved on an undirected snapshot (the two arcs
  * carry the pairs crossing the edge in each direction, so their sum counts each unordered pair twice; this is the CPU
  * package's number, and it holds for a sample too). `normalized`, sampling, `endpoints` and `sigmaOverflow` as in

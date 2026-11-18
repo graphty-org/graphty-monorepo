@@ -26,12 +26,12 @@ async function clocked(): Promise<{ session: GraphSession; advance: (ms: number)
 }
 
 /**
- * The labels of the recorded steps, oldest first.
+ * The codes of the recorded steps, oldest first.
  * @param session - The session.
- * @returns The labels.
+ * @returns The codes.
  */
-function labels(session: GraphSession): string[] {
-    return session.history.steps.map((step) => step.label);
+function codes(session: GraphSession): string[] {
+    return session.history.steps.map((step) => step.fact.code);
 }
 
 describe("what one step is", () => {
@@ -74,7 +74,7 @@ describe("what one step is", () => {
         await session.data.updateNodes([{ id: "n1", values: { w: 3 } }]);
         await session.data.updateNodes([{ id: "n1", values: {} }]);
 
-        assert.deepEqual(labels(session), ["Edited 1 node"]);
+        assert.deepEqual(codes(session), ["data.edit"]);
         session.dispose();
     });
 
@@ -85,7 +85,7 @@ describe("what one step is", () => {
             steps: [{ op: "positions.set", entries: [{ id: "n1", x: 1, y: 1, z: 1 }] }],
         });
 
-        assert.deepEqual(labels(session), ["1 change"]);
+        assert.deepEqual(codes(session), ["batch"]);
         session.dispose();
     });
 });

@@ -248,6 +248,33 @@ export function acquire(options: AcquireOptions = {}): Promise<GpuContext> {
     return createContext(dawn().gpu, options, "acquire");
 }
 
+/** A suite's one context: call it from a test to get the context (acquired on the first call); `dispose()` releases it early. */
+export interface SharedContext {
+    (t: TestContext): Promise<GpuContext>;
+    dispose(): void;
+}
+
+/**
+ * One GpuContext shared by the tests of a suite: each call runs requireGpu(t), then returns the context, acquiring
+ * it with `options` on the first call. afterAll disposes it like any acquire()d context; `dispose()` does it sooner.
+ * @param options - what acquire() takes
+ * @returns the suite's context getter
+ */
+export function sharedContext(options: AcquireOptions): SharedContext {
+    let shared: GpuContext | null = null;
+    const context = async (t: TestContext): Promise<GpuContext> => {
+        requireGpu(t);
+        shared ??= await acquire(options);
+        return shared;
+    };
+    return Object.assign(context, {
+        dispose(): void {
+            shared?.dispose();
+            shared = null;
+        },
+    });
+}
+
 /**
  * P1: a GpuContext over Dawn's `backend=null` adapter (spec 5.1: compiles pipelines, runs nothing) from a SECOND
  * GPU handle created lazily once per worker through createNodeGpu({ backend: "null", installGlobals: false });
